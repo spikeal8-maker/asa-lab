@@ -6711,6 +6711,20 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     captureFrom: number;
     captureTo: number;
   }> = [];
+  // Acquire each requested real compositor PNG before decoding or attaching any
+  // of them. The previous per-frame JSON/PNG work consumed most of the next
+  // naturally occurring 300 ms Arduino phase on the shared CI runner.
+  const acquisitions: Array<{
+    name: string;
+    path: string;
+    vector: string;
+    captureFrom: number;
+    captureTo: number;
+    captureMs: number;
+    bytes: Buffer;
+    clip: { x: number; y: number; width: number; height: number };
+    beforeShot: { paint: PaintReceipt; l: D2LReceipt };
+  }> = [];
   let previousShotAt: number | null = null;
   let previousRequested: string | null = null;
   // Open CDP once, before searching for the first live phase. Per-frame session
@@ -6794,12 +6808,49 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     const captureTo = await page.evaluate(() => performance.now());
     const bytes = Buffer.from(captured.data, 'base64');
     const captureMs = performance.now() - captureStartedAt;
+    // Persist each original screenshot immediately, even if a later
+    // scheduled phase cannot be acquired. Never retry a mismatching PNG.
     writeFileSync(path, bytes);
+    acquisitions.push({
+      name,
+      path,
+      vector,
+      captureFrom,
+      captureTo,
+      captureMs,
+      bytes,
+      clip,
+      beforeShot,
+    });
+    seekFrom = captureTo;
+  }
+  const completedAt = await page.evaluate(() => performance.now());
+  await cdp.detach();
+  const nativeChecks: Array<{
+    vector: string;
+    observedVector: string;
+    fixedGeometry: boolean;
+    coherentWitness: boolean;
+    lOff: boolean;
+  }> = [];
+  // Inspect all seven captured images afterwards. This cannot affect the
+  // natural live phase at which any original Chromium PNG was obtained.
+  for (const {
+    name,
+    path,
+    vector,
+    captureFrom,
+    captureTo,
+    captureMs,
+    bytes,
+    clip,
+    beforeShot,
+  } of acquisitions) {
     const during = JSON.parse(
       await page.evaluate(
-        ({ from, source }) => {
+        ({ from, to, source }) => {
           const probe = window as D2Window;
-          const at = performance.now();
+          const at = to;
           return JSON.stringify({
             paint: probe.__ownerPaint!.filter((row) => row.at >= from && row.at <= at),
             l: probe.__d2L!.filter((row) => row.at >= from && row.at <= at),
@@ -6824,7 +6875,7 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
             at,
           });
         },
-        { from: beforeShot.paint.at, source: stage.source },
+        { from: beforeShot.paint.at, to: captureTo, source: stage.source },
       ),
     ) as {
       paint: PaintReceipt[];
@@ -6967,10 +7018,7 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     writeFileSync(rawPath, JSON.stringify(evidence, null, 2) + '\n');
     await test.info().attach(name + '-native', { path, contentType: 'image/png' });
     await test.info().attach(name + '-raw', { path: rawPath, contentType: 'application/json' });
-    expect(fixedGeometry, 'stable actual LED/board/L geometry during PNG capture').toBe(true);
-    expect(coherentWitness, 'mounted loaded image witness during native PNG capture').toBe(true);
-    expect(observedVector, 'independently classified three-channel PNG').toBe(vector);
-    expect(lOff, 'D13 L actual PNG and complete capture window remain dark').toBe(true);
+    nativeChecks.push({ vector, observedVector, fixedGeometry, coherentWitness, lOff });
     nativeWindows.push({
       previousShotAt,
       previousRequested,
@@ -6981,12 +7029,15 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     });
     previousShotAt = beforeShot.paint.at;
     previousRequested = vector;
-    // Do not discard a naturally occurring next phase between CDP completion
-    // and processing the resulting PNG/JSON.
-    seekFrom = captureTo;
   }
-  await cdp.detach();
-  const completedAt = await page.evaluate(() => performance.now());
+  // Every requested PNG is retained and classified before a negative verdict.
+  // The original strict assertions remain unchanged and fail on any ambiguity.
+  for (const { vector, observedVector, fixedGeometry, coherentWitness, lOff } of nativeChecks) {
+    expect(fixedGeometry, 'stable actual LED/board/L geometry during PNG capture').toBe(true);
+    expect(coherentWitness, 'mounted loaded image witness during native PNG capture').toBe(true);
+    expect(observedVector, 'independently classified three-channel PNG').toBe(vector);
+    expect(lOff, 'D13 L actual PNG and complete capture window remain dark').toBe(true);
+  }
   // Only compact shot boundaries are retained here. Complete native causality,
   // source/generation and adjacency checks run on the single durable full archive.
   d2NativePending = { actionAt, completedAt, generationId, nativeWindows };
@@ -7002,6 +7053,8 @@ let d2NativePending:
         previousRequested: string | null;
         shotAt: number;
         vector: string;
+        captureFrom: number;
+        captureTo: number;
       }>;
     }
   | undefined;
