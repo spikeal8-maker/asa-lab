@@ -41,6 +41,9 @@ export function ClassroomAssignmentIssuer({
   const issueButton = useRef<HTMLButtonElement>(null);
   const editorLeaveGuard = useRef<(() => boolean) | null>(null);
   const focusFrame = useRef<number | null>(null);
+  const pendingFocus = useRef<{ source: AssignmentFlow; ticket: AssignmentFocusTicket } | null>(
+    null,
+  );
   const [lifetime] = useState(createAssignmentLifetime);
   const publisher = useClassroomFeedbackPublisher();
   const owner = useMemo(
@@ -64,6 +67,7 @@ export function ClassroomAssignmentIssuer({
       if (binding.current?.scope === scope) binding.current = null;
       if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
       focusFrame.current = null;
+      pendingFocus.current = null;
       editorLeaveGuard.current = null;
       setFlow(null);
     });
@@ -73,6 +77,7 @@ export function ClassroomAssignmentIssuer({
       if (binding.current?.scope === scope) binding.current = null;
       if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
       focusFrame.current = null;
+      pendingFocus.current = null;
       editorLeaveGuard.current = null;
     };
   }, [lifetime, owner]);
@@ -91,17 +96,20 @@ export function ClassroomAssignmentIssuer({
     };
   }, [issuing]);
 
-  function restoreFocus(source: AssignmentFlow, ticket: AssignmentFocusTicket) {
-    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+  useLayoutEffect(() => {
+    const pending = pendingFocus.current;
+    if (issuing || !pending) return;
+    pendingFocus.current = null;
+    const { source, ticket } = pending;
     const scheduled = requestAnimationFrame(() => {
       if (focusFrame.current !== scheduled) return;
       focusFrame.current = null;
       if (binding.current?.owner === source.owner && source.scope.canRestoreFocus(ticket)) {
-        issueButton.current?.focus();
+        issueButton.current?.focus({ preventScroll: true });
       }
     });
     focusFrame.current = scheduled;
-  }
+  }, [issuing]);
 
   function startFlow() {
     const current = binding.current;
@@ -110,6 +118,7 @@ export function ClassroomAssignmentIssuer({
     if (!stage) return;
     if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
     focusFrame.current = null;
+    pendingFocus.current = null;
     editorLeaveGuard.current = null;
     setNotice(null);
     setFlow({ kind: 'pick', owner, scope: current.scope, stage, publish: setNotice });
@@ -126,9 +135,9 @@ export function ClassroomAssignmentIssuer({
   function closeFlow(source: AssignmentFlow) {
     const ticket = source.scope.finish(source.stage);
     if (!ticket) return;
+    pendingFocus.current = { source, ticket };
     setFlow(null);
     editorLeaveGuard.current = null;
-    restoreFocus(source, ticket);
   }
 
   function finishAssignment(source: AssignmentFlow, message: string) {
@@ -138,9 +147,9 @@ export function ClassroomAssignmentIssuer({
     // scope or stage reaches none of these UI mutations or the publisher.
     source.publish(message);
     onAssigned?.();
+    pendingFocus.current = { source, ticket };
     setFlow(null);
     editorLeaveGuard.current = null;
-    restoreFocus(source, ticket);
   }
 
   return (
