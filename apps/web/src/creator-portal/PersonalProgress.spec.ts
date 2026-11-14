@@ -21,6 +21,7 @@ import { setTelemetryContext } from '../telemetry-context';
 import { PersonalProgress } from './PersonalProgress';
 import {
   limitedGroupRead,
+  groupRatingPreviewLimit,
   readGroupRating,
   nextLearningAction,
   readPersonalProgress,
@@ -1082,5 +1083,19 @@ describe('SP-04 actual custom-avatar image consumer', () => {
     expect(reads.mock.calls.every(([url]) => !url.includes(ticket))).toBe(true);
     await act(async () => image!.dispatchEvent(new Event('error')));
     expect(image?.getAttribute('src')).toBe(peer.avatarSrc);
+  });
+});
+
+describe('SP-04 server-bounded responsive peer counts', () => {
+  it.each([
+    [320, 2],
+    [380, 2],
+    [381, 3],
+    [390, 3],
+    [520, 3],
+    [521, 5],
+    [1024, 5],
+  ] as const)('chooses a bounded preview for width %i', (width, expected) => {
+    expect(groupRatingPreviewLimit(width)).toBe(expected);
   });
 });
