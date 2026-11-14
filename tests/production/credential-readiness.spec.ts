@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { parse } from 'yaml';
+import credentialConfiguration from '../../apps/api/src/credential-configuration.cjs';
 import {
   checkComposeCredentials,
   validateComposeCredentials,
@@ -32,24 +33,62 @@ function configuration(overrides: Record<string, string | undefined> = {}) {
 }
 
 describe('production credential preflight', () => {
-  it.each(['decoded', 'serialized'])(
-    'rejects a resolved Class Code secret copied from the %s database password',
-    (representation) => {
-      const password = 'synthetic%database-password-0123456789';
-      const database = new URL(`postgres://runtime:${encodeURIComponent(password)}@db/asa_test`);
-      const run = vi.fn(() => ({
-        status: 0,
-        stderr: '',
-        stdout: JSON.stringify(
-          configuration({
-            APP_DATABASE_URL: database.href,
-            CLASSROOM_CODE_SECRET: representation === 'decoded' ? password : database.password,
-          }),
-        ),
-      }));
-      expect(() => checkComposeCredentials(['compose', '-f', 'compose.yaml'], run)).toThrow(
-        'CLASSROOM_CODE_SECRET must be independent from database credentials',
+  describe.each(['APP_DATABASE_URL', 'DATABASE_URL', 'APP_TEST_DATABASE_URL'])(
+    'resolved database source %s',
+    (alias) => {
+      it.each(['decoded', 'serialized', 'full URL', 'malformed percent'])(
+        'rejects a Class Code secret copied from the %s representation before update',
+        (representation) => {
+          const password = 'synthetic%database-password-0123456789';
+          const database = new URL(
+            `postgres://runtime:${encodeURIComponent(password)}@db/asa_test`,
+          );
+          const url =
+            representation === 'malformed percent'
+              ? `postgres://runtime:${password}@db/asa_test`
+              : database.href;
+          const secret =
+            representation === 'full URL'
+              ? url
+              : representation === 'serialized'
+                ? database.password
+                : password;
+          const resolved = configuration({
+            DATABASE_URL: 'postgres://runtime:independent-normal-password@postgres/asa_test',
+            APP_TEST_DATABASE_URL: 'postgres://runtime:independent-test-password@postgres/asa_test',
+            [alias]: url,
+            CLASSROOM_CODE_SECRET: secret,
+          });
+          expect(() =>
+            credentialConfiguration.validateCredentialConfiguration(
+              resolved.services.api.environment,
+            ),
+          ).toThrow(credentialConfiguration.ClassroomCodeSecretConfigError);
+          let failure: unknown;
+          try {
+            validateComposeCredentials(resolved);
+          } catch (error) {
+            failure = error;
+          }
+          expect(failure).toBeInstanceOf(credentialConfiguration.ClassroomCodeSecretConfigError);
+          expect(failure).toHaveProperty(
+            'message',
+            'CLASSROOM_CODE_SECRET must be independent from database credentials',
+          );
+          expect(String(failure)).not.toContain(secret);
+          expect(String(failure)).not.toContain(url);
+        },
       );
+
+      it('accepts an independent explicit secret with this database source present', () => {
+        expect(() =>
+          validateComposeCredentials(
+            configuration({
+              [alias]: 'postgres://runtime:independent-database-password@postgres/asa_test',
+            }),
+          ),
+        ).not.toThrow();
+      });
     },
   );
 
