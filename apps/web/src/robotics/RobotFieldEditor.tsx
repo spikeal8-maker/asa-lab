@@ -352,7 +352,8 @@ export function RobotFieldEditor({
   const [turns, setTurns] = useState(0);
   const [selection, setSelection] = useState<RoboticsObjectKey | null>(null);
   const [objectEditorOpen, setObjectEditorOpen] = useState(false);
-  const [objectFlyout, setObjectFlyout] = useState({ x: 40, y: 12 });
+  const [dockTab, setDockTab] = useState<'objects' | 'properties' | 'field'>('objects');
+  const [fieldSettingsOpen, setFieldSettingsOpen] = useState(false);
   const [tracePoints, setTracePoints] = useState<RoboticsPoint[]>([]);
   const [traceCursor, setTraceCursor] = useState<RoboticsPoint | null>(null);
   const [draft, setDraft] = useState<RoboticsWorldDocument | null>(null);
@@ -372,7 +373,6 @@ export function RobotFieldEditor({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const propertiesButton = useRef<HTMLButtonElement>(null);
-  const inspectorObject = useRef<HTMLDivElement>(null);
   const resizeDrag = useRef<{
     pointerId: number;
     svg: SVGSVGElement;
@@ -439,52 +439,6 @@ export function RobotFieldEditor({
   }
   const selectedTool = TOOLS.find((item) => item.id === tool)!;
 
-  useEffect(() => {
-    if (!selection || !objectEditorOpen) return;
-    const root = canvasRef.current?.closest<HTMLElement>('.robotics-field-editor-body');
-    if (!root) return;
-    const position = () => {
-      const svg = canvasRef.current?.querySelector('svg.robotics-field');
-      const element = [...(svg?.querySelectorAll('[data-scene-key]') ?? [])].find(
-        (node) => node.getAttribute('data-scene-key') === selection,
-      );
-      const rootRect = root.getBoundingClientRect();
-      const objectRect = element?.getBoundingClientRect();
-      if (!objectRect) return;
-      const editorWidth =
-        (canvasRef.current?.getBoundingClientRect().right ?? rootRect.right) - rootRect.left;
-      const size = Math.min(300, editorWidth - 16);
-      const objectLeft = objectRect.left - rootRect.left;
-      const objectRight = objectRect.right - rootRect.left;
-      const rightSide = objectRight + 12;
-      const leftSide = objectLeft - size - 12;
-      // Never cover the selected object's resize handles when there is space beside it.
-      const x =
-        rightSide + size <= editorWidth - 8
-          ? rightSide
-          : leftSide >= 8
-            ? leftSide
-            : Math.max(8, Math.min(editorWidth - size - 8, objectLeft));
-      const maxPanelHeight = Math.min(320, rootRect.height * 0.6);
-      const y = Math.max(
-        8,
-        Math.min(rootRect.height - maxPanelHeight - 8, objectRect.top - rootRect.top - 20),
-      );
-      setObjectFlyout((old) =>
-        Math.abs(old.x - x) < 1 && Math.abs(old.y - y) < 1 ? old : { x, y },
-      );
-    };
-    const frame = requestAnimationFrame(position);
-    window.addEventListener('resize', position);
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(position);
-    observer?.observe(root);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener('resize', position);
-      observer?.disconnect();
-    };
-  }, [selection, objectEditorOpen, world, cameraControl.camera]);
-
   function releaseDrag(releaseCapture = true) {
     const current = drag.current;
     const resizing = resizeDrag.current;
@@ -525,12 +479,19 @@ export function RobotFieldEditor({
     setError(null);
     return true;
   }
+  function openDockProperties() {
+    setObjectEditorOpen(true);
+    setDockTab('properties');
+    setPropertiesOpen(true);
+  }
   function selectAdded(key: RoboticsObjectKey) {
     setSelection(key);
     setObjectEditorOpen(true);
+    // A newly placed item opens its properties; the catalogue stays one tab away.
+    setDockTab('properties');
+    setPropertiesOpen(true);
     setTool('select');
     setPan(false);
-    requestAnimationFrame(() => inspectorObject.current?.scrollTo({ top: 0 }));
   }
   const dynamicCount = world.field.balls.length + (world.field.bodies?.length ?? 0);
   function isMaxed(kind: Tool): boolean {
@@ -683,7 +644,7 @@ export function RobotFieldEditor({
     }
     if (commit(next)) {
       setSelection((groupId ? 'mark-group:' + groupId : 'mark:' + firstId) as RoboticsObjectKey);
-      setObjectEditorOpen(true);
+      openDockProperties();
       setTool('select');
       clearTrace();
     }
@@ -731,7 +692,7 @@ export function RobotFieldEditor({
       };
       if (commit(next)) {
         setSelection(('mark:' + id) as RoboticsObjectKey);
-        setObjectEditorOpen(true);
+        openDockProperties();
         setTool('select');
         clearTrace();
       }
@@ -977,7 +938,7 @@ export function RobotFieldEditor({
           resizing.part,
           point,
         );
-        if (commit(next)) setObjectEditorOpen(true);
+        if (commit(next)) openDockProperties();
       } catch (error) {
         fail(error);
       }
@@ -993,7 +954,7 @@ export function RobotFieldEditor({
       Math.hypot(point.xMeters - current.start.xMeters, point.yMeters - current.start.yMeters) <
         0.003
     ) {
-      setObjectEditorOpen(true);
+      openDockProperties();
       return;
     }
     try {
@@ -1154,7 +1115,14 @@ export function RobotFieldEditor({
             aria-controls="robotics-field-catalog"
             aria-expanded={propertiesOpen}
             title="Показать элементы поля и их настройки"
-            onClick={() => setPropertiesOpen((value) => !value)}
+            onClick={() => {
+              if (dockTab !== 'objects') {
+                setDockTab('objects');
+                setPropertiesOpen(true);
+              } else {
+                setPropertiesOpen((value) => !value);
+              }
+            }}
           >
             <span aria-hidden="true">▦</span>
             Элементы поля
@@ -1289,7 +1257,7 @@ export function RobotFieldEditor({
             const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
             if (key) {
               setSelection(canonicalRoboticsObjectKey(world, key));
-              setObjectEditorOpen(true);
+              openDockProperties();
             }
           }}
           onDragOver={dragOverCanvas}
@@ -1376,11 +1344,6 @@ export function RobotFieldEditor({
           id="robotics-field-catalog"
           className="robotics-scene-inspector"
           aria-label="Свойства поля и предмета"
-          onFocusCapture={() => {
-            // Field controls cannot be used while a floating object inspector
-            // obscures them, especially on 320-390px screens.
-            setObjectEditorOpen(false);
-          }}
           onKeyDown={(event) => {
             if (event.key === 'Escape' && propertiesButton.current?.getClientRects().length) {
               event.stopPropagation();
@@ -1388,181 +1351,308 @@ export function RobotFieldEditor({
             }
           }}
         >
-          <div className="robotics-field-palette-heading">
-            <strong>Элементы поля</strong>
+          <div className="robotics-field-dock-tabs" role="tablist" aria-label="Разделы панели поля">
             <button
               type="button"
-              className="robotics-field-palette-close"
-              aria-label="Закрыть каталог элементов"
+              role="tab"
+              data-dock-tab="objects"
+              aria-selected={dockTab === 'objects'}
+              aria-controls="robotics-field-dock-catalog"
+              tabIndex={dockTab === 'objects' ? 0 : -1}
+              onClick={() => {
+                setFieldSettingsOpen(false);
+                setDockTab('objects');
+              }}
+            >
+              Объекты
+            </button>
+            <button
+              type="button"
+              role="tab"
+              data-dock-tab="properties"
+              aria-selected={dockTab === 'properties'}
+              aria-controls="robotics-field-dock-properties"
+              tabIndex={dockTab === 'properties' ? 0 : -1}
+              onClick={() => {
+                setFieldSettingsOpen(false);
+                setDockTab('properties');
+              }}
+            >
+              Свойства
+            </button>
+            <button
+              type="button"
+              role="tab"
+              data-dock-tab="field"
+              aria-label="Настройки поля"
+              aria-selected={dockTab === 'field'}
+              aria-controls="robotics-field-dock-settings"
+              tabIndex={dockTab === 'field' ? 0 : -1}
+              onClick={() => setDockTab('field')}
+            >
+              Поле
+            </button>
+            <button
+              type="button"
+              className="robotics-field-dock-close"
+              aria-label="Закрыть панель поля"
               onClick={closeProperties}
             >
               ×
             </button>
           </div>
-          <div className="robotics-field-palette" data-testid="robotics-field-palette">
-            {PALETTE_GROUPS.map((group) => (
-              <section
-                className="robotics-field-palette-section"
-                key={group.title}
-                aria-label={group.title}
-              >
-                <h3>{group.title}</h3>
-                <div className="robotics-field-palette-grid">
-                  {group.tools.map((kind) => {
-                    const item = TOOLS.find((entry) => entry.id === kind)!;
-                    const disabled = running || isMaxed(kind) || (item.extended && !extended);
-                    return (
-                      <button
-                        key={kind}
-                        type="button"
-                        className="robotics-field-palette-card"
-                        data-robotics-palette-tool={kind}
-                        aria-label={item.label}
-                        aria-pressed={tool === kind && !pan}
-                        title={
-                          item.extended && !extended
-                            ? 'Включите расширенное поле в настройках'
-                            : 'Перетащите на поле или выберите и нажмите на место'
-                        }
-                        disabled={disabled}
-                        draggable={!disabled}
-                        onDragStart={(event) => {
-                          event.dataTransfer.setData('application/x-asa-robotics-field-tool', kind);
-                          event.dataTransfer.setData('text/plain', kind);
-                          event.dataTransfer.effectAllowed = 'copy';
-                        }}
-                        onClick={() => {
-                          releaseDrag();
-                          clearTrace();
-                          setTool(kind);
-                          setSelection(null);
-                          // A selected object's floating inspector must not cover
-                          // pointer gestures when the user starts drawing a new item.
-                          setObjectEditorOpen(false);
-                          setPan(false);
-                          setError(null);
-                          if (window.matchMedia('(max-width: 760px)').matches)
-                            setPropertiesOpen(false);
-                        }}
-                      >
-                        <span className="robotics-field-palette-art">
-                          <FieldToolArtwork kind={kind} />
-                        </span>
-                        <span className="robotics-field-palette-name">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-          <section
-            className="robotics-field-palette-section robotics-field-import-section"
-            aria-label="Файлы поля"
+          <div
+            id="robotics-field-dock-properties"
+            className="robotics-field-dock-properties"
+            role="region"
+            aria-label="Свойства предмета"
+            hidden={dockTab !== 'properties'}
           >
-            <h3>Файлы поля</h3>
-            <div className="robotics-field-file-actions">
-              <button
-                type="button"
-                title="Загрузить изображение PNG, JPEG или WebP"
-                disabled={running}
-                aria-label="Добавить изображение"
-                onClick={() => imageInputRef.current?.click()}
-              >
-                <span aria-hidden="true">▧</span>
-                <span>Картинка</span>
-              </button>
-              <button
-                type="button"
-                title="Заменить поле из локального JSON, сохранив робота, электронику и код"
-                disabled={running}
-                aria-label="Импортировать поле JSON"
-                onClick={() => jsonInputRef.current?.click()}
-              >
-                <span aria-hidden="true">{'{ }'}</span>
-                <span>Импорт JSON</span>
-              </button>
-              <button
-                type="button"
-                title="Скачать поле и предметы в JSON"
-                aria-label="Экспортировать поле JSON"
-                onClick={exportFieldFile}
-              >
-                <span aria-hidden="true">⇩</span>
-                <span>Сохранить JSON</span>
-              </button>
-            </div>
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="robotics-visually-hidden"
-              tabIndex={-1}
-              aria-label="Файл изображения поля"
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = '';
-                if (file) void addImageFile(file);
-              }}
-            />
-            <input
-              ref={jsonInputRef}
-              type="file"
-              accept=".json,application/json"
-              className="robotics-visually-hidden"
-              tabIndex={-1}
-              aria-label="Файл JSON поля"
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = '';
-                if (file) void readFieldFile(file);
-              }}
-            />
-          </section>
-          {!running && tool !== 'select' ? (
-            <div className="robotics-field-palette-action">
-              <span role="status">
-                {maxed
-                  ? 'Лимит элементов достигнут'
-                  : tool === 'line'
-                    ? 'Щелкните точки линии, правой кнопкой мыши или Enter завершите. Esc отменит.'
-                    : tool === 'curve'
-                      ? 'Кривая: начало → точка изгиба → конец (три щелчка).'
-                      : 'Выбран: ' + selectedTool.label + '. Нажмите на поле.'}
-              </span>
-              {tool !== 'line' && tool !== 'curve' ? (
-                <button type="button" disabled={maxed} onClick={() => add()}>
-                  Добавить
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {!running && tool === 'stamp' ? (
-            <div className="robotics-field-stamp-controls">
-              <select
-                aria-label="Штамп трассы"
-                value={stamp}
-                onChange={(event) => {
-                  const next = STAMPS.find((item) => item.id === event.target.value);
-                  if (next) setStamp(next.id);
+            {selection && objectEditorOpen && objects.some((item) => item.key === selection) ? (
+              <div
+                className="robotics-field-object-dock"
+                role="dialog"
+                aria-label="Параметры выбранного объекта"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.stopPropagation();
+                    setObjectEditorOpen(false);
+                    setDockTab('objects');
+                    if (window.matchMedia('(max-width: 1279px)').matches) closeProperties();
+                  }
                 }}
               >
-                {STAMPS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+                <div className="robotics-object-flyout-header">
+                  <strong>
+                    {objects.find((item) => item.key === selection)?.label?.split(' · ')[0] ??
+                      'Объект'}
+                  </strong>
+                  <button
+                    type="button"
+                    aria-label="Закрыть параметры объекта"
+                    onClick={() => {
+                      setObjectEditorOpen(false);
+                      setDockTab('objects');
+                      if (window.matchMedia('(max-width: 1279px)').matches) closeProperties();
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <RobotObjectInspector
+                  world={world}
+                  selection={selection}
+                  running={running}
+                  onCommit={commit}
+                  onError={setError}
+                  onRotate={rotate}
+                  onDuplicate={duplicate}
+                  onRemove={remove}
+                />
+              </div>
+            ) : dockTab === 'properties' ? (
+              <p className="robotics-selection-hint">
+                Выберите предмет на поле, чтобы изменить его свойства.
+              </p>
+            ) : null}
+          </div>
+          <div
+            id="robotics-field-dock-catalog"
+            className="robotics-field-dock-catalog"
+            role="region"
+            aria-label="Объекты поля"
+            hidden={dockTab !== 'objects'}
+          >
+            <div className="robotics-field-palette-heading">
+              <strong>Элементы поля</strong>
               <button
                 type="button"
-                aria-label="Повернуть шаблон на 90 градусов"
-                onClick={() => setTurns((value) => (value + 1) % 4)}
+                className="robotics-field-palette-close"
+                aria-label="Закрыть каталог элементов"
+                onClick={closeProperties}
               >
-                ↻ {turns * 90}°
+                ×
               </button>
             </div>
-          ) : null}
-          <details className="robotics-field-settings-sheet">
+            <div className="robotics-field-palette" data-testid="robotics-field-palette">
+              {PALETTE_GROUPS.map((group) => (
+                <section
+                  className="robotics-field-palette-section"
+                  key={group.title}
+                  aria-label={group.title}
+                >
+                  <h3>{group.title}</h3>
+                  <div className="robotics-field-palette-grid">
+                    {group.tools.map((kind) => {
+                      const item = TOOLS.find((entry) => entry.id === kind)!;
+                      const disabled = running || isMaxed(kind) || (item.extended && !extended);
+                      return (
+                        <button
+                          key={kind}
+                          type="button"
+                          className="robotics-field-palette-card"
+                          data-robotics-palette-tool={kind}
+                          aria-label={item.label}
+                          aria-pressed={tool === kind && !pan}
+                          title={
+                            item.extended && !extended
+                              ? 'Включите расширенное поле в настройках'
+                              : 'Перетащите на поле или выберите и нажмите на место'
+                          }
+                          disabled={disabled}
+                          draggable={!disabled}
+                          onDragStart={(event) => {
+                            event.dataTransfer.setData(
+                              'application/x-asa-robotics-field-tool',
+                              kind,
+                            );
+                            event.dataTransfer.setData('text/plain', kind);
+                            event.dataTransfer.effectAllowed = 'copy';
+                          }}
+                          onClick={() => {
+                            releaseDrag();
+                            clearTrace();
+                            setTool(kind);
+                            setSelection(null);
+                            // A selected object's floating inspector must not cover
+                            // pointer gestures when the user starts drawing a new item.
+                            setObjectEditorOpen(false);
+                            setPan(false);
+                            setError(null);
+                            if (window.matchMedia('(max-width: 760px)').matches)
+                              setPropertiesOpen(false);
+                          }}
+                        >
+                          <span className="robotics-field-palette-art">
+                            <FieldToolArtwork kind={kind} />
+                          </span>
+                          <span className="robotics-field-palette-name">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+            <section
+              className="robotics-field-palette-section robotics-field-import-section"
+              aria-label="Файлы поля"
+            >
+              <h3>Файлы поля</h3>
+              <div className="robotics-field-file-actions">
+                <button
+                  type="button"
+                  title="Загрузить изображение PNG, JPEG или WebP"
+                  disabled={running}
+                  aria-label="Добавить изображение"
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  <span aria-hidden="true">▧</span>
+                  <span>Картинка</span>
+                </button>
+                <button
+                  type="button"
+                  title="Заменить поле из локального JSON, сохранив робота, электронику и код"
+                  disabled={running}
+                  aria-label="Импортировать поле JSON"
+                  onClick={() => jsonInputRef.current?.click()}
+                >
+                  <span aria-hidden="true">{'{ }'}</span>
+                  <span>Импорт JSON</span>
+                </button>
+                <button
+                  type="button"
+                  title="Скачать поле и предметы в JSON"
+                  aria-label="Экспортировать поле JSON"
+                  onClick={exportFieldFile}
+                >
+                  <span aria-hidden="true">⇩</span>
+                  <span>Сохранить JSON</span>
+                </button>
+              </div>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="robotics-visually-hidden"
+                tabIndex={-1}
+                aria-label="Файл изображения поля"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (file) void addImageFile(file);
+                }}
+              />
+              <input
+                ref={jsonInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="robotics-visually-hidden"
+                tabIndex={-1}
+                aria-label="Файл JSON поля"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (file) void readFieldFile(file);
+                }}
+              />
+            </section>
+            {!running && tool !== 'select' ? (
+              <div className="robotics-field-palette-action">
+                <span role="status">
+                  {maxed
+                    ? 'Лимит элементов достигнут'
+                    : tool === 'line'
+                      ? 'Щелкните точки линии, правой кнопкой мыши или Enter завершите. Esc отменит.'
+                      : tool === 'curve'
+                        ? 'Кривая: начало → точка изгиба → конец (три щелчка).'
+                        : 'Выбран: ' + selectedTool.label + '. Нажмите на поле.'}
+                </span>
+                {tool !== 'line' && tool !== 'curve' ? (
+                  <button type="button" disabled={maxed} onClick={() => add()}>
+                    Добавить
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {!running && tool === 'stamp' ? (
+              <div className="robotics-field-stamp-controls">
+                <select
+                  aria-label="Штамп трассы"
+                  value={stamp}
+                  onChange={(event) => {
+                    const next = STAMPS.find((item) => item.id === event.target.value);
+                    if (next) setStamp(next.id);
+                  }}
+                >
+                  {STAMPS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  aria-label="Повернуть шаблон на 90 градусов"
+                  onClick={() => setTurns((value) => (value + 1) % 4)}
+                >
+                  ↻ {turns * 90}°
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <details
+            id="robotics-field-dock-settings"
+            className="robotics-field-settings-sheet"
+            role="region"
+            aria-label="Настройки сцены"
+            open={dockTab === 'field' || fieldSettingsOpen}
+            onToggle={(event) => {
+              // Opening this section from the Field tab is temporary. Do not
+              // leave it expanded over the object catalogue on tab changes.
+              if (dockTab !== 'field') setFieldSettingsOpen(event.currentTarget.open);
+            }}
+          >
             <summary>Настройки поля</summary>
             <RobotFieldSettings
               world={world}
@@ -1575,44 +1665,6 @@ export function RobotFieldEditor({
             />
           </details>
         </aside>
-        {selection && objectEditorOpen && objects.some((item) => item.key === selection) ? (
-          <div
-            ref={inspectorObject}
-            className="robotics-field-object-flyout"
-            role="dialog"
-            aria-label="Параметры выбранного объекта"
-            style={{ left: objectFlyout.x, top: objectFlyout.y }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.stopPropagation();
-                setObjectEditorOpen(false);
-              }
-            }}
-          >
-            <div className="robotics-object-flyout-header">
-              <strong>
-                {objects.find((item) => item.key === selection)?.label?.split(' · ')[0] ?? 'Объект'}
-              </strong>
-              <button
-                type="button"
-                aria-label="Закрыть параметры объекта"
-                onClick={() => setObjectEditorOpen(false)}
-              >
-                ×
-              </button>
-            </div>
-            <RobotObjectInspector
-              world={world}
-              selection={selection}
-              running={running}
-              onCommit={commit}
-              onError={setError}
-              onRotate={rotate}
-              onDuplicate={duplicate}
-              onRemove={remove}
-            />
-          </div>
-        ) : null}
       </div>
     </>
   );
