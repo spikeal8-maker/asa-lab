@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "upstreamRepository": "https://github.com/fatedier/frp",
+  "candidateVersion": "0.71.1",
+  "baselineVersion": "0.69.1",
+  "releases": {
+    "0.71.1": {
+      "publishedAt": "2026-10-14T09:52:45Z",
+      "releaseUrl": "https://github.com/fatedier/frp/releases/tag/v0.71.1",
+      "assets": {
+        "linux-amd64": {
+          "file": "frp_0.71.1_linux_amd64.tar.gz",
+          "url": "https://github.com/fatedier/frp/releases/download/v0.71.1/frp_0.71.1_linux_amd64.tar.gz",
+          "sha256": "1d9875210972a5d1a62b2dc4c48df45ab0af05d3ca1b5e494a014428259df803",
+          "sizeBytes": 14140587
+        },
+        "windows-amd64": {
+          "file": "frp_0.71.1_windows_amd64.zip",
+          "url": "https://github.com/fatedier/frp/releases/download/v0.71.1/frp_0.71.1_windows_amd64.zip",
+          "sha256": "b90074b2b6a1d792a7a40f085ac6d276bcab2d1bc60201f8a86ca53ce65ce821",
+          "sizeBytes": 14152383
+        }
+      }
+    },
+    "0.69.1": {
+      "publishedAt": "2026-06-01T10:17:17Z",
+      "releaseUrl": "https://github.com/fatedier/frp/releases/tag/v0.69.1",
+      "assets": {
+        "linux-amd64": {
+          "file": "frp_0.69.1_linux_amd64.tar.gz",
+          "url": "https://github.com/fatedier/frp/releases/download/v0.69.1/frp_0.69.1_linux_amd64.tar.gz",
+          "sha256": "7be257b72dbbc60bcb3e0e25a5afd1dfac7b63f897084864d3c956dd3d5674e1",
+          "sizeBytes": 14189005
+        },
+        "windows-amd64": {
+          "file": "frp_0.69.1_windows_amd64.zip",
+          "url": "https://github.com/fatedier/frp/releases/download/v0.69.1/frp_0.69.1_windows_amd64.zip",
+          "sha256": "829ac915f8655d4d4e021b8db61b46c3445205ed80d32b04cda7fa89d87c46e0",
+          "sizeBytes": 14192042
+        }
+      }
+    }
+  }
+}
