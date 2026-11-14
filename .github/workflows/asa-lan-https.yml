@@ -1,0 +1,37 @@
+name: ASA LAN HTTPS Entry
+on:
+  pull_request:
+    paths:
+      - 'tools/bootstrap/lan-https-entry.py'
+      - 'tools/bootstrap/trust-local-https.ps1'
+      - 'tools/bootstrap/test_lan_https_entry.py'
+      - '.github/workflows/asa-lan-https.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-https-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile deployment helpers
+        run: python3 -m py_compile tools/bootstrap/lan-https-entry.py tools/bootstrap/test_lan_https_entry.py
+      - name: Isolated contract tests (no DB or network mutation)
+        run: python3 tools/bootstrap/test_lan_https_entry.py
+  windows-onboarding-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse script without executing certificate or SSH operations
+        shell: powershell
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$pwd/tools/bootstrap/trust-local-https.ps1",
+            [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -ne 0) { throw 'Windows certificate onboarding syntax failed' }
+          Write-Host 'PASS: parsed only; trust store and network unchanged'
