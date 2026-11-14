@@ -59,6 +59,13 @@ describe('retained log reader and archive', () => {
         truncated: false,
       });
       const robotics = row(2, '2026-11-11T17:12:00.000Z', '/api/robotics/projects');
+      const containerExit = {
+        kind: 'container_state',
+        service: 'api',
+        Status: 'exited',
+        ExitCode: 0,
+        OOMKilled: false,
+      };
       const rows = [
         row(1, '2026-11-11T16:35:00.000Z', '/api/ai/chat'),
         robotics,
@@ -67,6 +74,22 @@ describe('retained log reader and archive', () => {
           ...row(4, '2026-11-11T17:13:00.000Z', '/'),
           source: 'metrics',
           origin: 'provider:comfyui',
+        },
+        {
+          ...row(5, '2026-11-11T17:14:00.000Z', '/'),
+          message: JSON.stringify(containerExit),
+        },
+        {
+          ...row(6, '2026-11-11T17:14:01.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, ExitCode: 1 }),
+        },
+        {
+          ...row(7, '2026-11-11T17:14:02.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, OOMKilled: true }),
+        },
+        {
+          ...row(8, '2026-11-11T17:14:03.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, health: 'unhealthy' }),
         },
         row(3, '2026-11-11T17:15:00.000Z', '/api/robotics/projects', 'warn'),
       ];
@@ -102,9 +125,17 @@ describe('retained log reader and archive', () => {
         to: '2026-11-11T17:20:00.000Z',
         points: [
           { at: '2026-11-11T16:00:00.000Z', counts: { ai: 1 } },
-          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1 } },
+          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1, api: 3 } },
         ],
       });
+      const journal = await queryLogs(
+        root,
+        { ...filter, from: rows[0]!.time, to: rows.at(-1)!.time },
+        20,
+      );
+      expect(journal.items).toContainEqual(
+        expect.objectContaining({ message: JSON.stringify(containerExit) }),
+      );
       expect(
         await errorTrend(root, {
           from: rows[0]!.time,

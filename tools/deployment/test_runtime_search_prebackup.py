@@ -87,7 +87,7 @@ class RuntimeSearchPrebackupTests(unittest.TestCase):
 
         return FakeInstallation, runtime, calls, urlopen
 
-    def test_update_backup_and_its_finally_verify_only_installed_runtime(self):
+    def test_failed_online_prebackup_keeps_only_installed_runtime_running(self):
         for search in (False, True):
             with self.subTest(installed_search=search), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -112,23 +112,30 @@ class RuntimeSearchPrebackupTests(unittest.TestCase):
                     "check_resources": lambda *a: None,
                     "Installation": factory,
                 }
-                # Exercise real export_backup and its real finally/wait_ready.
-                # Fail at the first dump instead of exporting any application data.
+                def fail_snapshot(install, storage, partial):
+                    self.assertEqual(install.process_env["ASA_BUILD_REVISION"], OLD)
+                    self.assertEqual(install.process_env.get("ASA_SEARCH_IMAGE"),
+                                     "installed-search-digest" if search else None)
+                    self.assertEqual(storage["id"], "minio")
+                    self.assertTrue(partial.is_dir())
+                    raise Blocked("TEST_DUMP", "injected dump failure", "Test only")
+
+                # Exercise the real export and its cleanup after a snapshot failure.
                 with contextlib.ExitStack() as stack:
                     for name, replacement in stubs.items():
                         stack.enter_context(patch.object(asa_manager, name, replacement))
                     stack.enter_context(patch("deployment.system.urllib.request.urlopen", urlopen))
-                    stack.enter_context(patch.object(backup, "db_command", side_effect=Blocked("TEST_DUMP", "injected dump failure", "Test only")))
+                    stack.enter_context(patch.object(backup, "copy_online_objects", side_effect=fail_snapshot))
                     with self.assertRaises(Blocked) as problem:
                         asa_manager.update(factory(root))
                 self.assertEqual(problem.exception.code, "TEST_DUMP")
                 self.assertEqual(len(selected), 1)
                 self.assertEqual(selected[0].process_env["ASA_SEARCH_IMAGE"], RELEASE["images"]["search"])
-                self.assertIn(("start", "web", "api", "scratch", "minio"), calls)
                 search_calls = [call for call in calls if call[:3] == ("exec", "-T", "search")]
-                self.assertEqual(len(search_calls), 6 if search else 0)  # initial + backup + finally, revision and health
-                self.assertFalse(any(call[:1] == ("up",) for call in calls))
+                self.assertEqual(len(search_calls), 4 if search else 0)  # initial and backup, revision and health
+                self.assertFalse(any(call[0] in {"start", "stop", "up"} for call in calls))
                 self.assertFalse((root / ".asa" / "maintenance.json").exists())
+                self.assertEqual(list((root / "backups").iterdir()), [])
 
     def test_target_search_remains_mandatory_and_checks_revision_and_health(self):
         with tempfile.TemporaryDirectory() as directory:
