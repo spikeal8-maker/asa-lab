@@ -47,20 +47,33 @@ const BASES: Record<ProgressMetricNameV1, ProgressCoverageV1['basis']> = {
   activePublicWorks: 'current_catalog_visibility',
 };
 
-/** Ticket privacy requires a server-only key independent of the learner's
- * own cookie, which is potentially inspectable by that learner. The optional
- * stable deployment key allows tickets to survive API replica handoffs.
- * Without one, each API process uses a strong ephemeral secret and restarting
- * invalidates outstanding pages (the client may start again). No fail-open
- * deterministic fallback is allowed. Never log or expose the secret.
+/** A user-readable cookie alone must never derive a peer ticket key.
+ * Explicit SP-04 server secret takes precedence, otherwise derive a separate
+ * subkey from the stable private settings key already installed by ASA Lab.
+ * Both support API replica handoffs. Only installations with no valid shared
+ * key fall back to strong per-process randomness and fail closed on restart.
+ * Never log or expose either secret or derive a key from public inputs.
  */
 const RATING_TICKET_MASTER_KEY = (() => {
-  const configured = process.env['ASA_SP04_TICKET_SECRET'];
-  if (configured !== undefined && configured !== '') {
+  const configured = process.env['ASA_SP04_TICKET_SECRET']?.trim();
+  if (configured) {
     if (!/^[a-fA-F0-9]{64}$/.test(configured))
       throw new Error('ASA_SP04_TICKET_SECRET must be a 32-byte hexadecimal server secret');
     return Buffer.from(configured, 'hex');
   }
+  // ASA Lab's production installer already provisions this durable, private
+  // 32-byte settings key for all API replicas. Derive a domain-separated SP-04
+  // key instead of forcing an unrelated new secret during rollout.
+  const shared = process.env['ASA_SETTINGS_ENCRYPTION_KEY']?.trim() ?? '';
+  const sharedBytes = /^[a-fA-F0-9]{64}$/.test(shared)
+    ? Buffer.from(shared, 'hex')
+    : /^[A-Za-z0-9_-]{43}$/.test(shared)
+      ? Buffer.from(shared, 'base64url')
+      : null;
+  if (sharedBytes?.length === 32)
+    return createHmac('sha256', sharedBytes).update('asa:sp04:ticket:master:v1').digest();
+  // Test/dev installations may intentionally have no shared settings key;
+  // fail closed on restart/replica handoff, never use a public-derived key.
   return randomBytes(32);
 })();
 

@@ -495,6 +495,66 @@ describe('SP-04 learner-only group rating API', () => {
     }
   });
 
+  it.each(['hex', 'base64url'] as const)(
+    'reopens encrypted peer image tickets after an API module restart using existing %s settings key',
+    async (format) => {
+      const originalKey = Buffer.from('b3'.repeat(32), 'hex');
+      const settingsKey =
+        format === 'hex' ? originalKey.toString('hex') : originalKey.toString('base64url');
+      vi.stubEnv('ASA_SETTINGS_ENCRYPTION_KEY', settingsKey);
+      vi.stubEnv('ASA_SP04_TICKET_SECRET', '');
+      const newController = (Controller: typeof PersonalProgressController, data: unknown) => {
+        const query = vi.fn(async () => ({ rows: [{ result: data }] }));
+        const resolve = vi.fn(async () => ({ accountId: ACCOUNT, principalId: PRINCIPAL }));
+        const resolveExistingState = vi.fn();
+        return {
+          query,
+          controller: new Controller(
+            { query } as unknown as pg.Pool,
+            { resolve } as unknown as ActiveContextUseCase,
+            { resolveExistingState } as unknown as SeatContextUseCase,
+          ),
+        };
+      };
+      try {
+        vi.resetModules();
+        const firstModule = await import('./personal-progress.controller.js');
+        const first = newController(firstModule.PersonalProgressController, page());
+        const firstPage = await first.controller.accountRating(REQUEST, CLASS);
+        const imageTicket = firstPage.peers[1]!.avatarTicket!;
+        expect(imageTicket).toMatch(/^[A-Za-z0-9_-]+$/);
+        expect(imageTicket).not.toContain(second);
+        vi.resetModules();
+        const secondModule = await import('./personal-progress.controller.js');
+        const secondController = newController(secondModule.PersonalProgressController, [
+          { seatId: second, dataUrl: avatarDataUrl },
+        ]);
+        const images = await secondController.controller.accountRatingAvatars(REQUEST, CLASS, {
+          tickets: [imageTicket],
+        });
+        expect(images).toEqual({
+          items: [{ ticket: imageTicket, dataUrl: avatarDataUrl }],
+        });
+        expect(secondController.query).toHaveBeenCalledTimes(1);
+        // The same cookie with a rotated server-held settings key cannot
+        // decrypt a ticket issued by the old replica/process.
+        vi.stubEnv('ASA_SETTINGS_ENCRYPTION_KEY', 'c4'.repeat(32));
+        vi.resetModules();
+        const rotatedModule = await import('./personal-progress.controller.js');
+        const rotated = newController(rotatedModule.PersonalProgressController, []);
+        await expect(
+          rotated.controller.accountRatingAvatars(REQUEST, CLASS, {
+            tickets: [imageTicket],
+          }),
+        ).rejects.toMatchObject({ status: 400 });
+        expect(rotated.query).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+      }
+    },
+  );
+
   it('does not expose custom avatar pixels except through an encrypted session ticket', async () => {
     const f = fixture(page());
     const rating = await f.controller.accountRating(REQUEST, CLASS);
