@@ -328,8 +328,9 @@ function isCleanContainerExit(event: LogEntry): boolean {
       state.service === event.source &&
       state.Status === 'exited' &&
       state.ExitCode === 0 &&
-      state.OOMKilled === false &&
-      state.health !== 'unhealthy'
+      // Docker can retain the final health probe result after a graceful stop.
+      // An unhealthy running container is still counted below.
+      state.OOMKilled === false
     );
   } catch {
     return false;

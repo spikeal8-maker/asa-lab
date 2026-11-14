@@ -91,10 +91,22 @@ describe('retained log reader and archive', () => {
           ...row(8, '2026-11-11T17:14:03.000Z', '/'),
           message: JSON.stringify({ ...containerExit, health: 'unhealthy' }),
         },
+        {
+          ...row(9, '2026-11-11T17:14:04.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, Status: 'running', health: 'unhealthy' }),
+        },
+        {
+          ...row(10, '2026-11-11T17:14:05.000Z', '/api/projects/draft'),
+          message: JSON.stringify({
+            kind: 'http_response',
+            status: 502,
+            path: '/api/projects/draft',
+          }),
+        },
         row(3, '2026-11-11T17:15:00.000Z', '/api/robotics/projects', 'warn'),
       ];
       const raw = rows.map((event) => JSON.stringify(event)).join('\n') + '\n';
-      const file = 'seg-0000000000000001-0000000000000004.jsonl';
+      const file = 'seg-0000000000000001-0000000000000010.jsonl';
       await writeFile(join(root, file), raw);
       await writeFile(
         join(root, 'catalog.json'),
@@ -125,7 +137,7 @@ describe('retained log reader and archive', () => {
         to: '2026-11-11T17:20:00.000Z',
         points: [
           { at: '2026-11-11T16:00:00.000Z', counts: { ai: 1 } },
-          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1, api: 3 } },
+          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1, api: 3, projects: 1 } },
         ],
       });
       const journal = await queryLogs(
@@ -135,6 +147,11 @@ describe('retained log reader and archive', () => {
       );
       expect(journal.items).toContainEqual(
         expect.objectContaining({ message: JSON.stringify(containerExit) }),
+      );
+      expect(journal.items).toContainEqual(
+        expect.objectContaining({
+          message: JSON.stringify({ ...containerExit, health: 'unhealthy' }),
+        }),
       );
       expect(
         await errorTrend(root, {
