@@ -24,8 +24,8 @@ import time
 PROFILE = "r10-paired-regression"
 WORKFLOW = ".github/workflows/electronics-r4-m1-focused.yml"
 PROOF = "tools/test_ci_image_transport.py"
-BASE_REVISION = "8406be4761006246749aff10d65cc1a0377fce7b"
-CANDIDATE_REVISION = "ff1ce1b7c95598324643a3c8dcf8edd477209301"
+BASE_REVISION = "7cb29cdeb309338af2bfc5f78fb1881db094cf38"
+CANDIDATE_REVISION = "29747ff34e796c448cfa2911e1bcd223199caf19"
 SPEC_NATIVE = "e2e/electronics-interactions.spec.ts"
 SPEC_OWNER = "e2e/electronics-ready-cadence.spec.ts"
 SPECS = (SPEC_NATIVE, SPEC_OWNER)
@@ -46,19 +46,19 @@ TITLES = (
 EXPECTED_SPEC = {title: (SPEC_NATIVE if title.startswith(("short", "long")) else SPEC_OWNER)
                  for title in TITLES}
 GREP = "(?:" + "|".join(re.escape(title) for title in TITLES) + ")$"
-# The baseline predates the opt-in helper and carries the original CI proof;
-# the candidate extends both. These exact source blobs are pinned, not assumed equal.
+# Both phase checkouts use the same original CI proof.
+# The separate control checkout uses the historical opt-in helper.
 PINNED_TEST_INFRA = {
     BASE_REVISION: {
         WORKFLOW: "7e0a148880f21c806b6852c49ae7f23f1aba937d",
         PROOF: "65ec60200b10a367e95bc9740a98e04581379dae",
     },
     CANDIDATE_REVISION: {
-        WORKFLOW: "51de2173d1f2f6d6c8683f67644cea84a6f5bd03",
-        PROOF: "ce5209accaedc1f89069767b7223c94c17f9d60b",
+        WORKFLOW: "7e0a148880f21c806b6852c49ae7f23f1aba937d",
+        PROOF: "65ec60200b10a367e95bc9740a98e04581379dae",
     },
 }
-# R10 changes an unrelated e2e test. Every other e2e blob must be identical.
+# Preserve the historical exclusion; these two phase revisions also share this file.
 EXCLUDED_UNRELATED_E2E = "e2e/electronics-simulation.spec.ts"
 BUILD_ARGS = (
     "NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
@@ -141,7 +141,7 @@ def source_receipt(root, expected):
     require(not git(root, "status", "--porcelain=v1", "--untracked-files=all"),
             "Source checkout must be clean before building")
     pinned = PINNED_TEST_INFRA.get(expected)
-    require(pinned is not None, "Only the reviewed immutable 8406/Q pair is permitted")
+    require(pinned is not None, "Only the reviewed immutable Arduino #682 base/HEAD pair is permitted")
     for path, blob in pinned.items():
         require(git(root, "rev-parse", "HEAD:" + path) == blob,
                 "BLOCKED: pinned test-infrastructure revision changed: " + path)
@@ -379,6 +379,7 @@ def execute(before, after):
                "runner": {"runId": run_id, "runAttempt": attempt,
                           "name": os.environ.get("RUNNER_NAME"), "os": platform.platform(),
                           "machine": platform.machine(), "logicalCpus": os.cpu_count(),
+                          "cpuModel": next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")), None),
                           "imageOS": os.environ.get("ImageOS"), "imageVersion": os.environ.get("ImageVersion")}}
     write_json(output / "paired.json", summary)
 
@@ -501,7 +502,7 @@ def main():
         return 0
     before, after = revision(options.before_revision), revision(options.after_revision)
     require(before == BASE_REVISION and after == CANDIDATE_REVISION,
-            "BLOCKED: diagnostic v2 is restricted to the reviewed exact 8406/Q pair")
+            "BLOCKED: diagnostic v2 is restricted to the reviewed exact Arduino #682 base/HEAD pair")
     if options.check_revisions:
         print(json.dumps({"beforeRevision": before, "afterRevision": after, "immutableRevisions": "PASS"}))
         return 0
