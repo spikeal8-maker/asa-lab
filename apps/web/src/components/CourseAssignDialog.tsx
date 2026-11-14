@@ -1,10 +1,27 @@
-import { useEffect, useState, type JSX } from 'react';
-import { api, type Classroom, type PublishedAuthorVersion } from '../api';
+import { useEffect, useId, useState, type JSX } from 'react';
+import {
+  api,
+  type Classroom,
+  type ClassroomStudentSeat,
+  type PublishedAuthorVersion,
+} from '../api';
+import './classroom-assignments.css';
+
+type CourseAudience = 'whole_class' | 'named_learners';
 
 export interface CourseAssignAttempt {
   classroomId: string;
   dueDate: string;
-  submitted?: { classroomId: string; dueAt: string | null; requestId: string; timeZone: string };
+  audienceType?: CourseAudience;
+  seatIds?: string[];
+  submitted?: {
+    classroomId: string;
+    dueAt: string | null;
+    requestId: string;
+    timeZone: string;
+    audienceType: CourseAudience;
+    seatIds: string[];
+  };
   completed?: { runId: string; versionNumber: number };
 }
 
@@ -26,6 +43,14 @@ export function CourseAssignDialog({
   const [classrooms, setClassrooms] = useState<Classroom[] | null>(null);
   const [classroomId, setClassroomId] = useState(attempt.classroomId);
   const [dueDate, setDueDate] = useState(attempt.dueDate);
+  const [audienceType, setAudienceType] = useState<CourseAudience>(
+    attempt.audienceType ?? 'whole_class',
+  );
+  const [seatIds, setSeatIds] = useState(attempt.seatIds ?? []);
+  const [roster, setRoster] = useState<ClassroomStudentSeat[] | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [rosterRetry, setRosterRetry] = useState(0);
+  const audienceName = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(attempt.completed);
@@ -40,13 +65,43 @@ export function CourseAssignDialog({
       active = false;
     };
   }, []);
+  useEffect(() => {
+    if (!classroomId || audienceType !== 'named_learners' || attempt.submitted) return;
+    let active = true;
+    setRoster(null);
+    setRosterError(null);
+    void api.listClassroomRoster(classroomId).then((result) => {
+      if (!active) return;
+      if (result.ok) {
+        setRoster(
+          result.data.items.filter((student) => ['issued', 'active'].includes(student.status)),
+        );
+      } else {
+        setRosterError(result.error.message || 'Не удалось загрузить список учеников.');
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [attempt, classroomId, audienceType, rosterRetry]);
+
+  const locked = busy || attempt.submitted !== undefined;
+  const selectedSeats = roster?.filter((student) => seatIds.includes(student.id)) ?? [];
+  const canAssign =
+    !busy &&
+    !completed &&
+    !!classroomId &&
+    (attempt.submitted !== undefined || audienceType === 'whole_class' || selectedSeats.length > 0);
+
   async function assign(): Promise<void> {
-    if (busy || completed || !classroomId) return;
+    if (!canAssign) return;
     const submitted = attempt.submitted ?? {
       classroomId,
       dueAt: dueDate ? new Date(`${dueDate}T23:59:59`).toISOString() : null,
       requestId: crypto.randomUUID(),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      audienceType,
+      seatIds: audienceType === 'named_learners' ? selectedSeats.map((student) => student.id) : [],
     };
     attempt.submitted = submitted;
     setBusy(true);
@@ -59,8 +114,8 @@ export function CourseAssignDialog({
         submitted.dueAt,
         {
           versionNumber: version.versionNumber,
-          audienceType: 'whole_class',
-          seatIds: [],
+          audienceType: submitted.audienceType,
+          seatIds: submitted.seatIds,
           requestId: submitted.requestId,
           timeZone: submitted.timeZone,
         },
@@ -92,8 +147,12 @@ export function CourseAssignDialog({
     delete attempt.completed;
     attempt.classroomId = '';
     attempt.dueDate = '';
+    attempt.audienceType = 'whole_class';
+    attempt.seatIds = [];
     setClassroomId('');
     setDueDate('');
+    setAudienceType('whole_class');
+    setSeatIds([]);
     setCompleted(undefined);
     setError(null);
   }
@@ -123,9 +182,13 @@ export function CourseAssignDialog({
           <select
             aria-label="Класс для курса"
             value={classroomId}
-            disabled={busy || attempt.submitted !== undefined}
+            disabled={locked}
             onChange={(event) => {
               attempt.classroomId = event.target.value;
+              attempt.seatIds = [];
+              setSeatIds([]);
+              setRoster(null);
+              setRosterError(null);
               setClassroomId(event.target.value);
             }}
           >
@@ -142,12 +205,75 @@ export function CourseAssignDialog({
         ) : classrooms.length === 0 ? (
           <p>Создайте класс, чтобы назначить курс.</p>
         ) : null}
+        <fieldset className="learning-audience-options" disabled={locked || !classroomId}>
+          <legend>Кому</legend>
+          <label>
+            <input
+              type="radio"
+              name={audienceName}
+              checked={audienceType === 'whole_class'}
+              onChange={() => {
+                attempt.audienceType = 'whole_class';
+                setAudienceType('whole_class');
+              }}
+            />
+            Весь класс, включая новых учеников
+          </label>
+          <label>
+            <input
+              type="radio"
+              name={audienceName}
+              checked={audienceType === 'named_learners'}
+              onChange={() => {
+                attempt.audienceType = 'named_learners';
+                setAudienceType('named_learners');
+              }}
+            />
+            Выбранные ученики
+          </label>
+        </fieldset>
+        {classroomId && audienceType === 'named_learners' ? (
+          attempt.submitted ? (
+            <p>Выбрано учеников: {attempt.submitted.seatIds.length}.</p>
+          ) : rosterError ? (
+            <div role="alert">
+              {rosterError}{' '}
+              <button type="button" onClick={() => setRosterRetry((value) => value + 1)}>
+                Повторить
+              </button>
+            </div>
+          ) : roster === null ? (
+            <p role="status">Загружаем список учеников…</p>
+          ) : roster.length === 0 ? (
+            <p>В классе пока нет доступных учеников.</p>
+          ) : (
+            <fieldset className="learning-learner-picker" disabled={locked}>
+              <legend>Ученики</legend>
+              {roster.map((student) => (
+                <label key={student.id}>
+                  <input
+                    type="checkbox"
+                    checked={seatIds.includes(student.id)}
+                    onChange={(event) => {
+                      const next = event.target.checked
+                        ? [...seatIds, student.id]
+                        : seatIds.filter((id) => id !== student.id);
+                      attempt.seatIds = next;
+                      setSeatIds(next);
+                    }}
+                  />
+                  {student.displayLabel}
+                </label>
+              ))}
+            </fieldset>
+          )
+        ) : null}
         <label className="course-field">
           Срок, если нужен
           <input
             type="date"
             value={dueDate}
-            disabled={busy || attempt.submitted !== undefined}
+            disabled={locked}
             onChange={(event) => {
               attempt.dueDate = event.target.value;
               setDueDate(event.target.value);
@@ -171,7 +297,7 @@ export function CourseAssignDialog({
           <button
             type="button"
             className="btn-primary"
-            disabled={busy || !classroomId || completed !== undefined}
+            disabled={!canAssign}
             onClick={() => void assign()}
           >
             {busy
