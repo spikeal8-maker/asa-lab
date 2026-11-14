@@ -278,6 +278,24 @@ export function ParticipantMeritsAndAvatars({
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [meritDraft, setMeritDraft] = useState<{
+    id: string;
+    title: string;
+    description: string;
+  } | null>(null);
+  const [meritHistory, setMeritHistory] = useState<{
+    offset: number;
+    hasMore: boolean;
+    items: Array<{
+      eventId: number;
+      meritId: string;
+      title: string;
+      granted: boolean;
+      at: string;
+    }>;
+  } | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [avatarTitle, setAvatarTitle] = useState('');
   const [secret, setSecret] = useState(false);
   const [achievement, setAchievement] = useState('');
@@ -340,11 +358,17 @@ export function ParticipantMeritsAndAvatars({
     setChoice(confirmedAvatar);
   }, [confirmedAvatar, classroomId, seatId]);
   const scope = useRef(0);
+  const historyRequest = useRef(0);
   useEffect(() => {
+    historyRequest.current++;
     setError(null);
     setBusy(false);
     setTitle('');
     setDescription('');
+    setMeritDraft(null);
+    setMeritHistory(null);
+    setHistoryBusy(false);
+    setHistoryError(null);
     setAvatarTitle('');
     setSecret(false);
     setAchievement('');
@@ -385,9 +409,57 @@ export function ParticipantMeritsAndAvatars({
     setBusy(true);
     setError(null);
     try {
-      if (await mutate(kind, input)) await onChanged();
+      if (await mutate(kind, input)) {
+        historyRequest.current++;
+        setMeritHistory(null);
+        await onChanged();
+      }
     } finally {
       if (token === scope.current) setBusy(false);
+    }
+  }
+  async function saveMeritEdit(): Promise<void> {
+    if (locked || !meritDraft) return;
+    const token = scope.current;
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await mutate('merit_update', meritDraft);
+      if (token !== scope.current || !saved) return;
+      setMeritDraft(null);
+      historyRequest.current++;
+      setMeritHistory(null);
+      await onChanged();
+    } finally {
+      if (token === scope.current) setBusy(false);
+    }
+  }
+  async function loadMeritHistory(more = false): Promise<void> {
+    if (historyBusy || (more && (!meritHistory || !meritHistory.hasMore))) return;
+    const token = scope.current;
+    const request = ++historyRequest.current;
+    const offset = more && meritHistory ? meritHistory.offset + meritHistory.items.length : 0;
+    setHistoryBusy(true);
+    setHistoryError(null);
+    try {
+      const result =
+        learnerView && !accountLearner
+          ? await participantsApi.seatMeritHistory(offset)
+          : await participantsApi.meritHistory(classroomId, seatId, offset);
+      if (token !== scope.current || request !== historyRequest.current) return;
+      if (!result.ok) {
+        setHistoryError(result.error.message);
+        return;
+      }
+      setMeritHistory(
+        more && meritHistory
+          ? { ...result.data, offset: 0, items: [...meritHistory.items, ...result.data.items] }
+          : result.data,
+      );
+    } finally {
+      if (token === scope.current && request === historyRequest.current) {
+        setHistoryBusy(false);
+      }
     }
   }
   async function upload(): Promise<void> {
@@ -447,6 +519,63 @@ export function ParticipantMeritsAndAvatars({
                   {merit.granted ? 'Отозвать' : 'Выдать'}
                 </button>
               )}
+              {!readOnly ? (
+                <button
+                  type="button"
+                  disabled={locked}
+                  aria-label={`Редактировать награду: ${merit.title}`}
+                  onClick={() =>
+                    setMeritDraft({
+                      id: merit.id,
+                      title: merit.title,
+                      description: merit.description,
+                    })
+                  }
+                >
+                  Редактировать
+                </button>
+              ) : null}
+              {!readOnly && meritDraft?.id === merit.id ? (
+                <form
+                  className="participant-merit-edit"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveMeritEdit();
+                  }}
+                >
+                  <fieldset disabled={locked}>
+                    <legend>Редактирование награды</legend>
+                    <label>
+                      Название
+                      <input
+                        required
+                        maxLength={60}
+                        value={meritDraft.title}
+                        onChange={(event) =>
+                          setMeritDraft((draft) =>
+                            draft ? { ...draft, title: event.target.value } : draft,
+                          )
+                        }
+                      />
+                    </label>
+                    <label htmlFor={`${meritFormId}-edit-description`}>Описание награды</label>
+                    <textarea
+                      id={`${meritFormId}-edit-description`}
+                      maxLength={240}
+                      value={meritDraft.description}
+                      onChange={(event) =>
+                        setMeritDraft((draft) =>
+                          draft ? { ...draft, description: event.target.value } : draft,
+                        )
+                      }
+                    />
+                    <button type="submit">Сохранить изменения награды</button>
+                    <button type="button" onClick={() => setMeritDraft(null)}>
+                      Отменить редактирование
+                    </button>
+                  </fieldset>
+                </form>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -494,6 +623,51 @@ export function ParticipantMeritsAndAvatars({
             </fieldset>
           </form>
         ) : null}
+        <section aria-label="История наград">
+          <h4>История выдачи и отзыва наград</h4>
+          <button
+            type="button"
+            disabled={historyBusy}
+            onClick={() => {
+              if (meritHistory) {
+                historyRequest.current++;
+                setMeritHistory(null);
+                setHistoryError(null);
+                setHistoryBusy(false);
+              } else {
+                void loadMeritHistory();
+              }
+            }}
+          >
+            {meritHistory ? 'Скрыть историю наград' : 'Показать историю наград'}
+          </button>
+          {historyBusy ? <p role="status">Загрузка истории наград…</p> : null}
+          {historyError ? <p role="alert">{historyError}</p> : null}
+          {meritHistory ? (
+            <>
+              {meritHistory.items.length === 0 ? <p>Выдач и отзывов пока нет.</p> : null}
+              <ul className="participant-merit-history">
+                {meritHistory.items.map((entry) => (
+                  <li key={entry.eventId}>
+                    <span>
+                      {entry.granted ? 'Выдана' : 'Отозвана'}: {entry.title}
+                    </span>{' '}
+                    <time dateTime={entry.at}>{new Date(entry.at).toLocaleString('ru-RU')}</time>
+                  </li>
+                ))}
+              </ul>
+              {meritHistory.hasMore ? (
+                <button
+                  type="button"
+                  disabled={historyBusy}
+                  onClick={() => void loadMeritHistory(true)}
+                >
+                  Показать ещё записи
+                </button>
+              ) : null}
+            </>
+          ) : null}
+        </section>
       </section>
       <section>
         <h3>{learnerView ? 'Доступные мне аватары' : 'Аватары класса'}</h3>

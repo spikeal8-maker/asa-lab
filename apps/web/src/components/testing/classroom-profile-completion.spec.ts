@@ -635,7 +635,7 @@ describe('participant completion DOM behavior', () => {
       [...host.querySelectorAll('button')]
         .filter((button) => !button.disabled)
         .map((button) => button.textContent),
-    ).toEqual(['Отмена выбора']);
+    ).toEqual(['Показать историю наград', 'Отмена выбора']);
   });
   it('the compact pupil summary selects the newest lesson dates rather than storage row order', async () => {
     const data = grades('five', [1, 2, 3, 4]);
@@ -1135,6 +1135,102 @@ describe('participant completion DOM behavior', () => {
     expect(host.textContent).toContain('Класс в архиве');
     expect(seat).toHaveBeenCalledTimes(2);
     expect(account).not.toHaveBeenCalled();
+  });
+  it('edits a teacher merit without losing its retry receipt or showing false success', async () => {
+    const data = profile();
+    data.merits = [
+      {
+        id: 'merit-1',
+        title: 'Первая награда',
+        description: 'Условие',
+        granted: true,
+        grantedAt: null,
+      },
+    ];
+    const changed = vi.fn().mockResolvedValue(undefined);
+    const mutate = vi
+      .spyOn(participantsApi, 'mutate')
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        error: { code: 'unavailable', message: 'Сервис временно недоступен' },
+      })
+      .mockResolvedValueOnce(ok({ saved: true }));
+    await render(
+      createElement(ParticipantMeritsAndAvatars, {
+        classroomId: 'class',
+        seatId: 'seat-a',
+        profile: data,
+        onChanged: changed,
+      }),
+    );
+    await click('Редактировать');
+    await fill(labelled<HTMLInputElement>('Название'), 'Новая награда');
+    await fill(labelled<HTMLTextAreaElement>('Описание награды'), 'Новое условие');
+    await click('Сохранить изменения награды');
+    expect(host.textContent).toContain('Сервис временно недоступен');
+    expect(labelled<HTMLInputElement>('Название').value).toBe('Новая награда');
+    expect(changed).not.toHaveBeenCalled();
+    await click('Сохранить изменения награды');
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(mutate.mock.calls[0]![1]).toBe('merit_update');
+    expect(mutate.mock.calls[0]![2]).toEqual({
+      id: 'merit-1',
+      title: 'Новая награда',
+      description: 'Новое условие',
+    });
+    expect(mutate.mock.calls[0]![3]).toBe(mutate.mock.calls[1]![3]);
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('.participant-merit-edit')).toBeNull();
+  });
+  it('shows learner merit history and discards stale results when changing seats', async () => {
+    const data = profile();
+    data.merits = [
+      {
+        id: 'merit-1',
+        title: 'Первая награда',
+        description: 'Условие',
+        granted: true,
+        grantedAt: null,
+      },
+    ];
+    const ownHistory = vi.spyOn(participantsApi, 'seatMeritHistory').mockResolvedValue(
+      ok({
+        offset: 0,
+        hasMore: false,
+        items: [
+          {
+            eventId: 7,
+            meritId: 'merit-1',
+            title: 'Первая награда',
+            granted: false,
+            at: '2026-11-14T17:00:00Z',
+          },
+        ],
+      }),
+    );
+    const props = {
+      classroomId: 'class',
+      seatId: 'seat-a',
+      profile: data,
+      readOnly: true,
+      learnerView: true,
+      onChanged: vi.fn(),
+    };
+    await render(createElement(ParticipantMeritsAndAvatars, props));
+    expect(host.textContent).not.toContain('Редактировать');
+    await click('Показать историю наград');
+    expect(ownHistory).toHaveBeenCalledWith(0);
+    expect(host.textContent).toContain('Отозвана: Первая награда');
+    await render(
+      createElement(ParticipantMeritsAndAvatars, {
+        ...props,
+        seatId: 'seat-b',
+        profile: profile('student', 'seat-b'),
+      }),
+    );
+    expect(host.textContent).not.toContain('Отозвана: Первая награда');
+    expect(host.textContent).toContain('Показать историю наград');
   });
   it('presents learner recognition without teacher/API language and preserves selecting an available secret avatar', async () => {
     const data = profile('helper');
