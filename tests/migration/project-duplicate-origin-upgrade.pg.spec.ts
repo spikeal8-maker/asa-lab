@@ -171,7 +171,7 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
       expect(
         (
           await admin.query(
-            'SELECT writer_lineage_coverage FROM projects WHERE id=ANY($1::uuid[]) ORDER BY id',
+            "SELECT COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=ANY($1::uuid[]) ORDER BY p.id",
             [[rootId, copyId]],
           )
         ).rows,
@@ -180,7 +180,7 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
       expect(
         (
           await admin.query(
-            'SELECT writer_operation FROM projects WHERE id=ANY($1::uuid[]) ORDER BY id',
+            "SELECT COALESCE(e.writer_operation,'unknown') AS writer_operation FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=ANY($1::uuid[]) ORDER BY p.id",
             [[rootId, copyId]],
           )
         ).rows,
@@ -191,8 +191,9 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
             `SELECT copied_from_project_id,copied_from_author,copied_from_title,
                   copied_at::text AS copied_at,copied_from_publication_id,
                   copied_from_revision_id,copied_from_version_id,copied_from_license,
-                  writer_lineage_coverage
-             FROM projects WHERE id=$1`,
+                  COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage
+             FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id
+             WHERE p.id=$1`,
             [id],
           )
         ).rows[0];
@@ -211,8 +212,12 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
       if (first.kind !== 'created') throw Error('C3 ordinary duplicate was not created');
       expect(await readExact(first.project.id)).toEqual(original);
       expect(
-        (await admin.query('SELECT writer_operation FROM projects WHERE id=$1', [first.project.id]))
-          .rows[0].writer_operation,
+        (
+          await admin.query(
+            "SELECT COALESCE(e.writer_operation,'unknown') AS writer_operation FROM project_writer_evidence e WHERE e.project_id=$1",
+            [first.project.id],
+          )
+        ).rows[0].writer_operation,
       ).toBe('ordinary_duplicate');
       const replay = await repository.duplicateWithDraft(input);
       expect(replay.kind).toBe('existing');
@@ -288,11 +293,27 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
       expect(
         (
           await admin.query(
-            'SELECT writer_lineage_coverage,writer_operation FROM projects WHERE id=$1',
+            "SELECT COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage, COALESCE(e.writer_operation,'unknown') AS writer_operation FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
             [directId],
           )
         ).rows[0],
       ).toEqual({ writer_lineage_coverage: 'unknown', writer_operation: 'unknown' });
+      // A supported old/direct writer cannot be retroactively promoted by
+      // calling the private helper in another transaction.
+      const retroactive = await runtime.connect();
+      try {
+        await retroactive.query('BEGIN');
+        await retroactive.query("SELECT set_config('app.tenant_id',$1,true)", [teacher.tenantId]);
+        await expect(
+          retroactive.query(
+            'SELECT public.record_project_writer_evidence($1::uuid,$2::uuid,$3::varchar,$4::uuid)',
+            [actor.principalId, directId, 'native', null],
+          ),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await retroactive.query('ROLLBACK');
+        retroactive.release();
+      }
       const native = await repository.createWithDraft({
         tenantId: teacher.tenantId,
         scope: 'personal',
@@ -310,19 +331,26 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
       expect(
         (
           await admin.query(
-            'SELECT writer_lineage_coverage,writer_operation FROM projects WHERE id=$1',
+            "SELECT COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage, COALESCE(e.writer_operation,'unknown') AS writer_operation FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
             [native.project.id],
           )
         ).rows[0],
       ).toEqual({ writer_lineage_coverage: 'v1', writer_operation: 'native' });
       await expect(
-        admin.query("UPDATE projects SET writer_operation='public_acquisition' WHERE id=$1", [
-          native.project.id,
-        ]),
+        admin.query(
+          "UPDATE project_writer_evidence SET writer_operation='public_acquisition' WHERE project_id=$1",
+          [native.project.id],
+        ),
       ).rejects.toMatchObject({ code: '23514' });
       await expect(
-        admin.query("UPDATE projects SET writer_lineage_coverage='v1' WHERE id=$1", [copyId]),
+        admin.query(
+          "UPDATE project_writer_evidence SET writer_lineage_coverage='v1' WHERE project_id=$1",
+          [copyId],
+        ),
       ).rejects.toMatchObject({ code: '23514' });
+      await expect(runtime.query('SELECT * FROM project_writer_evidence')).rejects.toMatchObject({
+        code: '42501',
+      });
       await expect(runtime.query('SELECT * FROM publication_copy_events')).rejects.toMatchObject({
         code: '42501',
       });

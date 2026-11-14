@@ -943,8 +943,53 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
       secondRecipient = await identity();
     await like(publication, firstRecipient);
     await like(publication, secondRecipient);
-    for (const recipient of [firstRecipient, secondRecipient, firstRecipient])
-      expect((await repo.createWithDraft(copyInput(publication, recipient))).kind).toBe('created');
+    // The benchmark's three receipts are REAL admitted public acquisitions,
+    // not synthetic direct Project inserts. Hold the existing policy-fixture
+    // advisory lock only while granting consent and issuing these receipts.
+    const policyClient = await admin.connect();
+    let previousEnabled: boolean | undefined;
+    let policyLockHeld = false;
+    try {
+      await policyClient.query(
+        "SELECT pg_advisory_lock(hashtextextended('test-public-acquisition-policy',0))",
+      );
+      policyLockHeld = true;
+      previousEnabled = (
+        await policyClient.query<{ enabled: boolean }>(
+          'SELECT enabled FROM publication_acquisition_settings WHERE singleton_key',
+        )
+      ).rows[0]?.enabled;
+      if (previousEnabled === undefined) throw Error('Missing acquisition policy fixture');
+      await policyClient.query(
+        'UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key',
+      );
+      await runtime.query('SELECT project_publication_acquisition_write($1,$2,true,0,$3,NULL)', [
+        owner.principal,
+        publication.projectId,
+        publication.publication.revisionId,
+      ]);
+      for (const recipient of [firstRecipient, secondRecipient, firstRecipient])
+        expect((await repo.createWithDraft(copyInput(publication, recipient))).kind).toBe(
+          'created',
+        );
+    } finally {
+      try {
+        if (previousEnabled !== undefined)
+          await policyClient.query(
+            'UPDATE publication_acquisition_settings SET enabled=$1 WHERE singleton_key',
+            [previousEnabled],
+          );
+      } finally {
+        try {
+          if (policyLockHeld)
+            await policyClient.query(
+              "SELECT pg_advisory_unlock(hashtextextended('test-public-acquisition-policy',0))",
+            );
+        } finally {
+          policyClient.release();
+        }
+      }
+    }
     const baseline: number[] = [],
       summary: number[] = [];
     // The old metrics helper is deliberately not executable by asalab_app.

@@ -462,7 +462,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             created_by, owner_principal_id, idempotency_key, request_fingerprint,
             copied_from_project_id, copied_from_author, copied_from_title, copied_at,
             copied_from_publication_id, copied_from_revision_id, copied_from_version_id,
-            copied_from_license, license, writer_lineage_coverage, writer_operation)
+            copied_from_license, license)
          SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_project_id ELSE $10::uuid END,
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_author ELSE $11::varchar END,
@@ -473,12 +473,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_revision_id ELSE $14::uuid END,
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_version_id ELSE $15::uuid END,
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_license ELSE $16::varchar END,
-                COALESCE($16::varchar,'reserved'::varchar),
-                CASE WHEN $17::uuid IS NOT NULL THEN source.writer_lineage_coverage
-                     WHEN $10::uuid IS NULL THEN 'v1'::varchar ELSE 'unknown'::varchar END,
-                 CASE WHEN $17::uuid IS NOT NULL THEN 'ordinary_duplicate'::varchar
-                      WHEN $10::uuid IS NULL THEN 'native'::varchar
-                      ELSE 'public_acquisition'::varchar END
+                COALESCE($16::varchar,'reserved'::varchar)
            FROM (SELECT 1) AS one_insert
            LEFT JOIN projects source ON source.tenant_id=$1::uuid AND source.id=$17::uuid
           WHERE $17::uuid IS NULL OR source.id IS NOT NULL
@@ -526,6 +521,18 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         return { kind: 'existing', project: toProject(row) };
       }
       const project = toProject(inserted.rows[0] as ProjectRow, input.initialPreview);
+      // Mark the trusted internal writer path within this INSERT transaction.
+      // Old/direct-SQL writers without a marker remain unknown.
+      const writerOperation =
+        inheritedProjectId !== null
+          ? 'ordinary_duplicate'
+          : input.publicationCopyOrigin
+            ? 'public_acquisition'
+            : 'native';
+      await client.query(
+        'SELECT public.record_project_writer_evidence($1::uuid,$2::uuid,$3::varchar,$4::uuid)',
+        [principalId, project.id, writerOperation, inheritedProjectId],
+      );
       await client.query(
         `INSERT INTO project_drafts
            (project_id, tenant_id, document_json, updated_by, updated_by_principal_id,

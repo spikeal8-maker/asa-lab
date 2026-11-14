@@ -340,8 +340,10 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
         `SELECT copied_from_project_id,copied_from_author,copied_from_title,
                 copied_at::text AS copied_at,
                 copied_from_publication_id,copied_from_revision_id,
-                copied_from_version_id,copied_from_license,writer_lineage_coverage
-           FROM projects WHERE id=$1`,
+                copied_from_version_id,copied_from_license,
+                 COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage
+           FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id
+           WHERE p.id=$1`,
         [id],
       );
       expect(result.rows).toHaveLength(1);
@@ -349,8 +351,12 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     };
     const original = await readOrigin(publicCopyId);
     expect(
-      (await admin.query('SELECT writer_operation FROM projects WHERE id=$1', [publicCopyId]))
-        .rows[0].writer_operation,
+      (
+        await admin.query(
+          "SELECT COALESCE(e.writer_operation,'unknown') AS writer_operation FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
+          [publicCopyId],
+        )
+      ).rows[0].writer_operation,
     ).toBe('public_acquisition');
     expect(original.copied_from_project_id).toBe(source.id);
     expect(original.copied_from_publication_id).toBe(source.publication.publicationId);
@@ -389,8 +395,12 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     expect(derived).not.toBe(publicCopyId);
     expect(await readOrigin(derived)).toEqual(original);
     expect(
-      (await admin.query('SELECT writer_operation FROM projects WHERE id=$1', [derived])).rows[0]
-        .writer_operation,
+      (
+        await admin.query(
+          "SELECT COALESCE(e.writer_operation,'unknown') AS writer_operation FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
+          [derived],
+        )
+      ).rows[0].writer_operation,
     ).toBe('ordinary_duplicate');
     expect((await open(source.reader, derived)).project.copiedFrom).toEqual(
       (await open(source.reader, publicCopyId)).project.copiedFrom,
@@ -476,7 +486,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
   it('records private native writer coverage without promoting historical copied origin', async () => {
     const source = await fixture();
     const native = await admin.query(
-      'SELECT writer_lineage_coverage,writer_operation,copied_from_project_id FROM projects WHERE id=$1',
+      "SELECT COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage,COALESCE(e.writer_operation,'unknown') AS writer_operation,p.copied_from_project_id FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
       [source.id],
     );
     expect(native.rows).toEqual([
@@ -491,13 +501,16 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     });
     expect(duplicated.statusCode).toBe(201);
     const inherited = await admin.query(
-      'SELECT writer_lineage_coverage,writer_operation,copied_from_project_id FROM projects WHERE id=$1',
+      "SELECT COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage,COALESCE(e.writer_operation,'unknown') AS writer_operation,p.copied_from_project_id FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
       [duplicated.json().project.id],
     );
-    expect(inherited.rows).toEqual(native.rows);
+    expect(inherited.rows).toEqual([{ ...native.rows[0], writer_operation: 'ordinary_duplicate' }]);
     expect(JSON.stringify(duplicated.json())).not.toContain('writer_lineage_coverage');
     await expect(
-      admin.query("UPDATE projects SET writer_lineage_coverage='unknown' WHERE id=$1", [source.id]),
+      admin.query(
+        "UPDATE project_writer_evidence SET writer_lineage_coverage='unknown' WHERE project_id=$1",
+        [source.id],
+      ),
     ).rejects.toMatchObject({ code: '23514' });
   });
 
@@ -589,6 +602,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     ).toBe(0);
     for (const sql of [
       'SELECT * FROM public.publication_copy_events',
+      'SELECT * FROM public.project_writer_evidence',
       `INSERT INTO public.publication_copy_events VALUES('${randomUUID()}','${randomUUID()}',now())`,
       'DELETE FROM public.publication_copy_events',
       'UPDATE public.publication_copy_events SET created_at=now()',
