@@ -70,7 +70,16 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
   const loginSeat = async (learner: Page, seatCode = code) => {
     await learner.goto(`/#/join-class?code=${encodeURIComponent(shareCode)}`);
     await learner.getByLabel('Код ученика', { exact: true }).fill(seatCode);
+    // Do not navigate away until the real StudentSeat admission has committed
+    // its session cookie. A click alone can finish before the HTTP response.
+    const seatAdmission = learner.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/api/class-join/studentseat'),
+    );
     await learner.getByRole('button', { name: 'Войти', exact: true }).click();
+    const admitted = await seatAdmission;
+    expect(admitted.status(), await admitted.text()).toBe(200);
   };
   const studentContext = await browser.newContext();
   try {
