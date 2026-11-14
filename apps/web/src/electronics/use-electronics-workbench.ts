@@ -64,6 +64,7 @@ import {
   type WireVertexAssistTarget,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
+import { createArduinoAcknowledgedWake } from './arduino-acknowledged-wake';
 import {
   LedTemporalPresentation,
   classroomRequestedHorizon,
@@ -808,66 +809,33 @@ export function useElectronicsWorkbenchHost(
     let displayed: LiveOpticalObservation | null = null;
     let publishing = false;
     let animationFrame: number | null = null;
-    let scheduledArduinoWake: {
-      dueMicroseconds: number;
-      source: typeof nativePreparationSourceRef.current;
-      timeout: number;
-    } | null = null;
-    const cancelArduinoWake = () => {
-      if (scheduledArduinoWake) window.clearTimeout(scheduledArduinoWake.timeout);
-      scheduledArduinoWake = null;
-    };
-    const scheduleArduinoWake = (dueMicroseconds: number | null) => {
-      const source = nativePreparationSourceRef.current;
-      const startedAt = simulationStartedAtRef.current;
-      if (
-        !currentSession() ||
-        !session?.active ||
-        dueMicroseconds === null ||
-        startedAt === null ||
-        normalHostClockRef.current ||
-        simulationPacing.explicit
-      ) {
-        cancelArduinoWake();
-        return;
-      }
-      if (
-        scheduledArduinoWake?.dueMicroseconds === dueMicroseconds &&
-        scheduledArduinoWake.source === source
-      )
-        return;
-      cancelArduinoWake();
-      // The engine's actual resumeAtMs belongs to this generation. Schedule
-      // demand at the real wall deadline, not a speculative future model horizon.
-      const dueWall =
-        startedAt + (dueMicroseconds - simulationHostOffsetMicrosecondsRef.current) / 1000;
-      const remainingMs = dueWall - window.performance.now();
-      // Once the same exact wake has been queued it survives late acknowledgements.
-      // Never create a new extra timer for a busy 1–4ms Arduino loop.
-      if (!Number.isFinite(remainingMs) || remainingMs < 5 || remainingMs > 25_000) return;
-      const timeout = window.setTimeout(
-        () => {
-          if (scheduledArduinoWake?.timeout !== timeout) return;
-          scheduledArduinoWake = null;
-          if (
-            !currentSession() ||
-            !session?.active ||
-            source !== nativePreparationSourceRef.current ||
-            normalHostClockRef.current ||
-            simulationPacing.explicit
-          )
-            return;
-          const document = runtimeDocumentRef.current;
-          const horizon = readHostHorizonMicroseconds();
-          if (document && horizon !== null) {
-            requestedHorizonMicrosecondsRef.current = horizon;
-            controller?.update(document, horizon);
-          }
-        },
-        Math.ceil(remainingMs + 0.5),
-      );
-      scheduledArduinoWake = { dueMicroseconds, source, timeout };
-    };
+    const arduinoWake = createArduinoAcknowledgedWake(
+      {
+        now: () => window.performance.now(),
+        setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+        clearTimeout: (timeout) => window.clearTimeout(timeout),
+      },
+      () => ({
+        source: nativePreparationSourceRef.current,
+        startedAtMs: simulationStartedAtRef.current,
+        hostOffsetMicroseconds: simulationHostOffsetMicrosecondsRef.current,
+        active:
+          currentSession() &&
+          session?.active === true &&
+          !normalHostClockRef.current &&
+          !simulationPacing.explicit,
+      }),
+      () => {
+        const document = runtimeDocumentRef.current;
+        const horizon = readHostHorizonMicroseconds();
+        if (document && horizon !== null) {
+          requestedHorizonMicrosecondsRef.current = horizon;
+          controller?.update(document, horizon);
+        }
+      },
+    );
+    const cancelArduinoWake = arduinoWake.cancel;
+    const scheduleArduinoWake = arduinoWake.schedule;
     let recordedReanchors = ledPresentation.reanchorCount;
     let queuedNativePreparation: { document: SchematicDocument } | null = null;
     let nativePreparation: { generation: number; assets: ReadonlyMap<string, string> } | null =
