@@ -1,0 +1,1105 @@
+{
+  "schemaVersion": 1,
+  "repoFullName": "spikeal8-maker/asa-lab",
+  "baselineSha": "acedf8f1c3982ae15f1e59e02385fda1f50dd538",
+  "auditedOn": "2026-10-12",
+  "sourceOfTruth": "React/CSS at pinned SHA; Figma remains draft until visual acceptance",
+  "figma": {
+    "fileKey": "vbRPijeR6IeTw1F8lkfsGr",
+    "url": "https://www.figma.com/design/vbRPijeR6IeTw1F8lkfsGr",
+    "pages": {
+      "tokens": "0:1",
+      "atlas": "1:2",
+      "handoff": "1:3"
+    },
+    "variables": {
+      "sourceCSS": 32,
+      "inlineCSS": 6,
+      "total": 38
+    },
+    "reusableComponents": 3
+  },
+  "inventory": {
+    "type": "role-sensitive screen records",
+    "count": 42,
+    "legacyAtlasRows": 35,
+    "notEqualToPages": "Distinct role/state/render variants can share one URL and one React component"
+  },
+  "screens": [
+    {
+      "id": "public.home",
+      "group": "public",
+      "title": "Публичная главная",
+      "routePattern": "/",
+      "sourceFiles": [
+        "apps/web/src/pages/PublicEntryPage.tsx",
+        "apps/web/src/pages/PublicEntryPage.css"
+      ],
+      "roles": [
+        "anonymous"
+      ],
+      "visibility": "anonymous home",
+      "states": [
+        "default",
+        "mobile-menu-open"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "public.login",
+      "group": "public",
+      "title": "Вход",
+      "routePattern": "/#/sign-in",
+      "sourceFiles": [
+        "apps/web/src/pages/LoginPage.tsx"
+      ],
+      "roles": [
+        "anonymous"
+      ],
+      "visibility": "PUBLIC_ROUTES",
+      "states": [
+        "default",
+        "form-error",
+        "MAX-return"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "public.register",
+      "group": "public",
+      "title": "Регистрация",
+      "routePattern": "/#/sign-up",
+      "sourceFiles": [
+        "apps/web/src/pages/RegisterPage.tsx"
+      ],
+      "roles": [
+        "anonymous"
+      ],
+      "visibility": "PUBLIC_ROUTES",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "public.class-join",
+      "group": "public",
+      "title": "Вход по коду класса",
+      "routePattern": "/#/join-class",
+      "sourceFiles": [
+        "apps/web/src/pages/JoinClassPage.tsx"
+      ],
+      "roles": [
+        "anonymous",
+        "account"
+      ],
+      "visibility": "PUBLIC_ROUTES and signed-in class-join flow",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "public.organization-login",
+      "group": "public",
+      "title": "Вход организации",
+      "routePattern": "/#/organization-sign-in",
+      "sourceFiles": [
+        "apps/web/src/pages/OrganizationLoginPage.tsx"
+      ],
+      "roles": [
+        "anonymous"
+      ],
+      "visibility": "PUBLIC_ROUTES",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "public.max-link",
+      "group": "public",
+      "title": "Привязка MAX",
+      "routePattern": "(session: pendingMaxLink)",
+      "sourceFiles": [
+        "apps/web/src/pages/MaxLinkPage.tsx",
+        "apps/web/src/App.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "authenticated && pendingMaxLink",
+      "states": [
+        "request",
+        "confirm",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": "Session-driven screen without stable standalone route."
+    },
+    {
+      "id": "account.home",
+      "group": "account",
+      "title": "Главная пользователя",
+      "routePattern": "/#/home",
+      "sourceFiles": [
+        "apps/web/src/pages/CreatorHomePage.tsx",
+        "apps/web/src/creator-portal/HomePublicShelves.tsx",
+        "apps/web/src/creator-portal/home-workspace.css"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "authenticated; also used for seats with different navigation",
+      "states": [
+        "loading",
+        "empty",
+        "ready",
+        "error",
+        "public-shelves-loading"
+      ],
+      "figma": {
+        "status": "draft_source_structure_needs_review",
+        "desktopNodeId": "8:2",
+        "mobileNodeId": "8:48",
+        "sourceFont": "Segoe UI/system-ui",
+        "figmaFont": "Inter",
+        "visualReview": "FAIL_mobile_scratch_heading_button_overlap",
+        "pixelAccurate": false
+      },
+      "notes": ""
+    },
+    {
+      "id": "seat.home",
+      "group": "seat",
+      "title": "Главная ученика",
+      "routePattern": "/#/home",
+      "sourceFiles": [
+        "apps/web/src/pages/CreatorHomePage.tsx",
+        "apps/web/src/components/PortalHeader.tsx"
+      ],
+      "roles": [
+        "seat"
+      ],
+      "visibility": "student session; shared home shell",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": "Not a distinct route; student data/visible navigation differ. Do not invent personal project cards."
+    },
+    {
+      "id": "account.projects",
+      "group": "account",
+      "title": "Мои проекты",
+      "routePattern": "/#/projects",
+      "sourceFiles": [
+        "apps/web/src/pages/MyProjectsPage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "authenticated; query filters apply",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "seat.projects",
+      "group": "seat",
+      "title": "Мои учебные работы",
+      "routePattern": "/#/projects",
+      "sourceFiles": [
+        "apps/web/src/pages/MyProjectsPage.tsx"
+      ],
+      "roles": [
+        "seat"
+      ],
+      "visibility": "seat navigation item; backend limits project access",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.games",
+      "group": "account",
+      "title": "Игры",
+      "routePattern": "/#/games",
+      "sourceFiles": [
+        "apps/web/src/pages/GamesPage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "portalNavigation account item",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "shared.learning",
+      "group": "learning",
+      "title": "Моё обучение",
+      "routePattern": "/#/learning",
+      "sourceFiles": [
+        "apps/web/src/pages/LearningPage.tsx",
+        "apps/web/src/components/SeatCourses.tsx"
+      ],
+      "roles": [
+        "account",
+        "seat"
+      ],
+      "visibility": "account or seat",
+      "states": [
+        "teacher",
+        "completed",
+        "self"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": "Tabs: Самостоятельно, С преподавателем, Завершённое."
+    },
+    {
+      "id": "account.knowledge",
+      "group": "account",
+      "title": "Знания",
+      "routePattern": "/#/knowledge",
+      "sourceFiles": [
+        "apps/web/src/pages/KnowledgePage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "PORTAL_ROUTES; accessible by account",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.knowledge-course",
+      "group": "account",
+      "title": "Карточка курса знаний",
+      "routePattern": "/#/knowledge/:courseId",
+      "sourceFiles": [
+        "apps/web/src/pages/KnowledgePage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "creatorViewFromHash knowledgeCourse regex",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.collections",
+      "group": "account",
+      "title": "Сохранённое",
+      "routePattern": "/#/collections",
+      "sourceFiles": [
+        "apps/web/src/pages/CollectionsPage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "account navigation",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.gallery",
+      "group": "account",
+      "title": "Галерея",
+      "routePattern": "/#/gallery",
+      "sourceFiles": [
+        "apps/web/src/pages/GalleryPage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "PORTAL_ROUTES",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.gallery-work",
+      "group": "account",
+      "title": "Работа в галерее",
+      "routePattern": "/#/gallery/:projectId",
+      "sourceFiles": [
+        "apps/web/src/pages/GalleryWorkPage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "creatorViewFromHash galleryWork regex",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "shared.help",
+      "group": "account",
+      "title": "Помощь",
+      "routePattern": "/#/help",
+      "sourceFiles": [
+        "apps/web/src/pages/CreatorResourcePage.tsx"
+      ],
+      "roles": [
+        "account",
+        "seat"
+      ],
+      "visibility": "account and seat navigation",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.settings",
+      "group": "account",
+      "title": "Настройки аккаунта",
+      "routePattern": "/#/account",
+      "sourceFiles": [
+        "apps/web/src/pages/AccountPage.tsx",
+        "apps/web/src/components/settings-navigation.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "!isSeatLearner",
+      "states": [
+        "profile",
+        "interface",
+        "notifications",
+        "security",
+        "capabilities",
+        "school"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": "AccountPage sub-panels are not separate top-level React routes."
+    },
+    {
+      "id": "seat.settings",
+      "group": "seat",
+      "title": "Настройки учебного профиля",
+      "routePattern": "/#/account",
+      "sourceFiles": [
+        "apps/web/src/pages/SeatAccountPage.tsx"
+      ],
+      "roles": [
+        "seat"
+      ],
+      "visibility": "session.kind === student",
+      "states": [
+        "profile",
+        "interface",
+        "notifications"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "teacher.classes",
+      "group": "teacher",
+      "title": "Управление классами",
+      "routePattern": "/#/classrooms",
+      "sourceFiles": [
+        "apps/web/src/pages/DashboardPage.tsx"
+      ],
+      "roles": [
+        "teacher"
+      ],
+      "visibility": "portalSession.navigation.classroomManagement && canUseClasses",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "seat.class",
+      "group": "seat",
+      "title": "Класс ученика",
+      "routePattern": "/#/classrooms",
+      "sourceFiles": [
+        "apps/web/src/pages/SeatClassPage.tsx"
+      ],
+      "roles": [
+        "seat"
+      ],
+      "visibility": "session.kind === student",
+      "states": [
+        "courses",
+        "results",
+        "quizzes",
+        "assignments"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.attending-classes",
+      "group": "learning",
+      "title": "Посещаемые классы",
+      "routePattern": "/#/classrooms",
+      "sourceFiles": [
+        "apps/web/src/pages/AttendedClassesPage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "!canManageClasses && !isSeatLearner",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "account.attending-route",
+      "group": "learning",
+      "title": "Посещаемые классы (переход)",
+      "routePattern": "/#/attending",
+      "sourceFiles": [
+        "apps/web/src/pages/AttendedClassesPage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "view.kind === attending",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "teacher.class-detail",
+      "group": "teacher",
+      "title": "Страница класса",
+      "routePattern": "/#/classrooms/:classroomId",
+      "sourceFiles": [
+        "apps/web/src/pages/ClassroomPage.tsx"
+      ],
+      "roles": [
+        "teacher"
+      ],
+      "visibility": "classroomManagement",
+      "states": [
+        "overview",
+        "students",
+        "pending-review",
+        "journal",
+        "projects"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "teacher.class-projects",
+      "group": "teacher",
+      "title": "Проекты класса",
+      "routePattern": "/#/classrooms/:classroomId/projects",
+      "sourceFiles": [
+        "apps/web/src/pages/ProjectsPage.tsx"
+      ],
+      "roles": [
+        "teacher"
+      ],
+      "visibility": "classroomManagement",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "author.challenges",
+      "group": "teacher",
+      "title": "Курсы и задания",
+      "routePattern": "/#/challenges",
+      "sourceFiles": [
+        "apps/web/src/pages/AssignmentLibraryPage.tsx",
+        "apps/web/src/pages/AuthoredMaterialsPage.tsx",
+        "apps/web/src/components/CoursesPanel.tsx"
+      ],
+      "roles": [
+        "author"
+      ],
+      "visibility": "portalSession.navigation.contentAuthoring === true",
+      "states": [
+        "materials",
+        "courses",
+        "catalogue",
+        "bank-internal",
+        "assignment-dialog"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": "Bank view exists in state but current rendered nav omits an explicit bank tab; do not fake a visible tab."
+    },
+    {
+      "id": "account.challenges-info",
+      "group": "account",
+      "title": "Информация о курсах и заданиях",
+      "routePattern": "/#/challenges",
+      "sourceFiles": [
+        "apps/web/src/pages/CreatorResourcePage.tsx"
+      ],
+      "roles": [
+        "account"
+      ],
+      "visibility": "view challenges && !canAuthor; not same UI as library",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "teacher.invite",
+      "group": "teacher",
+      "title": "Приглашение преподавателя",
+      "routePattern": "/#/teacher-invite/:token",
+      "sourceFiles": [
+        "apps/web/src/pages/TeacherInvitePage.tsx"
+      ],
+      "roles": [
+        "anonymous",
+        "account"
+      ],
+      "visibility": "token-driven public or authenticated invite flow",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "editor.electronics",
+      "group": "editor",
+      "title": "Редактор электроники",
+      "routePattern": "/projects/:projectId/electronics/edit",
+      "sourceFiles": [
+        "apps/web/src/modules/ModuleEditorHost.tsx",
+        "apps/web/src/electronics/load-schematic-editor.ts",
+        "apps/web/src/pages/SchematicEditor.tsx"
+      ],
+      "roles": [
+        "account",
+        "seat"
+      ],
+      "visibility": "requires valid project; role checked server-side",
+      "states": [
+        "workspace",
+        "simulation",
+        "blocks",
+        "code",
+        "loading",
+        "save-error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "editor.three-d",
+      "group": "editor",
+      "title": "Редактор 3D",
+      "routePattern": "/#/3d/:projectId",
+      "sourceFiles": [
+        "apps/web/src/three-d/ThreeDEditor.tsx",
+        "apps/web/src/modules/ModuleEditorHost.tsx"
+      ],
+      "roles": [
+        "account",
+        "seat"
+      ],
+      "visibility": "requires valid project",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "editor.blocks",
+      "group": "editor",
+      "title": "Редактор Scratch",
+      "routePattern": "/#/projects/:projectId?module=blocks",
+      "sourceFiles": [
+        "apps/web/src/blocks/BlocksEditor.tsx",
+        "apps/web/src/modules/ModuleEditorHost.tsx"
+      ],
+      "roles": [
+        "account",
+        "seat"
+      ],
+      "visibility": "moduleKey blocks or resolved from project",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "editor.chess",
+      "group": "editor",
+      "title": "Шахматный редактор/партия",
+      "routePattern": "/#/games/chess/:projectId",
+      "sourceFiles": [
+        "apps/web/src/modules/ModuleEditorHost.tsx",
+        "apps/web/src/chess/chess-navigation.ts"
+      ],
+      "roles": [
+        "account",
+        "seat"
+      ],
+      "visibility": "game editor and /#/chess/:id legacy/editor subroutes",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "editor.checkers",
+      "group": "editor",
+      "title": "Шашки",
+      "routePattern": "/#/games/checkers/:projectId",
+      "sourceFiles": [
+        "apps/web/src/modules/ModuleEditorHost.tsx",
+        "apps/web/src/checkers/load-checkers-editor.ts"
+      ],
+      "roles": [
+        "account",
+        "seat"
+      ],
+      "visibility": "game editor requires project",
+      "states": [
+        "default",
+        "loading",
+        "error",
+        "empty"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.overview",
+      "group": "admin",
+      "title": "Обзор",
+      "routePattern": "/#/admin",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "loading",
+        "ready",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.accounts",
+      "group": "admin",
+      "title": "Пользователи",
+      "routePattern": "/#/admin/users",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "directory",
+        "detail-overview",
+        "detail-security",
+        "detail-activity",
+        "detail-notes",
+        "detail-management"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.organizations",
+      "group": "admin",
+      "title": "Организации",
+      "routePattern": "/#/admin/organizations",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "loading",
+        "ready",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.security",
+      "group": "admin",
+      "title": "Безопасность",
+      "routePattern": "/#/admin/security",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "loading",
+        "ready",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.confirmations",
+      "group": "admin",
+      "title": "Подтверждения",
+      "routePattern": "/#/admin/confirmations",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "loading",
+        "ready",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.operations",
+      "group": "admin",
+      "title": "Система",
+      "routePattern": "/#/admin/system",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "loading",
+        "ready",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.audit",
+      "group": "admin",
+      "title": "История",
+      "routePattern": "/#/admin/history",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "loading",
+        "ready",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    },
+    {
+      "id": "admin.logs",
+      "group": "admin",
+      "title": "Логи",
+      "routePattern": "/#/admin/logs",
+      "sourceFiles": [
+        "apps/web/src/admin/AdminPage.tsx",
+        "apps/web/src/admin/AdminLogsPage.tsx"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "visibility": "admin scopes AND permission grants from admin-navigation.ts",
+      "states": [
+        "loading",
+        "ready",
+        "error"
+      ],
+      "figma": {
+        "status": "not_captured",
+        "desktopNodeId": null,
+        "mobileNodeId": null
+      },
+      "notes": ""
+    }
+  ]
+}
