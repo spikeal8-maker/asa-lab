@@ -2,8 +2,27 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { api, type GradebookEntry } from '../../api';
+import { api, type Classroom, type GradebookEntry } from '../../api';
 import { ClassroomGradebook } from '../../components/ClassroomGradebook';
+
+vi.mock('../../components/AssignLearningActivityDialog', () => ({
+  AssignLearningActivityDialog: ({
+    onAssigned,
+  }: {
+    onAssigned: (title: string, count: number, wholeClass: boolean) => void;
+  }) =>
+    createElement(
+      'div',
+      { role: 'dialog' },
+      createElement(
+        'button',
+        {
+          onClick: () => onAssigned('Первая работа', 12, true),
+        },
+        'Подтвердить выдачу',
+      ),
+    ),
+}));
 
 it('shows only waiting work in the review queue and restores the full gradebook', async () => {
   const entry = (id: string, state: GradebookEntry['state']): GradebookEntry => ({
@@ -33,6 +52,11 @@ it('shows only waiting work in the review queue and restores the full gradebook'
       items: [entry('На проверку', 'submitted'), entry('Готово', 'completed')],
     },
   });
+  const classroom = vi.spyOn(api, 'getClassroom').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { classroom: { status: 'archived' } as Classroom },
+  });
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
@@ -49,6 +73,7 @@ it('shows only waiting work in the review queue and restores the full gradebook'
     );
     const button = (label: string) =>
       [...host.querySelectorAll('button')].find((element) => element.textContent === label)!;
+    expect(button('Выдать задание')).toBeUndefined();
     expect(host.querySelector('table')?.textContent).toContain('Готово');
     await act(async () =>
       host.querySelector<HTMLInputElement>('[aria-label="Показывать столбец: Готово"]')!.click(),
@@ -71,5 +96,54 @@ it('shows only waiting work in the review queue and restores the full gradebook'
     window.location.hash = hash;
     environment.IS_REACT_ACT_ENVIRONMENT = previous;
     gradebook.mockRestore();
+    classroom.mockRestore();
+  }
+});
+
+it('issues a first assignment from an empty gradebook and reloads after confirmation', async () => {
+  const classroom = vi.spyOn(api, 'getClassroom').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { classroom: { status: 'active' } as Classroom },
+  });
+  const gradebook = vi.spyOn(api, 'classroomGradebook').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { scheme: null, items: [] },
+  });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const environment = globalThis as typeof globalThis & {
+    IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+  };
+  const previous = environment.IS_REACT_ACT_ENVIRONMENT;
+  const hash = window.location.hash;
+  environment.IS_REACT_ACT_ENVIRONMENT = true;
+  window.location.hash = '#/classrooms/class-1?assignment=pending';
+  try {
+    await act(async () =>
+      root.render(createElement(ClassroomGradebook, { classroomId: 'class-1' })),
+    );
+    expect(gradebook).toHaveBeenCalledTimes(1);
+    expect(host.textContent).toContain('Здесь появятся работы и оценки.');
+    const issue = [...host.querySelectorAll('button')].find(
+      (element) => element.textContent === 'Выдать задание',
+    );
+    expect(issue).toBeDefined();
+    await act(async () => issue!.click());
+    const confirmation = document.body.querySelector<HTMLButtonElement>('[role="dialog"] button');
+    expect(confirmation?.textContent).toBe('Подтвердить выдачу');
+    await act(async () => confirmation!.click());
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    expect(host.textContent).toContain('Первая работа');
+    expect(gradebook).toHaveBeenCalledTimes(2);
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+    window.location.hash = hash;
+    environment.IS_REACT_ACT_ENVIRONMENT = previous;
+    gradebook.mockRestore();
+    classroom.mockRestore();
   }
 });

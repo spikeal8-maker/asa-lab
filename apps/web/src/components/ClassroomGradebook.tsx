@@ -1,3 +1,4 @@
+import { ClassroomAssignmentIssuer } from './ClassroomAssignmentIssuer';
 import { QuizQuestionFields } from './QuizQuestionFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -448,6 +449,7 @@ function AssignedClassroomGradebook({
   classroomId,
   onOpenStudent,
 }: GradebookStudentNavigation): JSX.Element {
+  const [canAssign, setCanAssign] = useState(false);
   const [items, setItems] = useState<GradebookEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<GradebookEntry | null>(null);
@@ -477,6 +479,15 @@ function AssignedClassroomGradebook({
       setItems(result.data.items);
       setError(null);
     } else setError(result.error.message);
+  }, [classroomId]);
+  useEffect(() => {
+    let mounted = true;
+    void api.getClassroom(classroomId).then((result) => {
+      if (mounted && result.ok) setCanAssign(result.data.classroom.status === 'active');
+    });
+    return () => {
+      mounted = false;
+    };
   }, [classroomId]);
   useEffect(() => {
     void reload();
@@ -573,6 +584,18 @@ function AssignedClassroomGradebook({
           {showQueue ? 'К таблице оценок' : `Ждут проверки: ${awaiting.length}`}
         </button>
       </header>
+      {canAssign ? (
+        <ClassroomAssignmentIssuer
+          classroomId={classroomId}
+          archived={false}
+          onAssigned={() => {
+            setShowQueue(false);
+            setCourse('');
+            setSearch('');
+            void reload();
+          }}
+        />
+      ) : null}
       {error ? (
         <p role="alert">
           {error}
@@ -657,10 +680,7 @@ function AssignedClassroomGradebook({
           )}
         </section>
       ) : !items.length ? (
-        <p>
-          Здесь появятся работы и оценки. Чтобы дать первое задание, откройте «Обучение» и нажмите
-          «Выдать задание».
-        </p>
+        <p>Здесь появятся работы и оценки.</p>
       ) : (
         <div
           className="gradebook-matrix-scroll"
