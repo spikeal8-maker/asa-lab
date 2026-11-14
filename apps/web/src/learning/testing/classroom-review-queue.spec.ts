@@ -25,6 +25,15 @@ vi.mock('../../components/AssignLearningActivityDialog', () => ({
 }));
 
 it('shows only waiting work in the review queue and restores the full gradebook', async () => {
+  const teacher = vi.spyOn(api, 'me').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { authenticated: true, account: { id: 'teacher-1' } },
+  } as Awaited<ReturnType<typeof api.me>>);
+  const preferenceKey = 'asa-journal-columns:v1:teacher-1:class-1';
+  const otherTeacherKey = 'asa-journal-columns:v1:teacher-2:class-1';
+  localStorage.setItem(preferenceKey, JSON.stringify(['Готово']));
+  localStorage.setItem(otherTeacherKey, JSON.stringify(['На проверку']));
   const entry = (id: string, state: GradebookEntry['state']): GradebookEntry => ({
     seatId: 'learner',
     displayLabel: 'Анна',
@@ -74,11 +83,8 @@ it('shows only waiting work in the review queue and restores the full gradebook'
     const button = (label: string) =>
       [...host.querySelectorAll('button')].find((element) => element.textContent === label)!;
     expect(button('Выдать задание')).toBeUndefined();
-    expect(host.querySelector('table')?.textContent).toContain('Готово');
-    await act(async () =>
-      host.querySelector<HTMLInputElement>('[aria-label="Показывать столбец: Готово"]')!.click(),
-    );
     expect(host.querySelector('table')?.textContent).not.toContain('Готово');
+    expect(host.querySelector('table')?.textContent).toContain('На проверку');
     await act(async () => button('Ждут проверки: 1').click());
     expect(host.querySelector('table')).toBeNull();
     const queue = host.querySelector('[aria-label="Работы на проверку"]');
@@ -90,6 +96,12 @@ it('shows only waiting work in the review queue and restores the full gradebook'
     await act(async () => button('К таблице оценок').click());
     await act(async () => button('Показать все столбцы').click());
     expect(host.querySelector('table')?.textContent).toContain('Готово');
+    expect(localStorage.getItem(preferenceKey)).toBeNull();
+    await act(async () =>
+      host.querySelector<HTMLInputElement>('[aria-label="Показывать столбец: Готово"]')!.click(),
+    );
+    expect(localStorage.getItem(preferenceKey)).toBe(JSON.stringify(['Готово']));
+    expect(localStorage.getItem(otherTeacherKey)).toBe(JSON.stringify(['На проверку']));
   } finally {
     await act(async () => root.unmount());
     host.remove();
@@ -97,10 +109,18 @@ it('shows only waiting work in the review queue and restores the full gradebook'
     environment.IS_REACT_ACT_ENVIRONMENT = previous;
     gradebook.mockRestore();
     classroom.mockRestore();
+    teacher.mockRestore();
+    localStorage.removeItem(preferenceKey);
+    localStorage.removeItem(otherTeacherKey);
   }
 });
 
 it('issues a first assignment from an empty gradebook and reloads after confirmation', async () => {
+  const teacher = vi.spyOn(api, 'me').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { authenticated: false },
+  });
   const classroom = vi.spyOn(api, 'getClassroom').mockResolvedValue({
     ok: true,
     status: 200,
@@ -145,5 +165,6 @@ it('issues a first assignment from an empty gradebook and reloads after confirma
     environment.IS_REACT_ACT_ENVIRONMENT = previous;
     gradebook.mockRestore();
     classroom.mockRestore();
+    teacher.mockRestore();
   }
 });

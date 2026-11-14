@@ -1,3 +1,4 @@
+import { onSessionLoggedOut } from '../session-fetch';
 import { ClassroomAssignmentIssuer } from './ClassroomAssignmentIssuer';
 import { QuizQuestionFields } from './QuizQuestionFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -445,6 +446,15 @@ function JournalModes({ classroomId, onOpenStudent }: GradebookStudentNavigation
   );
 }
 
+function readHiddenColumns(key: string): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
+    return Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function AssignedClassroomGradebook({
   classroomId,
   onOpenStudent,
@@ -457,8 +467,43 @@ function AssignedClassroomGradebook({
   const [search, setSearch] = useState('');
   const [course, setCourse] = useState('');
   const [showQueue, setShowQueue] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [columnsPreference, setColumnsPreference] = useState<{
+    key: string | null;
+    hidden: string[];
+  } | null>(null);
+  const hiddenColumns = columnsPreference?.hidden ?? [];
   const openedFrom = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    const unsubscribe = onSessionLoggedOut(() => {
+      controller.abort();
+      setColumnsPreference(null);
+    });
+    void api.me(controller.signal).then((result) => {
+      if (controller.signal.aborted) return;
+      const accountId = result.ok && result.data.authenticated ? result.data.account.id : null;
+      const key = accountId ? `asa-journal-columns:v1:${accountId}:${classroomId}` : null;
+      setColumnsPreference({ key, hidden: key ? readHiddenColumns(key) : [] });
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [classroomId]);
+
+  function updateHiddenColumns(hidden: string[]) {
+    if (!columnsPreference) return;
+    const { key } = columnsPreference;
+    setColumnsPreference({ key, hidden });
+    if (!key) return;
+    try {
+      if (hidden.length) localStorage.setItem(key, JSON.stringify(hidden));
+      else localStorage.removeItem(key);
+    } catch {
+      // The current view still works if the browser blocks persistence.
+    }
+  }
+
   const destination = useLearningDestination();
   const openedDestination = useRef('');
   useEffect(() => {
@@ -618,7 +663,7 @@ function AssignedClassroomGradebook({
           ))}
         </select>
       </label>
-      {!showQueue && columns.length ? (
+      {!showQueue && columnsPreference && columns.length ? (
         <details className="gradebook-column-picker">
           <summary>
             Столбцы журнала{hiddenColumns.length > 0 ? ` · скрыто: ${hiddenColumns.length}` : ''}
@@ -633,8 +678,10 @@ function AssignedClassroomGradebook({
                   checked={!hiddenColumns.includes(id)}
                   onChange={(event) => {
                     const visible = event.currentTarget.checked;
-                    setHiddenColumns((current) =>
-                      visible ? current.filter((value) => value !== id) : [...current, id],
+                    updateHiddenColumns(
+                      visible
+                        ? hiddenColumns.filter((value) => value !== id)
+                        : [...hiddenColumns, id],
                     );
                   }}
                 />
@@ -643,7 +690,7 @@ function AssignedClassroomGradebook({
             ))}
           </fieldset>
           {hiddenColumns.length > 0 ? (
-            <button type="button" className="btn-secondary" onClick={() => setHiddenColumns([])}>
+            <button type="button" className="btn-secondary" onClick={() => updateHiddenColumns([])}>
               Показать все столбцы
             </button>
           ) : null}
