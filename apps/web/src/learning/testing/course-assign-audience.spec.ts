@@ -43,7 +43,7 @@ it('retries the same published course version for the selected pupils', async ()
   environment.IS_REACT_ACT_ENVIRONMENT = true;
   const attempt: CourseAssignAttempt = {
     classroomId: 'class-1',
-    dueDate: '',
+    dueDate: '2027-04-01',
     audienceType: 'named_learners',
   };
   try {
@@ -64,10 +64,20 @@ it('retries the same published course version for the selected pupils', async ()
     expect(button('Назначить').disabled).toBe(true);
     const pupil = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
     await act(async () => pupil.click());
+    const time = host.querySelector<HTMLInputElement>('input[type="time"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        time,
+        '16:30',
+      );
+      time.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
     await act(async () => button('Назначить').click());
     await act(async () => button('Повторить назначение').click());
     expect(assign).toHaveBeenCalledTimes(2);
     expect(assign.mock.calls[0]).toEqual(assign.mock.calls[1]);
+    expect(assign.mock.calls[0]?.[2]).toBe(new Date('2027-04-01T16:30').toISOString());
     expect(assign.mock.calls[0]?.[3]).toMatchObject({
       audienceType: 'named_learners',
       seatIds: ['first'],

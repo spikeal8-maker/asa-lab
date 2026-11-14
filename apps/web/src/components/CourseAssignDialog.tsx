@@ -5,6 +5,7 @@ import {
   type ClassroomStudentSeat,
   type PublishedAuthorVersion,
 } from '../api';
+import { assignmentDateTime } from '../learning/assignment-date-time';
 import './classroom-assignments.css';
 
 type CourseAudience = 'whole_class' | 'named_learners';
@@ -12,6 +13,7 @@ type CourseAudience = 'whole_class' | 'named_learners';
 export interface CourseAssignAttempt {
   classroomId: string;
   dueDate: string;
+  dueTime?: string;
   audienceType?: CourseAudience;
   seatIds?: string[];
   submitted?: {
@@ -43,6 +45,8 @@ export function CourseAssignDialog({
   const [classrooms, setClassrooms] = useState<Classroom[] | null>(null);
   const [classroomId, setClassroomId] = useState(attempt.classroomId);
   const [dueDate, setDueDate] = useState(attempt.dueDate);
+  const [dueTime, setDueTime] = useState(attempt.dueTime ?? '');
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [audienceType, setAudienceType] = useState<CourseAudience>(
     attempt.audienceType ?? 'whole_class',
   );
@@ -95,15 +99,29 @@ export function CourseAssignDialog({
 
   async function assign(): Promise<void> {
     if (!canAssign) return;
-    const submitted = attempt.submitted ?? {
-      classroomId,
-      dueAt: dueDate ? new Date(`${dueDate}T23:59:59`).toISOString() : null,
-      requestId: crypto.randomUUID(),
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      audienceType,
-      seatIds: audienceType === 'named_learners' ? selectedSeats.map((student) => student.id) : [],
-    };
-    attempt.submitted = submitted;
+    let submitted = attempt.submitted;
+    if (!submitted) {
+      const deadline = assignmentDateTime(dueDate ? `${dueDate}T${dueTime || '23:59'}` : '');
+      if (!deadline.ok) {
+        setError(deadline.message);
+        return;
+      }
+      // A date without a specified time includes the entire final minute.
+      const dueAt =
+        deadline.instant && !dueTime
+          ? new Date(Date.parse(deadline.instant) + 59_000).toISOString()
+          : deadline.instant;
+      submitted = {
+        classroomId,
+        dueAt,
+        requestId: crypto.randomUUID(),
+        timeZone: deadline.timeZone,
+        audienceType,
+        seatIds:
+          audienceType === 'named_learners' ? selectedSeats.map((student) => student.id) : [],
+      };
+      attempt.submitted = submitted;
+    }
     setBusy(true);
     onBusyChange(true);
     setError(null);
@@ -147,10 +165,12 @@ export function CourseAssignDialog({
     delete attempt.completed;
     attempt.classroomId = '';
     attempt.dueDate = '';
+    delete attempt.dueTime;
     attempt.audienceType = 'whole_class';
     attempt.seatIds = [];
     setClassroomId('');
     setDueDate('');
+    setDueTime('');
     setAudienceType('whole_class');
     setSeatIds([]);
     setCompleted(undefined);
@@ -277,9 +297,28 @@ export function CourseAssignDialog({
             onChange={(event) => {
               attempt.dueDate = event.target.value;
               setDueDate(event.target.value);
+              if (!event.target.value) {
+                delete attempt.dueTime;
+                setDueTime('');
+              }
             }}
           />
         </label>
+        {dueDate ? (
+          <label className="course-field">
+            Время сдачи
+            <input
+              type="time"
+              value={dueTime}
+              disabled={locked}
+              onChange={(event) => {
+                attempt.dueTime = event.target.value;
+                setDueTime(event.target.value);
+              }}
+            />
+            <small>{timeZone}. Если оставить время пустым, срок — до конца выбранного дня.</small>
+          </label>
+        ) : null}
         <div className="modal-actions">
           {completed ? (
             <button
