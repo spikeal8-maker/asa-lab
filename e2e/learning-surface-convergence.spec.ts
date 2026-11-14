@@ -29,6 +29,58 @@ async function openLearnerLearning(page: import('@playwright/test').Page): Promi
     .click();
 }
 
+test('teacher creates and issues the first assignment from the journal on a small screen', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  await openPortalSection(page, 'Классы');
+  await page.getByRole('button', { name: 'Создать класс' }).first().click();
+  const create = page.getByRole('dialog', { name: 'Создать класс' });
+  const className = 'Первое задание из журнала';
+  await create.getByLabel('Название класса').fill(className);
+  await create.getByRole('button', { name: 'Создать', exact: true }).click();
+  await page
+    .getByTestId('classroom-card')
+    .filter({ hasText: className })
+    .locator('.classroom-row-title')
+    .click();
+
+  await page.getByRole('button', { name: 'Добавить ученика' }).click();
+  const seat = page.getByRole('dialog');
+  await seat.getByLabel('Имя в списке класса').fill('Анна');
+  await seat.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await expect(seat).toBeHidden();
+
+  await page.getByRole('button', { name: 'Журнал', exact: true }).click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  await expect(page.getByText('Здесь появятся работы и оценки.', { exact: true })).toBeVisible();
+  const issue = page.getByRole('button', { name: 'Выдать задание', exact: true });
+  await expect(issue).toBeVisible();
+  await page.screenshot({ path: evidenceDir + '/issue-from-journal-desktop.png' });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await issue.click();
+  const picker = page.getByRole('dialog', { name: 'Назначить задание' });
+  await picker.getByRole('button', { name: 'Создать новое задание', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Новое задание класса' });
+  const title = 'Соберите первую цепь';
+  await editor.getByLabel('Среда задания').selectOption('electronics');
+  await editor.getByLabel('Название задания', { exact: true }).fill(title);
+  await editor.getByLabel('Содержание', { exact: true }).fill('Соедините источник и лампу.');
+  await editor.getByRole('button', { name: 'К выдаче', exact: true }).click();
+  await expect(picker.getByText(title, { exact: true })).toBeVisible();
+  await expect(picker.getByLabel('Весь класс')).toBeChecked();
+  await picker.screenshot({ path: evidenceDir + '/issue-from-journal-mobile.png' });
+  await picker.getByRole('button', { name: 'Назначить', exact: true }).click();
+
+  await expect(picker).toBeHidden();
+  await expect(issue).toBeFocused();
+  const table = page.getByRole('table', { name: 'Журнал работ класса' });
+  await expect(table.getByRole('columnheader', { name: title })).toBeVisible();
+  await expect(table.getByRole('rowheader', { name: 'Анна' })).toBeVisible();
+});
+
 test('legacy, revision and selected-result semantics stay equal across learner and teacher surfaces', async ({
   browser,
   page,
