@@ -17,6 +17,7 @@ import { ClassroomActionFeedbackProvider } from '../components/ClassroomActionFe
 import { ClassroomStudentProjects } from '../components/ClassroomStudentProjects';
 import { ClassroomStudentHistory } from '../components/ClassroomStudentHistory';
 import { ClassroomLearning } from '../components/ClassroomLearning';
+import { SystemTabs } from '../components/SystemTabs';
 import {
   LearningNotificationPreferences,
   ClassroomLearningReminders,
@@ -948,19 +949,13 @@ function ClassroomPageContent({
               ))}
             </select>
           </label>
-          <nav className="classroom-workspace-tabs" aria-label="Разделы класса">
-            {TABS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={tab === item.id ? 'active' : undefined}
-                aria-current={tab === item.id ? 'page' : undefined}
-                onClick={() => setTab(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+          <SystemTabs
+            items={TABS}
+            active={tab}
+            onChange={setTab}
+            label="Разделы класса"
+            className="classroom-workspace-tabs"
+          />
           {tab === 'students' ? (
             <div className="classroom-roster-toolbar">
               <div className="classroom-roster-actions">

@@ -15,6 +15,7 @@ import {
 import { ProjectCard } from '../modules/ProjectCard';
 import { WorkPreview } from '../components/WorkPreview';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
+import { SystemTabs } from '../components/SystemTabs';
 import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { SeatAwardPanel, SeatAwardRow } from '../components/SeatAwards';
@@ -760,40 +761,14 @@ export function ClassroomStudentPage({
     >
       {navigationRow}
       {sectionRail}
-      <nav
+      <SystemTabs
+        items={TABS.map((item) => ({ id: item.key, label: item.label }))}
+        active={tab}
+        onChange={changeTab}
+        label="Разделы профиля"
         className="participant-tabs"
-        aria-label="Разделы профиля"
-        onFocus={(event) => {
-          // Native focus may leave a partly visible button clipped in a local
-          // scroller. Reveal its full label for Tab and arrow/Home/End users.
-          if (event.target instanceof HTMLButtonElement)
-            event.target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-        }}
-        onKeyDown={(event) => {
-          const buttons = Array.from(event.currentTarget.querySelectorAll('button'));
-          const index = buttons.indexOf(event.target as HTMLButtonElement);
-          if (index < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-          event.preventDefault();
-          const next =
-            event.key === 'Home'
-              ? 0
-              : event.key === 'End'
-                ? buttons.length - 1
-                : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-          buttons[next]?.focus();
-        }}
-      >
-        {TABS.map((item) => (
-          <button
-            type="button"
-            key={item.key}
-            aria-pressed={tab === item.key}
-            onClick={() => changeTab(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+        selectedState="pressed"
+      />
       {tab === 'settings' ? (
         <section
           className="classroom-student-settings-entry"

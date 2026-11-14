@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
+import { SystemTabs } from '../components/SystemTabs';
 import { ageBandLabel } from '../components/ClassroomFields';
 import { useClassroomFeedback } from '../components/useClassroomFeedback';
 import { SystemToastViewport } from '../components/SystemToastViewport';
@@ -314,29 +315,19 @@ export function DashboardPage({
           </p>
         ) : null}
         <div className="classroom-hub-control-row">
-          <nav className="classroom-role-tabs" aria-label="Роли в классах">
-            {CLASSROOM_ROLE_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={roleView === tab.id ? 'active' : undefined}
-                aria-label={tab.label}
-                aria-current={roleView === tab.id ? 'page' : undefined}
-                onClick={() => {
-                  setRoleView(tab.id);
-                  setSelected(new Set());
-                  setSelectionMode(false);
-                }}
-              >
-                <span className="classroom-role-label-full" aria-hidden="true">
-                  {tab.label}
-                </span>
-                <span className="classroom-role-label-compact" aria-hidden="true">
-                  {tab.compactLabel}
-                </span>
-              </button>
-            ))}
-          </nav>
+          <SystemTabs
+            items={CLASSROOM_ROLE_TABS}
+            active={roleView}
+            onChange={(next) => {
+              setRoleView(next);
+              setSelected(new Set());
+              setSelectionMode(false);
+            }}
+            label="Роли в классах"
+            className="classroom-role-tabs"
+            fullLabelClassName="classroom-role-label-full"
+            compactLabelClassName="classroom-role-label-compact"
+          />
           <section className="classroom-hub-toolbar" aria-label="Действия с классами">
             <label className="classroom-select-all">
               <input
