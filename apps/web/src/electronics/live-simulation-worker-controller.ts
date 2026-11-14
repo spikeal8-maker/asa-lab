@@ -746,23 +746,24 @@ export class ElectronicsLiveSimulationWorkerController {
     const wakeWithinWindow =
       wake !== null &&
       defaultHostPace &&
-      currentHostHorizon !== null &&
       pendingTarget === this.latestTarget &&
       !this.firstPositiveObservation &&
       this.pendingInputEvents.length === 0 &&
       sameArduinoSources(this.dispatchedDocument, document) &&
       wake.at > committed &&
       wakeObservation <= committed + this.observationWindowMicroseconds;
-    if (wakeWithinWindow && currentHostHorizon < wake.at) {
+    const dispatchedHostHorizon = wakeWithinWindow ? currentHostHorizon : null;
+    if (dispatchedHostHorizon !== null && wake && dispatchedHostHorizon < wake.at) {
       // Waiting briefly avoids occupying the sole Worker slot with a request
       // that will stop just before the accepted wake. Keep the full host demand.
-      this.reserveForWake(generationId, wake, currentHostHorizon);
+      this.reserveForWake(generationId, wake, dispatchedHostHorizon);
       return;
     }
     this.cancelWakeTimer();
-    const demand = wakeWithinWindow
-      ? Math.min(currentHostHorizon, wakeObservation)
-      : pendingTarget.requestedHorizonMicroseconds;
+    const demand =
+      dispatchedHostHorizon === null
+        ? pendingTarget.requestedHorizonMicroseconds
+        : Math.min(dispatchedHostHorizon, wakeObservation);
     const target = isStartup
       ? pendingTarget
       : {
