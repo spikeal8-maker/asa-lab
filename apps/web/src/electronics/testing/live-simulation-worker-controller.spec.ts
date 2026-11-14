@@ -580,7 +580,7 @@ describe('dispatch around an accepted Arduino wake', () => {
         ...answer,
         result: {
           ...answer.result!,
-          quality: { passed: true } as SolveResult['quality'],
+          quality: { passed: true } as NonNullable<SolveResult['quality']>,
           components: stressState
             ? [
                 {
