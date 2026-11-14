@@ -9,9 +9,11 @@ const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
 const phase = process.argv[2];
 assert.ok(['before', 'after'].includes(phase), 'choose before or after');
-const output = resolve('docs/product/electronics/evidence/arduino-check-863', phase);
+const output = resolve(process.argv[3] ?? 'reports/arduino-check-863', phase);
 await mkdir(output, { recursive: true });
 const cases = {
+  serialPwm:
+    'void setup(){Serial.begin(9600);}\nvoid loop(){analogWrite(9,128);Serial.print(42);Serial.println(43);delay(100);}',
   supported: 'void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(100);}',
   loops: 'void loop(){for(int i=0;i<3;i++){digitalWrite(13,HIGH);}while(false){delay(1);}}',
   servo:
@@ -46,7 +48,10 @@ const result = await build({
   format: 'iife',
   platform: 'browser',
   jsx: 'automatic',
-  alias: { '@asa-lab/electronics': resolve('contexts/electronics/index.ts') },
+  alias: {
+    '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
+    '@asa-lab/electronics/rendering': resolve('contexts/electronics/rendering.ts'),
+  },
   define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{}' },
   plugins: [
     {
@@ -107,11 +112,25 @@ try {
       await page.evaluate((source) => window.mount(source), source);
       const editor = page.getByRole('textbox', { name: 'Код Arduino C++', exact: true });
       await editor.waitFor();
-      await page.locator('.arduino-check-button').click();
       const header = page.locator('.arduino-code-check-title');
-      assert.equal(await header.getAttribute('aria-expanded'), 'true');
-      const selections = [];
       const diagnostics = structures.cases[name].diagnostics;
+      const hasBlockers = diagnostics.some((item) => item.status === 'unsupported');
+      if (phase === 'after') {
+        assert.equal(await header.getAttribute('aria-expanded'), String(hasBlockers));
+      }
+      await page.locator('.arduino-check-button').click();
+      const afterCheckExpanded = await header.getAttribute('aria-expanded');
+      if (phase === 'after') {
+        assert.equal(afterCheckExpanded, String(hasBlockers));
+        if (!hasBlockers) {
+          assert.equal(await page.locator('.arduino-code-check-body').count(), 0);
+          assert.equal(await header.locator('.arduino-code-check-icon').textContent(), '✓');
+          assert.equal(await header.locator('.arduino-code-check-count.active').count(), 0);
+        }
+      }
+      await page.screenshot({ path: resolve(output, `check-${name}-${width}.png`) });
+      if (afterCheckExpanded === 'false') await header.click();
+      const selections = [];
       for (let i = 0; i < diagnostics.length; i++) {
         await page.locator('.arduino-code-check-messages button').nth(i).click();
         const selection = await editor.evaluate((el) => ({
@@ -166,11 +185,7 @@ try {
           assert.ok(structures.cases[name].runtime.diagnostics.length > 0);
         } else {
           assert.deepEqual(structures.cases[name].runtime.diagnostics, []);
-          assert.ok(
-            notes
-              ? notice.includes('можно запускать')
-              : notice.includes('ошибок для симулятора не найдено'),
-          );
+          assert.ok(notice.includes('код можно запускать'));
           if (notes) assert.ok(expanded.includes('не блокируют запуск'));
         }
         assert.equal(
@@ -202,6 +217,7 @@ try {
         width,
         name,
         expanded,
+        afterCheckExpanded,
         notice,
         selections,
         sourcePreserved: true,
@@ -240,7 +256,9 @@ try {
     const immutableNative = (rows) =>
       rows.map((row) =>
         Object.fromEntries(
-          Object.entries(row).filter(([key]) => !['expanded', 'notice', 'panel'].includes(key)),
+          Object.entries(row).filter(
+            ([key]) => !['expanded', 'afterCheckExpanded', 'notice', 'panel'].includes(key),
+          ),
         ),
       );
     assert.deepEqual(
@@ -261,7 +279,7 @@ try {
     );
   }
   console.log(
-    `PASS ${phase}: 8 real diagnostic cases × 1440/390; check/collapse/source navigation/edit/preservation, no server`,
+    `PASS ${phase}: ${Object.keys(cases).length} real diagnostic cases × 1440/390; check/collapse/source navigation/edit/preservation, no server`,
   );
 } finally {
   await browser.close();
