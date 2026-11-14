@@ -28,8 +28,11 @@ it('shows only waiting work in the review queue and restores the full gradebook'
   const gradebook = vi.spyOn(api, 'classroomGradebook').mockResolvedValue({
     ok: true,
     status: 200,
-    data: { items: [entry('На проверку', 'submitted'), entry('Готово', 'completed')] },
-  } as Awaited<ReturnType<typeof api.classroomGradebook>>);
+    data: {
+      scheme: null,
+      items: [entry('На проверку', 'submitted'), entry('Готово', 'completed')],
+    },
+  });
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
@@ -47,6 +50,10 @@ it('shows only waiting work in the review queue and restores the full gradebook'
     const button = (label: string) =>
       [...host.querySelectorAll('button')].find((element) => element.textContent === label)!;
     expect(host.querySelector('table')?.textContent).toContain('Готово');
+    await act(async () =>
+      host.querySelector<HTMLInputElement>('[aria-label="Показывать столбец: Готово"]')!.click(),
+    );
+    expect(host.querySelector('table')?.textContent).not.toContain('Готово');
     await act(async () => button('Ждут проверки: 1').click());
     expect(host.querySelector('table')).toBeNull();
     const queue = host.querySelector('[aria-label="Работы на проверку"]');
@@ -56,6 +63,7 @@ it('shows only waiting work in the review queue and restores the full gradebook'
       'Проверить: На проверку · Анна',
     );
     await act(async () => button('К таблице оценок').click());
+    await act(async () => button('Показать все столбцы').click());
     expect(host.querySelector('table')?.textContent).toContain('Готово');
   } finally {
     await act(async () => root.unmount());

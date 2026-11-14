@@ -12,6 +12,7 @@ import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import './classroom-gradebook.css';
 import { ManualClassroomJournal } from './ManualClassroomJournal';
+import './classroom-assignments.css';
 
 const LABELS: Record<string, string> = {
   not_applicable: 'Не назначено',
@@ -454,6 +455,7 @@ function AssignedClassroomGradebook({
   const [search, setSearch] = useState('');
   const [course, setCourse] = useState('');
   const [showQueue, setShowQueue] = useState(false);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const destination = useLearningDestination();
   const openedDestination = useRef('');
   useEffect(() => {
@@ -515,6 +517,7 @@ function AssignedClassroomGradebook({
       ),
     [items, search],
   );
+  const visibleColumns = columns.filter(([id]) => !hiddenColumns.includes(id));
   const cells = useMemo(
     () => new Map((items ?? []).map((item) => [`${item.seatId}:${item.assignmentId}`, item])),
     [items],
@@ -576,6 +579,37 @@ function AssignedClassroomGradebook({
           ))}
         </select>
       </label>
+      {!showQueue && columns.length ? (
+        <details className="gradebook-column-picker">
+          <summary>
+            Столбцы журнала{hiddenColumns.length > 0 ? ` · скрыто: ${hiddenColumns.length}` : ''}
+          </summary>
+          <fieldset className="learning-learner-picker">
+            <legend>Видны в моей таблице</legend>
+            {columns.map(([id, title]) => (
+              <label key={id}>
+                <input
+                  type="checkbox"
+                  aria-label={`Показывать столбец: ${title}`}
+                  checked={!hiddenColumns.includes(id)}
+                  onChange={(event) => {
+                    const visible = event.currentTarget.checked;
+                    setHiddenColumns((current) =>
+                      visible ? current.filter((value) => value !== id) : [...current, id],
+                    );
+                  }}
+                />
+                {title}
+              </label>
+            ))}
+          </fieldset>
+          {hiddenColumns.length > 0 ? (
+            <button type="button" className="btn-secondary" onClick={() => setHiddenColumns([])}>
+              Показать все столбцы
+            </button>
+          ) : null}
+        </details>
+      ) : null}
       {!items ? (
         <p>Загружаем журнал…</p>
       ) : showQueue ? (
@@ -623,7 +657,7 @@ function AssignedClassroomGradebook({
             <thead>
               <tr>
                 <th scope="col">Ученик</th>
-                {columns.map(([id, title]) => (
+                {visibleColumns.map(([id, title]) => (
                   <th scope="col" key={id}>
                     {title}
                   </th>
@@ -647,7 +681,7 @@ function AssignedClassroomGradebook({
                       label
                     )}
                   </th>
-                  {columns.map(([assignment, title]) => {
+                  {visibleColumns.map(([assignment, title]) => {
                     const item = cells.get(`${seat}:${assignment}`);
                     return (
                       <td key={assignment}>
