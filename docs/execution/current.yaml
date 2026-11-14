@@ -18005,6 +18005,7 @@ parallel_lanes:
       - apps/web/src/robotics/robotics.css
       - apps/web/src/robotics/testing/robotics-field-dock.spec.ts
       - e2e/robotics-field-dock.spec.ts
+      - e2e/robotics-projects.spec.ts
       shared_path_coordination:
         status: owner_approved
         purpose: isolated_development_only
@@ -18019,9 +18020,11 @@ parallel_lanes:
           path_sha256:
             apps/web/src/robotics/RobotFieldEditor.tsx: f62b4d97bd0573667aeec8bd0c3fb829b59ed113cf318bb94f01aee0cf5a77f8
             apps/web/src/robotics/robotics.css: de066252f3bbdff0ebe5df9fc3bb7aa13020e48f64f63c131b72fb15d75d38c3
+            e2e/robotics-projects.spec.ts: ebed49df42d3fadba5981fbd147f134d30ed51bce8d66dcfa1f0dad913fd4f98
         paths:
         - apps/web/src/robotics/RobotFieldEditor.tsx
         - apps/web/src/robotics/robotics.css
+        - e2e/robotics-projects.spec.ts
       scope: 'UI_ONLY E4 dock of existing Robotics field object inspector: single right panel 300 CSS px with Objects/Properties/Field
         tabs; on selection show existing RobotObjectInspector; reuse current field settings/catalog and onCommit/Undo/Redo,
         keep camera pan/zoom unchanged. At widths below 1280 use a controlled drawer, never a second permanent column;
@@ -18034,6 +18037,7 @@ parallel_lanes:
       - Existing validation/history/persistence must remain, with no duplicated inspector state.
       - Panel never overlays selected object on >=1280 desktops; at smaller sizes the drawer has a visible close action.
       - Run browser checks with real isolated API, screenshots and independent final-SHA review before merge.
+      - Adapt only legacy e2e/robotics-projects.spec.ts palette/field tab navigation to E4; preserve real API, assertions, test counts, publication, save/reopen, simulation and existing timeouts. Do not edit the protected D2-R2 copy.
       context_hints:
       - docs/product/robotics/FIELD_CORE_SPEC.md
       - docs/product/robotics/FIELD_CORE_START.md
@@ -18110,6 +18114,7 @@ parallel_lanes:
         - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
         - tests/portal/personal-progress.pg.spec.ts
         - tests/portal/personal-progress.http.pg.spec.ts
+        - tests/admin/ai-image-queue.pg.spec.ts
       constraints:
         - 'Use existing classroom_participant_metrics as the only scoring formula; preserve rank semantics and 7/30/90-day periods. Rounded equal scores share places.'
         - 'Authorise using authenticated Account/Seat context, recheck membership and tenant at restricted PostgreSQL role, and never expose teacher roster, names, student codes, grades or peer private IDs.'
