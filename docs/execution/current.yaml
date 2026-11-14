@@ -18079,6 +18079,85 @@ parallel_lanes:
         commands:
         - pnpm gate:repository
 
+  - id: robotics-sensor-barrier
+    parent_lane: robotics
+    worktree_id: robotics-sensor-barrier-001
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-HCSR04-BARRIER-001.md
+      - contexts/electronics/testing/hc-sr04-query-barrier.spec.ts
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-HCSR04-BARRIER-001
+      issue: 1166
+      parent_issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: isolated_hc_sr04_event_barrier_selected
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      slice: D02-HCSR04
+      owner_authorization: >-
+        Owner on 2026-11-15 authorized the follow-on physics programme:
+        «Потом доведи настоящую 3D-физику с Arduino, чтобы банка опрокидывалась,
+        а робот заезжал на рампу. Не останавливайся на одном 3D-виде.»
+        The owner asked for separate implementation and controller review:
+        «При реализации используй агентов, которые будут всё делать,
+        реализовывать, а ты их проверяй, контролируй». The controller records
+        this as one isolated D02 prerequisite under the instructed programme.
+        This source selection requires its own registration accepted on main.
+        Receipt: https://github.com/spikeal8-maker/asa-lab/issues/1166.
+      scope: >-
+        Isolated engine-owned HC-SR04 query at the exact canonical microsecond
+        of an accepted falling Trig using real Uno, common electrical solver,
+        and existing Echo/pulseIn. Single test sensor, analytic committed
+        geometry witness, in-memory request protocol only. TIME-01/02 seam
+        evidence only. No 3D solver/Worker/product activation, production
+        behavior change, deployment, or full D02 closure.
+      planned_paths:
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/models/hc-sr04-runtime.ts
+        - contexts/electronics/engine.ts
+        - contexts/electronics/testing/hc-sr04-query-barrier.spec.ts
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-HCSR04-BARRIER-001.md
+        - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        - docs/product/electronics/components/arduino-peripherals.yaml
+        - docs/product/robotics/FIELD_CORE_SPEC.md
+        - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
+      gate_boundary: >-
+        Registration docs-only governance and control-plane validation.
+        Implementation exact four-path preflight, targeted sensor/scheduler/
+        engine regression and existing Electronics gate, witness trace,
+        independent HIGH review and applicable exact-SHA protected CI.
+        Current v1 simulation/continuation and full D01/D02 acceptance blocker
+        remain unchanged; no release claim or rollout.
+      deployment: not_authorized
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: c9284b936016d6bd969e63cfe9174c585213b3cf
+      head_sha: null
+      observed_at: '2026-11-14T23:09:47Z'
+      main:
+        branch: main
+        sha: c9284b936016d6bd969e63cfe9174c585213b3cf
+      observation_note: >-
+        Dated controller observation before registration. Fetch main and verify
+        the selected task, exact path overlap, and gates before source work.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: student-progress
     worktree_id: student-progress-1090
     owned_paths:
