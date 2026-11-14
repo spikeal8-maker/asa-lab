@@ -101,6 +101,7 @@ const expectedPending = [
   '0320', // Authorized own progress summary; no identity or score writes.
   '0321', // Qualified ordinary Account admission identity, preserving retained history.
   '0322', // Authorized learner-safe group rank and avatar pages, no scoring rewrite.
+  '0324', // Read bounded CSV attachments without changing retained files.
 ];
 
 interface Identity {
