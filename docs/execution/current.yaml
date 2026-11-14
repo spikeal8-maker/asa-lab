@@ -18114,6 +18114,7 @@ parallel_lanes:
         - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
         - tests/portal/personal-progress.pg.spec.ts
         - tests/portal/personal-progress.http.pg.spec.ts
+        - tests/admin/ai-image-queue.pg.spec.ts
       constraints:
         - 'Use existing classroom_participant_metrics as the only scoring formula; preserve rank semantics and 7/30/90-day periods. Rounded equal scores share places.'
         - 'Authorise using authenticated Account/Seat context, recheck membership and tenant at restricted PostgreSQL role, and never expose teacher roster, names, student codes, grades or peer private IDs.'
