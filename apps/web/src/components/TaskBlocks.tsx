@@ -113,6 +113,7 @@ function TaskImage({
 }) {
   const [unavailable, setUnavailable] = useState(false);
   const [zoomed, setZoomed] = useState(false);
+  const [actualSize, setActualSize] = useState(false);
   const [pinned, setPinned] = useState(false);
   const zoomTrigger = useRef<HTMLButtonElement>(null);
   const zoomClose = useRef<HTMLButtonElement>(null);
@@ -123,9 +124,11 @@ function TaskImage({
     essayMedia(block.src, 'image')
       ? block.src
       : `/api/assignments/task-images/${encodeURIComponent(block.contentHash)}`;
+  const preview = (width: number) => src + (src.includes('?') ? '&' : '?') + 'preview=' + width;
   useEffect(() => {
     setUnavailable(false);
     setZoomed(false);
+    setActualSize(false);
     setPinned(false);
   }, [src]);
 
@@ -133,10 +136,6 @@ function TaskImage({
     if (!zoomed) return;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') closeZoom();
-      if (event.key === 'Tab') {
-        event.preventDefault();
-        zoomClose.current?.focus();
-      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -144,6 +143,7 @@ function TaskImage({
 
   function closeZoom(): void {
     setZoomed(false);
+    setActualSize(false);
     zoomTrigger.current?.focus();
   }
 
@@ -166,13 +166,17 @@ function TaskImage({
             aria-label={`Открыть крупно: ${block.alt}`}
             onClick={() => setZoomed(true)}
           >
-            <img
-              src={src}
-              alt={block.alt}
-              loading="lazy"
-              decoding="async"
-              onError={imageUnavailable}
-            />
+            <picture>
+              <source media="(max-width: 600px)" srcSet={preview(640)} />
+              <source srcSet={preview(1280)} />
+              <img
+                src={src}
+                alt={block.alt}
+                loading="lazy"
+                decoding="async"
+                onError={imageUnavailable}
+              />
+            </picture>
           </button>
           <div className="task-block-image-actions">
             <button
@@ -193,11 +197,26 @@ function TaskImage({
               role="dialog"
               aria-modal="true"
               aria-label={`Изображение задания: ${block.alt}`}
+              onKeyDown={(event) => {
+                if (event.key !== 'Tab') return;
+                const controls = Array.from(event.currentTarget.querySelectorAll('button'));
+                const index = controls.indexOf(document.activeElement as HTMLButtonElement);
+                const direction = event.shiftKey ? -1 : 1;
+                controls[(index + direction + controls.length) % controls.length]?.focus();
+                event.preventDefault();
+              }}
             >
-              <button ref={zoomClose} type="button" autoFocus onClick={closeZoom}>
-                Закрыть
-              </button>
-              <img src={src} alt={block.alt} onError={imageUnavailable} />
+              <div className="task-block-image-zoom-actions">
+                <button type="button" onClick={() => setActualSize((value) => !value)}>
+                  {actualSize ? 'По размеру экрана' : 'Показать в полном размере'}
+                </button>
+                <button ref={zoomClose} type="button" autoFocus onClick={closeZoom}>
+                  Закрыть
+                </button>
+              </div>
+              <div className={actualSize ? 'task-block-image-full-size' : 'task-block-image-fit'}>
+                <img src={src} alt={block.alt} onError={imageUnavailable} />
+              </div>
             </div>,
             document.body,
           )

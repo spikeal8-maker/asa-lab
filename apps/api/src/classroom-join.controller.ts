@@ -1,3 +1,5 @@
+import { isLearningTaskFileContentType } from './learning-file-transport.js';
+import { sendTaskImage } from './learning-task-image.js';
 import {
   Body,
   Controller,
@@ -1925,12 +1927,14 @@ export class ClassroomJoinController {
       throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
     reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
     if (role === 'file') {
-      if (row.content_type !== 'application/pdf')
+      if (!isLearningTaskFileContentType(row.content_type))
         throw new HttpException(error('media_not_found', 'Файл недоступен.'), 404);
-      reply.header('content-disposition', 'attachment; filename="material.pdf"');
+      reply.header('content-disposition', 'attachment');
     } else if (!['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type)) {
       throw new HttpException(error('media_not_found', 'Изображение недоступно.'), 404);
     }
+    if (role === 'image')
+      return sendTaskImage(request, reply, row.media_bytes, row.content_type, contentHash);
     reply.type(row.content_type).send(row.media_bytes);
   }
 

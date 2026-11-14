@@ -1,3 +1,4 @@
+import { sendTaskImage } from './learning-task-image.js';
 import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
@@ -2011,6 +2012,8 @@ export class CoursesController {
       throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
     reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
     if (role === 'file') reply.header('content-disposition', 'attachment');
+    if (role === 'image')
+      return sendTaskImage(request, reply, row.media_bytes, row.content_type, contentHash);
     reply.type(row.content_type).send(row.media_bytes);
   }
 

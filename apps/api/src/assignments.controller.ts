@@ -1,3 +1,4 @@
+import { sendTaskImage } from './learning-task-image.js';
 import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
@@ -386,11 +387,7 @@ export class AssignmentsController {
     const row = result.rows[0] as
       { image_bytes: Buffer; image_content_type: string; content_hash: string } | undefined;
     if (!row) throw new HttpException(error('image_not_found', 'Изображение недоступно.'), 404);
-    return reply
-      .header('content-type', row.image_content_type)
-      .header('cache-control', 'private, no-store')
-      .header('etag', `"${row.content_hash}"`)
-      .send(row.image_bytes);
+    return sendTaskImage(request, reply, row.image_bytes, row.image_content_type, row.content_hash);
   }
 
   /** PDF bytes only for a signed-in learner with a readable exact pinned run. */

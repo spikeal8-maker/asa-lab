@@ -1,3 +1,4 @@
+import { sendTaskImage } from './learning-task-image.js';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import {
@@ -299,6 +300,8 @@ export class LearningFileAnswersController implements OnModuleDestroy {
       .header('Cache-Control', 'private, no-store')
       .header('X-Content-Type-Options', 'nosniff');
     if (role === 'file') void reply.header('Content-Disposition', 'attachment');
+    if (role === 'image')
+      return sendTaskImage(request, reply, row.media_bytes, row.content_type, contentHash);
     return reply.send(row.media_bytes);
   }
 

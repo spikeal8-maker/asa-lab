@@ -1,3 +1,4 @@
+import { sendTaskImage } from './learning-task-image.js';
 import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
@@ -150,6 +151,8 @@ export class LearningEssayAttemptsController {
       .header('cache-control', 'private, no-store')
       .header('x-content-type-options', 'nosniff');
     if (role === 'file') reply.header('content-disposition', 'attachment');
+    if (role === 'image')
+      return sendTaskImage(request, reply, row.media_bytes, row.content_type, contentHash);
     return reply.send(row.media_bytes);
   }
 

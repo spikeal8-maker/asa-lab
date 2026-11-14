@@ -346,9 +346,9 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   const imageA = solidPng(205, 45, 45);
   const imageB = solidPng(40, 75, 210);
   const taskImage = PNG.sync.write({
-    width: 400,
-    height: 400,
-    data: randomBytes(640_000),
+    width: 1440,
+    height: 800,
+    data: randomBytes(1440 * 800 * 4),
   } as PNG);
   expect(taskImage.length).toBeGreaterThan(400_000);
 
@@ -441,6 +441,39 @@ test('learner exact published task image stays pinned across v1 and v2', async (
     new URL(orderedSource!, learnerA.page.url()).toString(),
   );
   expect(Buffer.compare(await orderedBytes.body(), taskImage)).toBe(0);
+  const desktopViewport = learnerA.page.viewportSize()!;
+  const previewUrl = new URL(orderedSource!, learnerA.page.url());
+  for (const [width, expected] of [
+    [1440, 1280],
+    [390, 640],
+  ] as const) {
+    await learnerA.page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() =>
+        orderedImage.evaluate((img: HTMLImageElement) => ({
+          url: new URL(img.currentSrc || img.src).searchParams.get('preview'),
+          width: img.naturalWidth,
+        })),
+      )
+      .toEqual({ url: String(expected), width: expected });
+    previewUrl.searchParams.set('preview', String(expected));
+    const reduced = await learnerA.page.request.get(previewUrl.href);
+    expect(reduced.headers()['content-type']).toContain('image/webp');
+    expect((await reduced.body()).length).toBeLessThan(taskImage.length);
+    await brief.getByRole('button', { name: 'Открыть крупно: Опубликованная схема' }).click();
+    const zoom = learnerA.page.getByRole('dialog', {
+      name: 'Изображение задания: Опубликованная схема',
+    });
+    const fullImage = zoom.getByRole('img', { name: 'Опубликованная схема' });
+    await expect
+      .poll(() => fullImage.evaluate((img: HTMLImageElement) => img.naturalWidth))
+      .toBe(1440);
+    await zoom.getByRole('button', { name: 'Показать в полном размере' }).click();
+    await expect(zoom.getByRole('button', { name: 'По размеру экрана' })).toBeVisible();
+    await learnerA.page.screenshot({ path: `${evidenceDir}/task-image-original-${width}.png` });
+    await zoom.getByRole('button', { name: 'Закрыть' }).click();
+  }
+  await learnerA.page.setViewportSize(desktopViewport);
   await brief.getByRole('button', { name: 'Открыть крупно: Опубликованная схема' }).click();
   const orderedZoom = learnerA.page.getByRole('dialog', {
     name: 'Изображение задания: Опубликованная схема',

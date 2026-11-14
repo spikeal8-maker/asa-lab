@@ -1,3 +1,4 @@
+import { sendTaskImage } from './learning-task-image.js';
 import { Readable } from 'node:stream';
 import {
   Body,
@@ -640,11 +641,13 @@ export class LearningActivitiesController {
       throw this.draftSampleError(row?.['result_code'] as string | undefined);
     if (row['content_hash'] !== contentHash)
       throw new HttpException(error('image_not_found', 'Изображение недоступно.'), 404);
-    return reply
-      .header('content-type', String(row['content_type']))
-      .header('cache-control', 'private, no-store')
-      .header('etag', `"${String(row['content_hash'])}"`)
-      .send(row['bytes'] as Buffer);
+    return sendTaskImage(
+      request,
+      reply,
+      row['bytes'] as Buffer,
+      String(row['content_type']),
+      contentHash,
+    );
   }
 
   @Put(':activityId/draft-task-image')
@@ -1015,11 +1018,13 @@ export class LearningActivitiesController {
       throw this.versionSampleError(row?.['result_code'] as string | undefined);
     if (row['content_hash'] !== contentHash)
       throw new HttpException(error('image_not_found', 'Изображение недоступно.'), 404);
-    return reply
-      .header('content-type', String(row['content_type']))
-      .header('cache-control', 'private, no-store')
-      .header('etag', `"${String(row['content_hash'])}"`)
-      .send(row['bytes'] as Buffer);
+    return sendTaskImage(
+      request,
+      reply,
+      row['bytes'] as Buffer,
+      String(row['content_type']),
+      contentHash,
+    );
   }
 
   @Get(':activityId/versions/:versionId/task-file')
