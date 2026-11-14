@@ -1,7 +1,24 @@
-import { Controller, Get, Header, HttpException, Inject, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpException,
+  Inject,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
 import {
   PERSONAL_PROGRESS_GROUP_LIMIT,
+  GROUP_RATING_PAGE_LIMIT,
+  type GroupRatingPageV1,
+  type GroupRatingAvatarBatchV1,
+  type GroupRatingOwnV1,
+  type GroupRatingPeerV1,
   type OwnGroupResultV1,
   type OwnProgressGroupV1,
   type PersonalProgressSummaryV1,
@@ -29,6 +46,155 @@ const BASES: Record<ProgressMetricNameV1, ProgressCoverageV1['basis']> = {
   createdCopies: 'durable_publication_copy_receipts',
   activePublicWorks: 'current_catalog_visibility',
 };
+
+/** A user-readable cookie alone must never derive a peer ticket key.
+ * Explicit SP-04 server secret takes precedence, otherwise derive a separate
+ * subkey from the stable private settings key already installed by ASA Lab.
+ * Both support API replica handoffs. Only installations with no valid shared
+ * key fall back to strong per-process randomness and fail closed on restart.
+ * Never log or expose either secret or derive a key from public inputs.
+ */
+const RATING_TICKET_MASTER_KEY = (() => {
+  const configured = process.env['ASA_SP04_TICKET_SECRET']?.trim();
+  if (configured) {
+    if (!/^[a-fA-F0-9]{64}$/.test(configured))
+      throw new Error('ASA_SP04_TICKET_SECRET must be a 32-byte hexadecimal server secret');
+    return Buffer.from(configured, 'hex');
+  }
+  // ASA Lab's production installer already provisions this durable, private
+  // 32-byte settings key for all API replicas. Derive a domain-separated SP-04
+  // key instead of forcing an unrelated new secret during rollout.
+  const shared = process.env['ASA_SETTINGS_ENCRYPTION_KEY']?.trim() ?? '';
+  const sharedBytes = /^[a-fA-F0-9]{64}$/.test(shared)
+    ? Buffer.from(shared, 'hex')
+    : /^[A-Za-z0-9_-]{43}$/.test(shared)
+      ? Buffer.from(shared, 'base64url')
+      : null;
+  if (sharedBytes?.length === 32)
+    return createHmac('sha256', sharedBytes).update('asa:sp04:ticket:master:v1').digest();
+  // Test/dev installations may intentionally have no shared settings key;
+  // fail closed on restart/replica handoff, never use a public-derived key.
+  return randomBytes(32);
+})();
+
+/** SP-04 cursors and avatar tickets are AES-GCM authenticated and scoped to
+ * the current session under an independent server-held secret. */
+function ratingTicketKey(token: string): Buffer {
+  return createHmac('sha256', RATING_TICKET_MASTER_KEY)
+    .update('asa:sp04:ticket:v1:')
+    .update(hashSessionToken(token))
+    .digest();
+}
+
+function sealRatingTicket(token: string, fields: readonly unknown[]): string {
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', ratingTicketKey(token), nonce);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(fields), 'utf8'), cipher.final()]);
+  return Buffer.concat([nonce, cipher.getAuthTag(), encrypted]).toString('base64url');
+}
+
+function unsealRatingTicket(token: string, value: unknown): unknown[] {
+  if (
+    typeof value !== 'string' ||
+    value.length < 45 ||
+    value.length > 1024 ||
+    !/^[a-zA-Z0-9_-]+$/.test(value)
+  )
+    throw failure('validation_error', 400, 'Некорректная страница рейтинга.');
+  try {
+    const packet = Buffer.from(value, 'base64url');
+    if (packet.length < 29 || packet.toString('base64url') !== value)
+      throw new Error('noncanonical');
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      ratingTicketKey(token),
+      packet.subarray(0, 12),
+    );
+    decipher.setAuthTag(packet.subarray(12, 28));
+    const decoded = JSON.parse(
+      Buffer.concat([decipher.update(packet.subarray(28)), decipher.final()]).toString('utf8'),
+    ) as unknown;
+    if (!Array.isArray(decoded)) throw new Error('not_array');
+    return decoded;
+  } catch {
+    throw failure('validation_error', 400, 'Некорректная страница рейтинга.');
+  }
+}
+
+function ratingPeerKey(token: string, classId: string, seatId: string): string {
+  return createHmac('sha256', ratingTicketKey(token))
+    .update('peer:' + classId + ':' + seatId)
+    .digest('base64url')
+    .slice(0, 27);
+}
+
+/** Mirror the existing FNV-1a default-avatar choice for ASCII UUIDs. */
+function ratingDefaultAvatar(seatId: string, avatarKey: unknown): string {
+  const chosen =
+    typeof avatarKey === 'string' && /^asa-avatar-(0[1-9]|[1-5][0-9]|6[0-7])$/.test(avatarKey)
+      ? Number(avatarKey.slice(-2))
+      : null;
+  let hash = 2166136261;
+  for (const letter of seatId) {
+    hash ^= letter.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  const index = chosen ?? (Math.abs(hash) % 67) + 1;
+  return '/assets/avatars/default/avatar-' + String(index).padStart(2, '0') + '.webp';
+}
+
+function ratingScore(value: unknown): number | null {
+  if (value === null) return null;
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > 100 ||
+    Math.abs(value * 100 - Math.round(value * 100)) > 0.000001
+  )
+    return unavailable();
+  return value;
+}
+
+function ratingRank(value: unknown): number | null {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) return unavailable();
+  return value;
+}
+
+function ratingValuePair(
+  score: unknown,
+  rank: unknown,
+): {
+  score: number | null;
+  rank: number | null;
+} {
+  const actualScore = ratingScore(score);
+  const actualRank = ratingRank(rank);
+  if ((actualScore === null) !== (actualRank === null)) return unavailable();
+  return { score: actualScore, rank: actualRank };
+}
+
+function ratingOwn(input: unknown): GroupRatingOwnV1 {
+  const own = object(input);
+  if (
+    own.availability === 'unavailable' &&
+    own.score === null &&
+    own.rank === null &&
+    (own.reason === 'source_unavailable' || own.reason === 'rating_disabled')
+  ) {
+    return {
+      isSelf: true,
+      availability: 'unavailable',
+      score: null,
+      rank: null,
+      reason: own.reason,
+    };
+  }
+  if (own.availability !== 'available') return unavailable();
+  const pair = ratingValuePair(own.score, own.rank);
+  return { isSelf: true, availability: 'available', ...pair };
+}
 
 function failure(code: string, status: number, message: string): HttpException {
   return new HttpException({ error: { code, message } }, status);
@@ -315,6 +481,314 @@ export class PersonalProgressController {
         throw failure('progress_owner_unavailable', 403, 'Учебный профиль сейчас недоступен.');
       return unavailable();
     }
+  }
+
+  /** One verified, bounded projection; neither client query nor raw SQL ids
+   * can select an identity or grant access to an unrelated class. */
+  private async ratingRead(
+    scope: ProgressScopeV1,
+    principal: string,
+    token: string,
+    groupId: string,
+    query: Record<string, unknown>,
+  ): Promise<GroupRatingPageV1> {
+    if (
+      !UUID.test(groupId) ||
+      Object.keys(query).some((key) => !['view', 'cursor', 'limit'].includes(key))
+    )
+      throw failure('validation_error', 400, 'Некорректная учебная группа.');
+    const view = query.view === undefined ? 'preview' : query.view;
+    if (view !== 'preview' && view !== 'all')
+      throw failure('validation_error', 400, 'Некорректный режим рейтинга.');
+    if (view !== 'all' && query.cursor !== undefined)
+      throw failure('validation_error', 400, 'Курсор доступен только в полном рейтинге.');
+    if (view === 'all' && query.limit !== undefined)
+      throw failure('validation_error', 400, 'Размер полного рейтинга фиксирован.');
+    const previewLimit = query.limit === undefined ? 5 : Number(query.limit);
+    if (
+      view === 'preview' &&
+      ((typeof query.limit !== 'undefined' &&
+        (typeof query.limit !== 'string' || !/^[1-5]$/.test(query.limit))) ||
+        !Number.isSafeInteger(previewLimit) ||
+        previewLimit < 1 ||
+        previewLimit > 5)
+    )
+      throw failure('validation_error', 400, 'Недействительный размер рейтинга.');
+    let afterScore: number | null = null;
+    let afterSeat: string | null = null;
+    let version: string | null = null;
+    if (query.cursor !== undefined) {
+      const parts = unsealRatingTicket(token, query.cursor);
+      if (
+        parts.length !== 6 ||
+        parts[0] !== 1 ||
+        parts[1] !== 'page' ||
+        parts[2] !== groupId ||
+        typeof parts[3] !== 'string' ||
+        !/^[a-f0-9]{32}$/.test(parts[3]) ||
+        typeof parts[4] !== 'string' ||
+        !UUID.test(parts[4]) ||
+        (parts[5] !== null && typeof parts[5] !== 'number')
+      )
+        throw failure('validation_error', 400, 'Недействительный курсор рейтинга.');
+      version = parts[3];
+      afterSeat = parts[4];
+      afterScore = ratingScore(parts[5]);
+    }
+    const limit = view === 'all' ? GROUP_RATING_PAGE_LIMIT : previewLimit;
+    let raw: Record<string, unknown>;
+    try {
+      const rows = await this.requirePool().query<{ result: unknown }>(
+        'SELECT public.personal_progress_group_rating($1,$2,$3,$4,$5,$6,$7,$8) AS result',
+        [
+          scope.kind,
+          scope.kind === 'account' ? scope.accountId : scope.seatId,
+          principal,
+          hashSessionToken(token),
+          groupId,
+          afterScore,
+          afterSeat,
+          limit,
+        ],
+      );
+      raw = object(rows.rows[0]?.result);
+    } catch (cause) {
+      if (cause instanceof HttpException) throw cause;
+      const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
+      if (code === 'P6S01') throw failure('unauthorized', 401, 'Сессия недействительна.');
+      if (code === 'P6S02') throw failure('group_forbidden', 403, 'Учебная группа недоступна.');
+      if (code === 'P6S03') throw failure('validation_error', 400, 'Недействительная страница.');
+      return unavailable();
+    }
+    if (
+      raw.groupId !== groupId ||
+      (raw.periodDays !== 7 && raw.periodDays !== 30 && raw.periodDays !== 90) ||
+      typeof raw.version !== 'string' ||
+      !/^[a-f0-9]{32}$/.test(raw.version) ||
+      typeof raw.asOf !== 'string' ||
+      !Number.isFinite(Date.parse(raw.asOf))
+    )
+      return unavailable();
+    if (version !== null && version !== raw.version)
+      throw failure('progress_rating_stale', 409, 'Рейтинг обновился. Начните загрузку сначала.');
+    if (!Array.isArray(raw.peers) || raw.peers.length > limit || typeof raw.hasMore !== 'boolean')
+      return unavailable();
+    const seen = new Set<string>();
+    const peers: GroupRatingPeerV1[] = raw.peers.map((value): GroupRatingPeerV1 => {
+      const peer = object(value);
+      if (
+        typeof peer.seatId !== 'string' ||
+        !UUID.test(peer.seatId) ||
+        (scope.kind === 'seat' && peer.seatId === scope.seatId) ||
+        seen.has(peer.seatId) ||
+        (peer.avatarKey !== null && typeof peer.avatarKey !== 'string') ||
+        (peer.avatarId !== null && (typeof peer.avatarId !== 'string' || !UUID.test(peer.avatarId)))
+      )
+        return unavailable();
+      seen.add(peer.seatId);
+      const pair = ratingValuePair(peer.score, peer.rank);
+      return {
+        peerKey: ratingPeerKey(token, groupId, peer.seatId),
+        avatarSrc: ratingDefaultAvatar(peer.seatId, peer.avatarKey),
+        avatarTicket:
+          peer.avatarId === null
+            ? null
+            : sealRatingTicket(token, [1, 'image', groupId, peer.seatId]),
+        ...pair,
+        isSelf: false,
+      };
+    });
+    if (raw.hasMore === true) {
+      if (
+        peers.length !== limit ||
+        typeof raw.afterSeat !== 'string' ||
+        !UUID.test(raw.afterSeat) ||
+        raw.afterSeat !== object(raw.peers.at(-1)).seatId ||
+        raw.afterScore !== object(raw.peers.at(-1)).score
+      )
+        return unavailable();
+    } else if (raw.afterSeat !== null || raw.afterScore !== null) return unavailable();
+    const nextCursor =
+      raw.hasMore && typeof raw.afterSeat === 'string'
+        ? sealRatingTicket(token, [1, 'page', groupId, raw.version, raw.afterSeat, raw.afterScore])
+        : null;
+    return {
+      groupId,
+      periodDays: raw.periodDays,
+      version: raw.version,
+      asOf: raw.asOf,
+      own: ratingOwn(raw.own),
+      peers,
+      hasMore: raw.hasMore,
+      nextCursor,
+    };
+  }
+
+  private async avatarRead(
+    scope: ProgressScopeV1,
+    principal: string,
+    token: string,
+    groupId: string,
+    body: unknown,
+  ): Promise<GroupRatingAvatarBatchV1> {
+    if (!UUID.test(groupId)) throw failure('validation_error', 400, 'Некорректная учебная группа.');
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      Array.isArray(body) ||
+      Object.keys(body).length !== 1 ||
+      !('tickets' in body) ||
+      !Array.isArray(body.tickets) ||
+      body.tickets.length > GROUP_RATING_PAGE_LIMIT
+    )
+      throw failure('validation_error', 400, 'Недействительный набор аватаров.');
+    const tickets = body.tickets as unknown[];
+    const seen = new Set<string>();
+    const seats = tickets.map((ticket) => {
+      const parts = unsealRatingTicket(token, ticket);
+      if (
+        parts.length !== 4 ||
+        parts[0] !== 1 ||
+        parts[1] !== 'image' ||
+        parts[2] !== groupId ||
+        typeof parts[3] !== 'string' ||
+        !UUID.test(parts[3]) ||
+        seen.has(parts[3])
+      )
+        throw failure('validation_error', 400, 'Недействительный ключ аватара.');
+      seen.add(parts[3]);
+      return parts[3];
+    });
+    let raw: unknown;
+    try {
+      const rows = await this.requirePool().query<{ result: unknown }>(
+        'SELECT public.personal_progress_group_avatar_batch($1,$2,$3,$4,$5,$6::uuid[]) AS result',
+        [
+          scope.kind,
+          scope.kind === 'account' ? scope.accountId : scope.seatId,
+          principal,
+          hashSessionToken(token),
+          groupId,
+          seats,
+        ],
+      );
+      raw = rows.rows[0]?.result;
+    } catch (cause) {
+      if (cause instanceof HttpException) throw cause;
+      const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
+      if (code === 'P6S01') throw failure('unauthorized', 401, 'Сессия недействительна.');
+      if (code === 'P6S02') throw failure('group_forbidden', 403, 'Учебная группа недоступна.');
+      if (code === 'P6S03')
+        throw failure('validation_error', 400, 'Недействительный набор аватаров.');
+      return unavailable();
+    }
+    if (!Array.isArray(raw) || raw.length > seats.length) return unavailable();
+    const seenImages = new Set<string>();
+    const images = new Map<string, string>();
+    for (const item of raw) {
+      const result = object(item);
+      if (
+        typeof result.seatId !== 'string' ||
+        !seen.has(result.seatId) ||
+        seenImages.has(result.seatId) ||
+        typeof result.dataUrl !== 'string' ||
+        result.dataUrl.length > 300000 ||
+        !/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(result.dataUrl)
+      )
+        return unavailable();
+      seenImages.add(result.seatId);
+      images.set(result.seatId, result.dataUrl);
+    }
+    return {
+      items: tickets.flatMap((ticket, i) => {
+        const dataUrl = images.get(seats[i] as string);
+        return typeof ticket === 'string' && dataUrl ? [{ ticket, dataUrl }] : [];
+      }),
+    };
+  }
+
+  @Get('progress/groups/:groupId/rating')
+  @Header('Cache-Control', 'private, no-store')
+  async accountRating(
+    @Req() request: FastifyRequest,
+    @Param('groupId') groupId: string,
+    @Query() query: Record<string, unknown> = {},
+  ) {
+    const token = request.cookies[SESSION_COOKIE];
+    const context = await resolveContext(() => this.accounts.resolve(token));
+    if (!token || !context) throw failure('unauthorized', 401, 'Войдите в аккаунт.');
+    return this.ratingRead(
+      { kind: 'account', accountId: context.accountId },
+      context.principalId,
+      token,
+      groupId,
+      query,
+    );
+  }
+
+  @Get('class-join/progress/groups/:groupId/rating')
+  @Header('Cache-Control', 'private, no-store')
+  async seatRating(
+    @Req() request: FastifyRequest,
+    @Param('groupId') groupId: string,
+    @Query() query: Record<string, unknown> = {},
+  ) {
+    const token = request.cookies[STUDENT_SESSION_COOKIE];
+    const resolved = await resolveContext(() => this.seats.resolveExistingState(token));
+    if (!token || resolved.state === 'invalid_session')
+      throw failure('unauthorized', 401, 'Войдите в учебную группу.');
+    if (resolved.state === 'unavailable_owner')
+      throw failure('group_forbidden', 403, 'Учебная группа недоступна.');
+    const seat = resolved.context;
+    return this.ratingRead(
+      { kind: 'seat', seatId: seat.seatId, classroomId: seat.classroomId },
+      seat.principalId,
+      token,
+      groupId,
+      query,
+    );
+  }
+
+  @Post('progress/groups/:groupId/avatars')
+  @Header('Cache-Control', 'private, no-store')
+  async accountRatingAvatars(
+    @Req() request: FastifyRequest,
+    @Param('groupId') groupId: string,
+    @Body() body: unknown,
+  ) {
+    const token = request.cookies[SESSION_COOKIE];
+    const context = await resolveContext(() => this.accounts.resolve(token));
+    if (!token || !context) throw failure('unauthorized', 401, 'Войдите в аккаунт.');
+    return this.avatarRead(
+      { kind: 'account', accountId: context.accountId },
+      context.principalId,
+      token,
+      groupId,
+      body,
+    );
+  }
+
+  @Post('class-join/progress/groups/:groupId/avatars')
+  @Header('Cache-Control', 'private, no-store')
+  async seatRatingAvatars(
+    @Req() request: FastifyRequest,
+    @Param('groupId') groupId: string,
+    @Body() body: unknown,
+  ) {
+    const token = request.cookies[STUDENT_SESSION_COOKIE];
+    const resolved = await resolveContext(() => this.seats.resolveExistingState(token));
+    if (!token || resolved.state === 'invalid_session')
+      throw failure('unauthorized', 401, 'Войдите в учебную группу.');
+    if (resolved.state === 'unavailable_owner')
+      throw failure('group_forbidden', 403, 'Учебная группа недоступна.');
+    const seat = resolved.context;
+    return this.avatarRead(
+      { kind: 'seat', seatId: seat.seatId, classroomId: seat.classroomId },
+      seat.principalId,
+      token,
+      groupId,
+      body,
+    );
   }
 
   @Get('progress/summary')

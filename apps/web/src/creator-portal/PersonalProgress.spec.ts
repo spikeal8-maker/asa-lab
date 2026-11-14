@@ -3,7 +3,12 @@
 import { act, createElement, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OwnProgressGroupV1, PersonalProgressSummaryV1 } from '@asa-lab/contracts';
+import type {
+  OwnProgressGroupV1,
+  PersonalProgressSummaryV1,
+  GroupRatingPeerV1,
+  GroupRatingPageV1,
+} from '@asa-lab/contracts';
 import {
   api,
   type ApiResult,
@@ -15,6 +20,9 @@ import * as apiCall from '../api-call';
 import { setTelemetryContext } from '../telemetry-context';
 import { PersonalProgress } from './PersonalProgress';
 import {
+  limitedGroupRead,
+  groupRatingPreviewLimit,
+  readGroupRating,
   nextLearningAction,
   readPersonalProgress,
   usePersonalProgress,
@@ -740,4 +748,354 @@ describe('Bounded Direct quiz proof', () => {
       expect(currentDirect.settled).toBe(true);
     },
   );
+});
+
+const SP04_TEST_GROUP = '88888888-8888-4888-8888-888888888888';
+
+function sp04Peer(index: number): GroupRatingPeerV1 {
+  return {
+    peerKey: 'opaque-peer-' + index,
+    avatarSrc: '/assets/avatars/default/avatar-09.webp',
+    avatarTicket: null,
+    score: index < 2 ? 83.46 : 68.25,
+    rank: index < 2 ? 1 : 3,
+    isSelf: false,
+  };
+}
+
+function sp04Page(
+  peers: readonly GroupRatingPeerV1[],
+  nextCursor: string | null = null,
+): GroupRatingPageV1 {
+  return {
+    groupId: SP04_TEST_GROUP,
+    periodDays: 30,
+    version: 'a'.repeat(32),
+    asOf: '2026-11-14T00:00:00Z',
+    own: { availability: 'available', score: 68.25, rank: 101, isSelf: true },
+    peers,
+    hasMore: nextCursor !== null,
+    nextCursor,
+  };
+}
+
+describe('SP-04 compact learner-safe group ratings', () => {
+  it('shows only five anonymous peers, keeps own place 101 and opens bounded full pages', async () => {
+    const first = Array.from({ length: 5 }, (_, i) => sp04Peer(i));
+    const full = Array.from({ length: 20 }, (_, i) => sp04Peer(i));
+    const last = Array.from({ length: 3 }, (_, i) => sp04Peer(i + 20));
+    const reads = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 68.25, 101)])))
+      .mockResolvedValueOnce(success(sp04Page(first)))
+      .mockResolvedValueOnce(success(sp04Page(full, 'opaque-page-2')))
+      .mockResolvedValueOnce(success(sp04Page(last)));
+    await render(account, 'home');
+    expect(host.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(1);
+    expect(host.querySelector('[data-testid="own-progress-rank"]')?.textContent).toBe('101');
+    expect(host.querySelector('[data-testid="own-progress-score"]')?.textContent).toBe('68,25');
+    expect(host.querySelectorAll('.personal-progress-peers .personal-progress-peer')).toHaveLength(
+      5,
+    );
+    const preview = host.querySelector('.personal-progress-peers')!;
+    expect(preview.textContent).toContain('83,46');
+    expect(preview.textContent).not.toContain('opaque-peer');
+    expect(preview.querySelector('[alt=""]')).toBeTruthy();
+    expect(preview.querySelector('[aria-label*="Место"]')).toBeTruthy();
+    expect(preview.outerHTML).not.toMatch(/(?:studentCode|seatId|lastActiveAt|displayName)/);
+    expect(reads.mock.calls[1]?.[0]).toContain(
+      '/api/progress/groups/' + SP04_TEST_GROUP + '/rating?',
+    );
+    await click('Все');
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog).toBeTruthy();
+    expect(
+      dialog?.querySelectorAll('.personal-progress-rating-items .personal-progress-peer'),
+    ).toHaveLength(20);
+    expect(dialog?.querySelector('.personal-progress-rating-pinned')?.textContent).toContain('101');
+    await click('Показать ещё');
+    expect(
+      dialog?.querySelectorAll('.personal-progress-rating-items .personal-progress-peer'),
+    ).toHaveLength(23);
+    expect(reads.mock.calls[3]?.[0]).toContain('cursor=opaque-page-2');
+    await click('Закрыть');
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('uses the Seat-specific group endpoint with a true zero and no Account authority', async () => {
+    const student: OwnProgressActor = {
+      kind: 'seat',
+      seatId: '77777777-7777-4777-8777-777777777777',
+      classroomId: SP04_TEST_GROUP,
+      displayName: 'StudentSeat test identity',
+      avatarKey: 'asa-avatar-07',
+    };
+    ready(student);
+    const seatPage = {
+      ...sp04Page([]),
+      own: { availability: 'available' as const, score: 0, rank: 1, isSelf: true as const },
+    };
+    const reads = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 0, 1)], student)))
+      .mockResolvedValueOnce(success(seatPage));
+    await render(student);
+    expect(api.accountAvatar).not.toHaveBeenCalled();
+    expect(reads.mock.calls[0]?.[0]).toBe('/api/class-join/progress/summary');
+    expect(reads.mock.calls[1]?.[0]).toContain('/api/class-join/progress/groups/');
+    expect(reads.mock.calls.every(([path]) => !path.startsWith('/api/progress/groups'))).toBe(true);
+    expect(host.querySelector('[data-testid="own-progress-rank"]')?.textContent).toBe('1');
+    expect(host.querySelector('[data-testid="own-progress-score"]')?.textContent).toBe('0');
+    expect(host.querySelectorAll('.personal-progress-peers .personal-progress-peer')).toHaveLength(
+      0,
+    );
+  });
+});
+
+describe('SP-04 unavailable group privacy fallback', () => {
+  it('preserves SP-03 ambiguous Account explanation when the peer endpoint rejects 403', async () => {
+    const ambiguous: OwnProgressGroupV1 = {
+      ...group(SP04_TEST_GROUP, null, null),
+      own: {
+        availability: 'unavailable',
+        score: null,
+        rank: null,
+        reason: 'ambiguous_self_participant',
+      },
+    };
+    vi.spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([ambiguous])))
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        error: { code: 'group_forbidden', message: 'Недоступна учебная группа.' },
+      });
+    await render();
+    expect(host.textContent).toContain('Учебный профиль нужно уточнить у преподавателя.');
+    expect(host.textContent).not.toContain('Не удалось загрузить участников.');
+    expect(host.querySelector('.personal-progress-group-retry')).toBeNull();
+    expect(host.querySelectorAll('.personal-progress-peer')).toHaveLength(0);
+  });
+
+  it('hides peer presentation for a disabled rating even if a stale page arrived', async () => {
+    const disabled: OwnProgressGroupV1 = group(SP04_TEST_GROUP, null, null);
+    const page = {
+      ...sp04Page([sp04Peer(0)]),
+      own: {
+        availability: 'unavailable' as const,
+        score: null,
+        rank: null,
+        isSelf: true as const,
+        reason: 'rating_disabled' as const,
+      },
+    };
+    vi.spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([disabled])))
+      .mockResolvedValueOnce(success(page));
+    await render();
+    expect(host.textContent).toContain('Рейтинг выключен');
+    expect(host.querySelectorAll('.personal-progress-peer')).toHaveLength(0);
+  });
+});
+
+describe('SP-04 aborted group-read quota and modal accessibility', () => {
+  it('releases a cancelled active slot without waiting for an abandoned fetch and skips cancelled queued work', async () => {
+    const first = new AbortController();
+    const second = new AbortController();
+    const queued = new AbortController();
+    const fresh = new AbortController();
+    const neverSettles = new Promise<string>(() => undefined);
+    const started: string[] = [];
+    const oldOne = limitedGroupRead(first.signal, () => {
+      started.push('old-one');
+      return neverSettles;
+    }).catch(() => 'aborted');
+    const oldTwo = limitedGroupRead(second.signal, () => {
+      started.push('old-two');
+      return neverSettles;
+    }).catch(() => 'aborted');
+    const cancelledQueue = limitedGroupRead(queued.signal, async () => {
+      started.push('must-not-start');
+      return 'cancelled';
+    }).catch(() => 'aborted');
+    const newAccount = limitedGroupRead(fresh.signal, async () => {
+      started.push('new-account');
+      return 'ready';
+    });
+    expect(started).toEqual(['old-one', 'old-two']);
+    queued.abort();
+    expect(await cancelledQueue).toBe('aborted');
+    first.abort();
+    await expect(newAccount).resolves.toBe('ready');
+    expect(started).toEqual(['old-one', 'old-two', 'new-account']);
+    second.abort();
+    expect(await oldOne).toBe('aborted');
+    expect(await oldTwo).toBe('aborted');
+  });
+
+  it('traps keyboard focus on future links as well as buttons in the expanded modal', async () => {
+    vi.spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 68.25, 101)])))
+      .mockResolvedValueOnce(success(sp04Page([])))
+      .mockResolvedValueOnce(success(sp04Page([])));
+    await render();
+    await click('Все');
+    const dialog = host.querySelector<HTMLElement>('[role="dialog"]');
+    const close = dialog?.querySelector<HTMLButtonElement>('button');
+    expect(dialog).not.toBeNull();
+    expect(close).not.toBeNull();
+    const link = document.createElement('a');
+    link.href = '/#/learning';
+    link.textContent = 'Keyboard test route';
+    dialog!.append(link);
+    await act(async () => {
+      link.focus();
+      link.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Tab',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(document.activeElement).toBe(close);
+    await act(async () => {
+      close!.focus();
+      close!.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Tab',
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(document.activeElement).toBe(link);
+    await click('Закрыть');
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+describe('SP-04 single-flight active rating request', () => {
+  it('reuses pending same-scope SQL across cancelled Home remounts without caching a completed response', async () => {
+    const response = deferred<ApiResult<GroupRatingPageV1>>();
+    const fetch = vi.spyOn(apiCall, 'call').mockReturnValue(response.promise);
+    const old = new AbortController();
+    const fresh = new AbortController();
+    const args = { limit: 5 };
+    const ownerKey = 'account:account-a:personal:generation-71';
+    const first = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      old.signal,
+      'preview',
+      args,
+      ownerKey,
+    ).then(
+      () => 'unexpected',
+      () => 'aborted',
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    old.abort();
+    expect(await first).toBe('aborted');
+    const second = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      fresh.signal,
+      'preview',
+      args,
+      ownerKey,
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    response.resolve(success(sp04Page([sp04Peer(0)])));
+    await expect(second).resolves.toMatchObject({
+      ok: true,
+      data: { groupId: SP04_TEST_GROUP, peers: [expect.objectContaining({ rank: 1 })] },
+    });
+    const repeat = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      new AbortController().signal,
+      'preview',
+      args,
+      ownerKey,
+    );
+    await repeat;
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('never shares pending previews across logout/login continuity or a different account scope', async () => {
+    const oldPending = deferred<ApiResult<GroupRatingPageV1>>();
+    const newPending = deferred<ApiResult<GroupRatingPageV1>>();
+    const fetch = vi
+      .spyOn(apiCall, 'call')
+      .mockReturnValueOnce(oldPending.promise)
+      .mockReturnValueOnce(newPending.promise);
+    const old = new AbortController();
+    const latest = new AbortController();
+    const first = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      old.signal,
+      'preview',
+      { limit: 5 },
+      'account-a:generation-10',
+    ).catch(() => 'aborted');
+    old.abort();
+    expect(await first).toBe('aborted');
+    const second = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      latest.signal,
+      'preview',
+      { limit: 5 },
+      'account-a:generation-11',
+    );
+    expect(fetch).toHaveBeenCalledTimes(2);
+    oldPending.resolve(success(sp04Page([sp04Peer(0)])));
+    newPending.resolve(success(sp04Page([sp04Peer(1)])));
+    await expect(second).resolves.toMatchObject({
+      ok: true,
+      data: { peers: [expect.objectContaining({ peerKey: 'opaque-peer-1' })] },
+    });
+  });
+});
+
+describe('SP-04 actual custom-avatar image consumer', () => {
+  it('shows only the granted batch PNG and falls back to the safe default after image failure', async () => {
+    const ticket = 'opaque-batch-ticket';
+    const dataUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/S0gAAAAASUVORK5CYII=';
+    const peer: GroupRatingPeerV1 = { ...sp04Peer(0), avatarTicket: ticket };
+    const reads = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group(SP04_TEST_GROUP, 68.25, 101)])))
+      .mockResolvedValueOnce(success(sp04Page([peer])))
+      .mockResolvedValueOnce(success({ items: [{ ticket, dataUrl }] }));
+    await render();
+    const image = host.querySelector<HTMLImageElement>('.personal-progress-peer-avatar img');
+    expect(image).not.toBeNull();
+    expect(image?.getAttribute('src')).toBe(dataUrl);
+    expect(reads.mock.calls[2]?.[0]).toBe('/api/progress/groups/' + SP04_TEST_GROUP + '/avatars');
+    const options = reads.mock.calls[2]?.[1];
+    expect(options?.method).toBe('POST');
+    expect(JSON.parse(String(options?.body))).toEqual({ tickets: [ticket] });
+    expect(reads.mock.calls.every(([url]) => !url.includes(ticket))).toBe(true);
+    await act(async () => image!.dispatchEvent(new Event('error')));
+    expect(image?.getAttribute('src')).toBe(peer.avatarSrc);
+  });
+});
+
+describe('SP-04 server-bounded responsive peer counts', () => {
+  it.each([
+    [320, 2],
+    [380, 2],
+    [381, 3],
+    [390, 3],
+    [520, 3],
+    [521, 5],
+    [1024, 5],
+  ] as const)('chooses a bounded preview for width %i', (width, expected) => {
+    expect(groupRatingPreviewLimit(width)).toBe(expected);
+  });
 });
