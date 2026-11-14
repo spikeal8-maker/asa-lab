@@ -540,6 +540,90 @@ async function completeCanonicalStart(
 }
 
 describe('Electronics canonical Worker controller', () => {
+  it('announces the actual next sleeping MCU instruction without committing future time', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onNextArduinoWake = vi.fn();
+    controller.start('wake', serialCircuit, {
+      onResult: vi.fn(),
+      onNextArduinoWake,
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    onNextArduinoWake.mockClear();
+
+    controller.update(serialCircuit, 1_000);
+    const first = executor.advances[1]!;
+    expect(first.requestedHorizonMicroseconds).toBe(1_000);
+    const complete = timedAdvance('ready', 1_000, 1_000);
+    first.deferred.resolve({
+      ...complete,
+      state: {
+        ...complete.state,
+        continuation: {
+          ...complete.state.continuation!,
+          clockProfileId: 'electrothermal-events-v2',
+          serializedState: JSON.stringify({
+            boards: [
+              {
+                componentId: 'uno',
+                runtime: { programFingerprint: 'run-program', resumeAtMs: 30.004 },
+              },
+            ],
+          }),
+        },
+      },
+      ledTemporal: {
+        profile: 'ordinary-led-held-v1',
+        fromMicroseconds: 0,
+        toMicroseconds: 1_000,
+        components: [],
+        arduinoIndicators: [],
+      },
+    });
+    await flush();
+    expect(controller.committedHorizonMicroseconds).toBe(1_000);
+    expect(onNextArduinoWake).toHaveBeenLastCalledWith(30_004);
+
+    controller.update(serialCircuit, 27_000);
+    const nearDeadline = executor.advances[2]!;
+    // Existing 25ms complete-observation partition remains in force.
+    expect(nearDeadline.requestedHorizonMicroseconds).toBe(26_000);
+    const next = timedAdvance('ready', 26_000, 26_000);
+    nearDeadline.deferred.resolve({
+      ...next,
+      state: {
+        ...next.state,
+        continuation: {
+          ...next.state.continuation!,
+          clockProfileId: 'electrothermal-events-v2',
+          serializedState: JSON.stringify({
+            boards: [
+              {
+                componentId: 'uno',
+                runtime: { programFingerprint: 'run-program', resumeAtMs: 30.004 },
+              },
+            ],
+          }),
+        },
+      },
+      ledTemporal: {
+        profile: 'ordinary-led-held-v1',
+        fromMicroseconds: 1_000,
+        toMicroseconds: 26_000,
+        components: [],
+        arduinoIndicators: [],
+      },
+    });
+    await flush();
+    // Do not cancel a previously scheduled physical wake merely because a
+    // new completed Worker ACK is within 5ms of that same waking instruction.
+    expect(controller.committedHorizonMicroseconds).toBe(26_000);
+    expect(onNextArduinoWake).toHaveBeenLastCalledWith(30_004);
+    controller.stop();
+    expect(onNextArduinoWake).toHaveBeenLastCalledWith(null);
+  });
+
   it('completes H0 at zero rate but blocks positive demand until explicit resume', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
