@@ -558,7 +558,26 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   const token = ++sequence;
   const title = `Exact PDF material ${token}`;
-  const pdfA = Buffer.from('%PDF-1.4\nA6 learner file A\n%%EOF');
+  const content = 'BT /F1 18 Tf 72 720 Td (Learning material) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+  let document = '%PDF-1.4\n' + ('%' + ' '.repeat(99) + '\n').repeat(4100);
+  const offsets = objects.map((object, index) => {
+    const offset = document.length;
+    document += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    return offset;
+  });
+  const xref = document.length;
+  document += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) document += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  document += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  const pdfA = Buffer.from(document);
+  expect(pdfA.length).toBeGreaterThan(400_000);
   const pdfB = Buffer.from('%PDF-1.4\nA6 learner file B\n%%EOF');
 
   await loginWithOrganization(page, teacher);
@@ -570,7 +589,9 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const fileUpload = page.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&
-      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+      /\/api\/learning\/activities\/[^/]+\/draft-task-pdf\/\d+$/.test(
+        new URL(response.url()).pathname,
+      ),
   );
   await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
   await page.getByLabel('PDF файл задания').setInputFiles({
