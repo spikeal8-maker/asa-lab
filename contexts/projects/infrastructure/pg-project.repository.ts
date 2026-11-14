@@ -462,7 +462,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             created_by, owner_principal_id, idempotency_key, request_fingerprint,
             copied_from_project_id, copied_from_author, copied_from_title, copied_at,
             copied_from_publication_id, copied_from_revision_id, copied_from_version_id,
-            copied_from_license, license, writer_lineage_coverage)
+            copied_from_license, license, writer_lineage_coverage, writer_operation)
          SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_project_id ELSE $10::uuid END,
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_author ELSE $11::varchar END,
@@ -475,7 +475,10 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                 CASE WHEN $17::uuid IS NOT NULL THEN source.copied_from_license ELSE $16::varchar END,
                 COALESCE($16::varchar,'reserved'::varchar),
                 CASE WHEN $17::uuid IS NOT NULL THEN source.writer_lineage_coverage
-                     WHEN $10::uuid IS NULL THEN 'v1'::varchar ELSE 'unknown'::varchar END
+                     WHEN $10::uuid IS NULL THEN 'v1'::varchar ELSE 'unknown'::varchar END,
+                 CASE WHEN $17::uuid IS NOT NULL THEN 'ordinary_duplicate'::varchar
+                      WHEN $10::uuid IS NULL THEN 'native'::varchar
+                      ELSE 'public_acquisition'::varchar END
            FROM (SELECT 1) AS one_insert
            LEFT JOIN projects source ON source.tenant_id=$1::uuid AND source.id=$17::uuid
           WHERE $17::uuid IS NULL OR source.id IS NOT NULL

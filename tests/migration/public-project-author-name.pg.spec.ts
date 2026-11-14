@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
 
@@ -86,7 +87,7 @@ describe('0285 existing public author name forward upgrade', () => {
           ],
         );
         const project = { project: { id: legacyProjectId } };
-        await repo.saveSnapshot({
+        await new PgProjectRepository(runtime!).saveSnapshot({
           tenantId: teacher.tenantId,
           actor,
           projectId: project.project.id,

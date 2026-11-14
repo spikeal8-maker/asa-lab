@@ -476,7 +476,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
   it('records private native writer coverage without promoting historical copied origin', async () => {
     const source = await fixture();
     const native = await admin.query(
-      'SELECT writer_lineage_coverage,copied_from_project_id FROM projects WHERE id=$1',
+      'SELECT writer_lineage_coverage,writer_operation,copied_from_project_id FROM projects WHERE id=$1',
       [source.id],
     );
     expect(native.rows).toEqual([
@@ -491,7 +491,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     });
     expect(duplicated.statusCode).toBe(201);
     const inherited = await admin.query(
-      'SELECT writer_lineage_coverage,copied_from_project_id FROM projects WHERE id=$1',
+      'SELECT writer_lineage_coverage,writer_operation,copied_from_project_id FROM projects WHERE id=$1',
       [duplicated.json().project.id],
     );
     expect(inherited.rows).toEqual(native.rows);

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
 
@@ -74,7 +75,7 @@ describe('0236 additive publication moderation upgrade', () => {
           actor.principalId,
         ],
       );
-      await repo.saveSnapshot({
+      await new PgProjectRepository(pool!).saveSnapshot({
         tenantId: teacher.tenantId,
         actor,
         projectId,

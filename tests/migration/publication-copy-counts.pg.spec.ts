@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
 
@@ -129,7 +130,7 @@ it('backfills only provable successful copies from286 without rewriting projects
       };
       const project = await legacyCreate(base);
       if (project.kind !== 'created') throw Error('Source fixture not created');
-      await repo.saveSnapshot({
+      await new PgProjectRepository(runtime!).saveSnapshot({
         tenantId: teacher.tenantId,
         actor,
         projectId: project.project.id,
