@@ -48,6 +48,7 @@ export interface LiveSimulationWorkerCallbacks {
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
   /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
   readonly readHostHorizonMicroseconds?: () => number | null;
+  readonly isDefaultHostPace?: () => boolean;
   readonly onResult: (
     result: SolveResult,
     ledTemporal?: ElectronicsLedTemporalObservation,
@@ -60,6 +61,27 @@ export interface LiveSimulationWorkerCallbacks {
 
 interface SimulationTarget {
   readonly requestedHorizonMicroseconds: number;
+}
+
+interface AcceptedArduinoBoard {
+  readonly componentId: string;
+  readonly loadedSource?: string;
+  readonly runtime?: {
+    readonly programFingerprint?: string;
+    readonly resumeAtMs?: number;
+    readonly virtualTimeMs?: number;
+    readonly serial?: unknown;
+    readonly servo?: unknown;
+    readonly pulseWait?: unknown;
+    readonly ultrasonicAdapter?: unknown;
+    readonly tones?: Readonly<Record<string, unknown>>;
+  };
+}
+
+interface ArduinoWake {
+  readonly componentId: string;
+  readonly source: string;
+  readonly at: number;
 }
 
 const TIMED_STATE_PROPERTIES = [
@@ -86,6 +108,10 @@ const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 // A 100 ms observation grid aliases a 50 ms HIGH / 50 ms LOW sketch.
 // This is a model-time bound, not a wall-time/throughput promise.
 const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
+// Only a remaining MCU sleep at least as long as a full window qualifies. The observation after
+// waking includes the next millisecond of ordinary execution at most.
+const MIN_ARDUINO_SLEEP_MS = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS / 1000;
+const ARDUINO_WAKE_OBSERVATION_MICROSECONDS = 1000;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -289,6 +315,9 @@ export class ElectronicsLiveSimulationWorkerController {
   private horizonOffsetMicroseconds = 0;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private firstPositiveObservation = false;
+  private nextArduinoWake: ArduinoWake | null = null;
+  private wakeTimer: { wake: ArduinoWake; id: ReturnType<typeof setTimeout> } | null = null;
+  private wakeTimerAttempt: { wake: ArduinoWake; hostHorizon: number } | null = null;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
   private paused = false;
@@ -448,6 +477,7 @@ export class ElectronicsLiveSimulationWorkerController {
 
   /** A host transition drops obsolete wall demand, never input/continuation work. */
   reanchorHostDemand(): void {
+    this.cancelWakeTimer();
     this.latestTarget =
       this.canonicalDocument && !sameArduinoSources(this.dispatchedDocument, this.canonicalDocument)
         ? { requestedHorizonMicroseconds: this.committedHorizonMicroseconds }
@@ -456,7 +486,10 @@ export class ElectronicsLiveSimulationWorkerController {
 
   setPaused(paused: boolean, reanchor?: (committedMicroseconds: number) => void): void {
     this.paused = paused;
-    if (paused) return;
+    if (paused) {
+      this.cancelWakeTimer();
+      return;
+    }
     if (this.resuming) {
       reanchor?.(this.committedHorizonMicroseconds);
       return;
@@ -539,6 +572,9 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastInputEventAtMicroseconds = -1;
     this.observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
     this.firstPositiveObservation = false;
+    this.nextArduinoWake = null;
+    this.wakeTimerAttempt = null;
+    this.cancelWakeTimer();
     this.callbacks?.onSerialProjection?.([]);
     const generationId = this.executor.beginGeneration(projectSessionId);
     this.generationId = generationId;
@@ -574,6 +610,9 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastInputEventAtMicroseconds = -1;
     this.horizonOffsetMicroseconds = 0;
     this.firstPositiveObservation = false;
+    this.nextArduinoWake = null;
+    this.wakeTimerAttempt = null;
+    this.cancelWakeTimer();
     this.inFlight = false;
     this.inFlightKind = null;
     this.paused = false;
@@ -621,6 +660,30 @@ export class ElectronicsLiveSimulationWorkerController {
     }
   }
 
+  private cancelWakeTimer(): void {
+    if (this.wakeTimer) clearTimeout(this.wakeTimer.id);
+    this.wakeTimer = null;
+  }
+
+  private reserveForWake(generationId: number, wake: ArduinoWake, hostHorizon: number): void {
+    if (
+      this.wakeTimer?.wake === wake ||
+      (this.wakeTimerAttempt?.wake === wake && this.wakeTimerAttempt.hostHorizon >= hostHorizon)
+    )
+      return;
+    this.cancelWakeTimer();
+    const id = setTimeout(
+      () => {
+        if (this.wakeTimer?.id !== id) return;
+        this.wakeTimer = null;
+        this.wakeTimerAttempt = { wake, hostHorizon };
+        if (generationId === this.generationId && this.nextArduinoWake === wake) this.pump();
+      },
+      Math.max(1, Math.ceil((wake.at - hostHorizon) / 1000)),
+    );
+    this.wakeTimer = { wake, id };
+  }
+
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
@@ -635,10 +698,13 @@ export class ElectronicsLiveSimulationWorkerController {
       (this.paused && pendingTarget !== this.startupTarget)
     )
       return;
+    let currentHostHorizon: number | null = null;
+    let defaultHostPace = false;
     if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
       // A native RAF may acknowledge new progress between the last host tick
       // and this serial dispatch. Refresh the same bounded demand at its use.
-      const hostHorizon = this.callbacks.readHostHorizonMicroseconds();
+      defaultHostPace = this.callbacks.isDefaultHostPace?.() === true;
+      const hostHorizon = this.callbacks?.readHostHorizonMicroseconds?.();
       if (
         generationId !== this.generationId ||
         document !== this.canonicalDocument ||
@@ -646,15 +712,16 @@ export class ElectronicsLiveSimulationWorkerController {
         this.paused ||
         this.resuming ||
         pendingTarget !== this.latestTarget ||
-        hostHorizon === null ||
+        typeof hostHorizon !== 'number' ||
         !Number.isSafeInteger(hostHorizon) ||
         hostHorizon < 0
       )
         return;
+      currentHostHorizon = hostHorizon - this.horizonOffsetMicroseconds;
       pendingTarget = {
         requestedHorizonMicroseconds: Math.max(
           pendingTarget.requestedHorizonMicroseconds,
-          hostHorizon - this.horizonOffsetMicroseconds,
+          currentHostHorizon,
         ),
       };
       this.latestTarget = pendingTarget;
@@ -674,13 +741,35 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     // An input can commit beyond the presentation-limited host tick. Older
     // demand may observe the same committed time but must never rewind it.
+    const wake = this.nextArduinoWake;
+    const wakeObservation = wake === null ? 0 : wake.at + ARDUINO_WAKE_OBSERVATION_MICROSECONDS;
+    const wakeWithinWindow =
+      wake !== null &&
+      defaultHostPace &&
+      currentHostHorizon !== null &&
+      pendingTarget === this.latestTarget &&
+      !this.firstPositiveObservation &&
+      this.pendingInputEvents.length === 0 &&
+      sameArduinoSources(this.dispatchedDocument, document) &&
+      wake.at > committed &&
+      wakeObservation <= committed + this.observationWindowMicroseconds;
+    if (wakeWithinWindow && currentHostHorizon < wake.at) {
+      // Waiting briefly avoids occupying the sole Worker slot with a request
+      // that will stop just before the accepted wake. Keep the full host demand.
+      this.reserveForWake(generationId, wake, currentHostHorizon);
+      return;
+    }
+    this.cancelWakeTimer();
+    const demand = wakeWithinWindow
+      ? Math.min(currentHostHorizon, wakeObservation)
+      : pendingTarget.requestedHorizonMicroseconds;
     const target = isStartup
       ? pendingTarget
       : {
           requestedHorizonMicroseconds: Math.max(
             committed,
             Math.min(
-              pendingTarget.requestedHorizonMicroseconds,
+              demand,
               committed +
                 (this.firstPositiveObservation &&
                 pendingTarget === this.latestTarget &&
@@ -727,6 +816,63 @@ export class ElectronicsLiveSimulationWorkerController {
     this.pump();
   }
 
+  private rememberArduinoWake(
+    advance: SimulationTimedAdvancePayload,
+    board: AcceptedArduinoBoard | undefined,
+    inputEventCount: number,
+    hasRetainedInputs: boolean,
+  ): void {
+    const previous = this.nextArduinoWake;
+    this.nextArduinoWake = null;
+    const runtime = board?.runtime;
+    if (
+      !board ||
+      typeof board.loadedSource !== 'string' ||
+      this.dispatchedDocument?.components.find((component) => component.id === board.componentId)
+        ?.stateProperties?.[ARDUINO_SOURCE_PROPERTY] !== board.loadedSource ||
+      !runtime ||
+      runtime.serial ||
+      runtime.servo ||
+      runtime.pulseWait ||
+      runtime.ultrasonicAdapter ||
+      !runtime.tones ||
+      Object.keys(runtime.tones).length !== 0 ||
+      typeof runtime.virtualTimeMs !== 'number' ||
+      !Number.isFinite(runtime.virtualTimeMs) ||
+      typeof runtime.resumeAtMs !== 'number' ||
+      advance.executionStatus !== 'ready' ||
+      !advance.result?.solved ||
+      advance.result.quality?.passed !== true ||
+      advance.result.components.some(
+        (component) =>
+          (component.stressState !== undefined && component.stressState !== 'normal') ||
+          (component.deviceHealth !== undefined && component.deviceHealth !== 'normal') ||
+          (component.damageState !== undefined && component.damageState !== 'none') ||
+          (component.accumulatedDamagePercent ?? 0) > 0,
+      ) ||
+      advance.state.continuation?.clockProfileId !== 'electrothermal-events-v2' ||
+      inputEventCount !== 0 ||
+      hasRetainedInputs
+    )
+      return;
+
+    const at = Math.round(runtime.resumeAtMs * 1000);
+    if (
+      !Number.isSafeInteger(at + ARDUINO_WAKE_OBSERVATION_MICROSECONDS) ||
+      at <= advance.committedHorizonMicroseconds
+    )
+      return;
+    if (
+      previous?.at === at &&
+      previous.componentId === board.componentId &&
+      previous.source === board.loadedSource
+    ) {
+      this.nextArduinoWake = previous;
+    } else if (runtime.resumeAtMs - runtime.virtualTimeMs >= MIN_ARDUINO_SLEEP_MS) {
+      this.nextArduinoWake = { at, componentId: board.componentId, source: board.loadedSource };
+    }
+  }
+
   private completeAdvance(
     generationId: number,
     target: SimulationTarget,
@@ -764,13 +910,21 @@ export class ElectronicsLiveSimulationWorkerController {
     const fingerprints = new Map<string, string>();
     try {
       const snapshot = JSON.parse(advance.state.continuation?.serializedState ?? '{}') as {
-        boards?: readonly { componentId: string; runtime?: { programFingerprint?: string } }[];
+        boards?: readonly AcceptedArduinoBoard[];
+        inputs?: readonly unknown[];
       };
+      this.rememberArduinoWake(
+        advance,
+        snapshot.boards?.length === 1 ? snapshot.boards[0] : undefined,
+        inputEventCount,
+        snapshot.inputs?.length !== 0,
+      );
       for (const board of snapshot.boards ?? [])
         if (typeof board.runtime?.programFingerprint === 'string')
           fingerprints.set(board.componentId, board.runtime.programFingerprint);
     } catch {
-      // An absent/invalid optional continuation supplies no program identity.
+      // An absent/invalid optional continuation supplies no program identity or wake.
+      this.nextArduinoWake = null;
       fingerprints.clear();
     }
     const serial = advance.serial.map((entry) => {

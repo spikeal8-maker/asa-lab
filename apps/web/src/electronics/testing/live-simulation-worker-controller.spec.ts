@@ -539,6 +539,211 @@ async function completeCanonicalStart(
   await flush();
 }
 
+describe('dispatch around an accepted Arduino wake', () => {
+  const source = 'void setup(){} void loop(){delay(100);}';
+  const document: SchematicDocument = {
+    ...serialCircuit,
+    components: serialCircuit.components.map((component) =>
+      component.id === 'uno'
+        ? { ...component, stateProperties: { arduinoSource: source } }
+        : component,
+    ),
+  };
+
+  async function start(
+    onPaceRead?: (controller: ElectronicsLiveSimulationWorkerController) => void,
+    stressState?: 'warning',
+  ) {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let host = 0;
+    let defaultPace = true;
+    controller.start('wake', document, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      isDefaultHostPace: () => {
+        onPaceRead?.(controller);
+        return defaultPace;
+      },
+      readHostHorizonMicroseconds: () => host,
+    });
+    await completeCanonicalStart(executor, 1);
+    const update = (at: number, current = document) => {
+      host = at;
+      controller.update(current, at);
+    };
+    const acceptSleeping = async (index: number) => {
+      const call = executor.advances[index]!;
+      const at = call.requestedHorizonMicroseconds;
+      const answer = timedAdvance('ready', at, at);
+      call.deferred.resolve({
+        ...answer,
+        result: {
+          ...answer.result!,
+          quality: { passed: true } as SolveResult['quality'],
+          components: stressState
+            ? [
+                {
+                  componentId: 'resistor',
+                  stressState,
+                  current: 1,
+                  voltageDrop: 5,
+                  terminalVoltages: {},
+                },
+              ]
+            : [],
+        },
+        state: {
+          ...answer.state,
+          continuation: {
+            ...answer.state.continuation!,
+            clockProfileId: 'electrothermal-events-v2',
+            serializedState: JSON.stringify({
+              inputs: [],
+              boards: [
+                {
+                  componentId: 'uno',
+                  loadedSource: source,
+                  runtime: {
+                    resumeAtMs: 100.004,
+                    virtualTimeMs: index === 1 ? 0.004 : at / 1000,
+                    tones: {},
+                  },
+                },
+              ],
+            }),
+          },
+        },
+      });
+      await flush();
+    };
+    for (const [index, at] of [1000, 25_000, 50_000, 75_000, 80_000].entries()) {
+      update(at);
+      await acceptSleeping(index + 1);
+    }
+    return {
+      executor,
+      controller,
+      update,
+      setHost: (at: number) => (host = at),
+      disableDefaultPace: () => (defaultPace = false),
+    };
+  }
+
+  it('leaves the worker free for the scheduled edge, then sends only current bounded demand', async () => {
+    vi.useFakeTimers();
+    try {
+      const { executor, controller, update, setHost } = await start();
+      update(98_000);
+      update(99_300);
+      expect(executor.advances).toHaveLength(6);
+      expect(vi.getTimerCount()).toBe(1);
+      setHost(99_900);
+      await vi.advanceTimersByTimeAsync(3);
+      expect(executor.advances).toHaveLength(6);
+      setHost(102_000);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(executor.advances[6]!.requestedHorizonMicroseconds).toBe(101_004);
+      expect(executor.advances[6]!.inputEvents).toEqual([]);
+      executor.advances[6]!.deferred.resolve(timedAdvance('ready', 101_004, 101_004));
+      await flush();
+      expect(executor.advances[7]!.requestedHorizonMicroseconds).toBe(102_000);
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('continues ordinary observations while components report overload', async () => {
+    const { executor, controller, update } = await start(undefined, 'warning');
+    update(99_300);
+    expect(executor.advances[6]!.requestedHorizonMicroseconds).toBe(99_300);
+    controller.stop();
+  });
+
+  it('does not spin while the bounded host horizon is held below a scheduled wake', async () => {
+    vi.useFakeTimers();
+    try {
+      const { executor, controller, update } = await start();
+      update(99_300);
+      await vi.advanceTimersByTimeAsync(30);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(executor.advances).toHaveLength(6);
+      update(100_300);
+      expect(executor.advances[6]!.requestedHorizonMicroseconds).toBe(100_300);
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ignores an old host read that synchronously resets the controller', async () => {
+    vi.useFakeTimers();
+    try {
+      let reset = false;
+      const { executor, controller, update } = await start((current) => {
+        if (reset) current.restart(document);
+      });
+      reset = true;
+      update(99_300);
+      reset = false;
+      expect(executor.generation).toBe(2);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(executor.advances).toHaveLength(6);
+      await completeCanonicalStart(executor, 2);
+      expect(executor.advances[6]!.generationId).toBe(2);
+      expect(executor.advances[6]!.requestedHorizonMicroseconds).toBe(0);
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(['stop', 'reset', 'pause', 'source', 'input', 'explicit pace'] as const)(
+    'invalidates a reserved wake during %s',
+    async (change) => {
+      vi.useFakeTimers();
+      try {
+        const { executor, controller, update, setHost, disableDefaultPace } = await start();
+        update(99_300);
+        expect(vi.getTimerCount()).toBe(1);
+        if (change === 'stop') controller.stop();
+        if (change === 'reset') controller.restart(document);
+        if (change === 'pause') controller.setPaused(true);
+        if (change === 'source')
+          update(99_300, {
+            ...document,
+            components: document.components.map((component) =>
+              component.id === 'uno'
+                ? { ...component, stateProperties: { arduinoSource: 'void loop(){}' } }
+                : component,
+            ),
+          });
+        if (change === 'input')
+          update(99_300, {
+            ...document,
+            components: document.components.map((component) =>
+              component.id === 'button' ? { ...component, state: true } : component,
+            ),
+          });
+        if (change === 'explicit pace') {
+          disableDefaultPace();
+          update(99_300);
+        }
+        const requests = executor.advances.length;
+        expect(requests).toBe(['source', 'input', 'explicit pace'].includes(change) ? 7 : 6);
+        if (change === 'input') expect(executor.advances[6]!.inputEvents).toHaveLength(1);
+        expect(vi.getTimerCount()).toBe(0);
+        setHost(110_000);
+        await vi.advanceTimersByTimeAsync(30);
+        expect(executor.advances).toHaveLength(requests);
+        controller.stop();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+});
 describe('Electronics canonical Worker controller', () => {
   it('completes H0 at zero rate but blocks positive demand until explicit resume', async () => {
     const executor = new FakeExecutor();
