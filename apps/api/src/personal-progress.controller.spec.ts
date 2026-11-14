@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
+import { createDecipheriv, createHash } from 'node:crypto';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
 import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
@@ -449,6 +450,49 @@ describe('SP-04 learner-only group rating API', () => {
         cursor: result.nextCursor!,
       }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('requires an independent server secret, not just the actor-readable session cookie, for cursor and image ticket encryption', async () => {
+    const raw = page();
+    const last = {
+      ...raw.peers[1]!,
+      avatarId: peer,
+    };
+    const peers = [
+      ...Array.from({ length: 19 }, (_, i) => ({
+        seatId: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+        score: 83.46,
+        rank: 2,
+        avatarKey: null,
+        avatarId: null,
+      })),
+      last,
+    ];
+    const f = fixture({
+      ...raw,
+      peers,
+      hasMore: true,
+      afterSeat: second,
+      afterScore: 83.46,
+    });
+    const result = await f.controller.accountRating(REQUEST, CLASS, { view: 'all' });
+    expect(result.nextCursor).toBeTypeOf('string');
+    expect(result.peers[19]!.avatarTicket).toBeTypeOf('string');
+    // A learner can inspect their own HTTP-only cookie via browser tooling.
+    // Such a cookie must not be sufficient to derive a key that reveals
+    // somebody else's private Seat UUID from an encrypted cursor or ticket.
+    const actorDerivableKey = createHash('sha256')
+      .update('asa:sp04:ticket:v1:' + hashSessionToken('account-token'))
+      .digest();
+    for (const ticket of [result.nextCursor!, result.peers[19]!.avatarTicket!]) {
+      const bytes = Buffer.from(ticket, 'base64url');
+      expect(bytes.length).toBeGreaterThan(28);
+      expect(() => {
+        const decrypt = createDecipheriv('aes-256-gcm', actorDerivableKey, bytes.subarray(0, 12));
+        decrypt.setAuthTag(bytes.subarray(12, 28));
+        return Buffer.concat([decrypt.update(bytes.subarray(28)), decrypt.final()]);
+      }).toThrow();
+    }
   });
 
   it('does not expose custom avatar pixels except through an encrypted session ticket', async () => {

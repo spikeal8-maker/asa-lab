@@ -10,7 +10,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
 import {
   PERSONAL_PROGRESS_GROUP_LIMIT,
@@ -47,11 +47,29 @@ const BASES: Record<ProgressMetricNameV1, ProgressCoverageV1['basis']> = {
   activePublicWorks: 'current_catalog_visibility',
 };
 
-/** SP-04 tickets are encrypted and authenticated per actual session, not merely
- * base64-encoded roster IDs. No token, account ID or seat ID enters URLs. */
+/** Ticket privacy requires a server-only key independent of the learner's
+ * own cookie, which is potentially inspectable by that learner. The optional
+ * stable deployment key allows tickets to survive API replica handoffs.
+ * Without one, each API process uses a strong ephemeral secret and restarting
+ * invalidates outstanding pages (the client may start again). No fail-open
+ * deterministic fallback is allowed. Never log or expose the secret.
+ */
+const RATING_TICKET_MASTER_KEY = (() => {
+  const configured = process.env['ASA_SP04_TICKET_SECRET'];
+  if (configured !== undefined && configured !== '') {
+    if (!/^[a-fA-F0-9]{64}$/.test(configured))
+      throw new Error('ASA_SP04_TICKET_SECRET must be a 32-byte hexadecimal server secret');
+    return Buffer.from(configured, 'hex');
+  }
+  return randomBytes(32);
+})();
+
+/** SP-04 cursors and avatar tickets are AES-GCM authenticated and scoped to
+ * the current session under an independent server-held secret. */
 function ratingTicketKey(token: string): Buffer {
-  return createHash('sha256')
-    .update('asa:sp04:ticket:v1:' + hashSessionToken(token))
+  return createHmac('sha256', RATING_TICKET_MASTER_KEY)
+    .update('asa:sp04:ticket:v1:')
+    .update(hashSessionToken(token))
     .digest();
 }
 

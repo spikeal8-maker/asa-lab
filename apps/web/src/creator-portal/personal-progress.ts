@@ -334,19 +334,51 @@ function groupRatingPath(actor: OwnProgressActor, groupId: string): string {
   return base + '/' + encodeURIComponent(groupId);
 }
 
+/** Only *pending* preview requests may be shared, never cached results.
+ * All request keys include ProgressLifetime's generation/continuity: a logout,
+ * account change or same-account re-login cannot reuse another session's data.
+ * Browser abort stops an obsolete consumer immediately; its in-flight server
+ * SQL remains reusable for a same-scope remount rather than starting another
+ * expensive calculation that competes with the first one. A hard upper bound
+ * prevents indefinite transport retention if the network itself hangs. */
+const pendingGroupPreviews = new Map<string, Promise<ApiResult<GroupRatingPageV1>>>();
+function sharedGroupPreview(ownerKey: string, url: string): Promise<ApiResult<GroupRatingPageV1>> {
+  const key = ownerKey + '::' + url;
+  const existing = pendingGroupPreviews.get(key);
+  if (existing) return existing;
+  const transport = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const pending = new Promise<ApiResult<GroupRatingPageV1>>((resolve, reject) => {
+    timer = setTimeout(() => {
+      transport.abort(lifecycleCancellation());
+      reject(new Error('group rating transport timed out'));
+    }, 12000);
+    void call<GroupRatingPageV1>(url, { signal: transport.signal }).then(resolve, reject);
+  }).finally(() => {
+    if (timer !== null) clearTimeout(timer);
+    if (pendingGroupPreviews.get(key) === pending) pendingGroupPreviews.delete(key);
+  });
+  pendingGroupPreviews.set(key, pending);
+  return pending;
+}
+
 export function readGroupRating(
   actor: OwnProgressActor,
   groupId: string,
   signal: AbortSignal,
   view: 'preview' | 'all',
   options: { readonly limit?: number; readonly cursor?: string } = {},
+  ownerKey: string | null = null,
 ): Promise<ApiResult<GroupRatingPageV1>> {
   const params = new URLSearchParams({ view });
   if (view === 'preview') params.set('limit', String(options.limit ?? 5));
   if (view === 'all' && options.cursor) params.set('cursor', options.cursor);
   const url = groupRatingPath(actor, groupId) + '/rating?' + params.toString();
   return limitedGroupRead(signal, async () => {
-    const result = await call<GroupRatingPageV1>(url, { signal });
+    const result =
+      view === 'preview' && ownerKey
+        ? await abortable(() => sharedGroupPreview(ownerKey, url), signal)
+        : await call<GroupRatingPageV1>(url, { signal });
     if (
       result.ok &&
       (result.data.groupId.toLowerCase() !== groupId.toLowerCase() ||
@@ -398,8 +430,8 @@ export function useGroupRatingPreview(
   const accountId = actor.kind === 'account' ? actor.accountId : undefined;
   const seatId = actor.kind === 'seat' ? actor.seatId : undefined;
   const read = useCallback(
-    (signal: AbortSignal) => readGroupRating(actor, groupId, signal, 'preview', { limit }),
-    [kind, accountId, seatId, groupId, limit],
+    (signal: AbortSignal) => readGroupRating(actor, groupId, signal, 'preview', { limit }, key),
+    [kind, accountId, seatId, groupId, limit, key],
   );
   const rating = usePersonalRead(ratingLifetime, read, limit);
   const version = rating.data?.version;

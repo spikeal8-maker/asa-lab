@@ -21,6 +21,7 @@ import { setTelemetryContext } from '../telemetry-context';
 import { PersonalProgress } from './PersonalProgress';
 import {
   limitedGroupRead,
+  readGroupRating,
   nextLearningAction,
   readPersonalProgress,
   usePersonalProgress,
@@ -971,5 +972,90 @@ describe('SP-04 aborted group-read quota and modal accessibility', () => {
     expect(document.activeElement).toBe(link);
     await click('Закрыть');
     expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+describe('SP-04 single-flight active rating request', () => {
+  it('reuses pending same-scope SQL across cancelled Home remounts without caching a completed response', async () => {
+    const response = deferred<ApiResult<GroupRatingPageV1>>();
+    const fetch = vi.spyOn(apiCall, 'call').mockReturnValue(response.promise);
+    const old = new AbortController();
+    const fresh = new AbortController();
+    const args = { limit: 5 };
+    const ownerKey = 'account:account-a:personal:generation-71';
+    const first = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      old.signal,
+      'preview',
+      args,
+      ownerKey,
+    ).then(
+      () => 'unexpected',
+      () => 'aborted',
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    old.abort();
+    expect(await first).toBe('aborted');
+    const second = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      fresh.signal,
+      'preview',
+      args,
+      ownerKey,
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    response.resolve(success(sp04Page([sp04Peer(0)])));
+    await expect(second).resolves.toMatchObject({
+      ok: true,
+      data: { groupId: SP04_TEST_GROUP, peers: [expect.objectContaining({ rank: 1 })] },
+    });
+    const repeat = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      new AbortController().signal,
+      'preview',
+      args,
+      ownerKey,
+    );
+    await repeat;
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('never shares pending previews across logout/login continuity or a different account scope', async () => {
+    const oldPending = deferred<ApiResult<GroupRatingPageV1>>();
+    const newPending = deferred<ApiResult<GroupRatingPageV1>>();
+    const fetch = vi
+      .spyOn(apiCall, 'call')
+      .mockReturnValueOnce(oldPending.promise)
+      .mockReturnValueOnce(newPending.promise);
+    const old = new AbortController();
+    const latest = new AbortController();
+    const first = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      old.signal,
+      'preview',
+      { limit: 5 },
+      'account-a:generation-10',
+    ).catch(() => 'aborted');
+    old.abort();
+    expect(await first).toBe('aborted');
+    const second = readGroupRating(
+      account,
+      SP04_TEST_GROUP,
+      latest.signal,
+      'preview',
+      { limit: 5 },
+      'account-a:generation-11',
+    );
+    expect(fetch).toHaveBeenCalledTimes(2);
+    oldPending.resolve(success(sp04Page([sp04Peer(0)])));
+    newPending.resolve(success(sp04Page([sp04Peer(1)])));
+    await expect(second).resolves.toMatchObject({
+      ok: true,
+      data: { peers: [expect.objectContaining({ peerKey: 'opaque-peer-1' })] },
+    });
   });
 });
