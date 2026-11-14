@@ -437,6 +437,7 @@ test('AI downloads code and complete answers as real local files', async ({ page
   const retry = page.getByRole('button', { name: 'Новый вариант ответа', exact: true });
   await expect(retry).toBeVisible();
   await expect(retry).toHaveText('');
+  await expect(retry).toHaveAccessibleDescription('Новый вариант расходует лимит');
   const download = page.getByRole('button', { name: 'Скачать ответ', exact: true });
   const formats = page.getByRole('group', { name: 'Формат ответа' });
   const pdfFormat = formats.getByRole('button', { name: 'PDF', exact: true });
@@ -492,6 +493,15 @@ test('AI downloads code and complete answers as real local files', async ({ page
       await expect(download).toBeFocused();
     }
   }
+  await download.click();
+  await expect(pdfFormat).toBeFocused();
+  const history = page.locator('.chat-scroll');
+  await history.evaluate((scroll) => {
+    scroll.scrollTop = 0;
+  });
+  await expect(formats).toHaveCount(0);
+  await expect(download).toBeFocused();
+  await expect.poll(() => history.evaluate((scroll) => scroll.scrollTop)).toBe(0);
   await download.click();
   const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
   await composer.click();

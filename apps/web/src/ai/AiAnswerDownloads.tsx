@@ -36,6 +36,7 @@ export function AiAnswerDownloads({ content }: { content: string }): JSX.Element
       const bottom = Math.min(window.innerHeight, scroll?.bottom ?? Infinity) - margin;
       if (anchor.bottom <= top || anchor.top >= bottom || right <= left || bottom <= top) {
         setOpen(false);
+        if (menu.contains(document.activeElement)) button.focus({ preventScroll: true });
         return;
       }
       const width = Math.min(280, right - left);

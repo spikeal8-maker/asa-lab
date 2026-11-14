@@ -2035,6 +2035,7 @@ export function AiChatPage({
                                   }
                                   onClick={() => void regenerate(message)}
                                   data-ai-tooltip="Новый вариант расходует лимит"
+                                  aria-description="Новый вариант расходует лимит"
                                   aria-label="Новый вариант ответа"
                                 >
                                   <AiChatIcon name="refresh" size={18} />
