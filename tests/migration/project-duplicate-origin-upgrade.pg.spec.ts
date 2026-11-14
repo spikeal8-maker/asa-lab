@@ -342,12 +342,34 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
           [native.project.id],
         ),
       ).rejects.toMatchObject({ code: '23514' });
+      // The 0322 project predates writer-evidence records. An UPDATE against
+      // its missing row is a no-op, not an immutability-trigger invocation.
+      expect(
+        (
+          await admin.query('SELECT project_id FROM project_writer_evidence WHERE project_id=$1', [
+            copyId,
+          ])
+        ).rows,
+      ).toEqual([]);
+      const ordinaryEvidence = async () =>
+        (
+          await admin.query(
+            'SELECT writer_lineage_coverage, writer_operation FROM project_writer_evidence WHERE project_id=$1',
+            [first.project.id],
+          )
+        ).rows;
+      expect(await ordinaryEvidence()).toEqual([
+        { writer_lineage_coverage: 'unknown', writer_operation: 'ordinary_duplicate' },
+      ]);
       await expect(
         admin.query(
           "UPDATE project_writer_evidence SET writer_lineage_coverage='v1' WHERE project_id=$1",
-          [copyId],
+          [first.project.id],
         ),
       ).rejects.toMatchObject({ code: '23514' });
+      expect(await ordinaryEvidence()).toEqual([
+        { writer_lineage_coverage: 'unknown', writer_operation: 'ordinary_duplicate' },
+      ]);
       await expect(runtime.query('SELECT * FROM project_writer_evidence')).rejects.toMatchObject({
         code: '42501',
       });
