@@ -1,6 +1,6 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { markdownTables } from './ai-markdown-tables';
+import { markdownTables, parseTypedTable } from './ai-markdown-tables';
 import { exportCsv, exportXlsx } from './ai-table-export';
 
 describe('tabular downloads', () => {
@@ -38,6 +38,33 @@ describe('tabular downloads', () => {
     expect(second).toContain('>12345678901234567<');
     expect(second).toContain('А &amp; &lt;Б&gt;&#13;\n_x005F_x000A_');
     expect(Object.keys(archive).some((path) => /externalLinks|vbaProject/.test(path))).toBe(false);
+  });
+
+  it('accepts explicitly typed cells and fails closed for broken dates and unsafe data', async () => {
+    const table = parseTypedTable(
+      '{"rows":[["Код","Сумма","Готово","Дата"],["0007",-1.25,true,{"date":"2026-11-14"}]]}',
+    );
+    expect(table).not.toBeNull();
+    for (const cell of [
+      '{"date":"2026-02-29"}',
+      '{"date":"1899-01-01"}',
+      '{"date":"2026-01-01","formula":true}',
+      '{"formula":"1+2"}',
+      '1e999',
+      '12345678901234567',
+      'null',
+      '[]',
+    ]) {
+      expect(parseTypedTable('{"rows":[[' + cell + ']]}')).toBeNull();
+    }
+    expect(parseTypedTable('{"rows":[[1,2],[1]]}')).toBeNull();
+    const workbook = await exportXlsx([table!]);
+    const zip = unzipSync(new Uint8Array(await workbook.arrayBuffer()));
+    const contents = strFromU8(zip['xl/worksheets/sheet1.xml']!);
+    expect(contents).toContain('<c r="B2"><v>-1.25</v></c>');
+    expect(contents).toContain('<c r="C2" t="b"><v>1</v></c>');
+    expect(contents).toContain('<c r="D2" s="1"><v>46340</v></c>');
+    expect(strFromU8(zip['xl/styles.xml']!)).toContain('yyyy-mm-dd');
   });
 
   it('preserves whole negative decimal cells while guarding formula-like text', async () => {

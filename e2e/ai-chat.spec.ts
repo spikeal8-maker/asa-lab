@@ -423,7 +423,7 @@ test('AI downloads code and complete answers as real local files', async ({ page
     '# Игра «Змейка»\n\nСохраните страницу и откройте её в браузере.\n\n```html\n' +
     html +
     '\n```\n\n| Клавиша | Действие |\n| --- | --- |\n| Стрелка | Движение |' +
-    '\n\nОтдельная таблица\n\n| Артикул | Значение |\n| --- | --- |\n| 0007 | =1+2 |';
+    '\n\n```asa-table\n{"rows":[["Артикул","Значение","Сумма","Готово","Дата"],["0007","=1+2",-1.25,true,{"date":"2026-11-14"}]]}\n```';
   const fake = await fixture(page, answer);
   fake.release();
   await page.setViewportSize({ width: 390, height: 850 });
@@ -435,6 +435,9 @@ test('AI downloads code and complete answers as real local files', async ({ page
       .locator('.chat-turn-assistant .chat-message-actions')
       .getByRole('button', { name: 'Копировать', exact: true }),
   ).toHaveAttribute('aria-label', 'Копировать');
+  const excelTable = page.getByRole('region', { name: 'Таблица Excel' });
+  await expect(excelTable.getByRole('cell', { name: '0007' })).toBeVisible();
+  await expect(excelTable.getByRole('cell', { name: '2026-11-14' })).toBeVisible();
   const retry = page.getByRole('button', { name: 'Новый вариант ответа', exact: true });
   await expect(retry).toBeVisible();
   await expect(retry).toHaveText('');

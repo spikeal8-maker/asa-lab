@@ -19,6 +19,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import './ai-text-complete.css';
 import { codeDownloadFormat, downloadBlob } from './ai-download';
+import { parseTypedTable, TYPED_TABLE_LANGUAGE } from './ai-markdown-tables';
 import { readWebEvidence } from './ai-web-evidence';
 import {
   embedPreviewImages,
@@ -68,6 +69,30 @@ const CodeImagesContext = createContext<{
 // rerenders (typing, focus, provider status). Inline component functions remount it.
 function CodePre({ children }: { children?: ReactNode }): JSX.Element {
   const pending = useContext(CodePendingContext);
+  const child = Array.isArray(children) ? children[0] : children;
+  if (
+    isValidElement<{ className?: string }>(child) &&
+    child.props.className === 'language-' + TYPED_TABLE_LANGUAGE
+  ) {
+    const table = pending ? null : parseTypedTable(flattenText(children));
+    if (!table)
+      return <p role="status">{pending ? 'Готовим таблицу…' : 'Таблица не прошла проверку.'}</p>;
+    return (
+      <div className="asa-ai-table-scroll" role="region" aria-label="Таблица Excel" tabIndex={0}>
+        <table>
+          <tbody>
+            {table.map((row, position) => (
+              <tr key={position}>
+                {row.map((cell, column) => (
+                  <td key={column}>{typeof cell === 'object' ? cell.date : String(cell)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   return <CodeCard pending={pending}>{children}</CodeCard>;
 }
 
