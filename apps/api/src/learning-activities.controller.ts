@@ -798,7 +798,7 @@ export class LearningActivitiesController {
         );
       }
       try {
-        await validateLearningFile(bytes, file);
+        await validateLearningFile(bytes, file, 'author');
       } catch {
         throw new HttpException(
           error('invalid_media', 'Не удалось прочитать файл. Проверьте формат и содержимое.'),

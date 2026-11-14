@@ -144,6 +144,7 @@ function validatePdf(bytes: Buffer): void {
 export async function validateLearningFile(
   bytes: Buffer,
   file: ReturnType<typeof describeLearningFile>,
+  profile: 'learner' | 'author' = 'learner',
 ): Promise<void> {
   if (bytes.length === 0) rejectLearningFile('file_content_invalid', 415);
   if (bytes.length > file.maxBytes) rejectLearningFile('file_too_large', 413);
@@ -163,7 +164,11 @@ export async function validateLearningFile(
       extension === 'jpeg' ||
       extension === 'webp'
     ) {
-      validateAttachmentImageStructure(bytes, extension === 'jpeg' ? 'jpg' : extension);
+      validateAttachmentImageStructure(
+        bytes,
+        extension === 'jpeg' ? 'jpg' : extension,
+        profile === 'author' ? { maxDimension: 16_384, maxPixels: 64_000_000 } : undefined,
+      );
     } else if (extension === 'stl') {
       validateLearningStl(bytes);
     } else {
