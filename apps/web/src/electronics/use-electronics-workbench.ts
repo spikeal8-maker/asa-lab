@@ -808,6 +808,64 @@ export function useElectronicsWorkbenchHost(
     let displayed: LiveOpticalObservation | null = null;
     let publishing = false;
     let animationFrame: number | null = null;
+    let scheduledArduinoWake: {
+      dueMicroseconds: number;
+      source: typeof nativePreparationSourceRef.current;
+      timeout: number;
+    } | null = null;
+    const cancelArduinoWake = () => {
+      if (scheduledArduinoWake) window.clearTimeout(scheduledArduinoWake.timeout);
+      scheduledArduinoWake = null;
+    };
+    const scheduleArduinoWake = (dueMicroseconds: number | null) => {
+      const source = nativePreparationSourceRef.current;
+      const startedAt = simulationStartedAtRef.current;
+      if (
+        !currentSession() ||
+        !session?.active ||
+        dueMicroseconds === null ||
+        startedAt === null ||
+        normalHostClockRef.current ||
+        simulationPacing.explicit
+      ) {
+        cancelArduinoWake();
+        return;
+      }
+      if (
+        scheduledArduinoWake?.dueMicroseconds === dueMicroseconds &&
+        scheduledArduinoWake.source === source
+      )
+        return;
+      cancelArduinoWake();
+      // The engine's actual resumeAtMs belongs to this generation. Schedule
+      // demand at the real wall deadline, not a speculative future model horizon.
+      const dueWall =
+        startedAt + (dueMicroseconds - simulationHostOffsetMicrosecondsRef.current) / 1000;
+      const remainingMs = dueWall - window.performance.now();
+      if (!Number.isFinite(remainingMs) || remainingMs < 2 || remainingMs > 25_000) return;
+      const timeout = window.setTimeout(
+        () => {
+          if (scheduledArduinoWake?.timeout !== timeout) return;
+          scheduledArduinoWake = null;
+          if (
+            !currentSession() ||
+            !session?.active ||
+            source !== nativePreparationSourceRef.current ||
+            normalHostClockRef.current ||
+            simulationPacing.explicit
+          )
+            return;
+          const document = runtimeDocumentRef.current;
+          const horizon = readHostHorizonMicroseconds();
+          if (document && horizon !== null) {
+            requestedHorizonMicrosecondsRef.current = horizon;
+            controller?.update(document, horizon);
+          }
+        },
+        Math.ceil(remainingMs + 0.5),
+      );
+      scheduledArduinoWake = { dueMicroseconds, source, timeout };
+    };
     let recordedReanchors = ledPresentation.reanchorCount;
     let queuedNativePreparation: { document: SchematicDocument } | null = null;
     let nativePreparation: { generation: number; assets: ReadonlyMap<string, string> } | null =
@@ -823,6 +881,7 @@ export function useElectronicsWorkbenchHost(
     settleSimulationPauseRef.current = settlePause;
     const changePace = (rate: number) => {
       if (!currentSession()) return;
+      cancelArduinoWake();
       const transition = ++paceTransition;
       const wall = Math.round(window.performance.now() * 1000);
       ledPresentation.setPlaybackRate(rate, wall);
@@ -1154,6 +1213,7 @@ export function useElectronicsWorkbenchHost(
     simulationCommandRef.current = dispatch;
     const fail = (failure: SimulationFailure) => {
       if (!currentSession()) return;
+      cancelArduinoWake();
       clearStartupDeadline();
       active = false;
       pendingCommands.length = 0;
@@ -1207,6 +1267,7 @@ export function useElectronicsWorkbenchHost(
         },
         onGenerationPending: () => {
           if (!currentSession()) return;
+          cancelArduinoWake();
           // A real Reset starts a new generation and receives a new budget.
           // The first generation keeps the deadline armed before module import.
           if (generationConfirmed) armStartupDeadline();
@@ -1303,6 +1364,7 @@ export function useElectronicsWorkbenchHost(
             simulationPacing.reanchor(horizon, Math.round(window.performance.now() * 1000));
           }
         },
+        onNextArduinoWake: scheduleArduinoWake,
         onSerialProjection: (serial: readonly WorkbenchSerialProjection[]) => {
           if (!currentSession() || (serial.length === 0 && previousSerial.length === 0)) return;
           const [entry] = serial;
@@ -1352,6 +1414,7 @@ export function useElectronicsWorkbenchHost(
     }
     return () => {
       active = false;
+      cancelArduinoWake();
       clearStartupDeadline();
       if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
       pendingCommands.length = 0;

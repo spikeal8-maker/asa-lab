@@ -54,6 +54,8 @@ export interface LiveSimulationWorkerCallbacks {
     clockProfileId?: NonNullable<ElectronicsTimedState['continuation']>['clockProfileId'],
   ) => void;
   readonly onCommittedHorizon?: (committedHorizonMicroseconds: number) => void;
+  /** Next actual MCU wake from a completed engine continuation; never commits future model time. */
+  readonly onNextArduinoWake?: (atMicroseconds: number | null) => void;
   readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
   readonly onFailure: (failure: SimulationFailure) => void;
 }
@@ -456,7 +458,10 @@ export class ElectronicsLiveSimulationWorkerController {
 
   setPaused(paused: boolean, reanchor?: (committedMicroseconds: number) => void): void {
     this.paused = paused;
-    if (paused) return;
+    if (paused) {
+      this.callbacks?.onNextArduinoWake?.(null);
+      return;
+    }
     if (this.resuming) {
       reanchor?.(this.committedHorizonMicroseconds);
       return;
@@ -474,11 +479,13 @@ export class ElectronicsLiveSimulationWorkerController {
 
   stop(): void {
     const active = this.generationId !== null;
+    this.callbacks?.onNextArduinoWake?.(null);
     this.clearGeneration();
     if (active) this.executor.cancelActiveGeneration();
   }
 
   dispose(): void {
+    this.callbacks?.onNextArduinoWake?.(null);
     this.clearGeneration();
     this.executor.dispose();
   }
@@ -762,16 +769,34 @@ export class ElectronicsLiveSimulationWorkerController {
     // UI-only identity from the accepted MCU state: source text or TX contents
     // cannot distinguish a reset with identical output from a retained stream.
     const fingerprints = new Map<string, string>();
+    let nextArduinoWake: number | null = null;
     try {
       const snapshot = JSON.parse(advance.state.continuation?.serializedState ?? '{}') as {
-        boards?: readonly { componentId: string; runtime?: { programFingerprint?: string } }[];
+        boards?: readonly {
+          componentId: string;
+          runtime?: { programFingerprint?: string; resumeAtMs?: number };
+        }[];
       };
-      for (const board of snapshot.boards ?? [])
+      for (const board of snapshot.boards ?? []) {
         if (typeof board.runtime?.programFingerprint === 'string')
           fingerprints.set(board.componentId, board.runtime.programFingerprint);
+        const wakeMs = board.runtime?.resumeAtMs;
+        if (typeof wakeMs !== 'number' || !Number.isFinite(wakeMs)) continue;
+        const due = Math.ceil(wakeMs * 1000);
+        // Only schedule sleeping, fully known MCU instructions; a busy 1ms
+        // loop keeps the original 10ms host polling path without extra timers.
+        if (
+          !Number.isSafeInteger(due) ||
+          due <= advance.committedHorizonMicroseconds + 5_000 ||
+          due > advance.committedHorizonMicroseconds + 25_000_000
+        )
+          continue;
+        nextArduinoWake = nextArduinoWake === null ? due : Math.min(nextArduinoWake, due);
+      }
     } catch {
-      // An absent/invalid optional continuation supplies no program identity.
+      // An absent/invalid optional continuation supplies no program identity or wake.
       fingerprints.clear();
+      nextArduinoWake = null;
     }
     const serial = advance.serial.map((entry) => {
       const fingerprint = fingerprints.get(entry.componentId);
@@ -844,6 +869,13 @@ export class ElectronicsLiveSimulationWorkerController {
       } else {
         this.callbacks?.onResult(advance.result, undefined, clockProfileId);
       }
+      if (generationId === this.generationId)
+        this.callbacks?.onNextArduinoWake?.(
+          clockProfileId === 'electrothermal-events-v2' &&
+            advance.ledTemporal?.toMicroseconds === advance.committedHorizonMicroseconds
+            ? nextArduinoWake
+            : null,
+        );
     }
     if (isStartup && completedDocument !== null) {
       const pull = () => {
