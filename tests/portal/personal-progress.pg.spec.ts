@@ -1024,3 +1024,305 @@ describe('authorized own progress on real application-role PostgreSQL', () => {
     );
   });
 });
+
+/** SP-04 in a real disposable PostgreSQL with the limited asalab_app role.
+ * All IDs/tokens are generated here; no student production records are read. */
+describe('SP-04 secure group rating, pagination and avatar pixels', () => {
+  type RatingRaw = {
+    groupId: string;
+    version: string;
+    periodDays: 7 | 30 | 90;
+    own: { availability: string; score: number | null; rank: number | null; reason?: string };
+    peers: Array<{
+      seatId: string;
+      score: number | null;
+      rank: number | null;
+      avatarKey: string | null;
+      avatarId: string | null;
+    }>;
+    hasMore: boolean;
+    afterSeat: string | null;
+    afterScore: number | null;
+  };
+  const statement =
+    'SELECT public.personal_progress_group_rating($1,$2,$3,$4,$5,$6,$7,$8) AS result';
+  const avatarStatement =
+    'SELECT public.personal_progress_group_avatar_batch($1,$2,$3,$4,$5,$6::uuid[]) AS result';
+  function args(
+    person: Identity,
+    classId: string,
+    position: { score: number | null; seat: string | null } = { score: null, seat: null },
+    limit = 5,
+  ) {
+    return [
+      'account',
+      person.account,
+      person.principal,
+      person.hash,
+      classId,
+      position.score,
+      position.seat,
+      limit,
+    ] as const;
+  }
+  async function rating(person: Identity, classId: string) {
+    return (await runtime.query<{ result: RatingRaw }>(statement, args(person, classId))).rows[0]!
+      .result;
+  }
+  async function addPeer(person: Identity, classId: string): Promise<string> {
+    const handle = randomUUID().slice(0, 8);
+    const added = await admin.query<{ id: string }>(
+      `INSERT INTO classroom_student_seats
+       (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+        safe_mode,status,created_by)
+       VALUES($1,$2,'No exposed name',$3,$3,true,'active',$4) RETURNING id`,
+      [person.teacher.tenantId, classId, handle, person.teacher.teacherId],
+    );
+    const seatId = added.rows[0]!.id;
+    const link = await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS learner', [
+      seatId,
+    ]);
+    expect(link.rows[0]!.learner).toBeTruthy();
+    const principals = await admin.query('SELECT principal_id FROM student_seat_principal($1)', [
+      seatId,
+    ]);
+    expect(principals.rows).toHaveLength(1);
+    return seatId;
+  }
+
+  it('reuses the real group rank, denies strangers and exposes no staff SQL functions', async () => {
+    const owner = await identity();
+    const target = await group(owner);
+    const own = await rating(owner, target.classroomId);
+    const source = (
+      await admin.query<{ item: { score: number; rank: number } }>(
+        "SELECT item FROM classroom_participant_metrics($1) WHERE item->>'seatId'=$2",
+        [target.classroomId, target.seat],
+      )
+    ).rows[0]!.item;
+    expect(own.own).toMatchObject({
+      availability: 'available',
+      score: source.score,
+      rank: source.rank,
+    });
+    expect(own.peers).toEqual([]);
+    expect(own.hasMore).toBe(false);
+    expect(own.periodDays).toBe(30);
+    expect(own.version).toMatch(/^[a-f0-9]{32}$/);
+    const flags = await runtime.query(
+      `SELECT current_user AS role,
+        has_function_privilege(current_user,
+          'public.personal_progress_group_member(text,uuid,uuid,text,uuid)',
+          'EXECUTE') AS private_helper,
+        has_function_privilege(current_user,
+          'public.personal_progress_group_rating(text,uuid,uuid,text,uuid,numeric,uuid,integer)',
+          'EXECUTE') AS rating_api`,
+    );
+    expect(flags.rows[0]).toEqual({
+      role: 'asalab_app',
+      private_helper: false,
+      rating_api: true,
+    });
+    const stranger = await identity();
+    await expect(
+      runtime.query(statement, args(stranger, target.classroomId)),
+    ).rejects.toMatchObject({ code: 'P6S02' });
+    await expect(runtime.query(statement, args(owner, randomUUID()))).rejects.toMatchObject({
+      code: 'P6S02',
+    });
+    await expect(
+      runtime.query(statement, args(owner, target.classroomId, { score: null, seat: null }, 21)),
+    ).rejects.toMatchObject({ code: 'P6S03' });
+  });
+
+  it('never expands StudentSeat authority through linked Account, and rechecks logout', async () => {
+    const owner = await identity();
+    const target = await group(owner);
+    const seatPrincipal = (
+      await admin.query<{ id: string }>(
+        "SELECT id FROM principals WHERE kind='student_seat' AND seat_id=$1",
+        [target.seat],
+      )
+    ).rows[0]!.id;
+    const rawSeatToken = randomUUID().replaceAll('-', '').repeat(2);
+    const seatHash = hashSessionToken(rawSeatToken);
+    await admin.query(
+      `INSERT INTO classroom_seat_credentials(
+         seat_id,credential_hash,version,last_request_id,issued_by_account_id)
+       VALUES($1,$2,1,$3,$4)`,
+      [target.seat, seatHash, randomUUID(), owner.account],
+    );
+    await admin.query(
+      `INSERT INTO classroom_student_sessions(seat_id,token_hash,expires_at,credential_version)
+       VALUES($1,$2,now()+interval '1 hour',1)`,
+      [target.seat, seatHash],
+    );
+    const seatArgs = [
+      'seat',
+      target.seat,
+      seatPrincipal,
+      seatHash,
+      target.classroomId,
+      null,
+      null,
+      5,
+    ];
+    const seatPage = (await runtime.query<{ result: RatingRaw }>(statement, seatArgs)).rows[0]!
+      .result;
+    expect(seatPage.groupId).toBe(target.classroomId);
+    expect(seatPage.own.rank).toBe(1);
+    expect(seatPage.peers).toEqual([]);
+    await expect(
+      runtime.query(statement, [
+        'seat',
+        target.seat,
+        seatPrincipal,
+        seatHash,
+        randomUUID(),
+        null,
+        null,
+        5,
+      ]),
+    ).rejects.toMatchObject({ code: 'P6S02' });
+    await admin.query(
+      'UPDATE classroom_student_sessions SET revoked_at=now() WHERE token_hash=$1',
+      [seatHash],
+    );
+    await expect(runtime.query(statement, seatArgs)).rejects.toMatchObject({ code: 'P6S01' });
+  });
+
+  it('orders tied scores by stable second key, restarts after version change and protects PNG', async () => {
+    const owner = await identity();
+    const target = await group(owner);
+    const seats: string[] = [];
+    for (let i = 0; i < 25; i++) seats.push(await addPeer(owner, target.classroomId));
+    const start = performance.now();
+    const first = (
+      await runtime.query<{ result: RatingRaw }>(
+        statement,
+        args(owner, target.classroomId, { score: null, seat: null }, 20),
+      )
+    ).rows[0]!.result;
+    const ms = performance.now() - start;
+    const latencySamples = [ms];
+    for (let sample = 0; sample < 5; sample++) {
+      const started = performance.now();
+      await runtime.query(
+        statement,
+        args(owner, target.classroomId, { score: null, seat: null }, 20),
+      );
+      latencySamples.push(performance.now() - started);
+    }
+    const orderedMs = latencySamples.slice().sort((a, b) => a - b);
+    const p50Ms = orderedMs[Math.ceil(orderedMs.length * 0.5) - 1]!;
+    const p95Ms = orderedMs[Math.ceil(orderedMs.length * 0.95) - 1]!;
+    expect(first.peers).toHaveLength(20);
+    expect(first.hasMore).toBe(true);
+    expect(first.afterSeat).toBe(first.peers[19]!.seatId);
+    expect(first.afterScore).toBe(0);
+    expect(first.peers.every((x) => x.score === 0 && x.rank === 1)).toBe(true);
+    const second = (
+      await runtime.query<{ result: RatingRaw }>(
+        statement,
+        args(owner, target.classroomId, { score: first.afterScore, seat: first.afterSeat }, 20),
+      )
+    ).rows[0]!.result;
+    expect(second.peers).toHaveLength(5);
+    expect(second.hasMore).toBe(false);
+    expect(second.version).toBe(first.version);
+    expect(new Set([...first.peers, ...second.peers].map((x) => x.seatId)).size).toBe(25);
+    const png = new PNG({ width: 1, height: 1 });
+    png.data.fill(255);
+    const dataUrl = 'data:image/png;base64,' + PNG.sync.write(png).toString('base64');
+    const securedSeat = seats[0]!;
+    const image = (
+      await admin.query<{ id: string }>(
+        `INSERT INTO classroom_custom_avatars(classroom_id,title,data_url,secret,created_by)
+       VALUES($1,'Private demonstration avatar',$2,true,$3) RETURNING id`,
+        [target.classroomId, dataUrl, owner.principal],
+      )
+    ).rows[0]!.id;
+    await admin.query(
+      'INSERT INTO classroom_custom_avatar_choices(seat_id,avatar_id) VALUES($1,$2)',
+      [securedSeat, image],
+    );
+    const withoutGrant = (
+      await runtime.query<{ result: unknown[] }>(avatarStatement, [
+        'account',
+        owner.account,
+        owner.principal,
+        owner.hash,
+        target.classroomId,
+        [securedSeat],
+      ])
+    ).rows[0]!.result;
+    expect(withoutGrant).toEqual([]);
+    await admin.query(
+      'INSERT INTO classroom_custom_avatar_grants(seat_id,avatar_id) VALUES($1,$2)',
+      [securedSeat, image],
+    );
+    const enabledVersion = await rating(owner, target.classroomId);
+    expect(enabledVersion.version).not.toBe(first.version);
+    const available = (
+      await runtime.query<{ result: Array<{ seatId: string; dataUrl: string }> }>(avatarStatement, [
+        'account',
+        owner.account,
+        owner.principal,
+        owner.hash,
+        target.classroomId,
+        [securedSeat],
+      ])
+    ).rows[0]!.result;
+    expect(available).toEqual([{ seatId: securedSeat, dataUrl }]);
+    await admin.query(
+      'DELETE FROM classroom_custom_avatar_grants WHERE seat_id=$1 AND avatar_id=$2',
+      [securedSeat, image],
+    );
+    const revoked = (
+      await runtime.query<{ result: unknown[] }>(avatarStatement, [
+        'account',
+        owner.account,
+        owner.principal,
+        owner.hash,
+        target.classroomId,
+        [securedSeat],
+      ])
+    ).rows[0]!.result;
+    expect(revoked).toEqual([]);
+    const changed = await rating(owner, target.classroomId);
+    expect(changed.version).toBe(first.version);
+    console.info(
+      JSON.stringify({
+        evidence: 'sp04-limited-role-sql-paging',
+        participants: 26,
+        groupCount: 1,
+        firstPageSize: 20,
+        nextPageSize: 5,
+        sqlCalls: 2,
+        firstPageMs: Number(ms.toFixed(2)),
+        p50Ms: Number(p50Ms.toFixed(2)),
+        p95Ms: Number(p95Ms.toFixed(2)),
+        samples: latencySamples.length,
+        queryCountPerPage: 1,
+        note: 'Single non-superuser function call per page, no per-peer application SQL. Not an SLA claim.',
+      }),
+    );
+    await admin.query(
+      "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE account_id=$1 AND link_kind='account'",
+      [owner.account],
+    );
+    await expect(runtime.query(statement, args(owner, target.classroomId))).rejects.toMatchObject({
+      code: 'P6S02',
+    });
+    await expect(
+      runtime.query(avatarStatement, [
+        'account',
+        owner.account,
+        owner.principal,
+        owner.hash,
+        target.classroomId,
+        [securedSeat],
+      ]),
+    ).rejects.toMatchObject({ code: 'P6S02' });
+  });
+});

@@ -65,4 +65,49 @@ export interface PersonalProgressSummaryV1 {
   };
 }
 
+/**
+ * SP-04: the learner is a separately anchored element. Other members expose
+ * no account, seat, display name, classroom roster, grades or project IDs.
+ * The server supplies authenticated, short-lived encrypted image tickets.
+ */
+export interface GroupRatingPeerV1 {
+  readonly peerKey: string;
+  readonly avatarSrc: string;
+  readonly avatarTicket: string | null;
+  readonly score: number | null;
+  readonly rank: number | null;
+  readonly isSelf: false;
+}
+
+export type GroupRatingOwnV1 =
+  | {
+      readonly availability: 'available';
+      readonly score: number | null;
+      readonly rank: number | null;
+      readonly isSelf: true;
+    }
+  | {
+      readonly availability: 'unavailable';
+      readonly score: null;
+      readonly rank: null;
+      readonly isSelf: true;
+      readonly reason: 'source_unavailable' | 'rating_disabled';
+    };
+
+export interface GroupRatingPageV1 {
+  readonly groupId: string;
+  readonly periodDays: 7 | 30 | 90;
+  readonly version: string;
+  readonly asOf: string;
+  readonly own: GroupRatingOwnV1;
+  readonly peers: readonly GroupRatingPeerV1[];
+  readonly hasMore: boolean;
+  readonly nextCursor: string | null;
+}
+
+export interface GroupRatingAvatarBatchV1 {
+  readonly items: readonly { readonly ticket: string; readonly dataUrl: string }[];
+}
+
 export const PERSONAL_PROGRESS_GROUP_LIMIT = 20;
+export const GROUP_RATING_PAGE_LIMIT = 20;
