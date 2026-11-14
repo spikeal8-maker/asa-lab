@@ -36,9 +36,24 @@ export interface TaskImageSelection {
   readonly alt: string;
 }
 
+const taskFileTypes: Readonly<Record<string, string>> = {
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  ino: 'text/plain',
+  csv: 'text/csv',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  zip: 'application/zip',
+  sb3: 'application/x.scratch.sb3',
+  stl: 'model/stl',
+};
+
 function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'file' }> }) {
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
+  const extension = block.name.split('.').at(-1)?.toLowerCase() ?? '';
+  const isPdf = extension === 'pdf';
   const src =
     block.src?.startsWith('/api/learning/activities/') === true ||
     block.src?.startsWith('/api/class-join/course-runs/') === true ||
@@ -52,7 +67,8 @@ function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'f
     setUnavailable(false);
     try {
       const response = await fetch(src, { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok || response.headers.get('content-type')?.split(';')[0] !== 'application/pdf')
+      const contentType = response.headers.get('content-type')?.split(';')[0];
+      if (!response.ok || !contentType || contentType !== taskFileTypes[extension])
         throw new Error('file unavailable');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -72,14 +88,14 @@ function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'f
   return (
     <div className="task-block-file">
       <span className="task-block-file-name">{block.name}</span>
-      <span className="account-hint">PDF</span>
+      <span className="account-hint">{extension.toUpperCase()}</span>
       <button
         type="button"
         disabled={loading}
         onClick={() => void download()}
-        aria-label={`Скачать PDF: ${block.name}`}
+        aria-label={`Скачать ${isPdf ? 'PDF' : 'файл'}: ${block.name}`}
       >
-        {loading ? 'Загрузка…' : 'Скачать PDF'}
+        {loading ? 'Загрузка…' : isPdf ? 'Скачать PDF' : 'Скачать файл'}
       </button>
       {unavailable ? (
         <p role="alert">Файл задания недоступен. Обновите задание и попробуйте снова.</p>
@@ -150,7 +166,13 @@ function TaskImage({
             aria-label={`Открыть крупно: ${block.alt}`}
             onClick={() => setZoomed(true)}
           >
-            <img src={src} alt={block.alt} onError={imageUnavailable} />
+            <img
+              src={src}
+              alt={block.alt}
+              loading="lazy"
+              decoding="async"
+              onError={imageUnavailable}
+            />
           </button>
           <div className="task-block-image-actions">
             <button

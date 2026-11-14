@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+import { PNG } from 'pngjs';
 import { Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
@@ -576,7 +578,7 @@ describe('canonical learning activity API', () => {
     ).resolves.toMatchObject({ draftRevision: 2 });
     expect(api.query).toHaveBeenLastCalledWith(
       expect.stringContaining('learning_activity_draft_task_file_set'),
-      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, pdf, 'Руководство.pdf'],
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, pdf, 'Руководство.pdf', 'application/pdf'],
     );
 
     const tooLarge = { ...upload, headers: { ...upload.headers, 'content-length': '25000001' } };
@@ -584,6 +586,47 @@ describe('canonical learning activity API', () => {
       api.value.putLargeDraftTaskPdf(tooLarge, ACTIVITY_ID, '1', Readable.from([])),
     ).rejects.toMatchObject({ status: 413 });
     expect(api.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('routes large task images and ordinary documents to their exact media roles', async () => {
+    const image = PNG.sync.write({ width: 400, height: 400, data: randomBytes(640_000) } as PNG);
+    expect(image.length).toBeGreaterThan(400_000);
+    for (const [name, contentType, bytes, setter] of [
+      ['schematic.png', 'image/png', image, 'learning_activity_draft_task_image_set'],
+      [
+        'Правила.txt',
+        'text/plain',
+        Buffer.from('Условие задания.'),
+        'learning_activity_draft_task_file_set',
+      ],
+    ] as const) {
+      const api = target();
+      api.query
+        .mockResolvedValueOnce({ rows: [{ draft_revision: 1 }] })
+        .mockResolvedValueOnce({
+          rows: [{ result_code: 'ok', draft_revision: 2, content_hash: 'c'.repeat(64) }],
+        });
+      const upload = {
+        ...request(),
+        headers: {
+          'content-type': LEARNING_FILE_CONTENT_TYPE,
+          'content-length': String(bytes.length),
+          'x-asa-file-name': encodeURIComponent(name),
+        },
+      } as FastifyRequest;
+      await expect(
+        api.value.putDraftTaskAttachment(upload, ACTIVITY_ID, '1', Readable.from([bytes])),
+      ).resolves.toMatchObject({ draftRevision: 2 });
+      expect(api.query).toHaveBeenLastCalledWith(expect.stringContaining(setter), [
+        PRINCIPAL_ID,
+        TENANT_ID,
+        ACTIVITY_ID,
+        1,
+        bytes,
+        ...(contentType === 'text/plain' ? [name] : []),
+        contentType,
+      ]);
+    }
   });
 
   it('accepts a bounded PDF block and rejects oversized or unsafe file payloads', async () => {
@@ -605,7 +648,7 @@ describe('canonical learning activity API', () => {
     });
     expect(api.query).toHaveBeenCalledWith(
       expect.stringContaining('learning_activity_draft_task_file_set'),
-      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, valid, 'guide.pdf'],
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, valid, 'guide.pdf', 'application/pdf'],
     );
     const oversized = Buffer.concat([valid, Buffer.from([0])]);
     for (const bad of [

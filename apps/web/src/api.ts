@@ -2432,6 +2432,18 @@ export const api = {
         body: file,
       },
     ),
+  uploadAuthoredActivityTaskAttachment: (id: string, expectedRevision: number, file: File) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-attachment/${expectedRevision}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(file.name),
+        },
+        body: file,
+      },
+    ),
   deleteAuthoredActivityDraftSample: (id: string, expectedRevision: number) =>
     call<{ draftRevision: number }>(
       `/api/learning/activities/${encodeURIComponent(id)}/draft-sample`,

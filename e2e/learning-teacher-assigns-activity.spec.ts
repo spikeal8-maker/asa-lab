@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
@@ -344,7 +345,12 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   const title = `Exact learner image ${token}`;
   const imageA = solidPng(205, 45, 45);
   const imageB = solidPng(40, 75, 210);
-  const taskImage = solidPng(60, 130, 180, 240, 120);
+  const taskImage = PNG.sync.write({
+    width: 400,
+    height: 400,
+    data: randomBytes(640_000),
+  } as PNG);
+  expect(taskImage.length).toBeGreaterThan(400_000);
 
   await loginWithOrganization(page, teacher);
   await openNewAssignmentEditor(page);
@@ -578,7 +584,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   document += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   const pdfA = Buffer.from(document);
   expect(pdfA.length).toBeGreaterThan(400_000);
-  const pdfB = Buffer.from('%PDF-1.4\nA6 learner file B\n%%EOF');
+  const textB = Buffer.from('Schematic notes and instructions.\n');
 
   await loginWithOrganization(page, teacher);
   await openNewAssignmentEditor(page);
@@ -685,12 +691,14 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const replacement = page.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&
-      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+      /\/api\/learning\/activities\/[^/]+\/draft-task-attachment\/\d+$/.test(
+        new URL(response.url()).pathname,
+      ),
   );
   await page.getByLabel('Заменить PDF блока 1').setInputFiles({
-    name: 'guide-b.pdf',
-    mimeType: 'application/pdf',
-    buffer: pdfB,
+    name: 'guide-b.txt',
+    mimeType: 'text/plain',
+    buffer: textB,
   });
   const uploadedB = await replacement;
   expect(uploadedB.ok()).toBe(true);
@@ -760,11 +768,12 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
     .locator('li')
     .filter({ hasText: title });
   await rowB.getByRole('button', { name: title, exact: true }).click();
-  await expect(rowB.getByRole('button', { name: 'Скачать PDF: guide-b.pdf' })).toBeVisible();
+  await expect(rowB.getByRole('button', { name: 'Скачать файл: guide-b.txt' })).toBeVisible();
   const learnerBytesB = await learnerB.page.request.get(
     new URL(`/api/assignments/task-files/${hashB}`, learnerB.page.url()).toString(),
   );
-  expect(Buffer.compare(await learnerBytesB.body(), pdfB)).toBe(0);
+  expect(learnerBytesB.headers()['content-type']).toContain('text/plain');
+  expect(Buffer.compare(await learnerBytesB.body(), textB)).toBe(0);
   const deniedA = await learnerB.page.request.get(
     new URL(`/api/assignments/task-files/${hashA}`, learnerB.page.url()).toString(),
   );

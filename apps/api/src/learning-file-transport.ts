@@ -8,6 +8,8 @@ export const LEARNING_FILE_CONTENT_TYPE = 'application/vnd.asa.learning-file';
 export const LEARNING_FILE_MAX_BYTES = 50_000_000;
 export const LEARNING_TASK_PDF_UPLOAD_ROUTE =
   '/api/learning/activities/:activityId/draft-task-pdf/:revision';
+const AUTHOR_ATTACHMENT_ROUTE =
+  '/api/learning/activities/:activityId/draft-task-attachment/:revision';
 const UPLOAD_ROUTE =
   '/api/learning/file/runs/:activityRunId/draft/:attemptId/:expectedRevision/:requestId';
 const FORMATS = {
@@ -36,6 +38,12 @@ const FORMATS = {
   webp: ['image/webp', 20_000_000],
 } as const;
 
+export function isLearningTaskFileContentType(contentType: string): boolean {
+  return Object.values(FORMATS).some(
+    ([type]) => type === contentType && !type.startsWith('image/'),
+  );
+}
+
 export function rejectLearningFile(code: string, status: number): never {
   throw new HttpException(
     { error: { code, message: 'Не удалось выполнить действие с файловой работой.' } },
@@ -49,7 +57,8 @@ export function registerLearningFileTransport(fastify: FastifyInstance): void {
     if (
       request.method !== 'PUT' ||
       (request.routeOptions.url !== UPLOAD_ROUTE &&
-        request.routeOptions.url !== LEARNING_TASK_PDF_UPLOAD_ROUTE) ||
+        request.routeOptions.url !== LEARNING_TASK_PDF_UPLOAD_ROUTE &&
+        request.routeOptions.url !== AUTHOR_ATTACHMENT_ROUTE) ||
       request.headers['content-type'] !== LEARNING_FILE_CONTENT_TYPE ||
       (encoding !== undefined && encoding !== 'identity')
     ) {

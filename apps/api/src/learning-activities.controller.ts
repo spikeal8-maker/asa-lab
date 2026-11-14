@@ -24,6 +24,7 @@ import { checkBodyShape } from './validation.js';
 import {
   LEARNING_FILE_CONTENT_TYPE,
   describeLearningFile,
+  isLearningTaskFileContentType,
   readExactLearningFile,
   validateLearningFile,
 } from './learning-file-transport.js';
@@ -73,7 +74,7 @@ function safeTaskBlocks(value: unknown): value is SafeTaskBlock[] {
         typeof block['name'] === 'string' &&
         block['name'].trim().length >= 5 &&
         block['name'].trim().length <= 160 &&
-        block['name'].toLowerCase().endsWith('.pdf') &&
+        /\.(pdf|docx|pptx|xlsx|txt|csv|sb3|stl|ino|zip)$/iu.test(block['name']) &&
         !block['name'].includes('/') &&
         !block['name'].includes('\\') &&
         !Array.from(block['name']).some(
@@ -707,7 +708,7 @@ export class LearningActivitiesController {
       Number(revision) > 2147483647
     )
       throw new HttpException(error('validation_error', 'Проверьте PDF и редакцию.'), 400);
-    return this.saveDraftTaskPdf(
+    return this.saveDraftTaskFile(
       context,
       activityId,
       Number(revision),
@@ -716,7 +717,17 @@ export class LearningActivitiesController {
     );
   }
 
-  private activeTaskPdfUploads = 0;
+  private activeTaskUploads = 0;
+
+  @Put(':activityId/draft-task-attachment/:revision')
+  async putDraftTaskAttachment(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Param('revision') rawRevision: string,
+    @Body() body: unknown,
+  ) {
+    return this.uploadTaskMedia(request, activityId, rawRevision, body, false);
+  }
 
   @Put(':activityId/draft-task-pdf/:revision')
   async putLargeDraftTaskPdf(
@@ -724,6 +735,16 @@ export class LearningActivitiesController {
     @Param('activityId') activityId: string,
     @Param('revision') rawRevision: string,
     @Body() body: unknown,
+  ) {
+    return this.uploadTaskMedia(request, activityId, rawRevision, body, true);
+  }
+
+  private async uploadTaskMedia(
+    request: FastifyRequest,
+    activityId: string,
+    rawRevision: string,
+    body: unknown,
+    pdfOnly: boolean,
   ) {
     const context = await this.requireEducator(request);
     this.requireUuid(activityId, 'activity');
@@ -735,27 +756,30 @@ export class LearningActivitiesController {
       request.headers['content-type'] !== LEARNING_FILE_CONTENT_TYPE ||
       !(body instanceof Readable)
     ) {
-      throw new HttpException(error('invalid_media', 'Подойдёт PDF.'), 415);
+      throw new HttpException(error('invalid_media', 'Проверьте формат вложения.'), 415);
     }
     const file = describeLearningFile(request.headers['x-asa-file-name']);
-    if (file.extension !== 'pdf' || file.name.length > 160)
-      throw new HttpException(error('invalid_media', 'Проверьте имя PDF файла.'), 415);
+    if ((pdfOnly && file.extension !== 'pdf') || file.name.length > 160)
+      throw new HttpException(error('invalid_media', 'Проверьте имя файла.'), 415);
     const rawLength = request.headers['content-length'];
     if (typeof rawLength !== 'string' || !/^[1-9]\d*$/u.test(rawLength))
       throw new HttpException(
-        error('file_length_required', 'Не удалось определить размер PDF.'),
+        error('file_length_required', 'Не удалось определить размер файла.'),
         411,
       );
     const length = Number(rawLength);
     if (length > file.maxBytes)
-      throw new HttpException(error('file_too_large', 'PDF должен быть до 25 МБ.'), 413);
+      throw new HttpException(
+        error('file_too_large', `Файл должен быть до ${file.maxBytes / 1_000_000} МБ.`),
+        413,
+      );
 
-    if (this.activeTaskPdfUploads >= 4)
+    if (this.activeTaskUploads >= 4)
       throw new HttpException(
         error('upload_busy', 'Слишком много загрузок. Повторите через несколько секунд.'),
         429,
       );
-    this.activeTaskPdfUploads += 1;
+    this.activeTaskUploads += 1;
     try {
       const allowed = await this.requirePool().query(
         `SELECT draft_revision FROM learning_activity_get($1,$2,$3) WHERE archived_at IS NULL`,
@@ -769,7 +793,7 @@ export class LearningActivitiesController {
         bytes = await readExactLearningFile(body, length, AbortSignal.timeout(30_000));
       } catch {
         throw new HttpException(
-          error('file_upload_incomplete', 'Загрузка PDF прервана. Повторите.'),
+          error('file_upload_incomplete', 'Загрузка прервана. Повторите.'),
           400,
         );
       }
@@ -777,27 +801,50 @@ export class LearningActivitiesController {
         await validateLearningFile(bytes, file);
       } catch {
         throw new HttpException(
-          error('invalid_media', 'Не удалось прочитать PDF. Проверьте файл.'),
+          error('invalid_media', 'Не удалось прочитать файл. Проверьте формат и содержимое.'),
           415,
         );
       }
-      return await this.saveDraftTaskPdf(context, activityId, revision, file.name, bytes);
+      if (file.contentType.startsWith('image/')) {
+        const result = await this.requirePool().query(
+          `SELECT result_code,draft_revision,content_hash
+             FROM learning_activity_draft_task_image_set($1,$2,$3,$4,$5,$6)`,
+          [context.principalId, context.tenantId, activityId, revision, bytes, file.contentType],
+        );
+        const row = result.rows[0];
+        if (row?.['result_code'] !== 'ok' || !row['content_hash'])
+          throw this.draftSampleError(row?.['result_code'] as string | undefined);
+        return {
+          draftRevision: Number(row['draft_revision']),
+          contentHash: String(row['content_hash']),
+          url: this.draftTaskImageUrl(activityId, String(row['content_hash'])),
+        };
+      }
+      return await this.saveDraftTaskFile(
+        context,
+        activityId,
+        revision,
+        file.name,
+        bytes,
+        file.contentType,
+      );
     } finally {
-      this.activeTaskPdfUploads -= 1;
+      this.activeTaskUploads -= 1;
     }
   }
 
-  private async saveDraftTaskPdf(
+  private async saveDraftTaskFile(
     context: ActiveContext,
     activityId: string,
     revision: number,
     name: string,
     bytes: Buffer,
+    contentType = 'application/pdf',
   ) {
     const result = await this.requirePool().query(
       `SELECT result_code,draft_revision,content_hash
-         FROM learning_activity_draft_task_file_set($1,$2,$3,$4,$5,$6)`,
-      [context.principalId, context.tenantId, activityId, revision, bytes, name],
+         FROM learning_activity_draft_task_file_set($1,$2,$3,$4,$5,$6,$7)`,
+      [context.principalId, context.tenantId, activityId, revision, bytes, name, contentType],
     );
     const row = result.rows[0];
     if (!row || row['result_code'] !== 'ok' || !row['content_hash']) {
@@ -833,8 +880,13 @@ export class LearningActivitiesController {
     const row = result.rows[0];
     if (!row) throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
     return reply
-      .header('content-type', 'application/pdf')
-      .header('content-disposition', 'attachment; filename="material.pdf"')
+      .header(
+        'content-type',
+        isLearningTaskFileContentType(String(row['content_type']))
+          ? String(row['content_type'])
+          : 'application/octet-stream',
+      )
+      .header('content-disposition', 'attachment')
       .header('x-content-type-options', 'nosniff')
       .header('cache-control', 'private, no-store')
       .send(row['file_bytes'] as Buffer);
@@ -991,8 +1043,13 @@ export class LearningActivitiesController {
     const row = result.rows[0];
     if (!row) throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
     return reply
-      .header('content-type', 'application/pdf')
-      .header('content-disposition', 'attachment; filename="material.pdf"')
+      .header(
+        'content-type',
+        isLearningTaskFileContentType(String(row['content_type']))
+          ? String(row['content_type'])
+          : 'application/octet-stream',
+      )
+      .header('content-disposition', 'attachment')
       .header('x-content-type-options', 'nosniff')
       .header('cache-control', 'private, no-store')
       .send(row['file_bytes'] as Buffer);

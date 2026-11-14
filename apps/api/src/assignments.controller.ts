@@ -1,3 +1,4 @@
+import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
   Controller,
@@ -407,11 +408,12 @@ export class AssignmentsController {
          FROM learning_task_file_for_viewer($1,$2,$3,$4)`,
       [contentHash, viewer.tenantId, viewer.accountId, viewer.seatId],
     );
-    const row = result.rows[0] as { file_bytes: Buffer } | undefined;
-    if (!row) throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
+    const row = result.rows[0] as { file_bytes: Buffer; content_type: string } | undefined;
+    if (!row || !isLearningTaskFileContentType(row.content_type))
+      throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
     return reply
-      .header('content-type', 'application/pdf')
-      .header('content-disposition', 'attachment; filename="material.pdf"')
+      .header('content-type', row.content_type)
+      .header('content-disposition', 'attachment')
       .header('x-content-type-options', 'nosniff')
       .header('cache-control', 'private, no-store')
       .send(row.file_bytes);

@@ -24,6 +24,7 @@ import { LearningFileStorage, type LearningFileDescriptor } from './learning-fil
 import {
   describeLearningFile,
   LEARNING_FILE_CONTENT_TYPE,
+  isLearningTaskFileContentType,
   readExactLearningFile,
   rejectLearningFile as reject,
   validateLearningFile,
@@ -289,7 +290,7 @@ export class LearningFileAnswersController implements OnModuleDestroy {
       !row ||
       !Buffer.isBuffer(row.media_bytes) ||
       (role === 'file'
-        ? row.content_type !== 'application/pdf'
+        ? !isLearningTaskFileContentType(row.content_type)
         : !['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type))
     )
       reject('learning_media_unavailable', 404);
@@ -297,8 +298,7 @@ export class LearningFileAnswersController implements OnModuleDestroy {
       .type(row.content_type)
       .header('Cache-Control', 'private, no-store')
       .header('X-Content-Type-Options', 'nosniff');
-    if (role === 'file')
-      void reply.header('Content-Disposition', 'attachment; filename="material.pdf"');
+    if (role === 'file') void reply.header('Content-Disposition', 'attachment');
     return reply.send(row.media_bytes);
   }
 

@@ -1,3 +1,4 @@
+import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
   Controller,
@@ -2004,12 +2005,12 @@ export class CoursesController {
       !row ||
       row.content_hash !== contentHash ||
       (role === 'file'
-        ? row.content_type !== 'application/pdf'
+        ? !isLearningTaskFileContentType(row.content_type)
         : !['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type))
     )
       throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
     reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
-    if (role === 'file') reply.header('content-disposition', 'attachment; filename="material.pdf"');
+    if (role === 'file') reply.header('content-disposition', 'attachment');
     reply.type(row.content_type).send(row.media_bytes);
   }
 
