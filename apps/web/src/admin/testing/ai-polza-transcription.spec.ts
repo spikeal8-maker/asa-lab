@@ -89,7 +89,7 @@ it('shows compact real credential controls and a separate STT budget, without sp
   );
   await act(async () => transcription!.click());
   expect(host.querySelector('[aria-label="Настройки транскрибации"]')).not.toBeNull();
-  expect(host.textContent).toContain('GigaAM-v3');
+  expect(host.textContent).toContain('активной выбранной модели, используется GigaAM-v3');
   expect(
     host.querySelector<HTMLInputElement>('[aria-label="Дневной лимит платформы"]')?.value,
   ).toBe('7200');
