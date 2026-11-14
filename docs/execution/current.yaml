@@ -18075,11 +18075,11 @@ parallel_lanes:
       issue: 1090
       branch: main
       base_branch: main
-      pr: null
-      pr_draft: true
-      status: in_progress
-      checkpoint: sp04_controller_selected_in_main_product_pending
-      owner_acceptance: pending
+      pr: 1139
+      pr_draft: false
+      status: done
+      checkpoint: sp04_accepted_main_postmerge_ci_success
+      owner_acceptance: accepted
       program: ASA-STUDENT-PROGRESS-001
       selected_step: SP-04
       owner_authorization: 'Owner explicitly authorized full SP-04 implementation, independent security and visual review, protected merge to main, and final exact-SHA CI on 2026-11-13. No production deployment or live DB changes.'
@@ -18135,8 +18135,54 @@ parallel_lanes:
         candidate_branch_source: accepted_current_main
       deployment: not_requested
       database_actions: isolated_tests_only
-      next_eligible_step: SP-04
-      next_step_selected: true
+      next_eligible_step: SP-05
+      next_step_selected: false
+      next_dependency: 'SP-05 rating calibration issue #1128 with outstanding copy provenance issue #1127; separate controller selection and acceptance required; do not start SP-06.'
+      final_acceptance_2026_11_14:
+        status: accepted_on_main_after_product_postmerge_ci_success
+        product_pr: 1139
+        product_candidate_sha: 68488e05dc1db675666443bee5b78fcb96c52723
+        product_merge_sha: de756b04d81d89d0edb16eb653f5d741544bafaa
+        accepted_product_main_sha: de756b04d81d89d0edb16eb653f5d741544bafaa
+        migration: 0322_student_group_rating.sql
+        source_general: https://github.com/spikeal8-maker/asa-lab/actions/runs/43574467534
+        source_publication: https://github.com/spikeal8-maker/asa-lab/actions/runs/43574467539
+        source_asa_required: success
+        source_postgresql_rls: success
+        source_access_a_browser: success
+        postmerge_general: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480470
+        postmerge_publication: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480585
+        postmerge_chess: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480482
+        postmerge_checkers: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480473
+        postmerge_account: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480573
+        postmerge_ai_queue: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480517
+        postmerge_ai_chat: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480490
+        postmerge_asa_required: success
+        postmerge_postgresql_rls: success
+        postmerge_access_a_browser: success
+        postmerge_applicable_workflows: success
+        independent_technical_and_visual_review: https://github.com/spikeal8-maker/asa-lab/pull/1139#issuecomment-6875623006
+        independent_crypto_review: https://github.com/spikeal8-maker/asa-lab/pull/1139#issuecomment-6874347666
+        browser_png_artifact: https://github.com/spikeal8-maker/asa-lab/actions/runs/43574467539/artifacts/14106411726
+        postmerge_browser_png_artifact: https://github.com/spikeal8-maker/asa-lab/actions/runs/43583480585/artifacts/14109588798
+        independent_browser_qualification: 1_of_1_pass_on_exact_source_and_1_of_1_independent_visual_pass
+        prior_local_unit_qualification: 91_of_91_pass_reported_before_merge
+        prior_local_sql_http_qualification: 31_of_31_pass_reported_before_merge
+        real_postgresql_rls_and_http: pass_on_exact_source
+        visual_css_viewports:
+          - 1440
+          - 1024
+          - 390
+          - 320
+        responsive_component_boundaries:
+          - 380
+          - 381
+          - 520
+          - 521
+        production_deployment: not_performed
+        production_database_changes: none
+        issue_1090: remains_open_for_following_steps
+        next_step: SP-05_requires_separate_dependency_qualification
       controller_test_path_amendment_2026_11_14:
         kind: test_scope_only
         parent_programme: SP04-FULL-DELIVERY-001
