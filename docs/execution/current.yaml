@@ -5632,9 +5632,9 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
-      checkpoint: controller_selected_first_async_stopped_preflight_after_accepted_r00_and_checkpoint007
+      checkpoint: first_r10_source_and_stop_demo_reviewed_merge_requires_exact_general
       owner_acceptance: pending
       programme_issue: 452
       registry_issue: 703
@@ -5654,9 +5654,41 @@ parallel_lanes:
         render solving and confirmed Worker duplicate, key all Arduino programs/model identities/project session, reject
         stale responses, retain running source-only update semantics and stopped persisted projection. Repeat frozen
         S3/S4 before and after in full editor.
-      next_action: After this controller transition is integrated on main, assign a new author one R10 slice. Require
-        exact final source independent review, applicable gates and paired full-editor measurements/recordings. Controller
-        publishes the bounded result and stops; no R11, deployment, live-data operation or new permanent installation.
+      next_action: STOP after the bounded R00 and first R10 report. This proposed technical closure becomes canonical
+        only after successful required General on the final PR head, final independent exact-source review and normal
+        integration. Preserve full strict Run qualification failures and pending owner acceptance. No R11, production
+        update, live-data operation, permanent installation or bulk branch cleanup is selected.
+      technical_acceptance: independently_reviewed_source_and_paired_Stop_evidence_with_explicit_limits
+      integration_condition: required_exact_head_General_success_and_final_independent_review_before_normal_merge
+      source_pr: 1126
+      preparation_integration_pr: 1120
+      preparation_integration_sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
+      measured_before_sha: c76b51e38af94a308b6fe9080d776d6ee6ada4b4
+      measured_after_sha: dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2
+      product_equivalent_reviewed_sha: 2826aa87aea95d21c61b32f05414b3e4ec6589f0
+      paired_run: 43365657820
+      paired_conclusion: success
+      paired_independent_review: PASS_WITH_EXPLICIT_LIMITS
+      paired_independent_reviewer: /root/r10_final_reviewer
+      actual_mapped_Worker_browser_run: 43366387696
+      actual_mapped_Worker_browser_job: 131693381185
+      actual_mapped_Worker_browser_result: PASS_119_cases_including_technical_fault_and_five_compact_controls
+      full_strict_Run_qualification: FAIL_with_two_additional_long_cycle_cases_of_unclassified_cause
+      final_General_receipt_location: https://github.com/spikeal8-maker/asa-lab/pull/1126
+      production_deployment: not_run
+      next_product_task: none
+      controlled_final_convergence_repeat: 1
+      controlled_final_convergence_main: 46e67cc25c8517f455f6766d32c128678383c9db
+      controlled_final_convergence_reason: preserve_accepted_shared_current_and_registry_without_runtime_changes
+      further_convergence_policy: request_integration_window_if_main_movement_again_resets_acceptance
+      owner_authorized_additional_convergence_cycles: 1
+      owner_integration_continuation_input: продолжай
+      owner_authorized_convergence_main: 8406be4761006246749aff10d65cc1a0377fce7b
+      owner_additional_cycle_reason: explicit_continuation_after_reported_General_equal_tree_block_and_exhausted_repeat
+      owner_additional_cycle_boundary: one_bounded_cycle_then_exact_required_CI_review_and_normal_merge_no_R11_or_deployment
+      previous_final_source_sha: c645095e613c4165ce8073ffa46dc5223dfaa363
+      previous_final_general_run: 43377334026
+      previous_final_general_result: failure_before_product_checks_due_event_merge_binding_and_source_tree_difference
       source_baseline_sha: cb15c700253f26bf276ad69d5e45ca27c2306787
       measurement_delivery: Isolated GitHub Actions full SchematicEditor fixture with real Worker and assets; instrumented
         candidate video and raw evidence, not asa-lab.ru deployment.

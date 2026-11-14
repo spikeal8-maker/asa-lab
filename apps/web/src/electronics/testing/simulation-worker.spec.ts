@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import {
   advanceElectronicsToHorizon,
   analyseElectronicsSnapshot,
@@ -8,6 +9,10 @@ import {
 } from '@asa-lab/electronics/engine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as electronicsEngine from '@asa-lab/electronics/engine';
+// A public-facade spy misses engine.ts's direct domain binding. The positive
+// control below proves this test-only probe observes both real solver paths.
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Test-only call-through instrumentation; production imports remain public.
+import * as simulationDomain from '../../../../../contexts/electronics/domain/simulation';
 import type { SchematicDocument } from '../../api';
 import { calculateSimulationPreflight } from '../live-simulation';
 import {
@@ -118,6 +123,80 @@ const arduinoCircuit: SchematicDocument = {
   connections: [],
 };
 
+const capacitorCircuit: SchematicDocument = {
+  ...circuit,
+  components: [
+    ...circuit.components,
+    {
+      id: 'capacitor',
+      kind: 'visual',
+      componentTypeId: 'electrolytic-capacitor',
+      pinIds: ['negative', 'positive'],
+      position: { x: 40, y: 0 },
+      value: 100,
+      stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+    },
+  ],
+  connections: [
+    circuit.connections[0]!,
+    {
+      id: 'charge',
+      from: { componentId: 'resistor', terminal: 'b' },
+      to: { componentId: 'capacitor', terminal: 'positive' },
+    },
+    {
+      id: 'negative',
+      from: { componentId: 'capacitor', terminal: 'negative' },
+      to: { componentId: 'source', terminal: 'b' },
+    },
+  ],
+};
+
+// The existing benchmark's NPN circuit with one iteration must remain nonconvergent.
+const nonconvergentCircuit: SchematicDocument = {
+  ...circuit,
+  components: [
+    circuit.components[0]!,
+    { ...circuit.components[1]!, id: 'rb', value: 1000 },
+    { ...circuit.components[1]!, id: 'rc', value: 470 },
+    {
+      id: 'q',
+      kind: 'transistor',
+      componentTypeId: 'transistor-npn',
+      pinIds: ['collector', 'base', 'emitter'],
+      position: { x: 40, y: 0 },
+      value: 100,
+      stateProperties: {
+        currentGain: 100,
+        baseEmitterVoltage: 0.7,
+        saturationVoltage: 0.2,
+        maxCollectorCurrent: 0.2,
+      },
+    },
+  ],
+  connections: [
+    ['bp', 'source', 'a', 'rb', 'a'],
+    ['base', 'rb', 'b', 'q', 'base'],
+    ['cp', 'source', 'a', 'rc', 'a'],
+    ['collector', 'rc', 'b', 'q', 'collector'],
+    ['emitter', 'q', 'emitter', 'source', 'b'],
+  ].map(([id, from, fromTerminal, to, toTerminal]) => ({
+    id: id!,
+    from: { componentId: from!, terminal: fromTerminal! },
+    to: { componentId: to!, terminal: toTerminal! },
+  })),
+  simulation: { ...circuit.simulation, maxIterations: 1 },
+};
+
+function recoveryCircuit(name: 's3' | 's4-reconstruction'): SchematicDocument {
+  return JSON.parse(
+    readFileSync(
+      new URL(`../../../../../tests/electronics/recovery/${name}.json`, import.meta.url),
+      'utf8',
+    ),
+  ) as SchematicDocument;
+}
+
 function preflightRequest(
   requestId = 'preflight-1',
   generationId = 1,
@@ -166,6 +245,74 @@ class FakeWorker implements ElectronicsSimulationWorkerLike {
 
 describe('ASA Electronics E-OPT-3D Worker boundary', () => {
   afterEach(() => vi.useRealTimers());
+
+  it('runs the actual domain analysis only once for a preflight', () => {
+    const analyse = vi.spyOn(simulationDomain, 'analyseCircuit');
+    try {
+      analyseElectronicsSnapshot(circuit);
+      expect(analyse).toHaveBeenCalledTimes(1);
+      analyse.mockClear();
+      const response = evaluateSimulationWorkerRequest(preflightRequest());
+      expect(response.ok).toBe(true);
+      expect(analyse).toHaveBeenCalledTimes(1);
+      expect(analyse).toHaveBeenCalledWith(circuit, { simulationTimeMs: 0 });
+    } finally {
+      analyse.mockRestore();
+    }
+  });
+
+  it.each([
+    { name: 'ordinary', document: circuit, status: 'solved' },
+    { name: 'Arduino', document: arduinoCircuit, status: 'solved' },
+    { name: 'transient capacitor', document: capacitorCircuit, status: 'solved' },
+    { name: 'S3', document: recoveryCircuit('s3') },
+    { name: 'S4', document: recoveryCircuit('s4-reconstruction') },
+    {
+      name: 'invalid Arduino program',
+      document: {
+        ...arduinoCircuit,
+        components: arduinoCircuit.components.map((component) => ({
+          ...component,
+          stateProperties: { arduinoSource: 'void setup() { pinMode(13, OUTPUT);' },
+        })),
+      },
+      status: 'invalid',
+    },
+    {
+      name: 'unsupported component',
+      document: {
+        ...circuit,
+        components: [
+          {
+            id: 'unknown',
+            kind: 'visual',
+            componentTypeId: 'unsupported-test-component',
+            position: { x: 0, y: 0 },
+            value: 0,
+          },
+        ],
+        connections: [],
+      } satisfies SchematicDocument,
+      status: 'unsupported',
+    },
+    { name: 'nonconvergent NPN', document: nonconvergentCircuit, status: 'nonconvergent' },
+  ])('preserves the complete direct preflight result for $name', ({ name, document, status }) => {
+    const expected = calculateSimulationPreflight(document, 0);
+    if (status) expect(expected.status).toBe(status);
+    if (name === 'Arduino') expect(expected.controllerState).toBeDefined();
+    if (name === 'transient capacitor') expect(expected.transientState).toBeDefined();
+    const response = evaluateSimulationWorkerRequest({ ...preflightRequest(), document });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok || response.kind !== 'preflight') throw new Error('Missing preflight.');
+    expect(response.result).toEqual(expected);
+    expect(response.metrics).toMatchObject({
+      solverRevision: expected.solverRevision,
+      simulationInputDigest: expected.simulationInputDigest,
+      topologySignature: expected.topologySignature,
+      executionStatus: 'preflight',
+    });
+  });
 
   it('preserves non-temporal preflight identity at time zero', () => {
     const stable = analyseElectronicsSnapshot(circuit);

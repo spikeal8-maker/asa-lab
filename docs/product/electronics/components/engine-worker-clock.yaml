@@ -11,6 +11,7 @@ components:
     sources:
     - contexts/electronics/index.ts
     - contexts/electronics/engine.ts
+    - contexts/electronics/simulation.ts
     - contexts/electronics/domain/document.ts
     - contexts/electronics/domain/simulation.ts
     tests:
@@ -30,6 +31,7 @@ components:
     - parseElectronicsDocument
     - compileCircuit
     - analyseCircuit
+    - simulationModelSetDigest
   electronics.engine.document:
     ownership: asa
     risk: high
@@ -142,6 +144,7 @@ components:
     - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md#ordinary-led-temporal-observation-v1
     sources:
     - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/stopped-simulation-preflight.ts
     - apps/web/src/electronics/simulation-pacing.ts
     - apps/web/src/electronics/load-simulation-worker-controller.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
@@ -149,6 +152,7 @@ components:
     - apps/web/src/electronics/led-temporal-presentation.ts
     tests:
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts
     - apps/web/src/electronics/testing/simulation-pacing.spec.ts
     - apps/web/src/electronics/testing/simulation-speed.browser.mjs
     - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
@@ -160,6 +164,9 @@ components:
     - electronics.worker.protocol
     symbols:
     - ElectronicsLiveSimulationWorkerController
+    - StoppedSimulationPreflightController
+    - stoppedSimulationInputKey
+    - useStoppedSimulationPreflight
     - useElectronicsWorkbench
     - LedTemporalPresentation
   electronics.clock.canonical:

@@ -1,0 +1,3977 @@
+{
+  "format": "asa-electronics-recovery-r10-evidence-index-v3",
+  "task": "TASK-ELECTRONICS-RECOVERY-R10-001",
+  "measurementStatus": "PASS_FOR_IMMUTABLE_B_FULL_EDITOR",
+  "demonstrationStatus": "B_FULL_EDITOR_SOURCE_RAW_VISUAL_INDEPENDENT_PASS_WITH_LIMITS",
+  "containsAllTrialRows": false,
+  "rawBoundary": "This index holds exact summaries and provenance. All 2880 original trial rows and all 96 passes are preserved in the original GitHub artifact and named owner-delivery archive; no late row is filtered.",
+  "beforeProduct": "c76b51e38af94a308b6fe9080d776d6ee6ada4b4",
+  "afterProduct": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+  "pairedRun": 43365657820,
+  "pairedRunAttempt": 1,
+  "pairedRunConclusion": "success",
+  "sourceArtifact": {
+    "artifactId": 14012414241,
+    "artifactUrl": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43365657820/artifacts/14012414241",
+    "originalDownloadedZipBytes": 160280962,
+    "originalDownloadedZipSha256": "23bc24415697ff73d1e80a93d4ae4548620ad5deca579022324ed940d37fbf8c",
+    "repository": "spikeal8-maker/asa-lab",
+    "runAndArtifactIdentitySuppliedByController": true,
+    "workflowRunId": 43365657820,
+    "workflowRunUrl": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43365657820"
+  },
+  "rawReports": {
+    "after": {
+      "bytes": 10789827,
+      "path": "after/report.json",
+      "sha256": "c62d7a43e6c9bdb031139fbf3592d73a14c8895e04bb72c6900305ea8b0cb079"
+    },
+    "before": {
+      "bytes": 11958828,
+      "path": "before/report.json",
+      "sha256": "95d779cd079f7512ee725d4c8d08844741b6db7c7117bd438cb384714444a600"
+    }
+  },
+  "ownerDeliveryArchive": {
+    "bytes": 83571151,
+    "entries": 203,
+    "filename": "ASA_Electronics_R10_Paired_43365657820.zip",
+    "sha256": "d8841babde1aeecc5a31066b1947a816f4bfe370b3271a1ca447fc0c15bb01da"
+  },
+  "ownerDeliveryRaw": {
+    "path": "recovery-r10-raw.json",
+    "bytes": 13464539,
+    "sha256": "0843d70dbef3d30008fa5b9cc6464c885296e9ef98d6055cda02eb3d0c68634d",
+    "measuredRows": 2880
+  },
+  "receipts": {
+    "before": {
+      "format": "asa-electronics-recovery-build-v1",
+      "sourceSha": "c76b51e38af94a308b6fe9080d776d6ee6ada4b4",
+      "requestedSourceSha": "c76b51e38af94a308b6fe9080d776d6ee6ada4b4",
+      "sourceDirty": false,
+      "harnessSha256": "a8db179db352f8d8436e51d60ddb5789f8efb9fa4bc38b0f6a2a397f6d8bd62a",
+      "runtime": "Actual full SchematicEditor and dedicated Worker; esbuild production mode, fixture API, observational instrumentation",
+      "artifacts": {
+        "uiSha256": "77de450c85393b748b18c2c665b42db25c8d33633627eb9583f633599aa9574d",
+        "workerSha256": "981a9d4f329a76c68ce9f871874a7af6659d1d9edeff3d8e9010d69483da1b80",
+        "cssSha256": "d9f600fea8db8cb21f47a45ad7b4997f197de7f9e8c7b64e01e5b42a69c89f6e"
+      },
+      "transforms": {
+        "apps/web/src/electronics/live-simulation.ts": {
+          "originalSha256": "654493156576099dbeedd8d6eb697920b4830a9fd4a313d664c07fe8fe8eac48",
+          "transformedSha256": "586bc9e24ac421e1aafa3cb3f9ffaa0ccbd4de5e5add89012effe604eb8751e0"
+        },
+        "contexts/electronics/domain/simulation.ts": {
+          "originalSha256": "7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92",
+          "transformedSha256": "afb5c729ee653fafb423d6815d46b7820d6c1651853f19c0b8fc7a5ef5b23703"
+        },
+        "apps/web/src/pages/SchematicEditor.tsx": {
+          "originalSha256": "5360b438c2c93663209444033c570a905f2adcc778f809bfadb052be7634e392",
+          "transformedSha256": "fad837016efba619bdaeca255b2b1ae583aaafb4939750074c619421f2b19c20"
+        },
+        "apps/web/src/electronics/use-electronics-workbench.ts": {
+          "originalSha256": "a89275311f6e14c439ee8add63178522520a7088043e68ce791142963d1eccd7",
+          "transformedSha256": "e21f93a34a67f7d942b62b16bae7697416098485fd59ccf1709e18d3b1c02fb1"
+        }
+      },
+      "fixtureHashes": {
+        "S3": "43d6bae8421baf88cc5c291f145aec4cbbb9e5dfcbacd8d61771fda228e86145",
+        "S4": "32a680a113ef9590c12ea344eab3e29aa8ed1fda7c1b512b6be64e07b6307fa1"
+      },
+      "catalogueSha256": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
+      "modelRegistrySha256": "c999b9d097296f571bf2b45b3638c8a8e83d523d525a708a4e2052fd68381491",
+      "sketchSha256": "40727bee963f76362d5cf484d7023ee4c3d0dc0f7e2bfd844da1ab0d0dfad7b2",
+      "platform": {
+        "os": "linux",
+        "release": "7.0.0-1017-azure",
+        "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+        "logicalCpus": 4,
+        "ramBytes": 16759304192,
+        "node": "v22.23.4"
+      }
+    },
+    "after": {
+      "format": "asa-electronics-recovery-build-v1",
+      "sourceSha": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+      "requestedSourceSha": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+      "sourceDirty": false,
+      "harnessSha256": "a8db179db352f8d8436e51d60ddb5789f8efb9fa4bc38b0f6a2a397f6d8bd62a",
+      "runtime": "Actual full SchematicEditor and dedicated Worker; esbuild production mode, fixture API, observational instrumentation",
+      "artifacts": {
+        "uiSha256": "d529fed941120ce81254b8e20c1b8e0ef964a57839c61d7470c04bdccfc49b3d",
+        "workerSha256": "32ecc3ced35bc8e2d698156c80b7eab09453e543febc3bf006f3870b62a05061",
+        "cssSha256": "d9f600fea8db8cb21f47a45ad7b4997f197de7f9e8c7b64e01e5b42a69c89f6e"
+      },
+      "transforms": {
+        "apps/web/src/electronics/live-simulation.ts": {
+          "originalSha256": "654493156576099dbeedd8d6eb697920b4830a9fd4a313d664c07fe8fe8eac48",
+          "transformedSha256": "586bc9e24ac421e1aafa3cb3f9ffaa0ccbd4de5e5add89012effe604eb8751e0"
+        },
+        "contexts/electronics/domain/simulation.ts": {
+          "originalSha256": "7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92",
+          "transformedSha256": "afb5c729ee653fafb423d6815d46b7820d6c1651853f19c0b8fc7a5ef5b23703"
+        },
+        "apps/web/src/pages/SchematicEditor.tsx": {
+          "originalSha256": "5360b438c2c93663209444033c570a905f2adcc778f809bfadb052be7634e392",
+          "transformedSha256": "fad837016efba619bdaeca255b2b1ae583aaafb4939750074c619421f2b19c20"
+        },
+        "apps/web/src/electronics/use-electronics-workbench.ts": {
+          "originalSha256": "f9f08a1d6e80f9916013da18fd8061c95018de05f4554ceebb0023e559a3122b",
+          "transformedSha256": "02a4d76a155d9897858ee115d4e6b71b3bfbe7569032d08318cb178f41d5d9b4"
+        }
+      },
+      "fixtureHashes": {
+        "S3": "43d6bae8421baf88cc5c291f145aec4cbbb9e5dfcbacd8d61771fda228e86145",
+        "S4": "32a680a113ef9590c12ea344eab3e29aa8ed1fda7c1b512b6be64e07b6307fa1"
+      },
+      "catalogueSha256": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
+      "modelRegistrySha256": "c999b9d097296f571bf2b45b3638c8a8e83d523d525a708a4e2052fd68381491",
+      "sketchSha256": "40727bee963f76362d5cf484d7023ee4c3d0dc0f7e2bfd844da1ab0d0dfad7b2",
+      "platform": {
+        "os": "linux",
+        "release": "7.0.0-1017-azure",
+        "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+        "logicalCpus": 4,
+        "ramBytes": 16759304192,
+        "node": "v22.23.4"
+      }
+    }
+  },
+  "environment": {
+    "os": "linux",
+    "release": "7.0.0-1017-azure",
+    "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "logicalCpus": 4,
+    "ramBytes": 16759304192,
+    "node": "v22.23.4",
+    "browser": "140.0.7339.186",
+    "headless": true,
+    "displayHz": "not_applicable: CI virtual display",
+    "power": "not_applicable: GitHub hosted VM",
+    "cache": "warm per context, assets and editor ready before measurements"
+  },
+  "protocol": {
+    "passes": 3,
+    "samplesPerPass": 30,
+    "slotMs": 1000,
+    "settlementMs": 300,
+    "gestures": [
+      "add",
+      "move",
+      "nominal",
+      "source"
+    ],
+    "numericViewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "smokeNotAcceptance": false
+  },
+  "sceneProvenance": "tests/electronics/recovery/provenance.json",
+  "comparison": [
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        29867,
+        29849,
+        29847
+      ],
+      "actualPassElapsedMsBefore": [
+        29834,
+        29826,
+        29834
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 24.299999999813735,
+          "n": 90,
+          "p50": 12,
+          "p95": 20.300000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 71.70000000018626,
+          "n": 90,
+          "p50": 33,
+          "p95": 43.8000000002794
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 20.40000000037253,
+              "n": 90,
+              "p50": 10.599999999627471,
+              "p95": 18
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 33.199999999953434,
+          "n": 90,
+          "p50": 18.099999999976717,
+          "p95": 25.29999999998836
+        },
+        "diagnosticLatencyMs": {
+          "max": 35.199999999953434,
+          "n": 90,
+          "p50": 20,
+          "p95": 27.099999999976717
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 14.600000000034925,
+              "n": 180,
+              "p50": 7.600000000034925,
+              "p95": 10.5
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "add",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29560,
+        29540,
+        29529
+      ],
+      "actualPassElapsedMsBefore": [
+        29561,
+        29567,
+        29562
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 48.700000000186265,
+          "n": 90,
+          "p50": 31.300000000279397,
+          "p95": 35.59999999962747
+        },
+        "diagnosticLatencyMs": {
+          "max": 53.89999999990687,
+          "n": 90,
+          "p50": 33,
+          "p95": 37.89999999990687
+        },
+        "longTasks": {
+          "count": 4,
+          "durationMs": {
+            "max": 55,
+            "n": 4,
+            "p50": 51,
+            "p95": 55
+          },
+          "totalMs": 208
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 54.09999999997672,
+          "n": 90,
+          "p50": 37.800000000046566,
+          "p95": 43.59999999997672
+        },
+        "diagnosticLatencyMs": {
+          "max": 58.5,
+          "n": 90,
+          "p50": 39.60000000009313,
+          "p95": 45.199999999953434
+        },
+        "longTasks": {
+          "count": 6,
+          "durationMs": {
+            "max": 63,
+            "n": 6,
+            "p50": 52,
+            "p95": 63
+          },
+          "totalMs": 333
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 20.099999999976717,
+              "n": 180,
+              "p50": 8,
+              "p95": 13.900000000023283
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29368,
+        29369,
+        29365
+      ],
+      "actualPassElapsedMsBefore": [
+        29376,
+        29383,
+        29377
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 21.899999999906868,
+          "n": 90,
+          "p50": 11.5,
+          "p95": 14.700000000186265
+        },
+        "diagnosticLatencyMs": {
+          "max": 29.899999999906868,
+          "n": 90,
+          "p50": 15.600000000093132,
+          "p95": 19.700000000186265
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 31.599999999976717,
+          "n": 90,
+          "p50": 18,
+          "p95": 22.79999999993015
+        },
+        "diagnosticLatencyMs": {
+          "max": 33.39999999990687,
+          "n": 90,
+          "p50": 20,
+          "p95": 24.899999999906868
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 15.29999999993015,
+              "n": 180,
+              "p50": 8.099999999976717,
+              "p95": 9.900000000023283
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        29995,
+        30012,
+        29986
+      ],
+      "actualPassElapsedMsBefore": [
+        29945,
+        29946,
+        29946
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 20.700000000186265,
+          "n": 90,
+          "p50": 9.899999999906868,
+          "p95": 14.400000000372529
+        },
+        "diagnosticLatencyMs": {
+          "max": 74.39999999990687,
+          "n": 90,
+          "p50": 31.899999999906868,
+          "p95": 49.1999999997206
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 25.5,
+              "n": 90,
+              "p50": 11.5,
+              "p95": 18.100000000093132
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 22.900000000023283,
+          "n": 90,
+          "p50": 15,
+          "p95": 19.800000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 26.099999999976717,
+          "n": 90,
+          "p50": 16.79999999993015,
+          "p95": 22.099999999976717
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 14.20000000006985,
+              "n": 180,
+              "p50": 8,
+              "p95": 11.399999999906868
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 35,
+          "n": 90,
+          "p50": 0,
+          "p95": 14
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 35,
+          "n": 90,
+          "p50": 1,
+          "p95": 1
+        }
+      },
+      "gesture": "source",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        40829,
+        40570,
+        40616
+      ],
+      "actualPassElapsedMsBefore": [
+        40542,
+        40361,
+        40466
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 22.200000000186265,
+          "n": 90,
+          "p50": 11.899999999906868,
+          "p95": 15.100000000093132
+        },
+        "diagnosticLatencyMs": {
+          "max": 62,
+          "n": 90,
+          "p50": 34,
+          "p95": 44.10000000009313
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 25.200000000186265,
+              "n": 90,
+              "p50": 10.700000000186265,
+              "p95": 17
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 31.400000000023283,
+          "n": 90,
+          "p50": 18.20000000006985,
+          "p95": 23.599999999976717
+        },
+        "diagnosticLatencyMs": {
+          "max": 33.10000000009313,
+          "n": 90,
+          "p50": 20,
+          "p95": 26
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 17.300000000046566,
+              "n": 180,
+              "p50": 7.799999999930151,
+              "p95": 11
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 81,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 10473,
+          "n": 90,
+          "p50": 5102,
+          "p95": 9898
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 80,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 10196,
+          "n": 90,
+          "p50": 4986,
+          "p95": 9752
+        }
+      },
+      "gesture": "add",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29568,
+        29565,
+        29554
+      ],
+      "actualPassElapsedMsBefore": [
+        29584,
+        29537,
+        29637
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 44.60000000009313,
+          "n": 90,
+          "p50": 31.399999999906868,
+          "p95": 36.60000000009313
+        },
+        "diagnosticLatencyMs": {
+          "max": 46.39999999990687,
+          "n": 90,
+          "p50": 33.10000000009313,
+          "p95": 38.89999999990687
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 51,
+          "n": 90,
+          "p50": 38.09999999997672,
+          "p95": 46.70000000006985
+        },
+        "diagnosticLatencyMs": {
+          "max": 52.800000000046566,
+          "n": 90,
+          "p50": 39.79999999993015,
+          "p95": 48.300000000046566
+        },
+        "longTasks": {
+          "count": 4,
+          "durationMs": {
+            "max": 54,
+            "n": 4,
+            "p50": 53,
+            "p95": 54
+          },
+          "totalMs": 212
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 20.099999999976717,
+              "n": 180,
+              "p50": 8.099999999976717,
+              "p95": 14.599999999976717
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29375,
+        29370,
+        29369
+      ],
+      "actualPassElapsedMsBefore": [
+        29372,
+        29372,
+        29384
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 20.59999999962747,
+          "n": 90,
+          "p50": 11.699999999720603,
+          "p95": 14.299999999813735
+        },
+        "diagnosticLatencyMs": {
+          "max": 28.899999999906868,
+          "n": 90,
+          "p50": 15.600000000093132,
+          "p95": 18.600000000093132
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 29.699999999953434,
+          "n": 90,
+          "p50": 17.900000000023283,
+          "p95": 23.900000000023283
+        },
+        "diagnosticLatencyMs": {
+          "max": 31.5,
+          "n": 90,
+          "p50": 20,
+          "p95": 25.800000000046566
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 17.399999999906868,
+              "n": 180,
+              "p50": 7.900000000139698,
+              "p95": 10.600000000093132
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        29446,
+        29457,
+        29448
+      ],
+      "actualPassElapsedMsBefore": [
+        29447,
+        29447,
+        29450
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 19.399999999906868,
+          "n": 90,
+          "p50": 9.600000000093132,
+          "p95": 12.100000000093132
+        },
+        "diagnosticLatencyMs": {
+          "max": 52.200000000186265,
+          "n": 90,
+          "p50": 30.200000000186265,
+          "p95": 39.299999999813735
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 19.200000000186265,
+              "n": 90,
+              "p50": 11.399999999906868,
+              "p95": 16.899999999906868
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 22.899999999906868,
+          "n": 90,
+          "p50": 15.300000000046566,
+          "p95": 20.5
+        },
+        "diagnosticLatencyMs": {
+          "max": 25.0999999998603,
+          "n": 90,
+          "p50": 17,
+          "p95": 22.899999999906868
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 21.100000000093132,
+              "n": 180,
+              "p50": 8.199999999953434,
+              "p95": 11.599999999860302
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "source",
+      "scene": "S3"
+    },
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        29872,
+        29859,
+        29880
+      ],
+      "actualPassElapsedMsBefore": [
+        29867,
+        29863,
+        29872
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 32,
+          "n": 90,
+          "p50": 14.800000000279397,
+          "p95": 21.59999999962747
+        },
+        "diagnosticLatencyMs": {
+          "max": 70.8000000002794,
+          "n": 90,
+          "p50": 41.10000000009313,
+          "p95": 52.8000000002794
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 64,
+            "n": 1,
+            "p50": 64,
+            "p95": 64
+          },
+          "totalMs": 64
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 24.59999999962747,
+              "n": 90,
+              "p50": 12.899999999906868,
+              "p95": 18.600000000093132
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 40.300000000046566,
+          "n": 90,
+          "p50": 22.300000000046566,
+          "p95": 29.4000000001397
+        },
+        "diagnosticLatencyMs": {
+          "max": 43.300000000046566,
+          "n": 90,
+          "p50": 24.699999999953434,
+          "p95": 31.699999999953434
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 60,
+            "n": 1,
+            "p50": 60,
+            "p95": 60
+          },
+          "totalMs": 60
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 18,
+              "n": 180,
+              "p50": 9.199999999953434,
+              "p95": 13
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "add",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29722,
+        29678,
+        29684
+      ],
+      "actualPassElapsedMsBefore": [
+        29663,
+        29682,
+        29660
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 62.39999999990687,
+          "n": 90,
+          "p50": 43.39999999990687,
+          "p95": 49.700000000186265
+        },
+        "diagnosticLatencyMs": {
+          "max": 65.89999999990687,
+          "n": 90,
+          "p50": 47.299999999813735,
+          "p95": 54.6999999997206
+        },
+        "longTasks": {
+          "count": 41,
+          "durationMs": {
+            "max": 68,
+            "n": 41,
+            "p50": 51,
+            "p95": 61
+          },
+          "totalMs": 2160
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 64,
+          "n": 90,
+          "p50": 52.800000000046566,
+          "p95": 60.5
+        },
+        "diagnosticLatencyMs": {
+          "max": 66.89999999990687,
+          "n": 90,
+          "p50": 55.4000000001397,
+          "p95": 62.9000000001397
+        },
+        "longTasks": {
+          "count": 72,
+          "durationMs": {
+            "max": 69,
+            "n": 72,
+            "p50": 57,
+            "p95": 66
+          },
+          "totalMs": 4183
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 25.299999999813735,
+              "n": 180,
+              "p50": 10.100000000093132,
+              "p95": 17.5
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29384,
+        29398,
+        29393
+      ],
+      "actualPassElapsedMsBefore": [
+        29397,
+        29415,
+        29394
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 19.800000000279397,
+          "n": 90,
+          "p50": 14.099999999627471,
+          "p95": 17.600000000093132
+        },
+        "diagnosticLatencyMs": {
+          "max": 28.399999999906868,
+          "n": 90,
+          "p50": 19.5,
+          "p95": 26.799999999813735
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 36,
+          "n": 90,
+          "p50": 22,
+          "p95": 31.0999999998603
+        },
+        "diagnosticLatencyMs": {
+          "max": 38.199999999953434,
+          "n": 90,
+          "p50": 24.899999999906868,
+          "p95": 35.5
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 18,
+              "n": 180,
+              "p50": 9.200000000186265,
+              "p95": 12.399999999906868
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        30079,
+        29981,
+        30095
+      ],
+      "actualPassElapsedMsBefore": [
+        29995,
+        30013,
+        29997
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 25.800000000279397,
+          "n": 90,
+          "p50": 13,
+          "p95": 16.799999999813735
+        },
+        "diagnosticLatencyMs": {
+          "max": 68.3000000002794,
+          "n": 90,
+          "p50": 40.5,
+          "p95": 53.60000000009313
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 27.699999999720603,
+              "n": 90,
+              "p50": 14.300000000279397,
+              "p95": 21.399999999906868
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 30.899999999906868,
+          "n": 90,
+          "p50": 19.699999999953434,
+          "p95": 25.5
+        },
+        "diagnosticLatencyMs": {
+          "max": 35,
+          "n": 90,
+          "p50": 21.899999999906868,
+          "p95": 29
+        },
+        "longTasks": {
+          "count": 2,
+          "durationMs": {
+            "max": 64,
+            "n": 2,
+            "p50": 51,
+            "p95": 64
+          },
+          "totalMs": 115
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16.300000000046566,
+              "n": 180,
+              "p50": 9.899999999906868,
+              "p95": 14
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": false,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 164,
+          "n": 90,
+          "p50": 64,
+          "p95": 131
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 132,
+          "n": 90,
+          "p50": 1,
+          "p95": 111
+        }
+      },
+      "gesture": "source",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Добавление прогретого компонента",
+      "actualPassElapsedMsAfter": [
+        42144,
+        41787,
+        41947
+      ],
+      "actualPassElapsedMsBefore": [
+        42058,
+        41597,
+        41718
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 27,
+          "n": 90,
+          "p50": 15.899999999906868,
+          "p95": 19.700000000186265
+        },
+        "diagnosticLatencyMs": {
+          "max": 69.39999999990687,
+          "n": 90,
+          "p50": 45.200000000186265,
+          "p95": 57.200000000186265
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 27.600000000093132,
+              "n": 90,
+              "p50": 12.100000000093132,
+              "p95": 20.100000000093132
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 34.800000000046566,
+          "n": 90,
+          "p50": 23.4000000001397,
+          "p95": 30.799999999813735
+        },
+        "diagnosticLatencyMs": {
+          "max": 38.10000000009313,
+          "n": 90,
+          "p50": 26.100000000093132,
+          "p95": 33
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 18.399999999906868,
+              "n": 180,
+              "p50": 9.300000000046566,
+              "p95": 12.600000000093132
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 81,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 11756,
+          "n": 90,
+          "p50": 5713,
+          "p95": 11153
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 81,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 11689,
+          "n": 90,
+          "p50": 5777,
+          "p95": 10952
+        }
+      },
+      "gesture": "add",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Перемещение: отпускание → DOM commit",
+      "actualPassElapsedMsAfter": [
+        29659,
+        29649,
+        29690
+      ],
+      "actualPassElapsedMsBefore": [
+        29740,
+        29667,
+        29660
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 62.200000000186265,
+          "n": 90,
+          "p50": 43.6999999997206,
+          "p95": 52.5
+        },
+        "diagnosticLatencyMs": {
+          "max": 68.10000000009313,
+          "n": 90,
+          "p50": 47.299999999813735,
+          "p95": 55.6999999997206
+        },
+        "longTasks": {
+          "count": 40,
+          "durationMs": {
+            "max": 71,
+            "n": 40,
+            "p50": 51,
+            "p95": 67
+          },
+          "totalMs": 2154
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 71,
+          "n": 90,
+          "p50": 53.200000000186265,
+          "p95": 63.60000000009313
+        },
+        "diagnosticLatencyMs": {
+          "max": 73.20000000018626,
+          "n": 90,
+          "p50": 55.699999999953434,
+          "p95": 66.89999999990687
+        },
+        "longTasks": {
+          "count": 70,
+          "durationMs": {
+            "max": 74,
+            "n": 70,
+            "p50": 58,
+            "p95": 70
+          },
+          "totalMs": 4125
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 29.399999999906868,
+              "n": 180,
+              "p50": 10.200000000186265,
+              "p95": 18.5
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "move",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Undo/Redo 220↔330 Ω; оба входа прогреты",
+      "actualPassElapsedMsAfter": [
+        29389,
+        29390,
+        29389
+      ],
+      "actualPassElapsedMsBefore": [
+        29387,
+        29405,
+        29390
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 21.700000000186265,
+          "n": 90,
+          "p50": 14.5,
+          "p95": 18.5
+        },
+        "diagnosticLatencyMs": {
+          "max": 29.90000000037253,
+          "n": 90,
+          "p50": 20,
+          "p95": 25.799999999813735
+        },
+        "longTasks": {
+          "count": 0,
+          "durationMs": {
+            "max": 0,
+            "n": 0,
+            "p50": 0,
+            "p95": 0
+          },
+          "totalMs": 0
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 46.199999999953434,
+          "n": 90,
+          "p50": 21.100000000093132,
+          "p95": 26.699999999953434
+        },
+        "diagnosticLatencyMs": {
+          "max": 49.699999999953434,
+          "n": 90,
+          "p50": 23.800000000046566,
+          "p95": 31.399999999906868
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 61,
+            "n": 1,
+            "p50": 61,
+            "p95": 61
+          },
+          "totalMs": 61
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 16.300000000046566,
+              "n": 180,
+              "p50": 9.099999999860302,
+              "p95": 12.5
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "nominal",
+      "scene": "S4"
+    },
+    {
+      "actionLabel": "Изменение программы Arduino",
+      "actualPassElapsedMsAfter": [
+        29467,
+        29478,
+        29479
+      ],
+      "actualPassElapsedMsBefore": [
+        29471,
+        29464,
+        29466
+      ],
+      "after": {
+        "commitLatencyMs": {
+          "max": 28.300000000279397,
+          "n": 90,
+          "p50": 12.800000000279397,
+          "p95": 17.5
+        },
+        "diagnosticLatencyMs": {
+          "max": 69.20000000018626,
+          "n": 90,
+          "p50": 38.1999999997206,
+          "p95": 53.200000000186265
+        },
+        "longTasks": {
+          "count": 3,
+          "durationMs": {
+            "max": 62,
+            "n": 3,
+            "p50": 52,
+            "p95": 62
+          },
+          "totalMs": 164
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          },
+          "worker": {
+            "actualAnalyses": 90,
+            "analysisDurationMs": {
+              "max": 27.399999999906868,
+              "n": 90,
+              "p50": 13.600000000093132,
+              "p95": 21.40000000037253
+            },
+            "apiCalls": 90
+          }
+        },
+        "samples": 90
+      },
+      "before": {
+        "commitLatencyMs": {
+          "max": 28,
+          "n": 90,
+          "p50": 19.5,
+          "p95": 24.300000000046566
+        },
+        "diagnosticLatencyMs": {
+          "max": 33.10000000009313,
+          "n": 90,
+          "p50": 21.800000000046566,
+          "p95": 26.799999999813735
+        },
+        "longTasks": {
+          "count": 1,
+          "durationMs": {
+            "max": 64,
+            "n": 1,
+            "p50": 64,
+            "p95": 64
+          },
+          "totalMs": 64
+        },
+        "preflight": {
+          "main": {
+            "actualAnalyses": 180,
+            "analysisDurationMs": {
+              "max": 15.399999999906868,
+              "n": 180,
+              "p50": 9.800000000046566,
+              "p95": 13.099999999860302
+            },
+            "apiCalls": 180
+          },
+          "worker": {
+            "actualAnalyses": 0,
+            "analysisDurationMs": {
+              "max": 0,
+              "n": 0,
+              "p50": 0,
+              "p95": 0
+            },
+            "apiCalls": 0
+          }
+        },
+        "samples": 90
+      },
+      "codeOpen": true,
+      "deadlineAfter": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 2,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "deadlineBefore": {
+        "atLeastOneSlotCount": 0,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 1,
+          "n": 90,
+          "p50": 0,
+          "p95": 1
+        }
+      },
+      "gesture": "source",
+      "scene": "S4"
+    }
+  ],
+  "totals": {
+    "after": {
+      "deadline": {
+        "atLeastOneSlotCount": 162,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 11756,
+          "n": 1440,
+          "p50": 0,
+          "p95": 6521
+        }
+      },
+      "latenciesNotPooledAcrossProfiles": true,
+      "longTaskDurationMaxMs": 71,
+      "longTaskDurationTotalMs": 4750,
+      "longTaskRecordsInActionWindows": 89,
+      "mainActualAnalyses": 0,
+      "mainPreflightApiCalls": 0,
+      "samples": 1440,
+      "workerActualAnalyses": 720,
+      "workerPreflightApiCalls": 720
+    },
+    "before": {
+      "deadline": {
+        "atLeastOneSlotCount": 161,
+        "definition": "scheduled action-start lateness >= 1000 ms; no late sample is discarded",
+        "statisticsMs": {
+          "max": 11689,
+          "n": 1440,
+          "p50": 0,
+          "p95": 6587
+        }
+      },
+      "latenciesNotPooledAcrossProfiles": true,
+      "longTaskDurationMaxMs": 74,
+      "longTaskDurationTotalMs": 9153,
+      "longTaskRecordsInActionWindows": 157,
+      "mainActualAnalyses": 2880,
+      "mainPreflightApiCalls": 2880,
+      "samples": 1440,
+      "workerActualAnalyses": 0,
+      "workerPreflightApiCalls": 0
+    }
+  },
+  "qualifications": [
+    "Instrumented full SchematicEditor in isolated GitHub CI; candidate, not a production deployment.",
+    "S4 is the attributed 17-component/14-wire audit reconstruction, not an export of the original user project.",
+    "Commit latency means native input to a matching committed document/DOM; it is not a measurement of physical paint.",
+    "Move latency starts at pointer release, not at the beginning of the complete drag gesture.",
+    "The nominal profile is native Undo/Redo between 220 and 330 ohms after both inputs were warmed; it is not first uncached nominal-entry latency.",
+    "For the code-closed source profile, opening the panel occurs before the measured native input and is excluded from that latency.",
+    "Numeric passes and visual replay are separate. RAF fields are scheduling evidence, not proof of paint.",
+    "All 2880 measured rows and every deadline overrun are retained. No latency percentiles are pooled across unlike profiles.",
+    "Paired initialDiagnostic equality is distinct from the separate full direct/Worker parity test fixtures.",
+    "Package validation does not decide numerical performance benefit, independent final review, General/R4 CI qualification, cold load, or the full R10–R12 budget.",
+    "B uses Intel Xeon Platinum 8370C; historical A used another AMD runner. Compare only phases within each pair.",
+    "All 16 DOM p95 improve, but all 8 uncached add/source diagnostic p95 increase.",
+    "S4/open/source maximum commit increases 28.0 to 28.3 ms and long-task count 1 to 3.",
+    "Scheduled starts at least one second late increase 161 to 162. All pass durations and overruns are retained.",
+    "Full strict R4 on C remains FAILURE, including two additional long-cycle timing cases of unclassified cause."
+  ],
+  "independentReview": {
+    "reviewer": "/root/r10_final_reviewer",
+    "measuredSource": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+    "reviewedProductSource": "2826aa87aea95d21c61b32f05414b3e4ec6589f0",
+    "sourceRawVisualVerdict": "PASS_WITH_EXPLICIT_LIMITS",
+    "allRows": 2880,
+    "passFiles": 96,
+    "initialDiagnosticPairs": 16,
+    "principalVideosVisuallySampled": 4,
+    "allVideoAndTraceMetadata": 12,
+    "finalAcceptance": "REQUIRES_FINAL_EXACT_SOURCE_GENERAL_AND_REVIEW_BEFORE_MERGE"
+  },
+  "compiledInputIdentity": {
+    "originalReceiptSha256": "613c15ec6c0c20137c6541aec83b1768055d5f4166bf81b48b5282e1604a36ad",
+    "proof": {
+      "format": "independent-r10-measured-B-to-C-input-identity-v1",
+      "measuredSource": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+      "reviewSource": "2826aa87aea95d21c61b32f05414b3e4ec6589f0",
+      "receiptSourceClean": true,
+      "metafileSha256": "2c6a5de6d6d70be91531c789bf286d17ec0ef8bb5eef16fc33db2fb99ce0a152",
+      "buildReceiptSha256": "3aa06d01460f0b76a243e105e4e02f41ffca642be3a653f5de674a6e0ac6ed6a",
+      "counts": {
+        "ui": {
+          "allInputs": 166,
+          "trackedSourceInputs": 150,
+          "dependencyInputs": 14,
+          "virtualInputs": 2
+        },
+        "worker": {
+          "allInputs": 58,
+          "trackedSourceInputs": 57,
+          "dependencyInputs": 0,
+          "virtualInputs": 1
+        }
+      },
+      "uniqueTrackedSourceInputCount": 153,
+      "checkedSourceInputs": [
+        {
+          "path": "apps/web/src/api-call.ts",
+          "BgitBlob": "282193405e5d3ee5c23bef14659ba9fbeb3e7037",
+          "CgitBlob": "282193405e5d3ee5c23bef14659ba9fbeb3e7037",
+          "sha256": "df6835379cba02ae73fa0815c95931a88412dc89988cc55c0ba217c9598f2e99"
+        },
+        {
+          "path": "apps/web/src/api.ts",
+          "BgitBlob": "4cc53948c19167f5c61cc4a82d104cd0c154f031",
+          "CgitBlob": "4cc53948c19167f5c61cc4a82d104cd0c154f031",
+          "sha256": "2e3c5c7e232dd0bd50e67382266a298ccab580248f4d9b7c96ecff2e96566f01"
+        },
+        {
+          "path": "apps/web/src/auth-request.ts",
+          "BgitBlob": "8c7c0960240099715c9fa33bc30cce4b19be5cd1",
+          "CgitBlob": "8c7c0960240099715c9fa33bc30cce4b19be5cd1",
+          "sha256": "9ef146c61da79c8d655cca094da411bee4157fc179bfdc848515998b9bef6533"
+        },
+        {
+          "path": "apps/web/src/auth-verification.ts",
+          "BgitBlob": "f9330eda47ce22911bb0de0018fbae00e5643608",
+          "CgitBlob": "f9330eda47ce22911bb0de0018fbae00e5643608",
+          "sha256": "a992d6febeac13e42125ea4b5e347955cbfd5e487eca67960098a3498b60bbac"
+        },
+        {
+          "path": "apps/web/src/client-diagnostic-outbox.ts",
+          "BgitBlob": "5d73a5a1063f0ff8cbacd0e1eb7195ac41b57b14",
+          "CgitBlob": "5d73a5a1063f0ff8cbacd0e1eb7195ac41b57b14",
+          "sha256": "e51228b9c7858efff7c7bcd16280c2eaffab6393057969fbab6807a3071c0d88"
+        },
+        {
+          "path": "apps/web/src/client-diagnostics.ts",
+          "BgitBlob": "dc57138c82bcbe5ec5eed85030105a360ba6de74",
+          "CgitBlob": "dc57138c82bcbe5ec5eed85030105a360ba6de74",
+          "sha256": "8f3b39d96e90e07604f2cd658573b2a4d29a9dd0d8173943314041da4af778e5"
+        },
+        {
+          "path": "apps/web/src/client-error-details.ts",
+          "BgitBlob": "6d70ae44d03a177ba48093be047fa389efb62bf7",
+          "CgitBlob": "6d70ae44d03a177ba48093be047fa389efb62bf7",
+          "sha256": "5d251043bfd04d93e724e0061c6f0f94745fe01de3801ba20a213ef169a21b4f"
+        },
+        {
+          "path": "apps/web/src/client-id.ts",
+          "BgitBlob": "4393efa2be97da207a4b130fd80652b5e250849d",
+          "CgitBlob": "4393efa2be97da207a4b130fd80652b5e250849d",
+          "sha256": "15338e12754c5601c8d5488dba761bc4c6565dcb88f3760e50db44c870342a37"
+        },
+        {
+          "path": "apps/web/src/components/editor-chrome/EditorAvatar.tsx",
+          "BgitBlob": "0439375f04b3650d7f425497712e383e490318bb",
+          "CgitBlob": "0439375f04b3650d7f425497712e383e490318bb",
+          "sha256": "a8cf4e712bd39ca0d3a7c666255586df38c6bf9be23f2009d3d3c3e91be5fd2b"
+        },
+        {
+          "path": "apps/web/src/components/editor-chrome/EditorPersistenceIndicator.tsx",
+          "BgitBlob": "9e23f073f2dbe5bb8278d2d64277f7d34edca93e",
+          "CgitBlob": "9e23f073f2dbe5bb8278d2d64277f7d34edca93e",
+          "sha256": "1ac2ce0b0da9d16796d53bd1caf4ab5d2007596cd076a4b452f51995bf70b5a4"
+        },
+        {
+          "path": "apps/web/src/components/sha256.ts",
+          "BgitBlob": "8455d68b97715630bf6c1b3e2d51d5bb66a75ae3",
+          "CgitBlob": "8455d68b97715630bf6c1b3e2d51d5bb66a75ae3",
+          "sha256": "528f7c2e7cbca779ea5f9227ee4b23843d507ea1df4ac54aaa6b7a5a1a51506b"
+        },
+        {
+          "path": "apps/web/src/creator-portal/default-avatars.ts",
+          "BgitBlob": "6c9a1aa6bc3ccf73f3221a9c6e33fa7c47b34f84",
+          "CgitBlob": "6c9a1aa6bc3ccf73f3221a9c6e33fa7c47b34f84",
+          "sha256": "94e9edda089bc7c8661c87470a3be120b5e04c6bb3c96a9b59c3d4d6e36346b1"
+        },
+        {
+          "path": "apps/web/src/electronics/AlternateWorkbenchViews.tsx",
+          "BgitBlob": "67847eeca14280f0bdbe3d654ad4a5425a626ccc",
+          "CgitBlob": "67847eeca14280f0bdbe3d654ad4a5425a626ccc",
+          "sha256": "3dbdaf352f222069b9b9f977b98749dc89c50f15bb069065029ed1fe0c7363de"
+        },
+        {
+          "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+          "BgitBlob": "2fdc66480738cc7b852e00d8a753b718a722059d",
+          "CgitBlob": "2fdc66480738cc7b852e00d8a753b718a722059d",
+          "sha256": "60ceb20af9fa9fe5634d0c3f0a5d1f7eb8f9e5a04773f10b0b177033966f677c"
+        },
+        {
+          "path": "apps/web/src/electronics/ArduinoCommandReference.tsx",
+          "BgitBlob": "6e51dec39a72421bc5312126065664c9c496562f",
+          "CgitBlob": "6e51dec39a72421bc5312126065664c9c496562f",
+          "sha256": "0cc70e15b92690eabd5f7c9f8f4f3744a0911555420fed5602f8055eb2d1b328"
+        },
+        {
+          "path": "apps/web/src/electronics/ArduinoSerialMonitor.tsx",
+          "BgitBlob": "92bead57dad423821165a4a034b8cfe410b8e2ba",
+          "CgitBlob": "92bead57dad423821165a4a034b8cfe410b8e2ba",
+          "sha256": "fe0204734ba74e984e0060db69d54cdfda88942cbe729b82bae722e67f9d18f3"
+        },
+        {
+          "path": "apps/web/src/electronics/CanvasAnnotationLayer.tsx",
+          "BgitBlob": "705ea7a45d686d1298fd01779fc624879ab5d8ea",
+          "CgitBlob": "705ea7a45d686d1298fd01779fc624879ab5d8ea",
+          "sha256": "bdec6a30ad7af1607e9d10278c6d7609fc5b92ac0f54a2758133a0afb018f795"
+        },
+        {
+          "path": "apps/web/src/electronics/NativeLedDiagnostic.tsx",
+          "BgitBlob": "2f3c2b7abc7fd7884085db9414427b023a4343c6",
+          "CgitBlob": "2f3c2b7abc7fd7884085db9414427b023a4343c6",
+          "sha256": "6c2f530052f0d06faae2c3821f0456179668661ea805a0911a9b337d359e7005"
+        },
+        {
+          "path": "apps/web/src/electronics/NativeOpticalComponentVisual.tsx",
+          "BgitBlob": "e75751399bf2d4ad94e3c25d2d3f10ac9a2a89d5",
+          "CgitBlob": "e75751399bf2d4ad94e3c25d2d3f10ac9a2a89d5",
+          "sha256": "babf25e459abb85865621377fdc1addc0040bf0dc7817b7ea9a4f232620da6c8"
+        },
+        {
+          "path": "apps/web/src/electronics/OwnerServoVisual.tsx",
+          "BgitBlob": "0fd926e3ceff406b134fac7862f850e89a7c2fcd",
+          "CgitBlob": "0fd926e3ceff406b134fac7862f850e89a7c2fcd",
+          "sha256": "bc9d75e8cbc83ca9fefec1a2e5a9934cc150886adc4b7ae375a2f5f59cdff490"
+        },
+        {
+          "path": "apps/web/src/electronics/PirSensorControls.tsx",
+          "BgitBlob": "076adc80f339bdd43f2f2ba998832676e888d99f",
+          "CgitBlob": "076adc80f339bdd43f2f2ba998832676e888d99f",
+          "sha256": "0084a75e66625777ed83da57b959c3c63d01d68a5db350f35cce3068c21b733b"
+        },
+        {
+          "path": "apps/web/src/electronics/ProductionComponentVisual.tsx",
+          "BgitBlob": "f6e3e3011edc8aa8b77a89c6962107583abcca5b",
+          "CgitBlob": "f6e3e3011edc8aa8b77a89c6962107583abcca5b",
+          "sha256": "46257a69da902ec7556311a8fdd3376f54bea5f7b9ee54818ee342dc8f4a09a5"
+        },
+        {
+          "path": "apps/web/src/electronics/SimulationSpeedControl.tsx",
+          "BgitBlob": "91d350d6ab44c2d3a7deb0ac922fc4d1998689ee",
+          "CgitBlob": "91d350d6ab44c2d3a7deb0ac922fc4d1998689ee",
+          "sha256": "789370ec31c234527a319fd6e9eb81aadee2ac9eda7cd7b3cd2a80c592ff483f"
+        },
+        {
+          "path": "apps/web/src/electronics/UltrasonicDistanceControls.tsx",
+          "BgitBlob": "d7301f52c1f6882974f409b36fbef0d16193901c",
+          "CgitBlob": "d7301f52c1f6882974f409b36fbef0d16193901c",
+          "sha256": "7c23ad0a70afba80fe0048d8de166ac6e5d8909758e9ed28803ff73c7f68f25c"
+        },
+        {
+          "path": "apps/web/src/electronics/WorkbenchHeader.tsx",
+          "BgitBlob": "d62a0de0e00b60c32f83584e3549ecfb60dcb8a8",
+          "CgitBlob": "d62a0de0e00b60c32f83584e3549ecfb60dcb8a8",
+          "sha256": "b35a529974b9bccc1eb6d6d15cfce72a4016ccdb9968c18d11d45dfdfcd05c9f"
+        },
+        {
+          "path": "apps/web/src/electronics/WorkbenchSidebars.tsx",
+          "BgitBlob": "9f5f222e37959cc4d96524c3a968f5567aeb6de7",
+          "CgitBlob": "9f5f222e37959cc4d96524c3a968f5567aeb6de7",
+          "sha256": "085f7ee3b19d468c41aba9d7fed31e74dabb8a930e4e18997f5d179a9526853f"
+        },
+        {
+          "path": "apps/web/src/electronics/WorkbenchStage.tsx",
+          "BgitBlob": "9504fbd2944a2d102aa9a710bf6c3b9c24b44c35",
+          "CgitBlob": "9504fbd2944a2d102aa9a710bf6c3b9c24b44c35",
+          "sha256": "2bdfa317e2ebc47576a085420b2e73e52b2aea4a52d03de115a47c2ced16a732"
+        },
+        {
+          "path": "apps/web/src/electronics/WorkbenchTooltip.tsx",
+          "BgitBlob": "fa640690b80271b2c558035520eaf311ba13769a",
+          "CgitBlob": "fa640690b80271b2c558035520eaf311ba13769a",
+          "sha256": "8c71d601515914535bf36a3547c637c31371c1e52dcfbc5e090172dfee06ea53"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-block-appearance.ts",
+          "BgitBlob": "cbfcc41bb0f6e0f47d7752bcb3358d2ac3c3c78b",
+          "CgitBlob": "cbfcc41bb0f6e0f47d7752bcb3358d2ac3c3c78b",
+          "sha256": "e3fa5761541067d80f4fbf27bee259ceee0f049dc34710048e1bf36f27b4727f"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-block-definitions.ts",
+          "BgitBlob": "d4798070d838d4e000af58d5f81edc9668c4853e",
+          "CgitBlob": "d4798070d838d4e000af58d5f81edc9668c4853e",
+          "sha256": "6ac8c99f29335c657c456ad677d7fa7b5b0c3e96772a017aea2b93475103ba0c"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-block-schema.ts",
+          "BgitBlob": "3917b815be747b522a3edcfd68a55ee3b5392209",
+          "CgitBlob": "3917b815be747b522a3edcfd68a55ee3b5392209",
+          "sha256": "4c56b3625f774ba32676e110b24efe9ee37365e5dde97ff65a8bca65e07edcb5"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-block-ui.ts",
+          "BgitBlob": "d86ec93ca2b74629d868537c20a913790a4d70f7",
+          "CgitBlob": "d86ec93ca2b74629d868537c20a913790a4d70f7",
+          "sha256": "e57d7eb2c566e5cc3b9638188d02c7d7e061dc3cbb0cce57e8dc0a9186f9b450"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-blocks.ts",
+          "BgitBlob": "0a34384f403186dd40b5fb19f88cfea334e22bd9",
+          "CgitBlob": "0a34384f403186dd40b5fb19f88cfea334e22bd9",
+          "sha256": "36bfbf8740269a7f0884b0508af04bee14689475f11bcfa470e304d3069e1be8"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-command-reference.ts",
+          "BgitBlob": "a3bff9c465e84b2fcac017dffe6885fd8cac9203",
+          "CgitBlob": "a3bff9c465e84b2fcac017dffe6885fd8cac9203",
+          "sha256": "8be7992d50228c63c8442bc7cdf3db0060981fbde34a3aa63644c93669a2f50f"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-output-pins.ts",
+          "BgitBlob": "94a2bc3771b4d04803c4b3d42ec5deba9f19cd55",
+          "CgitBlob": "94a2bc3771b4d04803c4b3d42ec5deba9f19cd55",
+          "sha256": "3df2cc582ec50071efe26dd66a0f0ca8bb9389c2381cf7203921847e5420366b"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-pin-inputs.ts",
+          "BgitBlob": "5ea5ee1be50d765ea2092e011e1e518587bf9551",
+          "CgitBlob": "5ea5ee1be50d765ea2092e011e1e518587bf9551",
+          "sha256": "6c05cbf34acd13ed74fb645d82c50d1e937f989b200101a9fd404d7ffe277b6f"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-program-state.ts",
+          "BgitBlob": "e85555d492f95939ae55ee58d222202428f623af",
+          "CgitBlob": "e85555d492f95939ae55ee58d222202428f623af",
+          "sha256": "2bfe2ea6cc4c72b3e56cf8f801900f034b6e01a70d8b8d84421e84664cb4aab0"
+        },
+        {
+          "path": "apps/web/src/electronics/arduino-source-language.ts",
+          "BgitBlob": "33b4ab9ca7977530cce55bea766e06c2d46200e9",
+          "CgitBlob": "33b4ab9ca7977530cce55bea766e06c2d46200e9",
+          "sha256": "cabc210c1878e0811f40131d5849634ccd144b7e8c459d08a0650efee22a8466"
+        },
+        {
+          "path": "apps/web/src/electronics/committed-result-presentation.ts",
+          "BgitBlob": "fab313e0b0941472128529bed9ba76940e828fa1",
+          "CgitBlob": "fab313e0b0941472128529bed9ba76940e828fa1",
+          "sha256": "9e62000e76a4cf4ed89ac6f581a5cebf1a5000565c6a2bcf3d57c5e4983515f6"
+        },
+        {
+          "path": "apps/web/src/electronics/component-catalog.ts",
+          "BgitBlob": "a4e068512bf6b2f46509db267effe8aabca0f88e",
+          "CgitBlob": "a4e068512bf6b2f46509db267effe8aabca0f88e",
+          "sha256": "243494dd9ffca4ea35d4d963963ae4010fec011ff9e7b06feca13eaa00e0d7f5"
+        },
+        {
+          "path": "apps/web/src/electronics/component-help-content.ts",
+          "BgitBlob": "ea1da5757799a34afc4213e9f0cbc17ec8e2f4b4",
+          "CgitBlob": "ea1da5757799a34afc4213e9f0cbc17ec8e2f4b4",
+          "sha256": "629bbcb1863e54600d24baaea7fa12f90cc09a04478593018868c359ec284eb2"
+        },
+        {
+          "path": "apps/web/src/electronics/component-hit-testing.ts",
+          "BgitBlob": "256f7f807108c7ca5c65087a3df5d78712c98937",
+          "CgitBlob": "256f7f807108c7ca5c65087a3df5d78712c98937",
+          "sha256": "c5fb87d76c49141aab4d1e51401f2a0a007a83a31b8309c2fde14159db6de73f"
+        },
+        {
+          "path": "apps/web/src/electronics/component-information.ts",
+          "BgitBlob": "a16d9a0d1a193b90d29d20a68120da96ee4ca9d5",
+          "CgitBlob": "a16d9a0d1a193b90d29d20a68120da96ee4ca9d5",
+          "sha256": "b81e94b15c3fb1c0a2b01bd646ae63ea1b8817439c7bb5ac6e508aa4afba414e"
+        },
+        {
+          "path": "apps/web/src/electronics/component-presentation-geometry.ts",
+          "BgitBlob": "002d3ac12dd939426a436337af35d335426a4124",
+          "CgitBlob": "002d3ac12dd939426a436337af35d335426a4124",
+          "sha256": "d32914ea4fa362480cf4bb27b5b4bb96b7c7c01fa26cebfed1c7d04804868ce7"
+        },
+        {
+          "path": "apps/web/src/electronics/component-preview.tsx",
+          "BgitBlob": "b841549183a91308b2e6de25b3e6609a98afefbc",
+          "CgitBlob": "b841549183a91308b2e6de25b3e6609a98afefbc",
+          "sha256": "8a773336e09d4bd88525d63693b22ac3c12e4b7c83ca7d2422fc6ffe20dd5d78"
+        },
+        {
+          "path": "apps/web/src/electronics/component-result-presentation.ts",
+          "BgitBlob": "35401320cf7d701819cb827a80ca94df744a4d69",
+          "CgitBlob": "35401320cf7d701819cb827a80ca94df744a4d69",
+          "sha256": "7f77fa9a3d9930e0aebd5a4e4a67009a35b0bfc6d9de69745040cc59f2c64eb0"
+        },
+        {
+          "path": "apps/web/src/electronics/diagnostic-presentation.ts",
+          "BgitBlob": "f9f30f95266982101e56b49e36585114af4f76d3",
+          "CgitBlob": "f9f30f95266982101e56b49e36585114af4f76d3",
+          "sha256": "68267026ce2fc65885504c61d08c990b415cc96288d682ac355bb7f66febb965"
+        },
+        {
+          "path": "apps/web/src/electronics/electronics-document-merge.ts",
+          "BgitBlob": "5670063ee6c5d83e5f35a8af00746288832695b3",
+          "CgitBlob": "5670063ee6c5d83e5f35a8af00746288832695b3",
+          "sha256": "0062d137cd28a77e87c5c9d3d1bd1621e014f9692a183424af9a92456cd6132a"
+        },
+        {
+          "path": "apps/web/src/electronics/electronics-document-repair.ts",
+          "BgitBlob": "dfeb24630c09baf72ee36744deeae28aaf08f6c4",
+          "CgitBlob": "dfeb24630c09baf72ee36744deeae28aaf08f6c4",
+          "sha256": "637ebee1ce7edd196b2c00576adecbbf1e2cba66048b2c28ca3d1c6fdde94437"
+        },
+        {
+          "path": "apps/web/src/electronics/electronics-project-recovery.ts",
+          "BgitBlob": "9373de32eeca82330d5cd866200d1953d73fa73e",
+          "CgitBlob": "9373de32eeca82330d5cd866200d1953d73fa73e",
+          "sha256": "0bab1656e8d91c725b941fb5f08fb2599f088077f61838128b8f4df6105411aa"
+        },
+        {
+          "path": "apps/web/src/electronics/led-temporal-presentation.ts",
+          "BgitBlob": "9dfb6482fafe359a5c652b23f6c740d7eeb3a6cb",
+          "CgitBlob": "9dfb6482fafe359a5c652b23f6c740d7eeb3a6cb",
+          "sha256": "759449a88e18c506854541e724de47560bce0ece2b6f3fbe0d07f05ea1712482"
+        },
+        {
+          "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+          "BgitBlob": "d4d9620eedde1faa07ba5a3ecc799bc770ea3237",
+          "CgitBlob": "d4d9620eedde1faa07ba5a3ecc799bc770ea3237",
+          "sha256": "a580b8205b726ae2b628583b69dc9e01ac492e8b6fc184901277909fa2f88b06"
+        },
+        {
+          "path": "apps/web/src/electronics/live-simulation.ts",
+          "BgitBlob": "e9b54814e427ac18d0988a402f955a5e3477e01e",
+          "CgitBlob": "e9b54814e427ac18d0988a402f955a5e3477e01e",
+          "sha256": "654493156576099dbeedd8d6eb697920b4830a9fd4a313d664c07fe8fe8eac48"
+        },
+        {
+          "path": "apps/web/src/electronics/load-simulation-worker-controller.ts",
+          "BgitBlob": "ae36a154a2ea0dea3b0044025c9e0ba6433062bb",
+          "CgitBlob": "ae36a154a2ea0dea3b0044025c9e0ba6433062bb",
+          "sha256": "a76b11ef25dc55f4a15f84cb8848fcdf9a291bf0ac5189b3fb868dda869dc3f7"
+        },
+        {
+          "path": "apps/web/src/electronics/native-optical-presentation.ts",
+          "BgitBlob": "13de0f6702eb7fbdbbb3d6fe1d09f88f39f3cf38",
+          "CgitBlob": "13de0f6702eb7fbdbbb3d6fe1d09f88f39f3cf38",
+          "sha256": "9bdcbf8dc66cf4a8c4bc087355c74617ed97766631f27e5cfedf2f0ed17eca3f"
+        },
+        {
+          "path": "apps/web/src/electronics/photoresistor-presentation.ts",
+          "BgitBlob": "eab3d1e7247ce2e6c077383afc7c6dafcb9f6d9c",
+          "CgitBlob": "eab3d1e7247ce2e6c077383afc7c6dafcb9f6d9c",
+          "sha256": "6aad8738c3861ed338233737847a67f37279aaa61add1ca8409297aff3ae7de1"
+        },
+        {
+          "path": "apps/web/src/electronics/production-asset-contracts.ts",
+          "BgitBlob": "b08fa0c39617a70ae62884a2cb617fad87317467",
+          "CgitBlob": "b08fa0c39617a70ae62884a2cb617fad87317467",
+          "sha256": "8387fc83a92234fec3bb258a912666fe36d8815b1bd5a607c7d58afabea484cf"
+        },
+        {
+          "path": "apps/web/src/electronics/production-manifest-adapter.ts",
+          "BgitBlob": "c216a5f12ba978b88448bec3f77e246adb0bdcdb",
+          "CgitBlob": "c216a5f12ba978b88448bec3f77e246adb0bdcdb",
+          "sha256": "595728725d64f210dcefe141dd7a0d085f49ad4d4e902c3b46e3322d2b2ff0d4"
+        },
+        {
+          "path": "apps/web/src/electronics/simulation-failure.ts",
+          "BgitBlob": "410f6976a03c640f6824279b8a7693b5f4379c48",
+          "CgitBlob": "410f6976a03c640f6824279b8a7693b5f4379c48",
+          "sha256": "9cb89214693dce880c03a90ad99983e1abc924ef84a3bc1b42e297ea679ba45a"
+        },
+        {
+          "path": "apps/web/src/electronics/simulation-pacing.ts",
+          "BgitBlob": "c67eaff4135b6c23313f13be9f89c81b191566c0",
+          "CgitBlob": "c67eaff4135b6c23313f13be9f89c81b191566c0",
+          "sha256": "c443c206cfe78c39c8bbc03f06e9638a33fa8600d5bbb9ba18c2863d03774be5"
+        },
+        {
+          "path": "apps/web/src/electronics/simulation-worker-client.ts",
+          "BgitBlob": "cddaeb2e6960e19baa67771a6c35da53ce6556a9",
+          "CgitBlob": "cddaeb2e6960e19baa67771a6c35da53ce6556a9",
+          "sha256": "c398d73d786ba0c476053dbd076bfe885340fe7d48dca008499c52f93002c692"
+        },
+        {
+          "path": "apps/web/src/electronics/simulation-worker-evaluator.ts",
+          "BgitBlob": "94d24f8f0178316b9332c1634569f40082044b43",
+          "CgitBlob": "94d24f8f0178316b9332c1634569f40082044b43",
+          "sha256": "611701c817627c8a89226f7e3afe3cf44991e2888bdc984da47ce95b57d8ced2"
+        },
+        {
+          "path": "apps/web/src/electronics/simulation-worker-protocol.ts",
+          "BgitBlob": "0e4f82ed7f3819a287f27ac110726c8004e0bf7c",
+          "CgitBlob": "0e4f82ed7f3819a287f27ac110726c8004e0bf7c",
+          "sha256": "145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14"
+        },
+        {
+          "path": "apps/web/src/electronics/simulation.worker.ts",
+          "BgitBlob": "cbd642f833df1e44cf28a5de28b8f3e702d4c567",
+          "CgitBlob": "cbd642f833df1e44cf28a5de28b8f3e702d4c567",
+          "sha256": "725aa159cbce3ece5bc9971396daff20ea1f844943ba1ad79b58a005bc823377"
+        },
+        {
+          "path": "apps/web/src/electronics/stopped-simulation-preflight.ts",
+          "BgitBlob": "3e3b9d546feb5ed144afb47cfe1859c8772d1662",
+          "CgitBlob": "3e3b9d546feb5ed144afb47cfe1859c8772d1662",
+          "sha256": "ffa50666cd852abf1d05cfaf55bbddb87cd9bc557feb22cb6c9c9b607c044c61"
+        },
+        {
+          "path": "apps/web/src/electronics/supply-switch-hit-geometry.ts",
+          "BgitBlob": "26e86bcdb38df687dc87b3f3b7c03fc1b8806f5f",
+          "CgitBlob": "26e86bcdb38df687dc87b3f3b7c03fc1b8806f5f",
+          "sha256": "9d0165012e5e9aa5eae3acdfc8e474fdd8e8dcf81e8f89a57ae2f50607e70dc5"
+        },
+        {
+          "path": "apps/web/src/electronics/use-canvas-annotations.ts",
+          "BgitBlob": "975cbdcdb21f2797878b6cfc517b2ad8041a27d6",
+          "CgitBlob": "975cbdcdb21f2797878b6cfc517b2ad8041a27d6",
+          "sha256": "02b8bf698624ca9eb802872b01c3ba4c56dfac7031ec3f46dac1288dc11db1c9"
+        },
+        {
+          "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+          "BgitBlob": "aaf20a58fa735c1b8a3b899fbf1f3463f4444d40",
+          "CgitBlob": "aaf20a58fa735c1b8a3b899fbf1f3463f4444d40",
+          "sha256": "f9f08a1d6e80f9916013da18fd8061c95018de05f4554ceebb0023e559a3122b"
+        },
+        {
+          "path": "apps/web/src/electronics/use-piezo-audio.ts",
+          "BgitBlob": "06516c30cf366293a2ab81c4820e7a72884782b7",
+          "CgitBlob": "06516c30cf366293a2ab81c4820e7a72884782b7",
+          "sha256": "065e7eade0d6f2f4019eeaa2e0722f0bd2307f9c32b1c2d906627fbaafeb9341"
+        },
+        {
+          "path": "apps/web/src/electronics/use-workbench-project-state.ts",
+          "BgitBlob": "b6cea3a42dc77c0be00f28415971a160d11dfe17",
+          "CgitBlob": "b6cea3a42dc77c0be00f28415971a160d11dfe17",
+          "sha256": "7e66be912e25433c8c3de519f9060bbce9782a5e0068b5dd07698c299dae566d"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-annotations.ts",
+          "BgitBlob": "13ed1a82694280351f09c6881608f79c6fc4d2b3",
+          "CgitBlob": "13ed1a82694280351f09c6881608f79c6fc4d2b3",
+          "sha256": "9e2f99805c9aac10d47dbfcbd7b7eef3f4e86e4ffe0f112428b0d71b5dc4144a"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-autosave.ts",
+          "BgitBlob": "16742b46fc06be94692877b8202a0640b6fc8f9b",
+          "CgitBlob": "16742b46fc06be94692877b8202a0640b6fc8f9b",
+          "sha256": "c9562443894a1bd2f5ee0e62891454e44accf9a371180d7d4dadf01cdc16ac30"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-document.ts",
+          "BgitBlob": "91341499fe4d232cd5f3d19ed308e8162ae352fa",
+          "CgitBlob": "91341499fe4d232cd5f3d19ed308e8162ae352fa",
+          "sha256": "c2a31a83e8b70fff8e779ffce394b22bbbccd60f114627e025c1151df1dc7364"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-drag-preview.ts",
+          "BgitBlob": "5d09dafeed95dc7068230790873c4e6ee70e38c7",
+          "CgitBlob": "5d09dafeed95dc7068230790873c4e6ee70e38c7",
+          "sha256": "c9f3d50c113ac1b766ed92eff7be5611fedf0e21474d7909b693cdea997f15c6"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-geometry.ts",
+          "BgitBlob": "7a9235320a9fd2791a9f45ae771399d217f3ce24",
+          "CgitBlob": "7a9235320a9fd2791a9f45ae771399d217f3ce24",
+          "sha256": "41c67243ec68ae2bb39d52999af1d5ac6cd40f0bebcd4f218b1735d3412237c0"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-icons.tsx",
+          "BgitBlob": "6177f120bc8b6dfdfd973c999c21b999f990c5c8",
+          "CgitBlob": "6177f120bc8b6dfdfd973c999c21b999f990c5c8",
+          "sha256": "e0ad14bb7020cd2be4f62febb166a5c857ee41992af6c08bde86397bca0c8f8a"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-mobile-properties.css",
+          "BgitBlob": "74498eadd048ca708a012b43cf2f1b3dd8e0bf0b",
+          "CgitBlob": "74498eadd048ca708a012b43cf2f1b3dd8e0bf0b",
+          "sha256": "218d23348c1ff8e389668b4884fa567e751906bde5d9a510ea87cf3600c98a09"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-model.ts",
+          "BgitBlob": "87722ec4918e6725f7e05467c16d49d60c05f118",
+          "CgitBlob": "87722ec4918e6725f7e05467c16d49d60c05f118",
+          "sha256": "2c0072be3126d9eb3939193cf16552727eea4d404c91659dcc5449218e988696"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-runtime-controls.ts",
+          "BgitBlob": "2b1b46a49266da38e659f35e3cf6bd65e931a261",
+          "CgitBlob": "2b1b46a49266da38e659f35e3cf6bd65e931a261",
+          "sha256": "d38335128ccc00e6da6a6108e42db8b90feac4608dae2522e83474034908ebbd"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-shortcuts.ts",
+          "BgitBlob": "94292bab891f65a0684d1287a95d8c408f2e6bc2",
+          "CgitBlob": "94292bab891f65a0684d1287a95d8c408f2e6bc2",
+          "sha256": "761696d9ba19df21d0055be7f2d2171c07f956fc61eb079307a70840ac0bce43"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench-values.ts",
+          "BgitBlob": "69f0be43c05901dea05548e4364f47226a7d5189",
+          "CgitBlob": "69f0be43c05901dea05548e4364f47226a7d5189",
+          "sha256": "006666cbcd8a4d738f4e64082b29ee7657c84f619b015d44130c1e5d4c35a5fd"
+        },
+        {
+          "path": "apps/web/src/electronics/workbench.css",
+          "BgitBlob": "777d2f4314f1fccb4a80769317e35e02c64ee5cb",
+          "CgitBlob": "777d2f4314f1fccb4a80769317e35e02c64ee5cb",
+          "sha256": "8ebe1ad9989dfaf2fcd702c559b5a15794d0e7cc8411c7e103a382a1d8cd5612"
+        },
+        {
+          "path": "apps/web/src/games/game-catalog.ts",
+          "BgitBlob": "b6194f3151439808196f17924057aa65290229c1",
+          "CgitBlob": "b6194f3151439808196f17924057aa65290229c1",
+          "sha256": "420796369261595e686adf06d30de6fce984d0f388a4d8e211c70434abbdc9a6"
+        },
+        {
+          "path": "apps/web/src/modules/project-draft-mutation.ts",
+          "BgitBlob": "03e904972e44f9127f42dd6e91165123a710e243",
+          "CgitBlob": "03e904972e44f9127f42dd6e91165123a710e243",
+          "sha256": "d9ac7d1a444acd220588527f8ea06ce32c0418522c76967d0de34f3ae052b145"
+        },
+        {
+          "path": "apps/web/src/modules/project-local-draft.ts",
+          "BgitBlob": "ede6dff79eff135087d00cc481895bd4fe2bbad1",
+          "CgitBlob": "ede6dff79eff135087d00cc481895bd4fe2bbad1",
+          "sha256": "1a139ef0679dcf081a29311460c0515c2da2cf7daa320f13c25401c1ddf7f9de"
+        },
+        {
+          "path": "apps/web/src/modules/project-save-evidence.tsx",
+          "BgitBlob": "b4f5c3c3d3732de44b5e5583e6f696af8ece1f92",
+          "CgitBlob": "b4f5c3c3d3732de44b5e5583e6f696af8ece1f92",
+          "sha256": "55aa62811a6435ff6ff39c7e7536510b7bf3aadc523e65b53b19f50c682b7640"
+        },
+        {
+          "path": "apps/web/src/modules/project-snapshot.ts",
+          "BgitBlob": "c5e7c433572c0272b9b0c957c39b1bef5e54d22a",
+          "CgitBlob": "c5e7c433572c0272b9b0c957c39b1bef5e54d22a",
+          "sha256": "eb3e0f31cd684d765e9d075d60fdbc0dfb8436b8edd3ead117ccf2f745d255ac"
+        },
+        {
+          "path": "apps/web/src/modules/svg-snapshot.ts",
+          "BgitBlob": "4d134427f9e167e5ae7caf1c0b3fb8d0dba7c8b7",
+          "CgitBlob": "4d134427f9e167e5ae7caf1c0b3fb8d0dba7c8b7",
+          "sha256": "a252d5c7a45ef6f909b0f763ec0e939fb80b5ec1049b7dc96e092e1800522535"
+        },
+        {
+          "path": "apps/web/src/pages/SchematicEditor.tsx",
+          "BgitBlob": "0e2e7de65351e1ca3106317fbda60456c93d36c7",
+          "CgitBlob": "0e2e7de65351e1ca3106317fbda60456c93d36c7",
+          "sha256": "5360b438c2c93663209444033c570a905f2adcc778f809bfadb052be7634e392"
+        },
+        {
+          "path": "apps/web/src/portal-requests.ts",
+          "BgitBlob": "c9514335efe798680582a315ab58c997deace83d",
+          "CgitBlob": "c9514335efe798680582a315ab58c997deace83d",
+          "sha256": "eac29a3a4ec9a98a79bbb7eab8edc22717316fd8fb1f60e119c827657d5cfbbd"
+        },
+        {
+          "path": "apps/web/src/project-snapshot-client.ts",
+          "BgitBlob": "f8d9b3d9c512dc5ff361cb756f8e149f5ea44360",
+          "CgitBlob": "f8d9b3d9c512dc5ff361cb756f8e149f5ea44360",
+          "sha256": "e813d7b108a7715d18bd7792397a620eb553f544154919d31f01b3ce7a2232e0"
+        },
+        {
+          "path": "apps/web/src/request-diagnostic-details.ts",
+          "BgitBlob": "11ff4931d0890a1b9714caf05ad18df12c390870",
+          "CgitBlob": "11ff4931d0890a1b9714caf05ad18df12c390870",
+          "sha256": "8e25a8789ac7495f38cc72f93a11e94e0acb4cc4a714f0898ec0447c9bd6dce2"
+        },
+        {
+          "path": "apps/web/src/session-fetch.ts",
+          "BgitBlob": "18062852aba98237fa54ae49d37fb43cbb2c49a8",
+          "CgitBlob": "18062852aba98237fa54ae49d37fb43cbb2c49a8",
+          "sha256": "2c07baf3c60faf5cae9ac06180f00c87929ef9f9e8eb7abd11bdb2d756562535"
+        },
+        {
+          "path": "apps/web/src/telemetry-context.ts",
+          "BgitBlob": "56f302d10048a9877d67c64dc9851038d48f7b42",
+          "CgitBlob": "56f302d10048a9877d67c64dc9851038d48f7b42",
+          "sha256": "32a893e457ccdc3a5e55c6a3be14a6b69b213084729f9a0320f0f15082f07da0"
+        },
+        {
+          "path": "apps/web/src/telemetry-contract.ts",
+          "BgitBlob": "e0bfef285c9cd09bb847ced44ea3a6c2a4ab879c",
+          "CgitBlob": "e0bfef285c9cd09bb847ced44ea3a6c2a4ab879c",
+          "sha256": "8f181b4738acc1ff072c4f1b578bcf276b4931538143f526af297cea3d1ae11e"
+        },
+        {
+          "path": "apps/web/src/telemetry-quality.ts",
+          "BgitBlob": "87a1de30dcf94f2d24633266016581c21ab7e431",
+          "CgitBlob": "87a1de30dcf94f2d24633266016581c21ab7e431",
+          "sha256": "d625d23fd223e54aa60808d84d8c4622ea3947aeefa5c17e040955fc00f66856"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-adc-observation.ts",
+          "BgitBlob": "88ca62f36b63c5faf622d7cb366885e0399ae88e",
+          "CgitBlob": "88ca62f36b63c5faf622d7cb366885e0399ae88e",
+          "sha256": "c7481b5a9e86295e6d745f3addf56184fe123a1ecec6917af87f7cb9141e801c"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-block-support.ts",
+          "BgitBlob": "38a381a5106b993742feb5bbcd9c2b229740a807",
+          "CgitBlob": "38a381a5106b993742feb5bbcd9c2b229740a807",
+          "sha256": "cd3a62be4a55ebd8d7a64a13d0a11e3d55380803aa3387a05a2771d36a1f8a0c"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-capabilities.ts",
+          "BgitBlob": "9c62501eaf1345c0d7f3d6d10f91f5ac2f4ce00f",
+          "CgitBlob": "9c62501eaf1345c0d7f3d6d10f91f5ac2f4ce00f",
+          "sha256": "34cd4bc2f13eb3a2df1d19c2e5d3eb2e61d536de291548d7b48e87d9c216066f"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+          "BgitBlob": "60aafe74cc871926b34517052454c4129d58ed9f",
+          "CgitBlob": "60aafe74cc871926b34517052454c4129d58ed9f",
+          "sha256": "e0465f5d401da6ad1c6259cdd042b64c1d36417279a0fab5522ab7f4e5b4066a"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-model.ts",
+          "BgitBlob": "cc97cfadf9f3ec01d48f71eed86175e74246a27b",
+          "CgitBlob": "cc97cfadf9f3ec01d48f71eed86175e74246a27b",
+          "sha256": "2609d106f604030998bb5b9900d4e2996beb6b65a8346be0745dbf40b2771309"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-program-runtime.ts",
+          "BgitBlob": "ca3f09e042df617ba2687d0cac080b9033217bd6",
+          "CgitBlob": "ca3f09e042df617ba2687d0cac080b9033217bd6",
+          "sha256": "175222b32c4133ad428aaef02dfb024d791b49fc72a8b0cef35af6c9cdefcd1f"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-pulse-runtime.ts",
+          "BgitBlob": "9a7af5e3965bae474642a1bd1448a732b4618254",
+          "CgitBlob": "9a7af5e3965bae474642a1bd1448a732b4618254",
+          "sha256": "70b08fe57a0b680e0d807eb3bfbe532465a88819e7c707e81e3ae711884138bd"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-random.ts",
+          "BgitBlob": "7e007a85b5ecdf60617469c632c7cc538eebad11",
+          "CgitBlob": "7e007a85b5ecdf60617469c632c7cc538eebad11",
+          "sha256": "603c8e1ffcf9b9464e9308830bd213a6b94999f9816cc9939dbe159f008cc160"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-serial-runtime.ts",
+          "BgitBlob": "46804b0a81640398297eec03bd896d386c137a54",
+          "CgitBlob": "46804b0a81640398297eec03bd896d386c137a54",
+          "sha256": "51667aed3794ba5466d8e9a6cf2e821502b7e983ae9eab25f2a7f05b9709dcdf"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-servo-runtime.ts",
+          "BgitBlob": "13ea379e64995b388313225321b0510f19950e11",
+          "CgitBlob": "13ea379e64995b388313225321b0510f19950e11",
+          "sha256": "72b474371d5ddd40957ad99fdb0a2beb7a24c4d580b0f488f1d53870dba27db0"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-stable-loop.ts",
+          "BgitBlob": "c434ad07c538f11ff8b82f161f3f244c34f0f618",
+          "CgitBlob": "c434ad07c538f11ff8b82f161f3f244c34f0f618",
+          "sha256": "95756c370067d347c52a9798b0e9def1511dfb972b6f9e8c26a13d35701c36d0"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-switch-syntax.ts",
+          "BgitBlob": "4587c910b35d03e4c825a781e5239ddff5f947c8",
+          "CgitBlob": "4587c910b35d03e4c825a781e5239ddff5f947c8",
+          "sha256": "d11bf27e95337116e0e1e84760a2e2b826e294c24356b37a73e8696a864fd590"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-user-functions.ts",
+          "BgitBlob": "17e8c5c8af269c5deebafb6f67a0a6bfc6604216",
+          "CgitBlob": "17e8c5c8af269c5deebafb6f67a0a6bfc6604216",
+          "sha256": "67cc890dfdb7cb25f4f0c89b2475fddc0c5906801f025fdda6b2358d9ae82fbd"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-values.ts",
+          "BgitBlob": "b7cd5d8dc450f08484561e7142dd8f885174f586",
+          "CgitBlob": "b7cd5d8dc450f08484561e7142dd8f885174f586",
+          "sha256": "a6524621d99a99802e990ff28f26bce151d4e824e063a843af06fa0e6357dcff"
+        },
+        {
+          "path": "contexts/electronics/domain/arduino-waveform-runtime.ts",
+          "BgitBlob": "b067135eb5bf01e24e290688eeca247242d136fd",
+          "CgitBlob": "b067135eb5bf01e24e290688eeca247242d136fd",
+          "sha256": "8ec020f9b1dbd8eb24d94e397ccdd50953be96e7ba43b7883592ad09ada40ae0"
+        },
+        {
+          "path": "contexts/electronics/domain/canvas-annotations.ts",
+          "BgitBlob": "231ba69865f898e8db2fd9f120ee4032c2ff25e6",
+          "CgitBlob": "231ba69865f898e8db2fd9f120ee4032c2ff25e6",
+          "sha256": "e5abdce9b5ef65e695cefc39840dd85b7df182dede036ebb0d97afcc0a43b3a0"
+        },
+        {
+          "path": "contexts/electronics/domain/capacitor-constraints.ts",
+          "BgitBlob": "2f9515e6d7bf6bec7d614e8d90e78643596c9576",
+          "CgitBlob": "2f9515e6d7bf6bec7d614e8d90e78643596c9576",
+          "sha256": "ba43e67edb816dbf5a0aaa46fd80b53127d496380722cdd67e109a4f858175b1"
+        },
+        {
+          "path": "contexts/electronics/domain/document.ts",
+          "BgitBlob": "4d4d2311c6cdff09de3550d996cf89301c490f05",
+          "CgitBlob": "4d4d2311c6cdff09de3550d996cf89301c490f05",
+          "sha256": "6d4b1cf8bb657cdf8fd471df831dd507baa50387078b0406b093130817c443ad"
+        },
+        {
+          "path": "contexts/electronics/domain/led-model.ts",
+          "BgitBlob": "283f2f25a23db3d3426873b31cc71b0be20a3d69",
+          "CgitBlob": "283f2f25a23db3d3426873b31cc71b0be20a3d69",
+          "sha256": "860891d535cdccde68f6f151738ab76a7f0b928f374dc2b083d4a6f2934a7af3"
+        },
+        {
+          "path": "contexts/electronics/domain/led-temporal-observation.ts",
+          "BgitBlob": "06aa5197e68d20604325cd774f1e246b2b3206c7",
+          "CgitBlob": "06aa5197e68d20604325cd774f1e246b2b3206c7",
+          "sha256": "796223ebe86d47b7aad92e8d181ada528d242d9c3a6bc4d8f1e16b7cc8e829c6"
+        },
+        {
+          "path": "contexts/electronics/domain/linear-system.ts",
+          "BgitBlob": "42f94d9a1611440aeab8d6013e56055a789a8a61",
+          "CgitBlob": "42f94d9a1611440aeab8d6013e56055a789a8a61",
+          "sha256": "0fcb5a272d00ee0582302c87b4bf6a8794e755b8f0e39585e507292a5ace6b6a"
+        },
+        {
+          "path": "contexts/electronics/domain/model-identity.ts",
+          "BgitBlob": "f8b9920b88e5d1ae9d584079847e5f7115751b7d",
+          "CgitBlob": "f8b9920b88e5d1ae9d584079847e5f7115751b7d",
+          "sha256": "51fefac04f0081a04416e21b357f9e86e62b10c94f6339c4f1274c29b200ec61"
+        },
+        {
+          "path": "contexts/electronics/domain/model-registry.ts",
+          "BgitBlob": "cd6d3afb67fb9db5094194d0442671e74354d352",
+          "CgitBlob": "cd6d3afb67fb9db5094194d0442671e74354d352",
+          "sha256": "ed2c4c69d3bd20f9d506a8ab36736aa18deecf0bbdc354e32b8a4319ae8d52d3"
+        },
+        {
+          "path": "contexts/electronics/domain/models/brushed-motor-profiles.ts",
+          "BgitBlob": "e979254ef7def9fca3ff032be47cf26a49c188ac",
+          "CgitBlob": "e979254ef7def9fca3ff032be47cf26a49c188ac",
+          "sha256": "d39047ff800115bceff63d6ee8e94f34ddd02886c213d4f6ea1db5a1ece678bc"
+        },
+        {
+          "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+          "BgitBlob": "095a4f9c310ab1a77ba833034bdf454e460cfffc",
+          "CgitBlob": "095a4f9c310ab1a77ba833034bdf454e460cfffc",
+          "sha256": "86570985c5b2bd352b06024748d8e1ee22d1fb58867d1e5e09b935685c00ef0b"
+        },
+        {
+          "path": "contexts/electronics/domain/models/capacitor-transient-model.ts",
+          "BgitBlob": "6dd8b16a9bc64d616401c11de46074b81cfbd517",
+          "CgitBlob": "6dd8b16a9bc64d616401c11de46074b81cfbd517",
+          "sha256": "735e907c37e8fbb19edd0cd1ba65cf3e32110da47fc729240e7beb12b4fe2329"
+        },
+        {
+          "path": "contexts/electronics/domain/models/device-model.ts",
+          "BgitBlob": "40e78f94a87943f44544cb6a4aa32dc3b40b2127",
+          "CgitBlob": "40e78f94a87943f44544cb6a4aa32dc3b40b2127",
+          "sha256": "4047a80a18cd0faae675825ce63eaa5902c7bef44fe75ff7c20a7e76b83e3884"
+        },
+        {
+          "path": "contexts/electronics/domain/models/hc-sr04-runtime.ts",
+          "BgitBlob": "e5a91ef1c331934880aa753d05902445a042d7a0",
+          "CgitBlob": "e5a91ef1c331934880aa753d05902445a042d7a0",
+          "sha256": "09fec5f8f0fe40eda1c3649a4c485ebbedb97b8907377c5cd67a8c4c06dce794"
+        },
+        {
+          "path": "contexts/electronics/domain/models/incandescent-lamp-model.ts",
+          "BgitBlob": "ed192edc0aa83f5cf98675c572273e9852f9d5dc",
+          "CgitBlob": "ed192edc0aa83f5cf98675c572273e9852f9d5dc",
+          "sha256": "e7cf58290182f7818687b9fd876364c6391e3c66dde4cf1df49e142c7a7eaf05"
+        },
+        {
+          "path": "contexts/electronics/domain/models/linear-dc-models.ts",
+          "BgitBlob": "e341baa87be662144af81d55b0275c9ba6747503",
+          "CgitBlob": "e341baa87be662144af81d55b0275c9ba6747503",
+          "sha256": "0bfb88477ea5039d8bca559497e2de2d276e1afc5678b0aad39b3ab2ddc89708"
+        },
+        {
+          "path": "contexts/electronics/domain/models/nonlinear-dc-models.ts",
+          "BgitBlob": "d0d294b663a0f4703171e8f6ca3c1579d2bee493",
+          "CgitBlob": "d0d294b663a0f4703171e8f6ca3c1579d2bee493",
+          "sha256": "a9acbc7b564f7db8a41f4e1d73d948f7995ca59aef9179d778cf1ff581c731e3"
+        },
+        {
+          "path": "contexts/electronics/domain/models/npn-dc-model.ts",
+          "BgitBlob": "d2ce192c73a2afec3a0a5736ce3ae49910cd00df",
+          "CgitBlob": "d2ce192c73a2afec3a0a5736ce3ae49910cd00df",
+          "sha256": "f869b23bd4451bdea39844fad1599aa96c5b0d56672fbe96cf497a9264857988"
+        },
+        {
+          "path": "contexts/electronics/domain/models/piezo-audio-model.ts",
+          "BgitBlob": "46cdcae099322f1c40261a6db524e87b110e5370",
+          "CgitBlob": "46cdcae099322f1c40261a6db524e87b110e5370",
+          "sha256": "ff6319396cc03bbf06cdd8a9e7690eca0d82f25968d64584d15ee6769d3a58b4"
+        },
+        {
+          "path": "contexts/electronics/domain/models/ping-ultrasonic-runtime.ts",
+          "BgitBlob": "b58b52ee042fef8da2424fc59338146321d74c1d",
+          "CgitBlob": "b58b52ee042fef8da2424fc59338146321d74c1d",
+          "sha256": "2476e82610e87cb3237593d203985681d5cb233afc6658010c187ab577d532f4"
+        },
+        {
+          "path": "contexts/electronics/domain/models/pir-sensor-model.ts",
+          "BgitBlob": "949365427681599ab236fe931fb6030f2b55e969",
+          "CgitBlob": "949365427681599ab236fe931fb6030f2b55e969",
+          "sha256": "380f9d141aa77eaa0d419e2cdefd032eb20238ecec54923cb7f9d756be518c33"
+        },
+        {
+          "path": "contexts/electronics/domain/models/pnp-dc-model.ts",
+          "BgitBlob": "1e1d9c2f728f98ab8ae5e1b38c7ba98320d5900f",
+          "CgitBlob": "1e1d9c2f728f98ab8ae5e1b38c7ba98320d5900f",
+          "sha256": "31d592bb36d9cc2ca36232980bd96f6b6eb36f501906e937f68240b1305f3496"
+        },
+        {
+          "path": "contexts/electronics/domain/models/regulated-power-supply-model.ts",
+          "BgitBlob": "42eff8f32127bacfa4631b50b0ecb21533adf7f7",
+          "CgitBlob": "42eff8f32127bacfa4631b50b0ecb21533adf7f7",
+          "sha256": "0721b935ab2f55cde0c1057c75c5540f196fb48b2e673c92ce59ebc9bfbcda00"
+        },
+        {
+          "path": "contexts/electronics/domain/models/servo-runtime.ts",
+          "BgitBlob": "877080ded0a0fa32a8300165e99a0a2ead5d73cb",
+          "CgitBlob": "877080ded0a0fa32a8300165e99a0a2ead5d73cb",
+          "sha256": "c2ba9fcb826dfb52583959406a8cf8d68ee702f5badab3fc92c7b652c8e9b1e4"
+        },
+        {
+          "path": "contexts/electronics/domain/models/signal-generator-model.ts",
+          "BgitBlob": "cf1d1bcb887d684094c203ffde41162cf2840a5a",
+          "CgitBlob": "cf1d1bcb887d684094c203ffde41162cf2840a5a",
+          "sha256": "22d1b5e7ead44456b6c01705e547f3e5a946bfa8d8f53e41ce05345ad409d4b5"
+        },
+        {
+          "path": "contexts/electronics/domain/models/soil-moisture-model.ts",
+          "BgitBlob": "b5fb48ee281a2401b48766854ad7ece7eda23adc",
+          "CgitBlob": "b5fb48ee281a2401b48766854ad7ece7eda23adc",
+          "sha256": "0273f1ec5d952bcce8a0776b06b2d6d17c46a3c2e1e8858946af209e82ecef93"
+        },
+        {
+          "path": "contexts/electronics/domain/models/thermal-transient-model.ts",
+          "BgitBlob": "16e8f73dd093052b396e525113c5e10ca898f8c0",
+          "CgitBlob": "16e8f73dd093052b396e525113c5e10ca898f8c0",
+          "sha256": "79905b50ccc3389c239aeb45d1f7b9850170955b5b776221c0748fd8b801114e"
+        },
+        {
+          "path": "contexts/electronics/domain/models/tmp36-dc-model.ts",
+          "BgitBlob": "89dbb31ceb822c7f42fa8f6c07c82e639fe1287d",
+          "CgitBlob": "89dbb31ceb822c7f42fa8f6c07c82e639fe1287d",
+          "sha256": "4a2de745fa31d7965f4331af7cb6e67568550a5d62bab79b2eb3736ff75cbbb4"
+        },
+        {
+          "path": "contexts/electronics/domain/netlist.ts",
+          "BgitBlob": "b678942502613fdc7bd16134c7f260569695185d",
+          "CgitBlob": "b678942502613fdc7bd16134c7f260569695185d",
+          "sha256": "3fae82553d88ddbeb94e3a6c9227ced83dac6d6b96968287101978ae79584eb0"
+        },
+        {
+          "path": "contexts/electronics/domain/numerical-shunt-power.ts",
+          "BgitBlob": "d26e83d9acc506a0890b2dfe8ff1e7afc162d8e6",
+          "CgitBlob": "d26e83d9acc506a0890b2dfe8ff1e7afc162d8e6",
+          "sha256": "a9304f4f7c719f8618cb787a28e1bb418cb5cbb4d381ba9200c62b59b7b324d5"
+        },
+        {
+          "path": "contexts/electronics/domain/photoresistor-input.ts",
+          "BgitBlob": "0834613b4569799a2967ed5e4569b62046f09b2f",
+          "CgitBlob": "0834613b4569799a2967ed5e4569b62046f09b2f",
+          "sha256": "4a2275db3fd79ba0513470e5ba30d36f720d527408ebd01016cb9fe63c7c66f8"
+        },
+        {
+          "path": "contexts/electronics/domain/photoresistor-model.ts",
+          "BgitBlob": "1afca5839b6f063ce45285b2a7c3b6ceba4ebf48",
+          "CgitBlob": "1afca5839b6f063ce45285b2a7c3b6ceba4ebf48",
+          "sha256": "027ec9d21884e792813dfff973657c20c694a27412ad38e4fc2b184c020ea358"
+        },
+        {
+          "path": "contexts/electronics/domain/simulation-input-digest.ts",
+          "BgitBlob": "04d7c6161c54f3842aa2f168d5c47e1a3c096588",
+          "CgitBlob": "04d7c6161c54f3842aa2f168d5c47e1a3c096588",
+          "sha256": "0dde5919662fa2ed70d44880fdd9e4743b20d5fb4c21a01fe3aa2e98797faf4e"
+        },
+        {
+          "path": "contexts/electronics/domain/simulation.ts",
+          "BgitBlob": "3809b9064c9c34045d624870dd20833dbd283027",
+          "CgitBlob": "3809b9064c9c34045d624870dd20833dbd283027",
+          "sha256": "7eedb1d9eb06ce6e1e488300f61098aa0ead4e78fd9f4d5142b4bdb83eefce92"
+        },
+        {
+          "path": "contexts/electronics/domain/solver.ts",
+          "BgitBlob": "e4f79b8a2c48346ae6eefe74b2a819b269a23f8a",
+          "CgitBlob": "e4f79b8a2c48346ae6eefe74b2a819b269a23f8a",
+          "sha256": "329567d63e1ed97f2dab707ee240c4425165d2d60fb2905d8dad21e59d7c1166"
+        },
+        {
+          "path": "contexts/electronics/domain/switch-topology.ts",
+          "BgitBlob": "2b0650edd0126aaef6157433a3017d3abb0d6592",
+          "CgitBlob": "2b0650edd0126aaef6157433a3017d3abb0d6592",
+          "sha256": "743351f3313535559947500bf728c64d74aafe1e5d1b25273a8a0a61c843036b"
+        },
+        {
+          "path": "contexts/electronics/engine.ts",
+          "BgitBlob": "c37ef3de2ab515733994f140c265b997095457af",
+          "CgitBlob": "c37ef3de2ab515733994f140c265b997095457af",
+          "sha256": "0564b8cefc11e4ea3be46b1ad5933cd2c328f1d647a71cb0d26aa1ea01f82528"
+        },
+        {
+          "path": "contexts/electronics/index.ts",
+          "BgitBlob": "104141a8071a5ebb2a5e92024bf0d9c9c1b94789",
+          "CgitBlob": "104141a8071a5ebb2a5e92024bf0d9c9c1b94789",
+          "sha256": "0b329cae069326302e1a52c47799794ba429a7cde3f8a31036a44782ecec0d8b"
+        },
+        {
+          "path": "contexts/electronics/module.ts",
+          "BgitBlob": "0fbfbf3750a3cd4a6d1d46e23e13fe8f62b41980",
+          "CgitBlob": "0fbfbf3750a3cd4a6d1d46e23e13fe8f62b41980",
+          "sha256": "74d8040bf4000d3f7445c6090028247455e631ea6476bef94676c88aa4711c83"
+        },
+        {
+          "path": "contexts/electronics/rendering.ts",
+          "BgitBlob": "47cb6affabf4a2bf5debdea7312d3fa233c8b678",
+          "CgitBlob": "47cb6affabf4a2bf5debdea7312d3fa233c8b678",
+          "sha256": "f61d5423dc79ed149c56a45bd0ae3545a2b014759a75451ed5a25df72994e78a"
+        },
+        {
+          "path": "contexts/electronics/simulation.ts",
+          "BgitBlob": "2c0f40613f2206a19edbb012cb815e08e5e2d2bf",
+          "CgitBlob": "2c0f40613f2206a19edbb012cb815e08e5e2d2bf",
+          "sha256": "149e15f0969ab47196cc9157979b38517781883d0e993d6b578d05d8667c7f7c"
+        },
+        {
+          "path": "contexts/electronics/timed-state.ts",
+          "BgitBlob": "1528e731acae8856abf4332b0e8c12c6e6e770b5",
+          "CgitBlob": "1528e731acae8856abf4332b0e8c12c6e6e770b5",
+          "sha256": "68d8349382dcafec0c94a4d242700595842374e1f18cc1fb0f60a1dca479ea3b"
+        },
+        {
+          "path": "packages/module-sdk/src/index.ts",
+          "BgitBlob": "7c729f8256a6b02facb67f7193257f61e826a936",
+          "CgitBlob": "7c729f8256a6b02facb67f7193257f61e826a936",
+          "sha256": "d9a41deed96c1a929dfe9441438458bcabc1d346daa3d3f71e40fa7a88c8b154"
+        }
+      ],
+      "identicalSupportInputs": [
+        {
+          "path": "pnpm-lock.yaml",
+          "gitBlob": "6f6bb33f45f1fef71ff2a5855b8d69d7f10892d0",
+          "sha256": "58689cb085cb89c7da2a849c4c6076e107151cb699006bdb4c78d5b874d03476"
+        },
+        {
+          "path": "package.json",
+          "gitBlob": "ddbbdea372712e12a5a1eb57e45ee1faf4c2a076",
+          "sha256": "c7694ec4bbd5579400b30a208dcf1466377675f6050987410d24fdf5150d60db"
+        },
+        {
+          "path": "nx.json",
+          "gitBlob": "63dd2f7fc0d0e30d9ed2b409c8a0b8fa1b81848a",
+          "sha256": "56f35ed28d7a5930cb78062408b46d8fd92168a2dfcea0a022091b1acbf170da"
+        },
+        {
+          "path": "tsconfig.base.json",
+          "gitBlob": "6b18db7c8395757a863b73f90049b7c6e51ef46b",
+          "sha256": "184b7d66f97f63e8214d09a4b9daa4706dbd9a0238cf72a7fbd0abed741ef8e9"
+        },
+        {
+          "path": "apps/web/src/electronics/testing/stopped-preflight.browser.mjs",
+          "gitBlob": "4b5b20152ced9e631621f97ad9fc9f2cb6363f71",
+          "sha256": "a8db179db352f8d8436e51d60ddb5789f8efb9fa4bc38b0f6a2a397f6d8bd62a"
+        },
+        {
+          "path": ".github/workflows/electronics-recovery-performance.yml",
+          "gitBlob": "b0bc22fe30caca23a90c85fa85980e237c3422a4",
+          "sha256": "f2d694fa79405b11a3f34a6710f3dbfadf58c4024292936b8b2a3953b03aca95"
+        }
+      ],
+      "dependencyInputPaths": {
+        "ui": [
+          "node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react.production.min.js",
+          "node_modules/.pnpm/react@18.3.1/node_modules/react/index.js",
+          "node_modules/.pnpm/scheduler@0.23.2/node_modules/scheduler/cjs/scheduler.production.min.js",
+          "node_modules/.pnpm/scheduler@0.23.2/node_modules/scheduler/index.js",
+          "node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/cjs/react-dom.production.min.js",
+          "node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/index.js",
+          "node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/client.js",
+          "node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
+          "node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
+          "node_modules/.pnpm/scratch-blocks@2.1.19/node_modules/scratch-blocks/dist/main.mjs",
+          "node_modules/.pnpm/scratch-blocks@2.1.19/node_modules/scratch-blocks/media/sprites.png?url",
+          "node_modules/.pnpm/scratch-blocks@2.1.19/node_modules/scratch-blocks/media/zoom-in.svg?url",
+          "node_modules/.pnpm/scratch-blocks@2.1.19/node_modules/scratch-blocks/media/zoom-out.svg?url",
+          "node_modules/.pnpm/scratch-blocks@2.1.19/node_modules/scratch-blocks/media/zoom-reset.svg?url"
+        ],
+        "worker": []
+      },
+      "virtualInputs": {
+        "ui": [
+          "<define:import.meta.env>",
+          "<stdin>"
+        ],
+        "worker": [
+          "<define:import.meta.env>"
+        ]
+      },
+      "currentWorkingTreeMeasuredInputOverlap": [],
+      "limitation": "Proves tracked runtime sources and build/probe/lock inputs identical B to C. Measured bundle and recording retain B identity; not a claim of a C build or production deployment.",
+      "identicalAssetFixtureAndDependencyInputs": [
+        {
+          "path": "apps/web/public/assets",
+          "objectType": "tree",
+          "BgitObject": "5fb5f8111ced94a444a49a58bd16be02697d668c",
+          "CgitObject": "5fb5f8111ced94a444a49a58bd16be02697d668c"
+        },
+        {
+          "path": "apps/web/public/asa-lab-mark.svg",
+          "objectType": "blob",
+          "BgitObject": "351efb06013d97e699232a16c0dc7eda854554c1",
+          "CgitObject": "351efb06013d97e699232a16c0dc7eda854554c1",
+          "sha256": "32f1d7e5e8607cef7e448734da8b58ba3bc4ed1c0eb9769ab2306a66d1cab9d6"
+        },
+        {
+          "path": "tests/electronics/recovery",
+          "objectType": "tree",
+          "BgitObject": "593de3b3629948d2d170fe48395296a012af4583",
+          "CgitObject": "593de3b3629948d2d170fe48395296a012af4583"
+        },
+        {
+          "path": ".npmrc",
+          "objectType": "blob",
+          "BgitObject": "b16815f6d476ad1329cd93915015cc36aac80190",
+          "CgitObject": "b16815f6d476ad1329cd93915015cc36aac80190",
+          "sha256": "aa5871c88529cebd07c95a70c308be29c97c6d34bd9bf5f9b933b5217bb04d9e"
+        },
+        {
+          "path": "pnpm-workspace.yaml",
+          "objectType": "blob",
+          "BgitObject": "4a4bba2ec780861d91cd5033c14e8e4913f9c5a0",
+          "CgitObject": "4a4bba2ec780861d91cd5033c14e8e4913f9c5a0",
+          "sha256": "d3b3de30ec6256b934b8c73405686fc92cfbda2793fe9d14bdee7a9aea3f4a25"
+        }
+      ],
+      "frozenFileReceiptBindings": [
+        {
+          "path": "tests/electronics/recovery/s3.json",
+          "receiptSha256": "43d6bae8421baf88cc5c291f145aec4cbbb9e5dfcbacd8d61771fda228e86145",
+          "matched": true,
+          "components": 2,
+          "connections": 0
+        },
+        {
+          "path": "tests/electronics/recovery/s4-reconstruction.json",
+          "receiptSha256": "32a680a113ef9590c12ea344eab3e29aa8ed1fda7c1b512b6be64e07b6307fa1",
+          "matched": true,
+          "components": 17,
+          "connections": 14
+        },
+        {
+          "path": "tests/electronics/recovery/reconstructed-audit.ino",
+          "receiptSha256": "40727bee963f76362d5cf484d7023ee4c3d0dc0f7e2bfd844da1ab0d0dfad7b2",
+          "matched": true
+        },
+        {
+          "path": "apps/web/public/assets/electronics/component-database/catalog.json",
+          "receiptSha256": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
+          "matched": true
+        }
+      ]
+    },
+    "boundary": "Shown build retains B identity. Historical C-to-P has six changed paths. The owner-authorized additional composition has eighteen changed paths from P (fourteen exact accepted classroom files and four controller documents), twenty from C. All are outside the 164 measured objects; final composition and foreign state are independently checked on PR1126."
+  },
+  "videoCopies": [
+    {
+      "scene": "S4",
+      "phase": "before",
+      "sourceProduct": "c76b51e38af94a308b6fe9080d776d6ee6ada4b4",
+      "sourceWebm": {
+        "path": "before/before-S4-1920-visual.webm",
+        "bytes": 3705986,
+        "sha256": "f22cdabba7c54fd7e7919afa836f70beddcdcd17fa7fd9c1c25721808e2a1e2b"
+      },
+      "mp4": {
+        "filename": "ASA_Electronics_S4_Before_c76b51e3.mp4",
+        "bytes": 8548586,
+        "sha256": "65989d05e4ec2b90d1efd5cc7c34bd7db730e28ba3489f1b3e845b1e930cd169"
+      },
+      "verification": {
+        "frameCount": 639,
+        "durationSeconds": 25.56,
+        "maxPresentationTimestampDeltaSeconds": 0.0,
+        "geometryUnchanged": true,
+        "allFramesRetained": true,
+        "noTemporalEdits": true,
+        "pixelIdentity": "NOT_CLAIMED: lossy H.264 CRF 18; original WebM preserved"
+      }
+    },
+    {
+      "scene": "S4",
+      "phase": "after",
+      "sourceProduct": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+      "sourceWebm": {
+        "path": "after/after-S4-1920-visual.webm",
+        "bytes": 3543810,
+        "sha256": "245c768d9adb1b1f0b6308480c8c434fa6f4864663eeeaaf6cd9a05112467c52"
+      },
+      "mp4": {
+        "filename": "ASA_Electronics_S4_After_dfea2026.mp4",
+        "bytes": 8682538,
+        "sha256": "7e52d2eaee95b7b4724cbd46ad27317a2cf22ce9a00562d9fbc056fdc395074c"
+      },
+      "verification": {
+        "frameCount": 637,
+        "durationSeconds": 25.48,
+        "maxPresentationTimestampDeltaSeconds": 0.0,
+        "geometryUnchanged": true,
+        "allFramesRetained": true,
+        "noTemporalEdits": true,
+        "pixelIdentity": "NOT_CLAIMED: lossy H.264 CRF 18; original WebM preserved"
+      }
+    },
+    {
+      "scene": "S3",
+      "phase": "before",
+      "sourceProduct": "c76b51e38af94a308b6fe9080d776d6ee6ada4b4",
+      "sourceWebm": {
+        "path": "before/before-S3-1920-visual.webm",
+        "bytes": 3477923,
+        "sha256": "5d0bd3fb99760f7e8d52806e2767d40086c5134b81440a3512579b82d854708a"
+      },
+      "mp4": {
+        "filename": "ASA_Electronics_S3_Before_c76b51e3.mp4",
+        "bytes": 7544431,
+        "sha256": "28cff9426a53591763a1021f9a8feeafed95e6634fd7197d06b79daf2cbe078e"
+      },
+      "verification": {
+        "frameCount": 612,
+        "durationSeconds": 24.48,
+        "maxPresentationTimestampDeltaSeconds": 0.0,
+        "geometryUnchanged": true,
+        "allFramesRetained": true,
+        "noTemporalEdits": true,
+        "pixelIdentity": "NOT_CLAIMED: lossy H.264 CRF 18; original WebM preserved"
+      }
+    },
+    {
+      "scene": "S3",
+      "phase": "after",
+      "sourceProduct": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+      "sourceWebm": {
+        "path": "after/after-S3-1920-visual.webm",
+        "bytes": 3485580,
+        "sha256": "4de547cdfa8e9f142ad9139d7d6ca4282be38753ee1ff4423fbda6b24f51afa3"
+      },
+      "mp4": {
+        "filename": "ASA_Electronics_S3_After_dfea2026.mp4",
+        "bytes": 7791192,
+        "sha256": "5c8b9f0c07283c01035a85d6bc72f4b1c13471938d23b8edb25744684df66920"
+      },
+      "verification": {
+        "frameCount": 624,
+        "durationSeconds": 24.96,
+        "maxPresentationTimestampDeltaSeconds": 0.0,
+        "geometryUnchanged": true,
+        "allFramesRetained": true,
+        "noTemporalEdits": true,
+        "pixelIdentity": "NOT_CLAIMED: lossy H.264 CRF 18; original WebM preserved"
+      }
+    }
+  ],
+  "sourceVerification": {
+    "source": "2826aa87aea95d21c61b32f05414b3e4ec6589f0",
+    "nxCache": "SKIPPED_BY_NX_SKIP_NX_CACHE=true",
+    "workspaceLinksVerified": 61,
+    "domain": {
+      "files": 65,
+      "testsPassed": 1483
+    },
+    "web": {
+      "files": 75,
+      "testsPassed": 1275
+    },
+    "addressedIncludedTests": 314,
+    "typecheckProjects": 28,
+    "typecheckDependencyTasks": 18,
+    "buildProjects": 28,
+    "localGovernanceBoundary": "PASS with remote GitHub checks explicitly skipped; not full repository PASS"
+  },
+  "observedCGeneral": {
+    "run": {
+      "id": 43366387644,
+      "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644",
+      "head": "2826aa87aea95d21c61b32f05414b3e4ec6589f0",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "updated": "2026-11-13T05:03:53Z"
+    },
+    "jobs": [
+      {
+        "id": 131691859525,
+        "name": "Versioned General applicability",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644/job/131691859525",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:34:54Z",
+        "completed": "2026-11-13T04:35:08Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131691859836,
+        "name": "Governance contracts",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644/job/131691859836",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:34:54Z",
+        "completed": "2026-11-13T04:37:59Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131692940180,
+        "name": "Format lint types contracts build",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644/job/131692940180",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:38:01Z",
+        "completed": "2026-11-13T04:46:01Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131692942138,
+        "name": "changed-ui",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644/job/131692942138",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started": "2026-11-13T04:38:00Z",
+        "completed": "2026-11-13T04:37:59Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131695659021,
+        "name": "PostgreSQL tests and RLS",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644/job/131695659021",
+        "status": "completed",
+        "conclusion": "failure",
+        "started": "2026-11-13T04:46:03Z",
+        "completed": "2026-11-13T05:02:01Z",
+        "failedSteps": [
+          "Data gate"
+        ]
+      },
+      {
+        "id": 131695659045,
+        "name": "Access A real browser journeys",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644/job/131695659045",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:46:03Z",
+        "completed": "2026-11-13T05:03:36Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131701660894,
+        "name": "ASA / required",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387644/job/131701660894",
+        "status": "completed",
+        "conclusion": "failure",
+        "started": "2026-11-13T05:03:38Z",
+        "completed": "2026-11-13T05:03:52Z",
+        "failedSteps": [
+          "Require complete applicable exact-source General results"
+        ]
+      }
+    ],
+    "dataCounts": {
+      "failed": 1,
+      "passed": 10958,
+      "skipped": 22
+    },
+    "failure": "ui-679-557-qualification.spec.ts:382 focused job.if equality after additive r10-paired-regression profile",
+    "fragment": "general-C-data-131695659021-fragment.txt"
+  },
+  "observedCStrictR4": {
+    "run": {
+      "id": 43366387696,
+      "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696",
+      "head": "2826aa87aea95d21c61b32f05414b3e4ec6589f0",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "updated": "2026-11-13T05:17:48Z"
+    },
+    "jobs": [
+      {
+        "id": 131691671745,
+        "name": "Shared solver, editor contracts and build",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131691671745",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:34:22Z",
+        "completed": "2026-11-13T04:39:18Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131691673361,
+        "name": "Actual vendor messages and built editor (API fixture)",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131691673361",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started": "2026-11-13T04:34:21Z",
+        "completed": "2026-11-13T04:34:20Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131693381093,
+        "name": "Electronics E-OPT benchmark integrity",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131693381093",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:39:20Z",
+        "completed": "2026-11-13T04:41:57Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131693381117,
+        "name": "Actual editor live simulation journey (s4)",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131693381117",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:39:20Z",
+        "completed": "2026-11-13T04:46:22Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131693381157,
+        "name": "Actual editor live simulation journey (s1)",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131693381157",
+        "status": "completed",
+        "conclusion": "failure",
+        "started": "2026-11-13T04:39:20Z",
+        "completed": "2026-11-13T05:09:03Z",
+        "failedSteps": [
+          "Selected Electronics browser qualification"
+        ]
+      },
+      {
+        "id": 131693381185,
+        "name": "Actual editor live simulation journey (s3)",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131693381185",
+        "status": "completed",
+        "conclusion": "success",
+        "started": "2026-11-13T04:39:20Z",
+        "completed": "2026-11-13T05:17:48Z",
+        "failedSteps": []
+      },
+      {
+        "id": 131693381201,
+        "name": "Actual editor live simulation journey (s2)",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131693381201",
+        "status": "completed",
+        "conclusion": "failure",
+        "started": "2026-11-13T04:39:20Z",
+        "completed": "2026-11-13T04:48:54Z",
+        "failedSteps": [
+          "Selected Electronics browser qualification"
+        ]
+      },
+      {
+        "id": 131706751640,
+        "name": "Package exact-head review images",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/job/131706751640",
+        "status": "completed",
+        "conclusion": "skipped",
+        "started": "2026-11-13T05:17:48Z",
+        "completed": "2026-11-13T05:17:48Z",
+        "failedSteps": []
+      }
+    ],
+    "observedCounts": {
+      "s1": {
+        "failed": 6,
+        "passed": 117
+      },
+      "s2": {
+        "failed": 5,
+        "passed": 8
+      },
+      "s3": {
+        "failed": 0,
+        "passed": 119
+      }
+    },
+    "s3Proof": "Actual technical Worker fault/restart and five compact-controls variants PASS, source asserts toolbar17+Duplicate",
+    "s3Fragment": "r4-C-s3-131693381185-pass-fragment.txt",
+    "s1Errors": "r4-C-s1-errors.json",
+    "s2BaselineComparison": "r4-C-s2-baseline-comparison.json",
+    "artifacts": [
+      {
+        "id": 14012635609,
+        "name": "electronics-r4-m1-browser-43366387696-s1",
+        "size": 188022510,
+        "digest": "sha256:21d51da4c15a6b99c2e848d7f6a924b53c58a3979900aabbf3c3fe25c822921b",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14012635609"
+      },
+      {
+        "id": 14012517101,
+        "name": "electronics-r4-m1-browser-43366387696-s3",
+        "size": 94072307,
+        "digest": "sha256:7054cc6134b4e71b94360de175786cacf630699ed17b65fc8059b5dd158408f8",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14012517101"
+      },
+      {
+        "id": 14012460674,
+        "name": "electronics-r4-m1-failures-43366387696-1-s1",
+        "size": 17511,
+        "digest": "sha256:1cde43e76b4e2fcc04886b69594b336e37d0e0ea79cd6a2e4ef3421bdb279caa",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14012460674"
+      },
+      {
+        "id": 14012258084,
+        "name": "electronics-r4-m1-failures-43366387696-1-s3",
+        "size": 10583,
+        "digest": "sha256:8d549bc8b923467a739b3eecf199ba1de5ad425c60ebe80710a6268e5ed206ef",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14012258084"
+      },
+      {
+        "id": 14011356887,
+        "name": "electronics-r4-m1-browser-43366387696-s4",
+        "size": 156786754,
+        "digest": "sha256:25b4b91d05fb57e5acd527559081e0adc31d4ec0d48f37beaaa3bed9d71dd8a3",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14011356887"
+      },
+      {
+        "id": 14011280623,
+        "name": "electronics-e-opt-43366387696",
+        "size": 18409,
+        "digest": "sha256:a11d295b1feea33f033006ae584e309c19e2d0a0583a5169c8b75c12d02dcacc",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14011280623"
+      },
+      {
+        "id": 14011246613,
+        "name": "electronics-r4-m1-failures-43366387696-1-s2",
+        "size": 8026,
+        "digest": "sha256:d5dab2e0fbfe54c6f9f164d13104fd6481cbfcead8d7985ea32ebc0f7911ad23",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14011246613"
+      },
+      {
+        "id": 14011017206,
+        "name": "electronics-r4-m1-failures-43366387696-1-s4",
+        "size": 4062,
+        "digest": "sha256:8cdfd791afb4a5e14c07299df1c04812dfc27957ddfc5ee46180241cf94db0e2",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14011017206"
+      },
+      {
+        "id": 14010224586,
+        "name": "electronics-r4-m1-browser-43366387696-s2",
+        "size": 193835320,
+        "digest": "sha256:040e9445408b7a9916f8296ec17931f739c23877617463c82799dfacd03009f7",
+        "url": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43366387696/artifacts/14010224586"
+      }
+    ]
+  },
+  "staticGuardRepair": {
+    "file": "tests/electronics/ui-679-557-qualification.spec.ts",
+    "blob": "287c4ee7249154d6c8a7ad054d9bb5d0202ef721",
+    "sha256": "fad0ae6556f95bd536ff26777d834b9a9a6e9824af4bb5a80c4b675984458379",
+    "localAuthorCheckpoint": "bfa7d9fd01596b68122497ee8095990c65b1e1d8",
+    "originalAssertionsPreserved": true,
+    "addedTests": 47,
+    "targetedTestsPassed": 205,
+    "independentReviewer": "/root/r10_ci_guard_reviewer",
+    "independentVerdict": "PASS_EXACT_BLOB",
+    "independentAdditionalNegativeChallenges": 14,
+    "transportChallenges": 322,
+    "helperTests": 33,
+    "requiresNewGeneral": true,
+    "originalTestsPreserved": 41
+  },
+  "supportingControl": {
+    "source": "27b1492fdf0910a3615a6c620fd6cf40c54b7db8",
+    "run": 43364039512,
+    "conclusion": "failure",
+    "before": "cb15c700253f26bf276ad69d5e45ca27c2306787",
+    "after": "8cb82d223f8077d7ecdec22e0e8cf3f4e825c294",
+    "actualBefore": {
+      "failed": 2,
+      "passed": 0,
+      "retry": 0,
+      "skipped": 0
+    },
+    "actualAfter": {
+      "failed": 2,
+      "passed": 0,
+      "retry": 0,
+      "skipped": 0
+    },
+    "setupAndCleanup": "PASS",
+    "fullR4Qualification": false,
+    "rawDerivedDuty": "NOT_EXECUTED_ASSERTION_PASS",
+    "jointAttachmentsOmitted": {
+      "before": 1,
+      "after": 6
+    },
+    "rawFilesPreserved": 10,
+    "causalBoundary": "Exact earlier A symptoms did not recur in this single diagnostic; causality not established. Does not cover the two additional C long-cycle failures.",
+    "originalFullArtifact": {
+      "id": 14009943738,
+      "bytes": 226561352,
+      "sha256": "65b872b4de4aa4bf4eeb3d5bafa4bd4e0ee50630bfe7cc777bfd31c02b297fca"
+    },
+    "originalIncrementalArtifact": {
+      "id": 14009998596,
+      "bytes": 28419,
+      "sha256": "b7308c8893ddd04eb409adc2d84381e776b02521e034e945258b42df261bda8d"
+    },
+    "ownerDeliveryArchive": {
+      "filename": "ASA_Electronics_R10_R4_Diagnostic_43364039512.zip",
+      "bytes": 3129478,
+      "sha256": "0e0e717f8a94cc0763247bd1d682da1eb186c360135252a5db16daf4ed43997b"
+    }
+  },
+  "historicalMeasurementA": {
+    "beforeProduct": "cb15c700253f26bf276ad69d5e45ca27c2306787",
+    "afterProduct": "8cb82d223f8077d7ecdec22e0e8cf3f4e825c294",
+    "pairedRun": 43356831692,
+    "pairedRunAttempt": 1,
+    "pairedRunConclusion": "success",
+    "sourceArtifact": {
+      "artifactId": 14009426837,
+      "artifactUrl": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43356831692/artifacts/14009426837",
+      "originalDownloadedZipBytes": 160131547,
+      "originalDownloadedZipSha256": "e5429fe2e78b26ad2c90f9b87f8d275bc86f2f960d722a7eb4fded184c68e3fe",
+      "repository": "spikeal8-maker/asa-lab",
+      "runAndArtifactIdentitySuppliedByController": true,
+      "workflowRunId": 43356831692,
+      "workflowRunUrl": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43356831692"
+    },
+    "rawReports": {
+      "after": {
+        "bytes": 10786487,
+        "path": "after/report.json",
+        "sha256": "6bc202e59c9f0a038085d8ba0dc12626074a1163e1ce745c77f91d8d6741b3ca"
+      },
+      "before": {
+        "bytes": 11945743,
+        "path": "before/report.json",
+        "sha256": "f2fd138f94e928bfafecb5cbf69807934242beed2c757e3fa1f81b3a214a0cd3"
+      }
+    },
+    "ownerDeliveryArchive": {
+      "bytes": 83464462,
+      "entries": 203,
+      "filename": "ASA_Electronics_R10_Paired_43356831692.zip",
+      "sha256": "883faa0312f56776e2489815a04a6501bbdd46e72fc42f6d39dac730fbe2b3af"
+    },
+    "environment": {
+      "os": "linux",
+      "release": "7.0.0-1017-azure",
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "logicalCpus": 4,
+      "ramBytes": 16760344576,
+      "node": "v22.23.4",
+      "browser": "140.0.7339.186",
+      "headless": true,
+      "displayHz": "not_applicable: CI virtual display",
+      "power": "not_applicable: GitHub hosted VM",
+      "cache": "warm per context, assets and editor ready before measurements"
+    }
+  },
+  "finalConvergence": {
+    "acceptedMain": "c76b51e38af94a308b6fe9080d776d6ee6ada4b4",
+    "measuredSource": "dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2",
+    "productEquivalentReviewedSource": "2826aa87aea95d21c61b32f05414b3e4ec6589f0",
+    "foreignSharedUiPreserved": [
+      "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "apps/web/src/electronics/WorkbenchHeader.tsx",
+      "apps/web/src/electronics/use-electronics-workbench.ts",
+      "apps/web/src/electronics/workbench.css"
+    ],
+    "finalFollowUpPaths": [
+      "tests/electronics/ui-679-557-qualification.spec.ts",
+      "docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R10-001.md",
+      "docs/product/electronics/evidence/recovery-r10-20261113.md",
+      "docs/product/electronics/evidence/recovery-r10-raw.json",
+      "docs/execution/current.yaml"
+    ],
+    "integrationCondition": "Normal merge only after required successful General and independent final review on the final PR head; actual receipts at PR1126.",
+    "controlledRepeat": {
+      "ordinal": 1,
+      "acceptedMain": "46e67cc25c8517f455f6766d32c128678383c9db",
+      "mainChanges": [
+        "docs/agent/document-registry.yaml",
+        "docs/execution/current.yaml"
+      ],
+      "reason": "Direct shared current.yaml overlap; preserve accepted foreign controller registrations. Canonical Electronics lane unchanged; new blockers scoped to other tasks.",
+      "normalGitMerge": "NO_CONFLICTS",
+      "runtimeInputChanges": 0,
+      "measurementReusedOnlyAfterInputIdentityProof": true,
+      "allowanceExhausted": true,
+      "futurePolicy": "No further automatic convergence. Request an integration window if main movement again resets acceptance."
+    },
+    "ownerAuthorizedAdditionalCycle": {
+      "ordinal": 1,
+      "recordedAtUtc": "2026-11-13T06:26:28.734460+00:00",
+      "ownerInput": "продолжай",
+      "context": "Owner replied after the controller explained General equal-tree blocking, the exhausted controlled repeat and the need for an integration window.",
+      "scope": "One additional bounded integration cycle; no indefinite convergence, new product task or deployment.",
+      "acceptedMain": "8406be4761006246749aff10d65cc1a0377fce7b",
+      "priorPublishedSource": "c645095e613c4165ce8073ffa46dc5223dfaa363",
+      "acceptedForeignChangedPaths": 14,
+      "normalGitMerge": "NO_CONFLICTS",
+      "measuredElectronicsInputChanges": 0,
+      "requiredAfterPublication": [
+        "fresh exact-source General",
+        "mapped browser Worker regression",
+        "independent final review",
+        "normal merge"
+      ],
+      "futurePolicy": "Another acceptance-resetting main movement requires a new owner decision.",
+      "changedPathsFromP": 18,
+      "changedPathsFromC": 20
+    }
+  },
+  "publication": "https://github.com/spikeal8-maker/asa-lab/pull/1126",
+  "productionDeployment": "NOT_RUN",
+  "ownerAcceptance": "PENDING",
+  "nextProductTask": "NONE; STOP_AFTER_FIRST_R10",
+  "observedPGeneral": {
+    "source": "c645095e613c4165ce8073ffa46dc5223dfaa363",
+    "run": 43377334026,
+    "attempt": 1,
+    "conclusion": "failure",
+    "governance": "success",
+    "applicability": "failure",
+    "code": "skipped",
+    "dataRls": "skipped",
+    "access": "skipped",
+    "required": "failure",
+    "eventBase": "46e67cc25c8517f455f6766d32c128678383c9db",
+    "mergeCandidate": "ec61abb0c1395c8e934e6852a389ef5416e02f68",
+    "actualMergeParents": [
+      "8406be4761006246749aff10d65cc1a0377fce7b",
+      "c645095e613c4165ce8073ffa46dc5223dfaa363"
+    ],
+    "actualMergeTree": "8e50e329f1d861be7a5e527a870daf22b2fb7a94",
+    "sourceTree": "66f21e73c3e9490010559cf1cc03d6588be6a0f0",
+    "bindingError": "Event merge parents do not bind the exact base and source",
+    "additionalIndependentCondition": "Merge tree must equal tested source tree; event refresh alone cannot satisfy it.",
+    "classification": "integration_source_binding_block_before_product_tests",
+    "guardChanged": false,
+    "retried": false
+  }
+}

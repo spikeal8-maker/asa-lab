@@ -35,10 +35,21 @@ import {
 import { addComponentToDocument } from '../workbench-document';
 import { SchematicView, BomView } from '../AlternateWorkbenchViews';
 import { WorkbenchHeader } from '../WorkbenchHeader';
-import { evaluateSimulationWorkerRequestBatched } from '../simulation-worker-evaluator';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from '../simulation-worker-evaluator';
+import { calculateSimulationPreflight } from '../live-simulation';
+import { simulationInputDigest } from '@asa-lab/electronics/simulation';
+import { normalizeLoadedDocument } from '../use-workbench-project-state';
+import { AUTOSAVE_INTERVAL_MS } from '../workbench-autosave';
+import type { ElectronicsSimulationWorkerLike } from '../simulation-worker-client';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+  type ElectronicsSimulationWorkerRequest,
+  type ElectronicsSimulationWorkerResponse,
+  type SimulationPreflightRequest,
 } from '../simulation-worker-protocol';
 
 const transport = vi.hoisted(() => ({
@@ -55,6 +66,47 @@ const transport = vi.hoisted(() => ({
     hasPendingAdvance: boolean;
   }>,
 }));
+// The stopped controller and real Worker client run unchanged. This transport
+// controls delivery only; every physical result uses the production evaluator.
+const stoppedTransport = {
+  autoReply: true,
+  unavailable: false,
+  workers: [] as StoppedWorkerTransport[],
+};
+class StoppedWorkerTransport implements ElectronicsSimulationWorkerLike {
+  onmessage: ((event: MessageEvent<ElectronicsSimulationWorkerResponse>) => void) | null = null;
+  onerror: ((event: ErrorEvent) => void) | null = null;
+  onmessageerror: ((event: MessageEvent) => void) | null = null;
+  readonly requests: SimulationPreflightRequest[] = [];
+  readonly receivers: NonNullable<ElectronicsSimulationWorkerLike['onmessage']>[] = [];
+  terminated = false;
+  constructor() {
+    if (stoppedTransport.unavailable) throw new Error('Worker unavailable');
+    stoppedTransport.workers.push(this);
+  }
+  postMessage(message: ElectronicsSimulationWorkerRequest): void {
+    if (message.kind !== 'preflight') return;
+    this.requests.push(message);
+    this.receivers.push(this.onmessage!);
+    if (stoppedTransport.autoReply) {
+      queueMicrotask(() => {
+        if (!this.terminated) this.reply(message);
+      });
+    }
+  }
+  reply(request = this.requests.at(-1)!): void {
+    const response = evaluateSimulationWorkerRequest(request);
+    this.onmessage?.({ data: response } as MessageEvent<ElectronicsSimulationWorkerResponse>);
+  }
+  lateReply(index = this.requests.length - 1): void {
+    const response = evaluateSimulationWorkerRequest(this.requests[index]!);
+    this.receivers[index]!({ data: response } as MessageEvent<ElectronicsSimulationWorkerResponse>);
+  }
+  terminate(): void {
+    this.terminated = true;
+  }
+}
+const stoppedWorker = () => stoppedTransport.workers.at(-1)!;
 vi.mock('../live-simulation-worker-controller', () => ({
   ElectronicsLiveSimulationWorkerController: class {
     callbacks?: LiveSimulationWorkerCallbacks;
@@ -370,6 +422,10 @@ beforeEach(() => {
   });
   vi.stubGlobal('cancelAnimationFrame', (id: number) => frameCallbacks.delete(id));
   localStorage.clear();
+  stoppedTransport.autoReply = true;
+  stoppedTransport.unavailable = false;
+  stoppedTransport.workers.length = 0;
+  vi.stubGlobal('Worker', StoppedWorkerTransport);
   transport.instances.length = 0;
   transport.autoReady = true;
   vi.mocked(reportClientDiagnostic).mockClear();
@@ -417,6 +473,295 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.useRealTimers();
+});
+
+describe('stopped preflight in the actual React workbench lifecycle', () => {
+  const invalidSource = 'void setup() { pinMode(13, OUTPUT);';
+  const validSource = 'void setup(){}void loop(){delay(77);}';
+  const sourceDocument = (source: string) =>
+    normalizeLoadedDocument({
+      ...initial,
+      components: initial.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+              stateProperties: { arduinoSource: source, arduinoWorkspace: '' },
+            }
+          : { ...component, pinIds: ['throw-left', 'common', 'throw-right'] },
+      ),
+    });
+  const opened = (id: string, document: SchematicDocument, result: SolveResult | null = null) =>
+    ({
+      ok: true,
+      status: 200,
+      data: {
+        project: {
+          id,
+          moduleKey: 'electronics',
+          title: id,
+          scope: 'personal',
+          classroomId: null,
+          status: 'active',
+        } as Project,
+        draft: { projectId: id, document, revision: 1, updatedAt: '' },
+        versions: [],
+        result,
+      },
+    }) as Awaited<ReturnType<typeof api.openProject>>;
+
+  beforeEach(() => {
+    openedDocument = sourceDocument(invalidSource);
+    vi.mocked(api.saveDraft).mockImplementation(async (id, document, revision) => ({
+      ok: true,
+      status: 200,
+      data: {
+        draft: { projectId: id, document, revision: revision + 1, updatedAt: '' },
+        result: calculateSimulationPreflight(document as SchematicDocument, 0),
+      },
+    }));
+  });
+
+  it('masks persisted diagnostics while an Arduino-only edit awaits its current result', async () => {
+    stoppedTransport.autoReply = false;
+    const persisted = calculateSimulationPreflight(openedDocument, 0);
+    expect(persisted.status).toBe('invalid');
+    expect(persisted.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'arduino_program_compile_error', componentIds: ['uno'] }),
+    );
+    vi.mocked(api.openProject).mockResolvedValueOnce(
+      opened('clock-project', openedDocument, persisted),
+    );
+    await mount();
+    expect(workbench.errorDiagnosticComponentIds.size).toBe(0);
+    await act(async () => stoppedWorker().reply());
+    expect(workbench.errorDiagnosticComponentIds.has('uno')).toBe(true);
+    const beforeDigest = simulationInputDigest(workbench.document!);
+    const active = stoppedWorker();
+    const session = active.requests[0]!.projectSessionId;
+
+    await act(async () => workbench.updateArduinoProgram('uno', { arduinoSource: validSource }));
+    expect(simulationInputDigest(workbench.document!)).toBe(beforeDigest);
+    expect(workbench.result?.status).toBe('invalid');
+    expect(workbench.errorDiagnosticComponentIds.size).toBe(0);
+    expect(workbench.diagnosticsByComponent.size).toBe(0);
+    expect(active.requests).toHaveLength(2);
+    expect(active.requests[1]!.projectSessionId).toBe(session);
+    await act(async () => active.reply());
+    expect(
+      workbench.errorDiagnosticComponentIds.has('uno'),
+      JSON.stringify([...workbench.diagnosticsByComponent]),
+    ).toBe(false);
+    expect(workbench.simulationMessage).toBeNull();
+  });
+
+  it('hides the previous document while the next project is loading and rejects its late response', async () => {
+    stoppedTransport.autoReply = false;
+    await mount('project-a');
+    const previous = stoppedWorker();
+    let finish!: (response: Awaited<ReturnType<typeof api.openProject>>) => void;
+    vi.mocked(api.openProject).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await act(async () =>
+      root.render(
+        createElement(Suspense, { fallback: 'pending' }, createElement(Probe, { id: 'project-b' })),
+      ),
+    );
+    expect(workbench.status).toBe('loading');
+    expect(workbench.document).toBeNull();
+    expect(previous.terminated).toBe(true);
+    expect(workbench.diagnosticsByComponent.size).toBe(0);
+    await act(async () => previous.lateReply());
+    expect(workbench.status).toBe('loading');
+    expect(workbench.document).toBeNull();
+    expect(workbench.errorDiagnosticComponentIds.size).toBe(0);
+
+    await act(async () => finish(opened('project-b', sourceDocument(validSource))));
+    expect(workbench.status).toBe('ready');
+    const current = stoppedWorker();
+    expect(current).not.toBe(previous);
+    expect(current.requests).toHaveLength(1);
+    await act(async () => current.reply());
+    expect(
+      workbench.errorDiagnosticComponentIds.has('uno'),
+      JSON.stringify([...workbench.diagnosticsByComponent]),
+    ).toBe(false);
+    expect(workbench.simulationMessage).toBeNull();
+  });
+
+  it('uses a new session after project A to B to A even for the same input', async () => {
+    stoppedTransport.autoReply = false;
+    await mount('project-a');
+    const oldA = stoppedWorker();
+    await mount('project-b');
+    const oldB = stoppedWorker();
+    await mount('project-a');
+    const currentA = stoppedWorker();
+    expect(currentA.requests[0]!.projectSessionId).not.toBe(oldA.requests[0]!.projectSessionId);
+    expect(currentA.requests[0]!.document).toEqual(oldA.requests[0]!.document);
+    expect(oldA.terminated).toBe(true);
+    expect(oldB.terminated).toBe(true);
+    await act(async () => {
+      oldA.lateReply();
+      oldB.lateReply();
+    });
+    expect(workbench.errorDiagnosticComponentIds.size).toBe(0);
+    expect(workbench.simulationMessage).toBeNull();
+    await act(async () => currentA.reply());
+    expect(workbench.errorDiagnosticComponentIds.has('uno')).toBe(true);
+  });
+
+  it('recreates a stopped session after StrictMode cleanup and rejects the first setup callback', async () => {
+    stoppedTransport.autoReply = false;
+    const document = sourceDocument(invalidSource);
+    const projectState: ElectronicsWorkbenchProjectHost = {
+      ...localProjectHost(),
+      document,
+      getCurrentDocument: () => document,
+      simulationRunning: false,
+      simulationStatus: 'stopped',
+    };
+    await act(async () =>
+      root.render(createElement(StrictMode, null, createElement(LocalHostProbe, { projectState }))),
+    );
+    expect(stoppedTransport.workers).toHaveLength(2);
+    const [old, current] = stoppedTransport.workers;
+    expect(old!.terminated).toBe(true);
+    expect(current!.requests[0]!.projectSessionId).not.toBe(old!.requests[0]!.projectSessionId);
+    await act(async () => old!.lateReply());
+    expect(workbench.errorDiagnosticComponentIds.size).toBe(0);
+    await act(async () => current!.reply());
+    expect(workbench.errorDiagnosticComponentIds.has('uno')).toBe(true);
+  });
+
+  for (const outcome of ['commit', 'abort'] as const) {
+    it(`sends a suspended source edit only if it commits (${outcome})`, async () => {
+      await mount();
+      const active = stoppedWorker();
+      const oldSource = host.querySelector('output')!.getAttribute('data-source');
+      const pendingSource = 'void setup(){}void loop(){delay(999);}';
+      let resume!: () => void;
+      await act(async () =>
+        startTransition(() => {
+          suspendRender = new Promise<void>((resolve) => {
+            resume = resolve;
+          });
+          workbench.updateArduinoProgram('uno', { arduinoSource: pendingSource });
+        }),
+      );
+      expect(host.querySelector('output')!.getAttribute('data-source')).toBe(oldSource);
+      expect(active.requests).toHaveLength(1);
+      await act(async () => {
+        suspendRender = null;
+        if (outcome === 'abort')
+          workbench.updateArduinoProgram('uno', { arduinoSource: validSource });
+        resume();
+      });
+      expect(stoppedWorker()).toBe(active);
+      expect(active.requests).toHaveLength(2);
+      const sentSource = active.requests[1]!.document.components.find(
+        (component) => component.id === 'uno',
+      )!.stateProperties!.arduinoSource;
+      expect(sentSource).toBe(outcome === 'commit' ? pendingSource : validSource);
+      expect(host.querySelector('output')!.getAttribute('data-source')).toBe(sentSource);
+      if (outcome === 'abort')
+        expect(
+          active.requests.some(
+            (request) =>
+              request.document.components[0]!.stateProperties!.arduinoSource === pendingSource,
+          ),
+        ).toBe(false);
+    });
+  }
+
+  it('rejects stopped callbacks across rapid Start/Stop cycles and after unmount', async () => {
+    stoppedTransport.autoReply = false;
+    await mount();
+    const stale: StoppedWorkerTransport[] = [];
+    for (let cycle = 0; cycle < 2; cycle += 1) {
+      stale.push(stoppedWorker());
+      await act(async () => workbench.toggleSimulation());
+      expect(workbench.simulationRunning).toBe(true);
+      expect(stale.at(-1)!.terminated).toBe(true);
+      await act(async () => workbench.toggleSimulation());
+      expect(workbench.simulationRunning).toBe(false);
+    }
+    const current = stoppedWorker();
+    await act(async () => stale.forEach((previous) => previous.lateReply()));
+    expect(workbench.errorDiagnosticComponentIds.size).toBe(0);
+    expect(workbench.simulationMessage).toBeNull();
+    await act(async () => current.reply());
+    expect(workbench.errorDiagnosticComponentIds.has('uno')).toBe(true);
+    await act(async () => root.render(null));
+    expect(current.terminated).toBe(true);
+    const before = renders;
+    await act(async () => current.lateReply());
+    expect(renders).toBe(before);
+  });
+
+  it('reports an unavailable stopped Worker as a technical error without physical diagnostics', async () => {
+    stoppedTransport.unavailable = true;
+    headerMounted = true;
+    await mount();
+    expect(workbench.simulationMessage).toMatchObject({
+      category: 'technical',
+      code: 'worker-start',
+    });
+    expect(workbench.simulationRunning).toBe(false);
+    expect(workbench.errorDiagnosticComponentIds.size).toBe(0);
+    expect(stoppedTransport.workers).toHaveLength(0);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+    const message = host.querySelector('[role="status"][data-simulation-code="worker-start"]');
+    expect(message?.getAttribute('data-simulation-category')).toBe('technical');
+    expect(message?.textContent).toContain('Не удалось запустить вычислительный модуль.');
+    expect(
+      host.querySelector('[data-simulation-status]')?.getAttribute('data-simulation-status'),
+    ).toBe('stopped');
+  });
+
+  it('keeps ready state, session and accepted cache through ordinary autosave status changes', async () => {
+    await mount();
+    expect(workbench.saveStatus).toBe('saved');
+    await act(async () => workbench.updateArduinoProgram('uno', { arduinoSource: validSource }));
+    const active = stoppedWorker();
+    expect(active.requests).toHaveLength(2);
+    const session = active.requests[1]!.projectSessionId;
+    let finish!: () => void;
+    vi.mocked(api.saveDraft).mockImplementationOnce(
+      (id, document, revision) =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({
+              ok: true,
+              status: 200,
+              data: {
+                draft: { projectId: id, document, revision: revision + 1, updatedAt: '' },
+                result: calculateSimulationPreflight(document as SchematicDocument, 0),
+              },
+            });
+        }),
+    );
+    await tick(AUTOSAVE_INTERVAL_MS);
+    expect(api.saveDraft).toHaveBeenCalledOnce();
+    expect(workbench.saveStatus).toBe('saving');
+    expect(workbench.status).toBe('ready');
+    expect(stoppedWorker()).toBe(active);
+    expect(active.requests).toHaveLength(2);
+    await act(async () => finish());
+    expect(workbench.saveStatus).toBe('saved');
+    expect(workbench.status).toBe('ready');
+    expect(active.requests[1]!.projectSessionId).toBe(session);
+    expect(active.requests).toHaveLength(2);
+    await act(async () => workbench.undo());
+    expect(workbench.errorDiagnosticComponentIds.has('uno')).toBe(true);
+    await act(async () => workbench.redo());
+    expect(workbench.errorDiagnosticComponentIds.has('uno')).toBe(false);
+    expect(stoppedWorker()).toBe(active);
+    expect(active.requests).toHaveLength(2);
+  });
 });
 
 describe('shared workbench with a local project host', () => {

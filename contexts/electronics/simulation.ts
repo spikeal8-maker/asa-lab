@@ -37,6 +37,7 @@ export {
 export {
   analyseCircuit,
   compileCircuit,
+  simulationModelSetDigest,
   type CompiledCircuit,
   type CompiledNet,
   type SimulationQuality,

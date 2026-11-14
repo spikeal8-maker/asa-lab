@@ -81,20 +81,96 @@ Direct supporting tests and routes:
 - `apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts`
 - `apps/web/src/electronics/testing/simulation-worker.spec.ts`
 - `apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts`
+- `apps/web/src/electronics/testing/workbench-presentation.spec.ts`
+- `e2e/electronics-simulation.spec.ts`
+- `docs/product/electronics/generated/component-coverage.json`
 - `docs/product/electronics/components/engine-worker-clock.yaml`
 - `docs/product/electronics/components/ui-assets-persistence.yaml`
 - `apps/web/src/electronics/testing/stopped-preflight.browser.mjs`
 - `.github/workflows/electronics-recovery-performance.yml`
+- `.github/workflows/electronics-r4-m1-focused.yml`
+- `tools/electronics_r10_paired_diagnostic.py`
+- `tools/test_ci_image_transport.py`
+- `tests/electronics/ui-679-557-qualification.spec.ts`
 - `docs/product/electronics/evidence/recovery-r10-20261113.md`
 - `docs/product/electronics/evidence/recovery-r10-raw.json`
 
 The explicit exception to two focused test files is necessary: cache/generation,
 actual Worker solver count/parity, and actual React session/pending lifecycle are
-three distinct failure boundaries. The already selected full-editor harness is
+three distinct failure boundaries. The fourth test file updates the existing
+presentation contract that literally required the removed duplicate preflight:
+require the shared stopped hook and reject a direct preflight call instead,
+preserving its other assertions. The controller coordinated this exact addition
+after the first M1 run passed 1274 web tests and exposed only that obsolete
+assertion; the path was clean in all four cloud worktrees and the read-only
+D2-R2 checkout at the b318656e9d80ea8ddb40b06159f7c1352c799c7c main baseline.
+The already selected full-editor harness is
 needed for the owner's measured demonstration. Its measurement protocol and
 fixtures remain frozen; only bounded R10 checks and paired comparison delivery
 may be added. No test-only reimplementation of production lifecycle qualifies.
 Controller owns current.yaml and this card.
+
+The actual solver-count test may use one documented test-only per-line
+`@nx/enforce-module-boundaries` exception for the source-domain spy import in
+`simulation-worker.spec.ts`. A public-facade spy was verified not to observe the
+engine-to-domain call; the source-module spy must retain a positive-control call
+proving that coverage before the Worker assertion. This exception adds no
+production import, new public API, dependency, global lint change or relaxed
+result assertion.
+
+## Bounded follow-up for an observed R4 risk
+
+Candidate 8cb82d223f8077d7ecdec22e0e8cf3f4e825c294 produced two different R4
+assertion failures in run 43356810979, shard s2: the millis paint-duty bound and
+joint D2-D4 pre-H0 visibility. Independent raw review found correct physical
+edges and loaded, dark LED assets; the joint observation involved residual
+horizontal scrolling after code fill/close. Comparison with earlier runs did
+not establish that these exact failures are independent of R10. They must not be
+labelled a proven baseline defect or a passing browser qualification.
+
+The controller therefore authorizes one narrow same-runner diagnostic in the
+existing R4 workflow and its genuine `browser` job. The helper above is CI
+orchestration, not product runtime. An opt-in `r10-paired-regression` dispatch
+runs the two original named tests
+from `e2e/electronics-ready-cadence.spec.ts` once on each exact before/after SHA,
+using the existing R4 image-only Docker/PostgreSQL contract. Both phases must be
+retained after a test assertion failure; setup/infrastructure failure is reported
+separately. Assertions, tolerances, test source, build inputs and numeric stopped
+measurement protocol remain unchanged. Record actual test counts, raw traces,
+source/image/environment receipts and failures; a diagnostic does not replace
+the strict R4 gate. No retry-until-green, local browser stack, production action
+or new permanent installation is authorized. The ordinary strict qualification
+and all previously registered profiles retain their required gates, defaults,
+permissions and assertions.
+
+The recovery workflow is not an authorized Docker proof context and remains
+unchanged by this follow-up. Preserve `require_ci_amd64`,
+`require_electronics_job`, their workflow/job allowlist and the original image,
+revision and PostgreSQL proof. Do not replace those guards with a new guard,
+spoof GitHub context or call unguarded helpers around the original CLI. The only
+permitted change in `test_ci_image_transport.py` is an exact semantic-wiring
+overlay and adversarial offline checks for the new opt-in scheduling. Existing
+mandatory execution, unknown profiles, security drift and changed immutable
+receipts must continue to fail validation.
+
+This supporting addition closes a concrete regression question within the same
+selected R10. It does not select R11 or another product repair. Fresh preflight
+for the workflow/helper/card paths passed with no overlap or execution blocker;
+accepted main b2e0e93a4ae31cce1b9cf286fe14eb62efdd9627 preserved the selected
+R10 and added only the separate Robotics task. Independent review is required
+before the controller dispatches the diagnostic control revision.
+
+The same R4 run also exposed one directly related test-fixture defect in shard
+s3, job 131661845482: the technical-fault test injected its one transport failure
+into the first preflight of any Worker. The new stopped Worker legitimately
+consumes that injection before Start. The controller authorizes a narrow change
+to that test's injection targeting: arm and verify one failure of the running
+Start preflight, retain the actual failed Worker for the stale-response check,
+and preserve every technical-error, unsaved-document, restart and stale-response
+assertion. Do not change product error handling or make the test pass without an
+observed running fault. The full applicable browser gate must verify the repaired
+test on the final candidate. This is a category-B fixture repair within R10, not
+a waiver of a product failure or an extension into model-time work.
 
 The engine subsystem card must add the existing public facade
 `contexts/electronics/simulation.ts` to `electronics.engine.public-api.sources`,
@@ -140,7 +216,7 @@ Start with the existing requested baseline tests, then new regression cases:
 ```bash
 corepack pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RECOVERY-R10-001
 NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run apps/web/src/electronics/testing/live-simulation.spec.ts apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts contexts/electronics/testing/simulation-input-digest.spec.ts --maxWorkers=1
-NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts apps/web/src/electronics/testing/simulation-worker.spec.ts apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts --maxWorkers=1
+NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run apps/web/src/electronics/testing/stopped-simulation-preflight.spec.ts apps/web/src/electronics/testing/simulation-worker.spec.ts apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts apps/web/src/electronics/testing/workbench-presentation.spec.ts --maxWorkers=1
 NX_SKIP_NX_CACHE=true corepack pnpm gate:electronics-m1
 NX_SKIP_NX_CACHE=true corepack pnpm gate:governance
 ```
@@ -209,3 +285,144 @@ production deployment or bulk old-branch cleanup. Existing accepted repairs and
 other work remain intact. This is one production-changing slice after checkpoint
 007. Author reports one final candidate and STOP; controller arranges independent
 review/integration and the requested six-section owner report, then stops the programme.
+
+## Controller final-convergence boundary
+
+Immutable A `8cb82d223f8077d7ecdec22e0e8cf3f4e825c294` received independent
+source and paired full-editor evidence PASS in run43356831692. Exact measurements,
+including slower asynchronous diagnostic arrival and retained outliers, are in
+`evidence/recovery-r10-20261113.md` and its raw-artifact index. Overall acceptance
+remains pending the classified R4 checks and the final candidate.
+
+Accepted main `c76b51e38af94a308b6fe9080d776d6ee6ada4b4` introduces four shared
+compiled UI changes from foreign PR1098. The controller's one final R10 convergence
+preserves them and the foreign toolbar assertions; the hook and fault-test hunks
+merge without conflict. Re-run the addressed/M1 checks and existing CI on the
+immutable combined source. Repeat the same paired protocol with c76 before that
+source, because the A recording cannot stand in for changed compiled UI. No
+new task, runtime redesign, tolerance change or production action is selected.
+After the required evidence and independent final review, publish/integrate the
+bounded result and STOP. R11 remains unselected.
+
+## Exact generated browser-evidence fingerprint follow-up
+
+On converged B `dfea2026d6dd2a1d5b2d0d2db43af97f4ddd5cf2`, R4 core
+job131689214251 stopped before tests because the generated coverage evidence
+retained the browser-test fingerprint from accepted main. The already reviewed
+running-fault fixture changes that test source. The controller accepts the
+author's read-only generator output and authorizes exactly one generated value:
+`generatedFrom.browserEvidenceSha256`, from
+`0ffeaa5ed1f22fabea3dd5c2fd23ac3425d7c455f398827e44ba7da08d6cc657` to
+`be3c0fbdde904d7ba4b16061e1ee2fa3ca0ec20375cdc86fdd6c06ab3f32acdd`.
+All 44 component rows, other fingerprints, summary and zero fatal contradictions
+remain unchanged. This is a category-B evidence dependency, with no catalogue
+review, model or runtime change. Fresh two-path preflight had zero overlaps and
+blockers; the owner checkout path check was empty. Repeat the applicable gates
+on the corrected exact source and independently verify B's compiled input
+identity. The running c76-to-B measurement remains valid for its immutable source
+and is not restarted for a generated test-evidence fingerprint.
+
+## Exact scoped-workflow contract follow-up
+
+General run43366387644 on C `2826aa87aea95d21c61b32f05414b3e4ec6589f0`
+failed Data job131695659021 with 10,958 passing tests, 22 skipped tests and one
+failure in `tests/electronics/ui-679-557-qualification.spec.ts`. Its complete
+job comparison still expects the R4 workflow before the reviewed optional
+`r10-paired-regression` overlay. The scoped UI workflow has no qualification
+inputs and must retain its original commands and execution conditions.
+
+The controller authorizes only a test-side compatibility projection of that
+exact paired-v1 overlay before the existing sharding/failure-evidence projections
+and complete job equality assertions. Verify the precise focused condition,
+browser condition, timeout, matrix, two revision variables, paired steps and
+ordinary-step guards before removing the overlay for comparison. Unknown,
+partial or weakened overlays must fail; unrelated job changes must remain
+visible to the original equality check. Preserve every original test and the
+ordinary profiles, image/transport guards, scoped workflow, product code and
+thresholds. Add adversarial cases at this concrete boundary and repeat the
+complete addressed test, existing CI-transport/helper checks and required
+General CI on the final source. An independent reviewer must approve the final
+test-only diff before publication. This directly caused category-B composition
+repair selects no new task. Fresh two-path preflight was SAFE_TO_START at c76,
+and the owner checkout check was empty. The immutable c76-to-B performance run
+continues unchanged; no runtime input is altered by this supporting test repair.
+
+## Controller proposed bounded closure
+
+The final c76→B run43365657820 completed SUCCESS, attempt1: 2,880 measured rows,
+96 pass files, sixteen identical-condition/initial-result pairs, full-editor
+recordings and Rendering/Paint traces. Independent `/root/r10_final_reviewer`
+accepted B source/raw/visual evidence with explicit method limits. Main solver
+calls decrease 2,880→0 and Worker calls 0→720; DOM p95 improves in all sixteen
+profiles. Current-diagnostic p95 for add/source is slower; exact maxima, long
+tasks and deadline overruns remain in the evidence. The shown B SHA is never
+relabeled as C or a later documentation/test commit. Actual B compiled inputs,
+assets, fixtures and locked support files are identical to C. Historical C→P
+review confirmed five R10 non-product paths plus accepted metadata-only main
+convergence, six changed paths in total. The later owner-authorized continuation
+preserves fourteen accepted classroom files and updates four controller documents:
+eighteen changed paths from P, twenty from C. Final review must bind that complete
+composition and the unchanged 164 measured inputs to the published source.
+
+C's actual s3 passed 119 cases, including the targeted technical Worker fault and
+all five compact-controls variants. Full C R4 remains FAIL: s1 six failures and
+s2 five. The two additional long-cycle failures retain UNCLASSIFIED cause; there
+is no whole-Run no-regression claim. Completed D remains two failed original
+cases per phase, with no retry/skips, not a replacement passing qualification.
+
+The final static guard repair received independent exact-blob PASS at
+`287c4ee7249154d6c8a7ad054d9bb5d0202ef721`: 205 focused cases, 14 additional
+independent negative challenges, original assertions preserved. It repairs C's
+directly caused General failure and requires a new actual final-head General.
+The local source/M1, measured B and this narrow guard verdict do not erase the
+failed C workflow.
+
+The controller proposes technical completion of only R00→first R10 in current.yaml.
+That closure becomes canonical only after the exact final source is independently
+reviewed, required General passes, and normal integration succeeds. The actual
+final SHA, CI receipt and merge outcome are recorded on PR1126 before reporting
+completion. Owner acceptance remains pending. STOP after the requested report;
+no R11, deployment, original-project mutation or additional installation.
+
+## One controlled final repeat for accepted shared state
+
+Before final publication, fresh main became
+`46e67cc25c8517f455f6766d32c128678383c9db` through PR1125. Only the shared
+current.yaml and document registry changed; the canonical Electronics R10 lane
+is identical to c76. New blockers apply to the separately named student-progress
+tasks, not R10. The owner checkout's six-path status was empty. Preserve these
+accepted foreign registrations through the single controlled repeat permitted
+by AGENTS2.1: normal checkpoint, normal conflict-free Git merge, exact foreign
+state and runtime-input identity checks, fresh applicable governance/General,
+and final independent review. This consumes the remaining convergence allowance.
+B's immutable timing/recordings remain labelled B. No runtime, model, harness,
+fixture or dependency changes justify a new measurement. If another main move
+again resets acceptance, request an integration window instead of another sync.
+
+## Owner-authorized additional integration cycle
+
+Published P `c645095e613c4165ce8073ffa46dc5223dfaa363` received exact-tree
+independent source/evidence approval. General43377334026 then failed before
+product checks: its event base was46, while the actual merge candidate had
+parents8406/P and a different tree. The existing immutable General contract also
+requires the merge tree to equal the tested source tree. Its Code, Data/RLS and
+Access jobs were skipped; governance passed. This is not a passing repository
+gate, and refreshing only the event cannot satisfy the separate tree condition.
+
+After the controller explained the exhausted repeat and need for an integration
+window in the current chat, the owner replied **«продолжай»**. This is a new owner
+decision authorizing one additional bounded integration cycle, not an automatic
+extension of the exhausted allowance. Fresh main is
+`8406be4761006246749aff10d65cc1a0377fce7b`; its fourteen classroom-feedback paths
+do not intersect R10 or the measured compiled inputs. AGENTS, the router,
+canonical R10 selection, shared current/registry, dependency lock and General
+guards are unchanged. Fresh scoped preflight is SAFE_TO_START with no overlap
+or applicable blocker.
+
+Preserve P and accepted8406 by a normal conflict-free merge, retain every foreign
+blob, prove the same 164 measured source/asset/fixture/support objects, and obtain
+fresh exact-source required General and mapped browser results plus independent
+review. Record P's failed General unchanged. No dummy commit, weakened guard,
+retry-until-green, new runtime change, task selection, R11 or deployment is
+authorized. Further acceptance-resetting movement requires another owner
+decision; this continuation does not authorize an endless synchronization loop.

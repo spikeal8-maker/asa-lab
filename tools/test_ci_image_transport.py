@@ -423,6 +423,91 @@ def strict_shard_contract(contract):
     return contract
 
 
+R10_PAIRED_PROFILE = "r10-paired-regression"
+R10_PAIRED_HELPER = "tools/electronics_r10_paired_diagnostic.py"
+R10_PAIRED_IF = "inputs.qualification_profile == 'r10-paired-regression'"
+R10_NORMAL_IF = "inputs.qualification_profile != 'r10-paired-regression'"
+R10_BROWSER_IF = ("${{ !cancelled() && (needs.focused.result == 'success' || "
+                  "(github.event_name == 'workflow_dispatch' && " + R10_PAIRED_IF + ")) }}")
+R10_PAIRED_MATRIX = QUALIFICATION_SHARD_MATRIX.replace(
+    "${{ fromJSON(\n",
+    "${{ fromJSON(\n    " + R10_PAIRED_IF + " &&\n"
+    "    '[{\"label\":\"paired\",\"shard\":\"\"}]' ||\n")
+R10_REVISION_ARGUMENTS = ('--before-revision="$ASA_R10_BEFORE_REVISION" '
+                         '--after-revision="$ASA_R10_AFTER_REVISION"')
+R10_PAIRED_STEPS = [
+    {"if": R10_PAIRED_IF, "run": "python3 " + R10_PAIRED_HELPER + " --check-revisions " + R10_REVISION_ARGUMENTS},
+    *[{"if": R10_PAIRED_IF, "uses": "actions/checkout@v4", "with": {
+        "ref": "${{ env.ASA_R10_" + phase.upper() + "_REVISION }}",
+        "path": "paired-" + phase, "fetch-depth": 0, "persist-credentials": False,
+    }} for phase in ("before", "after")],
+    {"if": "always() && " + R10_PAIRED_IF, "run": "python3 -u " + R10_PAIRED_HELPER + " " + R10_REVISION_ARGUMENTS},
+    {"if": "always() && " + R10_PAIRED_IF,
+     "run": "python3 -u " + R10_PAIRED_HELPER + " --cleanup-only " + R10_REVISION_ARGUMENTS},
+    {"if": "always() && " + R10_PAIRED_IF, "uses": "actions/upload-artifact@v4", "with": {
+        "name": "electronics-r10-paired-failures-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "reports/r10-paired/paired.json\npaired-before/reports/electronics-failures.ndjson\n"
+                "paired-after/reports/electronics-failures.ndjson\n",
+        "if-no-files-found": "error", "retention-days": 14,
+    }},
+    {"if": "always() && " + R10_PAIRED_IF, "uses": "actions/upload-artifact@v4", "with": {
+        "name": "electronics-r10-paired-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "reports/r10-paired\npaired-before/reports\n"
+                "paired-before/e2e/artifacts/electronics-simulation\npaired-after/reports\n"
+                "paired-after/e2e/artifacts/electronics-simulation\n",
+        "if-no-files-found": "error", "retention-days": 14,
+    }},
+]
+
+
+def r10_normal_step(step):
+    step = deepcopy(step)
+    require(step.get("if") in (None, "always()"), "Unexpected original browser condition")
+    step["if"] = ("always() && " if step.get("if") == "always()" else "") + R10_NORMAL_IF
+    return step
+
+
+def r10_paired_v1_contract(contract):
+    """Exact opt-in scheduling inside the already permitted R4/browser job.
+
+    The four ordinary profiles retain their original steps, gates and budgets.
+    Runtime workflow/job allowlists and all image proofs are intentionally not
+    part of this projection and remain unchanged.
+    """
+    contract = deepcopy(contract)
+    dispatch = contract["required_triggers"]["workflow_dispatch"]["inputs"]
+    require(dispatch["qualification_profile"]["options"] ==
+            QUALIFICATION_INPUT["inputs"]["qualification_profile"]["options"],
+            "Paired v1 must extend exactly the existing four profiles")
+    dispatch["qualification_profile"]["options"].append(R10_PAIRED_PROFILE)
+    dispatch["before_revision"] = {
+        "description": "Immutable baseline SHA for r10-paired-regression only",
+        "required": False, "type": "string", "default": "cb15c700253f26bf276ad69d5e45ca27c2306787"}
+    dispatch["after_revision"] = {
+        "description": "Immutable candidate SHA for r10-paired-regression only",
+        "required": False, "type": "string"}
+    contract["required_triggers"]["pull_request"]["paths"].append(R10_PAIRED_HELPER)
+    focused = contract["jobs"]["focused"]["controls"]
+    require(focused["if"] == "${{ inputs.qualification_profile != 'arduino-editor-error' }}",
+            "Original focused profile condition changed")
+    focused["if"] = "${{ inputs.qualification_profile != 'arduino-editor-error' && " + R10_NORMAL_IF + " }}"
+    browser = contract["jobs"]["browser"]
+    controls = browser["controls"]
+    require(controls.get("if") is None and controls["timeout-minutes"] == 50
+            and controls["strategy"]["matrix"]["browser_case"] == QUALIFICATION_SHARD_MATRIX,
+            "Paired v1 must preserve the original strict shard configuration")
+    controls["if"] = R10_BROWSER_IF
+    controls["timeout-minutes"] = "${{ " + R10_PAIRED_IF + " && 60 || 50 }}"
+    controls["strategy"]["matrix"]["browser_case"] = R10_PAIRED_MATRIX
+    controls["env"].update(ASA_R10_BEFORE_REVISION="${{ inputs.before_revision }}",
+                           ASA_R10_AFTER_REVISION="${{ inputs.after_revision }}")
+    steps = browser["required_steps"]
+    require(steps[0].get("uses") == "actions/checkout@v4", "Original source checkout must remain first")
+    browser["required_steps"] = [steps[0], *deepcopy(R10_PAIRED_STEPS),
+                                 *(r10_normal_step(step) for step in steps[1:])]
+    return contract
+
+
 def check_qualification_package(package):
     scripts = package.get("scripts", {})
     for entrypoint in ["gate:electronics-classroom-d13:browser", "gate:electronics-classroom-d13-v3:browser"]:
@@ -529,8 +614,8 @@ def check_workflow(path, contract, receipt, general_node, electronics):
         job = workflow.get("jobs", {}).get(job_id)
         require(isinstance(job, dict), "Missing required job: " + path + ":" + job_id)
         if path == FOCUSED and job_id == "browser":
-            require("continue-on-error" not in job and "if" not in job,
-                    "Browser shards cannot be skipped or have failures ignored")
+            require("continue-on-error" not in job and job.get("if") == expected["controls"].get("if"),
+                    "Browser must keep the exact profile/dependency condition and cannot ignore failures")
             require(sum("ASA_ELECTRONICS_BROWSER_GATE" in step.get("run", "")
                         for step in job.get("steps", [])) == 1,
                     "Exactly one mandatory browser gate step is required per shard")
@@ -641,6 +726,7 @@ def check_offline(receipt):
             expected = qualification_contract(electronics_contract(expected, receipt, classroom))
             expected = failure_evidence_contract(expected)
             expected = strict_shard_contract(d2_classroom_budget_contract(expected))
+            expected = r10_paired_v1_contract(expected)
         check_workflow(path, expected, receipt, effective, classroom)
     from devex_ci_contract import check_bounded_wiring
     check_bounded_wiring(parse_yaml(read(".github/workflows/devex-changed.yml")))
@@ -1217,8 +1303,11 @@ def check_electronics_challenges(receipt):
     for job, proof in [("browser", ELECTRONICS_PREPARE), ("browser", ELECTRONICS_BUILD_PROOF),
                        ("review-images", ELECTRONICS_BUILD_PROOF), ("browser", ELECTRONICS_POSTGRES_PROOF)]:
         changed = deepcopy(workflow)
+        selected_proof = r10_normal_step(proof) if job == "browser" else proof
+        require(sum(semantic_step(step) == selected_proof for step in changed["jobs"][job]["steps"]) == 1,
+                "Proof challenge must select exactly one existing step")
         changed["jobs"][job]["steps"] = [step for step in changed["jobs"][job]["steps"]
-            if semantic_step(step) != proof]
+            if semantic_step(step) != selected_proof]
         challenge(job + " removed " + proof["run"], {FOCUSED: json.dumps(changed)})
     misplaced = parse_yaml(source[GENERAL])
     misplaced["jobs"]["code"]["steps"].append(ELECTRONICS_BUILD_PROOF)
@@ -1372,13 +1461,13 @@ def check_qualification_challenges(receipt):
         ("runner path must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(QUALIFICATION_RUNNER)),
         ("D13 observer must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove("e2e/electronics-classroom-timing.spec.ts")),
         ("profile cannot move to benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
-        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s2","shard":"2/4"}', "")})),
-        ("strict cannot omit s4 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s4","shard":"4/4"}', "")})),
-        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":"1/4"')})),
-        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":""')})),
-        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/4"')})),
-        ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
-        ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
+        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": R10_PAIRED_MATRIX.replace('{"label":"s2","shard":"2/4"}', "")})),
+        ("strict cannot omit s4 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": R10_PAIRED_MATRIX.replace('{"label":"s4","shard":"4/4"}', "")})),
+        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": R10_PAIRED_MATRIX.replace('"shard":"2/4"', '"shard":"1/4"')})),
+        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": R10_PAIRED_MATRIX.replace('"shard":"2/4"', '"shard":""')})),
+        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": R10_PAIRED_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/4"')})),
+        ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": R10_PAIRED_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
+        ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": R10_PAIRED_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
         ("matrix cannot be removed", lambda w: w["jobs"]["browser"].pop("strategy")),
         ("matrix cannot add unexpected child", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"include": [{"label": "bypass", "shard": ""}]})),
         ("matrix cannot fail fast", lambda w: w["jobs"]["browser"]["strategy"].update({"fail-fast": True})),
@@ -1497,7 +1586,7 @@ def check_failure_evidence_challenges(receipt):
         challenge(name, {FOCUSED: source[FOCUSED].replace(forwarding, replacement)})
     steps = workflow["jobs"]["browser"]["steps"]
     uploads = [index for index, step in enumerate(steps)
-               if semantic_step(step) == SHARDED_FAILURE_REPORT_UPLOAD]
+               if semantic_step(step) == r10_normal_step(SHARDED_FAILURE_REPORT_UPLOAD)]
     require(len(uploads) == 1, "Expected exactly one diagnostic artifact upload")
     upload_index = uploads[0]
     without_upload = deepcopy(workflow)
@@ -1532,6 +1621,68 @@ def check_failure_evidence_challenges(receipt):
     general.setdefault("env", {})[FAILURE_REPORT_FLAG] = "true"
     challenge("diagnostic flag in General workflow", {GENERAL: json.dumps(general)})
     print(json.dumps({"failure_evidence_challenges": outcomes}, indent=2))
+
+
+def check_r10_paired_challenges(receipt):
+    """Paired v1 is an exact opt-in schedule, never a permissive gate matcher."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
+             *receipt["semantic_contract"]["dockerfile_defaults"],
+             *receipt["semantic_contract"]["workflows"]]
+    source = {path: read(path) for path in paths}
+    workflow = parse_yaml(source[FOCUSED])
+    outcomes = []
+
+    def challenge(name, mutate=None):
+        changed = deepcopy(workflow)
+        if mutate:
+            mutate(changed)
+        error = None
+        with patch(__name__ + ".read", side_effect={**source, FOCUSED: json.dumps(changed)}.__getitem__):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require((error is None) == (mutate is None), "R10 paired challenge failed: " + name + ":" + str(error))
+        outcomes.append({"challenge": name, "result": "PASS", "rejection": error})
+
+    def paired_step(workflow, index):
+        return next(step for step in workflow["jobs"]["browser"]["steps"]
+                    if semantic_step(step) == R10_PAIRED_STEPS[index])
+
+    challenge("exact paired v1 and all four original profiles")
+    for name, mutate in [
+        ("paired cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update(default=R10_PAIRED_PROFILE)),
+        ("unknown mode remains forbidden", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].append("r10-other")),
+        ("diagnostic cannot remove strict", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("strict-real-time")),
+        ("before input must remain explicit string", lambda w: w["on"]["workflow_dispatch"]["inputs"]["before_revision"].update(type="boolean")),
+        ("after input cannot default to mutable main", lambda w: w["on"]["workflow_dispatch"]["inputs"]["after_revision"].update(default="main")),
+        ("helper changes must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(R10_PAIRED_HELPER)),
+        ("source validation cannot be skipped", lambda w: paired_step(w, 0).update({"if": False})),
+        ("baseline checkout cannot use control source", lambda w: paired_step(w, 1)["with"].update(ref="${{ github.sha }}")),
+        ("candidate checkout cannot persist credentials", lambda w: paired_step(w, 2)["with"].update({"persist-credentials": True})),
+        ("comparison cannot ignore assertion failures", lambda w: paired_step(w, 3).update({"continue-on-error": True})),
+        ("comparison cannot run for normal profiles", lambda w: paired_step(w, 3).pop("if")),
+        ("checkout failure must still yield BLOCKED receipt", lambda w: paired_step(w, 3).update({"if": R10_PAIRED_IF})),
+        ("cleanup must run after failed comparison", lambda w: paired_step(w, 4).update({"if": R10_PAIRED_IF})),
+        ("paired failure journal must be retained", lambda w: paired_step(w, 5)["with"].update(path="reports/r10-paired/paired.json")),
+        ("paired candidate raw must be retained", lambda w: paired_step(w, 6)["with"].update(path="paired-before/reports")),
+        ("paired matrix cannot have two runners", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update(browser_case=R10_PAIRED_MATRIX.replace('"label":"paired","shard":""', '"label":"paired","shard":"1/2"'))),
+        ("paired cannot bypass dispatch-only boundary", lambda w: w["jobs"]["browser"].update({"if": R10_BROWSER_IF.replace("github.event_name == 'workflow_dispatch' && ", "")})),
+        ("ordinary browser still requires focused success", lambda w: w["jobs"]["browser"].update({"if": R10_BROWSER_IF.replace("needs.focused.result == 'success'", "true")})),
+        ("ordinary budget remains fifty minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": "${{ " + R10_PAIRED_IF + " && 60 || 49 }}"})),
+        ("paired budget remains sixty minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": "${{ " + R10_PAIRED_IF + " && 70 || 50 }}"})),
+        ("normal steps cannot also skip strict", lambda w: [step.update({"if": R10_NORMAL_IF + " && inputs.qualification_profile != 'strict-real-time'"})
+            for step in w["jobs"]["browser"]["steps"] if "ASA_ELECTRONICS_BROWSER_GATE" in step.get("run", "")]),
+        ("permissions cannot grant writes", lambda w: w["permissions"].update(contents="write")),
+    ]:
+        challenge(name, mutate)
+    print(json.dumps({"r10_paired_v1_challenges": outcomes}, indent=2))
 
 
 def main():
@@ -1584,6 +1735,7 @@ def main():
         check_electronics_challenges(receipt)
         check_qualification_challenges(receipt)
         check_failure_evidence_challenges(receipt)
+        check_r10_paired_challenges(receipt)
     if options.baseline_proof:
         check_original_baseline(receipt)
     if options.compose_model_check or options.built_images or options.pulled_postgres:
