@@ -1,0 +1,34 @@
+{
+  "id": "E1-MUJOCO-CAN-FIXED-TILT-01",
+  "scope": "TEST_ONLY",
+  "sourceBase": "9a51aff78065244910a82b0f948fe0862e1fdf68",
+  "inputsSha256": {
+    "docs/product/robotics/FIELD_CORE_SPEC.md": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+    "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json": "fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5",
+    "tools/robotics-field-core/mujoco-cylinder.mjs": "c3a21764baeff02acd030928a234c2cb58ffbb9811641cdfdfd83b3772c19be0",
+    "tools/robotics-field-core/mujoco-contact-observer.mjs": "77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987",
+    "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c",
+    "tools/robotics-field-core/mujoco-phy01.mjs": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99"
+  },
+  "engine": {
+    "version": "4.0.0",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+    "contactProfile": "LEGACY_CCD_MULTI5"
+  },
+  "cases": [
+    { "angleDegrees": 28, "expected": "stable" },
+    { "angleDegrees": 32, "expected": "tip" }
+  ],
+  "nativeStepUs": 500,
+  "durationUs": 2000000,
+  "maxWorlds": 2,
+  "maxNativeSteps": 8000,
+  "maxJournalBytes": 67108864,
+  "registration": {
+    "geometry": "Freeze the inherited uniform solid cylinder (r=0.033 m, h=0.115 m, m=0.5 kg, body COM at centre) and finite top plane (1 m x 1 m, box thickness 0.05 m). For each fixed slope angle, local top-centre origin stays at zero; box centre is -0.025 times plane normal. Cylinder starts normal-aligned at (h/2 + 0.0001 m) times plane normal with zero velocity. Gravity is (0,0,-9.81) m/s^2. There is one free joint and no actuators, pose writes, resets or scripted motion.",
+    "topology": "The support is fixed. The old motorized stand and its two-rate tilt program do not run in this diagnostic. Both worlds use inherited solver/material settings, including mu=1 and the LEGACY_CCD_MULTI5 flag.",
+    "phase": "mj_step1 must preserve time, pose and velocity; capture actual PRE contacts/velocities. mj_step2 advances the same model; capture solved forces for the same contact identities and the native POST endpoint.",
+    "acceptance": "At 28 degrees require the inherited supported no-slip stable window in the last 100 ms and no earlier confirmed tip. At 32 degrees require the inherited 100 ms supported no-slip downhill tip window, including axis tilt, signed angular velocity, uphill rim lift and beta growth. Checked finite floor interior/support and cumulative slip from first observed load until confirmation; do not skip unadmitted initial or missing support in the required windows. Continue observing finite native state through the fixed horizon.",
+    "interpretation": "Nominal analytical tipping angle is atan(0.033/0.0575)=29.85207626918268 degrees. The 32-degree scene is explicitly a stress case, 2.14792373081732 degrees above the analytical angle. This diagnostic does not measure the PHY-06 gradual-onset bracket, establish two-rate or timestep convergence, or change the historical cylinder HOLD."
+  }
+}
