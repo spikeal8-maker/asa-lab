@@ -48,6 +48,9 @@ const schoolPendingFiles = [
   '0320_personal_progress_summary.sql',
   '0321_account_join_learner_identity.sql',
   '0322_student_group_rating.sql',
+  '0323_learning_direct_essay.sql',
+  '0324_learning_large_task_pdf.sql',
+  '0325_learning_task_attachment_formats.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
