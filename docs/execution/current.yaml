@@ -5979,6 +5979,25 @@ parallel_lanes:
       exact_electronics_conclusion: failure
       exact_electronics_browser: 150 passed, 1 image recovery href retry0 failure; cross-tab save scenario passed
       independent_review: acceptance_blocked_required_gates_failed_no_product_findings_reported
+      current_main_diagnostic:
+        product_source_sha: 1775a9c3d0a430bf357d91f92f922ac450dfaeee
+        unchanged_persistence_at_main_sha: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
+        diagnostic_head_sha: b682052c56857f33006ec48d11c6b34975b568fe
+        run: 43744406876
+        run_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43744406876
+        conclusion: success
+        browser_result: 1 passed in Chromium with real API and PostgreSQL in isolated CI
+        verified_journey: >-
+          The API committed tab A's complete document while its response was held. Tab B edited its resistor
+          and Arduino sketch from the previous revision. A's acknowledgement and B's close preserved B's
+          exact local draft. A fresh tab recovered the complete B document in its own local slot and showed
+          the conflict and local copy. The server document and revision remained exactly A's.
+        focused_units: 87 passed across four recovery, storage, workbench state and autosave test files
+        artifact: 14173911012
+        evidence_boundary: The artifact retains build provenance and stack checks. The browser receipt and
+          reopened screenshot were absent from the uploaded archive.
+        acceptance_boundary: Directed current-product verification only. Full repository and Electronics
+          browser gates remain required for complete acceptance. The historical candidate and blocker are preserved.
       technical_acceptance: blocked
       deployment: not_run
       database_actions: none
