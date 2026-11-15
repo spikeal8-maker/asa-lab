@@ -18168,6 +18168,79 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: robotics-motor-feedback
+    parent_lane: robotics
+    worktree_id: robotics-motor-feedback-001
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-MOTOR-FEEDBACK-001.md
+      - contexts/electronics/testing/brushed-motor-external-shaft.spec.ts
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-MOTOR-FEEDBACK-001
+      issue: 1169
+      parent_issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: pure_external_tt_shaft_model_witness_selected
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      slice: D02-ACTUATOR
+      owner_authorization: >-
+        The owner authorized real 3D physics with Arduino and asked for
+        separate implementation and controller review. This selects one isolated
+        motor-model prerequisite under that programme after registration on main.
+        Requested outcome and gap: https://github.com/spikeal8-maker/asa-lab/issues/1169.
+      scope: >-
+        Pure one-branch TT model witness using analytically prescribed signed
+        output shaft speed at accepted boundaries. Electrical current, thermal
+        state and torque integral remain in the common motor model. The external
+        shaft owns motion and inertia. Prove unchanged legacy path and rejected
+        invalid inputs. A later TEST_ONLY native rotor and physical stop
+        comparison requires a separate accepted selection and exact harness
+        readiness. No engine or scheduler changes in this selection, no product
+        integration, release, deployment or D01/D02 closure.
+      planned_paths:
+        - contexts/electronics/domain/models/brushed-motor-transient-model.ts
+        - contexts/electronics/testing/brushed-motor-external-shaft.spec.ts
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-MOTOR-FEEDBACK-001.md
+        - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        - docs/product/robotics/FIELD_CORE_SPEC.md
+        - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
+      gate_boundary: >-
+        Registration docs-only governance and control-plane validation.
+        Selected pure model implementation uses exact two-path preflight,
+        analytic TT/current/torque regression and existing Electronics gates,
+        plus HIGH independent exact-SHA review. The separate 10s native
+        free-versus-stop energy witness and end-to-end clock integration are
+        not part of this selection.
+      deployment: not_authorized
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 03f61f5a9d56c05333337a9da3a765c121b7fd5f
+      head_sha: null
+      observed_at: '2026-11-15T01:09:23Z'
+      main:
+        branch: main
+        sha: 03f61f5a9d56c05333337a9da3a765c121b7fd5f
+      observation_note: >-
+        Dated controller observation before registration. Fetch main and verify
+        accepted selection, exact path overlap, and gates before source work.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: student-progress
     worktree_id: student-progress-1090
     owned_paths:
