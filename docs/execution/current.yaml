@@ -10947,6 +10947,15 @@ parallel_lanes:
       checkpoint: catalog_548_oracle_passed_current_main_legacy_wire_revalidation
       dependency_issue: 548
       owner_acceptance: pending
+      source_integration_decision:
+        owner: Approved merging the verified legacy wire repair after required CI while leaving unrelated strict failures open.
+        scoped_browser_candidate_sha: c835af0f577e022c5f3aa3e981d854a533fe2f4e
+        scoped_browser_run_id: 43750852083
+        scoped_browser_job_id: 132925384286
+        scoped_browser_artifact_id: 14177287531
+        scoped_browser_result: Mouse and touch full Save/reopen passed; permanent AA2 stage and catalog warning passed.
+        independent_review: Approved scoped source and checked raw full-document and native pointer receipts.
+        strict_suite_result: 11 failures outside the scoped wire and AA2 checks. Full qualification remains open.
       dependency_status: original_catalog_failure_not_reproduced_on_current_main
       dependency_verification:
         source_sha: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
