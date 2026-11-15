@@ -35,8 +35,10 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
 
     const migrations = planMigrations();
     const prefix = migrations.filter((migration) => Number(migration.version) <= 322);
+    const c3Plan = migrations.filter((migration) => Number(migration.version) <= 323);
     expect(prefix.at(-1)?.file).toBe('0322_student_group_rating.sql');
-    expect(migrations.at(-1)?.file).toBe('0323_project_duplicate_origin.sql');
+    expect(c3Plan.at(-1)?.file).toBe('0323_project_duplicate_origin.sql');
+    expect(migrations.at(-1)?.file).toBe('0324_classroom_merit_history.sql');
 
     const migrationClient = await admin.connect();
     try {
@@ -150,8 +152,8 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
         await admin.query('SELECT version,name,checksum FROM schema_migrations ORDER BY version')
       ).rows;
       expect(originalHistory.at(-1)?.version).toBe('0322');
-      expect(await applyIsolatedTestPlan(migrationClient, migrations)).toBe(1);
-      expect(await applyIsolatedTestPlan(migrationClient, migrations)).toBe(0);
+      expect(await applyIsolatedTestPlan(migrationClient, c3Plan)).toBe(1);
+      expect(await applyIsolatedTestPlan(migrationClient, c3Plan)).toBe(0);
       expect(
         (
           await admin.query(
