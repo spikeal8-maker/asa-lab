@@ -1,0 +1,67 @@
+{
+  "id": "E1-MUJOCO-CAN-IMPACT-01",
+  "scope": "TEST_ONLY",
+  "sourceBase": "cf2a954b5cb9d3a1783310cefe46a3e33ac1a048",
+  "engine": {
+    "version": "4.0.0",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+    "disableFlags": 65536,
+    "enableFlags": 32
+  },
+  "can": {
+    "massKg": 0.5,
+    "radiusM": 0.033,
+    "halfHeightM": 0.0575,
+    "inertiaKgM2": [0.0006871666666666667, 0.0006871666666666667, 0.00027225],
+    "initialGapM": 0.0001
+  },
+  "striker": {
+    "massKg": 0.25,
+    "radiusM": 0.02,
+    "axisZM": 0.1025,
+    "initialGapM": 0.01,
+    "pulseUs": 5000
+  },
+  "terrain": { "gravityMps2": 9.81, "interiorHalfWidthM": 2, "interiorHalfDepthM": 1 },
+  "contact": {
+    "groundFriction": 1,
+    "bumperFriction": 0.2,
+    "solref": [0.004, 1],
+    "solimp": [0.99, 0.99, 0.001, 0.5, 2]
+  },
+  "cases": [
+    { "id": "low", "launchEnergyToBarrier": 0.25, "expected": "upright" },
+    { "id": "high", "launchEnergyToBarrier": 16, "expected": "side" }
+  ],
+  "time": {
+    "stepUs": 500,
+    "settleUs": 200000,
+    "settleWitnessUs": 50000,
+    "horizonUs": 1250000,
+    "landingWitnessUs": 100000
+  },
+  "witness": {
+    "uprightToleranceDegrees": 0.5,
+    "sideToleranceDegrees": 10,
+    "settledCenterErrorM": 0.001,
+    "settledSpeedMps": 0.01,
+    "settledAngularSpeedRadPS": 0.01,
+    "dropFraction": 0.75,
+    "launchEnergyRelativeTolerance": 0.02,
+    "contactFrameTolerance": 1e-12
+  },
+  "limits": {
+    "worlds": 2,
+    "stepsTotal": 5000,
+    "settleCanFloorContacts": 4,
+    "bumperCanContacts": 1,
+    "maxReceiptBytes": 33554432
+  },
+  "registration": {
+    "physics": "A free uniform cylinder settles on level ground under gravity. A prismatic spherical striker receives one finite force pulse only while separated. The striker then transfers momentum through native contacts. The directed pulse is a mechanical instrument.",
+    "energy": "The nominal rigid rocking scale is m g (hypot(r, hCOM) - hCOM). Independent drive work and striker kinetic energy are recorded. Launch scales are frozen at 0.25 and 16 of the barrier. The scale defines a bracket, not a claimed exact collision threshold.",
+    "phase": "One mj_step1 and one mj_step2 advance each canonical interval. Pair identity and contact points come from PRE. Forces are read from the same solved interval and integrated as force times dt. POST from the native integrator supplies quaternion, COM, translational and local angular velocity.",
+    "landing": "High launch must have a measured high bumper contact and positive angular impulse, cross the nominal rocking angle after the impact begins, then land below the COM-drop threshold with its axis near horizontal for 100 ms. The side window requires actual floor load and absence of bumper load. Rolling during the side window is permitted. Low launch must contact and remain below the nominal rocking angle, finishing upright.",
+    "boundary": "One stock native CCD profile independent of the original finite hinged stand, original qualification journals, Arduino, ramp and product runtime. This result covers only the registered native mechanical impact scenes."
+  }
+}
