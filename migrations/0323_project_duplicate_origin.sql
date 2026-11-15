@@ -31,13 +31,13 @@ ALTER TABLE public.project_writer_insert_witness FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON public.project_writer_insert_witness FROM PUBLIC,asalab_app;
 
 CREATE FUNCTION public.record_project_insert_witness()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
     INSERT INTO public.project_writer_insert_witness(project_id,inserting_xid)
     VALUES(NEW.id,txid_current());
     RETURN NEW;
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.record_project_insert_witness() FROM PUBLIC,asalab_app;
 CREATE TRIGGER project_insert_witness AFTER INSERT ON public.projects
     FOR EACH ROW EXECUTE FUNCTION public.record_project_insert_witness();
