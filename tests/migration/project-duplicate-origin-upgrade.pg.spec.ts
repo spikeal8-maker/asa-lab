@@ -38,7 +38,9 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
     const c3Plan = migrations.filter((migration) => Number(migration.version) <= 323);
     expect(prefix.at(-1)?.file).toBe('0322_student_group_rating.sql');
     expect(c3Plan.at(-1)?.file).toBe('0323_project_duplicate_origin.sql');
-    expect(migrations.at(-1)?.file).toBe('0324_classroom_merit_history.sql');
+    expect(migrations.find((migration) => migration.version === '0324')?.file).toBe(
+      '0324_classroom_merit_history.sql',
+    );
 
     const migrationClient = await admin.connect();
     try {

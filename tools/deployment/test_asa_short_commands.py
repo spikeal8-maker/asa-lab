@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 @unittest.skipIf(os.name == "nt", "The portable POSIX operator command runs on Linux")
 class PortableASACommandTests(unittest.TestCase):
     def setUp(self):
+        self.addCleanup(os.umask, os.umask(0o022))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "school"
@@ -138,10 +139,12 @@ class PortableASACommandTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix" and os.geteuid() == 0, "Production launcher is installed by root")
     def test_production_launcher_survives_application_switch_and_rejects_writable_tools(self):
-        with tempfile.TemporaryDirectory(dir="/root", prefix="asa-launcher-test-") as work:
+        with tempfile.TemporaryDirectory(dir="/", prefix="asa-launcher-test-") as work:
+            Path(work).chmod(0o755)
             external = Path(work) / "tools-checkout"
             bindir = Path(work) / "bin"
-            bindir.mkdir()
+            bindir.mkdir(mode=0o755)
+            bindir.chmod(0o755)
             shutil.copytree(self.tools, external / "tools")
             def git(*args):
                 return subprocess.check_output(["git", "-C", str(external), *args], text=True, stderr=subprocess.PIPE)
@@ -162,13 +165,21 @@ class PortableASACommandTests(unittest.TestCase):
                                       env={**self.env, "ASA_INSTALL_ROOT": "/invalid", "ASA_PROFILE": "dev"})
             self.assertEqual(launch("--launcher-verify", str(self.root)).stdout.strip(), "ASA_LAUNCHER_FORWARD_V1")
             self.assertEqual(launch("--launcher-verify", "/another-installation").returncode, 64)
+            # A named service owner can validate a deliberately readable, root-controlled tools checkout.
+            verify = subprocess.run([str(launcher), "--launcher-verify", str(self.root)], user="nobody",
+                                    group="nogroup", extra_groups=(), capture_output=True, text=True, timeout=10,
+                                    cwd="/root", env=self.env)
+            self.assertEqual(verify.returncode, 0, verify.stderr)
+            self.assertEqual(verify.stdout.strip(), "ASA_LAUNCHER_FORWARD_V1")
             for action in ("check", "update"):
                 with self.subTest(action=action):
                     result = launch(action)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(json.loads(result.stdout), [
-                        action, "--root", str(self.root), "--profile", "production", "--operator",
-                    ])
+                    expected = [action, "--root", str(self.root), "--profile", "production", "--operator"]
+                    self.assertEqual(json.loads(result.stdout), [*expected, "--human"])
+                    verbose = launch(action, "--verbose")
+                    self.assertEqual(verbose.returncode, 0, verbose.stderr)
+                    self.assertEqual(json.loads(verbose.stdout), expected)
             manager = external / "tools" / "asa_manager.py"
             manager.chmod(0o666)
             result = launch("check")
