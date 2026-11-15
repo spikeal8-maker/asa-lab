@@ -38,7 +38,7 @@ Register the exact owner-provided L298N display artwork and metadata in the exis
 
 - apps/web/public/assets/electronics/component-database/components/drivers/l298n/component.svg (new, exact owner display bytes)
 - apps/web/public/assets/electronics/component-database/catalog.json (single disabled L298N entry)
-- apps/web/src/electronics/testing/production-assets.spec.ts (focused fail-closed catalog/asset test as needed)
+- apps/web/src/electronics/testing/l298n-owner-art.spec.ts (new dedicated focused catalog/asset test if needed)
 - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0-001.md (this card; factual evidence only)
 
 No new `owner-supplied/**` or `owner-audit/**` files are overwritten. No existing SVG is modified. The owner ZIP resides in the ChatGPT runtime at /mnt/data/ASA_LAB_L298N_INTEGRATION_v1_1_TOP_WIRES.zip, **not** automatically on the D2-R2 host; verify the exact binary is transferred before code work.

@@ -87,7 +87,7 @@ parallel_lanes:
     owned_paths:
       - apps/web/public/assets/electronics/component-database/components/drivers/l298n/component.svg
       - apps/web/public/assets/electronics/component-database/catalog.json
-      - apps/web/src/electronics/testing/production-assets.spec.ts
+      - apps/web/src/electronics/testing/l298n-owner-art.spec.ts
       - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0-001.md
     task:
       id: TASK-ELECTRONICS-L298N-P0-001
@@ -140,7 +140,7 @@ parallel_lanes:
       observed_at: '2026-11-15T18:12:09Z'
       observation_note: >-
         Independent programme registration; this branch alone is not authoritative.
-        Fresh origin/main, active peers and exact ZIP preflight required before writes.
+        Require fresh fetch main, active-peer and exact ZIP preflight before writes.
   - id: electronics-recovery-hygiene
     parent_lane: electronics
     worktree_id: electronics-recovery-hygiene-1111
