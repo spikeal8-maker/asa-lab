@@ -50,7 +50,7 @@ function circuit(): ElectronicsDocument {
         position: { x: 650, y: 190 },
         value: 50,
         pinIds: ['lead-1', 'lead-2'],
-        stateProperties: { resistanceUnit: 'Ом', tolerancePercent: 5, powerRatingWatt: 0.25 },
+        stateProperties: { resistanceUnit: 'Ω', tolerancePercent: 5, powerRatingWatt: 0.25 },
       },
       {
         id: 'led',
@@ -232,11 +232,13 @@ test('ELECTRONICS-E01 CROSS-TAB late acknowledgement preserves another tab recov
   const holdA = new Promise<void>((resolve) => {
     releaseA = resolve;
   });
-  let resolveServerA!: (status: number) => void;
-  let rejectServerA!: (error: unknown) => void;
-  const serverA = new Promise<number>((resolve, reject) => {
-    resolveServerA = resolve;
-    rejectServerA = reject;
+  let settleServerA!: (result: number | { error: unknown }) => void;
+  const serverA = new Promise<number | { error: unknown }>((resolve) => {
+    settleServerA = resolve;
+  });
+  let settleDeliveryA!: (failure: { error: unknown } | null) => void;
+  const deliveryA = new Promise<{ error: unknown } | null>((resolve) => {
+    settleDeliveryA = resolve;
   });
   // A background focus refresh must not advance B's editor before its local edit.
   // Once released, this request still goes to the real API.
@@ -250,11 +252,14 @@ test('ELECTRONICS-E01 CROSS-TAB late acknowledgement preserves another tab recov
     firstPuts.push(route.request().postDataJSON());
     try {
       const response = await route.fetch();
-      resolveServerA(response.status());
+      settleServerA(response.status());
       await holdA;
       await route.fulfill({ response });
+      settleDeliveryA(null);
     } catch (error) {
-      rejectServerA(error);
+      const failure = { error };
+      settleServerA(failure);
+      settleDeliveryA(failure);
     }
   });
   const preventPut = (tab: string) => async (route: Route) => {
@@ -273,7 +278,9 @@ test('ELECTRONICS-E01 CROSS-TAB late acknowledgement preserves another tab recov
   try {
     await edit(page, '111.1', sketchA);
     await save(page).click();
-    expect(await serverA).toBe(200);
+    const responseA = await serverA;
+    if (typeof responseA !== 'number') throw responseA.error;
+    expect(responseA).toBe(200);
     await expect(status(page)).toHaveAttribute('data-project-save-status', 'saving');
     const committedA = await readServer();
     receipt.committedA = committedA;
@@ -297,6 +304,9 @@ test('ELECTRONICS-E01 CROSS-TAB late acknowledgement preserves another tab recov
     expect(b!.acknowledgement).toBeNull();
 
     releaseA();
+    const deliveryFailure = await deliveryA;
+    if (deliveryFailure) throw deliveryFailure.error;
+    receipt.deliveryA = 'fulfilled';
     await expect(status(page)).toHaveAttribute('data-project-save-status', 'saved');
     const writersAfterAck = await readWriters(second, prefix);
     receipt.writersAfterAck = writersAfterAck;
@@ -325,6 +335,13 @@ test('ELECTRONICS-E01 CROSS-TAB late acknowledgement preserves another tab recov
     const reopenedWriters = await readWriters(reopened, prefix);
     receipt.reopenedWriters = reopenedWriters;
     expect(reopenedWriters.find((entry) => entry.key === b!.key)).toEqual(b);
+    const reopenedKey = await reopened.evaluate((key) => sessionStorage.getItem(key), prefix);
+    receipt.reopenedKey = reopenedKey;
+    expect(reopenedKey?.startsWith(prefix)).toBe(true);
+    expect(reopenedKey).not.toBe(b!.key);
+    const reopenedWriter = reopenedWriters.find((entry) => entry.key === reopenedKey);
+    expect(reopenedWriter?.draft.document).toEqual(expectedB);
+    expect(reopenedWriter?.acknowledgement).toBeNull();
     const finalServer = await readServer();
     receipt.finalServer = finalServer;
     expect(finalServer).toEqual(committedA);
