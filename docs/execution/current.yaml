@@ -16831,30 +16831,55 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: completion_e4d_verified_2576tests71fresh_caps8_native_ready_held_for877
-      completion_candidate_sha: e4d3712d1db47aeb762bc9401781257bd4b66ad0
-      completion_review: APPROVE_new_independent_exact_source_native_and_canonical
-      completion_canonical: PASS_2576tests_71freshNx_cacheSkipped_all8caps_Arduino1999233
-      completion_native: Original16fixtures_and_source_bytes_exact_six_noedit_mounts_and_genuine_edit_export_reopen_adapter_both_widths_PASS
-      completion_publication: source_candidate_pushed_not_integrated_pending_primary877
-      completion_resume:
-        checkpoint: selected_recompose_preserved_candidate_after_approved_resize876
-        measured_reference_arduino_bytes: 1998988
-        fixed_arduino_cap_bytes: 2000000
-        reference_source: accepted876_exact84e4acc1_and_877_finalbuild_sameArduino
-        owner_authorization: Prior_finish_all_prepared_request_and_new_explicit_refactoring_876_supersede_budget_deferral_only
-        scope: Existing_saved_workspace_reader_and_loading_event_fix_only_no_waits_no_runtime
-        integration_order: Candidate_only_while877_strict_pending_controller_integrates_after_primary_dependency_qualification
-      candidate_sha: 46d388c04c876546dccf1427b7758e34792d901e
-      candidate_publication: published
-      candidate_acceptance: blocked
-      owner_cleanup_decision: Owner_explicitly_keep_candidate_continue_others_no_Arduino_cleanup_2026_10_30
-      size_evidence: Arduino2000170of2000000_other7capsPASS_reader13PASS_nativeAFTER_canonical_independentreview_NOT_RUN
-      report: reports/arduino-block-mount-865/README.md
+      checkpoint: source_merged_pr1190_full_electronics_qualification_remains_open
+      source_delivery:
+        pull_request: 1190
+        merged_main_sha: 66035f48214fdbcf0a5f457408d29fe4d83f0d23
+        reviewed_head_sha: 370b97127a9117344024b7667a9d620f03904bc8
+        merged_at: '2026-11-15T14:03:46Z'
+        general:
+          run_id: 43719597419
+          conclusion: success
+        publication:
+          run_id: 43719597317
+          browser_job_id: 132828581828
+          conclusion: success
+        focused:
+          run_id: 43719597389
+          solver_editor_build_job_id: 132828507567
+          benchmark_job_id: 132829831840
+          conclusion: success
+        strict_browser:
+          run_id: 43719597389
+          conclusion: failure
+          failed_shards: [s1, s2, s3]
+          passed_shards: [s4]
+        boundary: Source delivery for saved Blockly preservation is complete. Full Electronics browser qualification and owner acceptance remain open.
+      historical_candidates:
+        checkpoint: completion_e4d_verified_2576tests71fresh_caps8_native_ready_held_for877
+        completion_candidate_sha: e4d3712d1db47aeb762bc9401781257bd4b66ad0
+        completion_review: APPROVE_new_independent_exact_source_native_and_canonical
+        completion_canonical: PASS_2576tests_71freshNx_cacheSkipped_all8caps_Arduino1999233
+        completion_native: Original16fixtures_and_source_bytes_exact_six_noedit_mounts_and_genuine_edit_export_reopen_adapter_both_widths_PASS
+        completion_publication: source_candidate_pushed_not_integrated_pending_primary877
+        completion_resume:
+          checkpoint: selected_recompose_preserved_candidate_after_approved_resize876
+          measured_reference_arduino_bytes: 1998988
+          fixed_arduino_cap_bytes: 2000000
+          reference_source: accepted876_exact84e4acc1_and_877_finalbuild_sameArduino
+          owner_authorization: Prior_finish_all_prepared_request_and_new_explicit_refactoring_876_supersede_budget_deferral_only
+          scope: Existing_saved_workspace_reader_and_loading_event_fix_only_no_waits_no_runtime
+          integration_order: Candidate_only_while877_strict_pending_controller_integrates_after_primary_dependency_qualification
+        candidate_sha: 46d388c04c876546dccf1427b7758e34792d901e
+        candidate_publication: published
+        candidate_acceptance: blocked
+        owner_cleanup_decision: Owner_explicitly_keep_candidate_continue_others_no_Arduino_cleanup_2026_10_30
+        size_evidence: Arduino2000170of2000000_other7capsPASS_reader13PASS_nativeAFTER_canonical_independentreview_NOT_RUN
+        report: reports/arduino-block-mount-865/README.md
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_review
       context_hints:
@@ -16876,11 +16901,11 @@ parallel_lanes:
       kind: observed_snapshot
       main:
         branch: main
-        sha: e323f35c6e287c97e4bd40d1e768f3eeb4c6db05
+        sha: 66035f48214fdbcf0a5f457408d29fe4d83f0d23
       convergence_baseline_sha: e323f35c6e287c97e4bd40d1e768f3eeb4c6db05
       head_sha: null
-      observed_at: '2026-10-30T08:13:33Z'
-      observation_note: Fresh fetch main before edits; remote main equals clean controller HEAD. General in_progress not claimed PASS. BEFORE16fixtures6actualmounts all overwrite old source and XML; product unchanged. Repair selected before864.
+      observed_at: '2026-11-15T14:23:04Z'
+      observation_note: Fresh fetch main before edits. The observed main contains PR #1190 and is tree-identical to the reviewed head. The original baseline reproduced overwrites in six mounts and froze 16 fixtures.
 
   - id: electronics-realtime-compute-cause
     parent_lane: electronics
