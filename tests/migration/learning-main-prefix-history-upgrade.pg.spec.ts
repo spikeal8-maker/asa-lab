@@ -492,7 +492,7 @@ const upgradeArtifacts = [
   [
     '0323',
     '0323_project_duplicate_origin.sql',
-    '879fcdc0d8db14dd2de012acd7e3396b4edb0deccb417071fa2b09f0b8ac9337',
+    '9bae153d21c044b2ca33e5112ebf18d715391725198d6c047162b30d7aba8035',
   ],
 ] as const;
 
