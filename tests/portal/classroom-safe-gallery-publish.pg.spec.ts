@@ -11,6 +11,9 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { seedTeacher, testAdminPool, testAppPool } from './helpers';
+import { studentProjectPolicyFixture } from './student-project-policy-fixture';
+import { buildTestApp, inject } from './app';
+import { STUDENT_SESSION_COOKIE } from '../../apps/api/src/seat-context.js';
 
 // All writes are confined to disposable *_test PostgreSQL databases by helpers.
 // This is the real database publication path, not a mocked gallery controller.
@@ -373,6 +376,41 @@ describe('Safe Mode retroactively blocks public reads and retains withdrawal aut
           .rows[0].ok,
       ).toBe(true);
       expect((await publicList()).rowCount).toBe(0);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('Safe Mode native Seat HTTP publication boundary', () => {
+  it('returns 403 classroom_safe_mode and creates no partial publication after policy allows publishing', async () => {
+    const f = await studentProjectPolicyFixture(admin, runtime);
+    expect(await f.write({ publish: true, download: false, expectedVersion: 0 })).toMatchObject({
+      version: 1,
+    });
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=true WHERE id=$1', [f.seatId]);
+
+    const app = await buildTestApp(runtime);
+    try {
+      const response = await inject(app, {
+        method: 'POST',
+        url: '/api/projects/' + f.projectId + '/publication',
+        payload: {},
+        cookies: { [STUDENT_SESSION_COOKIE]: f.token },
+      });
+      expect(response.statusCode, response.body).toBe(403);
+      expect(response.json()).toMatchObject({
+        error: { code: 'classroom_safe_mode' },
+      });
+      const counts = await admin.query(
+        'SELECT (SELECT count(*)::integer FROM project_publication_state WHERE project_id=$1) AS states, (SELECT count(*)::integer FROM project_publications WHERE project_id=$1) AS legacy, (SELECT count(*)::integer FROM project_publication_revisions WHERE project_id=$1) AS revisions',
+        [f.projectId],
+      );
+      expect(counts.rows[0]).toEqual({
+        states: 0,
+        legacy: 0,
+        revisions: 0,
+      });
     } finally {
       await app.close();
     }
