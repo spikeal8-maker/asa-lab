@@ -1,0 +1,628 @@
+{
+  "schema": "ASA-TEST-ONLY-TT-ROVER-RAMP-CAN-1",
+  "issue": 1181,
+  "selectedMain": "672be6ead8e7ed222eeb8246849e225d6ce455a5",
+  "acceptedTt": {
+    "main": "9af20ffb14149b32b13e3551be5ec1bdd4f8e58a",
+    "source": "cf73935888a4ad87d7582c7683b2b6e9325ba388",
+    "fixtureSha256": "397f29ae62b28a609647458939a21bc9f6df43d16506001913a6d8f35e65f22f",
+    "sourceSha256": "9b83452679735d459025d60cf260bfd28f986176ed1d44833e02c62cfb759b08",
+    "rawSha256": "8eb7080709abe4d52f9caa3cbfa167065b6e3b4f0707c87e6bc8b89d70c31131"
+  },
+  "engine": {
+    "version": "4.0.0",
+    "sourceCommit": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "declaredNpmLicense": "Apache-2.0",
+    "packageSha256": "a7d2c0108c77aa9826a2df5aa40f79e4812339b218fe237e478f73eb586fc0d9",
+    "glueSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+    "profile": {
+      "gravity": [0, 0, -9.81],
+      "integrator": 3,
+      "solver": 2,
+      "jacobian": 0,
+      "cone": 1,
+      "iterations": 100,
+      "ls_iterations": 50,
+      "noslip_iterations": 20,
+      "ccd_iterations": 100,
+      "disableflags": 65536,
+      "enableflags": 32
+    }
+  },
+  "motor": {
+    "profileId": "adafruit-3777-tt-48to1",
+    "gearRatio": 48,
+    "rotorInertiaKgM2": 2e-7,
+    "reflectedInertiaKgM2": 0.0004608
+  },
+  "programs": {
+    "powered": {
+      "receiptSha256": "e1d5fb5939d639d1cc0b5e6d3aa518c2ed77e7518721012a2162fb7b06909832",
+      "sketchSha256": "acfc2b3854ed2cc4161a6f9a7dcff50af9777310b85ba07043b6f350a2047c90",
+      "gpioSha256": "22a338b8385ce5ff644d1f258e4cfb40bea805ced20c023e2938aaae1ea173d5",
+      "source": "void setup() {\n  pinMode(5, OUTPUT);\n  digitalWrite(5, LOW);\n  delay(250);\n  digitalWrite(5, HIGH);\n  delay(1200);\n  for (int cycle = 0; cycle < 8; cycle++) {\n    digitalWrite(5, LOW);\n    delayMicroseconds(320);\n    digitalWrite(5, HIGH);\n    delayMicroseconds(180);\n  }\n  delay(2886);\n  digitalWrite(5, LOW);\n}\n\nvoid loop() {\n  delay(1000);\n}\r\n",
+      "gpio": [
+        {
+          "sequence": 0,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "pin-mode-change",
+          "mode": "OUTPUT"
+        },
+        {
+          "sequence": 1,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 2,
+          "atMicroseconds": 250003,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 3,
+          "atMicroseconds": 1450009,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 4,
+          "atMicroseconds": 1450331,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 5,
+          "atMicroseconds": 1450518,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 6,
+          "atMicroseconds": 1450840,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 7,
+          "atMicroseconds": 1451027,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 8,
+          "atMicroseconds": 1451349,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 9,
+          "atMicroseconds": 1451536,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 10,
+          "atMicroseconds": 1451858,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 11,
+          "atMicroseconds": 1452045,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 12,
+          "atMicroseconds": 1452367,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 13,
+          "atMicroseconds": 1452554,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 14,
+          "atMicroseconds": 1452876,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 15,
+          "atMicroseconds": 1453063,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 16,
+          "atMicroseconds": 1453385,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 17,
+          "atMicroseconds": 1453572,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 18,
+          "atMicroseconds": 1453894,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 19,
+          "atMicroseconds": 4340082,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        }
+      ]
+    },
+    "control": {
+      "source": "void setup() {\n  pinMode(5, OUTPUT);\n  digitalWrite(5, LOW);\n  delay(250);\n  digitalWrite(5, LOW);\n  delay(1200);\n  for (int cycle = 0; cycle < 8; cycle++) {\n    digitalWrite(5, LOW);\n    delayMicroseconds(320);\n    digitalWrite(5, LOW);\n    delayMicroseconds(180);\n  }\n  delay(2886);\n  digitalWrite(5, LOW);\n}\n\nvoid loop() {\n  delay(1000);\n}\r\n",
+      "sketchSha256": "80115f2df9e1dcbf8265d2c1a0284954c5cec69aba8b9aa1038a20e694ea94dc",
+      "gpio": [
+        {
+          "sequence": 0,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "pin-mode-change",
+          "mode": "OUTPUT"
+        },
+        {
+          "sequence": 1,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        }
+      ],
+      "gpioSha256": "d84549a5061a1d54a7a4b5470c7d8f6d5f936301e36b0f441cdb1894290edbb8",
+      "method": "Exact accepted powered source with replacement of D5 HIGH writes only. Independently executed pure Uno with budgets 1 and 256."
+    },
+    "divergeUs": 250003,
+    "offUs": 4340082
+  },
+  "physical": {
+    "terrain": {
+      "lower": [-0.8, 0],
+      "slope": [0, 0.8],
+      "upper": [0.8, 3],
+      "halfY": 0.5,
+      "angleDeg": 5,
+      "height": 0.0699909308207392,
+      "vertices": [
+        [0, -0.5, -0.05],
+        [0.8, -0.5, -0.05],
+        [0.8, 0.5, -0.05],
+        [0, 0.5, -0.05],
+        [0, -0.5, 0],
+        [0.8, -0.5, 0.0699909308207392],
+        [0.8, 0.5, 0.0699909308207392],
+        [0, 0.5, 0]
+      ],
+      "faces": [
+        [0, 2, 1],
+        [0, 3, 2],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 1, 5],
+        [0, 5, 4],
+        [1, 2, 6],
+        [1, 6, 5],
+        [3, 0, 4],
+        [3, 4, 7],
+        [4, 5, 6],
+        [4, 6, 7]
+      ]
+    },
+    "wheelRadius": 0.03,
+    "wheelHalfWidth": 0.01,
+    "wheelMass": 0.04,
+    "chassisMass": 0.6,
+    "can": {
+      "mass": 0.0122,
+      "radius": 0.033,
+      "height": 0.1152,
+      "comHeight": 0.0689311475409836,
+      "tipAngleRad": 0.44649426308766105,
+      "nominalEnergyBarrierJ": 0.0008966619455577198,
+      "initialComZ": 0.13892207836172282,
+      "startX": 1.35
+    },
+    "limits": {
+      "staticUs": 50000,
+      "rampUs": 100000,
+      "sideUs": 100000,
+      "maxSlipMps": 0.02,
+      "minElevationM": 0.06,
+      "canUprightDeg": 0.5,
+      "canSideFromHorizontalDeg": 10,
+      "canDropFraction": 0.75,
+      "impactAboveComM": 0.005,
+      "controlMaxTravelM": 0.02,
+      "controlPositiveShaftMaxJ": 0.0001,
+      "faceDistanceM": 0.001,
+      "faceNormalAllowDeg": 5
+    },
+    "boom": {
+      "description": "Same closed formed 5052-H32 shell tilted nose-up about the rear lower mounting seam. Educational mass and rigid-body model.",
+      "materialSource": "https://www.hulamin.com/sites/default/files/downloads/5052%20Data%20Sheet.pdf",
+      "densityKgM3": 2680,
+      "wallM": 0.0005,
+      "centerM": [0.15694712210921707, 0, 0.03730399557423576],
+      "halfSizeM": [0.0975, 0.035, 0.0105],
+      "frontStrikeRegionLengthM": 0.02,
+      "frontStrikeRegionCenterXM": 0.245,
+      "deltaXM": 0.15,
+      "remainingChassisBlockM": [0.1, 0.08, 0.02],
+      "combinedChassisMassKg": 0.44,
+      "pitchUpDeg": 7,
+      "rearLowerAnchorM": [0.061453500429942215, 0, 0.015],
+      "quatWxyz": [0.9981347984218669, 0, -0.06104853953485687, 0],
+      "tipFrontX": 0.255
+    }
+  },
+  "expected": {
+    "bodies": ["world", "rover", "rear-axle", "front-left-wheel", "front-right-wheel", "empty-can"],
+    "geoms": [
+      "lower",
+      "slope",
+      "upper",
+      "chassis",
+      "bumper",
+      "rear-left",
+      "rear-right",
+      "front-left",
+      "front-right",
+      "can"
+    ],
+    "joints": ["rover-free", "tt-output", "front-left-passive", "front-right-passive", "can-free"],
+    "qposAdr": [0, 7, 8, 9, 10],
+    "dofAdr": [0, 6, 7, 8, 9],
+    "pairs": [
+      {
+        "terrain": "lower",
+        "object": "rear-left",
+        "ids": [0, 5],
+        "friction": 0.8
+      },
+      {
+        "terrain": "slope",
+        "object": "rear-left",
+        "ids": [1, 5],
+        "friction": 0.8
+      },
+      {
+        "terrain": "upper",
+        "object": "rear-left",
+        "ids": [2, 5],
+        "friction": 0.8
+      },
+      {
+        "terrain": "lower",
+        "object": "rear-right",
+        "ids": [0, 6],
+        "friction": 0.8
+      },
+      {
+        "terrain": "slope",
+        "object": "rear-right",
+        "ids": [1, 6],
+        "friction": 0.8
+      },
+      {
+        "terrain": "upper",
+        "object": "rear-right",
+        "ids": [2, 6],
+        "friction": 0.8
+      },
+      {
+        "terrain": "lower",
+        "object": "front-left",
+        "ids": [0, 7],
+        "friction": 0.8
+      },
+      {
+        "terrain": "slope",
+        "object": "front-left",
+        "ids": [1, 7],
+        "friction": 0.8
+      },
+      {
+        "terrain": "upper",
+        "object": "front-left",
+        "ids": [2, 7],
+        "friction": 0.8
+      },
+      {
+        "terrain": "lower",
+        "object": "front-right",
+        "ids": [0, 8],
+        "friction": 0.8
+      },
+      {
+        "terrain": "slope",
+        "object": "front-right",
+        "ids": [1, 8],
+        "friction": 0.8
+      },
+      {
+        "terrain": "upper",
+        "object": "front-right",
+        "ids": [2, 8],
+        "friction": 0.8
+      },
+      {
+        "terrain": "lower",
+        "object": "chassis",
+        "ids": [0, 3],
+        "friction": 0.8
+      },
+      {
+        "terrain": "slope",
+        "object": "chassis",
+        "ids": [1, 3],
+        "friction": 0.8
+      },
+      {
+        "terrain": "upper",
+        "object": "chassis",
+        "ids": [2, 3],
+        "friction": 0.8
+      },
+      {
+        "terrain": "lower",
+        "object": "can",
+        "ids": [0, 9],
+        "friction": 1
+      },
+      {
+        "terrain": "slope",
+        "object": "can",
+        "ids": [1, 9],
+        "friction": 1
+      },
+      {
+        "terrain": "upper",
+        "object": "can",
+        "ids": [2, 9],
+        "friction": 1
+      },
+      {
+        "terrain": "bumper",
+        "object": "can",
+        "ids": [4, 9],
+        "friction": 0.2
+      },
+      {
+        "terrain": "rear-left",
+        "object": "can",
+        "ids": [5, 9],
+        "friction": 0.2
+      },
+      {
+        "terrain": "rear-right",
+        "object": "can",
+        "ids": [6, 9],
+        "friction": 0.2
+      },
+      {
+        "terrain": "front-left",
+        "object": "can",
+        "ids": [7, 9],
+        "friction": 0.2
+      },
+      {
+        "terrain": "front-right",
+        "object": "can",
+        "ids": [8, 9],
+        "friction": 0.2
+      },
+      {
+        "terrain": "chassis",
+        "object": "can",
+        "ids": [3, 9],
+        "friction": 0.2
+      },
+      {
+        "terrain": "lower",
+        "object": "bumper",
+        "ids": [0, 4],
+        "friction": 0.8
+      },
+      {
+        "terrain": "slope",
+        "object": "bumper",
+        "ids": [1, 4],
+        "friction": 0.8
+      },
+      {
+        "terrain": "upper",
+        "object": "bumper",
+        "ids": [2, 4],
+        "friction": 0.8
+      }
+    ]
+  },
+  "raw": {
+    "intervalByteCap": 2048,
+    "contactBytes": 176,
+    "maxIntervalsPerWorld": 22000,
+    "maxSessionCalls": 24000,
+    "maxContactsPerWorld": 450000,
+    "maxContactsPerInterval": 132,
+    "maxRowsPerInterval": 396,
+    "metadataByteCap": 1048576,
+    "footerByteCap": 8388608,
+    "byteCap": 268435456
+  },
+  "budgets": {
+    "horizonUs": 10000000,
+    "maxStepUs": 500,
+    "maxEvents": 256,
+    "timeoutMs": 360000,
+    "clockToleranceUs": 0.01,
+    "velocityParityMps": 1e-9,
+    "terminalReadTolerance": 2e-5,
+    "forceFrameTolerance": 1e-12,
+    "motionWorkAbsJ": 1e-6,
+    "motionWorkRel": 0.01,
+    "relativeEnergyLimit": 0.01,
+    "absoluteEnergyLimitJ": 0.0001
+  },
+  "xml": [
+    "<mujoco model=\"asa1181_tt_rover\">",
+    "<compiler angle=\"radian\" inertiafromgeom=\"false\" autolimits=\"false\"/>",
+    "<option timestep=\"0.0005\" gravity=\"0 0 -9.81\" integrator=\"implicitfast\" solver=\"Newton\" jacobian=\"dense\" cone=\"elliptic\" iterations=\"100\" tolerance=\"1e-10\" ls_iterations=\"50\" ls_tolerance=\"0.01\" noslip_iterations=\"20\" noslip_tolerance=\"1e-12\" impratio=\"1\" ccd_iterations=\"100\" ccd_tolerance=\"1e-8\" density=\"0\" viscosity=\"0\" wind=\"0 0 0\">",
+    "<flag warmstart=\"enable\" island=\"enable\" refsafe=\"enable\" nativeccd=\"enable\" multiccd=\"enable\" diagexact=\"enable\" autoreset=\"disable\" sleep=\"disable\" override=\"disable\" fwdinv=\"disable\" invdiscrete=\"disable\" energy=\"disable\" ipc=\"disable\" speculative=\"disable\"/>",
+    "</option>",
+    "<default><geom contype=\"0\" conaffinity=\"0\" condim=\"3\" margin=\"0\" gap=\"0\"/></default>",
+    "<asset><mesh name=\"incline\" vertex=\"0 -0.5 -0.05 0.8 -0.5 -0.05 0.8 0.5 -0.05 0 0.5 -0.05 0 -0.5 0 0.8 -0.5 0.0699909308207392 0.8 0.5 0.0699909308207392 0 0.5 0\" face=\"0 2 1 0 3 2 2 3 7 2 7 6 0 1 5 0 5 4 1 2 6 1 6 5 3 0 4 3 4 7 4 5 6 4 6 7\"/></asset>",
+    "<worldbody>",
+    "<geom name=\"lower\" type=\"box\" pos=\"-0.4 0 -0.025\" size=\"0.4 0.5 0.025\"/>",
+    "<geom name=\"slope\" type=\"mesh\" mesh=\"incline\"/>",
+    "<geom name=\"upper\" type=\"box\" pos=\"1.9 0 0.044990930820739204\" size=\"1.1 0.5 0.025\"/>",
+    "<body name=\"rover\" pos=\"-0.25 0 0.06\"><freejoint name=\"rover-free\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.44\" fullinertia=\"0.00033639597389362885 0.002018023863011864 0.002154899964851568 0 -0.00035747329369297735 0\"/>",
+    "<geom name=\"chassis\" type=\"box\" size=\"0.08 0.05 0.016\"/>",
+    "<geom name=\"bumper\" type=\"box\" pos=\"0.15694712210921707 0 0.03730399557423576\" size=\"0.0975 0.035 0.0105\" quat=\"0.9981347984218669 0 -0.06104853953485687 0\"/>",
+    "<body name=\"rear-axle\" pos=\"-0.07 0 -0.03\">",
+    "<joint name=\"tt-output\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0.0004608\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.08\" diaginertia=\"0.0003586666666666667 0.000036 0.0003586666666666667\"/>",
+    "<geom name=\"rear-left\" type=\"cylinder\" pos=\"0 0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "<geom name=\"rear-right\" type=\"cylinder\" pos=\"0 -0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "<body name=\"front-left-wheel\" pos=\"0.07 0.065 -0.03\">",
+    "<joint name=\"front-left-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+    "<geom name=\"front-left\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "<body name=\"front-right-wheel\" pos=\"0.07 -0.065 -0.03\">",
+    "<joint name=\"front-right-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+    "<geom name=\"front-right\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "</body>",
+    "<body name=\"empty-can\" pos=\"1.35 0 0.1275909308207392\"><freejoint name=\"can-free\"/>",
+    "<inertial pos=\"0 0 0.011331147540983605\" mass=\"0.0122\" diaginertia=\"0.000023223722164 0.000023223722164 0.000011979\"/>",
+    "<geom name=\"can\" type=\"cylinder\" size=\"0.033 0.0576\"/>",
+    "</body></worldbody><contact>",
+    "<pair geom1=\"lower\" geom2=\"rear-left\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"slope\" geom2=\"rear-left\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper\" geom2=\"rear-left\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"rear-right\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"slope\" geom2=\"rear-right\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper\" geom2=\"rear-right\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"front-left\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"slope\" geom2=\"front-left\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper\" geom2=\"front-left\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"front-right\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"slope\" geom2=\"front-right\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper\" geom2=\"front-right\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"chassis\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"slope\" geom2=\"chassis\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper\" geom2=\"chassis\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"can\" condim=\"3\" friction=\"1 1 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"slope\" geom2=\"can\" condim=\"3\" friction=\"1 1 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper\" geom2=\"can\" condim=\"3\" friction=\"1 1 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"bumper\" geom2=\"can\" condim=\"3\" friction=\"0.2 0.2 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"rear-left\" geom2=\"can\" condim=\"3\" friction=\"0.2 0.2 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"rear-right\" geom2=\"can\" condim=\"3\" friction=\"0.2 0.2 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"front-left\" geom2=\"can\" condim=\"3\" friction=\"0.2 0.2 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"front-right\" geom2=\"can\" condim=\"3\" friction=\"0.2 0.2 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"chassis\" geom2=\"can\" condim=\"3\" friction=\"0.2 0.2 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"bumper\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"slope\" geom2=\"bumper\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper\" geom2=\"bumper\" condim=\"3\" friction=\"0.8 0.8 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "</contact></mujoco>"
+  ],
+  "xmlSha256": "acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0",
+  "historicalR2": {
+    "sourceCommit": "e0d0a1c5b8f73f54088a78d88353669b79d795e0",
+    "sourceSha256": "4a0d6fdd3cf2de9087ca18cf206edff25d20b5bdeb115fecb031e373f0b91aff",
+    "fixtureSha256": "32265449f4770dae67b9305f74df2144e3855c480d738dcbb2cde2b239e122b6",
+    "xmlSha256": "6f1fc59f811455642168e58897b960ecff70aa98b50a9521bc094ea31ccc6b0a",
+    "poweredGpioSha256": "1c503198299f4e9893139d10b6f091f36a2a67654da4e62d864d3dbaf0b1d432",
+    "controlGpioSha256": "d84549a5061a1d54a7a4b5470c7d8f6d5f936301e36b0f441cdb1894290edbb8",
+    "finalLowUs": 6004082,
+    "canX": 1.2,
+    "metadataSha256": "d80d5366ed217e391a43197757481e63512aa6e1f4809c7541a976168748c198",
+    "binarySha256": "57db3c1d98b5cf656a6630922a3a99212a30f427b4aeef9e6d6f74e29647045b",
+    "metadataBytes": 31448,
+    "binaryBytes": 156560624,
+    "intervalsPerWorld": 20086,
+    "totalIntervals": 40172,
+    "firstBumpUs": 4266500,
+    "crossUs": 4334500,
+    "freeSideFromUs": 4569500,
+    "freeSideToUs": 4572500
+  },
+  "historicalR3": {
+    "sourceCommit": "1490fd04204362759a64e2a9b1cb37c5d2cbd9fd",
+    "sourceSha256": "39d5bc6c758bc9ccf38f1f81f2aa11f477f001b77dbc8875ef3219eb2ad3db8b",
+    "fixtureSha256": "e9ef0b769b4382859667c01d3e4241ba2f187c7c250fe76c696fd787e87d19ba",
+    "xmlSha256": "004f671fb054a1d337b153e9fd90bb0a6ec84274c5c0c5391114c0e22f3200cf",
+    "metadataSha256": "68eb7de817dac00b8698f0dbb85c79737bc356ec44e2ad85e2fc6f5d618dfd1b",
+    "binarySha256": "d517a0afe8bc0f9cc236a6df0dd4f2041055d1215cc73c38498f969106ebc6ae",
+    "metadataBytes": 33839,
+    "binaryBytes": 162994144,
+    "intervalsPerWorld": 20090,
+    "totalIntervals": 40180,
+    "firstBumpUs": 4266500,
+    "crossUs": 4326500,
+    "freeSideFromUs": 4457000,
+    "freeSideToUs": 4557000,
+    "bumperRowsToCross": 21,
+    "boomCenterM": [0.1575, 0, 0.0255]
+  },
+  "historicalR4": {
+    "sourceCommit": "3fd944d64707ba0a8da518e79c7e369a1f3cfeb7",
+    "sourceSha256": "41b61848e74c328957a688eb5824422432cf7a976e7eb1a4a1945265781bf50e",
+    "fixtureSha256": "4e424678df5f75a27d5f163252232affcea36d93e0256cc07d47bc0d905fa287",
+    "xmlSha256": "acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0",
+    "metadataBytes": 34266,
+    "binaryBytes": 162991152,
+    "metadataSha256": "c198be661ad720f18e3b427a39ae107544c4201699ead24f66f2c1a5af5f6f31",
+    "binarySha256": "5c1701671d5367747ee425f2f911fc250de1357d59ad3c6e4c89b4d3bf20cc9f",
+    "intervalsPerWorld": 20090,
+    "totalIntervals": 40180,
+    "firstBumpUs": 4266500,
+    "crossUs": 4349000,
+    "freeSideFromUs": 4497500,
+    "freeSideToUs": 4597500
+  },
+  "comparison": {
+    "interventionUs": 250003,
+    "lastLegacyFromUs": 250000,
+    "prefixIntervals": 503,
+    "prefixSha256": "dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16"
+  }
+}
