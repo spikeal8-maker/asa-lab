@@ -1301,7 +1301,11 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     );
 
     const issuedId = randomUUID();
-    const granted = { seatId: seat.id, id: merit.id, granted: true };
+    const granted = {
+      seatId: seat.id.toUpperCase(),
+      id: merit.id.toUpperCase(),
+      granted: true,
+    };
     await f.write('merit_grant', granted, f.actor, issuedId);
     await f.write('merit_grant', granted, f.actor, issuedId);
     await f.write('merit_grant', { ...granted, granted: false });

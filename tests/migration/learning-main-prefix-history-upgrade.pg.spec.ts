@@ -492,7 +492,7 @@ const upgradeArtifacts = [
   [
     '0324',
     '0324_classroom_merit_history.sql',
-    'da2b0a93303b3511d1f1ed0affeb7c9c5bea688948c9783a9d60231aad43c447',
+    'e74f1664543474be7613d3fb777caa3b3d1bfdcc4916040174a38d69b487fda4',
   ],
 ] as const;
 

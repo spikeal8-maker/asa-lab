@@ -103,12 +103,12 @@ WITH history AS MATERIALIZED (
    AND receipt.request_id=event.payload_json->>'requestId'
   JOIN public.classroom_custom_merits merit
     ON merit.classroom_id=p_class
-   AND merit.id::text=receipt.payload->'input'->>'id'
+   AND merit.id=(receipt.payload->'input'->>'id')::uuid
   WHERE event.entity_type='classroom'
     AND event.entity_id=p_class
     AND event.action='classroom.participant.merit_grant'
     AND receipt.payload->>'action'='merit_grant'
-    AND receipt.payload->'input'->>'seatId'=p_seat::text
+    AND (receipt.payload->'input'->>'seatId')::uuid=p_seat
     AND receipt.payload->'input'->>'granted' IN ('true','false')
   ORDER BY event.id DESC
   OFFSET p_offset LIMIT 51
