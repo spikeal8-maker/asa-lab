@@ -1,0 +1,110 @@
+{
+  "schema": "ASA-MUJOCO-FINITE-CAP-FIXED-TILT-1",
+  "profile": "TEST_ONLY",
+  "issue": 1071,
+  "selectedMain": "7531583424cd943ea1e9c1730b482b0360ade872",
+  "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+  "version": "4.0.0",
+  "positionAdmission": {
+    "sourceCommit": "6cdf7afc91de46f1f186e473da5d4562b7c445fc",
+    "acceptedMerge": "7549f1048e4f092fbcd7e66643a0d09448448b56",
+    "patch": "d60b5145ebe52ce5b2ed70f1a5db30448164da0bcabd50e28adfdc4afa74dc67",
+    "fixture": "2f6c313dfc0240a4b9bfb2fb0aebae0bae15e92bdd2255c10b057ccfb0a78905",
+    "source": "4c9e51f122b38c67bdb72cfcd0b44cbeaf0adf669408c538bba35c105658a7fa"
+  },
+  "archive": {
+    "sourceCommit": "e3302222fd7dc3f234080cfae0588e9300503ae1",
+    "engineProfile": "LEGACY_CCD_MULTI5",
+    "fixedFixture": [
+      "tests/robotics/field-core-qualification/mujoco-can-fixed-tilt.fixture.json",
+      3183,
+      "accbcc23dea77616a5c3900fd7269a0c9928e15a803fb48803a5642d75523cda"
+    ],
+    "fixedSource": [
+      "tests/robotics/field-core-qualification/mujoco-can-fixed-tilt.spec.ts",
+      18876,
+      "ed77d425771a4fbdcc8ba662272d12fbc0c99382e42f6a84ff07312e6ee84dca"
+    ],
+    "cylinder": [
+      "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json",
+      15762,
+      "fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5"
+    ],
+    "observer": [
+      "tools/robotics-field-core/mujoco-contact-observer.mjs",
+      43885,
+      "77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987"
+    ],
+    "fixedRaw": [
+      "archive/fixed-tilt-native-can.ndjson",
+      31827616,
+      "2e65994a646934db01b8d25e33afa2995a2245d0f90ac44c146fe4d165bb0b8b"
+    ],
+    "positionRaw": [
+      "archive/finite-cap-position-only.json",
+      5054041,
+      "8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7"
+    ]
+  },
+  "engines": {
+    "candidate": {
+      "files": {
+        "mujoco.js": "7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db",
+        "mujoco.wasm": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241",
+        "mujoco.d.ts": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff",
+        "build-receipt.json": "59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca"
+      }
+    },
+    "stock": {
+      "files": {
+        "mujoco.js": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+        "mujoco.wasm": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+      }
+    }
+  },
+  "pair": {
+    "can": "asa1168_finite_cap_can",
+    "deck": "asa1168_finite_top",
+    "dim": 3,
+    "margin": 0,
+    "gap": 0,
+    "interiorM": 0.01,
+    "frameTolerance": 1e-12,
+    "witnessAgreementM": 1e-10,
+    "candidateContacts": 3,
+    "allocatedContacts": 4
+  },
+  "profileReadback": {
+    "disableflags": 65536,
+    "enableflags": 32
+  },
+  "cases": [
+    {
+      "angle": 28,
+      "expected": "stable",
+      "xmlSha256": "b4f415144f141786931ea88f456ab0033aa6e2456dab16971bfb260b5ddc51e2"
+    },
+    {
+      "angle": 32,
+      "expected": "tip",
+      "xmlSha256": "f63222a55bfa10662b4514d19ee54a61c8e75786c521cf6d1541dcde44b618c4"
+    }
+  ],
+  "schedule": {
+    "order": ["candidate:28", "candidate:32", "stock:28", "stock:32"],
+    "stepUs": 500,
+    "durationUs": 2000000,
+    "windowUs": 100000,
+    "worlds": 4,
+    "stepsPerWorld": 4000,
+    "totalSteps": 16000,
+    "maxJournalBytes": 134217728,
+    "reservedFooterBytes": 65536,
+    "timeoutMs": 240000
+  },
+  "registration": {
+    "history": "Legacy CCD archive is the immutable physical FAIL and oracle. All new worlds use common nativeCCD and byte-identical MJCF across engines for each angle.",
+    "scope": "28 degrees must be stable. The 32 degree stress point is 2.147924 degrees above atan(0.033 / 0.0575). The fixed-angle witness cannot establish the PHY-06 threshold or convergence, D01 acceptance, or product behavior.",
+    "verdict": "Native outcomes, historical criteria, and matched-stock patch attribution are separate. Preserve first failure and raw intervals. Only a failed startup demonstrably before all native step dispatches may be considered for a fresh controller-authorized startup with unchanged inputs."
+  }
+}
