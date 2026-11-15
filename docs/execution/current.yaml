@@ -159,17 +159,18 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
       head_sha: null
-      observed_at: '2026-11-15T08:01:06Z'
+      observed_at: '2026-11-15T14:44:00Z'
       main:
         branch: main
-        sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
+        sha: 72a99a2c412224b27d7620f88568f7dce6ef5ec9
       observation_note: >-
-        Read-only classroom integration snapshot: PR1147 HEAD
-        72081f298ab3871926f222d1f221212b35e93aaf contains UUID history
-        repair and one ordinary merge of main; 16 Legacy files remain PR-only.
-        Accepted UI and SystemTabs are in main via PR1160 c9284b936016d6bd969e63cfe9174c585213b3cf.
-        Exact-head CI and independent review are pending. No deployment,
-        owner acceptance or production database change. Fetch main before writes.
+        Classroom Legacy PR1147 MERGED at 72a99a2c412224b27d7620f88568f7dce6ef5ec9.
+        All 16 Legacy paths, migration 0324, award history and avatars are in main;
+        9/9 pre-merge workflows and independent read-only technical review passed.
+        Initial main-push Governance correctly rejected stale in_review state;
+        this closeout records the merged PR as done without changing product code.
+        Post-merge CI and historical PR818/827 closeout are verified separately.
+        No deployment, owner acceptance or production database change. Fetch main before writes.
     task:
       id: TASK-CLASSROOM-LEGACY-004
       issue: 1087
@@ -178,8 +179,8 @@ parallel_lanes:
       base_branch: main
       pr: 1147
       pr_draft: false
-      status: in_review
-      checkpoint: legacy_1147_head_72081f29_exact_ci_independent_review_pending
+      status: done
+      checkpoint: legacy_1147_merged_72a99a2c_postmerge_governance_closeout
       owner_acceptance: pending
       owner_authorization: >-
         Direct owner instruction on 2026-11-11 authorizes a multi-slice classroom
@@ -189,7 +190,7 @@ parallel_lanes:
         do not enlarge or move it. No live data or deployment authorization.
       selected_slice:
         id: CLASSROOM-LEGACY-004
-        status: in_review
+        status: done
         change_class: L3_CRITICAL
         scope: >-
           Finish existing PR1147 awards and avatars, real PostgreSQL migration
