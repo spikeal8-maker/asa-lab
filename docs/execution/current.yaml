@@ -17999,6 +17999,82 @@ parallel_lanes:
       preserved_source_pr: 1044
       preserved_source_sha: 47ac27e9cca6cb1e28b99637453cc935cba071b5
 
+  - id: robotics-d01-contact-admission
+    parent_lane: robotics
+    worktree_id: robotics-d01-contact-admission-001
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-MUJOCO-FINITE-CAP-001.md
+      - tools/robotics-field-core/mujoco-finite-cap-v1.patch
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-admission.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-admission.spec.ts
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-MUJOCO-FINITE-CAP-001
+      issue: 1168
+      parent_issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: isolated_mujoco_finite_cap_position_admission_selected
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      slice: D01-MUJOCO-FINITE-CAP
+      owner_authorization: >-
+        Owner on 2026-11-15 authorized the follow-on physics programme:
+        «Потом доведи настоящую 3D-физику с Arduino, чтобы банка опрокидывалась,
+        а робот заезжал на рампу. Не останавливайся на одном 3D-виде.»
+        The controller selects one prerequisite under the instructed programme.
+        Execute only after this selection is accepted on main.
+        Receipt: https://github.com/spikeal8-maker/asa-lab/issues/1168.
+      scope: >-
+        One versioned isolated C/WASM candidate for the registered finite top face
+        and one can's tilted circular end cap under the common MuJoCo native CCD
+        profile. Position-only admission on the 401 archived PRE poses, R3
+        wedge/wheel geometry parity and stock-dispatch holdouts. Preserve historic
+        physical FAIL, archive bytes, contact tolerances and the parent acceptance
+        blocker. No force/dynamics run, product engine, motor or HC-SR04 change,
+        package install in the repository, persistent service or deployment.
+      planned_paths:
+        - tools/robotics-field-core/mujoco-finite-cap-v1.patch
+        - tests/robotics/field-core-qualification/mujoco-finite-cap-admission.fixture.json
+        - tests/robotics/field-core-qualification/mujoco-finite-cap-admission.spec.ts
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-MUJOCO-FINITE-CAP-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+        - docs/product/robotics/FIELD_CORE_SPEC.md
+        - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
+      gate_boundary: >-
+        Docs-only registration uses governance and control-plane validation.
+        Candidate requires exact path preflight, preregistered source/build
+        pins, bounded position-only native acquisition and independent exact
+        repeat, focused regression, independent HIGH review and applicable
+        exact-SHA protected CI. This admission does not close D01/D02 or make
+        strict-browser packaging a portal requirement.
+      deployment: not_authorized
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 03f61f5a9d56c05333337a9da3a765c121b7fd5f
+      head_sha: null
+      observed_at: '2026-11-15T01:30:04Z'
+      main:
+        branch: main
+        sha: 03f61f5a9d56c05333337a9da3a765c121b7fd5f
+      observation_note: >-
+        Dated controller observation before registration. Fetch main and verify
+        the live task, planned paths, archived inputs and protected gates before source work.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:robotics-field-core
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: robotics-field-dock
     parent_lane: robotics
     worktree_id: robotics-field-dock-001
