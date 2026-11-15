@@ -2,7 +2,7 @@
   "schema": "asa-lab.electronics-component-coverage.v1",
   "generatedFrom": {
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
-    "catalogSha256": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
+    "catalogSha256": "b2432303c21d068ab06ed43c0c3a421d0a74fb9d4b25293338c96c9eb63a38a9",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
     "modelIdentitySha256": "51fefac04f0081a04416e21b357f9e86e62b10c94f6339c4f1274c29b200ec61",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
@@ -17,13 +17,13 @@
     "browserEvidenceSha256": "0ffeaa5ed1f22fabea3dd5c2fd23ac3425d7c455f398827e44ba7da08d6cc657"
   },
   "summary": {
-    "total": 44,
+    "total": 45,
     "enabled": 43,
-    "disabled": 1,
+    "disabled": 2,
     "dcVerified": 42,
-    "dcUnsupported": 1,
+    "dcUnsupported": 2,
     "dcUnverified": 1,
-    "breadboardUnverified": 16,
+    "breadboardUnverified": 17,
     "transientUnverified": 42,
     "inspectorHelpUnverified": 43,
     "browserEvidenceUnverified": 43,
@@ -390,6 +390,24 @@
       "browserEvidence": "unverified",
       "electricalModelId": "dc-motor",
       "modelProfileId": "adafruit-3777-tt-48to1"
+    },
+    {
+      "componentId": "l298n-motor-driver",
+      "familyId": "l298n-motor-driver",
+      "variantId": "red-43mm",
+      "catalogStatus": "disabled_missing_model",
+      "catalogSimulationSupport": "not_implemented_in_domain_solver",
+      "ownerArtwork": "verified",
+      "placement": "unavailable",
+      "physicalScale": "verified",
+      "terminals": "verified",
+      "breadboardFixture": "unverified",
+      "modelIdentity": "missing",
+      "dcModel": "unsupported",
+      "transientModel": "not_applicable",
+      "damageProfile": "not_applicable",
+      "inspectorHelp": "missing",
+      "browserEvidence": "missing"
     },
     {
       "componentId": "battery-holder-aa-1",
