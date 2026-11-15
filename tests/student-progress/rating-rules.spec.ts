@@ -98,7 +98,7 @@ describe('SP-05 rating calibration: real CLI execution and fixed independent ora
       selected: 'SP05-B-1.0.0',
       checksum: '580cafabc35af618fceec96f32334bf6bfcda07f6a82c874b147109983d89335',
       basis: 'synthetic_only',
-      sourceAcceptance: 'BLOCKED_C3',
+      sourceAcceptance: 'C3_MAPPING_QUALIFIED_NO_LIVE_SCORING',
     });
   });
   it('excludes inherited-v1 ordinary duplicates with verified external reactions', () => {
@@ -309,6 +309,22 @@ describe('SP-05 rating calibration: real CLI execution and fixed independent ora
           item.provenance.eligibleWriterOperation = 'ordinary_duplicate';
         }),
       'source mapping must fail closed',
+    ],
+    [
+      'forged C3 merge evidence',
+      (root: string) =>
+        updateJson(root, 'source-mapping.json', (item) => {
+          item.c3Acceptance.mainMergeSha = '0'.repeat(40);
+        }),
+      'source mapping must cite accepted C3 evidence',
+    ],
+    [
+      'premature live scoring adapter claim',
+      (root: string) =>
+        updateJson(root, 'source-mapping.json', (item) => {
+          item.c3Acceptance.liveAdapter = 'enabled_without_sp06';
+        }),
+      'source mapping must cite accepted C3 evidence',
     ],
     [
       'unexpected extra config',

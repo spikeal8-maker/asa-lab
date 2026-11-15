@@ -1,7 +1,19 @@
 {
   "schemaVersion": 1,
   "calibration": "synthetic_only",
-  "status": "requires_real_source_qualification_after_C3",
+  "status": "c3_source_mapping_qualified_no_live_adapter",
+  "c3Acceptance": {
+    "issue": 1127,
+    "pullRequest": 1152,
+    "sourceHeadSha": "c65d7941264ccc2508ed30da73c5b82a9972cf37",
+    "mainMergeSha": "494a9acb9958062a9b0f691008a73fc1fd0abce1",
+    "migrationPath": "migrations/0323_project_duplicate_origin.sql",
+    "migrationSha256": "9bae153d21c044b2ca33e5112ebf18d715391725198d6c047162b30d7aba8035",
+    "postMergeGeneralRunId": 43736745829,
+    "postMergeRequired": "success",
+    "reviewType": "independent_automated_static",
+    "liveAdapter": "not_implemented_sp06"
+  },
   "sources": [
     {
       "source": "canonical_learning_completion",

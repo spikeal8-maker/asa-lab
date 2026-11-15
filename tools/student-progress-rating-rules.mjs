@@ -432,7 +432,7 @@ function check(dir) {
     'selected-rule: exactly one selected candidate required',
   );
   requireTrue(
-    selection.approvalState === 'pending_independent_review',
+    selection.approvalState === 'independent_automated_technical_review',
     'selected-rule: unverified approval state',
   );
   nonempty(selection.checksum, 'selected checksum');
@@ -444,11 +444,44 @@ function check(dir) {
   requireTrue(
     mapping.schemaVersion === 1 &&
       mapping.calibration === 'synthetic_only' &&
-      mapping.status === 'requires_real_source_qualification_after_C3' &&
+      mapping.status === 'c3_source_mapping_qualified_no_live_adapter' &&
       Array.isArray(mapping.sources) &&
       mapping.sources.length === 6,
     'source mapping insufficient',
   );
+  const c3 = mapping.c3Acceptance;
+  requireTrue(c3 && typeof c3 === 'object' && !Array.isArray(c3), 'missing C3 qualification');
+  exactKeys(
+    c3,
+    [
+      'issue',
+      'pullRequest',
+      'sourceHeadSha',
+      'mainMergeSha',
+      'migrationPath',
+      'migrationSha256',
+      'postMergeGeneralRunId',
+      'postMergeRequired',
+      'reviewType',
+      'liveAdapter',
+    ],
+    'C3 qualification',
+  );
+  requireTrue(
+    c3.issue === 1127 &&
+      c3.pullRequest === 1152 &&
+      c3.sourceHeadSha === 'c65d7941264ccc2508ed30da73c5b82a9972cf37' &&
+      c3.mainMergeSha === '494a9acb9958062a9b0f691008a73fc1fd0abce1' &&
+      c3.migrationPath === 'migrations/0323_project_duplicate_origin.sql' &&
+      c3.migrationSha256 === '9bae153d21c044b2ca33e5112ebf18d715391725198d6c047162b30d7aba8035' &&
+      c3.postMergeGeneralRunId === 43736745829 &&
+      c3.postMergeRequired === 'success' &&
+      c3.reviewType === 'independent_automated_static' &&
+      c3.liveAdapter === 'not_implemented_sp06',
+    'source mapping must cite accepted C3 evidence without asserting live scoring',
+  );
+  // The offline checker validates pinned evidence metadata; it does not fetch GitHub
+  // or implement the future SP-06 scoring adapter.
   // Synthetic "covered_native" represents only verified C3 coverage=v1
   // with all eight copied_from_* fields absent. Operation is independent:
   // inherited coverage on an ordinary duplicate never grants social credit.
@@ -525,7 +558,7 @@ function check(dir) {
     checksum: selection.checksum,
     expectedTotalsChecksum: checksum(oracle),
     basis: 'synthetic_only',
-    sourceAcceptance: 'BLOCKED_C3',
+    sourceAcceptance: 'C3_MAPPING_QUALIFIED_NO_LIVE_SCORING',
   };
   process.stdout.write('SP05_CHECK_PASS ' + JSON.stringify(result) + '\n');
   return result;
