@@ -14,6 +14,7 @@ ASA Lab — команды школьного и других серверов
   asa logs [api|web|postgres|minio|scratch|search] [--tail N]
   asa doctor                       полная диагностика (без изменений)
   asa check                        проверить выпуск и возможность обновления
+  asa cancel-update --deployment-digest sha256:...
   asa update                       установить выпуск после штатных проверок
   asa backup
   asa verify-backup --backup /absolute/path
@@ -122,10 +123,10 @@ if [ "$action" = update ] && [ "$profile" = production ]; then
 fi
 
 case "$action" in
-  install|doctor|check|update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge|configure-offsite)
+  install|doctor|check|update|cancel-update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge|configure-offsite)
     manager_root=$root
     case "$profile:$action" in
-      production:check|production:update|production:rollback-plan|production:rollback|production:acknowledge|production:configure-offsite)
+      production:check|production:update|production:cancel-update|production:rollback-plan|production:rollback|production:acknowledge|production:configure-offsite)
         manager_root=$tools_root ;;
     esac
     exec "$python" -E -s -B "$manager_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" "$@"
