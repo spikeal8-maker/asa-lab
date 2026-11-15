@@ -1,6 +1,6 @@
-# Isolated test-only diagnostic for #548. This branch is not a merge candidate.
-name: Electronics 548 current-main diagnostic
-run-name: 'Electronics #548 permanent AA2 image (${{ github.sha }})'
+# Isolated test-only diagnostic for #538 and #548. This branch is not a merge candidate.
+name: Electronics 538 and 548 directed diagnostic
+run-name: 'Electronics #538 E07 and #548 permanent AA2 image (${{ github.sha }})'
 
 on:
   push:
@@ -17,14 +17,14 @@ env:
 jobs:
   browser:
     if: github.ref == 'refs/heads/codex/electronics-548-current-diagnostic'
-    name: Original permanent AA2 asset failure on built Chromium
+    name: E07 mouse and touch plus permanent AA2 on built Chromium
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
-      ASA_ELECTRONICS_EXPECTED_SHA: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
-      ASA_IMAGE_TAG: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
+      ASA_BUILD_REVISION: 9b1c301baae0f6dd0f6663123f2f6ee58ad27dff
+      ASA_ELECTRONICS_EXPECTED_SHA: 9b1c301baae0f6dd0f6663123f2f6ee58ad27dff
+      ASA_IMAGE_TAG: 9b1c301baae0f6dd0f6663123f2f6ee58ad27dff
       COMPOSE_PROJECT_NAME: asa-lab-electronics-548-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Prove unchanged production inputs from the pinned main revision
+      - name: Prove unchanged production inputs from the pinned product candidate
         run: |
           git merge-base --is-ancestor "$ASA_BUILD_REVISION" HEAD
           git diff --exit-code "$ASA_BUILD_REVISION" HEAD -- . \
@@ -44,7 +44,7 @@ jobs:
           mkdir -p e2e/artifacts reports
           chmod -R 0777 e2e/artifacts reports
           jq -n --arg source "$ASA_BUILD_REVISION" --arg diagnostic "$(git rev-parse HEAD)" \
-            '{production_source: $source, diagnostic_commit: $diagnostic}' > reports/image-548-provenance.json
+            '{production_source: $source, diagnostic_commit: $diagnostic}' > reports/electronics-538-548-provenance.json
 
       - name: Prepare and verify image-only PostgreSQL transport
         run: |
@@ -77,12 +77,12 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
-      - name: Run the unchanged permanent AA2 oracle
+      - name: Run the unchanged E07 and permanent AA2 oracles
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA test-runner
           pnpm exec playwright test e2e/electronics-interactions.spec.ts --workers=1
-          --grep 'a permanently missing ordinary image shows an accessible failure on stage and catalog$'
+          --grep 'E07 saved legacy wire segments with the real API|a permanently missing ordinary image shows an accessible failure on stage and catalog$'
 
       - name: Show isolated stack state
         if: always()
@@ -92,7 +92,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: electronics-image-548-${{ github.run_id }}-${{ github.run_attempt }}
+          name: electronics-538-548-${{ github.run_id }}-${{ github.run_attempt }}
           path: reports
           if-no-files-found: ignore
           retention-days: 14
