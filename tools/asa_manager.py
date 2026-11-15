@@ -16,7 +16,7 @@ import uuid
 from contextlib import nullcontext
 
 from deployment.backup import export_backup, recovery_configuration, restore_check
-from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, verify_backup, verify_embedded_entry_http
+from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, validate_release, verify_backup, verify_embedded_entry_http
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_deployment_digest, validate_resolved_images
 from deployment.paths import atomic_json as private_atomic_json, plain_paths
 from deployment import releases as release_transport
@@ -220,6 +220,33 @@ def verify_running_release(install, release):
     verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
 
 
+def cancel_update_before_switch(install, digest):
+    require(os.name == 'posix' and os.geteuid() == 0 and install.profile == 'production'
+            and install.settings.get('profile') == 'production', 'OPERATOR_INSTALLATION',
+            'Отмена выбора выпуска требует работающей production-установки и прав root.')
+    application_rollback.attest_private_state(install)
+    application_rollback.guard_acknowledge(install)
+    require(not any((install.state / name).exists() for name in ('maintenance.json', 'failed-switch.json')),
+            'MAINTENANCE', 'Переключение уже началось. Проверьте состояние командой asa repair-plan.')
+    pending = pending_selection(install)
+    require(pending is not None and pending['deploymentDigest'] == digest, 'RELEASE_SELECTION_PENDING',
+            'Выбор выпуска отсутствует или не совпадает с явно указанным digest.')
+    clean_checkout(install)
+    installed = validate_release(json.loads((install.state / 'installed-release.json').read_text(encoding='utf-8')))
+    require(install.git('rev-parse', 'HEAD') == installed['revision'], 'RELEASE_SOURCE',
+            'Перед отменой выбора checkout должен совпадать с установленным выпуском.')
+    install.readiness(installed['revision'], installed['schema'])
+    verify_running_release(install, installed)
+    archived = install.state / ('cancelled-release-selection-' + uuid.uuid4().hex + '.json')
+    source = install.state / 'release-selection.json'
+    require(pending_selection(install) == pending, 'RELEASE_SELECTION_PENDING',
+            'Выбор выпуска изменился во время проверки.')
+    sync_selection(install)
+    source.rename(archived)
+    sync_selection(install)
+    print('Выбор выпуска отменён. Работающий ASA Lab и его данные сохранены.')
+
+
 def verify_offsite_backup(policy, current):
     message = 'Нет подтверждённой полной облачной копии текущего выпуска за последние 36 часов.'
     require(isinstance(policy, dict) and set(policy) == {'receipt'} and isinstance(policy['receipt'], str),
@@ -386,7 +413,7 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
             install.compose("run", "--rm", "--no-deps", "--entrypoint", "node", "migration", "tools/migrate.mjs", "--plan")
         backup = export_backup(backup_install, trigger='automatic' if scheduled else 'manual')
         if scheduled:
-            require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
+            require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version is still running; retry next window.")
     if "search" in release["images"]:
         # Authorized mutation only, after the old private.env has been backed up.
         # Existing keys are never rotated, including during a routine update.
@@ -472,11 +499,11 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "configure-offsite", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "import-preflight", "import-target-plan", "acknowledge", "rollback-plan", "rollback"))
+    parser.add_argument("action", choices=("doctor", "configure", "configure-offsite", "install", "check", "update", "cancel-update", "backup", "verify-backup", "restore-check", "repair-plan", "import-preflight", "import-target-plan", "acknowledge", "rollback-plan", "rollback"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
-    parser.add_argument("--deployment-digest", help="Exact canonical deployment OCI sha256 digest; install/check/update only")
+    parser.add_argument("--deployment-digest", help="Exact canonical deployment OCI sha256 digest; install/check/update/cancel-update only")
     parser.add_argument("--require-application-rollback", action="store_true",
                         help="Fail closed unless the declared P0 application return can be armed; manual check/update only")
     parser.add_argument("--operator", action="store_true", help=argparse.SUPPRESS)
@@ -501,15 +528,18 @@ def main(argv=None):
                     'OPERATOR_ARGUMENT', 'The operator flow is only for manual check and update on production.')
         require(not args.require_application_rollback or args.action in ('check', 'update') and not args.scheduled,
                 'ROLLBACK_ARGUMENT', '--require-application-rollback belongs only to manual check/update.')
-        if args.action in ('rollback-plan', 'rollback', 'configure-offsite') or args.require_application_rollback or args.operator:
+        if args.action in ('rollback-plan', 'rollback', 'configure-offsite', 'cancel-update') or args.require_application_rollback or args.operator:
             require(not args.scheduled and not args.enable_auto_update and args.collector_mode is None,
                     'ROLLBACK_ARGUMENT', 'Application return is manual and cannot change automatic updates or collector configuration.')
             original_arguments = argv if argv is not None else sys.argv[1:]
             require(any(value == '--root' or str(value).startswith('--root=') for value in original_arguments),
                     'ROLLBACK_ROOT', 'Specify the existing installation with --root from the pinned separate tools checkout.')
             plain_paths(args.root, ('.asa/operation.lock', '.asa/application-rollback.json'))
-        require(args.deployment_digest is None or args.action in ('install', 'check', 'update'),
-                'RELEASE_SELECTOR', '--deployment-digest belongs only to install/check/update.')
+        require(args.deployment_digest is None or args.action in ('install', 'check', 'update', 'cancel-update'),
+                'RELEASE_SELECTOR', '--deployment-digest belongs only to install/check/update/cancel-update.')
+        if args.action == 'cancel-update':
+            require(args.deployment_digest is not None and not args.scheduled, 'RELEASE_SELECTOR',
+                    'Укажите точный digest сохранённого выбора выпуска.')
         if args.deployment_digest is not None:
             validate_deployment_digest(args.deployment_digest)
         require((args.collector_mode is None) == (args.collector_reader_gid is None), 'COLLECTOR_ARGUMENT',
@@ -544,10 +574,10 @@ def main(argv=None):
         if args.operator:
             require(install.settings.get('profile') == 'production', 'OPERATOR_INSTALLATION',
                     'The operator flow requires an existing installation with the production profile.')
-        if args.action in ('rollback-plan', 'rollback', 'configure-offsite') or args.require_application_rollback or args.operator:
+        if args.action in ('rollback-plan', 'rollback', 'configure-offsite', 'cancel-update') or args.require_application_rollback or args.operator:
             application_rollback.attest_private_state(install)
         if args.action in ('install', 'check', 'update'):
-            args.deployment_digest, _ = resolve_selection(install, args.deployment_digest)
+            resolve_selection(install, args.deployment_digest)
         with nullcontext() if args.action in ('doctor', 'check', 'repair-plan', 'rollback-plan') else operation_lock(install.root):
             if args.action in ('configure', 'configure-offsite', 'update'):
                 # A policy may have been enabled between initial discovery and lock acquisition.
@@ -568,6 +598,8 @@ def main(argv=None):
                 # Strictly observational: no write lock, backup/restore, daemon
                 # command or acknowledgement of the unfinished transaction.
                 return diagnose_recovery(install)
+            elif args.action == "cancel-update":
+                cancel_update_before_switch(Installation(args.root, args.profile), args.deployment_digest)
             elif args.action in ('rollback-plan', 'rollback'):
                 application_rollback.rollback(install, check=args.action == 'rollback-plan')
             elif args.action == "configure":

@@ -103,7 +103,7 @@ export interface BrushedMotorExternalShaftStep {
   readonly toMicroseconds: number;
   /** Positive output speed induces positive back-EMF at the positive motor terminal. */
   readonly axis: 'positive-output-shaft';
-  /** Speed at the right endpoint of this backward-Euler interval. */
+  /** Shaft speed supplied to backward Euler, which may be held from the left endpoint. */
   readonly outputAngularVelocityRadPerSecond: number;
   /** Winding terminal voltage for this accepted interval. */
   readonly voltageVolt: number;
@@ -672,6 +672,15 @@ export function advanceBrushedMotorExternalShaft(
   previousState: BrushedMotorExternalShaftState,
   input: BrushedMotorExternalShaftStep,
 ): BrushedMotorExternalShaftResult {
+  return prepareBrushedMotorExternalShaft(profile, previousState, input).accept(input.voltageVolt);
+}
+
+/** Prepares the exact companion used in the MNA stamp and accepted winding update. */
+export function prepareBrushedMotorExternalShaft(
+  profile: BrushedMotorAssemblyProfile,
+  previousState: BrushedMotorExternalShaftState,
+  input: Omit<BrushedMotorExternalShaftStep, 'voltageVolt'>,
+) {
   if (
     typeof previousState.componentId !== 'string' ||
     previousState.componentId.length === 0 ||
@@ -706,7 +715,6 @@ export function advanceBrushedMotorExternalShaft(
   }
 
   const stepSeconds = (input.toMicroseconds - input.fromMicroseconds) / 1e6;
-  const voltageVolt = requireFinite('motor voltage', input.voltageVolt);
   const ambientTemperatureCelsius =
     input.ambientTemperatureCelsius === undefined
       ? BRUSHED_MOTOR_AMBIENT_TEMPERATURE_CELSIUS
@@ -730,54 +738,61 @@ export function advanceBrushedMotorExternalShaft(
         0,
         angularVelocity,
       );
-  const intervalCurrentAmp = requireFinite(
-    'motor interval current',
-    companion ? companion.conductanceSiemens * voltageVolt - companion.historyCurrentAmp : 0,
-  );
-  const winding = advanceWindingState(
-    profile,
-    previousState,
-    intervalCurrentAmp,
-    voltageVolt,
-    ambientTemperatureCelsius,
-    stepSeconds,
-  );
-  requireFinite('motor next temperature', winding.temperatureCelsius);
-  requireFinite('motor next damage', winding.accumulatedDamage);
-
-  const electromagneticTorqueNewtonMeter =
-    profile.torqueNewtonMeterPerAmpere.value * intervalCurrentAmp;
-  const viscousTorque = profile.viscousFrictionNewtonMeterSecondPerRadian.value * angularVelocity;
-  const gearTorque = electromagneticTorqueNewtonMeter - viscousTorque;
-  const gearInputPower = requireFinite('motor gear input power', gearTorque * angularVelocity);
-  const efficiency = nominalTransmissionEfficiency(profile);
-  // The analytical fixture assumes the same efficiency in both power directions.
-  // Backdriving supplies gear losses from the shaft rather than from the winding.
-  const gearTransfer = gearInputPower < 0 ? 1 / efficiency : efficiency;
-  const outputTorqueNewtonMeter = requireFinite(
-    'motor output torque',
-    gearTorque * transmissionRatio * gearTransfer,
-  );
   return {
-    state: {
-      componentId: previousState.componentId,
-      profileId: previousState.profileId,
-      profileVersion: previousState.profileVersion,
-      atMicroseconds: input.toMicroseconds,
-      ...winding,
-    },
     companion,
-    intervalCurrentAmp,
-    electromagneticTorqueNewtonMeter,
-    outputTorqueNewtonMeter,
-    outputTorqueImpulseNewtonMeterSeconds: requireFinite(
-      'motor output torque impulse',
-      outputTorqueNewtonMeter * stepSeconds,
-    ),
-    viscousLossWatt: requireFinite('motor viscous loss', viscousTorque * angularVelocity),
-    transmissionLossWatt: requireFinite(
-      'motor transmission loss',
-      Math.abs(gearInputPower) * Math.abs(1 - gearTransfer),
-    ),
+    accept(actualVoltageVolt: number): BrushedMotorExternalShaftResult {
+      const voltageVolt = requireFinite('motor voltage', actualVoltageVolt);
+      const intervalCurrentAmp = requireFinite(
+        'motor interval current',
+        companion ? companion.conductanceSiemens * voltageVolt - companion.historyCurrentAmp : 0,
+      );
+      const winding = advanceWindingState(
+        profile,
+        previousState,
+        intervalCurrentAmp,
+        voltageVolt,
+        ambientTemperatureCelsius,
+        stepSeconds,
+      );
+      requireFinite('motor next temperature', winding.temperatureCelsius);
+      requireFinite('motor next damage', winding.accumulatedDamage);
+
+      const electromagneticTorqueNewtonMeter =
+        profile.torqueNewtonMeterPerAmpere.value * intervalCurrentAmp;
+      const viscousTorque =
+        profile.viscousFrictionNewtonMeterSecondPerRadian.value * angularVelocity;
+      const gearTorque = electromagneticTorqueNewtonMeter - viscousTorque;
+      const gearInputPower = requireFinite('motor gear input power', gearTorque * angularVelocity);
+      const efficiency = nominalTransmissionEfficiency(profile);
+      // The analytical fixture assumes the same efficiency in both power directions.
+      // Backdriving supplies gear losses from the shaft rather than from the winding.
+      const gearTransfer = gearInputPower < 0 ? 1 / efficiency : efficiency;
+      const outputTorqueNewtonMeter = requireFinite(
+        'motor output torque',
+        gearTorque * transmissionRatio * gearTransfer,
+      );
+      return {
+        state: {
+          componentId: previousState.componentId,
+          profileId: previousState.profileId,
+          profileVersion: previousState.profileVersion,
+          atMicroseconds: input.toMicroseconds,
+          ...winding,
+        },
+        companion,
+        intervalCurrentAmp,
+        electromagneticTorqueNewtonMeter,
+        outputTorqueNewtonMeter,
+        outputTorqueImpulseNewtonMeterSeconds: requireFinite(
+          'motor output torque impulse',
+          outputTorqueNewtonMeter * stepSeconds,
+        ),
+        viscousLossWatt: requireFinite('motor viscous loss', viscousTorque * angularVelocity),
+        transmissionLossWatt: requireFinite(
+          'motor transmission loss',
+          Math.abs(gearInputPower) * Math.abs(1 - gearTransfer),
+        ),
+      };
+    },
   };
 }

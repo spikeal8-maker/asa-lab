@@ -4058,16 +4058,20 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
     return response.json() as Promise<{ draft: { revision: number; document: SchematicDocument } }>;
   };
   const initial = await read();
-  // Seed only the existing electrical fixture. The pupil's programme is created
-  // by the production mode switch/default blocks and edited through visible fields.
+  // Start with a source-only sketch so the confirmed mode switch creates default blocks.
   const circuit = threeLedFixture();
-  expect(
-    circuit.components.find((row) => row.id === 'uno')!.stateProperties!['arduinoWorkspace'],
-  ).toBe('');
+  const uno = circuit.components.find((component) => component.id === 'uno')!;
+  const stateProperties = { ...uno.stateProperties };
+  delete stateProperties['arduinoWorkspace'];
   const seeded = await page.context().request.put(`${endpoint}/draft`, {
     headers: { origin },
     data: {
-      document: circuit,
+      document: {
+        ...circuit,
+        components: circuit.components.map((component) =>
+          component === uno ? { ...uno, stateProperties } : component,
+        ),
+      },
       baseRevision: initial.draft.revision,
       mutationId: crypto.randomUUID(),
     },

@@ -9,11 +9,14 @@ export {
 import {
   advanceArduinoCircuitClock,
   createArduinoCircuitHcSr04TestClock,
+  createArduinoCircuitShaftTestClock,
   createOwnedArduinoCircuitClockRequest,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitHcSr04Barrier,
   type ArduinoCircuitInputEvent,
+  type ArduinoCircuitShaftBarrier,
+  type ArduinoCircuitShaftSample,
 } from './domain/arduino-circuit-scheduler.js';
 import {
   EMPTY_DOCUMENT,
@@ -34,6 +37,7 @@ import {
   isHcSr04DistanceMeters,
   type HcSr04EnvironmentSample,
 } from './domain/models/hc-sr04-runtime.js';
+import type { BrushedMotorExternalShaftState } from './domain/models/brushed-motor-transient-model.js';
 import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
 import { type ElectronicsLedTemporalObservation } from './domain/led-temporal-observation.js';
 export type {
@@ -644,6 +648,256 @@ export function createElectronicsHcSr04QueryTestSession(
     dispose() {
       ownedRun = undefined;
       close();
+    },
+  };
+}
+
+type TtNativeDriveTestRequest = Omit<ElectronicsTimedAdvanceRequest, 'state'> & {
+  readonly componentId: string;
+  readonly port: string;
+  readonly runId: string;
+  readonly generation: number;
+};
+
+type TtShaftIdentity = Pick<
+  ArduinoCircuitShaftBarrier,
+  'componentId' | 'port' | 'axis' | 'fromMicroseconds' | 'toMicroseconds'
+> & {
+  readonly runId: string;
+  readonly generation: number;
+  readonly sequence: number;
+  readonly token: symbol;
+};
+
+export type ElectronicsTtNativeDriveTestQuery = TtShaftIdentity & ArduinoCircuitShaftBarrier;
+export type ElectronicsTtNativeDriveTestResponse = TtShaftIdentity & ArduinoCircuitShaftSample;
+
+type TtCheckpoint = {
+  readonly committedHorizonMicroseconds: number;
+  readonly shaft: ArduinoCircuitShaftSample | undefined;
+  readonly winding: BrushedMotorExternalShaftState | undefined;
+};
+
+type TtNativeDriveTestStep =
+  | ElectronicsTtNativeDriveTestQuery
+  | { readonly kind: 'working' | 'paused'; readonly committedHorizonMicroseconds: number }
+  | (TtCheckpoint & {
+      readonly kind: 'fault';
+      readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
+    })
+  | (TtCheckpoint & {
+      readonly kind: 'complete';
+      readonly events: ArduinoCircuitClockAdvance['events'];
+      readonly observation: ElectronicsTimedObservation;
+    });
+
+function ownTtNativeDriveTestRun(
+  document: ElectronicsEngineDocument,
+  request: TtNativeDriveTestRequest,
+) {
+  const ownedRequest = structuredClone(request);
+  const { componentId, port, runId, generation, requestedHorizonMicroseconds, maxEvents } =
+    ownedRequest;
+  if (
+    [componentId, port, runId].some((label) => typeof label !== 'string' || !label.trim()) ||
+    !Number.isSafeInteger(generation) ||
+    generation < 1 ||
+    !Number.isSafeInteger(requestedHorizonMicroseconds) ||
+    requestedHorizonMicroseconds < 0 ||
+    requestedHorizonMicroseconds > 10_000_000
+  )
+    throw new TypeError(
+      'The TT test run needs valid identities and a horizon of at most 10 seconds.',
+    );
+  const inputs = (ownedRequest.inputEvents ?? []).map((event) => {
+    const input = schedulerInputEvent(event);
+    if (!input) throw new TypeError('Unsupported TT test input operation.');
+    return input;
+  });
+  return {
+    document: structuredClone(document),
+    runId,
+    generation,
+    requestedHorizonMicroseconds,
+    shaftPort: { componentId, port },
+    options: { inputs, ...(maxEvents === undefined ? {} : { maxClockEvents: maxEvents }) },
+  };
+}
+
+function acceptedTtShaftSample(
+  value: unknown,
+  query: ElectronicsTtNativeDriveTestQuery,
+): ArduinoCircuitShaftSample | undefined {
+  try {
+    const response = ownTestData(value);
+    if (
+      !response ||
+      response['token'] !== query.token ||
+      response['runId'] !== query.runId ||
+      response['generation'] !== query.generation ||
+      response['sequence'] !== query.sequence ||
+      response['componentId'] !== query.componentId ||
+      response['port'] !== query.port ||
+      response['axis'] !== query.axis ||
+      response['fromMicroseconds'] !== query.fromMicroseconds ||
+      response['toMicroseconds'] !== query.toMicroseconds ||
+      response['measuredAtMicroseconds'] !== query.toMicroseconds
+    )
+      return undefined;
+    const { angleRadian, angularVelocityRadPerSecond } = response;
+    if (
+      typeof angleRadian !== 'number' ||
+      !Number.isFinite(angleRadian) ||
+      typeof angularVelocityRadPerSecond !== 'number' ||
+      !Number.isFinite(angularVelocityRadPerSecond)
+    )
+      return undefined;
+    return {
+      measuredAtMicroseconds: query.toMicroseconds,
+      angleRadian,
+      angularVelocityRadPerSecond,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** TEST_ONLY. A fresh, in-memory TT session leaves the public timed clock unchanged. */
+export function createElectronicsTtNativeDriveTestSession(
+  document: ElectronicsEngineDocument,
+  request: TtNativeDriveTestRequest,
+) {
+  type OwnedRun = ReturnType<typeof ownTtNativeDriveTestRun>;
+  const openClock = (run: OwnedRun) =>
+    createArduinoCircuitShaftTestClock(
+      run.document,
+      run.requestedHorizonMicroseconds,
+      run.options,
+      { ...run.shaftPort, onCheckpoint: retain },
+    );
+  let ownedRun: OwnedRun | undefined = ownTtNativeDriveTestRun(document, request);
+  let clock: ReturnType<typeof openClock> | undefined = openClock(ownedRun);
+  let generation = ownedRun.generation;
+  let sequence = 0;
+  let pending: ElectronicsTtNativeDriveTestQuery | undefined;
+  let reply: ArduinoCircuitShaftSample | undefined;
+  let pendingWinding: BrushedMotorExternalShaftState | undefined;
+  let candidate: TtCheckpoint | undefined;
+  let committed: TtCheckpoint = {
+    committedHorizonMicroseconds: 0,
+    shaft: undefined,
+    winding: undefined,
+  };
+  let paused = false;
+
+  const close = () => {
+    const active = clock;
+    clock = undefined;
+    pending = undefined;
+    reply = undefined;
+    pendingWinding = undefined;
+    candidate = undefined;
+    paused = false;
+    active?.return(undefined as never);
+  };
+  function retain(time: number) {
+    if (candidate?.committedHorizonMicroseconds === time) {
+      committed = candidate;
+      candidate = undefined;
+    } else if (time !== committed.committedHorizonMicroseconds) {
+      throw new Error('A closed TT checkpoint has no matching shaft sample.');
+    }
+  }
+  return {
+    step(): TtNativeDriveTestStep | undefined {
+      if (!clock || !ownedRun) return undefined;
+      if (paused)
+        return {
+          kind: 'paused',
+          committedHorizonMicroseconds: committed.committedHorizonMicroseconds,
+        };
+      if (pending) return pending;
+      const sample = reply;
+      reply = undefined;
+      try {
+        const next = clock.next(sample);
+        if (!next.done) {
+          const suspension = next.value;
+          if (suspension.kind === 'working') return suspension;
+          pendingWinding =
+            suspension.kind === 'shaft-interval' ? suspension.winding.state : undefined;
+          pending = Object.freeze({
+            ...structuredClone(suspension),
+            runId: ownedRun.runId,
+            generation,
+            sequence: ++sequence,
+            token: Symbol(),
+          });
+          return pending;
+        }
+        const advance = next.value;
+        if (advance.executionStatus !== 'ready' || !advance.state || !advance.result) {
+          close();
+          return { kind: 'fault', ...structuredClone(committed), diagnostics: advance.diagnostics };
+        }
+        close();
+        return {
+          kind: 'complete',
+          ...structuredClone(committed),
+          events: structuredClone(advance.events),
+          observation: timedObservation(advance.result),
+        };
+      } catch (error) {
+        close();
+        return {
+          kind: 'fault',
+          ...structuredClone(committed),
+          diagnostics: [
+            {
+              code: 'tt_native_drive_test_clock_failed',
+              message: error instanceof Error ? error.message : 'The TT test clock failed.',
+            },
+          ],
+        };
+      }
+    },
+    respond(value: unknown): boolean {
+      const query = pending;
+      if (paused || !query) return false;
+      const sample = acceptedTtShaftSample(value, query);
+      if (!sample || pending !== query || paused) return false;
+      pending = undefined;
+      reply = sample;
+      candidate = {
+        committedHorizonMicroseconds: sample.measuredAtMicroseconds,
+        shaft: sample,
+        winding: pendingWinding,
+      };
+      pendingWinding = undefined;
+      return true;
+    },
+    lastCommitted: () => structuredClone(committed),
+    pause() {
+      if (clock) paused = true;
+    },
+    resume() {
+      paused = false;
+    },
+    cancel: close,
+    reset(nextGeneration: number): boolean {
+      if (!ownedRun || !Number.isSafeInteger(nextGeneration) || nextGeneration <= generation)
+        return false;
+      close();
+      generation = nextGeneration;
+      sequence = 0;
+      committed = { committedHorizonMicroseconds: 0, shaft: undefined, winding: undefined };
+      clock = openClock(ownedRun);
+      return true;
+    },
+    dispose() {
+      ownedRun = undefined;
+      close();
+      committed = { committedHorizonMicroseconds: 0, shaft: undefined, winding: undefined };
     },
   };
 }
