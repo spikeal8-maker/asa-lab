@@ -142,34 +142,44 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
   - id: classroom-visual-20261111
-    worktree_id: classroom-visual-20261111
+    worktree_id: classroom-legacy-closeout-004
     owned_paths:
-      - apps/web/src/pages/DashboardPage.tsx
-      - apps/web/src/components/SystemToastViewport.tsx
-      - apps/web/src/components/system-feedback.ts
-      - apps/web/src/components/system-feedback.css
-      - apps/web/src/components/testing/system-feedback.spec.ts
+      - apps/api/src/abuse-protection.ts
+      - apps/api/src/classroom-participants.controller.spec.ts
+      - apps/api/src/classroom-participants.controller.ts
+      - apps/api/src/mutation-session-proof.ts
+      - apps/api/src/school-nat-replay.spec.ts
+      - apps/web/src/classroom-participants-api.ts
+      - e2e/classroom-participants.spec.ts
+      - migrations/0324_classroom_merit_history.sql
+      - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+      - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+      - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      convergence_baseline_sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
       head_sha: null
-      observed_at: '2026-11-11T18:17:00Z'
+      observed_at: '2026-11-15T08:01:06Z'
       main:
         branch: main
-        sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+        sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
       observation_note: >-
-        Read-only baseline for owner-selected classroom visual programme. No
-        product implementation, CI approval, deployment or owner acceptance yet.
-        Fetch main before each selected slice; shared path ownership is advisory.
+        Read-only classroom integration snapshot: PR1147 HEAD
+        72081f298ab3871926f222d1f221212b35e93aaf contains UUID history
+        repair and one ordinary merge of main; 16 Legacy files remain PR-only.
+        Accepted UI and SystemTabs are in main via PR1160 c9284b936016d6bd969e63cfe9174c585213b3cf.
+        Exact-head CI and independent review are pending. No deployment,
+        owner acceptance or production database change. Fetch main before writes.
     task:
-      id: TASK-CLASSROOM-FEEDBACK-001
+      id: TASK-CLASSROOM-LEGACY-004
       issue: 1087
       programme_issue: 715
       branch: main
       base_branch: main
-      pr: null
-      status: ready
-      checkpoint: owner_selected_no_shift_notification_ribbon
+      pr: 1147
+      pr_draft: false
+      status: in_review
+      checkpoint: legacy_1147_head_72081f29_exact_ci_independent_review_pending
       owner_acceptance: pending
       owner_authorization: >-
         Direct owner instruction on 2026-11-11 authorizes a multi-slice classroom
@@ -178,20 +188,20 @@ parallel_lanes:
         PR577/605/712/818/827. Preserve the accepted My classes top toolbar/search;
         do not enlarge or move it. No live data or deployment authorization.
       selected_slice:
-        id: CLASSROOM-FEEDBACK-001
-        status: ready
-        change_class: L1_UI_BEHAVIOR
+        id: CLASSROOM-LEGACY-004
+        status: in_review
+        change_class: L3_CRITICAL
         scope: >-
-          Action notification ribbon directly below the actual global header on
-          desktop and mobile; outside document flow, no reserved gap or layout
-          shifts. Migrate classroom list/class/student action feedback without
-          duplicate local/global alerts, false success or student-code leakage.
-          Preserve field validation/retry UI and all existing business semantics.
+          Finish existing PR1147 awards and avatars, real PostgreSQL migration
+          0324, history, request-ID idempotency, Account and StudentSeat ACL,
+          and retain accepted FB-06 plus Student Codes without UI redesign.
+          Reconcile superseded historical PR818 and PR827 only after merge.
         acceptance: >-
-          Exact-source focused unit tests, independent review, browser before/
-          during/after geometry assertions and 1920/1440/1366/1024/390/320 evidence.
-          Success/error/repeated/long notifications must not move existing top
-          controls, rows or page content. Source tests do not equal visual approval.
+          Required exact-head GitHub workflows including real PostgreSQL/ACL,
+          original and uppercase UUID merit-history regression, browser
+          320/390 and desktop, independent read-only review, protected merge,
+          post-merge CI, historical supersession evidence and issue1087 matrix.
+          No Codex, forced history rewrite, bypass or production deployment.
       programme_sequence:
         - CLASSROOM-FEEDBACK-001
         - CLASSROOM-ROWS-002
@@ -199,7 +209,7 @@ parallel_lanes:
         - CLASSROOM-LEGACY-004
       exclusions:
         - No accepted My classes header, search, toolbar or tab redesign.
-        - No database, API, authorization, deployment, production or network changes.
+        - No production database, deployment, server or network changes.
         - No blanket PR closure, branch deletion, PR29 changes or force-push.
         - No unrelated module repairs or claims of owner visual acceptance.
       normative_refs:
@@ -16644,6 +16654,61 @@ parallel_lanes:
       numerical_invariants: All other state, actions, Serial and measurements are unchanged; maximum KCL residual 6.4e-11 A.
       report: docs/product/electronics/evidence/mixed-servo-862/GATES.md
 
+  - id: electronics-recovery-r22-serial-monitor
+    parent_lane: electronics
+    worktree_id: electronics-recovery-r22-serial-monitor
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R22-001.md
+    task:
+      id: TASK-ELECTRONICS-RECOVERY-R22-001
+      issue: 1180
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'yes'
+      checkpoint: owner_authorized_early_r22_serial_monitor_native_before_pending
+      owner_acceptance: pending
+      programme_issue: 452
+      owner_authorization: >-
+        On 2026-11-15 the owner explicitly authorized early selection of the
+        bounded R22 Serial Monitor slice and handoff to the programme controller.
+        This permits its own preparation and verification while PR1163 is on
+        HOLD. Formal R10-R12 and AC-04 acceptance requirements still apply.
+      selection_authority: The programme controller assigns one author after this selection is accepted on main.
+      scope: Confirm native line layout first, then repair only TX presentation if the defect reproduces.
+      implementation_files:
+        - apps/web/src/electronics/ArduinoSerialMonitor.tsx
+        - apps/web/src/electronics/testing/arduino-serial-monitor.spec.ts
+        - apps/web/src/electronics/testing/arduino-analog-serial.browser.mjs
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R22-001.md
+        - docs/product/electronics/components/arduino-peripherals.yaml
+      next_action: Assign one author for native BEFORE. Require an independent review of the frozen candidate and applicable gates.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: f8d7642493b7e002b96a12e83fa87bde9a5a6648
+      convergence_baseline_sha: f8d7642493b7e002b96a12e83fa87bde9a5a6648
+      head_sha: null
+      observed_at: '2026-11-15T08:48:20Z'
+      observation_note: Fresh fetch main before writes. Source hypothesis only; native BEFORE and candidate gates are pending.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: electronics-arduino-check-messages
     parent_lane: electronics
     worktree_id: electronics-arduino-check-messages
@@ -17850,14 +17915,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_mujoco_finite_cap_fixed_tilt_selected
+      checkpoint: e1_mujoco_finite_cap_fixed_tilt_32_temporal_refinement_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: D01-MUJOCO-FINITE-CAP-FIXED-TILT
+      slice: D01-FIXED-TILT-32-TEMPORAL-REFINEMENT
       planned_paths:
-        - tests/robotics/field-core-qualification/mujoco-finite-cap-fixed-tilt.fixture.json
-        - tests/robotics/field-core-qualification/mujoco-finite-cap-fixed-tilt.spec.ts
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-tilt-refinement.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-tilt-refinement.spec.ts
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -17899,109 +17964,88 @@ parallel_lanes:
           base commit/path in spec section 20.4. Preserve frozen fixtures/raw/hash manifests. A hardcoded
           canonical-path mismatch is specification-resolution compatibility, not physical FAIL; use a
           separate bounded adapter and do not restart the active experiment for this docs update.
-        - >-
-          Next selected slice for Issue 1071, within the owner's 2026-11-15
-          instruction to implement real 3D physics with Arduino, can tipping
-          and ramp ascent. Applies only after protected PR 1175 integrates
-          source 6cdf7afc91de46f1f186e473da5d4562b7c445fc at
-          7549f1048e4f092fbcd7e66643a0d09448448b56, with required exact-head checks in
-          https://github.com/spikeal8-maker/asa-lab/actions/runs/43676958771/job/132705820183, and this selection is accepted
-          on main. Existing readiness, parent E1 scope and acceptance blocker
-          remain in force. This slice admits only the two planned source paths.
-        - >-
-          Bind PR 1175 patch SHA-256
-          d60b5145ebe52ce5b2ed70f1a5db30448164da0bcabd50e28adfdc4afa74dc67,
-          positional fixture SHA-256
-          2f6c313dfc0240a4b9bfb2fb0aebae0bae15e92bdd2255c10b057ccfb0a78905,
-          positional test SHA-256
-          4c9e51f122b38c67bdb72cfcd0b44cbeaf0adf669408c538bba35c105658a7fa,
-          and original and independent exact PASS_POSITION_ONLY receipt
-          SHA-256 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7,
-          with zero dynamic calls. Pin upstream MuJoCo 4.0.0
-          ac60eae30fa7e0d31315c38d9476752fb81be67e and candidate WASM SHA-256
-          d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241,
-          JS glue SHA-256
-          7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db,
-          declarations SHA-256
-          779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff
-          and build/license receipt SHA-256
-          59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca.
-          Match official stock 4.0.0 WASM SHA-256
-          51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
-          and JS glue SHA-256
-          85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2.
-        - >-
-          Read preserved source e3302222fd7dc3f234080cfae0588e9300503ae1,
-          fixed-tilt fixture SHA-256
-          accbcc23dea77616a5c3900fd7269a0c9928e15a803fb48803a5642d75523cda,
-          fixed-tilt test SHA-256
-          ed77d425771a4fbdcc8ba662272d12fbc0c99382e42f6a84ff07312e6ee84dca,
-          contact observer SHA-256
-          77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987,
-          inherited cylinder fixture SHA-256
-          fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5,
-          and legacy native-can.ndjson SHA-256
-          2e65994a646934db01b8d25e33afa2995a2245d0f90ac44c146fe4d165bb0b8b.
-          Use the legacy CCD archive only as the historical oracle and FAIL
-          receipt. Both new worlds per angle use native CCD. Reuse the verified
-          observer read-only without importing or executing the legacy runner.
-        - >-
-          Use one bounded acquisition in a fixed order: candidate 28 degrees,
-          candidate 32 degrees, official stock 28 degrees, official stock 32
-          degrees. Each of four fresh model/data worlds uses byte-identical
-          MJCF across engines for its angle, with explicit
-          asa1168_finite_cap_can and asa1168_finite_top pair. Inherit the can's
-          0.5 kg mass, inertia, 33 mm radius, 115 mm height, fixed 1 x 1 x 0.05 m
-          support, plane-normal factory pose with 0.1 mm clearance, zero
-          velocity, gravity, friction and solver settings. Use common
-          nativeCCD/MultiCCD, elliptic dim 3, no speculative collision, zero
-          margin/gap, disableflags 65536 and enableflags 32 for both engines.
-          No drive, artificial forces, pose writes or resets. Freeze both
-          model digests. Use 500 microsecond native intervals, 2 seconds and
-          at most 4000 intervals per world, at most 16000 in the acquisition.
-          Capture native PRE, contact identities and solved forces for the
-          same rows, POST, warnings and cleanup.
-        - >-
-          Keep the inherited 200 consecutive interval/100 ms windows and
-          physical gates for signed positive support, finite rim witnesses and
-          validated forces. Keep 0.001 m/s loaded point-slip and 0.0001 m
-          cumulative slip limits. Require the final stable window and no
-          earlier confirmed tip at 28 degrees. Require the qualified downhill
-          tip window, including inherited signed tilt/velocity, uphill rim
-          lift, beta growth and downhill rim at 32 degrees. The 32 degree
-          case is a stress point, 2.147924 degrees above the analytical
-          29.852076 degrees from atan(0.033 / 0.0575). The fixed-angle pair
-          establishes neither a PHY-06 gradual-onset bracket nor rate or
-          timestep convergence. Preserve the fixed horizon and first failure
-          when safe continuation is possible. D01 acceptance is outside this
-          experiment.
-        - >-
-          Separate source and fixture validation from runtime status, each
-          physical verdict, and attribution. Compare eligible PRE geometry
-          with distinct native row identities, signed rim witnesses and the
-          half-depth triple. Distinguish fallback, geometric support and
-          loaded decision-bearing contacts. A three-contact count alone does
-          not identify dispatch. Credit a physical improvement to the patch
-          only if the matched stock data and native decision-window evidence
-          distinguish it. A bounded candidate PASS requires both angles to
-          satisfy the frozen physical criteria. Preserve physical FAIL or
-          inconclusive attribution and immutable raw receipts even if all
-          source and focused checks pass.
-        - >-
-          Require fresh remote snapshot and exact-path preflight first,
-          recovery when applicable, pure/default-skip checks, frozen source and
-          input hashes, independent exact-source review before controller native
-          GO, independent raw recomputation and applicable exact-SHA protected
-          checks. Use bounded calls, memory, wrappers and an exclusive external
-          raw journal. After a startup failure, the controller may authorize a
-          fresh startup with unchanged inputs, fresh preflight and a new journal
-          only after archiving the failure and verifying terminal shutdown plus
-          zero native step dispatch, including step1/step2. Preserve all raw
-          outputs after any actual dispatch and classify the result before
-          considering a separately authorized attempt. This selection includes
-          no post-dispatch retry, artifact rebuild, product dependency, further
-          physics scene, D01 closure, release, deployment, server or database
-          change.
+      fixed_tilt_history:
+        selection_merge: 7531583424cd943ea1e9c1730b482b0360ade872
+        selection_required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/43681124451/job/132717707831
+        r1:
+          acquisition: PRE_DISPATCH_STARTUP_ERROR
+          failure: geom_surfacevel_model_binding_width
+          raw_sha256: 7c807a1827db46b5e8a17bdb7fb0da8f8ae9cee6ec221f061eaa7100d263a84f
+          step1_calls: 0
+          step2_calls: 0
+          authored_source: 5ca6b07802d0c45362a8672a6b16514f5316fcf6
+        r2:
+          authored_source: 4867477967902bafb706905733cf76d7380ab1d5
+          source_tree: 1aa798e9d142a8165996ba02cd2b6a96bfce7f91
+          source_sha256: 22482b80e7844fc61e8c15a11fab847e39ddf86fe8c74d689d8368b4f1f6efe0
+          fixture_sha256: 5f894c11b562672b95653bd2e2ceb9a083f630fe46e1786310fc10f0a2407b5e
+          observer_sha256: 77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987
+          inherited_fixture_sha256: fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5
+          raw_sha256: 57cfa89c48129cb8ecdf18b56f93e38736fc3c1dd101b90fccfcc3a6c7520fbe
+          raw_bytes: 82608502
+          runtime: COMPLETE
+          physical: FAIL
+          timestep_us: 500
+          read_only_control: true
+          intervals: 16000
+          angle_28:
+            candidate: PASS
+            stock: FAIL
+            attribution: DISTINGUISHED_LOADED_SIGNATURE
+          angle_32:
+            candidate: FAIL
+            stock: FAIL
+            attribution: INCONCLUSIVE
+            candidate_first_failure_us: 249000
+            stock_first_failure_us: 275000
+            first_failure: FIXED_CAN_CUMULATIVE_SLIP
+          preservation_branch: codex/robotics-mujoco-finite-cap-fixed-tilt-1071
+      selected_acquisition:
+        scope: TEST_ONLY
+        prior_position_admission: 6cdf7afc91de46f1f186e473da5d4562b7c445fc
+        prior_position_receipt_sha256: 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7
+        upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+        candidate_wasm_sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241
+        candidate_glue_sha256: 7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db
+        candidate_build_receipt_sha256: 59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca
+        stock_wasm_sha256: 51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
+        stock_glue_sha256: 85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2
+        order:
+        - candidate:32:250us
+        - stock:32:250us
+        model_250us_sha256: 444a391860ba914c6902c7a1a51e78224ec4d60e38c89050a2cd603a6ea43090
+        model_500us_sha256: f63222a55bfa10662b4514d19ee54a61c8e75786c521cf6d1541dcde44b618c4
+        model_delta: sole exact timestep replacement 500 us to 250 us; identical XML across both engines.
+        schedule:
+          horizon_us: 2000000
+          timestep_us: 250
+          intervals_per_world: 8000
+          total_intervals: 16000
+          window_us: 100000
+          intervals_per_window: 400
+          phase_calls_cap_each: 16000
+          contact_cap: 4
+          constraint_row_cap: 12
+          journal_byte_cap: 134217728
+        physical_gates: Same pinned observer, finite PRE-to-solved rows, outward loaded support and inherited
+          downhill rim. Preserve 0.001 m/s loaded point slip and 0.0001 m cumulative slip from first support,
+          downhill beta >= 2 degrees, signed omega >= 0.01 rad/s, uphill lift >= 0.001 m, growth >= 0.25 degrees.
+          Preserve the full horizon and first failure. Observation errors retain partial raw with unresolved
+          attribution. No threshold/geometry/profile change.
+        comparison: Compare to matching engine at 500 us from R2 saved raw only. Report first touch and seating
+          slip separately from first beta>=2 PRE and its 100 ms native support/slip/air-gap/force witness. Record
+          ideal pivot friction adequacy. Support timestep sensitivity only with recovered frozen early support
+          and slip gates. Separately report seat-only improvement, continued comparable early failure or inconclusive
+          missing/invalid comparison.
+        acquisition_admission: After protected docs merge, fresh exact two-path preflight, pure/default-skip
+          pins and one XML replacement, independent exact-source review, one controller-authorized paired acquisition,
+          independent raw recomputation, and applicable protected checks. Use exclusive external NDJSON and retained
+          inputs. No fresh acquisition after any native dispatch. A proven zero-dispatch startup error permits
+          a separately reviewed startup recovery with unchanged physical inputs and preserved prior receipt.
+        exclusions: No R2 rerun, 28-degree rerun, artifact rebuild, general convergence, PHY-06 gradual tilt,
+          PHY-14 or D01 closure, product, rollout or deployment.
+        source_starting_point: Read-only exact R2 authored fixture/spec as implementation reference for only
+          the two newly selected paths. Use the recorded R2 trial as saved control.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
@@ -18009,11 +18053,9 @@ parallel_lanes:
         - docs/product/robotics/FIELD_CORE_SPEC_REVIEW.md
         - docs/product/robotics/FIELD_CORE_SPEC_1_2_CHANGELOG.md
         - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
-      gate_boundary: "Registration: scoped preflight, exact doc/trace hashes, control-plane and
-        governance, applicable protected CI. E1: reproduce exact qualification commands and raw
-        measurements on pinned candidate, required General/build/dependency checks and independent
-        review before D01 acceptance. Existing pnpm test:robotics is regression, not proof of new
-        physics."
+      gate_boundary: Governance and protected docs CI for this selection. Source evidence only as specified in
+        selected_acquisition. Preserve prior scoped regression and future D01 programme gates as historical/common
+        constraints.
       deployment: not_authorized
       database_actions: none
     revisions:
@@ -18510,6 +18552,34 @@ parallel_lanes:
         - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
         - docs/product/robotics/FIELD_CORE_SPEC.md
         - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
+      technical_acceptance:
+        pull_request: 1176
+        tested_head: e443a2c55abb9a9c38d069a71657d0d9244317de
+        accepted_main_merge: 9af20ffb14149b32b13e3551be5ec1bdd4f8e58a
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/43686634365/job/132735260386
+        focused_solver_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/43686634396/job/132728371477
+        required_and_focused_solver_conclusion: success
+        independent_source_review:
+          conclusion: pass
+          reviewed_source: cf73935888a4ad87d7582c7683b2b6e9325ba388
+          binding: controller_attested_review_and_native_source_equal_to_all_six_tested_and_protected_blobs
+        native_evidence:
+          raw_sha256: 8eb7080709abe4d52f9caa3cbfa167065b6e3b4f0707c87e6bc8b89d70c31131
+          bytes: 45516684
+          scope: TEST_ONLY paired 10-second free shaft and fixed stop, repeat, canonical clock, MNA, contact
+            and energy
+          physical_limit: Fixed-stop reciprocal-efficiency oscillation was observed in the model.
+            Hardware torque at near-zero shaft speed and rover traction remain uncalibrated.
+        optional_strict_live_editor:
+          run: https://github.com/spikeal8-maker/asa-lab/actions/runs/43686634396
+          conclusion: failure
+          shards:
+            s1: failure
+            s2: failure
+            s3: failure
+            s4: success
+          scope_note: 'Optional strict s3 included the prior #525 reopen scenario at 120 seconds; underlying
+            cause remains unresolved. No optional strict acceptance.'
       gate_boundary: >-
         Docs-only registration uses governance and control-plane validation.
         After activation require exact path preflight, focused Electronics and
@@ -18597,6 +18667,19 @@ parallel_lanes:
             last_review: 179752
             accepted_main: 215516
             unaccepted_candidate: 220845
+      technical_acceptance:
+        issue: 1177
+        pull_request: 1179
+        reviewed_and_tested_head: 1a21e2682a12f8d2acafe524e8f435811f33da6c
+        accepted_main_merge: befb75cfd47119c41feae38560d7d498cb24b8ac
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/43683664018/job/132726258237
+        required_conclusion: success
+        evidence_path: docs/product/electronics/evidence/robotics-tt-hygiene-1177.md
+        evidence_sha256: 45c59620ce68bd9a2f4bb2e6b54177bc93c2fd75261bd7fa53dec8b786fc52dc
+        scope: two accepted source responsibilities and baseline entries
+        independent_review:
+          conclusion: pass
+          binding: controller_attested_exact_final_evidence_and_two_entries
       gate_boundary: >-
         Run pnpm validate:electronics-agent-docs and applicable protected checks
         on the exact two-path evidence candidate. Independent review binds the
@@ -18625,6 +18708,81 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+
+  - id: robotics-tt-rover-ramp-can
+    parent_lane: robotics
+    worktree_id: robotics-tt-rover-ramp-can-001
+    owned_paths:
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-ROVER-RAMP-CAN-001.md
+    - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.fixture.json
+    - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.spec.ts
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-TT-ROVER-RAMP-CAN-001
+      issue: 1181
+      parent_issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: tt_native_source_accepted_rover_registration_pending_main
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      slice: D02-TT-ROVER-RAMP-CAN
+      owner_authorization: 'The owner directed the Robotics program to prove that an Arduino-driven robot
+        climbs a ramp and physically tips a can. This selection records one bounded TEST_ONLY experiment
+        under that program. Receipt: https://github.com/spikeal8-maker/asa-lab/issues/1181.'
+      activation_condition: Verify the accepted TT source and its required exact-head outcome below. Source
+        preflight opens after the protected docs-only registration is accepted on main. Native admission
+        also needs the frozen two-path candidate, pure admission checks and independent HIGH review.
+      accepted_source_dependencies:
+        tt_native_drive:
+          task_id: TASK-ELECTRONICS-ROBOTICS-TT-NATIVE-DRIVE-001
+          receipt_ref: parallel_lanes.robotics-tt-native-drive.task.technical_acceptance
+      scope: one Uno and TT driving a rigid rear axle, a continuous native flat-to-5-degree climb and bumper-to-empty-can
+        tip in the same world, and a matched unpowered control. Use the accepted common-solver session and
+        stock engine. Source changes are limited to the diagnostic fixture and spec. Preserve E1, D01/D02
+        and MODE acceptance boundaries and historical native journals.
+      near_static_attribution: Verify the exact common prehistory to the accepted C before the first differing
+        Uno D5 edge. Require zero sum of absolute reciprocal-branch excess impulses on the powered path through
+        the first qualifying 100 ms native side-support window for independence. A nonzero or unavailable
+        witness is a causal GAP with the measured physical verdict retained. Fixed-stop torque from the archived
+        TT witness does not estimate rover traction.
+      planned_paths:
+      - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.fixture.json
+      - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.spec.ts
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-ROVER-RAMP-CAN-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-NATIVE-DRIVE-001.md
+      - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
+      gate_boundary: Registration is docs-only and uses governance validation. On the selected source require
+        exact path preflight, the focused qualification spec and pure receipt replay, independent HIGH review
+        before native, paired 10-second dynamics and an independent exact repeat, then applicable protected
+        CI. No product runtime, rollout or D01/D02 closure.
+      deployment: not_authorized
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 9af20ffb14149b32b13e3551be5ec1bdd4f8e58a
+      head_sha: null
+      observed_at: '2026-11-15T07:24:31Z'
+      main:
+        branch: main
+        sha: 9af20ffb14149b32b13e3551be5ec1bdd4f8e58a
+      observation_note: Dated registration baseline after protected TT source acceptance. Fetch main and
+        reverify the live two-path plan, dependency receipt and applicable blockers before source work.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
 
   - id: student-progress
     worktree_id: student-progress-1090
