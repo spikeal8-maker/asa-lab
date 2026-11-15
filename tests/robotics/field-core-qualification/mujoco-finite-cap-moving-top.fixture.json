@@ -1,0 +1,111 @@
+{
+  "schema": "ASA-MUJOCO-FINITE-CAP-MOVING-TOP-1",
+  "profile": "TEST_ONLY",
+  "issue": 1071,
+  "selectedMain": "e815feba8741cffc33de2c2e8ffd3d1f32757038",
+  "selectionRequiredJob": "https://github.com/spikeal8-maker/asa-lab/actions/runs/43699722158/job/132774702793",
+  "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+  "version": "4.0.0",
+  "positionAdmission": {
+    "sourceCommit": "6cdf7afc91de46f1f186e473da5d4562b7c445fc",
+    "acceptedMerge": "7549f1048e4f092fbcd7e66643a0d09448448b56",
+    "patch": "d60b5145ebe52ce5b2ed70f1a5db30448164da0bcabd50e28adfdc4afa74dc67",
+    "fixture": "2f6c313dfc0240a4b9bfb2fb0aebae0bae15e92bdd2255c10b057ccfb0a78905",
+    "source": "4c9e51f122b38c67bdb72cfcd0b44cbeaf0adf669408c538bba35c105658a7fa"
+  },
+  "archive": {
+    "base": "9a51aff78065244910a82b0f948fe0862e1fdf68",
+    "cylinder": [
+      "tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json",
+      15762,
+      "fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5"
+    ],
+    "observer": [
+      "tools/robotics-field-core/mujoco-contact-observer.mjs",
+      43885,
+      "77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987"
+    ],
+    "harness": [
+      "tools/robotics-field-core/mujoco-cylinder.mjs",
+      110534,
+      "c3a21764baeff02acd030928a234c2cb58ffbb9811641cdfdfd83b3772c19be0"
+    ],
+    "parent": [
+      "tools/robotics-field-core/mujoco-phy01.mjs",
+      34587,
+      "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99"
+    ],
+    "parentFixture": [
+      "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json",
+      3924,
+      "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c"
+    ],
+    "positionRaw": [
+      "archive/finite-cap-position-only.json",
+      5054041,
+      "8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7"
+    ],
+    "priorFixedRefinement": {
+      "source": "886d233da7b0448a188f0b96f0f477f4d648c9d9",
+      "state": "COMPLETE_PHYSICAL_FAIL",
+      "rawSha256": "e8b2637a7478ae101dddcde1c163ff30fa509a1e88d0b034d7a85fd4987af033"
+    }
+  },
+  "engines": {
+    "candidate": {
+      "files": {
+        "mujoco.js": "7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db",
+        "mujoco.wasm": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241",
+        "mujoco.d.ts": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff",
+        "build-receipt.json": "59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca"
+      }
+    },
+    "stock": {
+      "files": {
+        "mujoco.js": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+        "mujoco.wasm": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+      }
+    }
+  },
+  "pair": {
+    "can": "asa1168_finite_cap_can",
+    "deck": "asa1168_finite_top",
+    "dim": 3,
+    "margin": 0,
+    "gap": 0,
+    "interiorM": 0.01,
+    "frameTolerance": 1e-12,
+    "witnessAgreementM": 1e-10,
+    "candidateContacts": 3,
+    "allocatedContacts": 4
+  },
+  "profileReadback": {
+    "disableflags": 65536,
+    "enableflags": 32
+  },
+  "schedule": {
+    "order": ["candidate", "stock"],
+    "condition": "admission-B-500-split",
+    "stepUs": 500,
+    "settleUs": 2000000,
+    "transitionUs": 250000,
+    "holdUs": 1000000,
+    "horizonUs": 3250000,
+    "targetDeg": 0.24,
+    "windowUs": 100000,
+    "windowIntervals": 200,
+    "stepsPerWorld": 6500,
+    "totalIntervals": 13000,
+    "maxRecordBytes": 16384,
+    "emergencyBytes": 41551872,
+    "summaryBytes": 8388608,
+    "worstCaseReceiptBytes": 262932480,
+    "maxJournalBytes": 268435456,
+    "timeoutMs": 240000
+  },
+  "model": {
+    "archivedXmlSha256": "21cfb1964c55cee99c34640c2c43475a7b2ab38adc6d6afe966ae0779b75e85a",
+    "sharedXmlSha256": "e2b57602c90094dd79c2e04e871f7d442c4929590d618b70c85b59cc3094374f"
+  },
+  "scope": "Native moving support and one stage only. Candidate versus stock model bytes identical. Physical verdict and moving half-depth attribution are independent. No PHY-06 bracket, D01 or product acceptance."
+}
