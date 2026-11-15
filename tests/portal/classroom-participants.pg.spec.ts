@@ -1252,6 +1252,101 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     await f.write('avatar_grant', { seatId: seat.id, id: avatar.id, granted: false });
     expect((await own()).avatars).toEqual([]);
   });
+  it('edits custom merits, preserves issue/revoke history, enforces exact scope and idempotency', async () => {
+    const f = await fixture();
+    const seat = await f.seat('История наград');
+    const foreignClass = await f.createClass('Иной класс');
+    const foreignSeat = await f.seat('Посторонний ученик', null, foreignClass);
+    const merit = await f.write('merit', {
+      title: 'Начальное название',
+      description: 'Начальное описание',
+    });
+    const editRequestId = randomUUID();
+    const editPayload = {
+      requestId: editRequestId,
+      id: merit.id,
+      title: 'Обновлённая награда',
+      description: 'Новые условия получения',
+    };
+    const edit = (asActor: string, input: Record<string, unknown>) =>
+      read<Record<string, unknown>>('classroom_participant_merit_update', [
+        asActor,
+        f.classId,
+        JSON.stringify(input),
+      ]);
+    const firstEdit = await edit(f.actor, editPayload);
+    expect(firstEdit).toMatchObject({ saved: true, id: merit.id });
+    expect(await edit(f.actor, editPayload)).toEqual(firstEdit);
+    expect(
+      await edit(f.actor, { ...editPayload, title: 'Чужой повтор с прежним ключом' }),
+    ).toMatchObject({ error: 'idempotency_conflict' });
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::integer AS edits FROM audit_events
+             WHERE entity_id=$1 AND action='classroom.participant.merit_update'`,
+          [f.classId],
+        )
+      ).rows[0].edits,
+    ).toBe(1);
+    const updated = await read<{
+      merits: Array<{ id: string; title: string; description: string }>;
+    }>('classroom_participant_profile', [f.actor, f.classId, seat.id]);
+    expect(updated.merits).toContainEqual(
+      expect.objectContaining({
+        id: merit.id,
+        title: editPayload.title,
+        description: editPayload.description,
+      }),
+    );
+
+    const issuedId = randomUUID();
+    const granted = {
+      seatId: seat.id.toUpperCase(),
+      id: merit.id.toUpperCase(),
+      granted: true,
+    };
+    await f.write('merit_grant', granted, f.actor, issuedId);
+    await f.write('merit_grant', granted, f.actor, issuedId);
+    await f.write('merit_grant', { ...granted, granted: false });
+    const history = await read<{
+      items: Array<{ meritId: string; title: string; granted: boolean; at: string }>;
+      offset: number;
+      hasMore: boolean;
+    }>('classroom_participant_merit_history', [seat.principal, f.classId, seat.id, 0]);
+    expect(history).toMatchObject({ offset: 0, hasMore: false });
+    expect(history.items).toHaveLength(2);
+    expect(history.items.map((entry) => entry.granted)).toEqual([false, true]);
+    expect(history.items.every((entry) => entry.meritId === merit.id)).toBe(true);
+    expect(history.items.every((entry) => entry.title === editPayload.title)).toBe(true);
+    expect(history.items.every((entry) => Number.isFinite(Date.parse(entry.at)))).toBe(true);
+    expect(
+      await read('classroom_participant_merit_history', [f.actor, f.classId, foreignSeat.id, 0]),
+    ).toBeNull();
+
+    const stranger = await fixture();
+    expect(await edit(stranger.actor, { ...editPayload, requestId: randomUUID() })).toMatchObject({
+      error: 'forbidden',
+    });
+    expect(
+      await read('classroom_participant_merit_history', [stranger.actor, f.classId, seat.id, 0]),
+    ).toBeNull();
+    expect(await edit(seat.principal, { ...editPayload, requestId: randomUUID() })).toMatchObject({
+      error: 'forbidden',
+    });
+    expect(
+      await edit(f.actor, {
+        ...editPayload,
+        requestId: randomUUID(),
+        title: '<script>',
+      }),
+    ).toMatchObject({ error: 'invalid_merit' });
+    await admin.query("UPDATE classrooms SET status='archived' WHERE id=$1", [f.classId]);
+    expect(await edit(f.actor, { ...editPayload, requestId: randomUUID() })).toMatchObject({
+      error: 'classroom_archived',
+    });
+  });
+
   it('pages all dated manual grades and revision history without leaking another Seat', async () => {
     const f = await fixture();
     const seat = await f.seat('История');
