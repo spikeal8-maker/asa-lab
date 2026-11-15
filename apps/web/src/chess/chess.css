@@ -11,10 +11,10 @@
   --chess-ink-soft: #294d68;
   --chess-cyan: #0a91b6;
   --chess-cyan-strong: #067999;
-  --chess-light-square: #e8f2e6;
-  --chess-dark-square: #4f8b73;
-  --chess-last: #f3d35d;
-  --chess-select: #0fb7d8;
+  --chess-light-square: #e6f5fa;
+  --chess-dark-square: #8aafc3;
+  --chess-last: rgba(10, 145, 182, 0.24);
+  --chess-select: #0877b3;
   --chess-panel: #ffffff;
   --chess-bg: #e9eef2;
   --chess-line: #c6d1d9;
@@ -306,7 +306,7 @@
   border-radius: 7px;
   border: 1px solid #6e7d87;
   background: #202a31;
-  min-height: 300px;
+  min-height: 0;
 }
 
 .asa-chess-eval-black {
@@ -374,7 +374,7 @@
 }
 
 .asa-chess-square.last-move {
-  box-shadow: inset 0 0 0 999px rgba(243, 211, 93, 0.48);
+  box-shadow: inset 0 0 0 999px var(--chess-last);
 }
 
 .asa-chess-square.selected {
@@ -404,24 +404,38 @@
 .asa-chess-piece-glyph {
   display: block;
   width: 100%;
-  height: 100%;
+  height: 0;
   font-family: 'ASA Chess Symbols';
   font-size: clamp(24px, 6.8vw, 73px);
   font-size: 9.5cqi;
-  line-height: 10.15cqi;
+  line-height: 0;
   text-align: center;
   font-synthesis: none;
   text-rendering: geometricPrecision;
-  transform: translateY(-0.08cqi);
+  /* Noto Symbols 2 v25: font ascent/descent = 1.069/.630em.
+     Center the ink, rather than the font's asymmetric line box:
+     offset = (ink ascent - ink descent - 1.069 + .630) / 2. */
+  /* Whole-pixel raster correction balances Windows/Linux baseline rounding. */
+  --chess-ink-offset: calc(0.139875em + 1px);
+  transform: translateY(var(--chess-ink-offset));
   transform-origin: center;
   transition: transform 100ms ease;
   filter: drop-shadow(0 2px 1px rgba(15, 30, 39, 0.26));
 }
 
+.asa-chess-piece[data-piece-type='bishop'] .asa-chess-piece-glyph {
+  --chess-ink-offset: calc(0.12425em + 1px);
+}
+
+.asa-chess-piece[data-piece-type='knight'] .asa-chess-piece-glyph,
+.asa-chess-piece[data-piece-type='pawn'] .asa-chess-piece-glyph {
+  --chess-ink-offset: 0.1633125em;
+}
+
 .asa-chess-piece.white {
   color: #fffef6;
-  -webkit-text-stroke: 1.4px #263a47;
-  text-shadow: 0 1px #263a47;
+  -webkit-text-stroke: 0.18cqi #263a47;
+  text-shadow: 0 0.13cqi #263a47;
 }
 
 .asa-chess-piece.black {
@@ -429,9 +443,9 @@
   -webkit-text-stroke: 0.45px #0b1d27;
 }
 
-.asa-chess-square:hover .asa-chess-piece-glyph,
-.asa-chess-square:focus-visible .asa-chess-piece-glyph {
-  transform: translateY(-0.08cqi) scale(1.04);
+.asa-chess-square:not(:disabled):hover .asa-chess-piece-glyph,
+.asa-chess-square:not(:disabled):focus-visible .asa-chess-piece-glyph {
+  transform: translateY(var(--chess-ink-offset)) scale(1.04);
 }
 
 .asa-chess-coordinate {
@@ -439,7 +453,7 @@
   z-index: 5;
   font-size: clamp(8px, 1.2vw, 12px);
   font-weight: 850;
-  opacity: 0.83;
+  opacity: 1;
 }
 
 .rank-coordinate {
@@ -453,11 +467,11 @@
 }
 
 .asa-chess-square.light .asa-chess-coordinate {
-  color: #4d7e68;
+  color: #0b3558;
 }
 
 .asa-chess-square.dark .asa-chess-coordinate {
-  color: #e7f0e8;
+  color: #0b3558;
 }
 
 .asa-chess-move-dot {
@@ -1265,5 +1279,22 @@
   .asa-chess-eval-black,
   .asa-chess-eval-white {
     transition: none;
+  }
+}
+
+/* Keep the board and both player clocks in view on desktop and short laptops. */
+@media (min-width: 861px) {
+  .asa-chess-board-row {
+    width: min(100%, 790px, calc(100dvh - 280px));
+  }
+
+  .asa-chess-board-column > .asa-chess-player,
+  .asa-chess-board-column > .asa-chess-board-actions {
+    width: min(100%, 760px, calc(100dvh - 280px));
+  }
+
+  .asa-chess-board-column {
+    align-content: start;
+    grid-template-rows: auto auto auto auto;
   }
 }

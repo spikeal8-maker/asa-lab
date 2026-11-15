@@ -136,6 +136,9 @@ async function seedPresentation(page: Page, populated: boolean) {
         id === classId
           ? {
               classroomId: id,
+              averageRating: students.length > 0 ? 10.5 : null,
+              ratingParticipants: students.length,
+              ratingPeriodDays: 30,
               students: students.length,
               works: works.length,
               assigned: students.reduce((n, student) => n + student.assignedCount, 0),
@@ -147,6 +150,9 @@ async function seedPresentation(page: Page, populated: boolean) {
             }
           : {
               classroomId: id,
+              averageRating: null,
+              ratingParticipants: 0,
+              ratingPeriodDays: 30,
               students: 13 + (index % 3),
               works: 22 + index * 2,
               assigned: 40 + index,
@@ -171,7 +177,10 @@ async function seedPresentation(page: Page, populated: boolean) {
     if (path.startsWith('/api/class-join/requests')) {
       if (request.method() === 'POST' && path.endsWith('/decision')) {
         const id = path.split('/').at(-2),
-          body = request.postDataJSON() as { decision: string; reason?: string };
+          body = request.postDataJSON() as {
+            decision: string;
+            reason?: string;
+          };
         requests = requests.map((item) =>
           item.id === id ? { ...item, status: body.decision, reason: body.reason ?? null } : item,
         );
@@ -223,7 +232,11 @@ async function seedPresentation(page: Page, populated: boolean) {
         status: 'active',
         timeZone: 'Europe/Moscow',
         scale: { preset: 'five', version: 1 },
-        students: students.map((s) => ({ id: s.id, name: s.displayLabel, status: s.status })),
+        students: students.map((s) => ({
+          id: s.id,
+          name: s.displayLabel,
+          status: s.status,
+        })),
         columns,
         grades,
         offset: 0,
@@ -303,14 +316,15 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
   await expect(page.locator(expectedPanel).first()).toBeVisible();
   await expect
     .poll(async () =>
-      page
-        .locator('[aria-busy=true]')
-        .evaluateAll(
-          (nodes) =>
-            nodes.filter((el) =>
-              (el as HTMLElement).checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }),
-            ).length,
-        ),
+      page.locator('[aria-busy=true]').evaluateAll(
+        (nodes) =>
+          nodes.filter((el) =>
+            (el as HTMLElement).checkVisibility({
+              checkVisibilityCSS: true,
+              checkOpacity: true,
+            }),
+          ).length,
+      ),
     )
     .toBe(0);
   await page.evaluate(() => document.fonts.ready);
@@ -341,6 +355,24 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
       documentWidth: document.documentElement.scrollWidth,
       mainWidth: main.clientWidth,
       mainScrollWidth: main.scrollWidth,
+      overflowCandidates: [...main.querySelectorAll<HTMLElement>('*')]
+        .filter((el) => {
+          const box = el.getBoundingClientRect();
+          const parent = main.getBoundingClientRect();
+          return (
+            el.checkVisibility() && (box.right > parent.right + 0.5 || box.left < parent.left - 0.5)
+          );
+        })
+        .slice(0, 12)
+        .map((el) => ({
+          element: el.tagName.toLowerCase(),
+          className: typeof el.className === 'string' ? el.className.slice(0, 100) : '',
+          content: el.textContent?.trim().slice(0, 40),
+          left: el.getBoundingClientRect().left,
+          right: el.getBoundingClientRect().right,
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+        })),
       outside,
       clippedClassDates: [
         ...main.querySelectorAll<HTMLElement>('.classroom-list-row .classroom-row-date'),
@@ -380,7 +412,9 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
   expect.soft(textDefects, `Actual caption/value/checkbox collisions: ${file}`).toEqual([]);
   writeFileSync(`${out}/${file}.json`, JSON.stringify(measure, null, 2));
   expect.soft(measure.documentWidth, file).toBeLessThanOrEqual(measure.width + 1);
-  expect.soft(measure.mainScrollWidth, file).toBeLessThanOrEqual(measure.mainWidth + 1);
+  expect
+    .soft(measure.mainScrollWidth, file + JSON.stringify(measure.overflowCandidates))
+    .toBeLessThanOrEqual(measure.mainWidth + 1);
   expect.soft(measure.outside, file).toEqual([]);
   expect
     .soft(measure.clippedClassDates, 'Dates must fit as one readable line: ' + file)
@@ -389,6 +423,31 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
     .soft(measure.rosterIdentityOverlaps, 'Pupil row numbers must not cover avatar images: ' + file)
     .toEqual([]);
 }
+
+test('classroom name search filters cards without changing the teacher totals', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await seedPresentation(page, true);
+  await page.goto('/#/classrooms');
+  const search = page.getByRole('searchbox', {
+    name: 'Поиск класса по названию',
+  });
+  const classes = page.getByTestId('classroom-card');
+  const totalClasses = page.locator('.classroom-title-row .classroom-metrics strong').first();
+  await expect(classes).toHaveCount(23);
+  await expect(totalClasses).toHaveText('23');
+  await search.fill('7А Робототехника');
+  await expect(classes).toHaveCount(1);
+  await expect(classes.first()).toContainText('7А Робототехника');
+  await expect(totalClasses).toHaveText('23');
+  await search.fill('Такого класса не существует');
+  await expect(classes).toHaveCount(0);
+  await expect(page.getByText('Классы не найдены. Измените поисковый запрос.')).toBeVisible();
+  await search.clear();
+  await expect(classes).toHaveCount(23);
+  await expect(totalClasses).toHaveText('23');
+});
 
 for (const width of [320, 390, 1024, 1440]) {
   for (const populated of [false, true]) {
@@ -402,6 +461,12 @@ for (const width of [320, 390, 1024, 1440]) {
       await page.goto('/#/classrooms');
       await photograph(page, `${prefix}-classes`, '.classroom-owner-list');
       await expect(page.locator('.classroom-title-row .classroom-metrics')).toBeVisible();
+      const ratedClass = page
+        .locator('.classroom-row-rating .classroom-stat-number')
+        .filter({ hasText: '10,5' });
+      if (populated) await expect(ratedClass).toHaveCount(1);
+      else await expect(ratedClass).toHaveCount(0);
+      await expect(page.getByRole('searchbox', { name: 'Поиск класса по названию' })).toBeVisible();
       await page.goto(`/#/classrooms/${classId}`);
       for (const [label, key] of sections) {
         await section(page, label);
@@ -456,3 +521,96 @@ for (const width of [320, 390, 1024, 1440]) {
     });
   }
 }
+
+// Intermediate phone/tablet widths complete the owner's seven-width acceptance matrix.
+// This uses the built React bundle and the same synthetic fixture as the main suite.
+for (const width of [360, 430, 768]) {
+  test(`class list, pupil roster and journal at ${width}px`, async ({ page }) => {
+    mkdirSync(out, { recursive: true });
+    await page.setViewportSize({ width, height: 1000 });
+    const state = await seedPresentation(page, true);
+    await page.goto('/#/classrooms');
+    await photograph(page, `${width}-filled-classes`, '.classroom-owner-list');
+    await page.goto(`/#/classrooms/${classId}`);
+    await section(page, 'Ученики');
+    await photograph(page, `${width}-filled-students`, '.classroom-roster-panel');
+    await section(page, 'Журнал');
+    await expect(page.locator('.manual-journal-column')).toHaveCount(10);
+    await photograph(page, `${width}-filled-journal`, '.manual-journal');
+    const nameWidth = await page
+      .locator('.manual-journal tbody tr > th:first-child')
+      .first()
+      .evaluate((element) => element.getBoundingClientRect().width);
+    expect(nameWidth).toBeGreaterThanOrEqual(120);
+    expect(nameWidth).toBeLessThanOrEqual(222);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+test('teacher compact class list remains readable with sidebar and on phones', async ({ page }) => {
+  const state = await seedPresentation(page, true);
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto('/#/classrooms');
+    const cards = page.getByTestId('classroom-card');
+    await expect(cards).toHaveCount(23);
+    await expect(
+      page.locator('.classroom-row-students .classroom-stat-number').first(),
+    ).not.toHaveText('—');
+
+    const measure = await cards.first().evaluate((element) => {
+      const row = element as HTMLElement;
+      const labels = [...row.querySelectorAll<HTMLElement>('.classroom-stat-label')].filter(
+        (item) => item.checkVisibility(),
+      );
+      const numbers = [...row.querySelectorAll<HTMLElement>('.classroom-stat-number')].filter(
+        (item) => item.checkVisibility(),
+      );
+      return {
+        height: row.getBoundingClientRect().height,
+        containerWidth: row.closest<HTMLElement>('main')?.clientWidth ?? innerWidth,
+        smallestLabel: labels.length
+          ? Math.min(...labels.map((item) => parseFloat(getComputedStyle(item).fontSize)))
+          : null,
+        smallestNumber: numbers.length
+          ? Math.min(...numbers.map((item) => parseFloat(getComputedStyle(item).fontSize)))
+          : null,
+      };
+    });
+    const maxHeight = width >= 1440 ? 65 : width >= 768 ? 135 : 150;
+    expect(measure.height, 'Class card should be dense at ' + width + 'px').toBeLessThan(maxHeight);
+    if (measure.containerWidth < 680) {
+      expect(measure.smallestLabel, 'Class metric captions at ' + width + 'px').not.toBeNull();
+      expect(
+        measure.smallestLabel!,
+        'Class metric captions at ' + width + 'px',
+      ).toBeGreaterThanOrEqual(11);
+      expect(
+        measure.smallestNumber!,
+        'Class metric values at ' + width + 'px',
+      ).toBeGreaterThanOrEqual(13);
+    } else {
+      expect(measure.smallestLabel).toBeNull();
+      await expect(
+        page.getByRole('button', { name: 'Сортировать по колонке «Ученики»' }),
+      ).toBeVisible();
+    }
+  }
+
+  // A 320px code chip must never squeeze "← Мои классы" under it.
+  await page.setViewportSize({ width: 320, height: 1000 });
+  await page.goto('/#/classrooms/' + classId);
+  await expect(page.getByRole('button', { name: '← Мои классы' })).toBeVisible();
+  const back = await page.locator('.classroom-head-compact .classroom-back').boundingBox();
+  const actions = await page.locator('.classroom-head-compact .classroom-head-code').boundingBox();
+  expect(back).not.toBeNull();
+  expect(actions).not.toBeNull();
+  expect(
+    back!.y + back!.height,
+    '320px class navigation must not overlap the join code',
+  ).toBeLessThanOrEqual(actions!.y + 1);
+  const sectionSwitch = page.getByRole('combobox', { name: 'Раздел класса' });
+  await expect(sectionSwitch).toBeVisible();
+  await expect(sectionSwitch.locator('option')).toHaveCount(8);
+  expect(state.errors).toEqual([]);
+});

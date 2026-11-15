@@ -11,7 +11,13 @@ import {
   Req,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
+import {
+  hashSessionToken,
+  type AccountDirectoryPort,
+  type ActiveContextUseCase,
+} from '@asa-lab/identity';
+import { ChessNetworkService } from '@asa-lab/games';
+import type pg from 'pg';
 import {
   type ChessLiveService,
   type ChessRatingPool,
@@ -20,6 +26,7 @@ import {
   type LiveChessResult,
 } from '@asa-lab/chess-live';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape, checkIdempotencyKey } from './validation.js';
 
 const STATUS_BY_CODE: Readonly<Record<LiveChessErrorCode, number>> = {
@@ -94,11 +101,38 @@ export class ChessLiveController {
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.chessLiveService) private readonly service: ChessLiveService,
+    @Inject(TOKENS.pool) private readonly pool: pg.Pool | null = null,
   ) {}
 
   private async principal(request: FastifyRequest): Promise<{ tenantId: string; userId: string }> {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      throw new HttpException(
+        error(
+          'student_offline_only',
+          'В ученическом режиме доступны только игры без сетевых соперников.',
+        ),
+        403,
+      );
+    }
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    // The legacy tenant/rated path cannot enforce platform pupil scopes. A linked
+    // Account must use the new guarded Games route, even without a Seat cookie.
+    if (
+      this.pool &&
+      !(await new ChessNetworkService(this.pool).legacyAllowed({
+        kind: 'account',
+        sessionHash: hashSessionToken(request.cookies[SESSION_COOKIE]!),
+      }))
+    ) {
+      throw new HttpException(
+        error(
+          'pupil_network_required',
+          'Откройте онлайн-шахматы с главной страницы шахмат: там действуют настройки учителя.',
+        ),
+        403,
+      );
+    }
     if (context.userId !== null) {
       return { tenantId: context.tenantId, userId: context.userId };
     }

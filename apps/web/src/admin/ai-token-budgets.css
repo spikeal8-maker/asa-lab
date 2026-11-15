@@ -1,0 +1,186 @@
+.asa-ai-budgets,
+.asa-ai-inline-budgets {
+  margin-top: 12px;
+  color: var(--text);
+  background: var(--surface);
+  min-width: 0;
+}
+.asa-ai-budget-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.asa-ai-budgets h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.asa-ai-budgets p {
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.asa-ai-budgets form {
+  display: grid;
+  gap: 8px;
+}
+.asa-ai-budgets button,
+.asa-ai-budget-inline-footer > button {
+  justify-self: start;
+  min-height: 36px;
+  border: 1px solid var(--border, #dce5ec);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+.asa-ai-budgets .info-hint-trigger {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  vertical-align: middle;
+}
+.asa-ai-budget-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+.asa-ai-budget-table {
+  width: 100%;
+  min-width: 520px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.asa-ai-budget-table caption {
+  text-align: left;
+  padding: 2px 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.asa-ai-budget-table th,
+.asa-ai-budget-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border, #dce5ec);
+  text-align: left;
+  vertical-align: middle;
+}
+.asa-ai-budget-table th:first-child {
+  width: 30%;
+}
+.asa-ai-budget-table tbody th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asa-ai-budget-table input {
+  width: 100%;
+  max-width: 160px;
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: 1px solid var(--border, #dce5ec);
+  border-radius: 5px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+.asa-ai-budget-usage {
+  white-space: nowrap;
+}
+.asa-ai-budget-usage > span {
+  display: inline-block;
+  max-width: calc(100% - 36px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.asa-ai-budget-usage > small {
+  margin-left: 4px;
+  font-size: 10px;
+}
+.asa-ai-budgets :is(input, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--primary, #0877b3);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .asa-ai-budget-table input,
+  .asa-ai-budgets button {
+    min-height: 44px;
+  }
+}
+
+.asa-ai-budget-explainer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+.asa-ai-inline-budget {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.asa-ai-inline-budget label {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.asa-ai-inline-budget input {
+  width: clamp(5rem, 10vw, 7rem);
+  min-width: 0;
+  padding: 4px 6px;
+  color: inherit;
+}
+.asa-settings-compact .asa-ai-policy-model-row:has(.asa-ai-inline-budget) {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+.asa-ai-budget-inline-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-block: 8px;
+}
+@media (max-width: 800px) {
+  .asa-ai-inline-budgets .asa-settings-compact .asa-ai-policy-models > fieldset {
+    min-width: 0;
+    padding: 0;
+  }
+  .asa-ai-inline-budgets .asa-settings-compact .asa-ai-policy-models legend {
+    position: static;
+    width: auto;
+  }
+}
+@media (max-width: 620px) {
+  .asa-settings-compact .asa-ai-policy-model-row:has(.asa-ai-inline-budget) {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding-block: 4px;
+  }
+  .asa-ai-policy-model-row > .asa-ai-inline-budget {
+    grid-column: 1 / -1;
+    padding-left: 8px;
+  }
+}
+
+.asa-ai-settings-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 850px) {
+  .asa-ai-settings-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

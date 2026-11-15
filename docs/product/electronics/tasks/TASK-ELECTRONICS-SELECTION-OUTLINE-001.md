@@ -12,6 +12,184 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## R5 actual closeout — TERMINAL_NO_PROVEN_CAUSE, no new executable slice
+
+The [dated be51 actual receipt](../evidence/selection-outline-549-be51d9c9-r5-terminal-20261021.md)
+records3/16complete. Running1440 functionally saved/reopened with strict full
+oracles but journeyComplete remains false;12journeys absent. Both suspected
+awaits fulfilled: fresh.close107ms,final original snapshot38ms. Later pending
+operation/cause UNKNOWN.218862numeric expects are a hypothesis;1134assertions/
+448ms no-browser sample does not establish CI cause or permit optimisation.
+
+R5 diagnosis is terminal. All earlier author/observer budgets below are history,
+not permission to continue. No R6 observer,rerun,product/AFTER or source fix is
+selected. Return unresolved cause to controller/owner for an explicit decision;
+no automatic next experiment. Existing16complete/NEW actual review and identical
+frozen BEFORE/AFTER requirement remain unmet. This is documentation closeout,
+not Issue549 closure,product acceptance or release. Status in_progress and
+ownerpending,#548 terminal NO_PROVEN_CAUSE and owner KEEP544/547 remain unchanged.
+
+## R5 passive lifecycle boundary diagnostics — journal only
+
+When canonically selected, ONLY these synchronous outer-boundary journal
+additions supersede the old no-observer-addition budget. All R2/R3/R4 runtime,
+fixture,route,poll,oracle and lifecycle behavior remains unchanged; old receipts
+and instructions are history. Current.yaml alone selects scope. The [dated e4a receipt](../evidence/selection-outline-549-e4a48a77-r5-lifecycle-selection-20261021.md)
+records3/16complete and UNKNOWN exact pending await,not a proved harness/product cause.
+
+Author ONLY the existing outline spec. Add synchronous durable Node markers
+before/fulfilled/rejected around EXISTING fresh.close and the final original-page
+snapshot(page). Skipped is recorded only when the original code skips that
+operation. Record monotonic sequence/timestamp,operation/page/context identity
+and original outcome/error; persist each lightweight marker before continuing.
+Record marker-write errors explicitly without masking the primary Error.
+Reuse the registered artifact directory. No new awaited browser operation,
+inner callback/binding markers,expanded observer or Playwright/tracing wrapper.
+
+Preserve exact awaited operations/order,supplemental mandatory classification,
+original Error objects/throws and complete checkpoint. No swallowed errors,
+unawaited close,early complete,teardown repair,new action/wait/timeout/retry,
+predicate/oracle weakening or worker delivery change. R3 coordinate/poll and
+R4 runningtrue-only pre-Stop clone/backward native route remain untouched.
+Preserve all16/full native/ready C=H finite quality/yielded-null/JSONL/fullDoc/
+1PUT/CAS/cookies/storage/deadlines. No product/core/hook/dependency change.
+
+Freeze one new source candidate; NEW independent source review precedes ONE
+bounded cause-based diagnostic BEFORE. If its journal is incomplete or no causal
+boundary evidence emerges, STOP diagnosis: no next hopeful observer,automatic
+fix or AFTER. New frozen BEFORE/AFTER whole blob identical if AFTER is later
+selected; product remains forbidden until16complete and NEW actual review.
+Ownerpending,#548 terminal NO_PROVEN_CAUSE and owner KEEP544/547 remain unchanged.
+
+## R4 running-phase oracle and fixed backward native route — test only
+
+When canonically selected, ONLY the two exceptions here supersede prior R2/R3
+constraints. All older author instructions remain historical; current.yaml alone
+selects scope. [Dated2bd actual/cause/route receipt](../evidence/selection-outline-549-2bdff063-r4-selection-20261021.md)
+records invalid12/16 BEFORE, not product/visual acceptance.
+
+Author ONLY the existing outline browser spec. Independently construct the full
+expected runtime document from expected with ONLY simulation.running=true,
+using fullExpectedRunning={...expected,simulation:{...expected.simulation,running:true}}
+ONLY while running before Stop; never use actual as expected. After Stop and
+Save preserve full original stopped running=false, server/saved document,
+exact1PUT/base2/CAS3/cookies-only reopen and storage assertions without weakening.
+
+The ONLY native route change is existing loop keyboard.press('Tab') to
+keyboard.press('Shift+Tab'). Keep unmodified current focus, tabLimit, exact R3
+unique-connected current-body identity poll, final Locator focus identity,
+trusted Enter, selected-state and actuator sequence. Add ONLY passive event.shiftKey,
+route='backward' and start/end activeElement identity before/after the loop,
+including current unique connected target/grid/root identity and no-positive-tabindex
+assumption. Never write focus/DOM or add actions, locator.press(), actuator clicks,
+a generic navigator, conditional route algorithm or timeout/retry workaround.
+
+Final cached4DOM proof has278 conservative candidates,SPDT index199,tail79,
+gridpreceding26/no positive tabindex;16modelchecks PASS with79to105 backward
+modeled steps versus189to190 observed forward Tabs. Historical activeElement and
+sequential anchor are UNKNOWN; future actual backward route/time NOT_RUN, no106
+or deadline-fit guarantee. Proof motivates a new run; it does not prove completion.
+
+Keep R3 resistor180270 and strict identity poll unchanged, every other fixture,
+sampler/allowGrid,pan/zoom/native actuator,all16cases/full ready C=H solved quality
+finite/yielded-null/lossless JSONL prefix/hash/refs/fullDoc and deadlines.
+No product/core/hook/UI/timeout/case omission repair. One reviewed frozen new
+BEFORE; AFTER whole browser blob identical. Product/AFTER remains forbidden
+until16complete and NEW independent actual review. #548 terminal NO_PROVEN_CAUSE,
+owner KEEP544/547 and old receipts stay unchanged. Dependency failure is outside scope.
+
+## R3 coordinate-only fixture and focus-poll exception — test only
+
+When canonically selected, this section supersedes only the old R2 bans on
+fixture coordinates and focus-poll implementation. All older product-author
+instructions below are historical and are NOT executable in this test phase.
+Current.yaml alone selects scope; the [dated final actual/cause receipt](../evidence/selection-outline-549-39cd72af-r3-selection-20261021.md)
+records an invalid10/16 BEFORE, not product or visual acceptance. Old card text
+and receipts remain immutable history.
+
+Author ONLY the existing outline browser spec. The accepted pure geometry
+proposal permits EXACTLY ONE fixture coordinate: resistor center.x350to180;
+y270 and every other eight centers remain unchanged. Preserve nine parts, IDs,
+topology, values, initial rotations, every native transform/action and full-doc
+oracle. The cached catalog/transformed-bounds proof retains the old/new fit
+envelope and introduces no new initial intersection; it is not actual native
+validation. No other coordinate,fit-envelope or terminal change is authorized.
+No zoom/pan/action change, camera workaround, sampler or allowGrid weakening,
+forced click or product-control repair. Camera-only movement cannot separate
+this proved physical overlap.
+
+Replace ONLY each iteration's Locator.evaluate focus poll with direct
+page.evaluate: query the exact same combined selector EACH poll, require EXACTLY
+ONE connected current target body, then compare exact document.activeElement
+identity. Otherwise throw a diagnostic before any extra Tab; never treat absence
+or duplication as silent false. Retain pre-loop attachment, final strict
+identity, EVERY native Tab/Enter call site, ordering, stop condition, tabLimit and
+actuators. No focus(), shorter route, skip/batch, new actions, timeout increase
+or omitted phase. Prove extracted actual old/new helper valid-target identity
+and strict absent/duplicate/detached/replaced cases using realistic DOM; no
+ancestor/class-only shortcut or stale captured target. The narrow timing
+exception is explicit: old absent-target Locator auto-wait becomes an immediate
+fail-closed diagnostic. The temporary20-assertion proposal proof is not actual
+helper implementation or evidence the real journey will fit.
+
+Preserve all16 cases, full ready C=H/solved/quality/finite and yielded-null checks,
+lossless JSONL prefix/hash/reference validation, exact whole document,1PUT/CAS,
+cookies-only reopen/R3 storage and every original deadline/native predicate.
+One self-reviewed frozen source candidate then STOP; NEW source review precedes
+ONE new frozen BEFORE. Until all16 complete with only expected soft outline
+failures and NEW actual review, product/AFTER is forbidden. AFTER uses the
+identical new whole test blob. #548 terminal NO_PROVEN_CAUSE and owner
+KEEP544/547 remain unchanged; security dependency repair is outside this scope.
+
+## R2 evidence delivery and reopened nativePoint receipt — test only
+
+This bounded exception supersedes only the corrected BEFORE evidence mechanics;
+canonical active selection and dated results stay in current.yaml. The
+[dated e142 review receipt](../evidence/selection-outline-549-e14229f9-before-review-20261021.md)
+records an INVALID BEFORE, not a product counterexample. Preserve the old source
+and receipts. Author only the existing outline browser spec; no registration,
+shared helper, product, sampler/pan/fixture, retry or timeout change.
+
+Deliver each full observed Worker response to the Node journal exactly once,
+including ready and yielded responses. Use lossless incremental delivery with
+continuous cursor/sequence; explicitly detect loss, drops, duplicates and errors.
+Preserve every full payload and strict ready C=H/yielded validation. Checkpoint
+references must resolve to full responses in the final journal. Do not repeatedly
+transfer the entire growing history, sample/filter it, truncate it or weaken any
+assertion. This changes evidence transport only, not Worker/application behaviour.
+
+Before the existing reopened nativePoint throws, durably write its already
+collected failed attempts, body bounds, CTM, canvas viewport, hit ancestry and
+originalError into the Node receipt, identifying the originating fresh reopened
+page/context; never substitute the original page or its lastObserver. Preserve
+the original primary Error and
+deadline, including supplementary write/cleanup failure handling. No new action,
+wait, alternative target or changed hit predicate is allowed. Missing evidence
+stays an explicit failure, never a success or substituted empty record.
+
+Preserve all16 cases and every strict native/full-document/onePUT/CAS/storage/
+ready assertion and existing deadlines. Any extra tracked metadata path requires
+a precise proposal. Freeze a NEW complete test blob after source review; run one
+new strict frozen BEFORE and use byte-identical tests for later AFTER. Until
+all16 journeys complete with only causal expected geometry failures and NEW
+actual review, product/AFTER remains forbidden. #548 is NO_PROVEN_CAUSE and is
+not selected here; #544/#547 dependency-owner KEEP and all existing boundaries
+remain unchanged.
+
+## Corrected BEFORE harness only — 20 October 2026
+
+This selected phase restores the 16-case R8 browser harness from preserved `6f27bc9f` onto current main with two explicitly bounded qualification corrections below. Original blob `57ca47df3aa89cfbccff5c242a36f42febc01be2` is historical parent evidence; freeze a NEW complete browser blob and keep that new blob byte-identical between BEFORE and AFTER. The [dated selection receipt](../evidence/selection-outline-549-corrected-before-selection-20261020.md) records limits and budget facts. This phase supersedes earlier executable source scopes without selecting the product repair.
+
+Write only new `e2e/electronics-selection-outline.spec.ts` with needed imports, two narrow helper/call corrections; append its registration to existing default `e2e:electronics`/`e2e:electronics-simulation` package scripts and the component map; regenerate existing browser metadata only if canonical freshness requires it. Preserve all existing script/test/map entries. Exclude the occupied shared workflow, product `ProductionComponentVisual.tsx`, CSS, Stage, hooks/core/LED, owner assets, and AFTER-only `testing/selection-outline.spec.ts`. Existing source triggers and the unchanged default workflow can execute the registered scenario; no new profile, filter or diagnostic workflow copy.
+
+Correction one: genuine UI `beforeAll` login once per group/worker in a disposable context, retain only cookies, then close it. Each case gets a fresh browser context and new project. Preserve authentication and bot-challenge protections; no SQL/session minting, injected app state or whole storageState transfer.
+
+Correction two: R3 fresh-reopen oracle observes `fresh.storageState().origins` empty and passively records empty local/session draft entries before app execution. After load, local draft entries remain empty and session entries contain exactly one expected fixture-derived `${localKey}:electronics-editor:` key with value strictly `saved`. Derive the key from known fixture identity/project, never discovered keys; journal actual values before assertions. This hint is not a document. Preserve full GET/server/rendered/local-document equality, all native controls and trusted gestures, ready C=H/yielded invariants, zero hidden mutations, one whole-document PUT/CAS+1 and cookies-only reopen. Keep every existing soft geometry expectation and its order; no new/increased waits, retries, gestures or weakened hard checks.
+
+One bounded author performs narrow checks and preservation/self-review, freezes one source SHA and stops. NEW independent source review precedes one justified existing strict BEFORE measurement. All 16 journeys must finish Save/CAS/reopen and ready proof with only causal expected soft outline failures before a separate product/AFTER selection. Missing journeys, authentication failures or invalid oracles are not product evidence. #548 remains an independent acceptance dependency; full exact gates, NEW actual/visual review and owner/device/classroom boundaries are not waived.
+
+Future three-branch Visual correction is unselected. Its Temp-only module estimate adds four bytes, equal to the current four-byte margin at 217996/218000; actual complete bundle fit is unproved. No budget increase, refactor or product source write is authorized by this BEFORE phase.
+
 Bounded [549](https://github.com/spikeal8-maker/asa-lab/issues/549), programme452. Only canonical current.yaml selects execution. Prepared report source0fb, SHA97495ed830ed81afcd6f0bddbe4c6babe9d319bf29f0e55319d5596b5a817519; not browser acceptance. Root independently checked all5 originals and16 actual source blobs. Accepted production count since hygiene542 is2; this phase may start, checkpoint006 becomes due after third actual acceptance.
 
 ## Product outcome and bounded implementation

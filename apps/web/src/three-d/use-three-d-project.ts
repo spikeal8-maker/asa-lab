@@ -31,7 +31,12 @@ import {
   type ThreeDTransform,
 } from '@asa-lab/three-d';
 import { api, type ProjectVersion } from '../api';
-import { clearLocalThreeDDraft, readLocalThreeDDraft, writeLocalThreeDDraft } from './local-draft';
+import {
+  clearLocalThreeDDraft,
+  readLocalThreeDDraft,
+  writeLocalThreeDDraft,
+  threeDDocumentSignature,
+} from './local-draft';
 import type { DirectManipulationCommit } from './viewport/DirectManipulator';
 import { directManipulationReplacements } from './selection-model';
 import { nudgedSelection } from './keyboard';
@@ -186,15 +191,17 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         setLoading(false);
         return;
       }
-      const serverSignature = JSON.stringify(parsed.value);
+      const serverSignature = threeDDocumentSignature(parsed.value);
       serverRevisionRef.current = response.data.draft.revision;
       const localDraft = readLocalThreeDDraft(window.localStorage, projectId);
       const localParsed =
-        localDraft?.serverSignature === serverSignature
+        localDraft &&
+        (localDraft.serverSignature === serverSignature ||
+          localDraft.serverSignature === JSON.stringify(parsed.value))
           ? parseThreeDDocument(localDraft.document)
           : null;
       const restoredDocument = localParsed?.ok ? localParsed.value : parsed.value;
-      const restored = JSON.stringify(restoredDocument) !== serverSignature;
+      const restored = threeDDocumentSignature(restoredDocument) !== serverSignature;
       const next = createHistory(restoredDocument);
       historyRef.current = next;
       setHistory(next);
@@ -229,7 +236,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     (document: ThreeDDocument, signature: string): void => {
       autosaveQueueRef.current = autosaveQueueRef.current.then(async () => {
         const current = historyRef.current?.present;
-        if (!current || JSON.stringify(current) !== signature) return;
+        if (!current || threeDDocumentSignature(current) !== signature) return;
         setSaveState('saving');
         const baseRevision = serverRevisionRef.current;
         if (baseRevision === null) {
@@ -251,7 +258,9 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         setSaveError(null);
         setRequiresSignIn(false);
         const currentDocument = historyRef.current?.present;
-        const currentSignature = currentDocument ? JSON.stringify(currentDocument) : signature;
+        const currentSignature = currentDocument
+          ? threeDDocumentSignature(currentDocument)
+          : signature;
         if (currentSignature === signature) {
           clearLocalThreeDDraft(window.localStorage, projectId);
         } else if (currentDocument) {
@@ -270,7 +279,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   useEffect(() => {
     const document = history?.present;
     if (!document || loading) return;
-    const signature = JSON.stringify(document);
+    const signature = threeDDocumentSignature(document);
     if (signature === lastSavedRef.current) {
       setSaveState('saved');
       setSaveError(null);
@@ -292,7 +301,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     const flush = (): void => {
       const current = historyRef.current?.present;
       if (current && saveStateRef.current === 'dirty') {
-        enqueueAutosave(current, JSON.stringify(current));
+        enqueueAutosave(current, threeDDocumentSignature(current));
       }
     };
     const onVisibility = (): void => {
@@ -782,11 +791,11 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       setNotice(null);
       return;
     }
-    const signature = JSON.stringify(document);
+    const signature = threeDDocumentSignature(document);
     lastSavedRef.current = signature;
     serverRevisionRef.current = save.data.draft.revision;
     const currentDocument = historyRef.current?.present;
-    if (currentDocument && JSON.stringify(currentDocument) !== signature) {
+    if (currentDocument && threeDDocumentSignature(currentDocument) !== signature) {
       writeLocalThreeDDraft(window.localStorage, projectId, currentDocument, signature);
       setSaveRetry((current) => current + 1);
     } else {
@@ -807,7 +816,10 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     // Checkpoint completion may arrive after a newer edit. Only the current
     // confirmed document can enable the Learning exact-revision submission.
     setSaveState(
-      JSON.stringify(historyRef.current?.present) === lastSavedRef.current ? 'saved' : 'dirty',
+      historyRef.current &&
+        threeDDocumentSignature(historyRef.current.present) === lastSavedRef.current
+        ? 'saved'
+        : 'dirty',
     );
     setNotice(`Создана неизменяемая версия №${response.data.version.versionNo}.`);
   }, [projectId]);
@@ -885,7 +897,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         setNotice(parsed.ok ? 'Версия восстановлена, но её номер некорректен.' : parsed.message);
         return false;
       }
-      const signature = JSON.stringify(parsed.value);
+      const signature = threeDDocumentSignature(parsed.value);
       serverRevisionRef.current = serverRevision;
       lastSavedRef.current = signature;
       replaceHistory({

@@ -1,0 +1,54 @@
+[
+  {
+    "width": 1440,
+    "dpr": 1.25,
+    "hover": {
+      "tooltips": 0,
+      "title": "Копировать (Ctrl+C)"
+    },
+    "focus": {
+      "tooltips": 0,
+      "focused": "Копировать (Ctrl+C)"
+    },
+    "boundary": "Native title attribute exists; no immediate DOM help. OS tooltip latency is not measured in headless Chromium."
+  },
+  {
+    "width": 1024,
+    "dpr": 1.25,
+    "hover": {
+      "tooltips": 0,
+      "title": "Копировать (Ctrl+C)"
+    },
+    "focus": {
+      "tooltips": 0,
+      "focused": "Копировать (Ctrl+C)"
+    },
+    "boundary": "Native title attribute exists; no immediate DOM help. OS tooltip latency is not measured in headless Chromium."
+  },
+  {
+    "width": 390,
+    "dpr": 1.25,
+    "hover": {
+      "tooltips": 0,
+      "title": "Копировать (Ctrl+C)"
+    },
+    "focus": {
+      "tooltips": 0,
+      "focused": "Копировать (Ctrl+C)"
+    },
+    "boundary": "Native title attribute exists; no immediate DOM help. OS tooltip latency is not measured in headless Chromium."
+  },
+  {
+    "width": 320,
+    "dpr": 1.25,
+    "hover": {
+      "tooltips": 0,
+      "title": "Копировать (Ctrl+C)"
+    },
+    "focus": {
+      "tooltips": 0,
+      "focused": "Копировать (Ctrl+C)"
+    },
+    "boundary": "Native title attribute exists; no immediate DOM help. OS tooltip latency is not measured in headless Chromium."
+  }
+]

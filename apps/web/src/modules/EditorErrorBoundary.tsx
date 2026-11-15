@@ -1,4 +1,5 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ReactNode } from 'react';
+import { reportRenderDiagnostic } from '../client-diagnostics';
 
 interface EditorErrorBoundaryProps {
   readonly children: ReactNode;
@@ -27,12 +28,10 @@ export class EditorErrorBoundary extends Component<
     return { message: message || 'Не удалось загрузить учебную среду.' };
   }
 
-  override componentDidCatch(error: unknown, info: ErrorInfo): void {
+  override componentDidCatch(error: unknown): void {
+    reportRenderDiagnostic(error, 'editor_boundary');
     // Diagnostics only: no project content, no learner data.
-    console.error('editor failed to load', {
-      message: error instanceof Error ? error.message : String(error),
-      componentStack: info.componentStack,
-    });
+    console.error('editor failed to load');
   }
 
   override render(): ReactNode {

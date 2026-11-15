@@ -5,6 +5,7 @@ import {
   ELECTRONICS_BENCHMARK_CORPUS,
   ELECTRONICS_BENCHMARK_CORPUS_VERSION,
 } from './benchmark-corpus.js';
+import { serializePreHcSr04V2Golden } from './fixtures/model-set-golden-compatibility.js';
 
 interface GoldenEntry {
   readonly status: string;
@@ -63,7 +64,9 @@ describe('E-OPT-0 benchmark corpus', () => {
       const expected = golden.entries[testCase.id];
       expect(expected, `${testCase.id}: missing golden entry`).toBeDefined();
       expect(statusOf(result, testCase.operation), testCase.id).toBe(expected?.status);
-      expect(fingerprint(result), testCase.id).toBe(expected?.fingerprint);
+      expect(sha256Hex(serializePreHcSr04V2Golden(result)), testCase.id).toBe(
+        expected?.fingerprint,
+      );
     }
   });
 });

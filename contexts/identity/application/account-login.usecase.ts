@@ -41,7 +41,7 @@ export class AccountLoginUseCase {
       : await this.accounts.findByUsername(identifier.toLowerCase());
     // A missing account still pays for a hash, so response time does not reveal
     // whether the identifier belongs to anybody.
-    if (account === null) {
+    if (account === null || !account.passwordHash) {
       await verifyAgainstDecoy(input.password);
       return { ok: false, code: 'invalid_credentials' };
     }

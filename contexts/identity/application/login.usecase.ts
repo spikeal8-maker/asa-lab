@@ -54,7 +54,7 @@ export class LoginUseCase {
     }
 
     const account = await this.accounts.findByEmail(email);
-    if (account === null) {
+    if (account === null || !account.passwordHash) {
       await verifyAgainstDecoy(input.password);
       return { ok: false, code: 'invalid_credentials' };
     }

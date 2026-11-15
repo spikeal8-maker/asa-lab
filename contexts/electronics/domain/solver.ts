@@ -18,17 +18,34 @@ import {
   type ArduinoTerminalVoltages,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
-import { photoresistorResistanceOhm } from './photoresistor-model.js';
-import { spdtSelectedTerminal } from './switch-topology.js';
+import {
+  PHOTORESISTOR_PROFILE,
+  photoresistorIlluminanceWithLampLux,
+  photoresistorLightSourceId,
+  photoresistorResistanceAtIlluminanceOhm,
+  photoresistorResistanceOhm,
+} from './photoresistor-model.js';
+import { switchSelectedTerminal, switchContactClosed } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
+import { GMIN, emitNumericalNodes, copyNumericalNode } from './numerical-shunt-power.js';
 import { solveLinear } from './linear-system.js';
 import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
 import {
+  electricalModelFor,
   unsupportedElectricalComponents,
   validateElectricalTerminalContract,
 } from './model-registry.js';
-import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
-import type { DcStampContext, IterativeDcStampContext } from './models/device-model.js';
+import {
+  ledBrightnessPercent,
+  sevenSegmentProfileHasOriginalDefinition,
+  type LedJunctionProfile,
+} from './led-model.js';
+import { resolveElectricalModelIdentity } from './model-identity.js';
+import {
+  captureDeviceModelDefinition,
+  type DcStampContext,
+  type IterativeDcStampContext,
+} from './models/device-model.js';
 import {
   createTmp36DcDevice,
   TMP36_DEVICE_MODEL,
@@ -144,6 +161,9 @@ import {
   brushedMotorTransientStateIsCompatible,
   createBrushedMotorTransientState,
   observeBrushedMotorTransientState,
+  prepareBrushedMotorExternalShaft,
+  type BrushedMotorExternalShaftResult,
+  type BrushedMotorExternalShaftState,
   type BrushedMotorObservation,
   type BrushedMotorStepInput,
   type BrushedMotorStepResult,
@@ -367,6 +387,7 @@ export interface ComponentResult {
   readonly thermalLoadPercent?: number;
   readonly accumulatedDamagePercent?: number;
   readonly effectiveResistanceOhm?: number;
+  readonly illuminanceLux?: number;
   readonly ratedVoltageVolt?: number;
   readonly ratedCurrentAmp?: number;
   readonly ratedPowerWatt?: number;
@@ -418,7 +439,332 @@ export interface SolveOptions {
 /** Capacitor-voltage and motor-current continuity in zero-duration event frames. */
 export const ELECTRICAL_EVENT_FRAME_VERSION = 2;
 
+interface ArduinoAlgebraicPoint {
+  readonly solution: number[];
+  readonly matrix: number[][];
+  readonly rhs: number[];
+  readonly diodeStates: ReadonlyMap<string, boolean>;
+  readonly diodeSegments: ReadonlyMap<string, number>;
+  readonly iterations: number;
+  readonly template?: ArduinoElectricalTemplate;
+}
+
+type ArduinoElectricalFields = Pick<
+  ComponentResult,
+  | 'componentId'
+  | 'voltageDrop'
+  | 'current'
+  | 'terminalVoltages'
+  | 'terminalCurrents'
+  | 'power'
+  | 'brightness'
+  | 'branchCurrents'
+  | 'branchBrightness'
+  | 'continuousCurrentLimitAmp'
+  | 'destructiveCurrentLimitAmp'
+  | 'reverseVoltageLimitVolt'
+  | 'junctionState'
+  | 'currentUtilizationPercent'
+  | 'powerUtilizationPercent'
+>;
+
+interface ArduinoElectricalInput {
+  readonly voltageDrop: number;
+  readonly device: ReturnType<typeof createLinearDcDevice>;
+  readonly branches: readonly {
+    readonly branch: NonlinearDcBranch;
+    readonly current: number;
+    readonly voltageDrop: number;
+  }[];
+}
+
+interface ArduinoElectricalTemplate {
+  readonly components: readonly {
+    readonly fields: ArduinoElectricalFields;
+    readonly indicators: Pick<ComponentResult, 'lit' | 'energized'>;
+    readonly input: ArduinoElectricalInput;
+  }[];
+  readonly nodes: readonly NodeResult[];
+  readonly sourceCurrents: readonly number[];
+  readonly rawSevenSegmentDiagnostics?: readonly Diagnostic[];
+}
+
+const sevenSegmentReference: SchematicComponent = {
+  id: 'seven-segment-definition',
+  kind: 'seven-segment',
+  value: 0,
+  position: { x: 0, y: 0 },
+  componentTypeId: 'seven-segment-display',
+};
+const sevenSegmentDefinitionIsOriginal = captureDeviceModelDefinition([
+  resolveElectricalModelIdentity(sevenSegmentReference),
+  electricalModelFor(sevenSegmentReference).requiredTerminals,
+]);
+
+/** Pure electrical work only. Owned by one advance, never persisted or shared. */
+export function createArduinoOperatingPointReuse() {
+  let previousDocument: ElectronicsDocument | undefined;
+  let eligible = false;
+  let hasSevenSegment = false;
+  const slots: { readonly key: readonly unknown[]; point?: ArduinoAlgebraicPoint }[] = [];
+  return (
+    document: ElectronicsDocument,
+    branches: readonly (ReturnType<typeof arduinoOutputBranchesFromSnapshot>[number] & {
+      readonly component: SchematicComponent;
+    })[],
+    snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+    failedIds: ReadonlySet<string>,
+  ): { point?: ArduinoAlgebraicPoint } | undefined => {
+    if (previousDocument !== document) {
+      previousDocument = document;
+      slots.length = 0;
+      hasSevenSegment = document.components.some((component) => component.kind === 'seven-segment');
+      eligible = document.components.every((component) => {
+        const model = electricalModelFor(component);
+        return (
+          model.support === 'supported' &&
+          model.version === 1 &&
+          ((model.profileVersion === 1 &&
+            ((model.id === 'arduino-uno' &&
+              model.profileId === 'arduino-uno-r3' &&
+              isArduinoUno(component)) ||
+              (model.id === 'resistor' &&
+                model.profileId === 'axial-resistor' &&
+                component.kind === 'resistor') ||
+              (model.id === 'ordinary-led' &&
+                model.profileId === 'generic-red-led' &&
+                component.kind === 'led'))) ||
+            (model.id === 'seven-segment' &&
+              model.profileId === 'single-digit-seven-segment-10pin' &&
+              model.profileVersion === 2 &&
+              component.componentTypeId === 'seven-segment-display' &&
+              component.kind === 'seven-segment'))
+        );
+      });
+    }
+    if (
+      !eligible ||
+      (hasSevenSegment &&
+        (!sevenSegmentProfileHasOriginalDefinition() || !sevenSegmentDefinitionIsOriginal())) ||
+      [...snapshots.values()].some((snapshot) => snapshot.diagnostics.length > 0)
+    ) {
+      slots.length = 0;
+      return undefined;
+    }
+    const key: unknown[] = [failedIds.size, ...failedIds, branches.length];
+    for (const branch of branches)
+      key.push(
+        branch.component.id,
+        branch.id,
+        branch.terminal,
+        branch.ground,
+        branch.targetVoltage,
+        branch.resistanceOhm,
+      );
+    key.push(snapshots.size);
+    for (const [id, snapshot] of snapshots) {
+      key.push(id, snapshot.pinModes.size);
+      for (const [terminal, mode] of snapshot.pinModes) key.push(terminal, mode);
+      key.push(snapshot.tones.size);
+      for (const [terminal, tone] of snapshot.tones)
+        key.push(terminal, tone.terminal, tone.frequencyHz, tone.source);
+    }
+    const index = slots.findIndex(
+      (entry) =>
+        key.length === entry.key.length &&
+        key.every((value, offset) => Object.is(value, entry.key[offset])),
+    );
+    const slot = index < 0 ? { key } : slots.splice(index, 1)[0]!;
+    // Recurring GPIO combinations may reuse exact algebra only. A fixed bound
+    // also limits memory when independent ports generate many distinct states.
+    slots.unshift(slot);
+    if (slots.length > 32) slots.pop();
+    return slot;
+  };
+}
+
+type ArduinoOperatingPointReuse = ReturnType<typeof createArduinoOperatingPointReuse>;
+
+type QualityDictionary = Readonly<Record<string, number | undefined>>;
+const qualityAccessor = Symbol('quality-accessor');
+const qualityDictionaryFields = [
+  'terminalVoltages',
+  'terminalCurrents',
+  'branchCurrents',
+  'branchBrightness',
+] as const;
+interface ArduinoQualityLayoutState {
+  readonly layouts: WeakMap<object, readonly string[]>;
+  readonly components: ComponentResult[];
+  readonly records: (QualityDictionary | undefined)[];
+  receipt?: object;
+  result?: SolveResult;
+  document?: ElectronicsDocument;
+  componentArray?: SolveResult['components'];
+  nodes?: SolveResult['nodes'];
+  controller?: SolveResult['controllerState'];
+  transient?: SolveResult['transientState'];
+  analysis?: SolveResult['transientAnalysis'];
+}
+const arduinoQualityOwners = new WeakMap<ArduinoOperatingPointReuse, object>();
+const arduinoQualityLayouts = new WeakMap<object, ArduinoQualityLayoutState>();
+const arduinoQualityReceipts = new WeakMap<object, ArduinoQualityLayoutState>();
+
+function clearArduinoQualityCapture(state: ArduinoQualityLayoutState): void {
+  state.components.length = 0;
+  state.records.length = 0;
+  delete state.result;
+  delete state.document;
+  delete state.componentArray;
+  delete state.nodes;
+  delete state.controller;
+  delete state.transient;
+  delete state.analysis;
+}
+
+/** Package internal. The owned scheduler alone enables this after AST admission. */
+export function createArduinoQualityLayoutOwner(operatingPoint: ArduinoOperatingPointReuse) {
+  const owner = {};
+  arduinoQualityOwners.set(operatingPoint, owner);
+  arduinoQualityLayouts.set(owner, { layouts: new WeakMap(), components: [], records: [] });
+  return {
+    owner,
+    dispose() {
+      const state = arduinoQualityLayouts.get(owner);
+      if (state?.receipt) arduinoQualityReceipts.delete(state.receipt);
+      if (state) clearArduinoQualityCapture(state);
+      arduinoQualityLayouts.delete(owner);
+      if (arduinoQualityOwners.get(operatingPoint) === owner)
+        arduinoQualityOwners.delete(operatingPoint);
+    },
+  };
+}
+
+function retainArduinoQualityLayouts(
+  operatingPoint: ArduinoOperatingPointReuse | undefined,
+  fields: ArduinoElectricalFields,
+): void {
+  const owner = operatingPoint && arduinoQualityOwners.get(operatingPoint);
+  const layouts = owner && arduinoQualityLayouts.get(owner)?.layouts;
+  if (!layouts) return;
+  // Only called at the actual template producer/retention sites. Freezing an
+  // arbitrary public record never grants it this construction provenance.
+  for (const key of qualityDictionaryFields) {
+    const record = fields[key];
+    if (record && !layouts.has(record)) layouts.set(record, Object.freeze(Object.keys(record)));
+  }
+}
+
+function issueArduinoQualityReceipt(
+  result: SolveResult,
+  operatingPoint: ArduinoOperatingPointReuse | undefined,
+  document: ElectronicsDocument,
+): SolveResult {
+  const owner = operatingPoint && arduinoQualityOwners.get(operatingPoint);
+  const layouts = owner && arduinoQualityLayouts.get(owner);
+  if (layouts) {
+    if (layouts.receipt) arduinoQualityReceipts.delete(layouts.receipt);
+    const receipt = {};
+    layouts.receipt = receipt;
+    clearArduinoQualityCapture(layouts);
+    layouts.result = result;
+    layouts.document = document;
+    layouts.componentArray = result.components;
+    layouts.nodes = result.nodes;
+    layouts.controller = result.controllerState;
+    layouts.transient = result.transientState;
+    layouts.analysis = result.transientAnalysis;
+    for (const component of result.components) {
+      layouts.components.push(component);
+      for (const key of qualityDictionaryFields) layouts.records.push(component[key]);
+    }
+    arduinoQualityReceipts.set(receipt, layouts);
+  }
+  return result;
+}
+
+/** Consume the actual immediately returned frame once, before reading its data. */
+export function takeArduinoQualityReceipt(
+  owner: object,
+  result: SolveResult,
+  document: ElectronicsDocument,
+): object | undefined {
+  const state = arduinoQualityLayouts.get(owner);
+  const receipt = state?.receipt;
+  if (state) delete state.receipt;
+  const issued = receipt && arduinoQualityReceipts.get(receipt);
+  if (!issued) return undefined;
+  if (issued.result !== result || issued.document !== document) {
+    arduinoQualityReceipts.delete(receipt!);
+    clearArduinoQualityCapture(issued);
+    return undefined;
+  }
+  const data = (object: object, key: PropertyKey) => {
+    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+    return descriptor ? ('value' in descriptor ? descriptor.value : qualityAccessor) : undefined;
+  };
+  let matches =
+    data(result, 'components') === issued.componentArray &&
+    data(result, 'nodes') === issued.nodes &&
+    data(result, 'controllerState') === issued.controller &&
+    data(result, 'transientState') === issued.transient &&
+    data(result, 'transientAnalysis') === issued.analysis;
+  // These containers were constructed by this solver. Compare identities before
+  // inspecting replacements, including accessors and Proxy dictionaries.
+  const components = data(result, 'components') as SolveResult['components'] | undefined;
+  matches = matches && components?.length === issued.components.length;
+  for (let index = 0; matches && index < issued.components.length; index++) {
+    const component = issued.components[index]!;
+    matches = data(components!, index) === component;
+    for (let field = 0; matches && field < qualityDictionaryFields.length; field++)
+      matches =
+        data(component, qualityDictionaryFields[field]!) ===
+        issued.records[index * qualityDictionaryFields.length + field];
+  }
+  clearArduinoQualityCapture(issued);
+  if (matches) return receipt;
+  arduinoQualityReceipts.delete(receipt!);
+  return undefined;
+}
+
+export function arduinoQualityDictionaryKeys(
+  receipt: object,
+  record: object,
+): readonly string[] | undefined {
+  return arduinoQualityReceipts.get(receipt)?.layouts.get(record);
+}
+
+export function releaseArduinoQualityReceipt(receipt: object): void {
+  arduinoQualityReceipts.delete(receipt);
+}
+
+export interface ArduinoThermalEpoch {
+  readonly componentId: string;
+  readonly atMicroseconds: number;
+  readonly temperatureCelsius: number;
+  readonly accumulatedDamage: number;
+  readonly loadRatio: number;
+}
+
+/** Bound of the first native TT coupling profile, shared with its canonical scheduler. */
+export const TT_NATIVE_DRIVE_MAX_INTERVAL_US = 500;
+
+type ExternalShaftInput = {
+  readonly winding: BrushedMotorExternalShaftState;
+  readonly toMicroseconds: number;
+  readonly angularVelocityRadPerSecond: number;
+};
+
+type ExternalShaftStep = {
+  readonly winding: BrushedMotorExternalShaftState;
+  readonly prepared: ReturnType<typeof prepareBrushedMotorExternalShaft> | undefined;
+  readonly record: (voltageVolt: number, transition: BrushedMotorExternalShaftResult) => void;
+};
+
 interface InternalSolveOptions extends SolveOptions {
+  readonly externalShaft?: ExternalShaftStep | undefined;
+  readonly operatingPointReuse?: ArduinoOperatingPointReuse | undefined;
+  readonly preparation?: CircuitSolvePreparation | undefined;
   readonly transientStepSeconds?: number;
   readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
   readonly bjtPreviousRegionById?: Readonly<Record<string, 'cutoff' | 'active' | 'saturation'>>;
@@ -437,13 +783,131 @@ interface InternalSolveOptions extends SolveOptions {
   readonly servoRuntimeStateById?: ReadonlyMap<string, ServoMotorRuntimeState> | undefined;
   /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
   readonly clockedRcTransient?: boolean;
+  readonly thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch> | undefined;
   /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
   readonly holdCapacitorVoltages?: boolean | undefined;
   /** Algebraic event frame: armature current and mechanical state cannot jump. */
   readonly holdMotorStates?: boolean | undefined;
 }
 
-const GMIN = 1e-12;
+/** Preserve filter order, including multiple entries with the same component ID. */
+function branchesByComponent<T extends { readonly component: SchematicComponent }>(
+  branches: readonly T[],
+): ReadonlyMap<string, readonly T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const branch of branches) {
+    const existing = grouped.get(branch.component.id);
+    if (existing) existing.push(branch);
+    else grouped.set(branch.component.id, [branch]);
+  }
+  for (const entries of grouped.values()) Object.freeze(entries);
+  return grouped;
+}
+
+/** Document-only routing; numeric observations and active branches are never retained. */
+function prepareObservationRouting(document: ElectronicsDocument) {
+  const nonlinearComponents: SchematicComponent[] = [];
+  const nonlinearBranches = document.components.flatMap((component) => {
+    const branches = nonlinearDcBranchesForComponent(component);
+    if (branches.length > 0) nonlinearComponents.push(component);
+    return branches.map((branch) => Object.freeze(branch));
+  });
+  return Object.freeze({
+    components: Object.freeze(
+      document.components
+        .filter((component) => component.kind !== 'wire')
+        .map((component) =>
+          Object.freeze({
+            component,
+            terminals: Object.freeze([...terminalsForComponent(component)]),
+          }),
+        ),
+    ),
+    nonlinearComponents: Object.freeze(nonlinearComponents),
+    nonlinearBranches: Object.freeze(nonlinearBranches),
+    nonlinearBranchesByComponent: branchesByComponent(nonlinearBranches),
+    nonlinearBranchKeys: new Map(
+      nonlinearBranches.map((branch) => [branch, nonlinearBranchKey(branch)] as const),
+    ) as ReadonlyMap<NonlinearDcBranch, string>,
+  });
+}
+
+/** Read-only document work, scoped to one scheduler advance; never a solved frame. */
+export function prepareCircuitSolve(document: ElectronicsDocument) {
+  const ordered = [...document.components].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const netlist = buildNetlist(document);
+  const preparation = Object.freeze({
+    netlist,
+    observationRouting: prepareObservationRouting(document),
+    terminalNodes: new Map(
+      document.components.map(
+        (component) =>
+          [
+            component.id,
+            new Map(
+              terminalsForComponent(component).map(
+                (terminal) =>
+                  [terminal, netlist.nodeOf.get(terminalKey(component.id, terminal))] as const,
+              ),
+            ),
+          ] as const,
+      ),
+    ) as ReadonlyMap<string, ReadonlyMap<Terminal, number | undefined>>,
+    orderedCapacitors: ordered.filter(isElectrolyticCapacitor),
+    orderedMotors: ordered.filter(isBrushedMotor),
+    orderedLamps: ordered.filter((component) => component.kind === 'lamp'),
+    orderedMultimeters: ordered.filter((component) => component.componentTypeId === 'multimeter'),
+    orderedThermalComponents: ordered.filter((component) => thermalProfileFor(component) !== null),
+    // Generator voltage and meter fuse/mode are materialised afresh in every solve.
+    linearDevices: new Map(
+      document.components.flatMap((component) =>
+        component.componentTypeId === 'signal-generator' ||
+        component.componentTypeId === 'multimeter'
+          ? []
+          : [[component.id, createLinearDcDevice(component)] as const],
+      ),
+    ) as ReadonlyMap<string, ReturnType<typeof createLinearDcDevice>>,
+    tmp36Devices: document.components.flatMap((component) => {
+      const device = createTmp36DcDevice(component);
+      return device ? [device] : [];
+    }),
+    soilDevices: document.components.flatMap((component) => {
+      const device = createSoilMoistureDevice(component);
+      return device ? [device] : [];
+    }),
+    pirDevices: createPirSensorDevices(document.components),
+    npnDevices: document.components.flatMap((component) => {
+      const device = createNpnDcDevice(component);
+      return device ? [device] : [];
+    }),
+    pnpDevices: document.components.flatMap((component) => {
+      const device = createPnpDcDevice(component);
+      return device ? [device] : [];
+    }),
+    arduinoProgramChecks: document.components.flatMap((component) => {
+      if (!isArduinoUno(component)) return [];
+      const source = component.stateProperties?.['arduinoSource'];
+      return typeof source === 'string'
+        ? [{ component, diagnostics: analyseArduinoSourceSupport(source) }]
+        : [];
+    }),
+    invalid: document.components.flatMap((component) => {
+      const message = propertyError(component);
+      return message ? [{ component, message }] : [];
+    }),
+    invalidTerminalContracts: document.components.flatMap((component) => {
+      const contract = validateElectricalTerminalContract(component);
+      return contract.valid ? [] : [{ component, missing: contract.missing }];
+    }),
+    unsupported: unsupportedElectricalComponents(document.components),
+  });
+  // The scheduler owns an immutable document and replaces it for every applied input.
+  // No mutable state or numerical result is retained; reject other document identities.
+  return (source: ElectronicsDocument) => (source === document ? preparation : undefined);
+}
+
+type CircuitSolvePreparation = ReturnType<typeof prepareCircuitSolve>;
+
 const CLOSED_RESISTANCE = 1e-4;
 const LED_WARNING_RATIO = 0.8;
 const SHORT_CIRCUIT_CURRENT_A = 5;
@@ -490,6 +954,181 @@ function damageObservationForStress(
     default:
       return { deviceHealth: 'normal', damageState: 'none', presentationState: 'normal' };
   }
+}
+
+function nonlinearBranchStress(
+  branches: ArduinoElectricalInput['branches'],
+  reverseBreakdown: boolean,
+): ComponentResult['stressState'] {
+  return branches.length === 0
+    ? undefined
+    : reverseBreakdown ||
+        branches.some(({ branch, current }) => Math.abs(current) > branch.destructiveCurrentAmp)
+      ? 'burned'
+      : branches.some(({ branch, current }) => Math.abs(current) > branch.nominalCurrentAmp)
+        ? 'overcurrent'
+        : branches.some(
+              ({ branch, current }) =>
+                branch.nearLimitWarning &&
+                Math.abs(current) >= branch.nominalCurrentAmp * LED_WARNING_RATIO,
+            )
+          ? 'warning'
+          : 'normal';
+}
+
+function electricalNumericalQuality(
+  solution: readonly number[],
+  matrix: readonly (readonly number[])[] | null,
+  rhs: readonly number[] | null,
+) {
+  const numericalResidual = Math.max(
+    0,
+    ...(matrix ?? []).map((row, rowIndex) =>
+      Math.abs(
+        row.reduce(
+          (sum, coefficient, columnIndex) => sum + coefficient * (solution[columnIndex] ?? 0),
+          0,
+        ) - ((rhs ?? [])[rowIndex] ?? 0),
+      ),
+    ),
+  );
+  const numericalScale = Math.max(1, ...(rhs ?? []).map(Math.abs), ...solution.map(Math.abs));
+  return { numericalResidual, numericalTolerance: 1e-9 * numericalScale };
+}
+
+function controllerObservation(
+  snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+  simulationTimeMs: number,
+): ArduinoControllerState | undefined {
+  return snapshots.size > 0
+    ? {
+        version: 1,
+        simulationTimeMs,
+        boards: [...snapshots]
+          .map(([componentId, snapshot]) => ({ componentId, runtime: snapshot.state }))
+          .sort((left, right) =>
+            left.componentId < right.componentId
+              ? -1
+              : left.componentId > right.componentId
+                ? 1
+                : 0,
+          ),
+      }
+    : undefined;
+}
+
+function circuitOkDiagnostic(totalSourceCurrent: number): Diagnostic {
+  return {
+    code: 'circuit_ok',
+    severity: 'info',
+    message: `DC-расчёт завершён. Ток источника ${(totalSourceCurrent * 1000).toFixed(2)} мА.`,
+  };
+}
+
+function retainArduinoElectricalComponent(
+  result: ComponentResult,
+  input: ArduinoElectricalInput,
+  operatingPoint: ArduinoOperatingPointReuse | undefined,
+): ArduinoElectricalTemplate['components'][number] {
+  const fields = Object.fromEntries(
+    Object.entries(result).filter(([key]) =>
+      [
+        'componentId',
+        'voltageDrop',
+        'current',
+        'terminalVoltages',
+        'terminalCurrents',
+        'power',
+        'brightness',
+        'branchCurrents',
+        'branchBrightness',
+        'continuousCurrentLimitAmp',
+        'destructiveCurrentLimitAmp',
+        'reverseVoltageLimitVolt',
+        'junctionState',
+        'currentUtilizationPercent',
+        'powerUtilizationPercent',
+      ].includes(key),
+    ),
+  ) as ArduinoElectricalFields;
+  for (const key of [
+    'terminalVoltages',
+    'terminalCurrents',
+    'branchCurrents',
+    'branchBrightness',
+  ] as const)
+    if (fields[key]) Object.freeze(fields[key]);
+  retainArduinoQualityLayouts(operatingPoint, fields);
+  return Object.freeze({
+    fields: Object.freeze(fields),
+    indicators: Object.freeze({
+      ...(Object.hasOwn(result, 'lit') ? { lit: result.lit } : {}),
+      ...(Object.hasOwn(result, 'energized') ? { energized: result.energized } : {}),
+    }),
+    input: Object.freeze({ ...input, branches: Object.freeze(input.branches) }),
+  });
+}
+
+function resultFromArduinoElectricalTemplate(
+  point: ArduinoAlgebraicPoint,
+  template: ArduinoElectricalTemplate,
+  snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+  simulationTimeMs: number,
+): SolveResult | undefined {
+  const { numericalResidual, numericalTolerance } = electricalNumericalQuality(
+    point.solution,
+    point.matrix,
+    point.rhs,
+  );
+  if (!Number.isFinite(numericalResidual) || numericalResidual > numericalTolerance)
+    return undefined;
+  const components: ComponentResult[] = [];
+  for (const { fields, indicators, input } of template.components) {
+    const observation = input.device?.model.observe?.(input.device.instance as never, {
+      voltageDrop: input.voltageDrop,
+      current: 0,
+    });
+    if (observation && observation.diagnostics.length > 0) return undefined;
+    const reverseBreakdown = input.branches.some(
+      ({ branch, voltageDrop }) => voltageDrop < -branch.repetitivePeakReverseVoltage,
+    );
+    const stressState =
+      observation?.stressState ?? nonlinearBranchStress(input.branches, reverseBreakdown);
+    components.push({
+      ...fields,
+      ...(stressState === undefined
+        ? {}
+        : {
+            stressState,
+            ...(reverseBreakdown
+              ? {
+                  deviceHealth: 'reverse_damaged' as const,
+                  damageState: 'destructive_preview' as const,
+                  presentationState: 'destructive' as const,
+                }
+              : damageObservationForStress(stressState)),
+          }),
+      ...indicators,
+    });
+  }
+  if (template.sourceCurrents.some((current) => Math.abs(current) > SHORT_CIRCUIT_CURRENT_A))
+    return undefined;
+  const totalSourceCurrent = Math.max(0, ...template.sourceCurrents.map(Math.abs));
+  const controllerState = controllerObservation(snapshots, simulationTimeMs);
+  return {
+    solved: true,
+    status: 'solved',
+    current: roundCurrent(totalSourceCurrent),
+    components,
+    nodes: template.nodes,
+    diagnostics: template.rawSevenSegmentDiagnostics
+      ? structuredClone(template.rawSevenSegmentDiagnostics)
+      : [circuitOkDiagnostic(totalSourceCurrent)].map(withDiagnosticAnchors),
+    iterations: point.iterations,
+    numericalResidual,
+    numericalTolerance,
+    ...(controllerState ? { controllerState } : {}),
+  };
 }
 
 function isBrushedMotor(component: SchematicComponent): boolean {
@@ -777,7 +1416,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   if (component.kind === 'button') return terminal === 'a' ? 'SW-A1' : 'SW-B1';
   if (component.kind === 'switch') {
     if (terminal === 'a') return 'common';
-    return spdtSelectedTerminal(component.state);
+    return switchSelectedTerminal(component);
   }
   if (component.kind === 'potentiometer') {
     if (terminal === 'wiper') return 'wiper';
@@ -982,6 +1621,7 @@ function applyThermalObservations(
           {
             source: 'Источник питания',
             resistor: 'Резистор',
+            photoresistor: 'Фоторезистор',
             led: 'Светодиод',
             lamp: 'Лампа накаливания',
             diode: 'Диод',
@@ -1141,25 +1781,41 @@ function solveCircuitBase(
   document: ElectronicsDocument,
   options: InternalSolveOptions = {},
 ): SolveResult {
-  const orderedCapacitors = document.components
-    .filter(isElectrolyticCapacitor)
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  const orderedMotors = document.components
-    .filter(isBrushedMotor)
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  const orderedLamps = document.components
-    .filter((component) => component.kind === 'lamp')
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  const orderedMultimeters = document.components
-    .filter((component) => component.componentTypeId === 'multimeter')
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const preparation = options.preparation?.(document);
+  const orderedCapacitors =
+    preparation?.orderedCapacitors ??
+    document.components
+      .filter(isElectrolyticCapacitor)
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const brushedMotors =
+    preparation?.orderedMotors ??
+    document.components
+      .filter(isBrushedMotor)
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const externalShaft = options.externalShaft;
+  const orderedMotors = externalShaft
+    ? brushedMotors.filter((component) => component.id !== externalShaft.winding.componentId)
+    : brushedMotors;
+  const orderedLamps =
+    preparation?.orderedLamps ??
+    document.components
+      .filter((component) => component.kind === 'lamp')
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedMultimeters =
+    preparation?.orderedMultimeters ??
+    document.components
+      .filter((component) => component.componentTypeId === 'multimeter')
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const hasCurrentMeter = orderedMultimeters.some(
     (component) => component.stateProperties?.['measurementMode'] === 'dc-current',
   );
-  const orderedThermalComponents = document.components
-    .filter((component) => thermalProfileFor(component) !== null)
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedThermalComponents =
+    preparation?.orderedThermalComponents ??
+    document.components
+      .filter((component) => thermalProfileFor(component) !== null)
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const transientRequested =
+    externalShaft !== undefined ||
     orderedCapacitors.length > 0 ||
     orderedMotors.length > 0 ||
     orderedLamps.length > 0 ||
@@ -1168,10 +1824,17 @@ function solveCircuitBase(
     options.transientState !== undefined;
   if (!transientRequested)
     return solveCircuitStep(document, {
+      preparation: options.preparation,
+      operatingPointReuse: options.operatingPointReuse,
       ...options,
       arduinoRuntimeStateById: arduinoRuntimeStatesFromController(options.controllerState),
     });
 
+  const peripheralRuntimeStates = {
+    hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
+    pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+    servoRuntimeStateById: options.servoRuntimeStateById,
+  };
   const requestedTimeMs = Number.isFinite(options.simulationTimeMs)
     ? Math.max(0, options.simulationTimeMs ?? 0)
     : 0;
@@ -1205,6 +1868,13 @@ function solveCircuitBase(
   let arduinoRuntimeStateById = arduinoRuntimeStatesFromController(compatibleControllerState);
   const startTimeMs =
     compatibleState?.simulationTimeMs ?? compatibleControllerState?.simulationTimeMs ?? 0;
+  if (
+    externalShaft &&
+    (startTimeMs !== externalShaft.winding.atMicroseconds / 1000 ||
+      orderedCapacitors.length !== 0 ||
+      orderedMotors.length !== 0)
+  )
+    throw new Error('External TT requires compatible history in the selected circuit.');
   const elapsedTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, targetTimeMs - startTimeMs);
   const bjtCount = document.components.filter(
     (component) =>
@@ -1318,12 +1988,14 @@ function solveCircuitBase(
   });
   if (options.clockedRcTransient && startTimeMs === targetTimeMs) {
     const frame = solveCircuitStep(document, {
+      preparation: options.preparation,
+      operatingPointReuse: options.operatingPointReuse,
       simulationTimeMs: targetTimeMs,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
-      hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
-      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+      ...peripheralRuntimeStates,
       holdCapacitorVoltages: true,
       holdMotorStates: true,
+      externalShaft,
       capacitorPreviousVoltageById: previousVoltageById,
       motorPreviousStateById: motorStateById,
       bjtPreviousRegionById: bjtRegionById,
@@ -1349,12 +2021,14 @@ function solveCircuitBase(
   let accumulatedIterations = 0;
   let finalResult: SolveResult | null = null;
   let currentTimeMs = startTimeMs;
-  let candidateStepMs = Math.min(
-    usesSwitchedBjtTransient || orderedMotors.length > 0
-      ? MOTOR_TRANSIENT_STEP_MS
-      : TRANSIENT_TARGET_STEP_MS,
-    elapsedTimeMs,
-  );
+  let candidateStepMs = externalShaft
+    ? targetTimeMs - startTimeMs
+    : Math.min(
+        usesSwitchedBjtTransient || orderedMotors.length > 0
+          ? MOTOR_TRANSIENT_STEP_MS
+          : TRANSIENT_TARGET_STEP_MS,
+        elapsedTimeMs,
+      );
   let acceptedSteps = 0;
   let rejectedSteps = 0;
   let minStepMs = Number.POSITIVE_INFINITY;
@@ -1395,8 +2069,7 @@ function solveCircuitBase(
       ),
       arduinoRuntimeStateById,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
-      hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
-      pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+      ...peripheralRuntimeStates,
     } as const;
     let acceptedResult: SolveResult;
     let acceptedMotorStateById = motorStateById;
@@ -1404,6 +2077,9 @@ function solveCircuitBase(
 
     if (orderedCapacitors.length === 0) {
       acceptedResult = solveCircuitStep(document, {
+        preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
+        externalShaft,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -1424,6 +2100,8 @@ function solveCircuitBase(
       // is deterministic, stable and lets multivibrators actually change
       // state instead of asymptotically freezing at VBE.
       const switched = solveCircuitStep(document, {
+        preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -1450,12 +2128,16 @@ function solveCircuitBase(
       );
     } else {
       const full = solveCircuitStep(document, {
+        preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
       });
       const halfStepMs = stepMs / 2;
       const firstHalf = solveCircuitStep(document, {
+        preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         ...common,
         simulationTimeMs: currentTimeMs + halfStepMs,
         transientStepSeconds: halfStepMs / 1_000,
@@ -1470,6 +2152,8 @@ function solveCircuitBase(
         ? advanceMotorStates(orderedMotors, motorStateById, firstHalf, halfStepMs / 1_000)
         : motorStateById;
       const secondHalf = solveCircuitStep(document, {
+        preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: halfStepMs / 1_000,
         capacitorPreviousVoltageById: halfVoltageById,
@@ -1480,8 +2164,7 @@ function solveCircuitBase(
         meterFuseBlownById: common.meterFuseBlownById,
         arduinoRuntimeStateById: arduinoRuntimeStatesFromController(firstHalf.controllerState),
         heldArduinoSnapshots: options.heldArduinoSnapshots,
-        hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
-        pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+        ...peripheralRuntimeStates,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
       const failedSolve = [full, firstHalf, secondHalf].find((result) => !result.solved);
@@ -1631,6 +2314,7 @@ function solveCircuitBase(
       );
       if (!componentResult) continue;
       const profile = thermalProfileFor(component)!;
+      const epoch = options.thermalEpochs?.get(component.id);
       const observation =
         component.kind === 'lamp'
           ? advanceIncandescentLampThermalState(
@@ -1642,9 +2326,11 @@ function solveCircuitBase(
           : advanceThermalState(
               profile,
               componentResult,
-              previous.temperatureCelsius,
-              previous.accumulatedDamage,
-              stepMs / 1_000,
+              epoch?.temperatureCelsius ?? previous.temperatureCelsius,
+              epoch?.accumulatedDamage ?? previous.accumulatedDamage,
+              epoch
+                ? (Math.round(stepEndTimeMs * 1000) - epoch.atMicroseconds) / 1_000_000
+                : stepMs / 1_000,
             );
       const failureMode = observation.failed ? ('open' as const) : ('none' as const);
       thermalById.set(component.id, {
@@ -1663,10 +2349,26 @@ function solveCircuitBase(
     }
 
     if (failureOccurred) {
+      if (externalShaft) {
+        return {
+          ...acceptedResult,
+          solved: false,
+          status: 'nonconvergent',
+          diagnostics: [
+            ...acceptedResult.diagnostics,
+            {
+              code: 'numerical_instability',
+              severity: 'error',
+              message: 'A circuit component opened during a coupled TT interval.',
+            },
+          ],
+        };
+      }
       const postFailure = solveCircuitStep(document, {
+        preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
-        hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
-        pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+        ...peripheralRuntimeStates,
         holdCapacitorVoltages: options.clockedRcTransient,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: TRANSIENT_FAILURE_EVENT_STEP_MS / 1_000,
@@ -1733,9 +2435,10 @@ function solveCircuitBase(
     const result =
       finalResult ??
       solveCircuitStep(document, {
+        preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
-        hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
-        pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
+        ...peripheralRuntimeStates,
         failedComponentIds,
         motorPreviousStateById: motorStateById,
         arduinoRuntimeStateById,
@@ -1940,15 +2643,23 @@ export function solveCircuitWithHeldArduino(
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
   pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
+  preparation?: CircuitSolvePreparation,
+  operatingPointReuse?: ArduinoOperatingPointReuse,
 ): SolveResult {
-  return solveCircuitStep(document, {
-    simulationTimeMs,
-    heldArduinoSnapshots: snapshots,
-    ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
-    ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
-    ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
-    suppressOscilloscopeTrace: true,
-  });
+  return issueArduinoQualityReceipt(
+    solveCircuitStep(document, {
+      preparation,
+      operatingPointReuse,
+      simulationTimeMs,
+      heldArduinoSnapshots: snapshots,
+      ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+      ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
+      ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
+      suppressOscilloscopeTrace: true,
+    }),
+    operatingPointReuse,
+    document,
+  );
 }
 
 /** Validate persisted RC history before the scheduler can consume any of it. */
@@ -2024,17 +2735,90 @@ export function solveRcCircuitWithHeldArduino(
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
   pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
+  preparation?: CircuitSolvePreparation,
+  operatingPointReuse?: ArduinoOperatingPointReuse,
+  thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch>,
+  externalShaft?: ExternalShaftStep,
 ): SolveResult {
-  return solveCircuitBase(document, {
-    simulationTimeMs,
-    ...(transientState ? { transientState } : {}),
-    heldArduinoSnapshots: snapshots,
-    ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
-    ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
-    ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
-    clockedRcTransient: true,
-    suppressOscilloscopeTrace: true,
-  });
+  return issueArduinoQualityReceipt(
+    solveCircuitBase(document, {
+      preparation,
+      operatingPointReuse: externalShaft ? undefined : operatingPointReuse,
+      thermalEpochs,
+      externalShaft,
+      simulationTimeMs,
+      ...(transientState ? { transientState } : {}),
+      heldArduinoSnapshots: snapshots,
+      ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+      ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
+      ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
+      clockedRcTransient: true,
+      suppressOscilloscopeTrace: true,
+    }),
+    externalShaft ? undefined : operatingPointReuse,
+    document,
+  );
+}
+
+/** TEST_ONLY. One bounded external TT winding interval or a same-time observation. */
+export function solveRcCircuitWithHeldArduinoAndExternalShaft(
+  input: ExternalShaftInput,
+  document: ElectronicsDocument,
+  snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+  transientState: CapacitorTransientState | undefined,
+  hcSr04States: ReadonlyMap<string, HcSr04RuntimeState>,
+  pingUltrasonicStates: ReadonlyMap<string, PingUltrasonicRuntimeState>,
+  servoStates: ReadonlyMap<string, ServoMotorRuntimeState>,
+  preparation: CircuitSolvePreparation,
+) {
+  const { winding, toMicroseconds, angularVelocityRadPerSecond } = input;
+  const component = document.components.find((entry) => entry.id === winding.componentId);
+  const profile = component && brushedMotorProfile(component);
+  if (
+    !profile ||
+    profile.profileId !== winding.profileId ||
+    profile.profileVersion !== winding.profileVersion ||
+    !Number.isSafeInteger(toMicroseconds) ||
+    toMicroseconds < winding.atMicroseconds ||
+    toMicroseconds - winding.atMicroseconds > TT_NATIVE_DRIVE_MAX_INTERVAL_US ||
+    !Number.isFinite(angularVelocityRadPerSecond)
+  )
+    throw new Error('Invalid TT shaft electrical interval.');
+  const held = toMicroseconds === winding.atMicroseconds;
+  const prepared = held
+    ? undefined
+    : prepareBrushedMotorExternalShaft(profile, winding, {
+        componentId: winding.componentId,
+        profileId: winding.profileId,
+        profileVersion: winding.profileVersion,
+        axis: 'positive-output-shaft',
+        fromMicroseconds: winding.atMicroseconds,
+        toMicroseconds,
+        outputAngularVelocityRadPerSecond: angularVelocityRadPerSecond,
+      });
+  let accepted: { voltageVolt: number; transition: BrushedMotorExternalShaftResult } | undefined;
+  const frame = solveRcCircuitWithHeldArduino(
+    document,
+    toMicroseconds / 1000,
+    snapshots,
+    transientState,
+    hcSr04States,
+    pingUltrasonicStates,
+    servoStates,
+    preparation,
+    undefined,
+    undefined,
+    {
+      winding,
+      prepared,
+      record(voltageVolt, transition) {
+        if (accepted) throw new Error('The TT electrical interval was observed twice.');
+        accepted = { voltageVolt, transition };
+      },
+    },
+  );
+  if (frame.solved && !held && !accepted) throw new Error('Missing solved TT winding branch.');
+  return { frame, accepted };
 }
 
 function solveCircuitStep(
@@ -2042,47 +2826,117 @@ function solveCircuitStep(
   options: InternalSolveOptions = {},
 ): SolveResult {
   const diagnostics: Diagnostic[] = [];
-  const netlist = buildNetlist(document);
+  const preparation = options.preparation?.(document);
+  const netlist = preparation?.netlist ?? buildNetlist(document);
   const failedComponentIds = options.failedComponentIds ?? new Set<string>();
+  // Only actual lamp IDs have filament temperatures. Carry one resistance
+  // through both the matrix stamp and the measured current for this frame.
+  let photoresistorLight:
+    Map<string, { illuminanceLux: number; resistanceOhm: number }> | undefined;
+  if (options.lampTemperatureById && Object.keys(options.lampTemperatureById).length > 0) {
+    for (const component of document.components) {
+      const lampId = photoresistorLightSourceId(component);
+      if (!lampId || !Object.hasOwn(options.lampTemperatureById, lampId)) continue;
+      const lampBrightness = failedComponentIds.has(lampId)
+        ? 0
+        : incandescentLampBrightnessPercent(options.lampTemperatureById[lampId]!);
+      const illuminanceLux = photoresistorIlluminanceWithLampLux(component, lampBrightness);
+      (photoresistorLight ??= new Map()).set(component.id, {
+        illuminanceLux,
+        resistanceOhm: photoresistorResistanceAtIlluminanceOhm(illuminanceLux),
+      });
+    }
+  }
+  const simulationTimeMs = options.simulationTimeMs ?? 0;
+  const branchesForSnapshots = (snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>) =>
+    document.components.flatMap((component) =>
+      failedComponentIds.has(component.id)
+        ? []
+        : (() => {
+            const snapshot = snapshots.get(component.id);
+            return snapshot
+              ? arduinoOutputBranchesFromSnapshot(component, snapshot, simulationTimeMs).map(
+                  (branch) => ({ component, ...branch }),
+                )
+              : [];
+          })(),
+    );
+  const earlyBranches =
+    options.operatingPointReuse && options.heldArduinoSnapshots && failedComponentIds.size === 0
+      ? branchesForSnapshots(options.heldArduinoSnapshots)
+      : undefined;
+  const earlySlot = earlyBranches
+    ? options.operatingPointReuse?.(
+        document,
+        earlyBranches,
+        options.heldArduinoSnapshots!,
+        failedComponentIds,
+      )
+    : undefined;
+  if (earlySlot?.point?.template) {
+    for (const entry of earlySlot.point.template.components)
+      retainArduinoQualityLayouts(options.operatingPointReuse, entry.fields);
+    const result = resultFromArduinoElectricalTemplate(
+      earlySlot.point,
+      earlySlot.point.template,
+      options.heldArduinoSnapshots!,
+      simulationTimeMs,
+    );
+    if (result) return result;
+  }
   const linearDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
-    const device = createLinearDcDevice(
-      component.componentTypeId === 'signal-generator'
-        ? {
-            ...component,
-            value: signalGeneratorVoltageAt(component, options.simulationTimeMs ?? 0),
-          }
-        : component.componentTypeId === 'multimeter'
-          ? {
-              ...component,
-              stateProperties: {
-                ...component.stateProperties,
-                meterFuseBlownRuntime: options.meterFuseBlownById?.[component.id] === true,
-              },
-            }
-          : component,
-    );
+    const device = preparation?.linearDevices.has(component.id)
+      ? preparation.linearDevices.get(component.id)
+      : createLinearDcDevice(
+          component.componentTypeId === 'signal-generator'
+            ? {
+                ...component,
+                value: signalGeneratorVoltageAt(component, options.simulationTimeMs ?? 0),
+              }
+            : component.componentTypeId === 'multimeter'
+              ? {
+                  ...component,
+                  stateProperties: {
+                    ...component.stateProperties,
+                    meterFuseBlownRuntime: options.meterFuseBlownById?.[component.id] === true,
+                  },
+                }
+              : component,
+        );
     return device ? [device] : [];
   });
-  const tmp36Devices = document.components.flatMap((component) => {
-    const device = createTmp36DcDevice(component);
-    return device ? [device] : [];
-  });
-  const soilDevices = document.components.flatMap((component) => {
-    const device = createSoilMoistureDevice(component);
-    return device ? [device] : [];
-  });
-  const pirDevices = createPirSensorDevices(document.components);
-  const npnDcDevices = document.components.flatMap((component) => {
-    if (failedComponentIds.has(component.id)) return [];
-    const device = createNpnDcDevice(component);
-    return device ? [device] : [];
-  });
-  const pnpDcDevices = document.components.flatMap((component) => {
-    if (failedComponentIds.has(component.id)) return [];
-    const device = createPnpDcDevice(component);
-    return device ? [device] : [];
-  });
+  const tmp36Devices =
+    preparation?.tmp36Devices ??
+    document.components.flatMap((component) => {
+      const device = createTmp36DcDevice(component);
+      return device ? [device] : [];
+    });
+  const soilDevices =
+    preparation?.soilDevices ??
+    document.components.flatMap((component) => {
+      const device = createSoilMoistureDevice(component);
+      return device ? [device] : [];
+    });
+  const pirDevices = preparation?.pirDevices ?? createPirSensorDevices(document.components);
+  const npnDcDevices = preparation
+    ? preparation.npnDevices.filter(
+        (device) => !failedComponentIds.has(device.instance.componentId),
+      )
+    : document.components.flatMap((component) => {
+        if (failedComponentIds.has(component.id)) return [];
+        const device = createNpnDcDevice(component);
+        return device ? [device] : [];
+      });
+  const pnpDcDevices = preparation
+    ? preparation.pnpDevices.filter(
+        (device) => !failedComponentIds.has(device.instance.componentId),
+      )
+    : document.components.flatMap((component) => {
+        if (failedComponentIds.has(component.id)) return [];
+        const device = createPnpDcDevice(component);
+        return device ? [device] : [];
+      });
   const capacitors = document.components.filter(
     (component) => isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
   );
@@ -2092,7 +2946,6 @@ function solveCircuitStep(
     linearDcDevices.map((device) => [device.instance.componentId, device] as const),
   );
   const sources = sourceDevices.map((device) => device.instance.component);
-  const simulationTimeMs = options.simulationTimeMs ?? 0;
   const heldSnapshots = new Map(options.heldArduinoSnapshots);
   if (!options.heldArduinoSnapshots) {
     for (const component of document.components.filter(isArduinoUno)) {
@@ -2161,34 +3014,8 @@ function solveCircuitStep(
           return snapshot ? ([[component.id, snapshot]] as const) : [];
         }),
     );
-  const controllerState: ArduinoControllerState | undefined =
-    arduinoSnapshots.size > 0
-      ? {
-          version: 1,
-          simulationTimeMs,
-          boards: [...arduinoSnapshots]
-            .map(([componentId, snapshot]) => ({ componentId, runtime: snapshot.state }))
-            .sort((left, right) =>
-              left.componentId < right.componentId
-                ? -1
-                : left.componentId > right.componentId
-                  ? 1
-                  : 0,
-            ),
-        }
-      : undefined;
-  const arduinoBranches = document.components.flatMap((component) =>
-    failedComponentIds.has(component.id)
-      ? []
-      : (() => {
-          const snapshot = arduinoSnapshots.get(component.id);
-          return snapshot
-            ? arduinoOutputBranchesFromSnapshot(component, snapshot, simulationTimeMs).map(
-                (branch) => ({ component, ...branch }),
-              )
-            : [];
-        })(),
-  );
+  const controllerState = controllerObservation(arduinoSnapshots, simulationTimeMs);
+  const arduinoBranches = earlyBranches ?? branchesForSnapshots(arduinoSnapshots);
   const hcSr04Branches = document.components.flatMap((component) => {
     if (!isHcSr04(component) || failedComponentIds.has(component.id)) return [];
     const state = options.hcSr04RuntimeStateById?.get(component.id);
@@ -2221,12 +3048,14 @@ function solveCircuitStep(
 
   if (inputFailure) return inputFailure;
 
-  const arduinoProgramChecks = document.components.flatMap((component) => {
-    if (!isArduinoUno(component)) return [];
-    const source = component.stateProperties?.['arduinoSource'];
-    if (typeof source !== 'string') return [];
-    return [{ component, diagnostics: analyseArduinoSourceSupport(source) }];
-  });
+  const arduinoProgramChecks =
+    preparation?.arduinoProgramChecks ??
+    document.components.flatMap((component) => {
+      if (!isArduinoUno(component)) return [];
+      const source = component.stateProperties?.['arduinoSource'];
+      if (typeof source !== 'string') return [];
+      return [{ component, diagnostics: analyseArduinoSourceSupport(source) }];
+    });
   const unsupportedArduinoPrograms = arduinoProgramChecks.flatMap((entry) => {
     const unsupportedDiagnostics = entry.diagnostics.filter(
       (diagnostic) => diagnostic.status === 'unsupported' && diagnostic.code !== 'syntax-error',
@@ -2295,10 +3124,12 @@ function solveCircuitStep(
     return empty('invalid');
   }
 
-  const invalid = document.components.flatMap((component) => {
-    const message = propertyError(component);
-    return message ? [{ component, message }] : [];
-  });
+  const invalid =
+    preparation?.invalid ??
+    document.components.flatMap((component) => {
+      const message = propertyError(component);
+      return message ? [{ component, message }] : [];
+    });
   for (const entry of invalid) {
     diagnostics.push({
       code: 'invalid_property',
@@ -2309,10 +3140,12 @@ function solveCircuitStep(
     });
   }
   if (invalid.length > 0) return empty('invalid');
-  const invalidTerminalContracts = document.components.flatMap((component) => {
-    const contract = validateElectricalTerminalContract(component);
-    return contract.valid ? [] : [{ component, missing: contract.missing }];
-  });
+  const invalidTerminalContracts =
+    preparation?.invalidTerminalContracts ??
+    document.components.flatMap((component) => {
+      const contract = validateElectricalTerminalContract(component);
+      return contract.valid ? [] : [{ component, missing: contract.missing }];
+    });
   for (const entry of invalidTerminalContracts) {
     diagnostics.push({
       code: 'invalid_terminal_contract',
@@ -2323,7 +3156,8 @@ function solveCircuitStep(
     });
   }
   if (invalidTerminalContracts.length > 0) return empty('invalid');
-  const unsupported = unsupportedElectricalComponents(document.components);
+  const unsupported =
+    preparation?.unsupported ?? unsupportedElectricalComponents(document.components);
   if (unsupported.length > 0) {
     diagnostics.push({
       code: 'unsupported_component',
@@ -2510,9 +3344,18 @@ function solveCircuitStep(
     ...heldCapacitors.filter((component) => capacitorConstraints.independentIds.has(component.id)),
   ];
   const size = nodeVariableCount + stampedVoltageSourceComponents.length;
-  const diodeBranches = document.components.flatMap((component) =>
-    failedComponentIds.has(component.id) ? [] : nonlinearDcBranchesForComponent(component),
+  const observationRouting = preparation?.observationRouting ?? prepareObservationRouting(document);
+  const diodeBranches = observationRouting.nonlinearBranches.filter(
+    (branch) => !failedComponentIds.has(branch.component.id),
   );
+  const diodeBranchesByComponent =
+    failedComponentIds.size === 0
+      ? observationRouting.nonlinearBranchesByComponent
+      : branchesByComponent(diodeBranches);
+  // Arduino stamps depend on this solve's snapshot; never put them in preparation.
+  const arduinoBranchesByComponent = branchesByComponent(arduinoBranches);
+  const branchKey = (branch: NonlinearDcBranch): string =>
+    observationRouting.nonlinearBranchKeys.get(branch) as string;
   const diodeStates = new Map<string, boolean>();
   const diodeSegmentIndices = new Map<string, number>();
   const regulatedSupplyModes = new Map<string, RegulatedPowerSupplyMode>(
@@ -2561,7 +3404,7 @@ function solveCircuitStep(
   // first linear solve turns them on; an isolated LED must not create its own
   // artificial voltage across otherwise floating terminals.
   for (const branch of diodeBranches) {
-    const key = nonlinearBranchKey(branch);
+    const key = branchKey(branch);
     diodeStates.set(key, false);
     diodeSegmentIndices.set(key, 0);
   }
@@ -2577,11 +3420,31 @@ function solveCircuitStep(
   let finalRhs: number[] | null = null;
   const maxIterations = document.simulation.maxIterations;
   const physicalNodeIndex = (component: SchematicComponent, terminal: Terminal): number =>
-    netlist.nodeOf.get(terminalKey(component.id, terminal)) as number;
+    (preparation
+      ? preparation.terminalNodes.get(component.id)?.get(terminal)
+      : netlist.nodeOf.get(terminalKey(component.id, terminal))) as number;
   const voltageFrom = (values: number[], node: number): number =>
     referenceNodes.has(node) ? 0 : (values[nodeVariables.get(node) as number] as number);
 
-  for (; iterations <= maxIterations; iterations += 1) {
+  const pointSlot = earlyBranches
+    ? earlySlot
+    : options.operatingPointReuse?.(
+        document,
+        arduinoBranches,
+        arduinoSnapshots,
+        failedComponentIds,
+      );
+  const reusedPoint = pointSlot?.point;
+  if (reusedPoint) {
+    solution = reusedPoint.solution;
+    finalMatrix = reusedPoint.matrix;
+    finalRhs = reusedPoint.rhs;
+    iterations = reusedPoint.iterations;
+    converged = true;
+    for (const [key, value] of reusedPoint.diodeStates) diodeStates.set(key, value);
+    for (const [key, value] of reusedPoint.diodeSegments) diodeSegmentIndices.set(key, value);
+  }
+  for (; !reusedPoint && iterations <= maxIterations; iterations += 1) {
     const matrix = Array.from({ length: size }, () => Array<number>(size).fill(0));
     const rhs = Array<number>(size).fill(0);
     const stampConductance = (left: number, right: number, conductance: number): void => {
@@ -2675,7 +3538,10 @@ function solveCircuitStep(
       const b = nodeIndex(component, 'b');
       if (component.kind === 'resistor') continue;
       if (component.kind === 'photoresistor') {
-        stampConductance(a, b, 1 / photoresistorResistanceOhm(component));
+        const resistanceOhm =
+          photoresistorLight?.get(component.id)?.resistanceOhm ??
+          photoresistorResistanceOhm(component);
+        stampConductance(a, b, 1 / resistanceOhm);
       } else if (component.kind === 'piezo') {
         stampConductance(a, b, 1 / piezoDcResistanceOhm(component));
       } else if (component.kind === 'lamp') {
@@ -2683,6 +3549,17 @@ function solveCircuitStep(
           options.lampTemperatureById?.[component.id] ?? INCANDESCENT_LAMP_PROFILE.ambientCelsius;
         stampConductance(a, b, 1 / incandescentLampResistanceOhm(temperatureCelsius));
       } else if (isBrushedMotor(component)) {
+        const external = options.externalShaft;
+        if (external?.winding.componentId === component.id) {
+          const companion = external.prepared?.companion;
+          if (companion) {
+            stampConductance(a, b, companion.conductanceSiemens);
+            stampOffset(a, b, companion.historyCurrentAmp);
+          } else if (options.holdMotorStates) {
+            stampOffset(a, b, -external.winding.currentAmp);
+          }
+          continue;
+        }
         const profile = brushedMotorProfile(component);
         const previousState = options.motorPreviousStateById?.[component.id];
         if (!profile || !previousState) continue;
@@ -2717,7 +3594,7 @@ function solveCircuitStep(
         stampConductance(a, b, companion.conductanceSiemens);
         stampOffset(a, b, companion.historyCurrentAmp);
       } else if (component.kind === 'switch') {
-        if (component.componentTypeId || component.state === true) {
+        if (switchContactClosed(component)) {
           stampConductance(a, b, 1 / CLOSED_RESISTANCE);
         }
       } else if (component.kind === 'button') {
@@ -2753,7 +3630,7 @@ function solveCircuitStep(
     for (const branch of diodeBranches) {
       const anode = physicalNodeIndex(branch.component, branch.anode);
       const cathode = physicalNodeIndex(branch.component, branch.cathode);
-      const key = nonlinearBranchKey(branch);
+      const key = branchKey(branch);
       const active = diodeStates.get(key) === true;
       if (active) {
         const segment = nonlinearSegmentAt(branch, diodeSegmentIndices.get(key) ?? 0);
@@ -2862,13 +3739,15 @@ function solveCircuitStep(
       }
     }
     for (const branch of diodeBranches) {
-      const key = nonlinearBranchKey(branch);
+      const key = branchKey(branch);
       const segmentIndex = diodeSegmentIndices.get(key) ?? 0;
       const segment = nonlinearSegmentAt(branch, segmentIndex);
       const drop =
         voltageFrom(solution, physicalNodeIndex(branch.component, branch.anode)) -
         voltageFrom(solution, physicalNodeIndex(branch.component, branch.cathode));
-      const next = drop >= segment.kneeVoltage - 0.02;
+      // An active companion stamps (drop - knee) / resistance. Below the
+      // knee it would inject a negative forward current that observation clips.
+      const next = drop >= segment.kneeVoltage;
       if (next !== diodeStates.get(key)) {
         diodeStates.set(key, next);
         changed = true;
@@ -2981,24 +3860,11 @@ function solveCircuitStep(
     return empty('nonconvergent', iterations);
   }
 
-  const numericalResidual = Math.max(
-    0,
-    ...(finalMatrix ?? []).map((row, rowIndex) =>
-      Math.abs(
-        row.reduce(
-          (sum, coefficient, columnIndex) =>
-            sum + coefficient * ((solution as number[])[columnIndex] ?? 0),
-          0,
-        ) - ((finalRhs ?? [])[rowIndex] ?? 0),
-      ),
-    ),
+  const { numericalResidual, numericalTolerance } = electricalNumericalQuality(
+    solution,
+    finalMatrix,
+    finalRhs,
   );
-  const numericalScale = Math.max(
-    1,
-    ...(finalRhs ?? []).map(Math.abs),
-    ...(solution ?? []).map(Math.abs),
-  );
-  const numericalTolerance = 1e-9 * numericalScale;
   if (!Number.isFinite(numericalResidual) || numericalResidual > numericalTolerance) {
     diagnostics.push({
       code: 'numerical_instability',
@@ -3012,7 +3878,7 @@ function solveCircuitStep(
   const voltageAt = (component: SchematicComponent, terminal: LogicalTerminal): number =>
     voltageFrom(solution as number[], nodeIndex(component, terminal));
   const physicalVoltageAt = (component: SchematicComponent, terminal: Terminal): number => {
-    const node = netlist.nodeOf.get(terminalKey(component.id, terminal));
+    const node = physicalNodeIndex(component, terminal);
     return node === undefined ? 0 : voltageFrom(solution as number[], node);
   };
   const sourceCurrents = new Map<string, number>();
@@ -3037,7 +3903,7 @@ function solveCircuitStep(
     return (branch.targetVoltage - measured) / branch.resistanceOhm;
   };
   const resultForBranch = (branch: NonlinearDcBranch) => {
-    const key = nonlinearBranchKey(branch);
+    const key = branchKey(branch);
     const segment = nonlinearSegmentAt(branch, diodeSegmentIndices.get(key) ?? 0);
     const voltageDrop =
       physicalVoltageAt(branch.component, branch.anode) -
@@ -3192,11 +4058,13 @@ function solveCircuitStep(
   );
 
   const linearDcObservationById = new Map<string, LinearDcObservation>();
-  const components: ComponentResult[] = document.components
-    .filter((component) => component.kind !== 'wire')
-    .map((component) => {
+  const templateInputs: ArduinoElectricalInput[] | undefined =
+    pointSlot && !reusedPoint && failedComponentIds.size === 0 ? [] : undefined;
+  const components: ComponentResult[] = observationRouting.components.map(
+    ({ component, terminals }) => {
+      const linkedLight = photoresistorLight?.get(component.id);
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
-      for (const terminal of terminalsForComponent(component)) {
+      for (const terminal of terminals) {
         terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
       }
       if (failedComponentIds.has(component.id)) {
@@ -3245,16 +4113,15 @@ function solveCircuitStep(
           deviceHealth: 'failed_open',
           damageState: 'failed',
           presentationState: 'failed',
+          ...(linkedLight ? { illuminanceLux: round(linkedLight.illuminanceLux, 4) } : {}),
           ...(failedMotorTransition
             ? motorComponentObservation(component, failedMotorTransition)
             : {}),
         };
       }
-      const branches = diodeBranches.filter((branch) => branch.component.id === component.id);
+      const branches = diodeBranchesByComponent.get(component.id) ?? [];
       const branchResults = branches.map((branch) => ({ branch, ...resultForBranch(branch) }));
-      const componentArduinoBranches = arduinoBranches.filter(
-        (branch) => branch.component.id === component.id,
-      );
+      const componentArduinoBranches = arduinoBranchesByComponent.get(component.id) ?? [];
       const arduinoBranchResults = componentArduinoBranches.map((branch) => ({
         branch,
         voltageDrop:
@@ -3291,33 +4158,45 @@ function solveCircuitStep(
           currentAmp: heldCapacitorCurrents.get(component.id) ?? 0,
         };
       }
-      const motorStep = isBrushedMotor(component)
-        ? (() => {
-            const profile = brushedMotorProfile(component);
-            const previousState = options.motorPreviousStateById?.[component.id];
-            if (!profile || !previousState) return undefined;
-            if (options.holdMotorStates)
-              return {
-                state: previousState,
-                companion: null,
-                observation: observeBrushedMotorTransientState(
-                  profile,
-                  previousState,
-                  previousState,
-                  brushedMotorStepInput(component, voltageDrop, 0),
+      const external =
+        options.externalShaft?.winding.componentId === component.id
+          ? options.externalShaft
+          : undefined;
+      let externalCurrent = external?.winding.currentAmp;
+      if (external?.prepared) {
+        const transition = external.prepared.accept(voltageDrop);
+        external.record(voltageDrop, transition);
+        externalCurrent = transition.intervalCurrentAmp;
+      }
+      const motorStep =
+        isBrushedMotor(component) && !external
+          ? (() => {
+              const profile = brushedMotorProfile(component);
+              const previousState = options.motorPreviousStateById?.[component.id];
+              if (!profile || !previousState) return undefined;
+              if (options.holdMotorStates)
+                return {
+                  state: previousState,
+                  companion: null,
+                  observation: observeBrushedMotorTransientState(
+                    profile,
+                    previousState,
+                    previousState,
+                    brushedMotorStepInput(component, voltageDrop, 0),
+                  ),
+                };
+              return advanceBrushedMotorTransientState(
+                profile,
+                previousState,
+                brushedMotorStepInput(
+                  component,
+                  voltageDrop,
+                  options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
                 ),
-              };
-            return advanceBrushedMotorTransientState(
-              profile,
-              previousState,
-              brushedMotorStepInput(
-                component,
-                voltageDrop,
-                options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
-              ),
-            );
-          })()
-        : undefined;
+              );
+            })()
+          : undefined;
+      const motorCurrent = externalCurrent ?? motorStep?.observation.currentAmp;
       const lampTemperatureCelsius =
         component.kind === 'lamp'
           ? (options.lampTemperatureById?.[component.id] ??
@@ -3328,6 +4207,11 @@ function solveCircuitStep(
           ? undefined
           : incandescentLampResistanceOhm(lampTemperatureCelsius);
       const linearDcDevice = linearDcDeviceById.get(component.id);
+      templateInputs?.push({
+        voltageDrop,
+        device: linearDcDevice ?? null,
+        branches: branchResults,
+      });
       const sensor =
         tmp36Results.get(component.id) ??
         soilResults.get(component.id) ??
@@ -3386,17 +4270,14 @@ function solveCircuitStep(
       else if (isArduinoUno(component))
         current = Math.max(0, ...arduinoBranchResults.map((entry) => Math.abs(entry.current)));
       else if (component.kind === 'photoresistor')
-        current = voltageDrop / photoresistorResistanceOhm(component);
+        current =
+          voltageDrop / (linkedLight?.resistanceOhm ?? photoresistorResistanceOhm(component));
       else if (component.kind === 'lamp') current = voltageDrop / (lampResistanceOhm as number);
       else if (component.kind === 'piezo') current = voltageDrop / piezoDcResistanceOhm(component);
-      else if (motorStep) current = motorStep.observation.currentAmp;
+      else if (motorCurrent !== undefined) current = motorCurrent;
       else if (capacitorObservation) current = capacitorObservation.currentAmp;
       else if (component.kind === 'switch')
-        current = component.componentTypeId
-          ? voltageDrop / CLOSED_RESISTANCE
-          : component.state === true
-            ? voltageDrop / CLOSED_RESISTANCE
-            : 0;
+        current = switchContactClosed(component) ? voltageDrop / CLOSED_RESISTANCE : 0;
       else if (component.kind === 'button')
         current = component.state === true ? voltageDrop / CLOSED_RESISTANCE : 0;
       else if (component.kind === 'potentiometer') {
@@ -3461,8 +4342,14 @@ function solveCircuitStep(
         component.kind === 'lamp'
           ? incandescentLampBrightnessPercent(lampTemperatureCelsius as number)
           : Math.max(0, ...Object.values(branchBrightness));
+      const photoresistorPowerPercent =
+        component.kind === 'photoresistor'
+          ? (100 * power) / PHOTORESISTOR_PROFILE.maximumPowerWatt
+          : undefined;
       const powerUtilizationPercent =
-        linearDcObservation?.powerUtilizationPercent ?? transistorResult?.powerUtilizationPercent;
+        linearDcObservation?.powerUtilizationPercent ??
+        transistorResult?.powerUtilizationPercent ??
+        photoresistorPowerPercent;
       const currentUtilizationPercent =
         transistorResult?.currentUtilizationPercent ??
         (branches.length > 0
@@ -3484,9 +4371,18 @@ function solveCircuitStep(
           : undefined;
       const activePiezoObservation =
         component.kind === 'piezo' ? observeActivePiezo(component, voltageDrop) : null;
+      const photoresistorStress =
+        photoresistorPowerPercent === undefined
+          ? undefined
+          : Math.abs(voltageDrop) > PHOTORESISTOR_PROFILE.maximumVoltageVolt
+            ? 'burned'
+            : photoresistorPowerPercent > 100
+              ? 'overcurrent'
+              : 'normal';
       const stressState =
         linearDcObservation?.stressState ??
         transistorResult?.stressState ??
+        photoresistorStress ??
         (activePiezoObservation?.driveState === 'overvoltage'
           ? 'warning'
           : lampVoltageRatio !== undefined
@@ -3495,26 +4391,7 @@ function solveCircuitStep(
               : lampVoltageRatio > INCANDESCENT_LAMP_PROFILE.warningVoltageRatio
                 ? 'warning'
                 : 'normal'
-            : branches.length === 0
-              ? undefined
-              : reverseBreakdown ||
-                  branchResults.some(
-                    ({ branch, current: branchCurrent }) =>
-                      Math.abs(branchCurrent) > branch.destructiveCurrentAmp,
-                  )
-                ? 'burned'
-                : branchResults.some(
-                      ({ branch, current: branchCurrent }) =>
-                        Math.abs(branchCurrent) > branch.nominalCurrentAmp,
-                    )
-                  ? 'overcurrent'
-                  : branchResults.some(
-                        ({ branch, current: branchCurrent }) =>
-                          branch.nearLimitWarning &&
-                          Math.abs(branchCurrent) >= branch.nominalCurrentAmp * LED_WARNING_RATIO,
-                      )
-                    ? 'warning'
-                    : 'normal');
+            : nonlinearBranchStress(branchResults, reverseBreakdown));
       const passivePiezoTone =
         component.kind === 'piezo' && piezoOperatingMode(component) === 'passive'
           ? (() => {
@@ -3604,11 +4481,11 @@ function solveCircuitStep(
         voltageDrop: round(voltageDrop),
         current: roundCurrent(current),
         terminalVoltages,
-        ...(motorStep
+        ...(motorCurrent !== undefined
           ? {
               terminalCurrents: {
-                positive: roundCurrent(motorStep.observation.currentAmp),
-                negative: roundCurrent(-motorStep.observation.currentAmp),
+                positive: roundCurrent(motorCurrent),
+                negative: roundCurrent(-motorCurrent),
               },
             }
           : capacitorObservation
@@ -3719,6 +4596,12 @@ function solveCircuitStep(
         ...(powerUtilizationPercent === undefined
           ? {}
           : { powerUtilizationPercent: round(powerUtilizationPercent, 2) }),
+        ...(linkedLight
+          ? {
+              illuminanceLux: round(linkedLight.illuminanceLux, 4),
+              effectiveResistanceOhm: round(linkedLight.resistanceOhm, 3),
+            }
+          : {}),
         ...(stressState === undefined
           ? {}
           : {
@@ -3877,7 +4760,7 @@ function solveCircuitStep(
               operatingVoltageMaxVolt: activePiezoObservation!.maximumVoltageVolt,
             }
           : {}),
-        ...(isBrushedMotor(component)
+        ...(isBrushedMotor(component) && !external
           ? motorStep
             ? motorComponentObservation(component, motorStep)
             : {
@@ -3927,7 +4810,15 @@ function solveCircuitStep(
             }
           : {}),
       };
-    });
+    },
+  );
+  // Match Array.find: the first result wins even for malformed duplicate IDs.
+  const componentResultById = new Map<string, ComponentResult>();
+  for (const result of components) {
+    if (!componentResultById.has(result.componentId)) {
+      componentResultById.set(result.componentId, result);
+    }
+  }
 
   for (const [componentId, observation] of [...tmp36Results, ...soilResults, ...pirResults]) {
     diagnostics.push(
@@ -3967,7 +4858,7 @@ function solveCircuitStep(
   }
 
   for (const lamp of document.components.filter((component) => component.kind === 'lamp')) {
-    const result = components.find((component) => component.componentId === lamp.id);
+    const result = componentResultById.get(lamp.id);
     if (!result || failedComponentIds.has(lamp.id)) continue;
     const voltageRatio = Math.abs(result.voltageDrop) / INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt;
     if (voltageRatio <= INCANDESCENT_LAMP_PROFILE.warningVoltageRatio) continue;
@@ -3984,7 +4875,7 @@ function solveCircuitStep(
   }
 
   for (const piezo of document.components.filter((component) => component.kind === 'piezo')) {
-    const result = components.find((component) => component.componentId === piezo.id);
+    const result = componentResultById.get(piezo.id);
     if (!result || result.piezoMode !== 'active') continue;
     if (result.piezoDriveState === 'reverse_polarity') {
       diagnostics.push({
@@ -4007,7 +4898,7 @@ function solveCircuitStep(
   }
 
   for (const motor of document.components.filter(isBrushedMotor)) {
-    const result = components.find((component) => component.componentId === motor.id);
+    const result = componentResultById.get(motor.id);
     if (!result) continue;
     if (result.motorVoltageState === 'overvoltage') {
       const maximumVoltage = result.operatingVoltageMaxVolt ?? 0;
@@ -4040,7 +4931,7 @@ function solveCircuitStep(
   }
 
   for (const capacitor of capacitors) {
-    const result = components.find((component) => component.componentId === capacitor.id);
+    const result = componentResultById.get(capacitor.id);
     if (!result) continue;
     const parameters = capacitorParameters(capacitor);
     if (result.voltageDrop < -0.1) {
@@ -4065,13 +4956,9 @@ function solveCircuitStep(
     }
   }
 
-  for (const component of document.components.filter(
-    (item) => nonlinearDcBranchesForComponent(item).length > 0,
-  )) {
-    const componentBranches = diodeBranches.filter(
-      (branch) => branch.component.id === component.id,
-    );
-    const result = components.find((entry) => entry.componentId === component.id);
+  for (const component of observationRouting.nonlinearComponents) {
+    const componentBranches = diodeBranchesByComponent.get(component.id) ?? [];
+    const result = componentResultById.get(component.id);
     const reverseBranches = componentBranches.filter((branch) => {
       const anodeVoltage = result?.terminalVoltages[branch.anode] ?? 0;
       const cathodeVoltage = result?.terminalVoltages[branch.cathode] ?? 0;
@@ -4281,18 +5168,94 @@ function solveCircuitStep(
   // It therefore falls through to the neutral circuit_ok observation instead
   // of creating a warning or attaching a fault marker to the source.
   if (!diagnostics.some((diagnostic) => diagnostic.severity !== 'info')) {
-    diagnostics.push({
-      code: 'circuit_ok',
-      severity: 'info',
-      message: `DC-расчёт завершён. Ток источника ${(totalSourceCurrent * 1000).toFixed(2)} мА.`,
-    });
+    diagnostics.push(circuitOkDiagnostic(totalSourceCurrent));
   }
 
-  const nodes: NodeResult[] = Array.from({ length: netlist.nodeCount }, (_, node) => ({
-    id: `net-${node}`,
-    voltage: round(voltageFrom(solution as number[], node)),
-    terminals: netlist.terminalsByNode.get(node) ?? [],
-  }));
+  const nodes = emitNumericalNodes(
+    netlist,
+    (node) => voltageFrom(solution as number[], node),
+    referenceNodes,
+    round,
+  );
+  if (
+    pointSlot &&
+    !reusedPoint &&
+    finalMatrix &&
+    finalRhs &&
+    diagnostics.every(
+      (diagnostic) =>
+        diagnostic.code === 'circuit_ok' ||
+        (diagnostic.code === 'led_near_limit' &&
+          diagnostic.severity === 'warning' &&
+          sevenSegmentProfileHasOriginalDefinition() &&
+          sevenSegmentDefinitionIsOriginal() &&
+          !diagnostic.wireIds?.length &&
+          !diagnostic.netIds?.length &&
+          !!diagnostic.componentIds?.length &&
+          diagnostic.componentIds.every((id) =>
+            document.components.some(
+              (component) =>
+                component.id === id &&
+                component.kind === 'seven-segment' &&
+                component.componentTypeId === 'seven-segment-display',
+            ),
+          ) &&
+          (!diagnostic.anchors ||
+            diagnostic.anchors.every(
+              (anchor) =>
+                anchor.kind === 'component' && diagnostic.componentIds!.includes(anchor.id),
+            ))),
+    )
+  ) {
+    pointSlot.point = {
+      solution,
+      matrix: finalMatrix,
+      rhs: finalRhs,
+      diodeStates: new Map(diodeStates),
+      diodeSegments: new Map(diodeSegmentIndices),
+      iterations,
+      ...(templateInputs &&
+      components.every((component) =>
+        Object.values(component).every((value) =>
+          typeof value === 'number'
+            ? Number.isFinite(value)
+            : value && typeof value === 'object'
+              ? Object.values(value).every(
+                  (entry) => typeof entry !== 'number' || Number.isFinite(entry),
+                )
+              : true,
+        ),
+      ) &&
+      nodes.every((node) => Number.isFinite(node.voltage))
+        ? {
+            template: Object.freeze({
+              components: Object.freeze(
+                components.map((component, index) =>
+                  retainArduinoElectricalComponent(
+                    component,
+                    templateInputs[index]!,
+                    options.operatingPointReuse,
+                  ),
+                ),
+              ),
+              nodes: Object.freeze(
+                nodes.map((node) =>
+                  Object.freeze(copyNumericalNode(node, Object.freeze([...node.terminals]))),
+                ),
+              ),
+              sourceCurrents: Object.freeze(arduinoBranches.map(currentDeliveredByArduinoBranch)),
+              ...(diagnostics.some((diagnostic) => diagnostic.code === 'led_near_limit')
+                ? {
+                    rawSevenSegmentDiagnostics: structuredClone(
+                      diagnostics.map(withDiagnosticAnchors),
+                    ),
+                  }
+                : {}),
+            }),
+          }
+        : {}),
+    };
+  }
   return {
     solved: true,
     status: 'solved',

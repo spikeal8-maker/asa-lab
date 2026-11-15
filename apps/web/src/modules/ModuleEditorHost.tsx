@@ -6,14 +6,16 @@ import { loadCheckersEditor } from '../checkers/load-checkers-editor';
 import { threeDEditorHash, type CreatorPortalReturnView } from '../creator-portal/navigation';
 import { loadSchematicEditor } from '../electronics/load-schematic-editor';
 import { EditorErrorBoundary } from './EditorErrorBoundary';
+import { loadEditorChunk } from './lazy-editor';
 import { AssignmentBrief } from '../components/AssignmentBrief';
 import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
 import { beginDiagnosticContext } from '../client-diagnostics';
 import { isGameModule } from '../games/game-catalog';
+import { gameAccessApi, gameAccessMessage } from '../games/game-access-api';
 import { BlocksEditor } from '../blocks/BlocksEditor';
 import { analyticsSessionTransport } from '../analytics-runtime';
-import { actorKey, type TelemetryActor } from '../telemetry-contract';
+import { actorKey, isTelemetryModule, type TelemetryActor } from '../telemetry-contract';
 import { trackInputActivity } from '../activity-lifecycle';
 import { useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 
@@ -59,6 +61,21 @@ function BlocksEditorAdapter(props: ModuleEditorProps): JSX.Element {
 const EDITORS: Readonly<Record<string, ComponentType<ModuleEditorProps>>> = {
   blocks: BlocksEditorAdapter,
   electronics: lazy(loadSchematicEditor),
+  robotics: lazy(() =>
+    loadEditorChunk({
+      reloadMarker: 'asa-robotics:lazy-reload',
+      exhaustedMessage: 'Не удалось загрузить обновлённый редактор робототехники.',
+      unavailableMessage: 'Не удалось безопасно перезапустить загрузку редактора робототехники.',
+      load: async () => {
+        const [{ RoboticsEditor }, { loadProductionLibrary }] = await Promise.all([
+          import('../robotics/RoboticsEditor'),
+          import('../electronics/production-manifest-adapter'),
+        ]);
+        await loadProductionLibrary();
+        return { default: RoboticsEditor };
+      },
+    }),
+  ),
   chess: lazy(loadChessEditor),
   checkers: lazy(loadCheckersEditor),
   'three-d': lazy(() =>
@@ -86,17 +103,40 @@ function canonicalEditorHash(
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
 export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
+  // A receipt belongs to one project and identity. Changing either unmounts the
+  // previous editor synchronously, before the next asynchronous check starts.
+  const contextKey = JSON.stringify([
+    props.projectId,
+    props.moduleKey ?? null,
+    props.user.id,
+    props.seatLearner ?? false,
+    actorKey(props.telemetryActor ?? null),
+  ]);
+  return <ModuleEditorHostContent key={contextKey} {...props} />;
+}
+
+function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   const recordedOpen = useRef<string | null>(null);
+  const returnToRef = useRef(props.returnTo);
+  returnToRef.current = props.returnTo;
+  // A nested Chess URL reconstructs this navigation object without changing
+  // the admitted project or identity. Other destinations retain their behavior.
+  const returnToDependency =
+    props.moduleKey === 'chess' && props.returnTo.kind === 'games' ? 'chess-games' : props.returnTo;
   const [state, setState] = useState<HostState>(() =>
-    props.moduleKey
+    props.moduleKey && !isGameModule(props.moduleKey)
       ? { kind: 'ready', moduleKey: props.moduleKey, projectTitle: null }
       : { kind: 'loading' },
   );
 
   useEffect(() => {
     let active = true;
-    if (props.moduleKey) {
-      const canonicalHash = canonicalEditorHash(props.moduleKey, props.projectId, props.returnTo);
+    if (props.moduleKey && !isGameModule(props.moduleKey)) {
+      const canonicalHash = canonicalEditorHash(
+        props.moduleKey,
+        props.projectId,
+        returnToRef.current,
+      );
       if (canonicalHash && window.location.hash !== canonicalHash) {
         window.history.replaceState(null, '', canonicalHash);
       }
@@ -106,7 +146,21 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       };
     }
     setState({ kind: 'loading' });
-    void api.openProject(props.projectId).then((result) => {
+    const open = async (): Promise<void> => {
+      if (isGameModule(props.moduleKey)) {
+        const admission = await gameAccessApi.read(props.moduleKey);
+        if (!active) return;
+        if (!admission.ok || !admission.data.granted) {
+          setState({
+            kind: 'error',
+            message: admission.ok ? gameAccessMessage(admission.data) : admission.error.message,
+          });
+          return;
+        }
+      }
+      // Project Core independently rechecks current admission and its original
+      // Project ACL. A catalogue receipt alone never mounts a game surface.
+      const result = await api.openProject(props.projectId);
       if (!active) return;
       if (!result.ok) {
         setState({ kind: 'error', message: result.error.message || 'Не удалось открыть проект.' });
@@ -114,16 +168,23 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       }
       const moduleKey = result.data.project.moduleKey;
       props.onModuleResolved?.(props.projectId, moduleKey);
-      const canonicalHash = canonicalEditorHash(moduleKey, props.projectId, props.returnTo);
+      const canonicalHash = canonicalEditorHash(moduleKey, props.projectId, returnToRef.current);
       if (canonicalHash && window.location.hash !== canonicalHash) {
         window.history.replaceState(null, '', canonicalHash);
       }
       setState({ kind: 'ready', moduleKey, projectTitle: result.data.project.title });
+    };
+    void open().catch(() => {
+      if (active)
+        setState({
+          kind: 'error',
+          message: 'Не удалось проверить доступ к проекту. Повторите вход.',
+        });
     });
     return () => {
       active = false;
     };
-  }, [props.moduleKey, props.onModuleResolved, props.projectId, props.returnTo]);
+  }, [props.moduleKey, props.onModuleResolved, props.projectId, returnToDependency]);
 
   useEffect(() => {
     if (state.kind === 'ready' && state.moduleKey === 'electronics')
@@ -150,13 +211,14 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
     if (
       state.kind !== 'ready' ||
       state.moduleKey === 'blocks' ||
+      !isTelemetryModule(state.moduleKey) ||
       !Object.hasOwn(EDITORS, state.moduleKey)
     )
       return;
     const key = `${props.projectId}:${state.moduleKey}:${actorKey(props.telemetryActor ?? null)}`;
     if (recordedOpen.current === key) return;
     recordedOpen.current = key;
-    const moduleKey = state.moduleKey as 'electronics' | 'three-d' | 'chess' | 'checkers';
+    const moduleKey = state.moduleKey;
     const activity = trackInputActivity(
       props.projectId,
       analyticsSessionTransport(props.telemetryActor ?? null, moduleKey),

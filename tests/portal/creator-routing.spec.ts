@@ -4,6 +4,7 @@ import {
   creatorViewFromLocation,
   creatorViewToHash,
   creatorViewToHref,
+  isPublicProjectView,
   sectionForView,
   threeDEditorHash,
   type CreatorPortalView,
@@ -47,7 +48,11 @@ describe('Creator Portal routing', () => {
     ['#/projects', { kind: 'my-projects' }],
     ['#/games', { kind: 'games' }],
     ['#/learning', { kind: 'learning' }],
-    ['#/gallery', { kind: 'gallery' }],
+    ['#/explore', { kind: 'public-projects' }],
+    [
+      '#/public-projects/publication-one',
+      { kind: 'public-project', publicationId: 'publication-one' },
+    ],
     ['#/knowledge', { kind: 'knowledge' }],
     ['#/collections', { kind: 'collections' }],
     ['#/challenges', { kind: 'challenges' }],
@@ -63,11 +68,67 @@ describe('Creator Portal routing', () => {
     for (const [route, section] of [
       ['#/gallery', 'gallery'],
       ['#/gallery/public-work', 'gallery'],
+      ['#/explore', 'gallery'],
+      ['#/public-projects/publication-one', 'gallery'],
       ['#/knowledge', 'knowledge'],
       ['#/knowledge/public-course', 'knowledge'],
     ] as const) {
       expect(sectionForView(creatorViewFromHash(route), false)).toBe(section);
     }
+  });
+
+  it('aliases the old Gallery catalog and preserves public search through refresh', () => {
+    const view = { kind: 'public-projects', search: 'Дом и мост', module: 'three-d' } as const;
+    expect(
+      creatorViewFromHash(
+        '#/gallery?q=%D0%94%D0%BE%D0%BC+%D0%B8+%D0%BC%D0%BE%D1%81%D1%82&module=three-d',
+      ),
+    ).toEqual(view);
+    expect(creatorViewToHash(view)).toMatch(/^#\/explore\?/);
+    expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+  });
+
+  it('keeps publication IDs and legacy Gallery IDs out of private editor routes', () => {
+    const id = 'same-id';
+    expect(creatorViewFromHash(`#/projects/${id}`)).toEqual({
+      kind: 'editor',
+      projectId: id,
+      returnTo: { kind: 'my-projects' },
+    });
+    expect(creatorViewFromHash(`#/public-projects/${id}`)).toEqual({
+      kind: 'public-project',
+      publicationId: id,
+    });
+    expect(creatorViewFromHash(`#/gallery/${id}`)).toEqual({
+      kind: 'gallery-work',
+      projectId: id,
+    });
+    for (const hash of [`#/public-projects/${id}`, `#/gallery/${id}`]) {
+      expect(isPublicProjectView(creatorViewFromHash(hash))).toBe(true);
+      expect(creatorViewFromHash(hash).kind).not.toBe('editor');
+    }
+  });
+
+  it('round-trips encoded publication routes and rejects malformed IDs without opening an editor', () => {
+    const view = { kind: 'public-project', publicationId: 'publication / один' } as const;
+    expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+    expect(creatorViewToHref(view)).toBe(
+      '/#/public-projects/publication%20%2F%20%D0%BE%D0%B4%D0%B8%D0%BD',
+    );
+    expect(creatorViewFromHash('#/public-projects/%E0%A4%A')).toEqual({ kind: 'public-projects' });
+    expect(creatorViewFromHash('#/gallery/%E0%A4%A')).toEqual({ kind: 'public-projects' });
+  });
+
+  it('bounds public filter input independently of personal project filters', () => {
+    expect(creatorViewFromHash(`#/explore?q=${'я'.repeat(140)}&module=bad/key`)).toEqual({
+      kind: 'public-projects',
+      search: 'я'.repeat(120),
+    });
+    expect(creatorViewFromHash('#/projects?search=Личная&filter=three-d')).toEqual({
+      kind: 'my-projects',
+      search: 'Личная',
+      module: 'three-d',
+    });
   });
 
   it('preserves the return route for projects opened from Home and Projects', () => {

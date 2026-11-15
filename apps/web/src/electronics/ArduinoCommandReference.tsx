@@ -102,13 +102,16 @@ export function ArduinoCommandReference({
   const [category, setCategory] = useState<ArduinoCommandCategory | 'all'>('all');
   const [expandedCommands, setExpandedCommands] = useState<ReadonlySet<string>>(() => new Set());
   const entries = useMemo(() => filterArduinoCommandReference(query, category), [category, query]);
+  const libraries = entries.filter((entry) => entry.command.startsWith('Servo'));
   const groups = useMemo(
     () =>
       (Object.entries(ARDUINO_COMMAND_CATEGORY_LABELS) as [ArduinoCommandCategory, string][])
         .map(([group, label]) => ({
           group,
           label,
-          entries: entries.filter((entry) => entry.category === group),
+          entries: entries.filter(
+            (entry) => entry.category === group && !entry.command.startsWith('Servo'),
+          ),
         }))
         .filter((group) => group.entries.length > 0),
     [entries],
@@ -163,6 +166,7 @@ export function ArduinoCommandReference({
       </div>
       <output className="arduino-command-reference-count">Найдено: {entries.length}</output>
       <div className="arduino-command-reference-list">
+        <small>Команды — в setup()/loop(), переменные объявите заранее.</small>
         {groups.map((group) => (
           <section className="arduino-command-reference-group" key={group.group}>
             <h3>
@@ -181,6 +185,27 @@ export function ArduinoCommandReference({
             ))}
           </section>
         ))}
+        {libraries.length > 0 ? (
+          <details className="arduino-command-library" open={query.trim() ? true : undefined}>
+            <summary>Библиотеки</summary>
+            <details open={query.trim() ? true : undefined}>
+              <summary>Servo</summary>
+              <small>
+                Servo.h и объект — перед setup(); attach — в setup(), методы — в setup()/loop().
+              </small>
+              {libraries.map((entry) => (
+                <CommandReferenceItem
+                  key={entry.id}
+                  entry={entry}
+                  expanded={expandedCommands.has(entry.id)}
+                  canInsert={canInsert}
+                  onExpandedChange={() => toggleExpanded(entry.id)}
+                  onInsert={onInsert}
+                />
+              ))}
+            </details>
+          </details>
+        ) : null}
         {entries.length === 0 ? (
           <p className="arduino-command-reference-empty">Ничего не найдено.</p>
         ) : null}

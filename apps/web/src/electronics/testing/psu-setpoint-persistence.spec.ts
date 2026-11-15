@@ -10,10 +10,14 @@ import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
-import { evaluateSimulationWorkerRequest } from '../simulation-worker-evaluator';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from '../simulation-worker-evaluator';
 import type {
   ElectronicsSimulationWorkerRequest,
   ElectronicsSimulationWorkerResponse,
+  SimulationTimedAdvancePayload,
 } from '../simulation-worker-protocol';
 import { normalizeLoadedDocument } from '../use-workbench-project-state';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
@@ -28,18 +32,70 @@ vi.mock('../use-piezo-audio', () => ({
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+let omitEventHistoryInTransit = false;
+const deliveredAdvances: Array<{
+  clockProfileId: string | undefined;
+  committedMicroseconds: number;
+  requestedMicroseconds: number;
+  temporal: SimulationTimedAdvancePayload['ledTemporal'];
+  solved: boolean;
+  qualityPassed: boolean;
+  hadTemporalHistory: boolean;
+  deliveredTemporalHistory: boolean;
+}> = [];
+
 class InProcessWorker {
   onmessage: ((event: MessageEvent<ElectronicsSimulationWorkerResponse>) => void) | null = null;
   onerror = null;
   onmessageerror = null;
   stopped = false;
+  private activeGeneration = 0;
+  private activeRequest = 0;
   postMessage(request: ElectronicsSimulationWorkerRequest) {
-    if (request.kind === 'cancel-generation') return;
-    queueMicrotask(() => {
-      if (!this.stopped)
-        this.onmessage?.({
-          data: evaluateSimulationWorkerRequest(request),
-        } as MessageEvent<ElectronicsSimulationWorkerResponse>);
+    if (request.kind === 'cancel-generation') {
+      this.activeGeneration = Math.max(this.activeGeneration, request.generationId + 1);
+      return;
+    }
+    if (request.generationId < this.activeGeneration) return;
+    this.activeGeneration = Math.max(this.activeGeneration, request.generationId);
+    const token = ++this.activeRequest;
+    const isCurrent = () =>
+      !this.stopped &&
+      request.generationId >= this.activeGeneration &&
+      token === this.activeRequest;
+    queueMicrotask(async () => {
+      if (!isCurrent()) return;
+      // Match simulation.worker.ts: preflight is synchronous, but actual
+      // advances use the cancellable session with observeLedTemporal:true.
+      let response =
+        request.kind === 'preflight'
+          ? evaluateSimulationWorkerRequest(request)
+          : await evaluateSimulationWorkerRequestBatched(request, isCurrent);
+      if (response && isCurrent()) {
+        if (response.ok && response.kind === 'advance') {
+          const original = response.advance;
+          if (omitEventHistoryInTransit) {
+            const { ledTemporal, ...advance } = original;
+            if (
+              original.state.continuation?.clockProfileId !== 'electrothermal-events-v2' ||
+              !ledTemporal
+            )
+              throw new Error('The negative probe requires a genuine event-history response.');
+            response = { ...response, advance };
+          }
+          deliveredAdvances.push({
+            clockProfileId: original.state.continuation?.clockProfileId,
+            committedMicroseconds: original.committedHorizonMicroseconds,
+            requestedMicroseconds: original.requestedHorizonMicroseconds,
+            temporal: original.ledTemporal,
+            solved: original.result?.solved === true,
+            qualityPassed: original.result?.quality?.passed === true,
+            hadTemporalHistory: original.ledTemporal !== undefined,
+            deliveredTemporalHistory: response.advance.ledTemporal !== undefined,
+          });
+        }
+        this.onmessage?.({ data: response } as MessageEvent<ElectronicsSimulationWorkerResponse>);
+      }
     });
   }
   terminate() {
@@ -144,7 +200,9 @@ beforeAll(() => {
   );
   initial = normalizeLoadedDocument(fixture);
 });
-async function prepare() {
+async function prepare(projectDocument: SchematicDocument = initial) {
+  omitEventHistoryInTransit = false;
+  deliveredAdvances.length = 0;
   vi.useFakeTimers({
     toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
   });
@@ -152,7 +210,7 @@ async function prepare() {
   vi.stubGlobal('Worker', InProcessWorker);
   localStorage.clear();
   revision = 1;
-  saved = structuredClone(initial);
+  saved = structuredClone(projectDocument);
   vi.spyOn(api, 'me').mockResolvedValue({
     ok: true,
     status: 200,
@@ -236,7 +294,8 @@ async function toggle() {
     await c().toggleSimulation();
   });
   await act(async () => {
-    for (let index = 0; index < 20; index++) await Promise.resolve();
+    // Start now loads the real controller module before its Worker can reply.
+    await vi.dynamicImportSettled();
   });
   if (c().simulationRunning) expect(c().simulationStatus).toBe('running');
 }
@@ -252,10 +311,74 @@ afterEach(async () => {
 });
 
 describe('PSU pupil settings use the real document/recovery/save queue', () => {
+  it.each([false, true])(
+    'retains mandatory genuine D13 event history when transport drops it = %s',
+    async (dropHistory) => {
+      const uno = initial.components.find((component) => component.id === 'uno');
+      if (!uno) throw new Error('Missing unchanged Uno fixture.');
+      await prepare({ ...initial, components: [uno], connections: [] });
+      omitEventHistoryInTransit = dropHistory;
+      await toggle();
+      expect(deliveredAdvances.length).toBeGreaterThan(0);
+      expect(deliveredAdvances[0]!.committedMicroseconds).toBe(0);
+      let prior = 0;
+      const d13: Array<{ atMicroseconds: number; voltage: number }> = [];
+      for (const receipt of deliveredAdvances) {
+        expect(receipt).toMatchObject({
+          clockProfileId: 'electrothermal-events-v2',
+          solved: true,
+          qualityPassed: true,
+          hadTemporalHistory: true,
+          deliveredTemporalHistory: !dropHistory,
+        });
+        expect(Number.isSafeInteger(receipt.committedMicroseconds)).toBe(true);
+        expect(receipt.committedMicroseconds).toBeGreaterThanOrEqual(prior);
+        expect(receipt.requestedMicroseconds).toBe(receipt.committedMicroseconds);
+        expect(receipt.temporal!.fromMicroseconds).toBe(prior);
+        expect(receipt.temporal!.toMicroseconds).toBe(receipt.committedMicroseconds);
+        const uno = receipt.temporal!.arduinoIndicators!.find(
+          (entry) => entry.componentId === 'uno',
+        );
+        expect(uno).toBeDefined();
+        expect(uno!.truncated).toBe(false);
+        expect(uno!.samples[0]!.atMicroseconds).toBe(prior);
+        expect(uno!.samples.at(-1)!.atMicroseconds).toBe(receipt.committedMicroseconds);
+        for (const sample of uno!.samples) {
+          expect(Number.isSafeInteger(sample.atMicroseconds)).toBe(true);
+          expect(sample.atMicroseconds).toBeGreaterThanOrEqual(prior);
+          expect(sample.atMicroseconds).toBeLessThanOrEqual(receipt.committedMicroseconds);
+          expect(Number.isFinite(sample.voltage)).toBe(true);
+          d13.push(sample);
+        }
+        prior = receipt.committedMicroseconds;
+      }
+      expect(d13).toContainEqual({ atMicroseconds: 0, voltage: 0 });
+      if (dropHistory) expect(deliveredAdvances).toHaveLength(1);
+      else expect(d13).toContainEqual({ atMicroseconds: 1, voltage: 4.99999999995 });
+      expect(c().simulationRunning).toBe(!dropHistory);
+      expect(c().document!.simulation.running).toBe(!dropHistory);
+      if (dropHistory) {
+        expect(c().simulationMessage?.code).toBe('invalid-response');
+        expect(c().result).toBeNull();
+      } else {
+        expect(c().simulationStatus).toBe('running');
+        expect(c().simulationMessage?.code).not.toBe('invalid-response');
+      }
+    },
+  );
+
   it('persists only U/I/value during Run and retains the whole document across Stop/Run and manual Save', async () => {
     const save = await prepare();
     await toggle();
     expect(c().simulationRunning).toBe(true);
+    expect(deliveredAdvances[0]).toMatchObject({
+      clockProfileId: 'electrothermal-v1',
+      committedMicroseconds: 0,
+      solved: true,
+      qualityPassed: true,
+      hadTemporalHistory: false,
+      deliveredTemporalHistory: false,
+    });
     await act(async () =>
       c().setRegulatedPowerSupplyControls('supply', {
         voltageSetpointVolt: 7.5,

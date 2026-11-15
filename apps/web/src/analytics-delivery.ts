@@ -2,10 +2,12 @@ import { newClientId } from './client-id';
 import {
   actorKey,
   confirmedAnalytics,
+  isTelemetryModule,
   keys,
   record,
   sendTelemetry,
   sessionStoragePort,
+  telemetryRetryDelay,
   uuid,
   validActor,
   validEnvelope,
@@ -46,11 +48,13 @@ export class AnalyticsDelivery {
   private sessions: Session[] = [];
   private visits: AnalyticsEnvelope[] = [];
   private inFlight: AnalyticsEnvelope | null = null;
+  private active: AbortController | undefined;
   private stopped = false;
   private authenticationUnavailable = false;
   private paused = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private failures = 0;
+  private retryAt = 0;
   private waiters = new Map<
     string,
     { promise: Promise<boolean>; resolve: (accepted: boolean) => void }
@@ -154,9 +158,7 @@ export class AnalyticsDelivery {
           !uuid(value.projectId) ||
           !uuid(value.visitId) ||
           sessionIds.has(value.id) ||
-          !['electronics', 'three-d', 'chess', 'checkers', 'blocks'].includes(
-            value.moduleKey as string,
-          ) ||
+          !isTelemetryModule(value.moduleKey) ||
           typeof value.confirmed !== 'boolean' ||
           typeof value.abandoned !== 'boolean'
         ) {
@@ -404,22 +406,42 @@ export class AnalyticsDelivery {
     }
   }
   pause(paused: boolean): void {
+    if (paused && this.paused) return;
     this.paused = paused;
-    if (paused) this.quality.pause();
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = undefined;
+    if (paused) {
+      this.quality.pause();
+      const active = this.active;
+      this.active = undefined;
+      this.inFlight = null;
+      active?.abort();
+      this.persist();
+      if (this.timer) clearTimeout(this.timer);
+      this.timer = undefined;
+    }
     if (!paused) {
       this.quality.start();
       void this.flush();
     }
   }
   retryNow(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = undefined;
+    // Context and connectivity notifications may wake idle work, never bypass a cooldown.
     void this.flush();
+  }
+  private scheduleRetry(): void {
+    this.timer = setTimeout(
+      () => {
+        this.timer = undefined;
+        void this.flush();
+      },
+      Math.max(0, this.retryAt - this.now()),
+    );
   }
   private async flush(): Promise<void> {
     if (this.stopped || this.paused || this.inFlight || this.timer) return;
+    if (this.now() < this.retryAt) {
+      this.scheduleRetry();
+      return;
+    }
     this.prune();
     const envelope =
       this.visits[0] ??
@@ -429,30 +451,30 @@ export class AnalyticsDelivery {
       return;
     }
     this.inFlight = envelope;
+    const active = new AbortController();
+    this.active = active;
     this.persist();
     const outcome = await sendTelemetry(
       envelope.operation ? '/api/analytics/v2/module-session' : '/api/analytics/v2/events',
       envelope,
       { status: 200, confirmed: (value) => confirmedAnalytics(value, envelope) },
       this.transport,
+      active.signal,
     );
+    if (this.active !== active) return;
+    this.active = undefined;
     this.inFlight = null;
     if (this.stopped) return;
     if (outcome.kind === 'retry' && !this.expired(envelope)) {
       this.quality.increment('retried');
       this.failures++;
+      this.retryAt = this.now() + telemetryRetryDelay(this.failures, outcome.retryAfterMs);
       this.persist();
-      if (!this.paused)
-        this.timer = setTimeout(
-          () => {
-            this.timer = undefined;
-            void this.flush();
-          },
-          Math.min(30_000, 1000 * 2 ** Math.min(5, this.failures - 1)),
-        );
+      if (!this.paused) this.scheduleRetry();
       return;
     }
     this.failures = 0;
+    this.retryAt = 0;
     if (outcome.kind === 'rejected' && outcome.context) {
       this.authenticationUnavailable = outcome.authentication;
       this.retire();
@@ -490,6 +512,9 @@ export class AnalyticsDelivery {
   }
   retire(): void {
     if (this.stopped) return;
+    const active = this.active;
+    this.active = undefined;
+    active?.abort();
     if (this.operations().length || this.sessions.length) this.quality.unclean();
     for (const event of this.operations()) {
       this.quality.increment('permanentRejected');

@@ -12,6 +12,13 @@ import type { ProjectSnapshot, ProjectSnapshotBytes, SnapshotImage } from '../do
 export interface ProjectActor {
   readonly principalId: string;
   readonly userId: string | null;
+  /** Server-resolved StudentSeat context. Never accepted from a project request body. */
+  readonly studentSession?: {
+    readonly tenantId: string;
+    readonly classroomId: string;
+    readonly seatId: string;
+    readonly tokenHash: string;
+  };
 }
 
 export type ProjectAccessMode = 'read' | 'edit';
@@ -23,7 +30,19 @@ export interface ProjectAuthorization {
   readonly status: ProjectStatus;
 }
 
+/** Trusted exact-publication lineage, supplied only by the server source resolver. */
+export interface PublicationCopyOrigin {
+  readonly projectId: string;
+  readonly publicationId: string;
+  readonly revisionId: string;
+  readonly versionId: string;
+  readonly author: string;
+  readonly title: string;
+  readonly license: 'public-domain';
+}
+
 export interface CreateProjectInput {
+  readonly publicationCopyOrigin?: PublicationCopyOrigin;
   readonly tenantId: string;
   readonly scope: ProjectScope;
   readonly classroomId: string | null;
@@ -93,15 +112,31 @@ export interface SaveSnapshotInput {
   readonly sourceRevision: number;
 }
 
+/** A single command's metadata and identity-bound writer, never a cached grant.
+ * Implementations must recheck current access inside the write transaction.
+ */
+export interface PreparedDraftSave {
+  readonly moduleKey: string;
+  save(
+    input: Pick<SaveDraftInput, 'document' | 'preview' | 'baseRevision' | 'mutationId'>,
+  ): Promise<ProjectDraft | null>;
+}
+
 export type ProjectDocumentValidation =
   | { readonly ok: true; readonly document: unknown }
-  | { readonly ok: false; readonly message: string };
+  | { readonly ok: false; readonly message: string; readonly reasonCode?: string };
 
 /** Subject-neutral contract consumed by Project Core. */
 export interface ProjectModule {
   readonly moduleKey: string;
   readonly defaultProjectTitlePrefix: string;
   validateDocument(value: unknown): ProjectDocumentValidation;
+  validateReplacement?(
+    previous: unknown,
+    next: unknown,
+  ):
+    | { readonly ok: true }
+    | { readonly ok: false; readonly message: string; readonly reasonCode?: string };
   /**
    * The card picture for an already-validated document. Null means the module
    * has nothing to draw yet, which is not an error — the card shows its title
@@ -150,6 +185,8 @@ export interface ProjectRepositoryPort {
     tenantId: string,
     projectId: string,
     actor: ProjectActor,
+    /** Internal projection: return versions:[] without querying history; default is full history. */
+    options?: { readonly includeVersions: false },
   ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null>;
   rename(
     tenantId: string,
@@ -164,6 +201,12 @@ export interface ProjectRepositoryPort {
     status: ProjectStatus,
   ): Promise<Project | null>;
   saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null>;
+  /** Avoid fetching the previous document and resolving the same context twice. */
+  prepareDraftSave?(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<PreparedDraftSave | null>;
   createCheckpoint(
     tenantId: string,
     projectId: string,

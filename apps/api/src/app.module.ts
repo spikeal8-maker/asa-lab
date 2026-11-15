@@ -1,7 +1,25 @@
+import { CheckersNetworkController } from './checkers-network.controller.js';
+import { PersonalProgressController } from './personal-progress.controller.js';
+import { PublicationCommentsController } from './publication-comments.controller.js';
+import { ChessNetworkController } from './chess-network.controller.js';
+import { AiImageService } from './ai-image.service.js';
+import { AiPolzaService } from './ai-polza.service.js';
+import { AI_POLZA_SERVICE, AdminPolzaController, AiSttController } from './ai-polza.controller.js';
+import {
+  AI_IMAGE_SERVICE,
+  AiImageController,
+  AiImageAdminController,
+} from './ai-image.controller.js';
+import { CrmResponsibilitiesController } from './crm-responsibilities.controller.js';
+import { EmailService } from './email.service.js';
+import { EmailController } from './email.controller.js';
 import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
 import { PresentationPreferencesController } from './presentation-preferences.controller.js';
+import { CrmUserController } from './crm-user.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import type pg from 'pg';
+import { runSessionContextQuery } from './session-database-diagnostics.js';
 import {
   AccountLoginUseCase,
   AccountManagementUseCase,
@@ -48,7 +66,18 @@ import {
 } from '@asa-lab/chess-live';
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
+import { AdminPublicProjectsController } from './admin-public-projects.controller.js';
+import { PublicProjectReportsController } from './public-project-reports.controller.js';
+import { PublicScratchPlayerController } from './public-scratch-player.controller.js';
 import { AdminController } from './admin.controller.js';
+import { AiChatController } from './ai-chat.controller.js';
+import { AiAdminController } from './ai-admin.controller.js';
+import { AiToolPolicyController } from './ai-tool-policy.controller.js';
+import { AiChatService } from './ai-chat.service.js';
+import { AiAccessController } from './ai-access.controller.js';
+import { AiAccessService } from './ai-access.service.js';
+import { AiAttachmentController } from './ai-attachments/controller.js';
+import { AiAttachmentService } from './ai-attachments/service.js';
 import { AdminLogsController } from './admin-logs.controller.js';
 import { AdminLogsService } from './admin-logs.service.js';
 import { ClientDiagnosticsController } from './client-diagnostics.controller.js';
@@ -67,8 +96,16 @@ import { ClassroomParticipantsController } from './classroom-participants.contro
 import { ClassroomObservationController } from './classroom-observation.controller.js';
 import { LearningWorkContextController } from './learning-work-context.controller.js';
 import { LearningStartController } from './learning-start.controller.js';
+import { LearningFileAnswersController } from './learning-file-answers.controller.js';
+import { LearningEssayAttemptsController } from './learning-essay-attempts.controller.js';
+import { LearningContentController } from './learning-content.controller.js';
+import { LearningQuizAttemptsController } from './learning-quiz-attempts.controller.js';
 import { LearningRemindersService } from './learning-reminders.service.js';
 import { GalleryController } from './gallery.controller.js';
+import {
+  ProjectPublicationController,
+  PublicProjectsController,
+} from './public-projects.controller.js';
 import { CollectionsController } from './collections.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
 import { ClassroomJoinController } from './classroom-join.controller.js';
@@ -80,6 +117,9 @@ import { createRuntimeMetrics, type RuntimeMetrics } from '@asa-lab/observabilit
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import { ProjectDistributionController } from './project-distribution.controller.js';
+import { GamesAccessController } from './games-access.controller.js';
+import { gamesProjectGuard } from './games-project-guard.js';
 import { BlocksRuntimeSessionController } from './blocks-runtime-session.controller.js';
 import { BlocksRuntimeController } from './blocks-runtime.controller.js';
 import { BlocksRuntimeSessionIssuer } from './blocks-runtime-session-issuer.js';
@@ -89,7 +129,12 @@ import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
 import { ProjectFeedbackService } from './project-feedback.js';
 import { BotChallengeService } from './bot-challenge.js';
+import { BotProviderIngress, IngressProbeRegistry } from './bot-provider-ingress.js';
+import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { MaxAuthService } from './max-auth.service.js';
+import { TelegramAuthService } from './telegram-auth.service.js';
+import { AccountVerificationService } from './account-verification.service.js';
+import { AccountVerificationGuard } from './account-verification.guard.js';
 import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
 import { ProductAnalyticsV2Controller } from './product-analytics-v2.controller.js';
@@ -97,39 +142,18 @@ import { DiagnosticsQualityController } from './diagnostics-quality.controller.j
 import { ProductAnalyticsController } from './product-analytics.controller.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { createBlocksDraftPersistenceGuard } from './blocks-draft-composition.js';
-
-function validationMessage(
-  entry: RegisteredModule,
-  value: unknown,
-):
-  | {
-      readonly ok: true;
-      readonly document: unknown;
-    }
-  | {
-      readonly ok: false;
-      readonly message: string;
-    } {
-  const provider = entry.provider;
-  if (!provider) {
-    return { ok: false, message: `module "${entry.manifest.moduleKey}" has no provider` };
-  }
-  const result = provider.validate(value);
-  if (!result.ok) {
-    return {
-      ok: false,
-      message:
-        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') || 'invalid document',
-    };
-  }
-  return { ok: true, document: result.payload };
-}
+import { validationMessage } from './validation.js';
 
 @Module({})
 export class AppModule {
   static forPool(
     pool: pg.Pool | null,
-    options: { productAnalytics?: ProductAnalyticsService; runtimeMetrics?: RuntimeMetrics } = {},
+    options: {
+      productAnalytics?: ProductAnalyticsService;
+      acquisitionAnalytics?: ProductAnalyticsService;
+      runtimeMetrics?: RuntimeMetrics;
+      authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
+    } = {},
   ): DynamicModule {
     const unavailablePool = new Proxy({} as pg.Pool, {
       get() {
@@ -139,10 +163,38 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
+    // Minimal test ports keep the original query-only adapter; actual runtime
+    // pools provide connect and use the supported measured context runner.
+    const contextQuery =
+      pool && typeof pool.connect === 'function' ? runSessionContextQuery : undefined;
     const runtimeMetrics = options.runtimeMetrics ?? createRuntimeMetrics();
-    const maxAuthService = new MaxAuthService(requirePool());
+    // One registry per application composition, shared only by its provider runtimes.
+    // A second installation in this process must not answer this installation's probe.
+    const authProviderOptions = {
+      ...options.authProviderOptions,
+      ingress:
+        options.authProviderOptions?.ingress ??
+        new BotProviderIngress({ registry: new IngressProbeRegistry() }),
+    };
+    const maxAuthService = new MaxAuthService(requirePool(), authProviderOptions);
+    const telegramAuthService = new TelegramAuthService(requirePool(), authProviderOptions);
+    const emailService = new EmailService(requirePool());
+    const accountVerification = new AccountVerificationService(requirePool(), [
+      maxAuthService,
+      telegramAuthService,
+      emailService,
+    ]);
+    const aiAttachmentService = new AiAttachmentService(pool);
+    const aiImageService = new AiImageService(requirePool());
+    const aiChatService = new AiChatService(requirePool(), {
+      attachments: aiAttachmentService,
+      images: aiImageService,
+    });
+    const aiAccessService = new AiAccessService(requirePool());
+    const aiPolzaService = new AiPolzaService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
-    const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
+    const projectRepository = (): PgProjectRepository =>
+      new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
     // with APP_DATABASE_URL uses the durable RLS-protected repository.
@@ -157,6 +209,42 @@ export class AppModule {
       moduleKey: entry.manifest.moduleKey,
       defaultProjectTitlePrefix: entry.manifest.defaultProjectTitlePrefix,
       validateDocument: (value) => validationMessage(entry, value),
+      ...(entry.provider?.validateReplacement !== undefined
+        ? {
+            validateReplacement: (previous: unknown, next: unknown) => {
+              if (typeof entry.provider?.validateReplacement !== 'function')
+                return { ok: false as const, message: 'Invalid document replacement validation' };
+              const result = entry.provider!.validateReplacement!(previous, next);
+              if (
+                result &&
+                typeof result === 'object' &&
+                !Array.isArray(result) &&
+                result.ok === true &&
+                Object.keys(result).length === 1
+              )
+                return { ok: true as const };
+              if (
+                result &&
+                result.ok === false &&
+                Array.isArray(result.diagnostics) &&
+                result.diagnostics.every(
+                  (item) =>
+                    item && typeof item.message === 'string' && typeof item.code === 'string',
+                )
+              )
+                return {
+                  ok: false as const,
+                  message:
+                    result.diagnostics.map((item) => item.message).join('; ') ||
+                    'Invalid document replacement',
+                  ...(result.diagnostics[0]?.code
+                    ? { reasonCode: result.diagnostics[0].code }
+                    : {}),
+                };
+              return { ok: false as const, message: 'Invalid document replacement validation' };
+            },
+          }
+        : {}),
       // Project Core hands back the document it just validated, so the provider
       // sees its own payload type and the validation never runs twice.
       describePreview: (document) => entry.provider?.createPreview(document) ?? null,
@@ -181,11 +269,25 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        PersonalProgressController,
+        CrmUserController,
+        CrmResponsibilitiesController,
+        EmailController,
         ProductAnalyticsV2Controller,
         DiagnosticsQualityController,
         HealthController,
         AuthController,
         AdminController,
+        AdminPublicProjectsController,
+        AiChatController,
+        AiAccessController,
+        AiAttachmentController,
+        AiImageController,
+        AiImageAdminController,
+        AdminPolzaController,
+        AiSttController,
+        AiAdminController,
+        AiToolPolicyController,
         AdminLogsController,
         ClientDiagnosticsController,
         AccountC1Controller,
@@ -201,7 +303,16 @@ export class AppModule {
         ClassroomObservationController,
         LearningWorkContextController,
         LearningStartController,
+        LearningEssayAttemptsController,
+        LearningFileAnswersController,
+        LearningQuizAttemptsController,
+        LearningContentController,
         GalleryController,
+        ProjectPublicationController,
+        PublicProjectsController,
+        PublicationCommentsController,
+        PublicScratchPlayerController,
+        PublicProjectReportsController,
         CollectionsController,
         ClassroomsController,
         ClassroomJoinController,
@@ -209,14 +320,19 @@ export class AppModule {
         ClassroomTeacherInvitationsController,
         ModulesController,
         ProjectsController,
+        GamesAccessController,
+        ProjectDistributionController,
         BlocksRuntimeSessionController,
         BlocksRuntimeController,
         CheckersClassroomController,
         ChessLiveController,
+        ChessNetworkController,
+        CheckersNetworkController,
         VersionController,
         ProductAnalyticsController,
       ],
       providers: [
+        { provide: APP_GUARD, useClass: AccountVerificationGuard },
         { provide: AdminLogsService, useFactory: () => new AdminLogsService() },
         LearningRemindersService,
         { provide: TOKENS.pool, useValue: pool },
@@ -228,7 +344,19 @@ export class AppModule {
         { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
         { provide: TOKENS.maxAuthService, useValue: maxAuthService },
+        { provide: TOKENS.telegramAuthService, useValue: telegramAuthService },
+        { provide: TOKENS.accountVerification, useValue: accountVerification },
+        { provide: TOKENS.emailService, useValue: emailService },
+        { provide: TOKENS.aiChatService, useValue: aiChatService },
+        { provide: AI_IMAGE_SERVICE, useValue: aiImageService },
+        { provide: AI_POLZA_SERVICE, useValue: aiPolzaService },
+        { provide: TOKENS.aiAccessService, useValue: aiAccessService },
+        { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
+        {
+          provide: TOKENS.acquisitionAnalytics,
+          useValue: options.acquisitionAnalytics ?? new ProductAnalyticsService(null),
+        },
         {
           provide: TOKENS.refreshSessionService,
           useFactory: () => new RefreshSessionService(requirePool()),
@@ -252,7 +380,7 @@ export class AppModule {
             new LoginUseCase(
               new PgTenantLocator(requirePool()),
               new PgAccountDirectory(requirePool()),
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
             ),
         },
         {
@@ -267,7 +395,7 @@ export class AppModule {
           provide: TOKENS.activeContextUseCase,
           useFactory: () =>
             new ActiveContextUseCase(
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
               new PgSessionStore(requirePool()),
               new PgAccountDirectory(requirePool()),
             ),
@@ -281,7 +409,7 @@ export class AppModule {
           useFactory: () =>
             new AccountLoginUseCase(
               new PgAccountDirectory(requirePool()),
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
             ),
         },
         {
@@ -289,7 +417,7 @@ export class AppModule {
           useFactory: () =>
             new AccountManagementUseCase(
               new PgAccountDirectory(requirePool()),
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
             ),
         },
         {

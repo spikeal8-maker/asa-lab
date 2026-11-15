@@ -26,6 +26,248 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-LRN-FILE-COURSE-BROWSER-001
+    title: Teacher and learner complete the immutable file-answer journey in a mixed Course with real private object storage
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/testing/learning-e1-browser.mjs
+    timeout_seconds: 1800
+    owner: learning
+    artifacts: [playwright-report, learning-file-course-screenshots]
+  - id: TST-LEARNING-ESSAY-COURSE-001
+    title: Written Course responses preserve exact publication, learner authority, revisions, immutable evidence, rework and canonical journal results
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/learning-essay-course-runtime.pg.spec.ts tests/courses/learning-essay-attempts.controller.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-PUBLICATION-BROWSER-ISOLATION-001
+    title: Publication browser partitions preserve every scenario and use sequential owned API lifecycles without retry or limiter changes
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node --test tools/projects-publication-partitions.test.mjs
+    timeout_seconds: 30
+    owner: identity
+    artifacts: [node-test-report]
+  - id: TST-JOINT-PREFIX-CANONICAL-MIGRATIONS-001
+    title: Real historical Course and joint Learning prefixes reach the complete canonical tail while preserving data, defaults, ACL, ledger and rejected unsupported history
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/migration/course-structure-forward-upgrade.pg.spec.ts tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts --maxWorkers=1
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001
+    title: Canonical published migrations and byte-preserved unreleased queue upgrade school schema 286 through 300 with exact ledger and owned uncertain jobs intact
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm gate:ai-image-queue
+    timeout_seconds: 1200
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-LRN-QUIZ-COMPLETE-COURSE-001
+    title: Eight-type persistent Quiz authoring, exact Attempt submission, automatic and pending manual journal results, saved-answer expiry and narrow author/Seat authority
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/quiz-complete-course.pg.spec.ts tests/courses/learning-content.controller.spec.ts tests/courses/learning-quiz-attempts.controller.spec.ts apps/api/src/account-verification.guard.spec.ts apps/web/src/learning/testing/quiz-complete-ui.spec.ts
+    timeout_seconds: 300
+    owner: learning
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-LRN-QUIZ-ATTEMPT-STATE-001
+    title: Exact Quiz Start replay, confirmed answer revision, identity isolation and server deadline without academic result writes
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/courses/quiz-attempt-state.pg.spec.ts tests/courses/learning-quiz-attempts.controller.spec.ts apps/api/src/account-verification.guard.spec.ts
+    timeout_seconds: 300
+    owner: learning
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-TOKEN-BUDGETS-CORE-001
+    title: Soft monthly model budgets, actual journal settlement, retained unknowns, complete native rounds, own-principal privacy and independent CAS settings
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-token-budgets.spec.ts apps/web/src/admin/testing/ai-token-budgets.spec.ts tests/admin/ai-token-budgets.embedded.spec.ts
+    timeout_seconds: 120
+    owner: ai-assistant
+    artifacts: [test-report]
+  - id: TST-AI-TOKEN-BUDGETS-PG-001
+    title: Independent PostgreSQL global and principal admission concurrency in an exclusively owned disposable database
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-token-budgets.pg.spec.ts
+    timeout_seconds: 120
+    owner: ai-assistant
+    artifacts: [test-report]
+  - id: TST-AI-TOKEN-BUDGETS-E2E-001
+    title: Built Web and real API per-user budget save, complete overage, pre-dispatch exhaustion, replay and responsive Settings evidence
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-token-budgets
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [playwright-report, screenshots]
+
+  - id: TST-AI-USAGE-OVERVIEW-CORE-001
+    title: AI overview finite loading, honest token completeness, exact decimal sums and administrator-specific navigation
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-usage-overview.spec.ts apps/web/src/admin/testing/ai-usage-overview.spec.ts apps/web/src/admin/testing/ai-admin-navigation.spec.ts
+    timeout_seconds: 120
+    owner: ai-assistant
+    artifacts: [vitest-report]
+  - id: TST-AI-USAGE-OVERVIEW-PG-001
+    title: Existing journal UTC aggregates, composite request identity, replay, null usage and real SQL/HTTP administrative authorization
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-usage-overview.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-USAGE-OVERVIEW-E2E-001
+    title: Built API/Web overview with real PostgreSQL metrics, compact height bounds, keyboard navigation, partial/empty/failure states and matching pre-density screenshots
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [playwright-report, ai-usage-overview-screenshots, safe-overview-summary, safe-density-measurements]
+
+  - id: TST-AI-ATTACHMENTS-CORE-001
+    title: Private bounded attachment bytes, native early errors and response lifetime, actual HTTP owner boundary, shared mutation proof and immutable embedded SQL receipts
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-attachments apps/api/src/abuse-protection.spec.ts apps/api/src/account-verification.guard.spec.ts tests/admin/ai-attachments.embedded.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, embedded-postgresql-report]
+  - id: TST-AI-ATTACHMENTS-PG-001
+    title: Restricted runtime role attachment ownership, reservation quotas, binding races and leased lifecycle concurrency
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-attachments.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-ATTACHMENTS-S3-001
+    title: Opt-in owned CI MinIO private immutable blobs, bounded digest verification and lost-write or delete reply reconciliation
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/ai-attachments/storage.s3.spec.ts
+    timeout_seconds: 180
+    owner: ai-assistant
+    artifacts: [vitest-report, private-storage-reconciliation-report]
+  - id: TST-AI-FIXTURE-STARTUP-001
+    title: Actual fixture CLI rejects incomplete asynchronous startup without Docker or network access
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node --test tests/ai-attachments/minio-fixture.test.mjs
+    timeout_seconds: 30
+    owner: ai-assistant
+    artifacts: [node-test-report]
+  - id: TST-AI-CLOUD-PG-001
+    title: Separate encrypted cloud provider credentials, Ollama Cloud transport, paid admission and durable usage
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-model-catalog.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-TEXT-CORE-001
+    title: Complete owner history, immutable answer receipts, provider usage journal, safe math and forward upgrade
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-chat
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, embedded-postgresql-report]
+  - id: TST-AI-TEXT-PG-001
+    title: Restricted PostgreSQL owner history, immutable usage journal, non-refundable regeneration and concurrent admission or archive
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-text-history.pg.spec.ts tests/admin/ai-usage-journal.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-TEXT-E2E-001
+    title: Responsive search, archive, independent requests, true new answers, school scope and safe mathematical content
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-chat
+    timeout_seconds: 600
+    owner: ai-assistant
+    artifacts: [playwright-report, text-chat-screenshots]
+  - id: TST-AI-ACCESS-CORE-001
+    title: AI trusted Account/Seat access, immutable ownership, exact replay and migration preservation
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-chat
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, embedded-postgresql-report]
+  - id: TST-AI-ACCESS-PG-001
+    title: Teacher admission, stable school history and restricted PostgreSQL ownership
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-student-access.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-ACCESS-E2E-001
+    title: Student and teacher AI access, separate personal/school state and responsive settings
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-chat
+    timeout_seconds: 600
+    owner: ai-assistant
+    artifacts: [playwright-report, student-chat-screenshots, teacher-access-screenshots]
   - id: TST-OBS-DATABASE-PROGRESS-001
     title: Bounded database pages preserve same-time progress, retry, mutable rereads and truthful backlog
     suite: integration
@@ -130,6 +372,12 @@ tests:
     owner: admin-auth
     artifacts: [owner-evidence-report, production-version-report, recovery-report]
   - id: TST-ARCH-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared governance resources serialize and different groups may run independently.
+      order: 10
+      group: governance
+      after: []
     title: Architecture foundation validation
     suite: governance
     level: repository
@@ -207,6 +455,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-FORMAT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 10
+      group: workspace
+      after: []
     title: Repository formatting
     suite: static
     level: repository
@@ -218,6 +472,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-LINT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 20
+      group: workspace
+      after: []
     title: Repository lint
     suite: static
     level: repository
@@ -229,6 +489,12 @@ tests:
     artifacts: [console-report]
 
   - id: TST-TYPE-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 30
+      group: workspace
+      after: []
     title: Strict TypeScript typecheck
     suite: static
     level: repository
@@ -251,6 +517,12 @@ tests:
     artifacts: [nx-project-graph, console-report]
 
   - id: TST-BUILD-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 50
+      group: workspace
+      after: ["TST-TYPE-001"]
     title: Production build
     suite: static
     level: repository
@@ -262,6 +534,12 @@ tests:
     artifacts: [build-manifest]
 
   - id: TST-CONTRACT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 40
+      group: workspace
+      after: []
     title: OpenAPI and JSON Schema validation
     suite: contracts
     level: repository
@@ -317,6 +595,9 @@ tests:
     artifacts: [console-report]
 
   - id: TST-MIGRATION-001
+    local_check:
+      eligible: false
+      reason: Formal database checks require isolated CI; local Docker and working databases are never started.
     title: Database migration smoke against isolated PostgreSQL
     suite: integration
     level: database
@@ -339,6 +620,9 @@ tests:
     artifacts: [junit]
 
   - id: TST-RLS-001
+    local_check:
+      eligible: false
+      reason: Formal database checks require isolated CI; local Docker and working databases are never started.
     title: Runtime database role and RLS defense-in-depth
     suite: authorization
     level: database
@@ -361,6 +645,12 @@ tests:
     artifacts: [authorization-matrix, junit]
 
   - id: TST-SECRET-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared security resources serialize and different groups may run independently.
+      order: 10
+      group: security
+      after: []
     title: Secret scanning
     suite: security
     level: repository
@@ -989,3 +1279,450 @@ tests:
     timeout_seconds: 2400
     owner: checkers
     artifacts: [playwright-report, checkers-screenshots, browser-failure-report]
+
+  - id: TST-GAMES-ADMISSION-CORE-001
+    title: Current Seat game policy evaluation, teacher HTTP controls and fail-closed client admission
+    suite: authorization
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm vitest run apps/api/src/games-access.spec.ts apps/api/src/games-access.controller.spec.ts apps/api/src/games-project-guard.spec.ts tests/games-admission/student-game-admission.embedded.spec.ts apps/web/src/games/open-game.spec.ts apps/web/src/games/game-access-api.spec.ts
+    timeout_seconds: 180
+    owner: identity
+    artifacts: [vitest-report]
+  - id: TST-GAMES-ADMISSION-PG-001
+    title: Isolated PostgreSQL runtime-role game admission, full HTTP lifecycle, foreign scopes and concurrent revoke
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm vitest run tests/games-admission/student-game-admission.pg.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [vitest-report, isolated-postgresql-admission-report]
+  - id: TST-GAMES-ADMISSION-E2E-001
+    title: Real teacher class and Seat controls, persisted offline move, revoked direct route and four viewport layouts
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/games-admission.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [playwright-report, games-admission-desktop-screenshot, games-admission-mobile-screenshot]
+
+  - id: TST-ADMIN-OVERVIEW-UNIT-001
+    title: Identity-bound admin access and scope-range-bound dashboard refresh with real readable chart axes
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-OVERVIEW-UI-001
+    title: Built admin shell revalidation, revocation, cross-identity isolation and four viewport overview layout
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:settings-ui e2e/admin-dashboard-ui.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [playwright-report, admin-desktop-screenshot, admin-mobile-screenshot]
+
+  - id: TST-ADMIN-CATALOG-UNIT-001
+    title: Closed catalog query validation, read-only timeout boundary and typed stale-safe UI server pagination
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/admin-user-catalog.spec.ts apps/api/src/admin.controller.spec.ts apps/web/src/admin/testing/admin-user-catalog.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-CATALOG-PG-001
+    title: Full typed CRM filtering, aggregates, CSV bounds, exact organization bindings, revocation and microsecond cursor proof
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts tests/admin/crm-directory.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-catalog-report]
+
+  - id: TST-ADMIN-HISTORY-UNIT-001
+    title: Typed retained-history validation, success audit and stale-safe lazy UI pagination
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/admin-user-history.spec.ts apps/web/src/admin/testing/admin-user-history.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-HISTORY-PG-001
+    title: Retained history beyond fifty records, exact Account Seat separation, scope denial and cursor binding
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/admin-user-history.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-history-report]
+
+  - id: TST-CRM-CARD-UNIT-001
+    title: Typed full CRM request validation, profile conflicts, literal transcript rendering and stale response guards
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/crm-user.controller.spec.ts apps/api/src/crm-responsibilities.controller.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts apps/web/src/admin/testing/crm-seat-detail.spec.ts apps/web/src/admin/testing/crm-responsibilities.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-CRM-CARD-PG-001
+    title: Full retained CRM contents, exact teacher scope, immutable profile audit and concurrent administrator protection
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/crm-user-cards.pg.spec.ts tests/admin/crm-retained-detail.pg.spec.ts tests/admin/crm-responsibilities.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-crm-report]
+
+  - id: TST-EMAIL-PROOF-UNIT-001
+    title: Secret storage, strict SMTP transport, honest readiness, proof redaction and current Account confirmation UI
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/email.service.spec.ts apps/api/src/email.controller.spec.ts apps/web/src/email-api.spec.ts apps/web/src/admin/testing/email-settings.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-EMAIL-PROOF-PG-001
+    title: Atomic one-use email changes, exact Account authority, races, expiry, duplicate email and immutable safe audit
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:email-verification:pg
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-email-proof-report]
+
+  - id: TST-AI-WEB-CORE-001
+    title: Free retrieval provider bounds and immutable owner replay
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-web-search-provider.spec.ts tests/admin/ai-web-search.embedded.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-GENERATION-POLICY-001
+    title: Canonical owner prompt context and cross-provider generation policy
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-generation-policy.spec.ts tests/admin/ai-generation-policy.embedded.spec.ts apps/web/src/admin/testing/ai-generation-policy.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-GENERATION-POLICY-E2E-001
+    title: Prompt settings and internet policy administration at four widths
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-generation-policy.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-TOOL-POLICY-001
+    title: Platform-admin native tool controls, immutable snapshots and embedded SQL admission
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-chat
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report, embedded-postgresql-report]
+
+  - id: TST-AI-WEB-PG-001
+    title: Concurrent PostgreSQL retrieval intent and global geocoder admission
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-web-search.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-WEB-E2E-001
+    title: Source cards image previews forecast and internet settings
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-web-search.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-IMAGE-CORE-001
+    title: Local image job ownership, at-most-once dispatch, bounded PNG and recoverable private storage
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-image-comfyui.spec.ts tests/admin/ai-image-generation.embedded.spec.ts apps/web/src/ai/ai-image-generation.spec.ts apps/web/src/ai/ai-generated-image.spec.ts apps/web/src/admin/testing/ai-images.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-IMAGE-E2E-001
+    title: Image mode, private PNG preview and download, readonly recovery and image administration
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-image-generation.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-STUDENT-PROJECT-POLICY-UNIT-001
+    title: Exact-class authenticated policy commands and unforgeable authority
+    suite: authorization
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/project-distribution.controller.spec.ts apps/api/src/public-projects.spec.ts apps/web/src/components/ClassroomProjectSettings.spec.ts
+    timeout_seconds: 120
+    owner: identity
+    artifacts: [vitest-report]
+  - id: TST-STUDENT-PROJECT-POLICY-PG-001
+    title: Real Seat immutable publication, policy CAS races, protected origins and public Scratch authority
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/portal/student-project-policy.pg.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [vitest-report]
+  - id: TST-STUDENT-PROJECT-POLICY-E2E-001
+    title: Real teacher and Seat publication controls at 320, 390 and 1440 pixels
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/student-project-policy.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [playwright-report, student-project-policy-screenshots]
+
+  - id: TST-PROJECT-ACQUISITION-UNIT-001
+    title: Verified global acquisition CAS and canonical Seat copy transport
+    suite: authorization
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/public-project-copy.spec.ts apps/api/src/admin-public-projects.controller.spec.ts apps/web/src/admin/testing/publication-acquisition.spec.ts apps/web/src/projects-public/CopyPublicProject.spec.ts
+    timeout_seconds: 120
+    owner: projects
+    artifacts: [vitest-report]
+  - id: TST-PROJECT-ACQUISITION-PG-001
+    title: Real Account and Seat immutable copy, global and author OFF, CAS and concurrency
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/portal/public-project-copy.pg.spec.ts tests/portal/public-project-moderation.pg.spec.ts
+    timeout_seconds: 300
+    owner: projects
+    artifacts: [vitest-report]
+  - id: TST-PROJECT-ACQUISITION-E2E-001
+    title: Account and Seat public V1 copy, real 3D and Electronics edit save reopen
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/public-project-copy.spec.ts --workers=1
+    timeout_seconds: 900
+    owner: projects
+    artifacts: [playwright-report, public-projects-copy-screenshots]
+
+  - id: TST-DEVEX-CI-METRICS-001
+    title: Read-only CI collection, bounded pagination, attempts, honest timing and billing, static DAG coverage and offline JSON reproduction
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: [TASK-DEVEX-ENGINE-001]
+    command: python tools/test_ci_metrics.py
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-SHADOW-UNIT-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared python-tests resources serialize and different groups may run independently.
+      order: 10
+      group: python-tests
+      after: []
+    title: Shadow selection fail-closed, Git diff and independent required-check controls without Node dependencies
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_plan.py
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [test-report]
+  - id: TST-DEVEX-SHADOW-INTEGRATION-001
+    local_check:
+      eligible: true
+      reason: Read-only local verification; shared workspace resources serialize and different groups may run independently.
+      order: 20
+      group: workspace
+      after: []
+    title: Real Nx graph, TypeScript import parser and historical shadow selection controls
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:devex-plan:integration
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [shadow-control-report]
+
+  - id: TST-DEVEX-CI-REQUIRED-001
+    title: Exact-source General aggregate rejects missing skipped cancelled failed and inapplicable mandatory jobs
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_ci_required.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-CONTRACT-001
+    title: Versioned General accepted-base selection and actual applicable exact-source results fail closed
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_ci_contract.py
+    timeout_seconds: 180
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CI-EFFECT-INTEGRATION-001
+    title: General contract reuses the installed AST helper for an actual accepted CSS effect and unsupported effect rejection
+    suite: contracts
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-python.mjs tools/test_devex_ci_contract.py --helper-integration
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-DEVEX-CHECK-001
+    title: Changed local runner preflight, actual subprocess failure and timeout, safe scheduling and isolated Python bootstrap
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:dev-check
+    local_check:
+      eligible: true
+      reason: Owned temporary execution fixtures only; no application server, browser or database.
+      order: 20
+      group: workspace
+      after: []
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [test-report]
+
+  - id: TST-COLLECT-PICKER-FORMAT-001
+    title: Collection picker production and complete component test-family formatting
+    suite: static
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --format
+    local_check:
+      eligible: true
+      reason: Fixed owned production and test-family files only; no runtime.
+      order: 10
+      group: workspace
+      after: []
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [console-report]
+
+  - id: TST-COLLECT-PICKER-LINT-001
+    title: Collection picker production component and complete test-family ESLint
+    suite: static
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --lint
+    local_check:
+      eligible: true
+      reason: Fixed owned TypeScript component and test-family files only; no runtime.
+      order: 20
+      group: workspace
+      after: [TST-COLLECT-PICKER-FORMAT-001]
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [console-report]
+
+  - id: TST-COLLECT-PICKER-UNIT-001
+    title: Actual collection picker busy, create, mutation and close lifecycle
+    suite: integration
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: node tools/devex-local-ui.mjs --components
+    local_check:
+      eligible: true
+      reason: Actual production React component with jsdom and mocked API; no server, browser or database.
+      order: 30
+      group: workspace
+      after: [TST-COLLECT-PICKER-LINT-001]
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [vitest-report]
+
+  # Requires the built Web SPA. Controlled REST proves UI behavior only;
+  # existing real authorization/RLS/data journeys remain separate and mandatory.
+  - id: TST-COLLECT-PICKER-BROWSER-001
+    title: Built My Projects collection picker lifecycle and four viewport geometry with controlled REST
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/project-collections-baseline.spec.ts
+    local_check:
+      eligible: false
+      reason: Isolated CI browser verification only.
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [playwright-report, collection-picker-screenshots, collection-picker-geometry]

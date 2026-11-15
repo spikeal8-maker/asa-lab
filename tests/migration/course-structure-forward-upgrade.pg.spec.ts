@@ -85,7 +85,119 @@ describe('Course Builder structure forward upgrade', () => {
         '0210', // Bind history content checks to class candidates; preserve data and caller settings.
         '0211', // Canonical manual material delivery.
         '0212', // Exact published catalogue copy.
-        '0214', // Additive Safe Mode publication guards; do not rewrite saved learning data.
+        '0213', // Read-only canonical class rating summary; preserves all historical data.
+        '0214', // Account-scoped AI Assistant settings, messages and stream status.
+        '0215', // Platform-wide paid AI operation quota.
+        '0216', // Nonblocking session context heartbeat; preserves expiry and authority checks.
+        '0217', // Future-write diagnostic address provenance; preserves historical observations.
+        '0218', // Generation-bound MAX/Telegram identities, pairing and provider availability.
+        '0219', // Optional Account verification policy; preserves course and learner history.
+        '0222', // Server-checked classroom games policy without historical backfill.
+        '0223', // Atomic server-side game admission and project creation.
+        '0224', // Canonical identity initialization for newly created classroom Seats.
+        '0225', // Provider ingress/readiness receipts; preserves course and learner history.
+        '0226', // StudentSeat AI admission preserves existing course and learner history.
+        '0227', // AI model catalog and isolated provider credentials; preserves course and learner history.
+        '0228', // Searchable AI archives and immutable answer variants preserve course and learner history.
+        '0229', // Private AI attachment storage preserves existing messages, receipts and course history.
+        '0230', // Read-only historical course version pins preserve published data.
+        '0231', // Structured prepublish diagnostics preserve exact publication receipts.
+        '0232', // Archive and assignment serialize without rewriting existing delivery.
+        '0233', // Function-local participant read JIT settings preserve definitions and data.
+        '0234', // Explicit immutable Public Projects publication; protects originals.
+        '0235', // Exact immutable public Project copy.
+        '0236',
+        '0237', // Published StudentSeat heartbeat; preserve its existing migration.
+        '0238', // New editorial choice migration follows StudentSeat.
+        '0239', // Optional LAN Ollama with independent local admission.
+        '0240', // Function-local JIT for canonical Teacher Home projection.
+        '0241', // Native MAX external-only registration preserves canonical account bootstrap.
+        '0242', // Local Ollama atomic attachment binding leaves Courses history unchanged.
+        '0243', // Source attachment recovery for answer variants is additive.
+        '0244', // Private usage journal is additive and preserves historic quota.
+        '0245', // Typed admin catalog and bounded server keyset continuation.
+        '0246', // Read-only retained per-user history.
+        '0247', // Full typed CRM cards and exact teacher educational reads.
+        '0248', // Encrypted SMTP and one-use verified Account email proof.
+        '0249', // Filtered CRM aggregates/export and explicit organization class binding.
+        '0250', // Exact Seat retained detail and immutable educational notes.
+        '0251', // Scoped organization and exact-class responsibilities.
+        '0252', // Additive Ollama Cloud credentials preserve course data.
+        '0253', // Optional scoped campaign observations and factual catalog projections.
+        '0254', // Free server internet evidence and bounded public weather cache.
+        '0255', // Read-only administrative visibility of retained legacy publications.
+        '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+        '0257', // Canonical draft timestamp projection repair.
+        '0258', // Immutable Public Projects publication pins.
+        '0259', // Private immutable-revision report intake.
+        '0260', // Exact immutable Electronics public display.
+        '0261', // Complete AI answers preserve existing course history.
+        '0262', // Local owner-bound 30-minute generation lease.
+        '0263', // Governed generation policy and retrieval.
+        '0264', // Private image generation and GPU admission.
+        '0265', // Native tool provenance.
+        '0266', // Administrative tool-policy controls.
+        '0267', // Canonical frozen mixed Course completion, additive only.
+        '0268', // Additive read-only AI usage overview.
+        '0269', // Exact public Scratch player and version-scoped asset reads.
+        '0271', // Accepted Ollama Cloud catalog migration.
+        '0272', // Accepted Ollama Cloud key pool migration.
+        '0273', // Accepted ComfyUI endpoint migration.
+        '0274', // Audited class/Seat distribution and immutable publication admission.
+        '0275', // Global and author acquisition controls.
+        '0276', // Independent providers.
+        '0277', // Cloud pool provider projection.
+        '0278', // Model selection policy.
+        '0279', // Soft monthly token budgets.
+        '0280', // Six image presets.
+        '0281', // Versioned image profiles.
+        '0282', // Local inference overrides preserve legacy defaults.
+        '0283', // Canonical publication likes retain legacy reactions.
+        '0284', // Encrypted Polza credential and bounded STT admission.
+        '0285', // Existing public author name projection, immutable history preserved.
+        '0286', // Bounded search retrieval settings.
+        '0287', // Durable successful-publication-copy aggregate.
+        '0288', // Separate authorization for published Course academic results.
+        '0289', // Publication discussions and independent learner permission.
+        '0290', // Comment likes, pinning and ordering.
+        '0291', // Guarded Account/Seat comment avatars.
+        '0292', // Public author avatars and projects-only catalog projection.
+        '0293', // Catalog sorting before pagination.
+        '0294', // Accepted additive games-network schema in Main.
+        '0295', // Bounded document extraction with private originals.
+        '0296', // Private working files and immutable revisions.
+        '0297', // Polza text provider and bounded model catalogue.
+        '0298', // Exact owner-bound generated-image HTML binding.
+        '0299', // Selected Polza token budget catalog before publication.
+        '0300', // Unreleased durable image queue follows every published canonical migration.
+        '0301', // Scoped Chess presence and recipient-bound challenges.
+        '0302', // Private portal invitation notifications.
+        '0303', // Owner-only publication editor resolution.
+        '0304', // Russian-64 network matches reuse Games identity and policy.
+        '0305', // Robotics projects and authenticated module activity.
+        '0306', // Robotics in the existing immutable publication catalog.
+        '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+        '0308', // Independent eight-tool controls, preserving legacy snapshots.
+        '0309', // Written Course responses reuse the canonical academic chain.
+        '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+        '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+        '0313', // OpenAI Responses catalog admission.
+        '0314', // Polza video catalog category.
+        '0315', // Polza catalog selections and dates.
+        '0316', // Immutable learner file answers in class and Course assignments.
+        '0317', // Event-based admin attendance and Moscow calendar day.
+        '0318', // Operational overview with aligned Moscow intervals and measured activity.
+        '0319', // Function-local JIT at the measured canonical read boundaries.
+        '0320', // Authorized own progress summary; no identity or score writes.
+        '0321', // Qualified ordinary Account admission identity, preserving retained history.
+        '0322', // Learner-only group rating projection, retained Course history unchanged.
+        '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+        '0324', // Classroom merit history and revocation read (canonical main).
+        '0325', // Direct written assignments reuse the academic submission chain.
+        '0326', // Allow large PDF task attachments.
+        '0327', // Expand supported task attachment formats.
+        '0328', // Safe Mode blocks new publications and retroactive public reads.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -327,14 +439,130 @@ describe('Course Builder structure forward upgrade', () => {
           ),
         ).toBe(expectedUpgradeVersions.length - post191Versions.length);
         const post210Versions = expectedUpgradeVersions.filter((version) => Number(version) > 210);
-        expect(post210Versions).toEqual(['0211', '0212', '0214']);
+        expect(post210Versions).toEqual([
+          '0211',
+          '0212',
+          '0213',
+          '0214',
+          '0215',
+          '0216',
+          '0217',
+          '0218',
+          '0219',
+          '0222',
+          '0223',
+          '0224',
+          '0225',
+          '0226',
+          '0227',
+          '0228',
+          '0229',
+          '0230',
+          '0231',
+          '0232',
+          '0233',
+          '0234',
+          '0235',
+          '0236',
+          '0237', // Published StudentSeat heartbeat.
+          '0238', // Additive Public Projects editorial choice.
+          '0239', // Optional LAN Ollama with independent local admission.
+          '0240', // Function-local JIT for canonical Teacher Home projection.
+          '0241', // Native MAX external-only registration preserves canonical account bootstrap.
+          '0242', // Independent local model attachment binding.
+          '0243', // Immutable source attachment recovery.
+          '0244', // Current-only AI usage admissions.
+          '0245', // Typed admin catalog and bounded server keyset continuation.
+          '0246', // Read-only retained per-user history.
+          '0247', // Full typed CRM cards and exact teacher educational reads.
+          '0248', // Encrypted SMTP and one-use verified Account email proof.
+          '0249', // Filtered CRM aggregates/export and explicit organization class binding.
+          '0250', // Exact Seat retained detail and immutable educational notes.
+          '0251', // Scoped organization and exact-class responsibilities.
+          '0252', // Additive Ollama Cloud credentials preserve course data.
+          '0253', // Optional scoped campaign observations and factual catalog projections.
+          '0254', // Free server internet evidence and bounded public weather cache.
+          '0255', // Read-only administrative visibility of retained legacy publications.
+          '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+          '0257', // Canonical draft timestamp projection repair.
+          '0258', // Immutable Public Projects publication pins.
+          '0259', // Private immutable-revision report intake.
+          '0260', // Exact immutable Electronics public display.
+          '0261', // Complete AI answers preserve existing course history.
+          '0262', // Local owner-bound 30-minute generation lease.
+          '0263', // Governed generation policy and retrieval.
+          '0264', // Private image generation and GPU admission.
+          '0265', // Native tool provenance.
+          '0266', // Administrative tool-policy controls.
+          '0267', // Course completion formula from exact frozen lesson practices.
+          '0268', // Additive read-only AI usage overview.
+          '0269', // Exact public Scratch player and version-scoped asset reads.
+          '0271', // Accepted Ollama Cloud catalog migration.
+          '0272', // Accepted Ollama Cloud key pool migration.
+          '0273', // Accepted ComfyUI endpoint migration.
+          '0274', // Audited class/Seat distribution and immutable publication admission.
+          '0275', // Global and author acquisition controls.
+          '0276', // Independent providers.
+          '0277', // Cloud pool provider projection.
+          '0278', // Model selection policy.
+          '0279', // Soft monthly token budgets.
+          '0280', // Six image presets.
+          '0281', // Versioned image profiles.
+          '0282', // Local inference overrides preserve legacy defaults.
+          '0283', // Canonical publication likes retain legacy reactions.
+          '0284', // Encrypted Polza credential and bounded STT admission.
+          '0285', // Existing public author name projection, immutable history preserved.
+          '0286', // Bounded search retrieval settings.
+          '0287', // Durable successful-publication-copy aggregate.
+          '0288', // Exact academic-result authorization independent of Project files.
+          '0289', // Publication discussions and independent learner permission.
+          '0290', // Comment likes, pinning and ordering.
+          '0291', // Guarded Account/Seat comment avatars.
+          '0292', // Public author avatars and projects-only catalog projection.
+          '0293', // Catalog sorting before pagination.
+          '0294', // Accepted additive games-network schema in Main.
+          '0295', // Bounded document extraction with private originals.
+          '0296', // Private working files and immutable revisions.
+          '0297', // Polza text provider and bounded model catalogue.
+          '0298', // Exact owner-bound generated-image HTML binding.
+          '0299', // Selected Polza token budget catalog before publication.
+          '0300', // Unreleased durable image queue follows every published canonical migration.
+          '0301', // Scoped Chess presence and recipient-bound challenges.
+          '0302', // Private portal invitation notifications.
+          '0303', // Owner-only publication editor resolution.
+          '0304', // Russian-64 network matches reuse Games identity and policy.
+          '0305', // Robotics projects and authenticated module activity.
+          '0306', // Robotics in the existing immutable publication catalog.
+          '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+          '0308', // Independent eight-tool controls, preserving legacy snapshots.
+          '0309', // Written Course responses reuse the canonical academic chain.
+          '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+          '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+          '0313', // OpenAI Responses catalog admission.
+          '0314', // Polza video catalog category.
+          '0315', // Polza catalog selections and dates.
+          '0316', // Immutable learner file answers in class and Course assignments.
+          '0317', // Event-based admin attendance and Moscow calendar day.
+          '0318', // Operational overview with aligned Moscow intervals and measured activity.
+          '0319', // Function-local JIT at the measured canonical read boundaries.
+          '0320', // Authorized own progress summary; no identity or score writes.
+          '0321', // Qualified ordinary Account admission identity, preserving retained history.
+          '0322', // Authorized learner-only group pages; retained Course history unchanged.
+          '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+          '0324', // Classroom merit history and revocation read (canonical main).
+          '0325', // Direct written assignments reuse the academic submission chain.
+          '0326', // Allow large PDF task attachments.
+          '0327', // Expand supported task attachment formats.
+          '0328', // Safe Mode blocks new publications and retroactive public reads.
+        ]);
         expect(
           await applyIsolatedTestPlan(
             upgrade,
             plan.filter((item) => Number(item.version) <= 210),
           ),
         ).toBe(post191Versions.length - post210Versions.length);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(3);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(post210Versions.length);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
@@ -379,7 +607,14 @@ describe('Course Builder structure forward upgrade', () => {
       expect(
         (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
           .rows[0],
-      ).toEqual(legacyAttemptBefore);
+      ).toEqual({ ...legacyAttemptBefore, expires_at: null });
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
 
       const draftAfter = (
         await pool.query(

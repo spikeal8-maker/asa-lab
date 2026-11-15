@@ -50,7 +50,7 @@ describe('health controller', () => {
     expect(recorder.status()).toBe(503);
     expect(body).toEqual({
       status: 'not_ready',
-      dependencies: { database: 'down' },
+      dependencies: { database: 'down', credentialConfiguration: 'valid' },
       deployment: UNKNOWN_DEPLOYMENT,
     });
   });
@@ -64,7 +64,7 @@ describe('health controller', () => {
     expect(recorder.status()).toBe(200);
     expect(body).toEqual({
       status: 'ready',
-      dependencies: { database: 'up' },
+      dependencies: { database: 'up', credentialConfiguration: 'valid' },
       deployment: UNKNOWN_DEPLOYMENT,
     });
   });
@@ -80,7 +80,7 @@ describe('health controller', () => {
       const body = await new HealthController(pool, null).ready(recorder.reply);
       expect(recorder.status()).toBe(503);
       expect(body.status).toBe('not_ready');
-      expect(body.dependencies).toEqual({ database: 'up' });
+      expect(body.dependencies).toEqual({ database: 'up', credentialConfiguration: 'valid' });
       expect(body.deployment).toMatchObject({
         schemaVersion: 133,
         expectedSchemaVersion: 134,
@@ -103,7 +103,7 @@ describe('health controller', () => {
     expect(recorder.status()).toBe(503);
     expect(body).toEqual({
       status: 'not_ready',
-      dependencies: { database: 'down' },
+      dependencies: { database: 'down', credentialConfiguration: 'valid' },
       deployment: UNKNOWN_DEPLOYMENT,
     });
   });
@@ -124,7 +124,7 @@ describe('readiness under congestion', () => {
     expect(recorder.status()).toBe(200);
     expect(body).toEqual({
       status: 'ready',
-      dependencies: { database: 'busy' },
+      dependencies: { database: 'busy', credentialConfiguration: 'valid' },
       deployment: UNKNOWN_DEPLOYMENT,
     });
   });
@@ -134,7 +134,7 @@ describe('readiness under congestion', () => {
     const controller = new HealthController(stalledPool(), null);
     let body = {
       status: 'ready',
-      dependencies: { database: 'busy' },
+      dependencies: { database: 'busy', credentialConfiguration: 'valid' },
       deployment: UNKNOWN_DEPLOYMENT,
     } as Awaited<ReturnType<HealthController['ready']>>;
     let status = 200;
@@ -150,7 +150,7 @@ describe('readiness under congestion', () => {
     expect(status).toBe(503);
     expect(body).toEqual({
       status: 'not_ready',
-      dependencies: { database: 'down' },
+      dependencies: { database: 'down', credentialConfiguration: 'valid' },
       deployment: UNKNOWN_DEPLOYMENT,
     });
   });
@@ -174,7 +174,7 @@ describe('readiness under congestion', () => {
     expect(second.status()).toBe(200);
     expect(body).toEqual({
       status: 'ready',
-      dependencies: { database: 'up' },
+      dependencies: { database: 'up', credentialConfiguration: 'valid' },
       deployment: UNKNOWN_DEPLOYMENT,
     });
   });

@@ -1,0 +1,877 @@
+import { expect, test, type Page } from '@playwright/test';
+import type { AiOllamaCloudPool, AiOllamaCloudKeyUpdate } from '@asa-lab/contracts';
+import type { AiAdminConfig, AiProvider } from '../apps/web/src/admin/ai-model-config';
+import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
+import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
+
+const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
+const WORKSPACE_ID = '10000000-0000-4000-8000-000000000001';
+const NOW = '2026-10-19T12:00:00.000Z';
+
+async function adminFixture(page: Page, initial = aiAdminFixture()) {
+  let config = structuredClone(initial);
+  const writes: Record<string, unknown>[] = [];
+  const paidTests: unknown[] = [];
+  const deepSeekCatalogChecks: boolean[] = [];
+  const policyWrites: Record<string, unknown>[] = [];
+  const poolWrites: { configurationVersion: number; keys: AiOllamaCloudKeyUpdate[] }[] = [];
+  let pool: AiOllamaCloudPool = {
+    configurationVersion: config.configurationVersion,
+    managed: false,
+    models: config.modelCatalog.models
+      .filter((model) => model.provider === 'ollama-cloud')
+      .map((model) => ({
+        id: model.id,
+        model: model.id,
+        active: true,
+        capabilities: model.id === 'gemma4:31b' ? ['completion', 'vision'] : ['completion'],
+      })),
+    keys: Array.from({ length: 5 }, (_, index) => ({
+      slot: index + 1,
+      label: 'Ключ ' + (index + 1),
+      priority: index + 1,
+      enabled: false,
+      configured: false,
+      fingerprint: null,
+      models: [],
+      account: null,
+      blockedUntil: null,
+      unavailableModels: [],
+    })),
+  };
+  const ollamaWrites: Record<string, unknown>[] = [];
+  const ollamaDiscoveries: Record<string, unknown>[] = [];
+  const ollamaTests: Record<string, unknown>[] = [];
+  let ollama = {
+    enabled: false,
+    baseUrl: 'http://127.0.0.1:11434',
+    model: 'gemma4:12b',
+    revision: 1,
+    updatedAt: null as string | null,
+  };
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.route('**/api/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/auth/me')
+      return route.fulfill({
+        json: {
+          authenticated: true,
+          user: { id: ACCOUNT_ID, displayName: 'Администратор', email: 'admin@example.test' },
+          account: { id: ACCOUNT_ID, displayName: 'Администратор', email: 'admin@example.test' },
+          capabilities: [{ capability: 'platform_admin', state: 'verified' }],
+          workspaces: [
+            { workspaceId: WORKSPACE_ID, kind: 'personal', title: 'Личное', role: 'owner' },
+          ],
+          activeWorkspace: { workspaceId: WORKSPACE_ID, kind: 'personal' },
+          navigation: { classes: false, classroomManagement: false, contentAuthoring: false },
+          timeZone: 'Europe/Moscow',
+        },
+      });
+    if (path === '/api/admin/v1/me')
+      return route.fulfill({
+        json: {
+          administrator: true,
+          principalId: '30000000-0000-4000-8000-000000000001',
+          accountId: ACCOUNT_ID,
+          displayName: 'Администратор',
+          activeWorkspaceId: WORKSPACE_ID,
+          scopes: [
+            {
+              kind: 'platform',
+              id: null,
+              title: 'ASA Lab',
+              role: 'platform_admin',
+              permissions: ['administration.open', 'administration.operations.read'],
+            },
+          ],
+        },
+      });
+    if (path === '/api/account/avatar') return route.fulfill({ json: { avatarDataUrl: null } });
+    if (path === '/api/account/presentation')
+      return route.fulfill({ json: { motion: 'system', sidebar: 'expanded', revision: 0 } });
+    if (path === '/api/auth/max/status')
+      return route.fulfill({
+        json: {
+          linked: false,
+          verifiedAt: null,
+          firstAuthenticatedAt: null,
+          promptDue: false,
+          promptDismissedUntil: null,
+          available: false,
+        },
+      });
+    if (path === '/api/auth/max/config')
+      return route.fulfill({ json: { enabled: false, launchUrl: null } });
+    if (path === '/api/class-join/me') return route.fulfill({ json: { authenticated: false } });
+    if (path === '/api/admin/v1/ai/ollama/model-detail')
+      return route.fulfill({
+        json: { capabilities: ['completion'], thinking: null, contextMax: null },
+      });
+    if (path === '/api/admin/v1/ai/ollama/models') {
+      ollamaDiscoveries.push(request.postDataJSON() as Record<string, unknown>);
+      return route.fulfill({
+        json: {
+          models: [
+            { name: 'ornith:9b', size: 7_654_321 },
+            { name: 'gemma4:12b', size: 8_765_432 },
+          ],
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/comfyui/settings' && request.method() === 'GET')
+      return route.fulfill({
+        json: {
+          configurationVersion: 1,
+          baseUrl: 'http://host.docker.internal:8188',
+          source: 'saved',
+        },
+      });
+    if (path === '/api/admin/v1/ai/images' && request.method() === 'GET')
+      return route.fulfill({
+        json: {
+          configurationVersion: 1,
+          enabled: false,
+          dailyLimit: 10,
+          globalConcurrency: 1,
+          sizes: [512],
+          ready: false,
+          reason: 'disabled',
+          recipe: 'flux2-klein-4b-v1',
+        },
+      });
+    if (path === '/api/admin/v1/ai/comfyui/status') {
+      return route.fulfill({
+        json: {
+          connected: true,
+          baseUrl: 'http://host.docker.internal:8188',
+          version: '0.42.1',
+          diffusionModels: ['flux-2-klein-4b-fp8.safetensors'],
+          textEncoders: ['qwen_3_4b_fp4_flux2.safetensors'],
+          vaeModels: ['flux2-vae.safetensors'],
+          fluxKlein4bFound: true,
+          devices: [],
+          checkedAt: NOW,
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama/apply') {
+      const input = request.postDataJSON() as Record<string, unknown>;
+      if (input['revision'] !== ollama.revision) {
+        return route.fulfill({
+          status: 409,
+          json: { error: { code: 'ai_ollama_config_changed', message: 'Настройки изменились.' } },
+        });
+      }
+      const exists = ['ornith:9b', 'gemma4:12b'].includes(String(input['model']));
+      if (input['enabled'] && !exists) {
+        return route.fulfill({
+          status: 503,
+          json: { error: { code: 'ai_ollama_model_missing', message: 'Модель не установлена.' } },
+        });
+      }
+      ollamaWrites.push(input);
+      ollama = {
+        enabled: input['enabled'] === true,
+        baseUrl: String(input['baseUrl']),
+        model: String(input['model']),
+        revision: ollama.revision + 1,
+        updatedAt: NOW,
+      };
+      if (ollama.enabled) ollamaTests.push({ revision: ollama.revision });
+      return route.fulfill({
+        json: {
+          config: ollama,
+          verified: ollama.enabled,
+          test: ollama.enabled ? { model: ollama.model, elapsedMs: 6560, testedAt: NOW } : null,
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama/test') {
+      const input = request.postDataJSON() as Record<string, unknown>;
+      ollamaTests.push(input);
+      if (input['revision'] !== ollama.revision)
+        return route.fulfill({
+          status: 409,
+          json: {
+            error: { code: 'ai_ollama_config_changed', message: 'Настройки Ollama изменились.' },
+          },
+        });
+      return route.fulfill({
+        json: { model: ollama.model, elapsedMs: 6560, testedAt: NOW, revision: ollama.revision },
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama') {
+      if (request.method() === 'PUT') {
+        const input = request.postDataJSON() as Record<string, unknown>;
+        ollamaWrites.push(input);
+        if (input['revision'] !== ollama.revision)
+          return route.fulfill({
+            status: 409,
+            json: {
+              error: { code: 'ai_ollama_config_changed', message: 'Настройки Ollama изменились.' },
+            },
+          });
+        ollama = {
+          enabled: input['enabled'] === true,
+          baseUrl: String(input['baseUrl']),
+          model: String(input['model']),
+          revision: ollama.revision + 1,
+          updatedAt: NOW,
+        };
+      }
+      return route.fulfill({ json: ollama });
+    }
+    if (path === '/api/admin/v1/ai/ollama-cloud/inspect') {
+      return route.fulfill({ json: { account: { status: 'ok' } } });
+    }
+    if (path === '/api/admin/v1/ai/ollama-cloud/keys/inspect') {
+      const { slot } = request.postDataJSON() as { slot?: number };
+      pool = {
+        ...pool,
+        configurationVersion: config.configurationVersion,
+        keys: pool.keys.map((key) =>
+          key.configured && (slot === undefined || key.slot === slot)
+            ? {
+                ...key,
+                account: { status: 'ok', checkedAt: NOW, retryAfterSeconds: null, balance: null },
+              }
+            : key,
+        ),
+      };
+      return route.fulfill({ json: pool });
+    }
+    if (path === '/api/admin/v1/ai/ollama-cloud/model-details') {
+      return route.fulfill({ json: { contextTokens: 262144, modifiedAt: NOW } });
+    }
+    if (path === '/api/admin/v1/ai/ollama-cloud/keys') {
+      if (request.method() === 'PUT') {
+        const body = request.postDataJSON() as (typeof poolWrites)[number];
+        if (body.configurationVersion !== config.configurationVersion)
+          return route.fulfill({ status: 409, json: { error: { code: 'ai_config_changed' } } });
+        poolWrites.push(body);
+        pool = {
+          ...pool,
+          managed: true,
+          keys: pool.keys.map((old) => {
+            const next = body.keys.find((key) => key.slot === old.slot)!;
+            return {
+              ...old,
+              label: next.label,
+              priority: next.priority,
+              account: next.apiKey || next.clearApiKey ? null : old.account,
+              enabled: next.enabled && !next.clearApiKey,
+              configured: next.clearApiKey ? false : Boolean(next.apiKey) || old.configured,
+              fingerprint: next.clearApiKey
+                ? null
+                : next.apiKey
+                  ? 'cloud-slot-' + old.slot
+                  : old.fingerprint,
+              models: next.models,
+            };
+          }),
+        };
+        const active = [...pool.keys]
+          .sort((a, b) => a.priority - b.priority)
+          .find((key) => key.enabled && key.configured);
+        config = {
+          ...config,
+          configurationVersion: config.configurationVersion + 1,
+          providerConfigurations: config.providerConfigurations.map((slot) =>
+            slot.provider === 'ollama-cloud'
+              ? { ...slot, apiKeyConfigured: !!active, keyFingerprint: active?.fingerprint ?? null }
+              : slot,
+          ),
+        };
+      }
+      return route.fulfill({
+        json: { ...pool, configurationVersion: config.configurationVersion },
+      });
+    }
+    if (path === '/api/admin/v1/ai/openai/catalog') {
+      return route.fulfill({
+        json: {
+          models: ['gpt-6-luna', 'gpt-5-mini', 'gpt-future'].map((id) => ({
+            id,
+            name: id,
+            contextTokens: null,
+            inputModalities: null,
+            outputModalities: null,
+          })),
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/deepseek/catalog') {
+      deepSeekCatalogChecks.push(Boolean(request.postDataJSON()?.apiKey));
+      return route.fulfill({
+        json: {
+          models: [
+            {
+              id: 'deepseek-flash',
+              name: 'DeepSeek Flash',
+              contextTokens: 1048576,
+              inputModalities: ['text', 'image'],
+              outputModalities: ['text'],
+            },
+            {
+              id: 'deepseek-v4-pro',
+              name: 'DeepSeek V4 Pro',
+              contextTokens: 1048576,
+              inputModalities: ['text'],
+              outputModalities: ['text'],
+            },
+            {
+              id: 'deepseek-future',
+              name: 'DeepSeek Future',
+              contextTokens: null,
+              inputModalities: null,
+              outputModalities: null,
+            },
+          ],
+        },
+      });
+    }
+    if (
+      path === '/api/admin/v1/ai/generation-policy' ||
+      path === '/api/admin/v1/ai/generation-policy/catalog'
+    ) {
+      const policy = generationPolicyFixture();
+      const policyModels = [
+        ...policy.models.map((model) =>
+          model.id === 'gpt-6-luna' ? { ...model, inputModalities: ['text', 'image'] } : model,
+        ),
+        {
+          id: 'gpt-5-mini',
+          provider: 'openai' as const,
+          label: 'GPT-5 mini',
+          ready: true,
+          selectable: true,
+          allowed: false,
+          eligible: true,
+          inputModalities: ['text', 'image'],
+        },
+        {
+          id: 'deepseek-v4-pro',
+          provider: 'deepseek' as const,
+          label: 'DeepSeek V4 Pro',
+          ready: true,
+          selectable: true,
+          allowed: false,
+          eligible: true,
+          inputModalities: ['text'],
+        },
+      ];
+      if (request.method() === 'PUT') policyWrites.push(request.postDataJSON());
+      const selected = new Set(
+        pool.keys.filter((key) => key.enabled && key.configured).flatMap((key) => key.models),
+      );
+      return route.fulfill({
+        json: {
+          ...policy,
+          models: policyModels.map((model) => ({
+            ...model,
+            eligible:
+              (
+                policyWrites.at(-1)?.['modelPreferences'] as
+                  { id: string; eligible: boolean }[] | undefined
+              )?.find((item) => item.id === model.id)?.eligible ?? model.eligible,
+            connectionSelected:
+              model.provider !== 'ollama-cloud' || !pool.managed || selected.has(model.id),
+          })),
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/test') {
+      const body = request.postDataJSON();
+      const slot = config.providerConfigurations.find((item) => item.provider === body.provider);
+      paidTests.push(body);
+      if (
+        body.configurationVersion !== config.configurationVersion ||
+        !slot?.enabled ||
+        body.providerConfigurationVersion !== slot.revision
+      )
+        return route.fulfill({ status: 409, json: { error: { code: 'ai_config_changed' } } });
+      return route.fulfill({
+        json: {
+          provider: slot.provider,
+          model: slot.model,
+          configurationVersion: config.configurationVersion,
+          providerConfigurationVersion: slot.revision,
+          elapsedMs: 120,
+          testedAt: NOW,
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai') {
+      if (request.method() === 'PUT') {
+        const body = request.postDataJSON() as Record<string, unknown>;
+        writes.push(body);
+        if (
+          body['configurationVersion'] !== config.configurationVersion ||
+          body['providerConfigurationVersion'] !==
+            config.providerConfigurations.find((slot) => slot.provider === body['provider'])
+              ?.revision
+        )
+          return route.fulfill({
+            status: 409,
+            json: {
+              error: {
+                code: 'ai_config_changed',
+                message: 'Настройки изменились. Перезагрузите страницу.',
+              },
+            },
+          });
+        const provider = body['provider'] as AiProvider;
+        const model = body['model'] as string;
+        const slots = config.providerConfigurations.map((slot) =>
+          slot.provider !== provider
+            ? slot
+            : {
+                ...slot,
+                model,
+                enabled: Boolean(body['enabled']),
+                revision: slot.revision + 1,
+                updatedAt: NOW,
+                apiKeyConfigured: body['clearApiKey']
+                  ? false
+                  : body['apiKey']
+                    ? true
+                    : slot.apiKeyConfigured,
+                keyFingerprint: body['clearApiKey']
+                  ? null
+                  : body['apiKey']
+                    ? `${provider}-hash`
+                    : slot.keyFingerprint,
+              },
+        );
+        const active = slots.find((slot) => slot.provider === provider)!;
+        config = {
+          ...config,
+          provider,
+          model,
+          providerConfigurations: slots,
+          enabled: Boolean(body['enabled']),
+          paidOperationsPerHour: Number(body['paidOperationsPerHour']),
+          apiKeyConfigured: active.apiKeyConfigured,
+          keyFingerprint: active.keyFingerprint,
+          configurationVersion: config.configurationVersion + 1,
+          updatedAt: NOW,
+          migratedFromModel: null,
+        };
+      }
+      return route.fulfill({ json: config });
+    }
+    if (request.method() === 'GET')
+      return route.fulfill({ json: { items: [], meta: { total: 0 } } });
+    return route.fulfill({
+      status: 400,
+      json: { error: { code: 'unexpected_mutation', message: path } },
+    });
+  });
+  return {
+    writes,
+    paidTests,
+    poolWrites,
+    deepSeekCatalogChecks,
+    policyWrites,
+    ollamaWrites,
+    ollamaDiscoveries,
+    ollamaTests,
+    currentOllama: () => ollama,
+    pageErrors,
+    current: () => config,
+    replace: (next: AiAdminConfig) => {
+      config = structuredClone(next);
+    },
+  };
+}
+
+async function openAdmin(page: Page) {
+  await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('tab', { name: 'Подключения' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Подключения' }).click();
+  await expect(page.getByRole('group', { name: 'Доступные ИИ-провайдеры' })).toBeVisible();
+  await expect(page.locator('.portal-global-error')).toHaveCount(0);
+}
+
+async function selectProvider(
+  page: Page,
+  provider: 'ollama' | 'ollama-cloud' | 'deepseek' | 'openai',
+) {
+  const title =
+    provider === 'ollama-cloud'
+      ? 'Ollama Cloud'
+      : provider === 'ollama'
+        ? 'Ollama'
+        : provider === 'deepseek'
+          ? 'DeepSeek'
+          : 'OpenAI';
+  const card = page
+    .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
+    .getByRole('button')
+    .filter({ has: page.getByText(title, { exact: true }) });
+  await card.click();
+  await expect(card).toHaveAttribute('aria-pressed', 'true');
+  return card;
+}
+
+test('Four supported connections show exact key status and no secret or redundant test button', async ({
+  page,
+}) => {
+  // D2-R2 Chrome cold-start can spend >30s in its very first navigation.
+  test.setTimeout(90_000);
+  const fake = await adminFixture(page);
+  await openAdmin(page);
+  for (const name of ['Ollama', 'Ollama Cloud', 'DeepSeek', 'OpenAI']) {
+    await expect(
+      page
+        .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
+        .getByRole('button')
+        .filter({ has: page.getByText(name, { exact: true }) }),
+    ).toBeVisible();
+  }
+  await expect(page.getByRole('group', { name: 'Доступные ИИ-провайдеры' })).toContainText(
+    'без ключа',
+  );
+  await expect(page.getByRole('button', { name: 'Проверить реальный ответ модели' })).toHaveCount(
+    0,
+  );
+  await selectProvider(page, 'openai');
+  const openai = page.getByRole('region', { name: 'Настройки OpenAI' });
+  await expect(openai).toBeVisible();
+  await expect(openai.getByLabel('API-ключ OpenAI')).toBeVisible();
+  await expect(openai.getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
+  await expect(openai).not.toContainText('Отпечаток');
+  await selectProvider(page, 'deepseek');
+  await expect(page.getByLabel('API-ключ DeepSeek')).toBeVisible();
+  await expect(page.getByLabel('Модель', { exact: true })).toHaveCount(0);
+  expect(fake.writes).toHaveLength(0);
+  expect(fake.paidTests).toHaveLength(0);
+  expect(fake.pageErrors).toEqual([]);
+});
+
+test('Separate OpenAI and DeepSeek keys stay server-side and delete only selected slot', async ({
+  page,
+}) => {
+  const fake = await adminFixture(page);
+  await openAdmin(page);
+  await selectProvider(page, 'openai');
+  const secretA = 'test-openai-key-do-not-render';
+  const openai = page.getByRole('region', { name: 'Настройки OpenAI' });
+  await openai.getByLabel('API-ключ OpenAI').fill(secretA);
+  await openai.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(openai.getByText('Сохранено', { exact: true })).toBeVisible();
+  await expect(openai.getByLabel('API-ключ OpenAI')).toHaveValue('');
+  await selectProvider(page, 'deepseek');
+  const secretB = 'test-deepseek-key-do-not-render';
+  const panel = page.getByRole('region', { name: 'Настройки DeepSeek' });
+  await panel.getByLabel('API-ключ DeepSeek').fill(secretB);
+  await panel.getByRole('button', { name: 'Проверить ключ' }).click();
+  await expect(panel.getByText('Ключ принят · моделей: 3')).toBeVisible();
+  await expect(panel.getByText('Читает изображения')).toBeVisible();
+  await expect(panel.getByRole('checkbox', { name: 'DeepSeek Future' })).toBeDisabled();
+  await panel.getByRole('checkbox', { name: 'DeepSeek V4 Pro' }).uncheck();
+  await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('0');
+  await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+  expect(fake.writes).toHaveLength(1);
+  await panel.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+  expect(fake.writes[1]).toMatchObject({
+    provider: 'deepseek',
+    enabled: true,
+    paidOperationsPerHour: 0,
+  });
+  expect(fake.deepSeekCatalogChecks).toEqual([true, false]);
+  expect(fake.policyWrites[0]?.['modelPreferences']).toContainEqual({
+    id: 'deepseek-v4-pro',
+    eligible: false,
+    order: 0,
+  });
+  expect(
+    fake
+      .current()
+      .providerConfigurations.filter((x) => x.provider !== 'ollama-cloud')
+      .every((x) => x.apiKeyConfigured),
+  ).toBe(true);
+  expect(
+    fake.current().providerConfigurations.find((x) => x.provider === 'ollama-cloud')
+      ?.apiKeyConfigured,
+  ).toBe(false);
+  await selectProvider(page, 'openai');
+  await expect(openai.getByLabel('API-ключ OpenAI')).toHaveValue('');
+  await expect(openai.getByText('Ключ принят · моделей: 3')).toBeVisible();
+  await openai.getByRole('button', { name: 'Удалить ключ' }).click();
+  await openai.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(openai.getByText('Сохранено', { exact: true })).toBeVisible();
+  const slots = fake.current().providerConfigurations;
+  expect(slots.find((x) => x.provider === 'deepseek')?.apiKeyConfigured).toBe(true);
+  expect(slots.find((x) => x.provider === 'openai')?.apiKeyConfigured).toBe(false);
+  const content = await page.locator('body').innerText();
+  expect(content).not.toContain(secretA);
+  expect(content).not.toContain(secretB);
+  expect(fake.paidTests).toHaveLength(0);
+});
+
+for (const provider of ['openai', 'deepseek'] as const) {
+  test(`A saved ${provider} key can be deleted without server encryption`, async ({ page }) => {
+    const label = provider === 'openai' ? 'OpenAI' : 'DeepSeek';
+    const fake = await adminFixture(
+      page,
+      aiAdminFixture({
+        provider,
+        model: provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
+        enabled: true,
+        apiKeyConfigured: true,
+        encryptionReady: false,
+      }),
+    );
+    await openAdmin(page);
+    await selectProvider(page, provider);
+    const panel = page.getByRole('region', { name: 'Настройки ' + label });
+    await expect(panel.getByLabel('API-ключ ' + label)).toBeDisabled();
+    await panel.getByRole('button', { name: 'Удалить ключ' }).click();
+    await panel.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+    expect(fake.writes[0]).toMatchObject({ provider, enabled: false, clearApiKey: true });
+    expect(fake.writes[0]).not.toHaveProperty('apiKey');
+  });
+}
+
+test('OpenAI loads its catalogue automatically and saves model selection with the connection', async ({
+  page,
+}) => {
+  const fake = await adminFixture(
+    page,
+    aiAdminFixture({
+      provider: 'openai',
+      model: 'gpt-6-luna',
+      enabled: false,
+      apiKeyConfigured: true,
+      paidOperationsPerHour: 0,
+    }),
+  );
+  await openAdmin(page);
+  await selectProvider(page, 'openai');
+  const panel = page.getByRole('region', { name: 'Настройки OpenAI' });
+  await expect(panel.getByText('Ключ принят · моделей: 3')).toBeVisible();
+  await expect(panel.getByText('Читает изображения')).toHaveCount(2);
+  await expect(panel.getByRole('checkbox', { name: 'gpt-future' })).toBeDisabled();
+  await expect(panel.getByText('Изображения: нет данных')).toBeVisible();
+  await panel.getByRole('checkbox', { name: 'GPT-5 mini' }).uncheck();
+  const save = panel.getByRole('button', { name: 'Сохранить', exact: true });
+  await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+  await expect(save).toBeEnabled();
+  await expect(panel.getByText('Платные запросы отключены при лимите 0.')).toBeVisible();
+  await expect(panel.getByRole('button', { name: /^Сохранить/ })).toHaveCount(1);
+  await save.click();
+  await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+  expect(fake.writes[0]).toMatchObject({
+    provider: 'openai',
+    enabled: true,
+    paidOperationsPerHour: 0,
+  });
+  expect(fake.policyWrites[0]?.['modelPreferences']).toContainEqual({
+    id: 'gpt-5-mini',
+    eligible: false,
+    order: 0,
+  });
+  await selectProvider(page, 'deepseek');
+  expect(fake.paidTests).toHaveLength(0);
+});
+
+for (const width of [1440, 1024, 390, 320]) {
+  for (const theme of ['light', 'dark']) {
+    test(`Ollama Cloud verifies a key and selects shared models at ${width} ${theme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme === 'dark' ? 'dark' : 'light' });
+      await page.setViewportSize({ width, height: 900 });
+      const fake = await adminFixture(page);
+      await openAdmin(page);
+      await selectProvider(page, 'ollama-cloud');
+      const panel = page.getByRole('region', { name: 'Настройки Ollama Cloud' });
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole('link', { name: 'Получить ключ' })).toHaveAttribute(
+        'href',
+        'https://ollama.com/settings/keys',
+      );
+      await expect(panel.locator('input[type=password]')).toHaveCount(5);
+      await expect(page.getByText('Модели подключения', { exact: true })).toHaveCount(0);
+      const field = panel.getByLabel('API-ключ 1', { exact: true });
+      await field.fill('test-ollama-cloud-key-only');
+      await panel.getByRole('button', { name: 'Проверить ключ 1', exact: true }).click();
+      await expect(panel.locator('.asa-cloud-key-verification [data-tone=success]')).toHaveText(
+        'Ключ работает',
+      );
+      await expect(field).toHaveValue('test-ollama-cloud-key-only');
+      expect(fake.poolWrites).toHaveLength(0);
+      await panel.getByRole('button', { name: 'Выбрать модели', exact: true }).click();
+      const model = panel.getByRole('checkbox', { name: 'gemma4:31b', exact: true });
+      await model.check();
+      await panel.getByRole('button', { name: 'Сведения о модели gemma4:31b' }).click();
+      await expect(panel.getByText(/Контекст:.*262.*144/)).toBeVisible();
+      await expect(panel.locator('.asa-cloud-catalog-list')).toHaveCSS('overflow-y', 'visible');
+      await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('0');
+      await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+      const save = panel.getByRole('button', { name: 'Сохранить', exact: true });
+      await expect(panel.getByRole('button', { name: /^Сохранить/ })).toHaveCount(1);
+      await save.click();
+      await expect(panel.getByText('Сохранено · Ollama Cloud включён')).toBeVisible();
+      await expect(field).toHaveValue('');
+      expect(fake.poolWrites).toHaveLength(1);
+      expect(fake.poolWrites[0]?.keys[0]).toMatchObject({
+        slot: 1,
+        enabled: true,
+        apiKey: 'test-ollama-cloud-key-only',
+      });
+      expect(fake.poolWrites[0]?.keys.map((key) => key.models)).toEqual(
+        Array.from({ length: 5 }, () => ['gemma4:31b']),
+      );
+      expect(fake.writes).toHaveLength(1);
+      expect(fake.writes[0]).toMatchObject({
+        provider: 'ollama-cloud',
+        enabled: true,
+        configurationVersion: 2,
+        paidOperationsPerHour: 0,
+      });
+      expect(fake.paidTests).toHaveLength(0);
+      expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await panel.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}-${theme}.png`) });
+      expect(fake.pageErrors).toEqual([]);
+    });
+  }
+}
+
+test('A stale OpenAI save keeps the draft and does not generate a paid response', async ({
+  page,
+}) => {
+  const configured = aiAdminFixture({
+    provider: 'openai',
+    model: 'gpt-6-luna',
+    enabled: true,
+    apiKeyConfigured: true,
+    paidOperationsPerHour: 5,
+    configurationVersion: 3,
+  });
+  const fake = await adminFixture(page, configured);
+  await openAdmin(page);
+  await selectProvider(page, 'openai');
+  const quota = page.getByLabel('Общий лимит платных ИИ-операций за час');
+  await quota.fill('8');
+  fake.replace({ ...configured, paidOperationsPerHour: 9, configurationVersion: 4 });
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Настройки изменились');
+  await expect(quota).toHaveValue('8');
+  expect(fake.paidTests).toHaveLength(0);
+});
+
+for (const width of [1440, 1024, 390, 320]) {
+  test('Compact connection cards remain responsive at ' + width + 'px', async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fake = await adminFixture(
+      page,
+      aiAdminFixture({
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        enabled: false,
+        apiKeyConfigured: true,
+        paidOperationsPerHour: 5,
+      }),
+    );
+    await openAdmin(page);
+    await selectProvider(page, 'deepseek');
+    await expect(page.getByText('Ключ принят · моделей: 3')).toBeVisible();
+    await expect(page.getByLabel('API-ключ DeepSeek')).toHaveValue('');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      )
+      .toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath('ai-connections-' + width + '.png'),
+      fullPage: true,
+    });
+    expect(fake.deepSeekCatalogChecks).toEqual([false]);
+    expect(fake.writes).toHaveLength(0);
+    expect(fake.paidTests).toHaveLength(0);
+    expect(fake.pageErrors).toEqual([]);
+  });
+}
+
+for (const width of [1440, 390]) {
+  test('Ollama auto-discovery and ComfyUI model presence at ' + width + 'px', async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fake = await adminFixture(page);
+    await openAdmin(page);
+    await selectProvider(page, 'ollama');
+    await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://127.0.0.1:11434');
+    await expect(page.locator('.asa-ai-ollama-model-option')).toHaveCount(2);
+    await page.getByLabel('Адрес Ollama').fill('http://192.168.1.20:11434');
+    await expect(page.locator('.asa-ai-ollama-model-option')).toHaveCount(2);
+    await page
+      .getByRole('group', { name: 'Установленные модели Ollama' })
+      .getByRole('button', { name: /ornith:9b/ })
+      .click();
+    await page.getByRole('checkbox', { name: 'Выключено' }).check();
+    const selectedRow = page.locator('.asa-ai-ollama-model-card.is-selected');
+    await expect(selectedRow.getByLabel('Режим размышления Ollama')).toBeVisible();
+    await expect(selectedRow.getByLabel('Контекст, токенов')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Модели подключения' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
+    await expect(page.getByText('Сохранено · ornith:9b', { exact: false })).toBeVisible();
+    expect(fake.ollamaWrites).toHaveLength(1);
+    expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
+    await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
+    const comfyConnection = page.getByRole('region', { name: 'Подключение ComfyUI' });
+    await expect(comfyConnection.getByRole('textbox', { name: 'Адрес ComfyUI' })).toHaveValue(
+      'http://host.docker.internal:8188',
+    );
+    await page.screenshot({
+      path: test.info().outputPath('image-workbench-connection-' + width + '.png'),
+      fullPage: true,
+    });
+    const technicalState = page.locator('.asa-image-diagnostics');
+    await technicalState.locator(':scope > summary').click();
+    await expect(technicalState).toContainText('flux-2-klein-4b');
+    await expect(technicalState).toContainText('Проверка файлов выполнена.');
+    await page.getByRole('tab', { name: 'Подключения' }).click();
+    await selectProvider(page, 'ollama');
+    await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      )
+      .toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath('ai-ollama-' + width + '.png'),
+      fullPage: true,
+    });
+    expect(fake.pageErrors).toEqual([]);
+  });
+}
+
+test('An OpenAI key rejected by the catalogue is not saved', async ({ page }) => {
+  const fake = await adminFixture(page);
+  await page.route('**/api/admin/v1/ai/openai/catalog', (route) =>
+    route.fulfill({
+      status: 502,
+      json: { error: { code: 'ai_cloud_catalog_key_rejected', message: 'OpenAI не принял ключ.' } },
+    }),
+  );
+  await openAdmin(page);
+  await selectProvider(page, 'openai');
+  await page.getByLabel('API-ключ OpenAI').fill('rejected-openai-key');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('OpenAI не принял ключ.')).toBeVisible();
+  expect(fake.writes).toHaveLength(0);
+  expect(fake.paidTests).toHaveLength(0);
+});

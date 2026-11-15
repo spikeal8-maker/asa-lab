@@ -1,10 +1,13 @@
 name: Electronics R4-M1 Focused
+run-name: Electronics R4-M1 ${{ inputs.qualification_profile || 'strict-real-time' }} ${{ github.event.pull_request.head.sha || github.sha }}
 
 on:
   pull_request:
     paths:
       - 'compose.test.yaml'
       - '.github/compose.registry-ci.yaml'
+      - 'tools/test_ci_image_transport.py'
+      - 'docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json'
       - 'apps/api/src/origin-policy.ts'
       - 'apps/api/src/app.factory.ts'
       - 'AGENTS.md'
@@ -18,9 +21,15 @@ on:
       - 'e2e/electronics-interactions.spec.ts'
       - 'e2e/electronics-piezo-clock.spec.ts'
       - 'e2e/electronics-native-wheel.spec.ts'
+      - 'e2e/electronics-ready-cadence.spec.ts'
+      - 'e2e/electronics-classroom-timing.spec.ts'
       - 'tests/electronics/**'
+      - 'tools/run-electronics-classroom-browser.mjs'
       - 'tools/run-electronics-benchmark.mjs'
       - 'tools/run-electronics-browser-benchmark.mjs'
+      - 'tools/electronics-benchmark-assets*.mjs'
+      - 'tools/electronics-failure-reporter.mjs'
+      - 'playwright.config.ts'
       - 'tools/run-electronics-load-benchmark.mjs'
       - 'tools/run-electronics-memory-benchmark.mjs'
       - 'tools/update-electronics-benchmark-golden.mjs'
@@ -29,6 +38,17 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/electronics-r4-m1-focused.yml'
   workflow_dispatch:
+    inputs:
+      qualification_profile:
+        description: Explicit browser qualification; strict real-time remains the default
+        required: false
+        type: choice
+        default: strict-real-time
+        options:
+          - strict-real-time
+          - classroom-d13-v2
+          - classroom-d13-v3
+          - arduino-editor-error
 
 permissions:
   contents: read
@@ -37,11 +57,12 @@ env:
   NX_SKIP_NX_CACHE: 'true'
 
 concurrency:
-  group: electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}
+  group: electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}-${{ inputs.qualification_profile || 'strict-real-time' }}
   cancel-in-progress: true
 
 jobs:
   focused:
+    if: ${{ inputs.qualification_profile != 'arduino-editor-error' }}
     name: Shared solver, editor contracts and build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -74,6 +95,9 @@ jobs:
       # evidence run invoke. Do not inline its steps here.
       - name: Focused Electronics M1 gate
         run: pnpm gate:electronics-m1
+
+      - name: Mandatory classroom qualification adversarial tests
+        run: pnpm exec vitest run tests/electronics/classroom-qualification.spec.ts --maxWorkers=1
 
   benchmark:
     name: Electronics E-OPT benchmark integrity
@@ -126,15 +150,33 @@ jobs:
           retention-days: 14
 
   browser:
-    name: Actual editor live simulation journey
+    name: Actual editor live simulation journey (${{ matrix.browser_case.label }})
     needs: focused
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep the two classroom qualifications whole and preserve the
+        # arduino-editor-error dispatch. Strict CI runs four required shards.
+        browser_case: >-
+          ${{ fromJSON(
+              (inputs.qualification_profile == 'classroom-d13-v2' ||
+              inputs.qualification_profile == 'classroom-d13-v3' ||
+              inputs.qualification_profile == 'arduino-editor-error') &&
+              '[{"label":"whole","shard":""}]' ||
+              '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+            ) }}
     env:
       CI: 'true'
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_ELECTRONICS_FAILURE_REPORT: 'true'
+      ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
+      ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v3' && 'gate:electronics-classroom-d13-v3:browser' || inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
+      ASA_ELECTRONICS_BROWSER_SHARD: ${{ matrix.browser_case.shard }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-      COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
+      COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}-${{ matrix.browser_case.label }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
     steps:
@@ -150,44 +192,66 @@ jobs:
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
+      - name: Prepare and verify image-only PostgreSQL transport
+        run: |
+          python3 tools/test_ci_image_transport.py --prepare-electronics-postgres
+          python3 tools/test_ci_image_transport.py --electronics-compose-model-check
+
       - name: Build isolated Electronics browser images
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+
+      - name: Verify original base layers and exact source revision
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
 
       - name: Start isolated PostgreSQL
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 120 postgres
+
+      - name: Verify original PostgreSQL image identity
+        run: python3 tools/test_ci_image_transport.py --electronics-pulled-postgres
 
       - name: Apply isolated migrations
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps migration
 
       - name: Start Electronics API and Web without unrelated media services
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
-      - name: Electronics M1 browser gate
+      - name: Selected Electronics browser qualification
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          run --rm --no-deps test-runner
-          pnpm gate:electronics-m1:browser
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
+          pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}
 
       - name: Show isolated stack state
         if: always()
-        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test ps -a
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
+
+      # The journal is flushed after each test, including before a job cancellation.
+      # Keep it separately readable when retained traces make the full archive large.
+      - name: Upload incremental browser failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}
+          path: reports/electronics-failures.ndjson
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: electronics-r4-m1-browser-${{ github.run_id }}
+          name: electronics-r4-m1-browser-${{ github.run_id }}-${{ matrix.browser_case.label }}
           path: |
             e2e/artifacts/electronics-simulation
             reports
@@ -197,7 +261,7 @@ jobs:
       - name: Remove isolated test stack
         if: always()
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           down -v --remove-orphans
 
   review-images:
@@ -216,7 +280,10 @@ jobs:
           persist-credentials: false
 
       - name: Build exact API and Web review images
-        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
+        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
+
+      - name: Verify original base layers for review images
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
 
       - name: Verify exact revision labels
         shell: bash
@@ -246,4 +313,62 @@ jobs:
           name: electronics-review-images-${{ github.run_id }}
           path: review-images
           if-no-files-found: error
+          retention-days: 14
+
+  editor-messages:
+    if: ${{ inputs.qualification_profile == 'arduino-editor-error' }}
+    name: Actual vendor messages and built editor (API fixture)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      VITE_ASA_BUILD_REVISION: ${{ github.sha }}
+      ASA_E2E_EXTERNAL: 'true'
+      ASA_E2E_BASE_URL: http://127.0.0.1:4612
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build module-sdk
+      - name: Actual vendor regression and unchanged persistence
+        run: >-
+          pnpm exec vitest run
+          apps/web/src/electronics/testing/arduino-block-messages.spec.ts
+          apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
+          apps/web/src/electronics/testing/arduino-code-contract.spec.ts
+          --maxWorkers=1
+      - run: pnpm exec nx run web:typecheck
+      - run: pnpm exec nx run web:build
+      # The shared interactions file imports teacher seed helpers at discovery;
+      # this profile never calls them, but their compiled identity import exists.
+      - run: pnpm exec nx build identity
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Native workspace menus at four viewports
+        run: |
+          mkdir -p reports/interactions
+          pnpm exec vite preview -c apps/web/vite.config.ts --host 127.0.0.1 --port 4612 --strictPort > reports/arduino-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4612/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4612/ > /dev/null
+          pnpm exec playwright test e2e/electronics-interactions.spec.ts --grep 'Arduino workspace messages:' --workers=1
+      - name: Preserve exact-run browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arduino-editor-messages-${{ github.sha }}
+          path: reports
+          if-no-files-found: ignore
           retention-days: 14

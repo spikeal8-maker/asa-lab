@@ -25,7 +25,13 @@ import {
   type AdminListCursor,
   type ResolvedAdminAccess,
 } from './admin-control-plane.service.js';
-import { MaxAuthService, MaxConfigurationError } from './max-auth.service.js';
+import { MaxAuthService } from './max-auth.service.js';
+import { TelegramAuthService } from './telegram-auth.service.js';
+import { ProviderConfigurationError } from './auth-provider-availability.js';
+import { AccountVerificationService } from './account-verification.service.js';
+import { AllowUnverifiedAccount } from './account-verification.guard.js';
+import { parseCatalogQuery, parseCatalogFilters } from './admin-user-catalog.js';
+import { parseHistoryQuery } from './admin-user-history.js';
 
 const DASHBOARD_RANGES = new Set<AdminDashboardRange>([
   '1h',
@@ -51,6 +57,8 @@ export class AdminController {
     @Inject(TOKENS.adminControlPlane)
     private readonly controlPlane: AdminControlPlaneService,
     @Inject(TOKENS.maxAuthService) private readonly maxAuth: MaxAuthService,
+    @Inject(TOKENS.telegramAuthService) private readonly telegramAuth: TelegramAuthService,
+    @Inject(TOKENS.accountVerification) private readonly verification: AccountVerificationService,
   ) {}
 
   private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
@@ -74,6 +82,7 @@ export class AdminController {
   }
 
   @Get('me')
+  @AllowUnverifiedAccount()
   async me(@Req() request: FastifyRequest) {
     const { context, access } = await this.requireAdmin(request);
     return {
@@ -87,6 +96,7 @@ export class AdminController {
   }
 
   @Get('scopes')
+  @AllowUnverifiedAccount()
   async scopes(@Req() request: FastifyRequest) {
     const { access } = await this.requireAdmin(request);
     return { items: access.scopes };
@@ -138,6 +148,162 @@ export class AdminController {
         search: this.search(searchRaw),
         limit: this.limit(limitRaw),
         cursor: this.listCursor(beforeRaw, beforeIdRaw),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users')
+  async users(
+    @Req() request: FastifyRequest,
+    @Query('scopeKind') scopeKindRaw: string | undefined,
+    @Query('scopeId') scopeIdRaw: string | undefined,
+    @Query('search') searchRaw: string | undefined,
+    @Query('kind') kind: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('sort') sort: string | undefined,
+    @Query('direction') direction: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+    @Query() advanced: Record<string, unknown> = {},
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      const query = parseCatalogQuery({
+        kind,
+        status,
+        sort,
+        direction,
+        limit,
+        cursor,
+        search: searchRaw,
+        scopeKind: scopeKindRaw,
+        scopeId: scopeIdRaw,
+      });
+      return await this.controlPlane.listUsers(access, {
+        scope: this.scope(scopeKindRaw, scopeIdRaw),
+        search: this.search(searchRaw),
+        ...query,
+        filters: parseCatalogFilters(advanced),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users-export')
+  async usersExport(
+    @Req() request: FastifyRequest,
+    @Query() raw: Record<string, string | undefined>,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      const prepared = await this.controlPlane.exportUsers(access, {
+        ...parseCatalogQuery(raw),
+        scope: this.scope(raw.scopeKind, raw.scopeId),
+        search: this.search(raw.search),
+        requestId: request.id,
+      });
+      const fresh = await this.requireAdmin(request);
+      if (
+        fresh.access.subject.principalId !== access.subject.principalId ||
+        !this.controlPlane.authorize(
+          fresh.access,
+          'administration.accounts.read',
+          this.scope(raw.scopeKind, raw.scopeId),
+        )
+      )
+        throw Object.assign(new Error('ADMIN_SCOPE_DENIED'), { code: '42501' });
+      return prepared;
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+  @Get('users-filter-options')
+  async catalogFilterOptions(
+    @Req() request: FastifyRequest,
+    @Query('scopeKind') kind: string | undefined,
+    @Query('scopeId') id: string | undefined,
+    @Query('search') search: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.catalogFilterOptions(access, {
+        scope: this.scope(kind, id),
+        search: this.search(search),
+        requestId: request.id,
+      });
+    } catch (problem) {
+      this.rethrowAdminFailure(problem);
+    }
+  }
+  @Get('organization-class-bindings')
+  async classBindings(@Req() request: FastifyRequest, @Query('search') search: string | undefined) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.classBindings(access, this.search(search));
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+  @Put('organization-class-bindings')
+  async bindClass(
+    @Req() request: FastifyRequest,
+    @Body()
+    raw: {
+      classId: string;
+      workspaceId: string | null;
+      expectedWorkspaceId: string | null;
+      reason: string;
+    },
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      if (
+        !raw ||
+        typeof raw.reason !== 'string' ||
+        raw.reason.trim().length < 3 ||
+        raw.reason.length > 500
+      )
+        throw Object.assign(new Error('invalid'), { code: '22023' });
+      return await this.controlPlane.bindClass(access, {
+        classId: this.uuid(raw.classId, 'classId'),
+        workspaceId: raw.workspaceId === null ? null : this.uuid(raw.workspaceId, 'workspaceId'),
+        expectedWorkspaceId:
+          raw.expectedWorkspaceId === null
+            ? null
+            : this.uuid(raw.expectedWorkspaceId, 'expectedWorkspaceId'),
+        reason: raw.reason,
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users/:kind/:targetId/history')
+  async userHistory(
+    @Req() request: FastifyRequest,
+    @Param('kind') kind: string,
+    @Param('targetId') targetId: string,
+    @Query('scopeKind') scopeKind: string | undefined,
+    @Query('scopeId') scopeId: string | undefined,
+    @Query('category') category: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      if (kind !== 'account' && kind !== 'student')
+        throw new HttpException(error('validation_error', 'invalid user kind'), 400);
+      return await this.controlPlane.userHistory(access, {
+        ...parseHistoryQuery({ category, limit, cursor, scopeKind, scopeId }),
+        kind,
+        targetId: this.uuid(targetId, 'targetId'),
+        scope: this.scope(scopeKind, scopeId),
         requestId: request.id,
       });
     } catch (failure) {
@@ -318,7 +484,99 @@ export class AdminController {
     }
   }
 
+  @Get('auth/verification-policy')
+  @AllowUnverifiedAccount()
+  async verificationPolicy(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.verification.adminPolicy(context.principalId);
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Post('auth/verification-policy')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async updateVerificationPolicy(@Req() request: FastifyRequest, @Body() body: unknown) {
+    const { context } = await this.requireAdmin(request);
+    const value = this.object(body);
+    if (
+      typeof value['enabled'] !== 'boolean' ||
+      Object.keys(value).some((key) => key !== 'enabled')
+    )
+      throw new HttpException(error('validation_error', 'enabled must be boolean'), 400);
+    try {
+      return await this.verification.updatePolicy(
+        context.principalId,
+        value['enabled'],
+        request.id,
+      );
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('integrations/telegram')
+  @AllowUnverifiedAccount()
+  async telegramConfiguration(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.telegramAuth.adminConfig(context.principalId);
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
+  @Post('integrations/telegram/check')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async checkTelegramConfiguration(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.telegramAuth.checkAdminConfig(context.principalId);
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
+  @Put('integrations/telegram')
+  @AllowUnverifiedAccount()
+  async updateTelegramConfiguration(@Req() request: FastifyRequest, @Body() body: unknown) {
+    const { context } = await this.requireAdmin(request);
+    const value = this.object(body);
+    if (typeof value['enabled'] !== 'boolean')
+      throw new HttpException(error('validation_error', 'enabled must be boolean'), 400);
+    if (value['clearToken'] !== undefined && typeof value['clearToken'] !== 'boolean')
+      throw new HttpException(error('validation_error', 'clearToken must be boolean'), 400);
+    const token = value['botToken'];
+    if (token !== undefined && (typeof token !== 'string' || token.trim().length > 2048))
+      throw new HttpException(error('validation_error', 'botToken is invalid'), 400);
+    try {
+      return await this.telegramAuth.updateAdminConfig(
+        context.principalId,
+        {
+          enabled: value['enabled'],
+          botUsername: value['enabled']
+            ? this.text(value['botUsername'], 'botUsername', 3, 64)
+            : '',
+          miniAppUrl: value['enabled']
+            ? this.text(value['miniAppUrl'], 'miniAppUrl', 12, 2048)
+            : '',
+          ...(typeof token === 'string' && token.trim().length > 0
+            ? { botToken: token.trim() }
+            : {}),
+          clearToken: value['clearToken'] === true,
+        },
+        request.id,
+      );
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
   @Get('integrations/max')
+  @AllowUnverifiedAccount()
   async maxConfiguration(@Req() request: FastifyRequest) {
     const { context } = await this.requireAdmin(request);
     try {
@@ -328,7 +586,20 @@ export class AdminController {
     }
   }
 
+  @Post('integrations/max/check')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async checkMaxConfiguration(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.maxAuth.checkAdminConfig(context.principalId);
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
   @Put('integrations/max')
+  @AllowUnverifiedAccount()
   async updateMaxConfiguration(@Req() request: FastifyRequest, @Body() body: unknown) {
     const { context } = await this.requireAdmin(request);
     const value = this.object(body);
@@ -347,8 +618,12 @@ export class AdminController {
         context.principalId,
         {
           enabled: value['enabled'],
-          botUsername: this.text(value['botUsername'], 'botUsername', 3, 65),
-          miniAppUrl: this.text(value['miniAppUrl'], 'miniAppUrl', 12, 2048),
+          botUsername: value['enabled']
+            ? this.text(value['botUsername'], 'botUsername', 3, 64)
+            : '',
+          miniAppUrl: value['enabled']
+            ? this.text(value['miniAppUrl'], 'miniAppUrl', 12, 2048)
+            : '',
           ...(typeof token === 'string' && token.trim().length > 0
             ? { botToken: token.trim() }
             : {}),
@@ -624,6 +899,29 @@ export class AdminController {
     if (message === 'ADMIN_SCOPE_DENIED' || pgCode === '42501') {
       throw new HttpException(error('admin_scope_forbidden', 'administrative scope denied'), 403);
     }
+    if (message === 'CRM_EXPORT_TOO_LARGE')
+      throw new HttpException(
+        error(
+          'crm_export_too_large',
+          'Слишком большая выгрузка: уточните фильтры (до 10 000 записей и 16 МБ).',
+        ),
+        413,
+      );
+    if (message === 'CRM_EXPORT_BUSY')
+      throw new HttpException(
+        error('crm_export_busy', 'Выгрузка уже выполняется. Повторите позже.'),
+        429,
+      );
+    if (pgCode === '57014')
+      throw new HttpException(
+        error('crm_query_timeout', 'Запрос слишком большой: уточните фильтры.'),
+        422,
+      );
+    if (pgCode === '40001')
+      throw new HttpException(
+        error('crm_conflict', 'Привязка уже изменена. Обновите список.'),
+        409,
+      );
     if (pgCode === '22023') {
       throw new HttpException(error('validation_error', 'invalid administrative query'), 400);
     }
@@ -631,29 +929,43 @@ export class AdminController {
   }
 
   private rethrowMaxConfigurationFailure(failure: unknown): never {
-    if (failure instanceof MaxConfigurationError) {
-      const responses: Record<
-        MaxConfigurationError['code'],
-        { readonly status: number; readonly message: string }
-      > = {
-        max_encryption_key_missing: {
+    if (failure instanceof ProviderConfigurationError) {
+      const suffix = failure.code.replace(/^(max|telegram)_/, '');
+      const responses: Record<string, { status: number; message: string }> = {
+        encryption_key_missing: {
           status: 503,
           message: 'Серверное хранилище секретов ещё не подготовлено.',
         },
-        max_token_missing: { status: 409, message: 'Для включения MAX нужен новый токен.' },
-        max_token_invalid: { status: 422, message: 'MAX отклонил этот токен.' },
-        max_token_bot_mismatch: {
+        token_missing: { status: 409, message: 'Для включения нужен токен бота.' },
+        token_invalid: { status: 422, message: 'Сервис отклонил этот токен.' },
+        token_bot_mismatch: {
           status: 422,
           message: 'Имя бота не совпадает с ботом, которому принадлежит токен.',
         },
-        max_service_unavailable: {
+        webhook_url_invalid: {
+          status: 400,
+          message: 'Нужен разрешённый публичный HTTPS-адрес и поддерживаемый порт.',
+        },
+        webhook_conflict: {
+          status: 409,
+          message: 'Этот бот уже подключён к другому адресу. Прежние настройки сохранены.',
+        },
+        service_unavailable: {
           status: 503,
-          message: 'MAX сейчас не отвечает. Настройки не изменены.',
+          message: 'Сервис сейчас не отвечает. Проверьте состояние подключения.',
         },
       };
-      const response = responses[failure.code];
+      const response = responses[suffix] ?? {
+        status: 503,
+        message: 'Настройки подключения не сохранены.',
+      };
       throw new HttpException(error(failure.code, response.message), response.status);
     }
+    if ((failure as { code?: string })?.code === '40001')
+      throw new HttpException(
+        error('configuration_changed', 'Настройки уже изменены. Обновите страницу и повторите.'),
+        409,
+      );
     this.rethrowAdminFailure(failure);
   }
 

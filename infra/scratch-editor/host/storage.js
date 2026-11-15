@@ -1,6 +1,11 @@
 (() => {
   const unavailable = (code = 'runtime_asset_unavailable') =>
     Object.assign(new Error(code), { code });
+  const requestFailure = (code, response) =>
+    Object.assign(unavailable(code), {
+      status: response?.status,
+      relatedRequestId: response?.headers?.get?.('x-request-id'),
+    });
   const formatsByType = {
     ImageVector: ['svg'],
     ImageBitmap: ['png', 'jpg', 'jpeg'],
@@ -109,6 +114,14 @@
   };
 
   function createReadOnlyStorage(standalone, options = {}) {
+    if (
+      options.publicationRevisionId !== undefined &&
+      (options.canSave !== false ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          options.publicationRevisionId,
+        ))
+    )
+      throw unavailable();
     const scratchStorage = new standalone.ScratchStorage();
     const newProject = options.projectJson === null || typeof options.projectJson === 'undefined';
     const cachedAssets = new Map();
@@ -257,6 +270,26 @@
 
     const saveFailureReason = (error) =>
       typeof error?.code === 'string' && error.code.length > 0 ? error.code : 'save_failed';
+    const reportSaveFailure = (failureCode, error, started) => {
+      if (disposed) return;
+      try {
+        const status = typeof error === 'number' ? error : error?.status;
+        const requestId = error?.relatedRequestId;
+        options.onSaveFailure?.({
+          failureCode,
+          durationMs: Math.max(0, Math.min(600000, Date.now() - started)),
+          ...(Number.isInteger(status) && status >= 100 && status <= 599
+            ? { httpStatus: status }
+            : {}),
+          ...(typeof requestId === 'string' &&
+          /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(requestId)
+            ? { relatedRequestId: requestId }
+            : {}),
+        });
+      } catch {
+        // Diagnostic observers must never alter the actual save outcome.
+      }
+    };
     const publishUpstreamSaveOutcome = (outcome) => {
       upstreamSaveSequence += 1;
       latestUpstreamSaveOutcome = Object.freeze({ sequence: upstreamSaveSequence, ...outcome });
@@ -350,6 +383,7 @@
         drainUpstreamAssetStoreQueue();
       });
     scratchStorage.store = async (assetType, dataFormat, data, assetId) => {
+      const started = Date.now();
       const format = dataFormat || assetType?.runtimeFormat;
       if (
         !validTypeAndFormat(assetType, format) ||
@@ -358,7 +392,9 @@
         data.BYTES_PER_ELEMENT !== 1 ||
         data.byteLength < 1
       ) {
-        throw unavailable('asset_write_failed');
+        const error = unavailable('asset_write_failed');
+        reportSaveFailure('scratch-save-asset', error, started);
+        throw error;
       }
       const generation = options.getProjectGeneration?.();
       if (upstreamSaveGeneration === null && Number.isSafeInteger(generation)) {
@@ -407,6 +443,7 @@
             savedGeneration: failedGeneration,
             latestGeneration: options.getProjectGeneration?.(),
           });
+          reportSaveFailure('scratch-save-asset', error, started);
         }
         throw error;
       }
@@ -418,7 +455,9 @@
       if (existing) return existing;
 
       const response = await runtimeFetch(
-        `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${reference.assetId}.${reference.dataFormat}`,
+        options.publicationRevisionId && options.canSave === false
+          ? `${options.apiOrigin}/api/blocks/runtime/publications/${options.projectId}/revisions/${options.publicationRevisionId}/assets/${reference.assetId}.${reference.dataFormat}`
+          : `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${reference.assetId}.${reference.dataFormat}`,
         {
           method: 'GET',
           credentials: 'omit',
@@ -492,7 +531,7 @@
 
       if (!response.ok || response.redirected) {
         if (response.status === 409) {
-          let payload = null;
+          let payload;
           try {
             payload = await response.json();
           } catch {
@@ -500,26 +539,26 @@
           }
           unresolvedMutation = null;
           if (payload?.error?.code === 'project_revision_conflict') {
-            throw unavailable('revision_conflict');
+            throw requestFailure('revision_conflict', response);
           }
-          throw unavailable('draft_write_failed');
+          throw requestFailure('draft_write_failed', response);
         }
         if (response.status < 500 && !reconciliation) unresolvedMutation = null;
-        throw unavailable('draft_write_failed');
+        throw requestFailure('draft_write_failed', response);
       }
 
       let payload;
       try {
         payload = await response.json();
       } catch {
-        throw unavailable('draft_write_failed');
+        throw requestFailure('draft_write_failed', response);
       }
       if (
         payload?.status !== 'ok' ||
         !Number.isSafeInteger(payload.revision) ||
         payload.revision <= mutation.baseRevision
       ) {
-        throw unavailable('draft_revision_invalid');
+        throw requestFailure('draft_revision_invalid', response);
       }
       return payload.revision;
     };
@@ -681,6 +720,42 @@
       return staged.length;
     };
 
+    const prepareMissingProjectAssets = async (references) => {
+      const missing = references.filter(
+        (reference) => !durableAssets.has(runtimeKey(reference.assetId, reference.dataFormat)),
+      );
+      if (missing.length === 0) return;
+      const live = options.getProjectAssets?.();
+      const candidates = new Map();
+      for (const asset of [
+        ...(Array.isArray(live) ? live : []),
+        ...cachedAssets.values(),
+        ...recoveryAssets.values(),
+      ]) {
+        const assetKey = runtimeKey(asset?.assetId, asset?.dataFormat);
+        if (!candidates.has(assetKey)) candidates.set(assetKey, asset);
+      }
+      // Scratch's clean bit describes its own store lifecycle, not ASA
+      // durability. Snapshot every missing reference before starting uploads.
+      const uploads = missing.map((reference) => {
+        const asset = candidates.get(runtimeKey(reference.assetId, reference.dataFormat));
+        const data = exactBytes(asset?.data);
+        if (
+          !asset ||
+          !validTypeAndFormat(asset.assetType, reference.dataFormat) ||
+          !data?.byteLength
+        ) {
+          throw unavailable('asset_reference_missing');
+        }
+        return { assetType: asset.assetType, ...reference, data };
+      });
+      await Promise.all(
+        uploads.map((asset) =>
+          scratchStorage.store(asset.assetType, asset.dataFormat, asset.data, asset.assetId),
+        ),
+      );
+    };
+
     scratchStorage.addHelper(
       {
         load: async (type, id, format) => {
@@ -786,31 +861,44 @@
       },
       waitForUpstreamSaveAfter,
       async saveProject(projectId, vmState) {
+        const started = Date.now();
+        const failPreparation = (code) => {
+          const error = unavailable(code);
+          reportSaveFailure('scratch-save-prepare', error, started);
+          throw error;
+        };
         if (disposed) throw unavailable('storage_disposed');
         if (options.canSave === false) throw unavailable('runtime_storage_read_only');
         const isManagedReset = projectId === null || typeof projectId === 'undefined';
         if (!isManagedReset && String(projectId) !== String(options.projectId ?? '')) {
-          throw unavailable('project_identity_mismatch');
+          failPreparation('project_identity_mismatch');
         }
-        if (typeof vmState !== 'string') throw unavailable('project_document_invalid');
+        if (typeof vmState !== 'string') failPreparation('project_document_invalid');
 
         let projectJson;
         try {
           projectJson = JSON.parse(vmState);
         } catch {
-          throw unavailable('project_document_invalid');
+          failPreparation('project_document_invalid');
         }
 
         const currentGeneration = options.getProjectGeneration?.();
         const generationAtStart = Number.isSafeInteger(upstreamSaveGeneration)
           ? upstreamSaveGeneration
           : currentGeneration;
+        const saveSequenceAtStart = upstreamSaveSequence;
+        let failureCode = 'scratch-save-prepare';
         try {
-          const references = referencedProjectAssets(projectJson).map((reference) => {
+          const projectReferences = referencedProjectAssets(projectJson);
+          failureCode = 'scratch-save-asset';
+          await prepareMissingProjectAssets(projectReferences);
+          if (disposed) throw unavailable('storage_disposed');
+          const references = projectReferences.map((reference) => {
             const durable = durableAssets.get(runtimeKey(reference.assetId, reference.dataFormat));
             if (!durable) throw unavailable('asset_reference_missing');
             return durable;
           });
+          failureCode = 'scratch-save-draft';
           const revision = await persistCanonicalDocument(projectJson, references);
           const generationAtEnd = options.getProjectGeneration?.();
           if (Number.isSafeInteger(generationAtStart)) {
@@ -845,12 +933,16 @@
           }
           return { id: options.projectId };
         } catch (error) {
-          publishUpstreamSaveOutcome({
-            ok: false,
-            reason: saveFailureReason(error),
-            savedGeneration: Number.isSafeInteger(generationAtStart) ? generationAtStart : null,
-            latestGeneration: options.getProjectGeneration?.(),
-          });
+          // A failed fallback asset store already publishes its outcome.
+          if (upstreamSaveSequence === saveSequenceAtStart) {
+            publishUpstreamSaveOutcome({
+              ok: false,
+              reason: saveFailureReason(error),
+              savedGeneration: Number.isSafeInteger(generationAtStart) ? generationAtStart : null,
+              latestGeneration: options.getProjectGeneration?.(),
+            });
+            reportSaveFailure(failureCode, error, started);
+          }
           throw error;
         } finally {
           upstreamSaveGeneration = null;

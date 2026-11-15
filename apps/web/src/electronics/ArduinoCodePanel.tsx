@@ -1,6 +1,16 @@
+import { activeArduinoGraph } from './arduino-pin-inputs';
+import { ARDUINO_DIGITAL_PIN_OPTIONS } from './arduino-block-schema';
+import { arduinoPinSetup } from './arduino-output-pins';
+import {
+  ARDUINO_SCRATCH_THEME,
+  ARDUINO_WORKSPACE_PLUGINS,
+  configureArduinoPaletteScroll,
+  configureArduinoConnections,
+} from './arduino-block-ui';
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -9,6 +19,8 @@ import {
   type PointerEvent,
   type CSSProperties,
   type ReactNode,
+  type MutableRefObject,
+  type Ref,
 } from 'react';
 import { createPortal } from 'react-dom';
 import * as ScratchBlocks from 'scratch-blocks';
@@ -154,63 +166,6 @@ function blockStackCount(block: ScratchBlocks.Block): number {
   return block.getDescendants(false).filter((descendant) => !descendant.isShadow()).length;
 }
 
-const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduino', {
-  name: 'asa-arduino',
-  base: ScratchBlocks.Themes.Zelos,
-  blockStyles: {
-    motion: {
-      colourPrimary: '#4C97FF',
-      colourSecondary: '#4280D7',
-      colourTertiary: '#3373CC',
-    },
-    sensing: {
-      colourPrimary: '#9966FF',
-      colourSecondary: '#855CD6',
-      colourTertiary: '#774DCB',
-    },
-    more: {
-      colourPrimary: '#8E8E8E',
-      colourSecondary: '#7A7A7A',
-      colourTertiary: '#666666',
-    },
-    control: {
-      colourPrimary: '#FFAB19',
-      colourSecondary: '#EC9C13',
-      colourTertiary: '#CF8B17',
-    },
-    operators: {
-      colourPrimary: '#40BF4A',
-      colourSecondary: '#35A941',
-      colourTertiary: '#2D9238',
-    },
-    data: {
-      colourPrimary: '#CF63CF',
-      colourSecondary: '#C94FC9',
-      colourTertiary: '#BD42BD',
-    },
-    textField: {
-      colourPrimary: '#FFFFFF',
-      colourSecondary: '#FFFFFF',
-      colourTertiary: '#D5D5D5',
-    },
-  },
-  componentStyles: {
-    workspaceBackgroundColour: '#FFFFFF',
-    toolboxBackgroundColour: '#F7F7F7',
-    toolboxForegroundColour: '#43536A',
-    flyoutBackgroundColour: '#F7F7F7',
-    flyoutForegroundColour: '#43536A',
-    flyoutOpacity: 1,
-    scrollbarColour: '#C5CBD3',
-    scrollbarOpacity: 0.75,
-  },
-  fontStyle: {
-    family: 'Arial, sans-serif',
-    weight: '600',
-    size: 12,
-  },
-});
-
 function applyScratchMediaAssets(host: HTMLElement): void {
   const setImage = (selector: string, url: string): void => {
     for (const image of host.querySelectorAll<SVGImageElement>(selector)) {
@@ -260,19 +215,28 @@ function centerArduinoProgram(workspace: ScratchBlocks.WorkspaceSvg): void {
   window.setTimeout(() => workspace.endCanvasTransition(), 500);
 }
 
-function DrawerResizeHandle({
+function HorizontalResizeHandle({
   width,
   onWidthChange,
+  kind,
+  direction,
+  step,
+  shiftStep,
 }: {
   width: number;
   onWidthChange: (width: number) => void;
+  kind: 'drawer' | 'palette';
+  direction: -1 | 1;
+  step: number;
+  shiftStep: number;
 }): JSX.Element {
+  const resizingClass = `arduino-${kind}-resizing`;
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
 
   function stopResize(event: PointerEvent<HTMLDivElement>): void {
     if (dragRef.current?.pointerId !== event.pointerId) return;
     dragRef.current = null;
-    document.documentElement.classList.remove('arduino-drawer-resizing');
+    document.documentElement.classList.remove(resizingClass);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -281,15 +245,17 @@ function DrawerResizeHandle({
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
-    const step = event.shiftKey ? 48 : 16;
-    onWidthChange(width + (event.key === 'ArrowLeft' ? step : -step));
+    const increment = event.shiftKey ? shiftStep : step;
+    onWidthChange(width + (event.key === 'ArrowRight' ? direction : -direction) * increment);
   }
 
   return (
     <div
-      className="arduino-drawer-resize-handle"
+      className={`arduino-${kind}-resize-handle`}
       role="separator"
-      aria-label="Изменить ширину редактора кода"
+      aria-label={
+        kind === 'drawer' ? 'Изменить ширину редактора кода' : 'Изменить ширину палитры блоков'
+      }
       aria-orientation="vertical"
       aria-valuenow={Math.round(width)}
       tabIndex={0}
@@ -302,19 +268,23 @@ function DrawerResizeHandle({
           startWidth: width,
         };
         event.currentTarget.setPointerCapture(event.pointerId);
-        document.documentElement.classList.add('arduino-drawer-resizing');
+        document.documentElement.classList.add(resizingClass);
         event.preventDefault();
       }}
       onPointerMove={(event) => {
         const drag = dragRef.current;
         if (!drag || drag.pointerId !== event.pointerId) return;
-        onWidthChange(drag.startWidth + drag.startX - event.clientX);
+        onWidthChange(
+          direction === -1
+            ? drag.startWidth + drag.startX - event.clientX
+            : drag.startWidth + event.clientX - drag.startX,
+        );
       }}
       onPointerUp={stopResize}
       onPointerCancel={stopResize}
       onLostPointerCapture={() => {
         dragRef.current = null;
-        document.documentElement.classList.remove('arduino-drawer-resizing');
+        document.documentElement.classList.remove(resizingClass);
       }}
     />
   );
@@ -395,71 +365,45 @@ function MobileCodeHandle({
   );
 }
 
-function PaletteResizeHandle({
-  width,
-  onWidthChange,
-}: {
-  width: number;
-  onWidthChange: (width: number) => void;
-}): JSX.Element {
-  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
-
-  function stopResize(event: PointerEvent<HTMLDivElement>): void {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    document.documentElement.classList.remove('arduino-palette-resizing');
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const step = event.shiftKey ? 40 : 12;
-    onWidthChange(width + (event.key === 'ArrowRight' ? step : -step));
-  }
-
-  return (
-    <div
-      className="arduino-palette-resize-handle"
-      role="separator"
-      aria-label="Изменить ширину палитры блоков"
-      aria-orientation="vertical"
-      aria-valuenow={Math.round(width)}
-      tabIndex={0}
-      onKeyDown={onKeyDown}
-      onPointerDown={(event) => {
-        if (event.button !== 0) return;
-        dragRef.current = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startWidth: width,
-        };
-        event.currentTarget.setPointerCapture(event.pointerId);
-        document.documentElement.classList.add('arduino-palette-resizing');
-        event.preventDefault();
-      }}
-      onPointerMove={(event) => {
-        const drag = dragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        onWidthChange(drag.startWidth + event.clientX - drag.startX);
-      }}
-      onPointerUp={stopResize}
-      onPointerCancel={stopResize}
-      onLostPointerCapture={() => {
-        dragRef.current = null;
-        document.documentElement.classList.remove('arduino-palette-resizing');
-      }}
-    />
-  );
-}
-
 const MODE_LABELS: Record<ArduinoCodeMode, string> = {
   blocks: 'Блоки',
   'blocks-text': 'Блоки с текстом',
   text: 'Текст',
 };
+
+function withSavedArduinoWorkspace<T>(
+  json: string,
+  read: (workspace: ScratchBlocks.Workspace) => T,
+): T {
+  registerArduinoBlocks();
+  const workspace = new ScratchBlocks.Workspace();
+  try {
+    loadSavedArduinoWorkspace(json, workspace);
+    applyArduinoBlockDefaults(workspace);
+    return read(workspace);
+  } finally {
+    workspace.dispose();
+  }
+}
+
+function loadSavedArduinoWorkspace(json: string, workspace: ScratchBlocks.Workspace): void {
+  const state = JSON.parse(json);
+  if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error();
+  const migrated = migrateLegacyArduinoWorkspaceState(state);
+  const { Events, utils } = ScratchBlocks;
+  const group = Events.getGroup();
+  const recordUndo = Events.getRecordUndo();
+  try {
+    ScratchBlocks.serialization.workspaces.load(migrated, workspace);
+  } catch (error) {
+    // Blockly's loader only restores these on success.
+    Events.setGroup(group);
+    Events.setRecordUndo(recordUndo);
+    utils.dom.stopTextWidthCache();
+    if (workspace instanceof ScratchBlocks.WorkspaceSvg) workspace.setResizesEnabled(true);
+    throw error;
+  }
+}
 
 function isArduino(component: SchematicComponent): boolean {
   return component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno';
@@ -505,18 +449,40 @@ function ChevronDown(): JSX.Element {
   );
 }
 
-function ScratchWorkspace({
+type ArduinoWorkspaceHandle = {
+  readonly workspace: ScratchBlocks.Workspace | null;
+  flushPendingPublication: () => void;
+};
+
+function resizeVisibleArduinoWorkspace(
+  workspace: ScratchBlocks.WorkspaceSvg,
+  host: HTMLElement,
+): void {
+  // A retained editor can be in a hidden tab. Resizing it to zero clamps the
+  // native scroll position and loses the learner's view on the next reveal.
+  if (host.clientWidth > 0 && host.clientHeight > 0) ScratchBlocks.svgResize(workspace);
+}
+
+export function ScratchWorkspace({
   initialWorkspace,
+  initialize = false,
+  inputPins,
+  programWorkspaceRef,
   category,
   flyoutWidth,
   paletteScale,
   onChange,
+  onError,
 }: {
   initialWorkspace: string;
+  initialize?: boolean;
+  inputPins: readonly string[];
+  programWorkspaceRef: MutableRefObject<ArduinoWorkspaceHandle | null>;
   category: ArduinoBlockCategory;
   flyoutWidth: number;
   paletteScale: number;
   onChange: (workspaceJson: string, source: string) => void;
+  onError?: (message: string) => void;
 }): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<ScratchBlocks.WorkspaceSvg | null>(null);
@@ -524,8 +490,8 @@ function ScratchWorkspace({
   const flyoutWidthRef = useRef(flyoutWidth);
   const paletteScaleRef = useRef(paletteScale);
   const categoryRef = useRef(category);
+  const inputPinsRef = useRef(inputPins);
   const refreshToolboxRef = useRef<(() => void) | null>(null);
-  const timerRef = useRef<number | null>(null);
   const variablePromptCallbackRef = useRef<ArduinoVariablePromptCallback | null>(null);
   const [blockContextMenu, setBlockContextMenu] = useState<ArduinoBlockContextMenu | null>(null);
   const [variablePrompt, setVariablePrompt] = useState<ArduinoVariablePrompt | null>(null);
@@ -533,6 +499,7 @@ function ScratchWorkspace({
   flyoutWidthRef.current = flyoutWidth;
   paletteScaleRef.current = paletteScale;
   categoryRef.current = category;
+  inputPinsRef.current = inputPins;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -548,17 +515,19 @@ function ScratchWorkspace({
       theme: ARDUINO_SCRATCH_THEME,
       trashcan: true,
       sounds: false,
+      plugins: ARDUINO_WORKSPACE_PLUGINS,
       scrollbars: true,
       zoom: {
         controls: true,
         wheel: true,
-        startScale: 0.86,
+        startScale: host.clientWidth <= 600 ? 0.72 : 0.86,
         maxScale: 1.5,
         minScale: 0.45,
         scaleSpeed: 1.1,
       },
       move: { scrollbars: true, drag: true, wheel: true },
     });
+    configureArduinoConnections(workspace);
     const flyout = workspace.getFlyout() as
       | (ScratchBlocks.VerticalFlyout & {
           getWidth: () => number;
@@ -578,6 +547,7 @@ function ScratchWorkspace({
       flyout.getWorkspace().setScale(paletteScaleRef.current);
       flyout.reflow();
     }
+    configureArduinoPaletteScroll(workspace);
     workspaceRef.current = workspace;
     document.documentElement.classList.add('arduino-block-editor-active');
 
@@ -602,7 +572,7 @@ function ScratchWorkspace({
         toolboxForCategory(categoryRef.current, variables, paletteScaleRef.current),
       );
       workspace.getFlyout()?.reflow();
-      ScratchBlocks.svgResize(workspace);
+      resizeVisibleArduinoWorkspace(workspace, host);
     };
     refreshToolboxRef.current = refreshToolbox;
 
@@ -627,22 +597,26 @@ function ScratchWorkspace({
       });
     });
 
-    let loaded = false;
-    if (initialWorkspace) {
-      try {
-        ScratchBlocks.serialization.workspaces.load(
-          migrateLegacyArduinoWorkspaceState(JSON.parse(initialWorkspace)),
-          workspace,
-        );
-        loaded = workspace.getAllBlocks(false).length > 0;
-      } catch {
-        loaded = false;
+    let usableWorkspace = true;
+    // Blockly queues load events, so attaching the listener later is insufficient.
+    ScratchBlocks.Events.disable();
+    try {
+      if (initialize) {
+        createDefaultArduinoBlocks(workspace);
+      } else if (initialWorkspace) {
+        loadSavedArduinoWorkspace(initialWorkspace, workspace);
       }
+      applyArduinoBlockDefaults(workspace);
+      refreshToolbox();
+      // Loaded coordinates are saved user data.
+      if (initialize) keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
+    } catch {
+      usableWorkspace = false;
+      workspace.clear();
+      onError?.('Блоки повреждены. Код сохранён.');
+    } finally {
+      ScratchBlocks.Events.enable();
     }
-    if (!loaded) createDefaultArduinoBlocks(workspace);
-    applyArduinoBlockDefaults(workspace);
-    refreshToolbox();
-    keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
 
     const handleZoomReset = (event: Event): void => {
       if (!(event.target instanceof Element) || !event.target.closest('.blocklyZoomReset')) return;
@@ -704,16 +678,57 @@ function ScratchWorkspace({
 
     const assetFrame = window.requestAnimationFrame(() => {
       applyScratchMediaAssets(host);
-      ScratchBlocks.svgResize(workspace);
+      resizeVisibleArduinoWorkspace(workspace, host);
     });
 
-    const publish = (): void => {
-      const state = ScratchBlocks.serialization.workspaces.save(workspace);
-      changeRef.current(JSON.stringify(state), generateArduinoCode(workspace));
+    const originalBlockOpacity = new Map<SVGElement, string>();
+    const draggedBlocks = new Set<string>();
+    const updateBlockActivity = (): void => {
+      const { active } = activeArduinoGraph(workspace);
+      for (const block of workspace.getAllBlocks(false)) {
+        const svg = block.getSvgRoot();
+        if (!svg) continue;
+        if (!originalBlockOpacity.has(svg)) originalBlockOpacity.set(svg, svg.style.opacity);
+        const parent = block.getParent();
+        const inactiveRoot = !active.has(block) && (!parent || active.has(parent));
+        svg.style.opacity =
+          inactiveRoot && !draggedBlocks.has(block.id) ? '0.45' : originalBlockOpacity.get(svg)!;
+      }
     };
-    publish();
+    const serialize = (): string =>
+      JSON.stringify(ScratchBlocks.serialization.workspaces.save(workspace));
+    // Compare the live serialization, which may normalize the original saved bytes.
+    // The host can flush an edit before Blockly dispatches its queued change event.
+    let lastWorkspace = initialize ? '' : serialize();
+    const publish = (): void => {
+      updateBlockActivity();
+      const nextWorkspace = serialize();
+      if (nextWorkspace === lastWorkspace) return;
+      const source = generateArduinoCode(workspace, inputPinsRef.current);
+      usableWorkspace = true;
+      lastWorkspace = nextWorkspace;
+      changeRef.current(nextWorkspace, source);
+    };
+    programWorkspaceRef.current = {
+      get workspace() {
+        return usableWorkspace ? workspace : null;
+      },
+      flushPendingPublication: publish,
+    };
+    if (initialize && usableWorkspace) publish();
+    else updateBlockActivity();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
-      if ((event as ScratchBlocks.Events.Abstract & { isUiEvent?: boolean }).isUiEvent) return;
+      if (event.type === ScratchBlocks.Events.BLOCK_DRAG) {
+        const drag = event as ScratchBlocks.Events.BlockDrag;
+        draggedBlocks.clear();
+        if (drag.isStart) {
+          for (const block of drag.blocks ?? []) draggedBlocks.add(block.id);
+          if (drag.blockId) draggedBlocks.add(drag.blockId);
+        }
+        updateBlockActivity();
+        return;
+      }
+      if (event.isUiEvent || event.type === ScratchBlocks.Events.FINISHED_LOADING) return;
       if (
         event.type === ScratchBlocks.Events.VAR_CREATE ||
         event.type === ScratchBlocks.Events.VAR_DELETE ||
@@ -721,14 +736,12 @@ function ScratchWorkspace({
       ) {
         window.requestAnimationFrame(refreshToolbox);
       }
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(publish, 180);
+      publish();
     };
     workspace.addChangeListener(listener);
-    const resizeObserver = new ResizeObserver(() => ScratchBlocks.svgResize(workspace));
+    const resizeObserver = new ResizeObserver(() => resizeVisibleArduinoWorkspace(workspace, host));
     resizeObserver.observe(host);
     return () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       window.cancelAnimationFrame(assetFrame);
       resizeObserver.disconnect();
       host.removeEventListener('pointerdown', handleZoomReset, true);
@@ -737,8 +750,10 @@ function ScratchWorkspace({
       window.removeEventListener('pointerdown', closeFloatingUi, true);
       window.removeEventListener('keydown', closeWithEscape, true);
       workspace.removeChangeListener(listener);
+      for (const [svg, opacity] of originalBlockOpacity) svg.style.opacity = opacity;
       workspace.dispose();
       workspaceRef.current = null;
+      programWorkspaceRef.current = null;
       refreshToolboxRef.current = null;
       document.documentElement.classList.remove('arduino-block-editor-active');
       variablePromptCallbackRef.current = null;
@@ -753,9 +768,10 @@ function ScratchWorkspace({
 
   useEffect(() => {
     const workspace = workspaceRef.current;
-    if (!workspace) return;
+    const host = hostRef.current;
+    if (!workspace || !host) return;
     workspace.getFlyout()?.reflow();
-    ScratchBlocks.svgResize(workspace);
+    resizeVisibleArduinoWorkspace(workspace, host);
   }, [flyoutWidth]);
 
   useEffect(() => {
@@ -1168,7 +1184,7 @@ function ArduinoSourceEditor({
             Блокирующих: {unsupportedCount}
           </span>
           <span className={`arduino-code-check-count limited${limitedCount > 0 ? ' active' : ''}`}>
-            Ограничений: {limitedCount}
+            Примечаний: {limitedCount}
           </span>
           <span className="arduino-code-check-summary" id="arduino-source-editor-status">
             {completion
@@ -1176,7 +1192,7 @@ function ArduinoSourceEditor({
               : unsupportedCount > 0
                 ? 'Моделирование заблокировано'
                 : limitedCount > 0
-                  ? 'Код исполняется упрощённо'
+                  ? 'Можно запускать · есть примечания'
                   : 'Ошибок не найдено'}
           </span>
           <ChevronDown />
@@ -1185,10 +1201,10 @@ function ArduinoSourceEditor({
           <div className="arduino-code-check-body" id="arduino-code-check-body">
             <p>
               {unsupportedCount > 0
-                ? 'Симулятор пока не исполняет эти команды. Это проверка модели ASA Lab, а не компиляция Arduino C++.'
+                ? 'Исправьте указанные ошибки и неподдерживаемые команды перед запуском. Это проверка симулятора, не компиляция C++.'
                 : limitedCount > 0
-                  ? 'Код запускается, но перечисленные возможности моделируются упрощённо. Это не ошибки компиляции.'
-                  : 'Все использованные команды исполняются симулятором. Это проверка модели ASA Lab, а не компиляция Arduino C++.'}
+                  ? 'Примечания ниже не блокируют запуск. Нажмите на строку, чтобы перейти к команде.'
+                  : 'Ошибок для симулятора не найдено. Это не компиляция Arduino C++.'}
             </p>
             <div className="arduino-code-check-messages">
               {supportDiagnostics.map((diagnostic) => (
@@ -1213,6 +1229,25 @@ function ArduinoSourceEditor({
   );
 }
 
+export interface ArduinoCodePanelHandle {
+  /** Publish the live block graph synchronously before an enclosing host action. */
+  flushPendingPublication: () => void;
+  /** Reveal the first root after an embedding viewport change; never edits the graph. */
+  revealProgramStart: () => void;
+}
+
+function ArduinoToolbarOverflow({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}): JSX.Element {
+  // Standalone Electronics keeps its original direct toolbar DOM/CSS selectors.
+  // Only Robotics with a trailing simulation controller needs a scrollable group.
+  return active ? <div className="arduino-code-toolbar-scroll">{children}</div> : <>{children}</>;
+}
+
 export function ArduinoCodePanel({
   controller: c,
   open,
@@ -1221,6 +1256,9 @@ export function ArduinoCodePanel({
   mobileHeightPercent,
   onMobileHeightChange,
   onClose,
+  programHandleRef,
+  toolbarActions,
+  toolbarAccessory,
 }: {
   controller: ElectronicsWorkbenchController;
   open: boolean;
@@ -1229,6 +1267,9 @@ export function ArduinoCodePanel({
   mobileHeightPercent: number;
   onMobileHeightChange: (value: number) => void;
   onClose: () => void;
+  programHandleRef?: Ref<ArduinoCodePanelHandle>;
+  toolbarActions?: ReactNode;
+  toolbarAccessory?: ReactNode;
 }): JSX.Element {
   const boards = useMemo(
     () => c.document?.components.filter(isArduino) ?? [],
@@ -1250,6 +1291,44 @@ export function ArduinoCodePanel({
     readArduinoProgramState(selectedBoard?.stateProperties),
   );
   const programRef = useRef(program);
+  const initializeOnConvertRef = useRef<string | undefined>(undefined);
+  const programWorkspaceRef = useRef<ArduinoWorkspaceHandle | null>(null);
+  const hasSavedWorkspace =
+    typeof selectedBoard?.stateProperties?.['arduinoWorkspace'] === 'string';
+  useImperativeHandle(
+    programHandleRef,
+    () => ({
+      flushPendingPublication: () => programWorkspaceRef.current?.flushPendingPublication(),
+      revealProgramStart: () => {
+        const workspace = programWorkspaceRef.current?.workspace as
+          ScratchBlocks.WorkspaceSvg | undefined;
+        if (!workspace?.rendered) return;
+        const host = workspace.getInjectionDiv();
+        if (host.clientWidth <= 0 || host.clientHeight <= 0) return;
+        ScratchBlocks.svgResize(workspace);
+        const first = workspace.getTopBlocks(true)[0];
+        if (!first) return;
+        const hostBounds = host.getBoundingClientRect();
+        let clipLeft = hostBounds.left;
+        let clipTop = hostBounds.top;
+        for (let ancestor = host.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          const style = window.getComputedStyle(ancestor);
+          const bounds = ancestor.getBoundingClientRect();
+          if (style.overflowX !== 'visible') clipLeft = Math.max(clipLeft, bounds.left);
+          if (style.overflowY !== 'visible') clipTop = Math.max(clipTop, bounds.top);
+        }
+        const leftInset = Math.max(0, clipLeft - hostBounds.left);
+        const topInset = Math.max(0, clipTop - hostBounds.top);
+        const flyoutWidth = workspace.getFlyout()?.getWidth() ?? 0;
+        const position = first.getRelativeToSurfaceXY();
+        workspace.scroll(
+          Math.max(leftInset, flyoutWidth) + 16 - position.x * workspace.scale,
+          topInset + 18 - position.y * workspace.scale,
+        );
+      },
+    }),
+    [],
+  );
   const sourceCursorRef = useRef(program.source.length);
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
   const [fontSize, setFontSize] = useState(initialArduinoFontSize);
@@ -1260,6 +1339,12 @@ export function ArduinoCodePanel({
   const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<ArduinoCodeMode | null>(null);
   const modeMenuRef = useRef<HTMLDetailsElement>(null);
+  const inputSettingsButtonRef = useRef<HTMLButtonElement>(null);
+  const [inputSettings, setInputSettings] = useState<{
+    pins: readonly string[];
+    inferred: ReadonlySet<string>;
+    unresolved: boolean;
+  } | null>(null);
 
   const activateBoard = useCallback((board: SchematicComponent): void => {
     const nextProgram = readArduinoProgramState(board.stateProperties);
@@ -1268,6 +1353,7 @@ export function ArduinoCodePanel({
     setProgram(nextProgram);
     setBoardId(board.id);
     setPendingMode(null);
+    setInputSettings(null);
     setDiagnosticsOpen(analyseArduinoSourceSupport(nextProgram.source).length > 0);
   }, []);
 
@@ -1280,6 +1366,16 @@ export function ArduinoCodePanel({
   useEffect(() => {
     if (preferredBoard?.id && preferredBoard.id !== boardId) activateBoard(preferredBoard);
   }, [activateBoard, boardId, preferredBoard]);
+
+  // External document changes (including Undo/Redo) restore the per-board
+  // settings/source pair without reloading the live block workspace.
+  useEffect(() => {
+    if (!selectedBoard || selectedBoard.id !== boardId) return;
+    const next = readArduinoProgramState(selectedBoard.stateProperties);
+    if (JSON.stringify(next) === JSON.stringify(programRef.current)) return;
+    programRef.current = next;
+    setProgram(next);
+  }, [boardId, selectedBoard]);
 
   useEffect(() => {
     localStorage.setItem(ARDUINO_FLYOUT_STORAGE_KEY, String(preferredFlyoutWidth));
@@ -1304,22 +1400,72 @@ export function ArduinoCodePanel({
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
     // Input is already visible. Commit it before Save or navigation can read
-    // the document; expensive block generation keeps its separate debounce.
+    // the document, including genuine block edits.
     const properties: Readonly<Record<string, ProductionStateValue>> = {
       arduinoCodeMode: next.mode,
-      arduinoWorkspace: next.workspaceJson,
+      ...(hasSavedWorkspace || next.workspaceJson ? { arduinoWorkspace: next.workspaceJson } : {}),
       arduinoSource: next.source,
       arduinoSerialOpen: next.serialOpen,
       arduinoBaudRate: next.baudRate,
+      ...(next.inputPins.length > 0 || selectedBoard.stateProperties?.['arduinoInputPins']
+        ? { arduinoInputPins: next.inputPins }
+        : {}),
     };
     c.updateArduinoProgram(selectedBoard.id, properties);
   }
 
   function updateProgram(patch: Partial<ArduinoProgramState>): void {
-    const next = { ...programRef.current, ...patch };
+    // A pending block edit is its own Undo step; commit it before the atomic
+    // input-settings/source change, so Undo does not leave stale live blocks.
+    if (patch.inputPins && programRef.current.mode !== 'text') {
+      programWorkspaceRef.current?.flushPendingPublication();
+    }
+    let next = { ...programRef.current, ...patch };
+    if (patch.inputPins && next.mode !== 'text') {
+      const handle = programWorkspaceRef.current;
+      const live = handle?.workspace;
+      if (live) {
+        next = {
+          ...next,
+          source: generateArduinoCode(live, next.inputPins),
+        };
+      } else if (!handle && next.workspaceJson) {
+        next = {
+          ...next,
+          source: withSavedArduinoWorkspace(next.workspaceJson, (workspace) =>
+            generateArduinoCode(workspace, next.inputPins),
+          ),
+        };
+      }
+    }
     programRef.current = next;
     setProgram(next);
     persist(next);
+  }
+
+  function closeInputSettings(): void {
+    setInputSettings(null);
+    modeMenuRef.current?.setAttribute('open', '');
+    inputSettingsButtonRef.current?.focus();
+  }
+
+  function openInputSettings(): void {
+    const current = programRef.current;
+    const handle = programWorkspaceRef.current;
+    const live = handle?.workspace;
+    const roles = live
+      ? arduinoPinSetup(activeArduinoGraph(live).blocks)
+      : !handle && current.mode !== 'text' && current.workspaceJson
+        ? withSavedArduinoWorkspace(current.workspaceJson, (workspace) =>
+            arduinoPinSetup(activeArduinoGraph(workspace).blocks),
+          )
+        : arduinoPinSetup([]);
+    setInputSettings({
+      pins: [...arduinoPinSetup([], current.inputPins).inputs],
+      inferred: roles.inputs,
+      unresolved: roles.unresolvedInputs.length > 0,
+    });
+    modeMenuRef.current?.removeAttribute('open');
   }
 
   function chooseMode(mode: ArduinoCodeMode): void {
@@ -1338,6 +1484,9 @@ export function ArduinoCodePanel({
 
   function confirmModeChange(): void {
     if (!pendingMode) return;
+    if (pendingMode !== 'text' && !hasSavedWorkspace) {
+      initializeOnConvertRef.current = selectedBoard?.id;
+    }
     updateProgram({ mode: pendingMode });
     setPendingMode(null);
   }
@@ -1357,17 +1506,17 @@ export function ArduinoCodePanel({
     const unsupported = diagnostics.filter((diagnostic) => diagnostic.status === 'unsupported');
     if (unsupported.length > 0) {
       c.setNotice(
-        `Проверка Arduino: ${unsupported.length} команд пока не работают. Расчёт будет заблокирован.`,
+        `Проверка Arduino: блокирующих ошибок — ${unsupported.length}. Исправьте их перед запуском.`,
       );
       return;
     }
     if (diagnostics.length > 0) {
       c.setNotice(
-        `Проверка Arduino: код исполняется с ${diagnostics.length} ограничениями модели.`,
+        `Проверка Arduino: можно запускать. Примечаний — ${diagnostics.length}; подробности ниже.`,
       );
       return;
     }
-    c.setNotice('Проверка Arduino: все использованные команды поддерживаются.');
+    c.setNotice('Проверка Arduino: ошибок для симулятора не найдено.');
   }
 
   function appendCommandSnippet(snippet: string): void {
@@ -1387,7 +1536,14 @@ export function ArduinoCodePanel({
         aria-label="Редактор кода Arduino"
         aria-hidden={!open}
       >
-        <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
+        <HorizontalResizeHandle
+          kind="drawer"
+          direction={-1}
+          step={16}
+          shiftStep={48}
+          width={drawerWidth}
+          onWidthChange={onDrawerWidthChange}
+        />
         <MobileCodeHandle
           height={mobileHeightPercent}
           onHeightChange={onMobileHeightChange}
@@ -1408,13 +1564,21 @@ export function ArduinoCodePanel({
       aria-hidden={!open}
       style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
     >
-      <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
+      <HorizontalResizeHandle
+        kind="drawer"
+        direction={-1}
+        step={16}
+        shiftStep={48}
+        width={drawerWidth}
+        onWidthChange={onDrawerWidthChange}
+      />
       <MobileCodeHandle
         height={mobileHeightPercent}
         onHeightChange={onMobileHeightChange}
         onClose={onClose}
       />
       <header className={`arduino-code-toolbar mode-${program.mode}`}>
+        {/* Keep this popover outside the scrolling tools so its menu is not clipped. */}
         <details className="arduino-mode-menu" ref={modeMenuRef}>
           <summary>
             <span>{MODE_LABELS[program.mode]}</span>
@@ -1432,89 +1596,100 @@ export function ArduinoCodePanel({
                 {MODE_LABELS[mode]}
               </button>
             ))}
+            <button type="button" ref={inputSettingsButtonRef} onClick={openInputSettings}>
+              Настройки Arduino
+            </button>
           </div>
         </details>
-        {program.mode !== 'blocks' ? (
-          <button
-            type="button"
-            className="arduino-toolbar-button arduino-check-button"
-            onClick={checkProgram}
-            title="Проверить совместимость кода с симулятором (не компиляция)"
-          >
-            <CheckIcon />
-            <span>Проверить код</span>
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="arduino-square-button arduino-download-button"
-          onClick={downloadSource}
-          title="Скачать .ino"
-        >
-          <DownloadIcon />
-        </button>
-        {program.mode !== 'blocks' ? (
-          <button
-            type="button"
-            className={`arduino-toolbar-button arduino-commands-button${commandReferenceOpen ? ' active' : ''}`}
-            title="Справочник команд Arduino"
-            aria-expanded={commandReferenceOpen}
-            onClick={() => setCommandReferenceOpen((current) => !current)}
-          >
-            <CommandsIcon />
-            <span>Команды</span>
-          </button>
-        ) : null}
-        {program.mode === 'text' ? (
-          <button
-            type="button"
-            className={`arduino-toolbar-button arduino-autocomplete-button${autocompleteEnabled ? ' active' : ''}`}
-            title={autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'}
-            aria-label={
-              autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'
-            }
-            aria-pressed={autocompleteEnabled}
-            onClick={() => setAutocompleteEnabled((current) => !current)}
-          >
-            <AutocompleteIcon />
-            <span>Авто</span>
-          </button>
-        ) : null}
-        {program.mode !== 'blocks' ? (
-          <label className="arduino-font-size-select" title="Размер текста">
-            <span aria-hidden="true">Aa</span>
-            <select
-              value={fontSize}
-              onChange={(event) => setFontSize(Number(event.target.value))}
-              aria-label="Размер текста Arduino"
+        <ArduinoToolbarOverflow active={Boolean(toolbarActions)}>
+          {program.mode !== 'blocks' ? (
+            <button
+              type="button"
+              className="arduino-toolbar-button arduino-check-button"
+              onClick={checkProgram}
+              title="Проверить совместимость кода с симулятором (не компиляция)"
             >
-              {ARDUINO_FONT_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {size} px
-                </option>
-              ))}
-            </select>
-          </label>
+              <CheckIcon />
+              <span>Проверить код</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="arduino-square-button arduino-download-button"
+            onClick={downloadSource}
+            title="Скачать .ino"
+          >
+            <DownloadIcon />
+          </button>
+          {program.mode !== 'blocks' ? (
+            <button
+              type="button"
+              className={`arduino-toolbar-button arduino-commands-button${commandReferenceOpen ? ' active' : ''}`}
+              title="Справочник команд Arduino"
+              aria-expanded={commandReferenceOpen}
+              onClick={() => setCommandReferenceOpen((current) => !current)}
+            >
+              <CommandsIcon />
+              <span>Команды</span>
+            </button>
+          ) : null}
+          {program.mode === 'text' ? (
+            <button
+              type="button"
+              className={`arduino-toolbar-button arduino-autocomplete-button${autocompleteEnabled ? ' active' : ''}`}
+              title={autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'}
+              aria-label={
+                autocompleteEnabled ? 'Отключить автодополнение' : 'Включить автодополнение'
+              }
+              aria-pressed={autocompleteEnabled}
+              onClick={() => setAutocompleteEnabled((current) => !current)}
+            >
+              <AutocompleteIcon />
+              <span>Авто</span>
+            </button>
+          ) : null}
+          {program.mode !== 'blocks' ? (
+            <label className="arduino-font-size-select" title="Размер текста">
+              <span aria-hidden="true">Aa</span>
+              <select
+                value={fontSize}
+                onChange={(event) => setFontSize(Number(event.target.value))}
+                aria-label="Размер текста Arduino"
+              >
+                {ARDUINO_FONT_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size} px
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <span className="arduino-code-toolbar-spacer" />
+          <select
+            className="arduino-board-select"
+            value={selectedBoard.id}
+            aria-label="Программируемая плата"
+            title={`Активная плата: ${selectedBoard.name?.trim() || 'Arduino Uno R3'}`}
+            onChange={(event) => {
+              const nextBoard = boards.find((board) => board.id === event.target.value);
+              if (!nextBoard) return;
+              activateBoard(nextBoard);
+              c.selectComponent(nextBoard.id, false);
+            }}
+          >
+            {boards.map((board, index) => (
+              <option key={board.id} value={board.id}>
+                {index + 1} ({board.name?.trim() || 'Arduino Uno R3'})
+              </option>
+            ))}
+          </select>
+        </ArduinoToolbarOverflow>
+        {toolbarAccessory ? (
+          <div className="arduino-code-toolbar-accessory">{toolbarAccessory}</div>
         ) : null}
-        <span className="arduino-code-toolbar-spacer" />
-        <select
-          className="arduino-board-select"
-          value={selectedBoard.id}
-          aria-label="Программируемая плата"
-          title={`Активная плата: ${selectedBoard.name?.trim() || 'Arduino Uno R3'}`}
-          onChange={(event) => {
-            const nextBoard = boards.find((board) => board.id === event.target.value);
-            if (!nextBoard) return;
-            activateBoard(nextBoard);
-            c.selectComponent(nextBoard.id, false);
-          }}
-        >
-          {boards.map((board, index) => (
-            <option key={board.id} value={board.id}>
-              {index + 1} ({board.name?.trim() || 'Arduino Uno R3'})
-            </option>
-          ))}
-        </select>
+        {toolbarActions ? (
+          <div className="arduino-code-toolbar-actions">{toolbarActions}</div>
+        ) : null}
       </header>
       <div
         className={`arduino-code-body mode-${program.mode}${program.mode !== 'blocks' && commandReferenceOpen ? ' commands-open' : ''}`}
@@ -1527,7 +1702,11 @@ export function ArduinoCodePanel({
         />
         {program.mode !== 'text' ? (
           <div className="arduino-block-editor">
-            <PaletteResizeHandle
+            <HorizontalResizeHandle
+              kind="palette"
+              direction={1}
+              step={12}
+              shiftStep={40}
               width={flyoutWidth}
               onWidthChange={(width) =>
                 setPreferredFlyoutWidth(
@@ -1538,10 +1717,22 @@ export function ArduinoCodePanel({
             <ScratchWorkspace
               key={selectedBoard.id}
               initialWorkspace={program.workspaceJson}
+              initialize={
+                initializeOnConvertRef.current === selectedBoard.id ||
+                !['arduinoSource', 'arduinoWorkspace', 'arduinoCodeMode'].some(
+                  (key) => key in (selectedBoard.stateProperties ?? {}),
+                )
+              }
+              inputPins={program.inputPins}
+              programWorkspaceRef={programWorkspaceRef}
               category={category}
               flyoutWidth={flyoutWidth}
               paletteScale={effectivePaletteScale}
-              onChange={(workspaceJson, source) => updateProgram({ workspaceJson, source })}
+              onChange={(workspaceJson, source) => {
+                initializeOnConvertRef.current = undefined;
+                updateProgram({ workspaceJson, source });
+              }}
+              onError={c.setNotice}
             />
             <div className="arduino-block-categories" role="tablist" aria-label="Категории блоков">
               {CATEGORY_ITEMS.map((item) => (
@@ -1615,6 +1806,107 @@ export function ArduinoCodePanel({
         onOpenChange={(serialOpen) => updateProgram({ serialOpen })}
         onSend={c.sendArduinoSerialRx}
       />
+      {inputSettings ? (
+        <div className="arduino-confirm-backdrop" role="presentation">
+          <section
+            className="arduino-confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Настройки Arduino"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                closeInputSettings();
+              }
+              if (event.key !== 'Tab') return;
+              const controls = [
+                ...event.currentTarget.querySelectorAll<HTMLElement>(
+                  'button, input:not(:disabled)',
+                ),
+              ];
+              const first = controls[0],
+                last = controls[controls.length - 1];
+              if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+              } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+              }
+            }}
+          >
+            <header>
+              <strong>Настройки Arduino</strong>
+              <button
+                type="button"
+                autoFocus
+                aria-label="Закрыть настройки Arduino"
+                onClick={closeInputSettings}
+              >
+                ×
+              </button>
+            </header>
+            <p>
+              Входные порты (INPUT). Для вычисляемых входов выберите все порты, которые может
+              прочитать программа. Остальные GPIO в блоках настраиваются как OUTPUT.
+            </p>
+            {inputSettings.unresolved ? (
+              <p>В программе есть вычисляемые входные порты: укажите их в списке.</p>
+            ) : null}
+            {program.mode === 'text' ? (
+              <p>Настройки применяются к блокам. Текстовый код не изменится.</p>
+            ) : null}
+            <fieldset className="arduino-input-pins">
+              <legend>Входные порты</legend>
+              {ARDUINO_DIGITAL_PIN_OPTIONS.map(([, pin]) => {
+                const inferred = inputSettings.inferred.has(pin!);
+                return (
+                  <label
+                    key={pin}
+                    title={
+                      inferred
+                        ? 'Вход определяется блоками или Serial'
+                        : 'Дополнительный входной порт'
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={`Входной порт ${pin}`}
+                      checked={inferred || inputSettings.pins.includes(pin!)}
+                      disabled={inferred}
+                      onChange={(event) =>
+                        setInputSettings({
+                          ...inputSettings,
+                          pins: event.target.checked
+                            ? [...inputSettings.pins, pin!]
+                            : inputSettings.pins.filter((p) => p !== pin),
+                        })
+                      }
+                    />
+                    {pin}
+                    {inferred ? ' (авто)' : ''}
+                  </label>
+                );
+              })}
+            </fieldset>
+            <footer>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  updateProgram({ inputPins: inputSettings.pins });
+                  closeInputSettings();
+                }}
+              >
+                Применить
+              </button>
+              <button type="button" onClick={closeInputSettings}>
+                Отмена
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
       {pendingMode ? (
         <div className="arduino-confirm-backdrop" role="presentation">
           <section
@@ -1632,7 +1924,9 @@ export function ArduinoCodePanel({
             <p>
               {pendingMode === 'text'
                 ? 'Закрыть редактор блоков? Все блоки останутся сохранены, а код станет доступен для ручного редактирования.'
-                : 'Вернуться к редактору блоков? Текстовый код останется сохранён, но в режиме блоков будет заменён кодом, созданным из блоков.'}
+                : hasSavedWorkspace
+                  ? 'Вернуться к редактору блоков? Текущий текстовый код сохранится до изменения блоков.'
+                  : 'Перейти к редактору блоков? Сохранённых блоков нет. Текущий текстовый код будет заменён стартовым примером. Текст не преобразуется в блоки.'}
             </p>
             <footer>
               <button type="button" className="primary" onClick={confirmModeChange}>

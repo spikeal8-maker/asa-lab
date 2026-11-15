@@ -1028,7 +1028,7 @@ describe('A4-1 immutable learning project origin', () => {
           `SELECT EXISTS (
              SELECT 1 FROM pg_stat_activity
               WHERE usename='asalab_app' AND wait_event_type='Lock'
-                AND query LIKE 'WITH updated AS (%'
+                AND query ~ '^WITH[[:space:]]+updated[[:space:]]+AS[[:space:]]*[(]'
            ) AS waiting`,
         );
         lockWaitObserved = waiting.rows[0].waiting as boolean;
@@ -1617,7 +1617,7 @@ describe('A4-1 immutable learning project origin', () => {
           `SELECT EXISTS (
              SELECT 1 FROM pg_stat_activity
               WHERE usename='asalab_app' AND wait_event_type='Lock'
-                AND query LIKE 'WITH updated AS (%'
+                AND query ~ '^WITH[[:space:]]+updated[[:space:]]+AS[[:space:]]*[(]'
            ) AS waiting`,
         );
         lockWaitObserved = waiting.rows[0].waiting as boolean;
@@ -2494,38 +2494,88 @@ describe('A4-1 immutable learning project origin', () => {
       ),
     ).rejects.toThrow(/active unpublished project/);
 
-    const publishedBeforeLearning = await project(learnerPrincipal);
+    // Publishing is now an Account-owner action. Give this otherwise eligible
+    // personal Project a real Account/Seat/learner lineage so that both attach
+    // attempts below reach the published-Project guard, not an ownership error.
+    const publishedOwner = await seedTeacher(admin, 'a5-published-before-learning');
+    const publishedOwnerIdentity = (
+      await admin.query(
+        `SELECT account_id,principal_id FROM legacy_user_account_links
+          WHERE tenant_id=$1 AND user_id=$2`,
+        [publishedOwner.tenantId, publishedOwner.teacherId],
+      )
+    ).rows[0];
+    const publishedOwnerPrincipal = publishedOwnerIdentity.principal_id as string;
+    const publishedSeat = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+           (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+            safe_mode,status,created_by,account_id)
+         VALUES ($1,$2,'Published Account learner',$3,$3,true,'active',$4,$5) RETURNING id`,
+        [
+          owner.tenantId,
+          classroom,
+          randomUUID().replaceAll('-', ''),
+          owner.teacherId,
+          publishedOwnerIdentity.account_id,
+        ],
+      )
+    ).rows[0].id as string;
+    await admin.query(`INSERT INTO principals(kind,seat_id) VALUES ('student_seat',$1)`, [
+      publishedSeat,
+    ]);
+    const publishedLearner = (
+      await admin.query(
+        `INSERT INTO learner_identities(id,tenant_id,school_id)
+         VALUES (gen_random_uuid(),$1,$2) RETURNING id`,
+        [owner.tenantId, owner.schoolId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'student_seat',$4,NULL),
+              (gen_random_uuid(),$1,$2,$3,'account',NULL,$5)`,
+      [
+        owner.tenantId,
+        owner.schoolId,
+        publishedLearner,
+        publishedSeat,
+        publishedOwnerIdentity.account_id,
+      ],
+    );
+    const publishedBeforeLearning = await project(publishedOwnerPrincipal, publishedOwner.tenantId);
     await admin.query(
       `INSERT INTO project_drafts
          (tenant_id,project_id,document_json,updated_by_principal_id)
        VALUES ($1,$2,'{}'::jsonb,$3)`,
-      [owner.tenantId, publishedBeforeLearning, learnerPrincipal],
+      [publishedOwner.tenantId, publishedBeforeLearning, publishedOwnerPrincipal],
     );
     await admin.query(
       `INSERT INTO project_snapshots
          (tenant_id,project_id,image,content_type,width,height,
           source_revision,captured_by_principal_id)
        VALUES ($1,$2,decode(repeat('00',64),'hex'),'image/png',16,16,1,$3)`,
-      [owner.tenantId, publishedBeforeLearning, learnerPrincipal],
+      [publishedOwner.tenantId, publishedBeforeLearning, publishedOwnerPrincipal],
     );
-    // Safe Mode blocks even an otherwise authorized teacher publishing for a pupil.
-    const publishArgs = [ownerPrincipal, publishedBeforeLearning];
-    const denied = app.query('SELECT gallery_publish($1,$2) AS ok', publishArgs);
-    await expect(denied).rejects.toMatchObject({ code: 'P5S01' });
-    // This test also needs a normally publishable, not-yet-assigned work.
-    // Disable BOTH layers explicitly; do not bypass the publication guard.
-    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [classroom]);
-    await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [seatId]);
-    const published = await app.query('SELECT gallery_publish($1,$2) AS ok', publishArgs);
-    expect(published.rows[0].ok).toBe(true);
+    expect(
+      (
+        await app.query('SELECT gallery_publish($1,$2) AS ok', [
+          publishedOwnerPrincipal,
+          publishedBeforeLearning,
+        ])
+      ).rows[0].ok,
+    ).toBe(true);
     const publishedRun = await createRun({ handout: await directHandout() });
-    const publishedParticipation = await assign(publishedRun);
+    const publishedParticipation = await assign(publishedRun, publishedLearner);
     await expect(
       admin.query(
         insertSql,
         await originValues(
           publishedParticipation.participation_id as string,
           publishedBeforeLearning,
+          publishedOwner.tenantId,
+          publishedOwnerPrincipal,
         ),
       ),
     ).rejects.toThrow(/active unpublished project/);
@@ -2533,15 +2583,9 @@ describe('A4-1 immutable learning project origin', () => {
       admin.query(
         `INSERT INTO classroom_assignment_work
            (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
-        [owner.tenantId, await directHandout(), seatId, publishedBeforeLearning],
+        [owner.tenantId, await directHandout(), publishedSeat, publishedBeforeLearning],
       ),
     ).rejects.toThrow(/active unpublished project/);
-    // Restore the shared fixture for later learning tests; the publication is
-    // intentionally removed before restoring the school safety boundary.
-    const removed = await app.query('SELECT gallery_unpublish($1,$2) AS ok', publishArgs);
-    expect(removed.rows[0].ok).toBe(true);
-    await admin.query('UPDATE classroom_student_seats SET safe_mode=true WHERE id=$1', [seatId]);
-    await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [classroom]);
   });
 
   it('keeps a linked Account legacy original protected across school and project tenants', async () => {

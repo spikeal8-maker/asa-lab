@@ -322,11 +322,12 @@
     cursor: not-allowed;
   }
 }
-/* One header row on this screen, retaining every global navigation action. */
+/*
+ * At narrower teacher/student working widths, retain the edge-to-edge content
+ * area. Global header/nav sizing is centralized in portal-header-adaptive.css,
+ * not duplicated with stronger :has() selectors inside the Classroom module.
+ */
 @media (max-width: 900px) {
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list)) {
-    --portal-header-height: 56px;
-  }
   .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     > :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list).portal-content {
     box-sizing: border-box;
@@ -334,86 +335,7 @@
     margin: 0;
     padding: 10px 12px 24px;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header {
-    grid-template-columns: 44px minmax(24px, 1fr) 88px 72px 44px;
-    grid-template-rows: 56px;
-    grid-template-areas: 'menu brand public create account';
-    gap: 0 4px;
-    padding: 0 8px;
-    height: 56px;
-    min-height: 56px;
-  }
-  .portal-shell:has(> .classroom-student) .portal-header .portal-brand {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .portal-global-nav {
-    width: 88px;
-    gap: 0;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .portal-global-nav
-    a {
-    box-sizing: border-box;
-    flex: 0 0 44px;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .portal-header-create {
-    box-sizing: border-box;
-    width: 72px;
-    min-height: 44px;
-    padding: 0 6px;
-    font-size: 13px;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .portal-header-create
-    > span:first-child {
-    display: none;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .portal-header-create-label {
-    display: inline;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .portal-account
-    > summary {
-    box-sizing: border-box;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0;
-    justify-content: center;
-  }
 }
-@media (max-width: 379px) {
-  .portal-shell:has(> .classroom-student) .portal-header {
-    grid-template-columns: 44px minmax(44px, 1fr) 88px 72px 44px;
-    gap: 0 3px;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .asa-brand-copy {
-    display: none;
-  }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
-    .portal-header
-    .asa-brand-mark {
-    width: 24px;
-    height: 24px;
-  }
-}
-
 @media (max-width: 1100px) {
   .classroom-owner-workspace .classroom-roster-done::after {
     content: 'сдано';

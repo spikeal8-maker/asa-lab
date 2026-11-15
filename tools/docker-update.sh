@@ -46,6 +46,13 @@ assert_update_identity() (
   asa_assert_installation_identity "$repo_root" "$project_name" true "$@"
 )
 
+assert_credential_configuration() (
+  set -- compose -f compose.yaml
+  if [ "$profile" != base ]; then set -- "$@" -f "compose.$profile.yaml"; fi
+  if [ "$include_frp" = true ]; then set -- "$@" -f compose.frp.yaml; fi
+  node tools/deployment/credential-preflight.mjs "$@" || die 'credential configuration is invalid; no backup, migration or update was started'
+)
+
 env_value() {
   name=$1
   sed -n "s/^${name}=//p" .env | tail -n 1
@@ -97,7 +104,7 @@ container_working_directory() {
 
 mixed_origin_services() {
   drift=''
-  for service in postgres api web scratch minio; do
+  for service in postgres api web scratch minio search; do
     container_id=$(compose ps -q "$service")
     [ -n "$container_id" ] || continue
     working_directory=$(container_working_directory "$container_id")
@@ -234,7 +241,9 @@ wait_exact_readiness() {
     ' >/dev/null 2>&1; then
       scratch_revision=$(compose exec -T scratch wget -q -O - http://127.0.0.1:8080/asa-commit.txt 2>/dev/null || true)
       if [ "$scratch_revision" = "$ASA_BUILD_REVISION" ] &&
-        compose exec -T scratch wget -q -O - http://127.0.0.1:8080/healthz >/dev/null 2>&1; then
+        compose exec -T scratch wget -q -O - http://127.0.0.1:8080/healthz >/dev/null 2>&1 &&
+        [ "$(compose exec -T search cat /usr/local/share/asa-search/asa-commit.txt 2>/dev/null || true)" = "$ASA_BUILD_REVISION" ] &&
+        compose exec -T search /usr/local/searxng/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).read()" >/dev/null 2>&1; then
         return 0
       fi
     fi
@@ -249,6 +258,8 @@ write_receipt() {
   shift
   : >"$path"
   for line in "$@"; do printf '%s\n' "$line" >>"$path"; done
+  python3 tools/deployment/operational.py source-update --root "$repo_root" --receipt "$path" --trigger "${ASA_OPERATION_TRIGGER:-unknown}" ||
+    printf '%s\n' 'Operation diagnostics failed; original update receipt is preserved.' >&2
 }
 
 main() {
@@ -268,6 +279,8 @@ main() {
   if [ "$profile" = production ]; then
     [ "$(env_value ASA_SEED_DEV)" = false ] || die 'production requires ASA_SEED_DEV=false in .env'
   fi
+  command -v python3 >/dev/null 2>&1 || die 'Python 3 is required for private configuration'
+  python3 tools/deployment/search_secret.py || die 'Search private configuration is invalid'
   blocks_runtime_key=$(env_value ASA_BLOCKS_RUNTIME_SIGNING_KEY || true)
   case "$blocks_runtime_key" in
     ''|*[!0-9a-fA-F]*) needs_blocks_runtime_key=true ;;
@@ -302,6 +315,7 @@ main() {
     *) die "unsupported ASA_COMPOSE_TRANSPORT: $transport" ;;
   esac
 
+  assert_credential_configuration
   assert_update_identity
   compose config --quiet
   postgres_container_id=$(assert_container_running postgres)
@@ -355,6 +369,7 @@ main() {
   rollback_api=$(save_rollback_image api "$old_revision" || true)
   rollback_web=$(save_rollback_image web "$old_revision" || true)
   rollback_scratch=$(save_rollback_image scratch "$old_revision" || true)
+  rollback_search=$(save_rollback_image search "$old_revision" || true)
 
   git pull --ff-only origin main
   new_revision=$(git rev-parse HEAD)
@@ -376,6 +391,7 @@ main() {
     printf 'Added private self-hosted Blocks object-storage configuration to the existing .env.\n'
   fi
 
+  python3 tools/deployment/search_secret.py --create || die 'Cannot provision the dedicated search secret'
   schema_version=$(latest_schema_version)
   ASA_BUILD_REVISION=$new_revision
   ASA_IMAGE_TAG=$(printf '%.12s' "$new_revision")
@@ -383,7 +399,7 @@ main() {
   export ASA_BUILD_REVISION ASA_IMAGE_TAG ASA_EXPECTED_SCHEMA_VERSION
   receipt_path="$backup_root/update-$stamp-$(printf '%.8s' "$new_revision").receipt.txt"
 
-  bootstrap_changed=$(git diff --name-only "$old_revision" "$new_revision" -- tools/docker-update.sh tools/deployment/editor-entry-check.mjs compose.yaml 'compose.*.yaml')
+  bootstrap_changed=$(git diff --name-only "$old_revision" "$new_revision" -- tools/docker-update.sh tools/deployment/editor-entry-check.mjs tools/deployment/credential-preflight.mjs apps/api/src/credential-configuration.cjs compose.yaml 'compose.*.yaml')
   if [ -n "$bootstrap_changed" ]; then
     write_receipt "$receipt_path" \
       'status=retry_with_updated_updater' "updated_at_utc=$stamp" "compose_project=$project_name" \
@@ -397,7 +413,7 @@ main() {
 
   # Build first; retain a failure receipt without replacing running services.
   build_ok=true
-  for service in minio scratch api web; do
+  for service in minio search scratch api web; do
     if ! compose build "$service"; then build_ok=false; break; fi
   done
   latest_remote_revision=''
@@ -420,7 +436,7 @@ main() {
       "deployed_revision=$new_revision" "schema_version=$schema_version" \
       "backup_path=$backup_path" "backup_sha256=$backup_sha256" \
       "rollback_api_image=$rollback_api" "rollback_web_image=$rollback_web" \
-      "rollback_scratch_image=$rollback_scratch" "scratch_revision=$new_revision" \
+      "rollback_scratch_image=$rollback_scratch" "rollback_search_image=$rollback_search" "scratch_revision=$new_revision" \
       "entry_origin=$entry_origin" 'entry_http=pass' 'user_flow=not_run'
     python3 tools/log_collector.py reconcile --root "$repo_root" --profile "$profile" ||
       printf '%s\n' 'ASA ready; diagnostic collection is degraded. Inspect .asa/collector-operation.json.' >&2

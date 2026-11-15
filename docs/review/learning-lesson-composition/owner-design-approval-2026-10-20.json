@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "decision_date_utc": "2026-10-20",
+  "recorded_at_utc": "2026-10-20T20:45:27.521562+00:00",
+  "source": "Current owner response relayed by programme controller /root; no prior-conversation retrieval inference",
+  "owner_quote": "согласовую применяй все в майн",
+  "original_message_id": null,
+  "original_message_timestamp": null,
+  "decision": "APPROVED_DESIGN_AND_AUTHORIZED_BOUNDED_COURSES_MAIN_INTEGRATION",
+  "prototype": {
+    "path": "docs/review/learning-lesson-composition/prototype.html",
+    "git_blob": "1d17ca067db53840e41be932348b15f5c89eae59",
+    "provenance_before_approval_blob": "fe0b25d430f04a4b9c5a45e4854a3e349080d295",
+    "scope": "existing connected course overview, mixed lesson and document editor with attachments"
+  },
+  "authorization": {
+    "design_checkpoint_38_1": "accepted",
+    "remove_draft_for_selected_courses_candidates": true,
+    "ordinary_main_merge_for_selected_courses_candidates": true,
+    "selected_pull_requests": [
+      657,
+      653
+    ],
+    "repeat_owner_permission_required": false
+  },
+  "source_inputs": [
+    {
+      "pr": 657,
+      "head": "6a557ae64aef5a38d979f44052d7ba58734acf96",
+      "reviewed_source_contributions": [
+        654,
+        656
+      ],
+      "source_provenance": {
+        "pr654": "Reviewed source was transferred into M; the current PR654 head prefix d2dcfea is not a Git ancestor of M6a. No separate merge of PR654 is required.",
+        "pr656": "P ae25a205d266561f11402643d8621477e2f7d312 is a Git ancestor of M6a."
+      }
+    },
+    {
+      "pr": 653,
+      "head": "f0a3e95f5c5b804943eec0e8218d0a1113e99b8c",
+      "boundary": "separate credential readiness candidate"
+    }
+  ],
+  "technical_prerequisites": "The baseline validation candidate requires repaired full General and NEW independent actual acceptance BEFORE final composition. Final exact-source review, applicable exact-SHA AI/Learning/credential/Public Projects/general gates and the coordinated supported installed prefix225-to-complete226-234 upgrade (all nine migrations) remain required. Current main13ab contains published0234 source with226-233 absent; actual installed database state is not verified. Preserve all published SQL including0234 and reject unsupported applied234-only, applied233-only and Courses-first histories before SQL without runner waiver, renumber, rollback or deployment. This approval is not a test or installed-state result.",
+  "owner_product_acceptance": "pending",
+  "runtime_acceptance": "pending",
+  "installed_acceptance": "pending",
+  "deployment_authorization": "not_granted_by_this_quote",
+  "working_database_actions": "not_granted_by_this_quote",
+  "scope_limits": [
+    "No waiver of CI, independent review, migration history or applicable hard execution conditions.",
+    "No claim that demonstration save/upload/PDF/practice/progress is integrated product runtime.",
+    "No permission inferred for unrelated PRs or PR511, forced history rewrite, production secret rotation or deployment.",
+    "Existing usable assignment list is retained; no full redesign prerequisite is introduced for the already verified bounded source inputs."
+  ],
+  "canonical_main_snapshot_read": "13ab3635587a201bc2cc78e88b9a9f66fce72102",
+  "supersedes_only": "Earlier inability to retrieve private approval and stale pending design labels; it does not retroactively turn technical failures or missing runtime evidence into PASS.",
+  "previous_canonical_main_snapshot_read": "15624194869cad5d3abc987b13df337c24256c76"
+}

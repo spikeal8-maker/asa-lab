@@ -162,7 +162,7 @@ describe('Ultrasonic block runtime adapter', () => {
       'utf8',
     );
     expect(blocksSource).toContain(
-      "return `readUltrasonicCm(${field(block, 'TRIG', '7')}, ${field(block, 'ECHO', '8')})`",
+      "return `readUltrasonicCm(${argument(block, 'TRIG', '7', bindings)}, ${argument(block, 'ECHO', '8', bindings)})`",
     );
     expect(blocksSource).toContain('float readUltrasonicCm(int triggerPin, int echoPin) {');
     expect(blocksSource).toContain('return pulseIn(echoPin, HIGH) * 0.01723;');

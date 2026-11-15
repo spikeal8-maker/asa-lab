@@ -166,6 +166,33 @@ describe('Course Activity work origin', () => {
     },
   );
 
+  it('labels each response kind in the same lesson sidebar', async () => {
+    const unavailable = {
+      ok: false,
+      status: 404,
+      error: { code: 'missing', message: 'Missing' },
+    } as const;
+    vi.spyOn(api, 'readEssayLearning').mockResolvedValue(unavailable);
+    vi.spyOn(api, 'readQuizLearning').mockResolvedValue(unavailable);
+    vi.spyOn(api, 'readFileLearning').mockResolvedValue(unavailable);
+    const view = await renderCourse('seat', [
+      baseOccurrence,
+      ...(['essay', 'quiz', 'file'] as const).map((kind) => ({
+        ...baseOccurrence,
+        activityKind: kind,
+        blockId: kind + '-block',
+        activityRunId: kind + '-run',
+        learningActivityVersionId: kind + '-version',
+        moduleKey: null,
+      })),
+    ]);
+    expect(
+      [...view.querySelectorAll('.seat-course-practice-links small')].map(
+        (label) => label.textContent?.split(' · ')[0],
+      ),
+    ).toEqual(['Electronics', 'Письменный ответ', 'Тест', 'Файловый ответ']);
+  });
+
   it('denies a no-Run Account Course Start before creating a generic Project', async () => {
     const historical = course([]);
     Object.assign(historical.sections[0]!.lessons[0]!, {

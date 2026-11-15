@@ -21,8 +21,8 @@ describe('Blocks runtime app wiring', () => {
     const runtimeAddressBudget = factorySource.indexOf(
       'blocksRuntimeAddressBudget.consume(request)',
     );
-    const genericOrigin = factorySource.indexOf(
-      "if (!runtimePath && path !== '/api/auth/max/webhook')",
+    const genericOrigin = factorySource.search(
+      /if\s*\(\s*!runtimePath\s*&&\s*path\s*!==\s*'\/api\/auth\/max\/webhook'\s*&&\s*path\s*!==\s*'\/api\/auth\/telegram\/webhook'\s*\)\s*\{/,
     );
     const genericAbuse = factorySource.indexOf('if (!runtimePath) {', genericOrigin);
 

@@ -26,12 +26,113 @@ let teacherAccount: string;
 let sequence = 0;
 let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
 
-function traceGradedCase(policy: string): (stage: string) => void {
+function traceGradedCase(policy: string, teacherHomeDiagnostic = false): (stage: string) => void {
   const started = performance.now();
   let stage = 'setup';
+  let stageStarted = started;
+  let finished = false;
   const mark = (next: string) => {
+    if (teacherHomeDiagnostic && !finished) {
+      const now = performance.now();
+      console.info(
+        `[VS002 timing] ${policy} ${JSON.stringify({
+          event: 'stage',
+          stage: next,
+          previous_stage: stage,
+          previous_stage_ms: Math.round(now - stageStarted),
+          total_ms: Math.round(now - started),
+        })}`,
+      );
+      stageStarted = now;
+    }
     stage = next;
   };
+  if (teacherHomeDiagnostic) {
+    let probeInFlight = false;
+    const probes = [3_500, 30_000, 55_000].map((delay) =>
+      setTimeout(() => {
+        if (finished) return;
+        const requested = performance.now();
+        const snapshot = {
+          stage,
+          total_ms: Math.round(requested - started),
+          stage_ms: Math.round(requested - stageStarted),
+          app_pool: { total: app.totalCount, idle: app.idleCount, waiting: app.waitingCount },
+          previous_probe_pending: probeInFlight,
+        };
+        // Pool counters remain visible even if the separate admin observer is itself delayed.
+        console.info(`[VS002 timing] ${policy} ${JSON.stringify({ event: 'probe', ...snapshot })}`);
+        if (probeInFlight) return;
+        probeInFlight = true;
+        void admin
+          .query(
+            `SELECT pid, state, wait_event_type, wait_event, pg_blocking_pids(pid) AS blocking_pids,
+                    floor(extract(epoch FROM clock_timestamp() - query_start) * 1000)::int AS query_ms,
+                    CASE
+                      WHEN query LIKE '%learning_direct_project_attempt_start%' THEN 'start'
+                      WHEN query LIKE '%learning_direct_project_submission_create%' THEN 'submission'
+                      WHEN query LIKE '%learning_attempt_review_v2%' THEN 'review'
+                      WHEN query LIKE '%learning_canonical_evidence_for_teacher_account%' THEN 'teacher_account_evidence'
+                      WHEN query LIKE '%classroom_gradebook_list%' THEN 'gradebook_metadata'
+                      WHEN query LIKE '%learning_canonical_evidence_for_seat%' THEN 'evidence'
+                      ELSE 'other'
+                    END AS operation
+               FROM pg_stat_activity
+              WHERE datname = current_database() AND pid <> pg_backend_pid()
+                AND (state = 'active' OR wait_event_type = 'Lock')
+              ORDER BY query_ms DESC
+              LIMIT 12`,
+          )
+          .then((result) => {
+            if (finished) return;
+            console.info(
+              `[VS002 pg waits] ${policy} ${JSON.stringify({
+                ...snapshot,
+                probe_ms: Math.round(performance.now() - requested),
+                rows: result.rows,
+              })}`,
+            );
+          })
+          .catch((error: unknown) => {
+            if (finished) return;
+            const sqlstate =
+              typeof error === 'object' &&
+              error !== null &&
+              'code' in error &&
+              typeof error.code === 'string' &&
+              /^[0-9A-Z]{5}$/.test(error.code)
+                ? error.code
+                : null;
+            console.info(
+              `[VS002 pg waits] ${policy} ${JSON.stringify({
+                ...snapshot,
+                probe_ms: Math.round(performance.now() - requested),
+                error: 'probe_failed',
+                sqlstate,
+              })}`,
+            );
+          })
+          .finally(() => {
+            probeInFlight = false;
+          });
+      }, delay),
+    );
+    onTestFinished(() => {
+      finished = true;
+      probes.forEach(clearTimeout);
+      const now = performance.now();
+      console.info(
+        `[VS002 timing] ${policy} ${JSON.stringify({
+          event: 'test_finished',
+          stage,
+          stage_ms: Math.round(now - stageStarted),
+          total_ms: Math.round(now - started),
+          probe_pending: probeInFlight,
+        })}`,
+      );
+    });
+    return mark;
+  }
   const probe = setTimeout(() => {
     // Healthy cases are quiet; report the stalled stage and DB waits only under CI contention.
     console.info(
@@ -1247,11 +1348,18 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
 
   // The full lifecycle repeatedly queries Teacher Home and can be delayed by shared CI database load.
   it('Teacher Home follows exact review and resubmission independently of notification read/OFF, preserving correction history', async () => {
+    const mark = traceGradedCase('Teacher Home', true);
+    mark('setup:create class');
     const cls = await createClass();
+    mark('setup:create seat');
     const seat = await createSeat(cls, 'Доработка');
+    mark('setup:create activity');
     const version = await createActivity('Без числовой оценки');
+    mark('setup:assign');
     const assignment = await assign(cls, version, 'whole_class');
+    mark('setup:activate seat');
     const learner = await activateSeat(seat);
+    mark('setup:create project');
     const project = await createProject(learner, 'Проект для проверки');
     const start = async () =>
       (
@@ -1298,11 +1406,14 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
           ]),
         )
       ).rows[0];
+    mark('start:initial');
     const a = await start();
     expect(a.result_code).toBe('ok');
+    mark('notifications:read preferences');
     const preferences = (
       await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
     ).rows[0].x;
+    mark('notifications:enable');
     expect(
       (
         await app.query(
@@ -1317,32 +1428,44 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         )
       ).rows[0].code,
     ).toBe('ok');
+    mark('submit:initial');
     expect((await submit()).result_code).toBe('ok');
     const reviewItems = async () =>
       (await attention()).reviews.filter((r) => r.assignmentId === assignment);
+    mark('attention 1:submitted');
     expect(await reviewItems()).toMatchObject([
       { attemptId: a.attempt_id, seatId: seat, classroomId: cls },
     ]);
+    mark('attention 1:submitted complete');
+    mark('compatibility:insert work');
     // A compatibility row and canonical attempt represent one work, not two.
     await admin.query(
       'INSERT INTO classroom_assignment_work(tenant_id,assignment_id,seat_id,project_id,started_at,submitted_at) VALUES($1,$2,$3,$4,now(),now()) ON CONFLICT DO NOTHING',
       [owner.tenantId, assignment, seat, project],
     );
+    mark('attention 2:compatibility row');
     expect(await reviewItems()).toHaveLength(1);
+    mark('attention 2:compatibility row complete');
+    mark('notifications:list');
     const notifications = (
       await app.query('SELECT item FROM learning_notifications_list($1)', [teacherPrincipal])
     ).rows
       .map((r) => r.item)
       .filter((n) => n.attemptId === a.attempt_id);
     expect(notifications).toHaveLength(1);
+    mark('notifications:mark read');
     await app.query('SELECT learning_notifications_mark_read($1,$2::uuid[],now())', [
       teacherPrincipal,
       notifications.map((n) => n.id),
     ]);
+    mark('attention 3:notification read');
     expect(await reviewItems()).toHaveLength(1);
+    mark('attention 3:notification read complete');
+    mark('notifications:reread preferences');
     const currentPrefs = (
       await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
     ).rows[0].x;
+    mark('notifications:disable');
     expect(
       (
         await app.query(
@@ -1357,7 +1480,10 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         )
       ).rows[0].code,
     ).toBe('ok');
+    mark('attention 4:notifications off');
     expect(await reviewItems()).toHaveLength(1);
+    mark('attention 4:notifications off complete');
+    mark('review:changes requested');
     const returned = await review(
       a.attempt_id,
       'changes_requested',
@@ -1368,9 +1494,13 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       attempt_state: 'closed',
       percentage_basis_points: null,
     });
+    mark('attention 5:changes requested');
     expect(await reviewItems()).toHaveLength(0);
+    mark('attention 5:changes requested complete');
+    mark('review:idempotent retry');
     const retry = await review(a.attempt_id, 'changes_requested', 'course01:review:' + sequence);
     expect(retry.assessment_result_id).toBe(returned.assessment_result_id);
+    mark('history:returned lifecycle');
     const returnedLifecycle = (
       await admin.query(
         'SELECT attempt.state, result.review_decision FROM learning_attempts attempt JOIN assessment_results result ON result.attempt_id=attempt.id WHERE attempt.id=$1 ORDER BY result.revision_number DESC LIMIT 1',
@@ -1381,6 +1511,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       state: 'closed',
       review_decision: 'changes_requested',
     });
+    mark('history:extra attempt grant');
     expect(
       (
         await admin.query('SELECT extra_attempts FROM activity_participations WHERE id=$1', [
@@ -1388,10 +1519,14 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         ])
       ).rows[0].extra_attempts,
     ).toBe(1);
+    mark('start:revision');
     const b = await start();
     expect(b).toMatchObject({ result_code: 'ok', attempt_number: 2 });
+    mark('attention 6:revision started');
     expect(await reviewItems()).toHaveLength(0);
+    mark('attention 6:revision started complete');
     expect(b.attempt_id).not.toBe(a.attempt_id);
+    mark('history:revision origin');
     expect(
       (
         await admin.query('SELECT revision_of_attempt_id FROM learning_attempts WHERE id=$1', [
@@ -1400,6 +1535,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ).rows[0].revision_of_attempt_id,
     ).toBe(a.attempt_id);
 
+    mark('evidence:revision');
     const revisionEvidence = (
       await admin.query(
         "SELECT evidence FROM learning_canonical_evidence_internal($1,$2,false) WHERE evidence->>'classroomAssignmentId'=$3",
@@ -1411,24 +1547,34 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       state: 'in_progress',
       revisionOfAttemptId: a.attempt_id,
     });
+    mark('projection:revision');
     const revisionProjection = (
       await new LearningCanonicalProjectionService(app, {}).forSeat(seat)
     ).get(canonicalProjectionKey(seat, assignment));
     expect(revisionProjection?.surface.workflowState).toBe('in_progress');
     expect(revisionProjection?.surface.flags).toContain('revision_in_progress');
 
+    mark('submit:revision');
     expect((await submit()).result_code).toBe('ok');
+    mark('attention 7:resubmitted');
     expect(await reviewItems()).toMatchObject([{ attemptId: b.attempt_id }]);
+    mark('attention 7:resubmitted complete');
+    mark('review:invalid points');
     expect(
       (await review(b.attempt_id, 'accepted', 'course01:bad-points:' + ++sequence, null, 100))
         .result_code,
     ).toBe('invalid_points');
+    mark('review:accept');
     const accepted = await review(b.attempt_id, 'accepted', 'course01:accepted:' + ++sequence);
     expect(accepted.result_code).toBe('ok');
+    mark('attention 8:accepted');
     expect(await reviewItems()).toHaveLength(0);
+    mark('attention 8:accepted complete');
+    mark('history:closed timestamp');
     const closed = (
       await admin.query('SELECT evaluated_at FROM learning_attempts WHERE id=$1', [b.attempt_id])
     ).rows[0].evaluated_at;
+    mark('review:correction');
     const correction = await review(
       b.attempt_id,
       'accepted',
@@ -1436,6 +1582,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       accepted.assessment_result_id,
     );
     expect(correction.result_code).toBe('ok');
+    mark('review:stale correction');
     expect(
       (
         await review(
@@ -1446,6 +1593,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         )
       ).result_code,
     ).toBe('result_revision_conflict');
+    mark('history:result revisions');
     const rows = (
       await admin.query(
         'SELECT * FROM assessment_results WHERE attempt_id=$1 ORDER BY revision_number',
@@ -1459,15 +1607,19 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       raw_points: null,
       completion_value: true,
     });
+    mark('history:preserved closed timestamp');
     expect(
       (await admin.query('SELECT evaluated_at FROM learning_attempts WHERE id=$1', [b.attempt_id]))
         .rows[0].evaluated_at,
     ).toEqual(closed);
+    mark('start:attempt limit');
     expect((await start()).result_code).toBe('attempt_limit_reached');
+    mark('compatibility:set prior result');
     await admin.query(
       'UPDATE gradebook_entries SET assessment_result_id=$2 WHERE classroom_assignment_id=$1',
       [assignment, accepted.assessment_result_id],
     );
+    mark('evidence:final canonical result');
     const evidence = (
       await inTenant((c) =>
         c.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [seat]),
@@ -1483,6 +1635,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         completionValue: true,
       },
     });
+    mark('complete');
   }, 60_000);
   it('returns an archived accepted original through exact append-only review without duplicate grants', async () => {
     const submittedWork = async (label: string, attachOrigin = true) => {

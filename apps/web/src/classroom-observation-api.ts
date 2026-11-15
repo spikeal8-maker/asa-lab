@@ -10,8 +10,14 @@ export interface ObservationCounts {
   waiting: number;
   notSubmitted: number;
 }
+export interface ObservationRating {
+  /** Mean of the canonical 0–100 participant scores. Null when no scores exist. */
+  averageRating: number | null;
+  ratingParticipants: number;
+  ratingPeriodDays: 7 | 30 | 90;
+}
 export interface ObservationSummary {
-  items: Array<ObservationCounts & { classroomId: string }>;
+  items: Array<ObservationCounts & ObservationRating & { classroomId: string }>;
   totals: ObservationCounts;
 }
 export interface ObservationProject {

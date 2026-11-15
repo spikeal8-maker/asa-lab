@@ -3,7 +3,7 @@ import { createSessionToken, hashSessionToken, SESSION_TTL_HOURS } from '@asa-la
 
 export const REFRESH_TTL_DAYS = 30;
 
-export type SessionSource = 'password' | 'max' | 'organization';
+export type SessionSource = 'password' | 'max' | 'telegram' | 'organization';
 
 export type RefreshResult =
   | { readonly status: 'rotated'; readonly accessToken: string; readonly refreshToken: string }

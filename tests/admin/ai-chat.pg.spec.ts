@@ -1,0 +1,970 @@
+import { fixtureChatSql, publishFixtureModels } from './ai-model-policy.fixture';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type pg from 'pg';
+import {
+  AiChatService,
+  type AiAdminConfig,
+  type AiCursor,
+  type AiMessage,
+  type AiPage,
+} from '../../apps/api/src/ai-chat.service';
+import { hashSessionToken } from '../../contexts/identity/dist/index.js';
+import { buildTestApp, inject } from '../portal/app';
+import { testAdminPool, testAppPool } from '../portal/helpers';
+import { lockAiPostgresSuite } from './ai-postgres-suite-lock';
+
+interface Identity {
+  accountId: string;
+  principalId: string;
+}
+
+const requestKey = '2f'.repeat(32);
+let admin: pg.Pool;
+let runtime: pg.Pool;
+let service: AiChatService;
+let owner: Identity;
+let stranger: Identity;
+let platformAdmin: Identity;
+let providerCalls = 0;
+let unlockSuite: (() => Promise<void>) | undefined;
+
+async function makeIdentity(name: string, elevated: boolean): Promise<Identity> {
+  const id = randomUUID();
+  const account = await admin.query<{ id: string }>(
+    `INSERT INTO accounts (email, password_hash, birth_date, country)
+     VALUES ($1, 'ai-integration-only', DATE '1990-01-01', 'RU') RETURNING id`,
+    [`ai-${name}-${id}@example.test`],
+  );
+  const accountId = account.rows[0]!.id;
+  const principal = await admin.query<{ id: string }>(
+    "INSERT INTO principals (kind, account_id) VALUES ('account', $1) RETURNING id",
+    [accountId],
+  );
+  if (elevated) {
+    await admin.query(
+      `INSERT INTO capability_grants
+        (account_id, capability, state, policy_version, granted_by)
+       VALUES ($1, 'platform_admin', 'verified', 'admin-stage-a-2026-08', 'admin')`,
+      [accountId],
+    );
+  }
+  return { accountId, principalId: principal.rows[0]!.id };
+}
+
+beforeAll(async () => {
+  // Fail before opening a connection unless both roles target the same isolated test DB.
+  const urls = ['TEST_DATABASE_URL', 'APP_TEST_DATABASE_URL'].map((name) => {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} must explicitly name an isolated _test database`);
+    const url = new URL(value);
+    if (!decodeURIComponent(url.pathname).endsWith('_test')) {
+      throw new Error(`${name} must name an isolated _test database`);
+    }
+    return url;
+  });
+  if (urls[0]!.host !== urls[1]!.host || urls[0]!.pathname !== urls[1]!.pathname) {
+    throw new Error('AI tests require admin and runtime roles on the same isolated database');
+  }
+  admin = testAdminPool();
+  runtime = testAppPool();
+  unlockSuite = await lockAiPostgresSuite(admin);
+  owner = await makeIdentity('owner', false);
+  stranger = await makeIdentity('stranger', false);
+  platformAdmin = await makeIdentity('admin', true);
+  service = new AiChatService(runtime, {
+    encryptionKey: requestKey,
+    fetchImpl: vi.fn<typeof fetch>(async (url, options) => {
+      providerCalls += 1;
+      expect(url).toBe('https://api.openai.com/v1/responses');
+      const posted = JSON.parse(String(options?.body)) as {
+        model: string;
+        store: boolean;
+        input: Array<{ role: string; content: string }>;
+      };
+      expect(posted.model).toBe('gpt-6-luna');
+      expect(posted.store).toBe(false);
+      expect(posted.input.at(-1)?.content).toBe('Что такое Arduino?');
+      return new Response(
+        JSON.stringify({
+          status: 'completed',
+          output: [
+            { content: [{ type: 'output_text', text: 'Arduino — платформа для электроники.' }] },
+          ],
+        }),
+        { status: 200 },
+      );
+    }),
+  });
+}, 60000);
+
+afterAll(async () => {
+  try {
+    await runtime?.end();
+  } finally {
+    await unlockSuite?.();
+    await admin?.end();
+  }
+});
+
+describe('AI Chat PostgreSQL access and request replay', () => {
+  it('denies direct runtime table reads and unprivileged admin configuration', async () => {
+    for (const table of [
+      'ai_assistant_config',
+      'ai_assistant_threads',
+      'ai_assistant_messages',
+      'ai_assistant_request_quota',
+    ]) {
+      await expect(runtime.query(`SELECT * FROM public.${table}`)).rejects.toMatchObject({
+        code: '42501',
+      });
+    }
+    const permissions = await runtime.query<{ allowed: boolean }>(
+      `SELECT has_table_privilege(current_user, 'public.ai_assistant_request_quota', privilege)
+         AS allowed
+       FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER'])
+         AS privileges(privilege)`,
+    );
+    expect(permissions.rows.every((row) => !row.allowed)).toBe(true);
+    const ledgerRls = await admin.query<{ enabled: boolean; policies: number }>(
+      `SELECT c.relrowsecurity AS enabled,
+              (SELECT count(*)::integer FROM pg_policy WHERE polrelid = c.oid) AS policies
+         FROM pg_class c WHERE c.oid = 'public.ai_assistant_request_quota'::regclass`,
+    );
+    expect(ledgerRls.rows).toEqual([{ enabled: true, policies: 0 }]);
+    await expect(service.adminConfig(owner.principalId)).rejects.toMatchObject({
+      code: '42501',
+    });
+  });
+
+  it('stores an encrypted provider key through platform-admin only', async () => {
+    await expect(
+      service.saveAdminConfig(
+        owner.principalId,
+        {
+          enabled: true,
+          provider: 'openai',
+          model: 'gpt-6-luna',
+          apiKey: 'sk-ai-private-integration-key-001',
+        },
+        randomUUID(),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+
+    const saved = await service.saveAdminConfig(
+      platformAdmin.principalId,
+      {
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-6-luna',
+        apiKey: 'sk-ai-private-integration-key-001',
+        paidOperationsPerHour: 1000,
+      },
+      randomUUID(),
+    );
+    await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna', 'gpt-4.1-mini']);
+    expect(saved.providerConfigurations.find((slot) => slot.provider === 'openai')).toMatchObject({
+      enabled: true,
+      apiKeyConfigured: true,
+    });
+    expect(JSON.stringify(saved)).not.toContain('sk-ai-private-integration-key-001');
+
+    const raw = await admin.query<{ api_key_ciphertext: string }>(
+      'SELECT api_key_ciphertext FROM ai_assistant_config WHERE singleton_key',
+    );
+    expect(raw.rows[0]!.api_key_ciphertext).not.toContain('sk-ai-private-integration-key-001');
+  });
+
+  it('keeps different accounts isolated and never repeats one paid operation', async () => {
+    const thread = await service.createThread(owner.principalId);
+    const operation = randomUUID();
+    expect(await service.messages(stranger.principalId, thread.id)).toEqual([]);
+    await expect(
+      service.send(stranger.principalId, thread.id, 'Чужое сообщение', randomUUID()),
+    ).rejects.toMatchObject({ code: 'ai_thread_busy', status: 409 });
+
+    const response = await service.send(
+      owner.principalId.toUpperCase(),
+      thread.id.toUpperCase(),
+      'Что такое Arduino?',
+      operation.toUpperCase(),
+    );
+    expect(response.replayed).toBe(false);
+    expect(response.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
+    expect(response.messages[0]?.requestId).toBe(operation);
+    expect(response.messages[1]?.requestId).toBe(operation);
+    expect(providerCalls).toBe(1);
+
+    const replay = await service.send(
+      owner.principalId,
+      thread.id,
+      'Что такое Arduino?',
+      operation,
+    );
+    expect(replay.replayed).toBe(true);
+    expect(providerCalls).toBe(1);
+    expect(replay.messages).toEqual(response.messages);
+    expect(await service.messages(stranger.principalId, thread.id)).toEqual([]);
+    expect(await service.threads(stranger.principalId)).not.toContainEqual(
+      expect.objectContaining({ id: thread.id }),
+    );
+  });
+
+  it('rejects request identifier reuse with different text and different threads', async () => {
+    const thread = (await service.threads(owner.principalId))[0]!;
+    const other = await service.createThread(owner.principalId);
+    const operation = randomUUID();
+    const admitted = await runtime.query<{ admitted: boolean }>(fixtureChatSql, [
+      owner.principalId,
+      other.id,
+      operation,
+      'Один запрос',
+    ]);
+    expect(admitted.rows[0]!.admitted).toBe(true);
+    await expect(
+      runtime.query(fixtureChatSql, [owner.principalId, other.id, operation, 'Другой текст']),
+    ).rejects.toMatchObject({ code: '22023' });
+    await expect(
+      runtime.query(fixtureChatSql, [owner.principalId, thread.id, operation, 'Один запрос']),
+    ).rejects.toMatchObject({ code: '22023' });
+  });
+
+  it('retains the hourly quota through repeated chat deletion and concurrent admission', async () => {
+    const actor = await makeIdentity('quota', false);
+    const upstream = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            status: 'completed',
+            output: [{ content: [{ type: 'output_text', text: 'Тестовый ответ' }] }],
+          }),
+          { status: 200 },
+        ),
+    );
+    const adapter = new AiChatService(runtime, { encryptionKey: requestKey, fetchImpl: upstream });
+    const text = 'Проверка квоты';
+    const deletedRequest = randomUUID();
+    // Failed admission must roll back without consuming quota.
+    await expect(
+      runtime.query(fixtureChatSql, [actor.principalId, randomUUID(), randomUUID(), text]),
+    ).rejects.toMatchObject({ message: 'AI_THREAD_BUSY_OR_MISSING' });
+    for (let n = 0; n < 29; n += 1) {
+      const thread = await adapter.createThread(actor.principalId);
+      const response = await adapter.send(
+        actor.principalId,
+        thread.id,
+        text,
+        n === 0 ? deletedRequest : randomUUID(),
+      );
+      expect(response.replayed).toBe(false);
+      expect(await adapter.deleteThread(actor.principalId, thread.id)).toEqual({ deleted: true });
+      expect(await adapter.messages(actor.principalId, thread.id)).toEqual([]);
+    }
+    // With one slot left, two different chats must not both reach the provider.
+    const candidates = await Promise.all(
+      [0, 1].map(async () => ({
+        thread: await adapter.createThread(actor.principalId),
+        request: randomUUID(),
+      })),
+    );
+    const outcomes = await Promise.allSettled(
+      candidates.map(({ thread, request }) =>
+        adapter.send(actor.principalId, thread.id, text, request),
+      ),
+    );
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    for (const [index, outcome] of outcomes.entries()) {
+      const { thread, request } = candidates[index]!;
+      if (outcome.status === 'fulfilled') {
+        expect(outcome.value.replayed).toBe(false);
+        // Replays still work at the quota boundary and do not add ledger entries.
+        expect((await adapter.send(actor.principalId, thread.id, text, request)).replayed).toBe(
+          true,
+        );
+      } else {
+        expect(outcome.reason).toMatchObject({ code: 'ai_rate_limit', status: 429 });
+      }
+      await adapter.deleteThread(actor.principalId, thread.id);
+    }
+    const fresh = await adapter.createThread(actor.principalId);
+    await expect(
+      adapter.send(actor.principalId, fresh.id, text, deletedRequest),
+    ).rejects.toMatchObject({ code: 'ai_request_id_reused', status: 409 });
+    await expect(
+      adapter.send(actor.principalId, fresh.id, text, randomUUID()),
+    ).rejects.toMatchObject({ code: 'ai_rate_limit', status: 429 });
+    expect(upstream).toHaveBeenCalledTimes(30);
+    const counts = await admin.query<{ requests: number; messages: number }>(
+      `SELECT (SELECT count(*)::integer FROM ai_assistant_request_quota WHERE account_id = $1)
+                AS requests,
+              (SELECT count(*)::integer FROM ai_assistant_messages WHERE account_id = $1)
+                AS messages`,
+      [actor.accountId],
+    );
+    expect(counts.rows).toEqual([{ requests: 30, messages: 0 }]);
+  }, 30000);
+
+  it('wires real Nest HTTP sessions, admin permissions, tenant ownership and paid idempotency', async () => {
+    async function createSession(actor: Identity, label: string): Promise<string> {
+      const unique = randomUUID();
+      const tenant = await admin.query<{ id: string }>(
+        'INSERT INTO tenants (title, workspace_slug) VALUES ($1,$2) RETURNING id',
+        [`AI HTTP test ${label}`, `ai-http-${unique}`],
+      );
+      const workspace = await admin.query<{ id: string }>(
+        "INSERT INTO workspaces (tenant_id,kind,title) VALUES ($1,'personal',$2) RETURNING id",
+        [tenant.rows[0]!.id, `AI HTTP ${label}`],
+      );
+      await admin.query(
+        'INSERT INTO workspace_memberships (account_id,workspace_id,role) VALUES ($1,$2,$3)',
+        [actor.accountId, workspace.rows[0]!.id, 'owner'],
+      );
+      await admin.query(
+        'INSERT INTO profiles (account_id,username,display_name) VALUES ($1,$2,$3)',
+        [actor.accountId, `ai_${unique.replaceAll('-', '')}`, label],
+      );
+      const token = `ai-http-${randomUUID()}`;
+      await admin.query(
+        `INSERT INTO sessions_v2
+           (principal_id,active_workspace_id,token_hash,expires_at,client_metadata)
+         VALUES ($1,$2,$3,now() + interval '1 hour','{}'::jsonb)`,
+        [actor.principalId, workspace.rows[0]!.id, hashSessionToken(token)],
+      );
+      return token;
+    }
+
+    const ownerToken = await createSession(owner, 'owner');
+    const strangerToken = await createSession(stranger, 'stranger');
+    const adminToken = await createSession(platformAdmin, 'admin');
+    const previousEncryptionKey = process.env['ASA_SETTINGS_ENCRYPTION_KEY'];
+    process.env['ASA_SETTINGS_ENCRYPTION_KEY'] = requestKey;
+    const mockFetch = vi.fn<typeof fetch>(async (_url, options) => {
+      const input = JSON.parse(String(options?.body)) as { stream?: boolean };
+      if (input.stream) {
+        const data =
+          'event: response.output_text.delta\ndata: ' +
+          JSON.stringify({ type: 'response.output_text.delta', delta: 'Потоковый ответ GPT' }) +
+          '\n\n' +
+          'event: response.completed\ndata: {"type":"response.completed"}\n\n';
+        return new Response(data, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          status: 'completed',
+          output: [{ content: [{ type: 'output_text', text: 'HTTP GPT успешно ответил' }] }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const apiPool = testAppPool();
+    const app = await buildTestApp(apiPool);
+    const host = '127.0.0.1:4610';
+    try {
+      const anonymous = await inject(app, { method: 'GET', url: '/api/ai/threads' });
+      expect(anonymous.statusCode).toBe(401);
+
+      const deniedAdmin = await inject(app, {
+        method: 'GET',
+        url: '/api/admin/v1/ai',
+        headers: { host },
+        cookies: { asa_session: ownerToken },
+      });
+      expect(deniedAdmin.statusCode).toBe(403);
+      const allowedAdmin = await inject(app, {
+        method: 'GET',
+        url: '/api/admin/v1/ai',
+        headers: { host },
+        cookies: { asa_session: adminToken },
+      });
+      expect(allowedAdmin.statusCode).toBe(200);
+      expect(allowedAdmin.body).not.toContain('sk-ai-private-integration-key-001');
+
+      const newChat = await inject(app, {
+        method: 'POST',
+        url: '/api/ai/threads',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: {},
+      });
+      expect(newChat.statusCode).toBe(201);
+      const threadId = (newChat.json() as { id: string }).id;
+      const msgUrl = `/api/ai/threads/${threadId}/messages`;
+
+      const strangerRead = await inject(app, {
+        method: 'GET',
+        url: msgUrl,
+        headers: { host },
+        cookies: { asa_session: strangerToken },
+      });
+      expect(strangerRead.statusCode).toBe(200);
+      expect(strangerRead.json()).toMatchObject({ items: [] });
+      const outsiderSend = await inject(app, {
+        method: 'POST',
+        url: msgUrl,
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: strangerToken },
+        payload: { message: 'Чужой запрос', requestId: randomUUID() },
+      });
+      expect(outsiderSend.statusCode).toBe(409);
+      expect(mockFetch).not.toHaveBeenCalled();
+
+      const operation = randomUUID();
+      const data = { message: 'HTTP проверка', requestId: operation };
+      const first = await inject(app, {
+        method: 'POST',
+        url: msgUrl,
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: data,
+      });
+      expect(first.statusCode).toBe(200);
+      expect(first.json()).toMatchObject({
+        replayed: false,
+        messages: [
+          { role: 'user', requestId: operation, content: 'HTTP проверка' },
+          { role: 'assistant', requestId: operation, content: 'HTTP GPT успешно ответил' },
+        ],
+      });
+      const replay = await inject(app, {
+        method: 'POST',
+        url: msgUrl,
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: data,
+      });
+      expect(replay.statusCode).toBe(200);
+      expect(replay.json()).toMatchObject({ replayed: true });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const streamedRequestId = randomUUID();
+      const streamedReply = await inject(app, {
+        method: 'POST',
+        url: msgUrl + '/stream',
+        headers: { host, 'content-type': 'application/json', accept: 'text/event-stream' },
+        cookies: { asa_session: ownerToken },
+        payload: {
+          message: 'Потоковый запрос',
+          requestId: streamedRequestId,
+          model: 'gpt-4.1-mini',
+        },
+      });
+      expect(streamedReply.statusCode).toBe(200);
+      expect(streamedReply.headers['content-type']).toContain('text/event-stream');
+      expect(streamedReply.body).toContain('event: delta');
+      expect(streamedReply.body).toContain('Потоковый ответ GPT');
+      expect(streamedReply.body).toContain('event: done');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const [, selectedOptions] = mockFetch.mock.calls[1]!;
+      const selectedInput = JSON.parse(String(selectedOptions?.body)) as { model: string };
+      expect(selectedInput.model).toBe('gpt-4.1-mini');
+      const hiddenModel = await inject(app, {
+        method: 'POST',
+        url: msgUrl + '/stream',
+        headers: { host, 'content-type': 'application/json', accept: 'text/event-stream' },
+        cookies: { asa_session: ownerToken },
+        payload: {
+          message: 'Скрытая модель DeepSeek',
+          requestId: randomUUID(),
+          model: 'deepseek-flash',
+        },
+      });
+      expect(hiddenModel.statusCode).toBe(200);
+      expect(hiddenModel.body).toContain('ai_model_not_allowed');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const streamedHistory = await service.messages(owner.principalId, threadId);
+      expect(streamedHistory).toContainEqual(
+        expect.objectContaining({
+          role: 'assistant',
+          content: 'Потоковый ответ GPT',
+          requestId: streamedRequestId,
+          state: 'complete',
+        }),
+      );
+
+      // Connection verification never runs implicitly or for a non-admin.
+      const configurationVersion = (allowedAdmin.json() as { configurationVersion: number })
+        .configurationVersion;
+      const noConfirmation = await inject(app, {
+        method: 'POST',
+        url: '/api/admin/v1/ai/test',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: adminToken },
+        payload: { configurationVersion },
+      });
+      expect(noConfirmation.statusCode).toBe(400);
+      const unauthorizedTest = await inject(app, {
+        method: 'POST',
+        url: '/api/admin/v1/ai/test',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: { configurationVersion, acknowledgePaidRequest: true },
+      });
+      expect(unauthorizedTest.statusCode).toBe(403);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const verificationProvider = (
+        allowedAdmin.json() as AiAdminConfig
+      ).providerConfigurations.find((slot) => slot.provider === 'openai')!;
+      expect(verificationProvider).toMatchObject({ enabled: true, apiKeyConfigured: true });
+      const verification = await inject(app, {
+        method: 'POST',
+        url: '/api/admin/v1/ai/test',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: adminToken },
+        payload: {
+          configurationVersion,
+          acknowledgePaidRequest: true,
+          provider: verificationProvider.provider,
+          providerConfigurationVersion: verificationProvider.revision,
+        },
+      });
+      expect(verification.statusCode).toBe(200);
+      expect(verification.json()).toMatchObject({
+        provider: 'openai',
+        model: 'gpt-6-luna',
+        configurationVersion,
+        providerConfigurationVersion: verificationProvider.revision,
+      });
+      expect(verification.body).not.toContain('sk-ai-private-integration-key-001');
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(await service.messages(owner.principalId, threadId)).toEqual(streamedHistory);
+
+      const wrongOrigin = await inject(app, {
+        method: 'POST',
+        url: '/api/ai/threads',
+        headers: {
+          host,
+          origin: 'https://unauthorized.example',
+          'content-type': 'application/json',
+        },
+        cookies: { asa_session: ownerToken },
+        payload: {},
+      });
+      expect(wrongOrigin.statusCode).toBe(403);
+
+      // The HTTP boundary must accept the exact microsecond cursor returned by SQL.
+      await admin.query(
+        `INSERT INTO ai_assistant_messages
+          (thread_id, account_id, request_id, role, content, created_at)
+         SELECT $1, $2, gen_random_uuid(), 'user', 'precise-http-' || n,
+           TIMESTAMPTZ '2000-01-01 10:00:00.123000+00' + n * interval '1 microsecond'
+           FROM generate_series(1,57) n`,
+        [threadId, owner.accountId],
+      );
+      const firstPage = await inject(app, {
+        method: 'GET',
+        url: msgUrl,
+        headers: { host },
+        cookies: { asa_session: ownerToken },
+      });
+      expect(firstPage.statusCode).toBe(200);
+      const firstHistory = firstPage.json() as AiPage<AiMessage>;
+      expect(firstHistory.items).toHaveLength(50);
+      expect(firstHistory.nextCursor?.at).toBe('2000-01-01T10:00:00.123012Z');
+      const before = new URLSearchParams({
+        beforeAt: firstHistory.nextCursor!.at,
+        beforeId: firstHistory.nextCursor!.id.toUpperCase(),
+      });
+      const secondPage = await inject(app, {
+        method: 'GET',
+        url: msgUrl + '?' + before,
+        headers: { host },
+        cookies: { asa_session: ownerToken },
+      });
+      expect(secondPage.statusCode).toBe(200);
+      const secondHistory = secondPage.json() as AiPage<AiMessage>;
+      expect(secondHistory.items).toHaveLength(11);
+      expect(secondHistory.nextCursor).toBeNull();
+      expect(secondHistory.items[0]?.content).toBe('precise-http-1');
+      expect(
+        new Set([...firstHistory.items, ...secondHistory.items].map((item) => item.id)).size,
+      ).toBe(61);
+      const outsiderPage = await inject(app, {
+        method: 'GET',
+        url: msgUrl + '?' + before,
+        headers: { host },
+        cookies: { asa_session: strangerToken },
+      });
+      expect(outsiderPage.statusCode).toBe(200);
+      expect(outsiderPage.json()).toMatchObject({ items: [], nextCursor: null });
+    } finally {
+      await app.close();
+      vi.unstubAllGlobals();
+      if (previousEncryptionKey === undefined) delete process.env['ASA_SETTINGS_ENCRYPTION_KEY'];
+      else process.env['ASA_SETTINGS_ENCRYPTION_KEY'] = previousEncryptionKey;
+    }
+  }, 30000);
+
+  it('restricts rename/delete by owner and retains only owned conversation lists', async () => {
+    const thread = await service.createThread(owner.principalId);
+    const label = 'История — Arduino';
+    await expect(
+      service.renameThread(stranger.principalId, thread.id, 'Чужой'),
+    ).rejects.toMatchObject({
+      code: 'ai_thread_not_found',
+      status: 404,
+    });
+    await expect(service.renameThread(owner.principalId, thread.id, '  ')).rejects.toMatchObject({
+      code: 'ai_title_invalid',
+      status: 400,
+    });
+    const renamed = await service.renameThread(owner.principalId, thread.id, label);
+    expect(renamed.title).toBe(label);
+    expect((await service.threadPage(owner.principalId)).items).toContainEqual(
+      expect.objectContaining({ id: thread.id, title: label }),
+    );
+    expect((await service.threadPage(stranger.principalId)).items).not.toContainEqual(
+      expect.objectContaining({ id: thread.id }),
+    );
+    await expect(service.deleteThread(stranger.principalId, thread.id)).rejects.toMatchObject({
+      code: 'ai_thread_not_available',
+      status: 409,
+    });
+    expect(await service.deleteThread(owner.principalId, thread.id)).toEqual({ deleted: true });
+    expect((await service.threadPage(owner.principalId)).items).not.toContainEqual(
+      expect.objectContaining({ id: thread.id }),
+    );
+    await expect(service.deleteThread(owner.principalId, thread.id)).rejects.toMatchObject({
+      code: 'ai_thread_not_available',
+    });
+  });
+
+  it('paginates 57 conversations and 107 messages without duplication or cross-account leakage', async () => {
+    await admin.query(
+      `INSERT INTO ai_assistant_threads (account_id, title, updated_at)
+       SELECT $1, 'paged-' || n, now() - n * interval '2 minutes'
+         FROM generate_series(1,57) n`,
+      [owner.accountId],
+    );
+    let cursor: { at: string; id: string } | null = null;
+    const allIds = new Set<string>();
+    let pageCount = 0;
+    do {
+      const page = await service.threadPage(owner.principalId, cursor);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      for (const thread of page.items) {
+        expect(allIds.has(thread.id)).toBe(false);
+        allIds.add(thread.id);
+      }
+      cursor = page.nextCursor;
+      pageCount += 1;
+    } while (cursor !== null && pageCount < 10);
+    expect(allIds.size).toBeGreaterThanOrEqual(57);
+    expect(pageCount).toBeGreaterThanOrEqual(2);
+    expect((await service.threadPage(stranger.principalId)).items.length).toBe(0);
+
+    const thread = await service.createThread(owner.principalId);
+    await admin.query(
+      `INSERT INTO ai_assistant_messages
+       (thread_id, account_id, request_id, role, content, created_at)
+       SELECT $1, $2, gen_random_uuid(),
+         CASE WHEN n % 2 = 0 THEN 'assistant' ELSE 'user' END,
+         'Сообщение ' || n, now() - interval '2 days' - (108 - n) * interval '1 minute'
+         FROM generate_series(1,107) n`,
+      [thread.id, owner.accountId],
+    );
+    // The legacy completion source is a bounded suffix, not the whole history.
+    const latest = await service.messages(owner.principalId, thread.id);
+    expect(latest).toHaveLength(80);
+    expect(latest[0]?.content).toBe('Сообщение 28');
+    expect(latest.at(-1)?.content).toBe('Сообщение 107');
+    let messageCursor: { at: string; id: string } | null = null;
+    const contents: string[] = [];
+    let count = 0;
+    do {
+      const page = await service.messagePage(owner.principalId, thread.id, messageCursor);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      expect(page.items.length).toBeGreaterThan(0);
+      for (const message of page.items) contents.push(message.content);
+      messageCursor = page.nextCursor;
+      count += 1;
+    } while (messageCursor !== null && count < 10);
+    expect(contents).toHaveLength(107);
+    expect(new Set(contents).size).toBe(107);
+    expect(contents).toContain('Сообщение 107');
+    expect(contents).toContain('Сообщение 1');
+    expect(count).toBe(3);
+    expect((await service.messagePage(stranger.principalId, thread.id)).items).toEqual([]);
+  });
+
+  it('stores a canceled provider response as stopped and never recharges replay', async () => {
+    const request = randomUUID();
+    const thread = await service.createThread(owner.principalId);
+    const live = new AbortController();
+    const upstream = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          [
+            'event: response.output_text.delta',
+            'data: {"type":"response.output_text.delta","delta":"Частичный ответ"}',
+            '',
+            'event: response.output_text.delta',
+            'data: {"type":"response.output_text.delta","delta":" продолжение"}',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'content-type': 'text/event-stream' } },
+        ),
+    );
+    const adapter = new AiChatService(runtime, { encryptionKey: requestKey, fetchImpl: upstream });
+    const deltas: string[] = [];
+    const received = await adapter.sendStream(
+      owner.principalId,
+      thread.id,
+      'Остановить ответ',
+      request,
+      (delta) => {
+        deltas.push(delta);
+        live.abort();
+      },
+      live.signal,
+    );
+    expect(received.stopped).toBe(true);
+    expect(deltas).toEqual(['Частичный ответ']);
+    expect(received.messages).toContainEqual(
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Частичный ответ',
+        requestId: request,
+        state: 'stopped',
+      }),
+    );
+    const quotaBeforeReplay = await admin.query(
+      'SELECT count(*)::integer AS count FROM ai_paid_operation_quota',
+    );
+    const again = await adapter.sendStream(
+      owner.principalId,
+      thread.id,
+      'Остановить ответ',
+      request,
+      () => undefined,
+      new AbortController().signal,
+    );
+    expect(again.replayed).toBe(true);
+    // Replay reports the immutable stored stopped state without another admission.
+    expect(again.stopped).toBe(true);
+    expect(
+      (await admin.query('SELECT count(*)::integer AS count FROM ai_paid_operation_quota')).rows,
+    ).toEqual(quotaBeforeReplay.rows);
+    expect(again.messages).toContainEqual(
+      expect.objectContaining({ requestId: request, role: 'assistant', state: 'stopped' }),
+    );
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it('paginates exact microseconds and UUID ties through all 107 rows', async () => {
+    const actor = await makeIdentity('microseconds', false);
+    await admin.query(
+      `INSERT INTO ai_assistant_threads (account_id, title, updated_at)
+       SELECT $1, 'precise-thread-' || n,
+         TIMESTAMPTZ '2026-10-19 10:00:00.123400+00' + (n / 3) * interval '1 microsecond'
+         FROM generate_series(1,107) n`,
+      [actor.accountId],
+    );
+    const expectedThreads = await admin.query<{ id: string }>(
+      `SELECT id FROM ai_assistant_threads WHERE account_id = $1
+         ORDER BY updated_at DESC, id DESC`,
+      [actor.accountId],
+    );
+    let cursor: AiCursor | null = null;
+    const threadIds: string[] = [];
+    let pages = 0;
+    do {
+      const page = await service.threadPage(actor.principalId, cursor);
+      expect(page.items.length).toBeGreaterThan(0);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      threadIds.push(...page.items.map((item) => item.id));
+      cursor = page.nextCursor;
+      if (cursor) expect(cursor.at).toMatch(/^2026-10-19T10:00:00\.1234\d{2}Z$/);
+      pages += 1;
+    } while (cursor && pages < 5);
+    expect(cursor).toBeNull();
+    expect(pages).toBe(3);
+    expect(threadIds).toEqual(expectedThreads.rows.map((row) => row.id));
+    expect(new Set(threadIds).size).toBe(107);
+
+    const threadId = threadIds[0]!;
+    await admin.query(
+      `INSERT INTO ai_assistant_messages
+        (thread_id, account_id, request_id, role, content, created_at)
+       SELECT $1, $2, gen_random_uuid(), 'user', 'precise-message-' || n,
+         TIMESTAMPTZ '2026-10-19 10:00:00.123400+00' + (n / 3) * interval '1 microsecond'
+         FROM generate_series(1,107) n`,
+      [threadId, actor.accountId],
+    );
+    const expectedMessages = await admin.query<{ id: string }>(
+      `SELECT id FROM ai_assistant_messages WHERE thread_id = $1
+         ORDER BY created_at ASC, id ASC`,
+      [threadId],
+    );
+    const messageIds: string[] = [];
+    pages = 0;
+    do {
+      const page = await service.messagePage(actor.principalId, threadId, cursor);
+      expect(page.items.length).toBeGreaterThan(0);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      messageIds.unshift(...page.items.map((item) => item.id));
+      cursor = page.nextCursor;
+      if (cursor) {
+        expect(cursor.at).toMatch(/^2026-10-19T10:00:00\.1234\d{2}Z$/);
+        expect((await service.messagePage(stranger.principalId, threadId, cursor)).items).toEqual(
+          [],
+        );
+      }
+      pages += 1;
+    } while (cursor && pages < 5);
+    expect(cursor).toBeNull();
+    expect(pages).toBe(3);
+    expect(messageIds).toEqual(expectedMessages.rows.map((row) => row.id));
+    expect(new Set(messageIds).size).toBe(107);
+  });
+
+  it('stops mixed-case UUID streams and replays the persisted stopped answer without another charge', async () => {
+    const thread = await service.createThread(owner.principalId);
+    const request = randomUUID();
+    const upstream = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          'event: response.output_text.delta\ndata: {"delta":"Остановленная часть"}\n\n',
+        ),
+    );
+    const adapter = new AiChatService(runtime, { encryptionKey: requestKey, fetchImpl: upstream });
+    const result = await adapter.sendStream(
+      owner.principalId.toUpperCase(),
+      thread.id.toUpperCase(),
+      'Стоп',
+      request.toUpperCase(),
+      () => {
+        expect(adapter.stopStream(stranger.principalId, thread.id, request)).toEqual({
+          stopped: false,
+        });
+        expect(adapter.stopStream(owner.principalId, thread.id, request)).toEqual({
+          stopped: true,
+        });
+      },
+      new AbortController().signal,
+    );
+    expect(result.stopped).toBe(true);
+    expect(result.messages).toContainEqual(
+      expect.objectContaining({
+        content: 'Остановленная часть',
+        requestId: request,
+        state: 'stopped',
+      }),
+    );
+    expect(adapter.stopStream(owner.principalId, thread.id, request)).toEqual({ stopped: false });
+    const replay = await adapter.sendStream(
+      owner.principalId,
+      thread.id,
+      'Стоп',
+      request,
+      () => undefined,
+      new AbortController().signal,
+    );
+    expect(replay.replayed).toBe(true);
+    expect(replay.messages).toEqual(result.messages);
+    expect(upstream).toHaveBeenCalledTimes(1);
+    const quota = await admin.query<{ count: number }>(
+      'SELECT count(*)::integer FROM ai_assistant_request_quota WHERE account_id = $1 AND request_id = $2',
+      [owner.accountId, request],
+    );
+    expect(quota.rows[0]?.count).toBe(1);
+  });
+
+  it.each(['openai', 'deepseek'] as const)(
+    'persists a partial legacy %s result as stopped and retains paid replay idempotency',
+    async (provider) => {
+      const actor = await makeIdentity('partial-' + provider, false);
+      await service.saveAdminConfig(
+        platformAdmin.principalId,
+        {
+          enabled: true,
+          provider,
+          model: provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
+          apiKey: 'sk-ai-private-integration-key-001',
+          paidOperationsPerHour: 1000,
+        },
+        randomUUID(),
+      );
+      await publishFixtureModels(service, platformAdmin.principalId, [
+        provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
+      ]);
+      try {
+        const thread = await service.createThread(actor.principalId);
+        const operation = randomUUID();
+        const upstream = vi.fn<typeof fetch>(
+          async () =>
+            new Response(
+              JSON.stringify(
+                provider === 'openai'
+                  ? { status: 'incomplete', output_text: 'Сохранённая часть' }
+                  : {
+                      choices: [
+                        { finish_reason: 'length', message: { content: 'Сохранённая часть' } },
+                      ],
+                    },
+              ),
+            ),
+        );
+        const adapter = new AiChatService(runtime, {
+          encryptionKey: requestKey,
+          fetchImpl: upstream,
+        });
+        const paidBefore = await admin.query<{ count: number }>(
+          'SELECT count(*)::integer FROM ai_paid_operation_quota',
+        );
+        const sending = adapter.send(actor.principalId, thread.id, 'Вопрос', operation);
+        if (provider === 'openai') {
+          await expect(sending).rejects.toMatchObject({
+            code: 'ai_response_incomplete',
+            status: 503,
+          });
+        } else {
+          expect((await sending).replayed).toBe(false);
+        }
+        const stored = await service.messages(actor.principalId, thread.id);
+        expect(stored).toHaveLength(2);
+        expect(stored[1]).toMatchObject({
+          role: 'assistant',
+          content: 'Сохранённая часть',
+          state: 'stopped',
+        });
+        const replay = await adapter.send(
+          actor.principalId.toUpperCase(),
+          thread.id.toUpperCase(),
+          'Вопрос',
+          operation.toUpperCase(),
+        );
+        expect(replay).toEqual({ replayed: true, messages: stored });
+        expect(upstream).toHaveBeenCalledTimes(1);
+        const paidAfter = await admin.query<{ count: number }>(
+          'SELECT count(*)::integer FROM ai_paid_operation_quota',
+        );
+        expect(paidAfter.rows[0]!.count - paidBefore.rows[0]!.count).toBe(1);
+        const lease = await admin.query<{ released: boolean }>(
+          'SELECT busy_until IS NULL AS released FROM ai_assistant_threads WHERE id = $1',
+          [thread.id],
+        );
+        expect(lease.rows).toEqual([{ released: true }]);
+        expect(await service.messages(stranger.principalId, thread.id)).toEqual([]);
+      } finally {
+        await service.saveAdminConfig(
+          platformAdmin.principalId,
+          {
+            enabled: true,
+            provider: 'openai',
+            model: 'gpt-6-luna',
+            apiKey: 'sk-ai-private-integration-key-001',
+            paidOperationsPerHour: 1000,
+          },
+          randomUUID(),
+        );
+        await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna']);
+      }
+    },
+  );
+});

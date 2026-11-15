@@ -1,0 +1,26 @@
+{
+  "head": "71574f66cd705dea0f29ae019ecb0e205fba7f3f",
+  "sourceDigest": "fdbb20acbdcfb7d600465826165fd4f61fe7637035633214102b7b38ff4d8537",
+  "command": "NX_SKIP_NX_CACHE=true pnpm gate:electronics-m1",
+  "conclusion": "PASS",
+  "nxFreshExecutions": 71,
+  "nxCacheHits": 0,
+  "coreTests": 1405,
+  "webTests": 1112,
+  "allBundleCaps": "PASS",
+  "installedSave": "NOT_RUN",
+  "independentReview": "PENDING",
+  "remotePgCi": "PARENT_MONITORS",
+  "files": [
+    {
+      "path": "canonical-repair-71574f66.log",
+      "bytes": 47044,
+      "sha256": "ee76b671ed852716ce967638cae250e756dfc994d809353438c86e5753f02315"
+    },
+    {
+      "path": "final-budgets.log",
+      "bytes": 563,
+      "sha256": "7f00109e713818d0d46a5c03fb87fd0ffbb952b8afff84edbdd8a22944c455ae"
+    }
+  ]
+}

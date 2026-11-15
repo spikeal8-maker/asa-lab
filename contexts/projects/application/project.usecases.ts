@@ -41,10 +41,15 @@ export type ProjectErrorCode =
 
 export type UseCaseResult<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly code: ProjectErrorCode; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly code: ProjectErrorCode;
+      readonly message: string;
+      readonly reasonCode?: string;
+    };
 
-function fail<T>(code: ProjectErrorCode, message: string): UseCaseResult<T> {
-  return { ok: false, code, message };
+function fail<T>(code: ProjectErrorCode, message: string, reasonCode?: string): UseCaseResult<T> {
+  return { ok: false, code, message, ...(reasonCode ? { reasonCode } : {}) };
 }
 
 /**
@@ -522,45 +527,125 @@ export class SaveDraftUseCase {
     baseRevision: number;
     mutationId: string;
   }): Promise<UseCaseResult<ProjectDraft>> {
+    const result = await this.executeWithModule(input);
+    return result.ok ? { ok: true, value: result.value.draft } : result;
+  }
+
+  /** Reuse the writer's authorized module identity when forming the editor reply. */
+  async executeWithModule(
+    input: Parameters<SaveDraftUseCase['execute']>[0],
+  ): Promise<UseCaseResult<{ readonly draft: ProjectDraft; readonly moduleKey: string }>> {
+    // Bind every authorized read and the eventual CAS to one command identity,
+    // including when the caller mutates its actor while preparation awaits.
+    input = { ...input, actor: { ...input.actor } };
     if (!Number.isSafeInteger(input.baseRevision) || input.baseRevision < 0) {
-      return fail('validation_error', 'baseRevision must be a non-negative integer');
+      return fail(
+        'validation_error',
+        'baseRevision must be a non-negative integer',
+        'draft_base_revision_invalid',
+      );
     }
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         input.mutationId,
       )
     ) {
-      return fail('validation_error', 'mutationId must be a UUID v4');
+      return fail('validation_error', 'mutationId must be a UUID v4', 'draft_mutation_id_invalid');
     }
     if (this.persistenceGuard) {
       try {
         input = { ...input, actor: { ...input.actor }, document: structuredClone(input.document) };
       } catch {
-        return fail('validation_error', 'Project document must be serializable.');
+        return fail(
+          'validation_error',
+          'Project document must be serializable.',
+          'draft_document_unserializable',
+        );
       }
     }
-    const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor);
-    if (!loaded) {
+    const prepared = this.repository.prepareDraftSave
+      ? await this.repository.prepareDraftSave(input.tenantId, input.projectId, input.actor)
+      : undefined;
+    const loaded =
+      prepared === undefined
+        ? await this.repository.load(input.tenantId, input.projectId, input.actor, {
+            includeVersions: false,
+          })
+        : undefined;
+    if (prepared === null || (prepared === undefined && !loaded)) {
       return fail('project_not_found', 'project not found');
     }
-    const module = this.modules.get(loaded.project.moduleKey);
+    const moduleKey = prepared?.moduleKey ?? loaded!.project.moduleKey;
+    const module = this.modules.get(moduleKey);
     if (!module) {
-      return fail('validation_error', `module "${loaded.project.moduleKey}" is not registered`);
+      return fail(
+        'validation_error',
+        `module "${moduleKey}" is not registered`,
+        'draft_module_unavailable',
+      );
     }
     const parsed = module.validateDocument(input.document);
     if (!parsed.ok) {
-      return fail('validation_error', parsed.message);
+      return fail('validation_error', parsed.message, parsed.reasonCode);
+    }
+    let validatedDocument = parsed.document;
+    if (module.validateReplacement !== undefined) {
+      if (typeof module.validateReplacement !== 'function')
+        return fail('validation_error', 'Project document replacement validation is invalid.');
+      try {
+        validatedDocument = structuredClone(parsed.document);
+      } catch {
+        return fail('validation_error', 'Project document must be serializable.');
+      }
+      const current =
+        loaded ??
+        (await this.repository.load(input.tenantId, input.projectId, input.actor, {
+          includeVersions: false,
+        }));
+      if (!current) return fail('project_not_found', 'project not found');
+      // An expected future revision could otherwise become true after a racing
+      // format upgrade. Stale requests retain the existing CAS/replay path.
+      if (input.baseRevision > current.draft.revision)
+        return fail(
+          'project_revision_conflict',
+          'Версия проекта изменилась. Текущая работа не была перезаписана.',
+        );
+      if (input.baseRevision === current.draft.revision) {
+        try {
+          const verdict: unknown = module.validateReplacement(
+            structuredClone(current.draft.document),
+            structuredClone(validatedDocument),
+          );
+          if (verdict === null || typeof verdict !== 'object' || Array.isArray(verdict))
+            return fail('validation_error', 'Project document replacement validation is invalid.');
+          const record = verdict as Record<string, unknown>;
+          if (record['ok'] !== true || Object.keys(record).length !== 1) {
+            return fail(
+              'validation_error',
+              typeof record['message'] === 'string'
+                ? record['message']
+                : 'Project document replacement is not supported.',
+              typeof record['reasonCode'] === 'string' ? record['reasonCode'] : undefined,
+            );
+          }
+        } catch {
+          return fail(
+            'validation_error',
+            'Project document replacement validation is unavailable.',
+          );
+        }
+      }
     }
     // Detach the validated document from caller and guard mutations across await.
-    let document = parsed.document;
+    let document = validatedDocument;
     if (this.persistenceGuard) {
       try {
-        document = structuredClone(parsed.document);
+        document = structuredClone(validatedDocument);
         const result = await this.persistenceGuard.validate({
           tenantId: input.tenantId,
           projectId: input.projectId,
           actor: { ...input.actor },
-          moduleKey: loaded.project.moduleKey,
+          moduleKey,
           document: structuredClone(document),
         });
         if (result.ok !== true) {
@@ -577,7 +662,7 @@ export class SaveDraftUseCase {
     }
     let draft: ProjectDraft | null;
     try {
-      draft = await this.repository.saveDraft({
+      const saveInput = {
         tenantId: input.tenantId,
         projectId: input.projectId,
         actor: input.actor,
@@ -585,15 +670,20 @@ export class SaveDraftUseCase {
         preview: previewOf(module, document),
         baseRevision: input.baseRevision,
         mutationId: input.mutationId,
-      });
+      };
+      draft = prepared
+        ? await prepared.save(saveInput)
+        : await this.repository.saveDraft(saveInput);
     } catch (error) {
       if (error instanceof LearningWorkReadOnlyError) {
         return fail('learning_work_read_only', error.message);
       }
       throw error;
     }
-    if (draft !== null) return { ok: true, value: draft };
-    const current = await this.repository.load(input.tenantId, input.projectId, input.actor);
+    if (draft !== null) return { ok: true, value: { draft, moduleKey } };
+    const current = await this.repository.load(input.tenantId, input.projectId, input.actor, {
+      includeVersions: false,
+    });
     return current === null
       ? fail('project_not_found', 'project not found')
       : fail(

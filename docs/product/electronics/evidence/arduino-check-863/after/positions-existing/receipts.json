@@ -1,0 +1,48 @@
+[
+  {
+    "width": 1440,
+    "initial": {
+      "start": 1167,
+      "end": 1183,
+      "slice": "digitalWrite(13)",
+      "scroll": 1181
+    },
+    "afterEdit": {
+      "start": 1184,
+      "end": 1200,
+      "slice": "digitalWrite(13)",
+      "scroll": 1201
+    },
+    "afterMode": {
+      "start": 1184,
+      "end": 1200,
+      "slice": "digitalWrite(13)",
+      "scroll": 1201
+    },
+    "legacy": "unchanged fixture input",
+    "errors": []
+  },
+  {
+    "width": 390,
+    "initial": {
+      "start": 1167,
+      "end": 1183,
+      "slice": "digitalWrite(13)",
+      "scroll": 1181
+    },
+    "afterEdit": {
+      "start": 1184,
+      "end": 1200,
+      "slice": "digitalWrite(13)",
+      "scroll": 1201
+    },
+    "afterMode": {
+      "start": 1184,
+      "end": 1200,
+      "slice": "digitalWrite(13)",
+      "scroll": 1201
+    },
+    "legacy": "unchanged fixture input",
+    "errors": []
+  }
+]

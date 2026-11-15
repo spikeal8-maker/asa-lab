@@ -117,12 +117,14 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   // through its real UI and prove it resumes this save rather than creating one.
   await page.goto('/#/games');
   await page.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/#/games/checkers/${projectId}$`));
+  await expect(page).toHaveURL(new RegExp(`/#/checkers/${projectId}/home$`));
 
-  await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Играть с ботом' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Задачи и обучение' })).toBeVisible();
-  await page.getByRole('button', { name: 'Открыть задачи' }).click();
+  await expect(page.getByRole('heading', { name: 'С кем сыграем?' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Играть с компьютером', exact: true }),
+  ).toBeVisible();
+  await page.getByText('Обучение и задания', { exact: true }).click();
+  await page.getByRole('button', { name: 'Задачи и обучение', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Путь русских шашек' })).toBeVisible();
   await expect(page.getByText('0 / 22 практик')).toBeVisible();
   await page
@@ -174,8 +176,9 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   });
 
   await page.getByRole('button', { name: 'Вернуться в кабинет шашек' }).click();
-  await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
-  await page.getByRole('button', { name: 'Открыть задачи' }).click();
+  await expect(page.getByRole('heading', { name: 'С кем сыграем?' })).toBeVisible();
+  await page.getByText('Обучение и задания', { exact: true }).click();
+  await page.getByRole('button', { name: 'Задачи и обучение', exact: true }).click();
   const seriesCard = page
     .locator('.checkers-home-card')
     .filter({ has: page.getByRole('heading', { name: 'Серия взятий', exact: true }) });
@@ -218,21 +221,18 @@ test('learner solves an original Russian-64 task, reloads progress and receives 
   await page.getByRole('button', { name: 'Вернуться в кабинет шашек' }).click();
 
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Выберите, как хотите играть' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'С кем сыграем?' })).toBeVisible();
+  await page.getByText('Обучение и задания', { exact: true }).click();
   await expect(page.getByLabel('2 из 22 практик')).toBeVisible();
-  await page.getByRole('button', { name: 'Выбрать бота' }).click();
+  await page.getByRole('button', { name: 'Играть с компьютером', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Выберите соперника и начинайте партию' }),
+    page.getByRole('heading', { name: 'Игра с компьютером', exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel('Случайно — сторона выбирается при старте')).toBeVisible();
-  const masterCard = page.getByRole('article').filter({ hasText: 'Мастер' });
-  await expect(masterCard.getByRole('button', { name: 'Играть с Мастер' })).toBeEnabled();
-  await page.getByLabel('Светлыми — первый ход ваш').check();
-  await page
-    .getByRole('article')
-    .filter({ hasText: 'Искра' })
-    .getByRole('button', { name: 'Играть с Искра' })
-    .click();
+  await expect(page.getByLabel('Сложный', { exact: true })).toBeEnabled();
+  await expect(page.getByLabel('Случайный цвет', { exact: true })).toBeVisible();
+  await page.getByLabel('Светлыми', { exact: true }).check();
+  await page.getByLabel('Лёгкий', { exact: true }).check();
+  await page.getByRole('button', { name: 'Начать партию', exact: true }).click();
   await page.locator('[data-square="c3"]').click();
   await page.locator('[data-square="b4"]').click();
   await expect(page.getByText(/Искра:/)).toBeVisible({ timeout: 15_000 });
@@ -291,13 +291,9 @@ test('two players share one device, reload the local match and finish with a rem
   const projectId = await createProject(page, { title: 'Локальная партия вдвоём' });
   await page.goto('/#/games');
   await page.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/#/games/checkers/${projectId}$`));
+  await expect(page).toHaveURL(new RegExp(`/#/checkers/${projectId}/home$`));
 
-  await page
-    .getByRole('article')
-    .filter({ hasText: 'Играть вдвоём' })
-    .getByRole('button', { name: 'Играть на одном устройстве' })
-    .click();
+  await page.getByRole('button', { name: 'Вдвоём на одном устройстве', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Два игрока за одним устройством' }),
   ).toBeVisible();
@@ -319,7 +315,11 @@ test('two players share one device, reload the local match and finish with a rem
   });
 
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Локальная партия' })).toBeVisible();
+  await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
+    'data-orientation',
+    'dark',
+  );
+  await page.getByRole('button', { name: 'Вернуться в кабинет шашек', exact: true }).click();
   await expect(page.getByText(/Игра вдвоём · ход тёмных/)).toBeVisible();
   await page.getByRole('button', { name: 'Продолжить партию' }).click();
   await expect(page.getByLabel('Доска для русских шашек, 8 на 8')).toHaveAttribute(
@@ -462,6 +462,7 @@ test('teacher assigns real class work and sees the learner evidence after comple
   await studentPage.goto(
     `/#/classrooms/${classroom.classroom.id}/projects/${projectId}?title=${encodeURIComponent(classroom.classroom.title)}`,
   );
+  await studentPage.getByText('Обучение и задания', { exact: true }).click();
   await expect(studentPage.getByRole('heading', { name: 'Назначенные задания' })).toBeVisible();
   await expect(studentPage.getByText('Серии взятий · практика').first()).toBeVisible();
   await studentPage
@@ -599,6 +600,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   const route = `/#/classrooms/${classroom.classroom.id}/projects/${projectId}`;
 
   await firstPage.goto(route);
+  await firstPage.getByText('Обучение и задания', { exact: true }).click();
   await expect(firstPage.getByText('Персональная серия для Ани').first()).toBeVisible();
   await expect(firstPage.getByText('Группа тактиков · общий набор').first()).toBeVisible();
   await firstPage.getByRole('button', { name: 'Открыть игры класса' }).click();
@@ -626,6 +628,7 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   await expect(firstPage.getByText('Вызов отправлен однокласснику')).toBeVisible();
 
   await secondPage.goto(route);
+  await secondPage.getByText('Обучение и задания', { exact: true }).click();
   await expect(secondPage.getByText('Персональная серия для Ани')).toHaveCount(0);
   await expect(secondPage.getByText('Группа тактиков · общий набор').first()).toBeVisible();
   await secondPage.getByRole('button', { name: 'Открыть игры класса' }).click();
@@ -640,7 +643,9 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
     .click();
 
   await firstPage.reload();
-  await firstPage.getByRole('button', { name: 'Открыть игры класса' }).click();
+  await expect(
+    firstPage.getByRole('heading', { name: 'Вызовы только своим одноклассникам' }),
+  ).toBeVisible();
   await firstPage
     .getByRole('article')
     .filter({ hasText: 'Борис Диагональ' })
@@ -683,7 +688,9 @@ test('two enrolled classmates play with keyboard control, audited reactions, mut
   expect(authoredText.status()).toBe(400);
 
   await secondPage.reload();
-  await secondPage.getByRole('button', { name: 'Открыть игры класса' }).click();
+  await expect(
+    secondPage.getByRole('heading', { name: 'Вызовы только своим одноклассникам' }),
+  ).toBeVisible();
   await secondPage
     .getByRole('article')
     .filter({ hasText: 'Аня Комбинация' })

@@ -67,6 +67,15 @@ export const depConstraints = [
     onlyDependOnLibsWithTags: ['context:blocks', 'scope:shared', 'scope:contract'],
   },
   {
+    sourceTag: 'context:robotics',
+    onlyDependOnLibsWithTags: [
+      'context:robotics',
+      'context:electronics',
+      'scope:shared',
+      'scope:contract',
+    ],
+  },
+  {
     sourceTag: 'type:app',
     onlyDependOnLibsWithTags: ['type:lib'],
   },
@@ -75,6 +84,23 @@ export const depConstraints = [
     onlyDependOnLibsWithTags: ['type:lib'],
   },
 ];
+
+// Vite executes this helper during the build to encrypt private source maps.
+// Share the same file-scoped allowance with the dedicated boundaries gate.
+export const viteBuildBoundaryOverrides = tseslint.config({
+  files: ['apps/web/vite.config.ts'],
+  rules: {
+    '@nx/enforce-module-boundaries': [
+      'error',
+      {
+        enforceBuildableLibDependency: true,
+        // Nx interprets allow entries as regular expressions: match one exact import.
+        allow: ['^\\.\\./\\.\\./tools/web-private-symbols\\.mjs$'],
+        depConstraints,
+      },
+    ],
+  },
+});
 
 export default tseslint.config(
   {
@@ -103,4 +129,5 @@ export default tseslint.config(
       ],
     },
   },
+  ...viteBuildBoundaryOverrides,
 );

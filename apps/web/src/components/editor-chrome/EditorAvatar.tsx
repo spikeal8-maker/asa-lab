@@ -45,11 +45,12 @@ export function useEditorAvatar(user: PublicUser): EditorAvatarModel {
     let cancelled = false;
     setAvatarState({ userId: user.id, dataUrl: null });
 
-    // StudentSeat is deliberately represented by a PublicUser with no email:
-    // it has no Account and therefore no uploaded account avatar. A guaranteed
+    // Only a real Account has an uploaded account avatar. Email is not an
+    // identity discriminator: a MAX Account can legitimately have no email.
+    // StudentSeat and unknown presentation adapters must not query this route: a guaranteed
     // 401 here used to start the account-refresh flow and log the learner out
     // precisely when the assigned project editor opened.
-    if (user.email.trim().length > 0) {
+    if (user.identityKind === 'account') {
       void api.accountAvatar().then((result) => {
         if (!cancelled && result.ok) {
           setAvatarState({ userId: user.id, dataUrl: result.data.avatarDataUrl });
@@ -69,7 +70,7 @@ export function useEditorAvatar(user: PublicUser): EditorAvatarModel {
       cancelled = true;
       window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, onAvatarChanged);
     };
-  }, [user.email, user.id]);
+  }, [user.identityKind, user.id]);
 
   return createEditorAvatarModel(user, uploadedAvatarDataUrl);
 }

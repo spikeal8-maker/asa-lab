@@ -1,80 +1,127 @@
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
+import '../modules/classroom-teacher-density.css';
+import '../modules/classroom-teacher-dashboard.css';
+import '../modules/classroom-teacher-dashboard-responsive.css';
+import '../modules/classroom-teacher-ultrawide.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
+import { SystemTabs } from '../components/SystemTabs';
 import { ageBandLabel } from '../components/ClassroomFields';
+import { useClassroomFeedback } from '../components/useClassroomFeedback';
+import { SystemToastViewport } from '../components/SystemToastViewport';
 import { Dropdown } from '../components/Dropdown';
 import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
+import { classroomAverageRatingPresentation } from '../components/classroom-average-rating';
+import {
+  classroomRatingLeaders,
+  classroomRatingLeaderLabel,
+} from '../components/classroom-rating-leaders';
 
 type ListState =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
 
 type ClassroomRoleView = 'teaching' | 'archived' | 'coteaching' | 'enrolled';
 
-const CLASSROOM_ROLE_TABS: ReadonlyArray<{ id: ClassroomRoleView; label: string }> = [
-  { id: 'teaching', label: 'Преподавание' },
-  { id: 'archived', label: 'В архиве' },
-  { id: 'coteaching', label: 'Совместное преподавание' },
-  { id: 'enrolled', label: 'Зарегистрированные' },
+const CLASSROOM_ROLE_TABS: ReadonlyArray<{
+  id: ClassroomRoleView;
+  label: string;
+  compactLabel: string;
+}> = [
+  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподаю' },
+  { id: 'archived', label: 'В архиве', compactLabel: 'Архив' },
+  {
+    id: 'coteaching',
+    label: 'Совместное преподавание',
+    compactLabel: 'Совместно',
+  },
+  { id: 'enrolled', label: 'Зарегистрированные', compactLabel: 'Учусь' },
 ];
 
-/**
- * How a register of classes is ordered.
- *
- * A teacher with thirty classes across four years looks for them in two ways:
- * by name, when they know which one they want, and by age, when they are
- * clearing out last year. Size matters once a term, when a class that should
- * have twenty-eight learners has three.
- */
-type SortKey =
-  | 'created-desc'
-  | 'created-asc'
-  | 'title-asc'
-  | 'title-desc'
-  | 'students-desc'
-  | 'awaiting-desc'
-  | 'submitted-desc'
-  | 'behind-desc';
-
+type SortColumn =
+  'title' | 'students' | 'works' | 'submitted' | 'awaiting' | 'behind' | 'rating' | 'created';
+type SortDirection = 'asc' | 'desc';
+type SortKey = `${SortColumn}-${SortDirection}`;
+const SORT_COLUMNS: ReadonlyArray<{ column: SortColumn; label: string }> = [
+  { column: 'title', label: 'Класс' },
+  { column: 'students', label: 'Ученики' },
+  { column: 'works', label: 'Работы' },
+  { column: 'submitted', label: 'Сдано' },
+  { column: 'awaiting', label: 'Ждут' },
+  { column: 'behind', label: 'Не сдали' },
+  { column: 'rating', label: 'Рейтинг' },
+  { column: 'created', label: 'Создан' },
+];
 const SORTS: ReadonlyArray<{ id: SortKey; label: string }> = [
   { id: 'created-desc', label: 'Сначала новые' },
   { id: 'created-asc', label: 'Сначала старые' },
-  { id: 'title-asc', label: 'По названию: А–Я' },
-  { id: 'title-desc', label: 'По названию: Я–А' },
+  { id: 'title-asc', label: 'Класс: А–Я' },
+  { id: 'title-desc', label: 'Класс: Я–А' },
   { id: 'students-desc', label: 'Больше учеников' },
-  { id: 'awaiting-desc', label: 'Больше ждут проверки' },
+  { id: 'students-asc', label: 'Меньше учеников' },
+  { id: 'works-desc', label: 'Больше работ' },
+  { id: 'works-asc', label: 'Меньше работ' },
   { id: 'submitted-desc', label: 'Больше сдано' },
-  { id: 'behind-desc', label: 'Больше отстающих' },
+  { id: 'submitted-asc', label: 'Меньше сдано' },
+  { id: 'awaiting-desc', label: 'Больше ждут проверки' },
+  { id: 'awaiting-asc', label: 'Меньше ждут проверки' },
+  { id: 'behind-desc', label: 'Больше не сдали' },
+  { id: 'behind-asc', label: 'Меньше не сдали' },
+  { id: 'rating-desc', label: 'Выше рейтинг' },
+  { id: 'rating-asc', label: 'Ниже рейтинг' },
 ];
-
+type SortMetric = {
+  students?: number;
+  works?: number;
+  submitted?: number;
+  waiting?: number;
+  notSubmitted?: number;
+  averageRating?: number | null;
+};
 const collator = new Intl.Collator('ru-RU', { sensitivity: 'base', numeric: true });
-
-function sortClassrooms(items: readonly Classroom[], sort: SortKey): Classroom[] {
-  const sorted = [...items];
-  const byNumber = (pick: (item: Classroom) => number) => (a: Classroom, b: Classroom) =>
-    pick(b) - pick(a) || collator.compare(a.title, b.title);
-
-  if (sort === 'awaiting-desc') sorted.sort(byNumber((item) => item.awaitingReview ?? 0));
-  else if (sort === 'submitted-desc') sorted.sort(byNumber((item) => item.submittedCount ?? 0));
-  else if (sort === 'behind-desc') sorted.sort(byNumber((item) => item.behindCount ?? 0));
-  else if (sort === 'title-asc') sorted.sort((a, b) => collator.compare(a.title, b.title));
-  else if (sort === 'title-desc') sorted.sort((a, b) => collator.compare(b.title, a.title));
-  else if (sort === 'students-desc')
-    sorted.sort((a, b) => b.studentCount - a.studentCount || collator.compare(a.title, b.title));
-  else
-    sorted.sort((a, b) => {
-      const left = Date.parse(a.createdAt);
-      const right = Date.parse(b.createdAt);
-      return sort === 'created-asc' ? left - right : right - left;
-    });
-  return sorted;
+function sortClassrooms(
+  items: readonly Classroom[],
+  sort: SortKey,
+  metrics: ReadonlyMap<string, SortMetric>,
+): Classroom[] {
+  const [column, direction] = sort.split('-') as [SortColumn, SortDirection];
+  const sign = direction === 'asc' ? 1 : -1;
+  const value = (item: Classroom): number | null => {
+    const metric = metrics.get(item.id);
+    switch (column) {
+      case 'students':
+        return metric?.students ?? item.studentCount;
+      case 'works':
+        return metric?.works ?? null;
+      case 'submitted':
+        return metric?.submitted ?? item.submittedCount ?? null;
+      case 'awaiting':
+        return metric?.waiting ?? item.awaitingReview ?? null;
+      case 'behind':
+        return metric?.notSubmitted ?? item.behindCount ?? null;
+      case 'rating':
+        return metric?.averageRating ?? null;
+      case 'created':
+        return Date.parse(item.createdAt);
+      default:
+        return null;
+    }
+  };
+  return [...items].sort((a, b) => {
+    if (column === 'title') return sign * collator.compare(a.title, b.title);
+    const left = value(a),
+      right = value(b);
+    if (left == null || !Number.isFinite(left))
+      return right == null || !Number.isFinite(right) ? collator.compare(a.title, b.title) : 1;
+    if (right == null || !Number.isFinite(right)) return -1;
+    return sign * (left - right) || (column === 'created' ? 0 : collator.compare(a.title, b.title));
+  });
 }
-
 export function DashboardPage({
   onOpenProjects,
   onAttendClasses,
@@ -84,10 +131,13 @@ export function DashboardPage({
 }): JSX.Element {
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const feedback = useClassroomFeedback('dashboard');
+  const setNotice = feedback.success;
   const [roleView, setRoleView] = useState<ClassroomRoleView>('teaching');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const [sort, setSort] = useState<SortKey>('created-desc');
+  const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Classroom | null>(null);
   const [busy, setBusy] = useState(false);
   const createButtonRef = useRef<HTMLButtonElement>(null);
@@ -98,7 +148,10 @@ export function DashboardPage({
     const result = await api.listClassrooms();
     if (result.ok) setList({ kind: 'ready', items: result.data.items });
     else if (result.status === 0)
-      setList({ kind: 'error', message: 'Сервер недоступен. Проверьте соединение.' });
+      setList({
+        kind: 'error',
+        message: 'Сервер недоступен. Проверьте соединение.',
+      });
     else setList({ kind: 'error', message: 'Не удалось загрузить классы.' });
   }, []);
 
@@ -137,22 +190,19 @@ export function DashboardPage({
     restoreFocus('opener');
   }
 
-  const visibleItems = useMemo(() => {
+  const roleItems = useMemo(() => {
     if (list.kind !== 'ready') return [];
     const running = list.items.filter((item) => item.status !== 'archived');
-    const matched =
-      roleView === 'teaching'
-        ? running.filter((item) => item.teacherRole === 'owner')
-        : roleView === 'coteaching'
-          ? running.filter((item) => item.teacherRole === 'co_teacher')
-          : roleView === 'archived'
-            ? list.items.filter((item) => item.status === 'archived')
-            : [];
-    return sortClassrooms(matched, sort);
-  }, [list, roleView, sort]);
+    return roleView === 'teaching'
+      ? running.filter((item) => item.teacherRole === 'owner')
+      : roleView === 'coteaching'
+        ? running.filter((item) => item.teacherRole === 'co_teacher')
+        : roleView === 'archived'
+          ? list.items.filter((item) => item.status === 'archived')
+          : [];
+  }, [list, roleView]);
 
-  const selectedItems = visibleItems.filter((item) => selected.has(item.id));
-  const summaryClassIds = visibleItems
+  const summaryClassIds = roleItems
     .map((item) => item.id)
     .sort()
     .join(',');
@@ -161,7 +211,26 @@ export function DashboardPage({
     list,
     list.kind === 'ready' && roleView !== 'enrolled',
   );
-  const rowMetrics = new Map(summary.data?.items.map((item) => [item.classroomId, item]));
+  const rowMetrics = useMemo(
+    () => new Map(summary.data?.items.map((item) => [item.classroomId, item])),
+    [summary.data],
+  );
+  const ratingLeaders = useMemo(
+    () => classroomRatingLeaders(roleItems, rowMetrics),
+    [roleItems, rowMetrics],
+  );
+  const visibleItems = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase('ru-RU');
+    return sortClassrooms(
+      needle
+        ? roleItems.filter((item) => item.title.toLocaleLowerCase('ru-RU').includes(needle))
+        : roleItems,
+      sort,
+      rowMetrics,
+    );
+  }, [roleItems, search, sort, rowMetrics]);
+
+  const selectedItems = visibleItems.filter((item) => selected.has(item.id));
   const allSelected = visibleItems.length > 0 && selectedItems.length === visibleItems.length;
   const ownedSelection = selectedItems.filter((item) => item.teacherRole === 'owner');
 
@@ -199,7 +268,8 @@ export function DashboardPage({
     const failed = targets.length - changed;
     const verb =
       status === 'archived' ? 'В архиве' : status === 'active' ? 'Возвращено из архива' : 'Удалено';
-    setNotice(
+    const notify = changed === 0 ? feedback.info : failed > 0 ? feedback.warning : feedback.success;
+    notify(
       changed === 0
         ? 'Ничего не изменилось.'
         : `${verb}: ${changed}${failed > 0 ? `. Не удалось: ${failed}.` : '.'}`,
@@ -214,21 +284,32 @@ export function DashboardPage({
   }
 
   const sortLabel = SORTS.find((entry) => entry.id === sort)?.label ?? 'Сначала новые';
+  function toggleColumnSort(column: SortColumn): void {
+    const first: SortDirection = column === 'title' ? 'asc' : 'desc';
+    const reverse: SortDirection = first === 'asc' ? 'desc' : 'asc';
+    setSort(sort === `${column}-${first}` ? `${column}-${reverse}` : `${column}-${first}`);
+  }
 
   return (
     <main
       id="main-content"
-      className="portal-content classroom-owner-list"
+      className={`portal-content classroom-owner-list${selectionMode ? ' is-selecting' : ''}`}
       tabIndex={-1}
       aria-busy={list.kind === 'loading'}
     >
+      <SystemToastViewport scopeKey={feedback.scopeKey} />
       <section className="classroom-hub-heading" aria-labelledby="classroom-hub-title">
         <div className="classroom-title-row">
-          <h1 id="classroom-hub-title">Мои классы</h1>
+          <div className="classroom-title-and-link">
+            <h1 id="classroom-hub-title">Мои классы</h1>
+            <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
+              Я учусь в классе <span aria-hidden="true">↗</span>
+            </button>
+          </div>
           {roleView !== 'enrolled' ? (
             <ClassroomMetrics
               showClasses
-              classes={list.kind === 'ready' ? visibleItems.length : undefined}
+              classes={list.kind === 'ready' ? roleItems.length : undefined}
               data={summary.data?.totals ?? null}
             />
           ) : null}
@@ -241,143 +322,198 @@ export function DashboardPage({
             </button>
           </p>
         ) : null}
-        {/* Преподаватель тоже учится: у коллеги, на курсах, ради себя. Вход в
-            чужой класс лежит здесь же, а не в другом конце продукта. */}
-        <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
-          Я учусь в классе →
-        </button>
-        <nav className="classroom-role-tabs" aria-label="Роли в классах">
-          {CLASSROOM_ROLE_TABS.map((tab) => (
+        <div className="classroom-hub-control-row">
+          <SystemTabs
+            items={CLASSROOM_ROLE_TABS}
+            active={roleView}
+            onChange={(next) => {
+              setRoleView(next);
+              setSelected(new Set());
+              setSelectionMode(false);
+            }}
+            label="Роли в классах"
+            className="classroom-role-tabs"
+            fullLabelClassName="classroom-role-label-full"
+            compactLabelClassName="classroom-role-label-compact"
+          />
+          <section className="classroom-hub-toolbar" aria-label="Действия с классами">
+            <label className="classroom-select-all">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                disabled={visibleItems.length === 0}
+                aria-label="Выбрать все классы"
+                onChange={toggleAll}
+              />
+            </label>
             <button
-              key={tab.id}
+              ref={createButtonRef}
               type="button"
-              className={roleView === tab.id ? 'active' : undefined}
-              aria-current={roleView === tab.id ? 'page' : undefined}
-              onClick={() => {
-                setRoleView(tab.id);
-                setSelected(new Set());
-              }}
+              className="portal-create-button"
+              aria-label="Создать класс"
+              onClick={openModal}
             >
-              {tab.label}
+              <PlusIcon />
+              <span className="classroom-create-label-full">Создать класс</span>
+              <span className="classroom-create-label-compact" aria-hidden="true">
+                Класс
+              </span>
             </button>
-          ))}
-        </nav>
+            <label className="classroom-hub-search">
+              <span className="sr-only">Поиск класса по названию</span>
+              <input
+                type="search"
+                value={search}
+                placeholder="Найти класс"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setSelected(new Set());
+                }}
+              />
+            </label>
+            <Dropdown
+              className="classroom-bulk-menu"
+              ariaLabel="Действия с классами"
+              label={
+                <>
+                  Действия
+                  {selectionMode && selectedItems.length > 0 ? (
+                    <em>{selectedItems.length}</em>
+                  ) : null}
+                  <span aria-hidden="true">▾</span>
+                </>
+              }
+            >
+              {(close) => (
+                <>
+                  {!selectionMode ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        setSelectionMode(true);
+                        setSelected(new Set());
+                      }}
+                    >
+                      Выбрать классы
+                    </button>
+                  ) : (
+                    <>
+                      <p className="dropdown-hint">
+                        {selectedItems.length
+                          ? `Выбрано классов: ${selectedItems.length}`
+                          : 'Отметьте классы для действий.'}
+                      </p>
+                      {selectedItems.length > 0 ? (
+                        <>
+                          {roleView === 'archived' ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => {
+                                close();
+                                void applyStatus(selectedItems, 'active');
+                              }}
+                            >
+                              Вернуть из архива
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => {
+                                close();
+                                void applyStatus(selectedItems, 'archived');
+                              }}
+                            >
+                              Архивировать
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={busy || ownedSelection.length === 0}
+                            title={
+                              ownedSelection.length === 0
+                                ? 'Удалить класс может только основной преподаватель.'
+                                : undefined
+                            }
+                            onClick={() => {
+                              close();
+                              if (confirmRemoval(ownedSelection))
+                                void applyStatus(ownedSelection, 'deleted');
+                            }}
+                          >
+                            Удалить
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              close();
+                              setSelected(new Set());
+                            }}
+                          >
+                            Снять выделение
+                          </button>
+                        </>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          close();
+                          setSelectionMode(false);
+                          setSelected(new Set());
+                        }}
+                      >
+                        Завершить выбор
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </Dropdown>
+            <Dropdown
+              className="classroom-sort-menu"
+              ariaLabel="Порядок классов"
+              label={
+                <>
+                  <span className="classroom-sort-label-full">{sortLabel}</span>
+                  <span className="classroom-sort-label-compact" aria-hidden="true">
+                    Сорт.
+                  </span>
+                  <span aria-hidden="true">▾</span>
+                </>
+              }
+            >
+              {(close) =>
+                SORTS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={sort === option.id ? 'active' : undefined}
+                    aria-pressed={sort === option.id}
+                    onClick={() => {
+                      setSort(option.id);
+                      close();
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))
+              }
+            </Dropdown>
+          </section>
+        </div>
       </section>
 
-      {notice ? (
-        <p className="notice-success" role="status" aria-live="polite">
-          {notice}
+      {list.kind === 'ready' &&
+      search.trim() &&
+      roleItems.length > 0 &&
+      visibleItems.length === 0 ? (
+        <p className="classroom-search-empty" role="status">
+          Классы не найдены. Измените поисковый запрос.
         </p>
       ) : null}
-
-      <section className="classroom-hub-toolbar" aria-label="Действия с классами">
-        <label className="classroom-select-all">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            disabled={visibleItems.length === 0}
-            aria-label="Выбрать все классы"
-            onChange={toggleAll}
-          />
-        </label>
-        <button
-          ref={createButtonRef}
-          type="button"
-          className="portal-create-button"
-          onClick={openModal}
-        >
-          <PlusIcon /> Создать класс
-        </button>
-        {/* The actions apply to what is ticked. With nothing ticked the menu
-            says so instead of being a dead button that gives no reason. */}
-        <Dropdown
-          className="classroom-bulk-menu"
-          ariaLabel="Действия с выбранными классами"
-          label={
-            <>
-              Действия
-              {selectedItems.length > 0 ? <em>{selectedItems.length}</em> : null}
-              <span aria-hidden="true">▾</span>
-            </>
-          }
-        >
-          {(close) =>
-            selectedItems.length === 0 ? (
-              <p className="dropdown-hint">Отметьте классы галочками слева.</p>
-            ) : (
-              <>
-                {roleView === 'archived' ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      close();
-                      void applyStatus(selectedItems, 'active');
-                    }}
-                  >
-                    Вернуть из архива
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      close();
-                      void applyStatus(selectedItems, 'archived');
-                    }}
-                  >
-                    Архивировать
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="danger"
-                  disabled={busy || ownedSelection.length === 0}
-                  title={
-                    ownedSelection.length === 0
-                      ? 'Удалить класс может только основной преподаватель.'
-                      : undefined
-                  }
-                  onClick={() => {
-                    close();
-                    if (confirmRemoval(ownedSelection)) void applyStatus(ownedSelection, 'deleted');
-                  }}
-                >
-                  Удалить
-                </button>
-              </>
-            )
-          }
-        </Dropdown>
-        <Dropdown
-          className="classroom-sort-menu"
-          ariaLabel="Порядок классов"
-          label={
-            <>
-              {sortLabel}
-              <span aria-hidden="true">▾</span>
-            </>
-          }
-        >
-          {(close) =>
-            SORTS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={sort === option.id ? 'active' : undefined}
-                aria-pressed={sort === option.id}
-                onClick={() => {
-                  setSort(option.id);
-                  close();
-                }}
-              >
-                {option.label}
-              </button>
-            ))
-          }
-        </Dropdown>
-      </section>
-
       {list.kind === 'loading' ? (
         <section className="classroom-list loading" role="status" aria-label="Загрузка классов">
           <div />
@@ -393,7 +529,7 @@ export function DashboardPage({
           </button>
         </div>
       ) : null}
-      {list.kind === 'ready' && roleView === 'teaching' && visibleItems.length === 0 ? (
+      {list.kind === 'ready' && roleView === 'teaching' && roleItems.length === 0 ? (
         <section className="portal-empty">
           <span className="portal-empty-icon">
             <ClassesIcon />
@@ -405,7 +541,7 @@ export function DashboardPage({
           </button>
         </section>
       ) : null}
-      {list.kind === 'ready' && roleView !== 'teaching' && visibleItems.length === 0 ? (
+      {list.kind === 'ready' && roleView !== 'teaching' && roleItems.length === 0 ? (
         <section className="classroom-tab-empty">
           <span aria-hidden="true">
             <ClassesIcon />
@@ -424,154 +560,216 @@ export function DashboardPage({
           складывать колонки глазами, чтобы понять, где сегодня работа. */}
       {list.kind === 'ready' && visibleItems.length > 0 ? (
         <ul className="classroom-list" data-testid="classroom-grid" aria-label="Мои классы">
-          {/* Шапка таблицы: без неё числа в строке — просто числа. */}
-          <li className="classroom-list-head" aria-hidden="true">
-            <span />
-            <span>Класс</span>
-            <span>Ученики</span>
-            <span>Работы</span>
-            <span>Сдано</span>
-            <span>Ждут</span>
-            <span>Не сдали</span>
-            <span>Создан</span>
-            <span />
+          <li className="classroom-list-head">
+            {selectionMode ? <span className="classroom-head-select" aria-hidden="true" /> : null}
+            {SORT_COLUMNS.map(({ column, label }) => (
+              <span key={column} className={`classroom-head-${column}`}>
+                <button
+                  type="button"
+                  className={
+                    sort.startsWith(`${column}-`)
+                      ? 'classroom-column-sort active'
+                      : 'classroom-column-sort'
+                  }
+                  aria-label={`Сортировать по колонке «${label}»`}
+                  aria-pressed={sort.startsWith(`${column}-`)}
+                  onClick={() => toggleColumnSort(column)}
+                >
+                  {label}
+                  <span className="classroom-column-arrow" aria-hidden="true">
+                    {sort.startsWith(`${column}-`) ? (sort.endsWith('-asc') ? '↑' : '↓') : '↕'}
+                  </span>
+                </button>
+              </span>
+            ))}
+            <span aria-hidden="true" />
           </li>
-          {visibleItems.map((classroom) => (
-            <li key={classroom.id} className="classroom-list-row" data-testid="classroom-card">
-              <label className="classroom-row-select">
-                <input
-                  type="checkbox"
-                  checked={selected.has(classroom.id)}
-                  aria-label={`Выбрать класс ${classroom.title}`}
-                  onChange={() => toggleOne(classroom.id)}
-                />
-              </label>
-              <button
-                type="button"
-                className="classroom-row-title"
-                onClick={() => onOpenProjects(classroom.id, classroom.title)}
-              >
-                {classroom.title}
-                {classroom.status === 'archived' ? (
-                  <em className="classroom-row-archived">в архиве</em>
-                ) : null}
-              </button>
-              <span className="classroom-row-students" data-label="Ученики">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.students ?? '—'}
+          {visibleItems.map((classroom, index) => {
+            const metric = rowMetrics.get(classroom.id);
+            const leader = ratingLeaders.get(classroom.id);
+            const leaderLabel = leader ? classroomRatingLeaderLabel(leader) : undefined;
+            const leaderDescriptionId = `classroom-rating-leader-${classroom.id}`;
+            const rating = classroomAverageRatingPresentation(
+              metric?.averageRating,
+              metric?.ratingParticipants,
+              metric?.ratingPeriodDays,
+            );
+            return (
+              <li key={classroom.id} className="classroom-list-row" data-testid="classroom-card">
+                <label className="classroom-row-select">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(classroom.id)}
+                    aria-label={`Выбрать класс ${classroom.title}`}
+                    onChange={() => toggleOne(classroom.id)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="classroom-row-title"
+                  aria-label={classroom.title}
+                  aria-describedby={leader ? leaderDescriptionId : undefined}
+                  title={classroom.title}
+                  onClick={() => onOpenProjects(classroom.id, classroom.title)}
+                >
+                  <span
+                    className={`classroom-row-index${leader ? ` classroom-row-medal classroom-row-medal-${leader.rank}` : ''}`}
+                    aria-hidden="true"
+                    title={leaderLabel}
+                  >
+                    {leader ? (
+                      <>
+                        <span className="classroom-medal-mark">◆</span>
+                        {leader.rank}
+                      </>
+                    ) : (
+                      `${index + 1}.`
+                    )}
+                  </span>
+                  {leader ? (
+                    <span id={leaderDescriptionId} className="sr-only" aria-hidden="true">
+                      {leaderLabel}
+                    </span>
+                  ) : null}
+                  <span className="classroom-row-title-text">{classroom.title}</span>
+                  {classroom.status === 'archived' ? (
+                    <em className="classroom-row-archived">в архиве</em>
+                  ) : null}
+                </button>
+                <span className="classroom-row-students" data-label="Ученики">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.students ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Ученики</span>
                 </span>
-                <span className="classroom-stat-label">Ученики</span>
-              </span>
-              <span className="classroom-row-works" data-label="Работы">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.works ?? '—'}
+                <span className="classroom-row-works" data-label="Работы">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.works ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Работы</span>
                 </span>
-                <span className="classroom-stat-label">Работы</span>
-              </span>
-              <span className="classroom-row-progress" data-label="Сдано">
-                <span className="classroom-stat-number">
-                  {rowMetrics.has(classroom.id)
-                    ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
-                    : '—'}
+                <span className="classroom-row-progress" data-label="Сдано">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.has(classroom.id)
+                      ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
+                      : '—'}
+                  </span>
+                  <span className="classroom-stat-label">Сдано</span>
                 </span>
-                <span className="classroom-stat-label">Сдано</span>
-              </span>
-              <span className="classroom-row-awaiting" data-label="Ждут">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+                <span className="classroom-row-awaiting" data-label="Ждут">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Ждут</span>
                 </span>
-                <span className="classroom-stat-label">Ждут</span>
-              </span>
-              <span className="classroom-row-behind" data-label="Не сдали">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
+                <span className="classroom-row-behind" data-label="Не сдали">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Не сдали</span>
                 </span>
-                <span className="classroom-stat-label">Не сдали</span>
-              </span>
-              <span className="classroom-row-date">
-                {/* Подпись нужна только архиву: у остальных её говорит колонка. */}
-                {classroom.status === 'archived' ? <small>В архиве с</small> : null}
-                {time.date(
-                  classroom.status === 'archived'
-                    ? (classroom.archivedAt ?? classroom.createdAt)
-                    : classroom.createdAt,
-                )}
-              </span>
-              {/* Everything a teacher does to a class from outside it. Tinkercad
+                <span className="classroom-row-rating" data-label="Средний рейтинг">
+                  <span className="classroom-rating-value">
+                    <span className="classroom-stat-number">{rating.value}</span>
+                    <abbr
+                      className="classroom-rating-help"
+                      title={rating.detail}
+                      aria-label={rating.detail}
+                      tabIndex={0}
+                    >
+                      ⓘ
+                    </abbr>
+                  </span>
+                  <span className="classroom-stat-label">
+                    <span className="classroom-rating-label-full">Средний рейтинг</span>
+                    <span className="classroom-rating-label-compact">Рейт.</span>
+                  </span>
+                </span>
+                <span className="classroom-row-date">
+                  {/* Подпись нужна только архиву: у остальных её говорит колонка. */}
+                  {classroom.status === 'archived' ? <small>В архиве с</small> : null}
+                  {time.date(
+                    classroom.status === 'archived'
+                      ? (classroom.archivedAt ?? classroom.createdAt)
+                      : classroom.createdAt,
+                  )}
+                </span>
+                {/* Everything a teacher does to a class from outside it. Tinkercad
                   puts properties and removal here, and it is right: opening a
                   class to rename it is a trip for nothing. */}
-              <Dropdown
-                className="classroom-row-menu"
-                ariaLabel={`Действия с классом ${classroom.title}`}
-                label="•••"
-              >
-                {(close) => (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        close();
-                        onOpenProjects(classroom.id, classroom.title);
-                      }}
-                    >
-                      Открыть класс
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        close();
-                        setEditing(classroom);
-                      }}
-                    >
-                      Свойства
-                    </button>
-                    {classroom.status === 'archived' ? (
+                <Dropdown
+                  className="classroom-row-menu"
+                  ariaLabel={`Действия с классом ${classroom.title}`}
+                  label="•••"
+                >
+                  {(close) => (
+                    <>
                       <button
                         type="button"
-                        disabled={busy}
                         onClick={() => {
                           close();
-                          void applyStatus([classroom], 'active');
+                          onOpenProjects(classroom.id, classroom.title);
                         }}
                       >
-                        Вернуть из архива
+                        Открыть класс
                       </button>
-                    ) : (
                       <button
                         type="button"
-                        disabled={busy}
                         onClick={() => {
                           close();
-                          void applyStatus([classroom], 'archived');
+                          setEditing(classroom);
                         }}
                       >
-                        Архивировать
+                        Свойства
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="danger"
-                      disabled={busy || classroom.teacherRole !== 'owner'}
-                      title={
-                        classroom.teacherRole === 'owner'
-                          ? undefined
-                          : 'Удалить класс может только основной преподаватель.'
-                      }
-                      onClick={() => {
-                        close();
-                        if (confirmRemoval([classroom])) void applyStatus([classroom], 'deleted');
-                      }}
-                    >
-                      Удалить
-                    </button>
-                    <p className="dropdown-hint">
-                      {ageBandLabel(classroom.ageBand)} · создан {time.date(classroom.createdAt)}
-                    </p>
-                  </>
-                )}
-              </Dropdown>
-            </li>
-          ))}
+                      {classroom.status === 'archived' ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            close();
+                            void applyStatus([classroom], 'active');
+                          }}
+                        >
+                          Вернуть из архива
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            close();
+                            void applyStatus([classroom], 'archived');
+                          }}
+                        >
+                          Архивировать
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="danger"
+                        disabled={busy || classroom.teacherRole !== 'owner'}
+                        title={
+                          classroom.teacherRole === 'owner'
+                            ? undefined
+                            : 'Удалить класс может только основной преподаватель.'
+                        }
+                        onClick={() => {
+                          close();
+                          if (confirmRemoval([classroom])) void applyStatus([classroom], 'deleted');
+                        }}
+                      >
+                        Удалить
+                      </button>
+                      <p className="dropdown-hint">
+                        {ageBandLabel(classroom.ageBand)} · создан {time.date(classroom.createdAt)}
+                      </p>
+                    </>
+                  )}
+                </Dropdown>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 

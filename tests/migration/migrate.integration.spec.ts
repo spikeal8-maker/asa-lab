@@ -27,6 +27,29 @@ interface MigrationRow {
   checksum: string;
 }
 
+async function maxAccountSnapshot(db: PGlite, accountId: string) {
+  const result = await db.query(
+    `SELECT a.id, a.email, a.password_hash, a.password_configured,
+            a.email_verification_state,
+            (SELECT jsonb_agg(jsonb_build_object(
+                'id', i.id, 'accountId', i.account_id, 'provider', i.provider,
+                'subject', i.subject, 'verifiedAt', i.verified_at, 'revokedAt', i.revoked_at
+              ) ORDER BY i.id)
+               FROM account_external_identities i WHERE i.account_id=a.id) AS identities,
+            (SELECT jsonb_agg(jsonb_build_object(
+                'id', s.id, 'principalId', s.principal_id,
+                'workspaceId', s.active_workspace_id, 'tokenHash', s.token_hash,
+                'revokedAt', s.revoked_at, 'metadata', s.client_metadata
+              ) ORDER BY s.id)
+               FROM sessions_v2 s JOIN principals p ON p.id=s.principal_id
+              WHERE p.account_id=a.id) AS sessions
+       FROM accounts a WHERE a.id=$1`,
+    [accountId],
+  );
+  expect(result.rows).toHaveLength(1);
+  return result.rows[0];
+}
+
 function syntheticMigration(version: string, sql: string) {
   const checksum = createHash('sha256').update(sql).digest('hex');
   return {
@@ -148,10 +171,15 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
     }
   }, 30_000);
 
-  it('enforces one-to-one MAX linking, replay protection and session creation', async () => {
+  it('upgrades historical MAX linking, replay protection and session revocation without changing the Account', async () => {
     const db = new PGlite();
     try {
-      await applyPlan(pgliteClient(db), planMigrations('migrations'));
+      const planned = planMigrations('migrations');
+      const historical = planned.filter((migration) => Number(migration.version) < 218);
+      const client = pgliteClient(db);
+      // These proof writers belong to the pre-0218 schema. Exercise their real
+      // historical behavior before upgrading to the generation-bound lifecycle.
+      expect(await applyPlan(client, historical)).toBe(historical.length);
       const account = await db.query<{ id: string }>(
         `INSERT INTO accounts (email, password_hash, birth_date, country)
          VALUES ('max-owner@example.test', 'not-used', DATE '1990-01-01', 'RU')
@@ -284,15 +312,37 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
           WHERE table_name = 'account_external_identities'`,
       );
       expect(storedColumns.rows.map((row) => row.column_name)).not.toContain('ip');
+
+      const beforeUpgrade = await maxAccountSnapshot(db, accountId);
+      expect(await applyPlan(client, planned)).toBe(planned.length - historical.length);
+      expect(await applyPlan(client, planned)).toBe(0);
+      expect(await maxAccountSnapshot(db, accountId)).toEqual(beforeUpgrade);
+      const retiredLink = await db.query<{ result: string }>(
+        'SELECT result FROM auth_max_link($1,$2,$3,$4,$5,$6)',
+        [accountId, '231408577954', 'query-link-after-upgrade', now, 'asa_owner', 'ASA Owner'],
+      );
+      expect(retiredLink.rows[0].result).toBe('unavailable');
+      const retiredPrivileges = await db.query<{ link_allowed: boolean; login_allowed: boolean }>(
+        `SELECT
+           has_function_privilege('asalab_app',
+             'auth_max_link(uuid,varchar,varchar,bigint,varchar,varchar)','EXECUTE') AS link_allowed,
+           has_function_privilege('asalab_app',
+             'auth_max_login(varchar,varchar,bigint,varchar,varchar,text,integer,varchar)','EXECUTE') AS login_allowed`,
+      );
+      expect(retiredPrivileges.rows[0]).toEqual({ link_allowed: false, login_allowed: false });
+      expect(await maxAccountSnapshot(db, accountId)).toEqual(beforeUpgrade);
     } finally {
       await db.close();
     }
   }, 30_000);
 
-  it('registers through MAX, completes a one-time browser pairing and creates a password', async () => {
+  it('preserves a historical MAX Account and password session while retiring unbound browser pairings on upgrade', async () => {
     const db = new PGlite();
     try {
-      await applyPlan(pgliteClient(db), planMigrations('migrations'));
+      const planned = planMigrations('migrations');
+      const historical = planned.filter((migration) => Number(migration.version) < 218);
+      const client = pgliteClient(db);
+      expect(await applyPlan(client, historical)).toBe(historical.length);
       const now = Math.floor(Date.now() / 1000);
       const registered = await db.query<{
         result: string;
@@ -389,6 +439,38 @@ describe('migration runner apply (embedded PostgreSQL via PGlite)', () => {
         current_active: true,
         original_revoked: true,
       });
+      // An approved capability issued by the old writer has no independent
+      // browser nonce. It must not create a session after the upgrade.
+      const approvedBeforeUpgrade = await db.query<{ approved: boolean }>(
+        'SELECT auth_max_pairing_approve($1,$2) AS approved',
+        ['l'.repeat(64), accountId],
+      );
+      expect(approvedBeforeUpgrade.rows[0].approved).toBe(true);
+      const beforeUpgrade = await maxAccountSnapshot(db, accountId);
+      expect(await applyPlan(client, planned)).toBe(planned.length - historical.length);
+      expect(await applyPlan(client, planned)).toBe(0);
+      expect(await maxAccountSnapshot(db, accountId)).toEqual(beforeUpgrade);
+      const retiredPairing = await db.query<{ result: string; account_id: string | null }>(
+        'SELECT result,account_id FROM auth_max_pairing_consume($1,$2,12,NULL)',
+        ['l'.repeat(64), 'z'.repeat(64)],
+      );
+      expect(retiredPairing.rows[0]).toEqual({ result: 'invalid', account_id: null });
+      const retiredPrivileges = await db.query<{
+        pairing_allowed: boolean;
+        registration_allowed: boolean;
+      }>(
+        `SELECT
+           has_function_privilege('asalab_app',
+             'auth_max_pairing_consume(text,text,integer,varchar)','EXECUTE') AS pairing_allowed,
+           has_function_privilege('asalab_app',
+             'auth_max_register_account(varchar,varchar,bigint,varchar,varchar,varchar,text,varchar,varchar,date,varchar,varchar,text,integer)',
+             'EXECUTE') AS registration_allowed`,
+      );
+      expect(retiredPrivileges.rows[0]).toEqual({
+        pairing_allowed: false,
+        registration_allowed: false,
+      });
+      expect(await maxAccountSnapshot(db, accountId)).toEqual(beforeUpgrade);
     } finally {
       await db.close();
     }

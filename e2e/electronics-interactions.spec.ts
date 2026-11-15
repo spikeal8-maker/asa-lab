@@ -1,8 +1,24 @@
-import { readFileSync } from 'node:fs';
+import { installNativeSaveInputObserver } from '../tests/electronics/native-oracle-contracts';
+import { createInterface } from 'node:readline';
+import { appendFileSync, createReadStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
+import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
+import { normalizeLoadedDocument } from '../apps/web/src/electronics/use-workbench-project-state';
+import {
+  creatorViewFromLocation,
+  creatorViewToHref,
+} from '../apps/web/src/creator-portal/navigation';
+import {
+  clientToWorld,
+  resolveWireVertexAssist,
+  worldToClient,
+} from '../apps/web/src/electronics/workbench-geometry';
+import { STAGE_WIDTH, STAGE_HEIGHT } from '../apps/web/src/electronics/workbench-model';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
+import { localProjectDraftKey } from '../apps/web/src/modules/project-local-draft';
 import {
   configureProductionLibrary,
   productionBreadboard,
@@ -19,6 +35,9 @@ import {
   snapComponentToBreadboard,
   terminalPositionInDocument,
 } from '../apps/web/src/electronics/workbench-document';
+import { loginWithOrganization } from './organization-login';
+import { e2eAdminPool, seedTeacher } from './seed';
+import type { SimulationTimedAdvancePayload } from '../apps/web/src/electronics/simulation-worker-protocol';
 
 configureProductionLibrary(
   JSON.parse(
@@ -28,6 +47,1420 @@ configureProductionLibrary(
     ),
   ),
 );
+type Realtime682Record = {
+  sequence: number;
+  kind: string;
+  at: number;
+  [key: string]: unknown;
+};
+
+function realtime682ButtonRelease(records: Realtime682Record[]): boolean {
+  let down: Realtime682Record | undefined;
+  let released = false;
+  for (const row of records) {
+    if (
+      row.kind !== 'input' ||
+      !['pointerdown', 'pointerup', 'pointercancel'].includes(String(row.type))
+    )
+      continue;
+    if (row.target !== 'button-682' && row.pointerOrigin !== 'button-682') continue;
+    if (row.type === 'pointerdown' && row.target === 'button-682') {
+      if (down || !row.trusted || !Number.isInteger(row.pointerId) || row.buttons !== 1)
+        return false;
+      down = row;
+    } else if (row.type !== 'pointerdown') {
+      if (
+        !down ||
+        !row.trusted ||
+        row.pointerId !== down.pointerId ||
+        row.type === 'pointercancel' ||
+        row.buttons !== 0
+      )
+        return false;
+      released = true;
+      down = undefined;
+    }
+  }
+  return released && !down;
+}
+
+type ShortCycleEdge = { at: number; high: boolean };
+
+function realtime682ShortCycleAudit(
+  phaseMs: number,
+  h0: number,
+  electrical: ShortCycleEdge[],
+  native: ShortCycleEdge[],
+  cycles = 10,
+) {
+  const frameMs = 1000 / 60,
+    phaseBound = frameMs + 2,
+    edgeBound = 2 * frameMs + 2;
+  // instruction-us-v1: setup pinMode@0, loop entry@1, first HIGH@2;
+  // HIGH phase delayUs+2, LOW phase delayUs+3, including next loop entry.
+  const expected = Array.from({ length: cycles * 2 + 1 }, (_, index) => ({
+    at: 2 + Math.floor(index / 2) * (2 * phaseMs * 1000 + 5) + (index % 2) * (phaseMs * 1000 + 2),
+    high: index % 2 === 0,
+  }));
+  const errors: string[] = [];
+  const physical = electrical.slice(
+    electrical.findIndex((edge) => edge.high),
+    electrical.findIndex((edge) => edge.high) + expected.length,
+  );
+  const shown = native.slice(
+    native.findIndex((edge) => edge.high),
+    native.findIndex((edge) => edge.high) + expected.length,
+  );
+  if (physical.length !== expected.length || shown.length !== expected.length)
+    errors.push('missing-front');
+  const lateness: number[] = [],
+    phaseErrors: number[] = [],
+    periodErrors: number[] = [];
+  for (const [index, edge] of expected.entries()) {
+    if (physical[index]?.at !== edge.at || physical[index]?.high !== edge.high)
+      errors.push(`electrical-front-${index}`);
+    const visible = shown[index];
+    if (!visible) continue;
+    if (visible.high !== edge.high) errors.push(`native-order-${index}`);
+    const late = visible.at - (h0 + edge.at / 1000);
+    lateness.push(late);
+    if (late < -2 || late > edgeBound) errors.push(`edge-lateness-${index}`);
+    if (index > 0) {
+      const error = visible.at - shown[index - 1]!.at - (edge.at - expected[index - 1]!.at) / 1000;
+      phaseErrors.push(error);
+      if (Math.abs(error) > phaseBound) errors.push(`phase-duration-${index}`);
+    }
+    if (index > 1) {
+      const error = visible.at - shown[index - 2]!.at - (edge.at - expected[index - 2]!.at) / 1000;
+      periodErrors.push(error);
+      if (Math.abs(error) > phaseBound) errors.push(`period-${index}`);
+    }
+  }
+  const driftRange = lateness.length ? Math.max(...lateness) - Math.min(...lateness) : Infinity;
+  if (driftRange > edgeBound) errors.push('cumulative-drift');
+  let lit = 0;
+  for (let index = 1; index < shown.length; index++)
+    if (shown[index - 1]!.high) lit += shown[index]!.at - shown[index - 1]!.at;
+  const duration = (shown.at(-1)?.at ?? 0) - (shown[0]?.at ?? 0);
+  const expectedDuration = (expected.at(-1)!.at - expected[0]!.at) / 1000;
+  const expectedDuty = (cycles * (phaseMs * 1000 + 2)) / (expectedDuration * 1000);
+  const duty = lit / duration,
+    dutyBound = Math.min(0.05, frameMs / expectedDuration + 0.02);
+  if (!Number.isFinite(duty) || Math.abs(duty - expectedDuty) > dutyBound)
+    errors.push('integrated-duty');
+  return {
+    errors,
+    expected,
+    physical,
+    shown,
+    lateness,
+    phaseErrors,
+    periodErrors,
+    driftRange,
+    duty,
+    expectedDuty,
+    dutyBound,
+    phaseBound,
+    edgeBound,
+  };
+}
+
+function createRealtime682LongAudit(phaseMs: number, source: string) {
+  const errors: string[] = [];
+  let errorCount = 0,
+    sequence = 0,
+    lastAt = -Infinity;
+  let h0: number | null = null,
+    startAt: number | null = null,
+    stopAt: number | null = null;
+  let stopTrusted = false,
+    stopVisible = false;
+  let onBrightness: number | undefined,
+    priorElectrical: boolean | undefined,
+    priorNative: boolean | undefined;
+  let boundGeneration: number | null = null;
+  let lastHorizon = 0,
+    lastReadyAt = 0,
+    readyCount = 0;
+  let seventhNativeRecordAt: number | null = null;
+  let acknowledgement: {
+    sent: number;
+    acknowledged: number;
+    dropped: number;
+    errors: unknown[];
+  } | null = null;
+  const physical: ShortCycleEdge[] = [],
+    native: ShortCycleEdge[] = [];
+  const nativeFronts = () => Math.max(0, native.length - (native[0]?.high === false ? 1 : 0));
+  const fail = (reason: string) => {
+    errorCount++;
+    if (errors.length < 64) errors.push(reason);
+  };
+  const accept = (row: Realtime682Record) => {
+    if (row.sequence !== sequence + 1 || !Number.isFinite(row.at) || row.at < lastAt)
+      fail('stream-sequence-or-time');
+    sequence = row.sequence;
+    lastAt = row.at;
+    if (
+      row.kind === 'input' &&
+      row.type === 'click' &&
+      row.trusted === true &&
+      row.controlLabel === 'Остановить моделирование' &&
+      stopAt !== null &&
+      row.at >= stopAt
+    )
+      stopTrusted = true;
+    if (row.kind === 'response' && row.source !== source && h0 !== null && stopAt === null)
+      fail('foreign-active-response');
+    if (row.kind === 'response' && row.source === source) {
+      const advance = row.advance as SimulationTimedAdvancePayload | null;
+      if (
+        row.ok !== true ||
+        !Number.isSafeInteger(row.generation) ||
+        Number(row.generation) <= 0 ||
+        !Number.isSafeInteger(row.requestGeneration) ||
+        Number(row.requestGeneration) <= 0 ||
+        row.generation !== row.requestGeneration ||
+        (boundGeneration !== null && row.generation !== boundGeneration) ||
+        !Number.isFinite(row.computeMs) ||
+        Number(row.computeMs) < 0 ||
+        !advance
+      ) {
+        fail('invalid-ready-envelope');
+        return;
+      }
+      if (advance.executionStatus === 'yielded') {
+        if (advance.result !== null) fail('yielded-result');
+        return;
+      }
+      if (
+        advance.executionStatus !== 'ready' ||
+        !advance.result?.solved ||
+        !advance.result.quality?.passed ||
+        !Array.isArray(advance.diagnostics) ||
+        advance.diagnostics.length !== 0 ||
+        advance.committedHorizonMicroseconds !== advance.requestedHorizonMicroseconds ||
+        !Number.isSafeInteger(advance.committedHorizonMicroseconds) ||
+        advance.committedHorizonMicroseconds < lastHorizon
+      ) {
+        fail('invalid-complete-result');
+        return;
+      }
+      if (h0 === null) {
+        if (advance.committedHorizonMicroseconds !== 0) fail('missing-H0');
+        h0 = row.at;
+        boundGeneration = Number(row.generation);
+      }
+      const observation = advance.ledTemporal;
+      if (
+        !observation ||
+        observation.fromMicroseconds !== lastHorizon ||
+        observation.toMicroseconds !== advance.committedHorizonMicroseconds
+      ) {
+        fail('incomplete-temporal-window');
+        return;
+      }
+      const componentIds = observation.components.map((entry) => entry.componentId);
+      if (
+        componentIds.length !== 3 ||
+        new Set(componentIds).size !== 3 ||
+        !['led0', 'led1', 'led2'].every((id) => componentIds.includes(id))
+      )
+        fail('invalid-temporal-component-ids');
+      for (const led of observation.components) {
+        if (led.truncated || led.samples.length === 0) {
+          fail('missing-electrical-evidence');
+          continue;
+        }
+        if (
+          led.samples[0]!.atMicroseconds !== observation.fromMicroseconds ||
+          led.samples.at(-1)!.atMicroseconds !== observation.toMicroseconds
+        )
+          fail('missing-temporal-endpoint');
+        let priorSampleTime = -Infinity;
+        for (const sample of led.samples) {
+          if (
+            !Number.isSafeInteger(sample.atMicroseconds) ||
+            sample.atMicroseconds < observation.fromMicroseconds ||
+            sample.atMicroseconds > observation.toMicroseconds ||
+            sample.atMicroseconds <= priorSampleTime ||
+            !Number.isFinite(sample.brightness) ||
+            !Number.isFinite(sample.current)
+          )
+            fail('invalid-electrical-sample');
+          priorSampleTime = sample.atMicroseconds;
+          if (led.componentId !== 'led0') continue;
+          const high = sample.brightness > 0;
+          if (high) onBrightness ??= Math.round(sample.brightness);
+          if (high !== priorElectrical) {
+            if (physical.length < 9) physical.push({ at: sample.atMicroseconds, high });
+            priorElectrical = high;
+          }
+        }
+      }
+      lastHorizon = advance.committedHorizonMicroseconds;
+      lastReadyAt = row.at;
+      readyCount++;
+    }
+    if (
+      h0 !== null &&
+      row.at >= h0 &&
+      (stopAt === null || row.at < stopAt) &&
+      (row.kind === 'render-opportunity-missed' || row.kind === 'render-opportunity-late')
+    )
+      fail('unobserved-render-opportunity');
+    if (
+      row.kind === 'paint' &&
+      h0 !== null &&
+      (!Number.isFinite(row.witnessAt) || Number(row.witnessAt) > row.at)
+    )
+      fail('invalid-native-time');
+    if (
+      row.kind === 'paint' &&
+      h0 !== null &&
+      Number(row.witnessAt) >= h0 &&
+      (stopAt === null || Number(row.witnessAt) < stopAt)
+    ) {
+      const leds = row.leds as
+        Array<{ brightness: number; loadedAt: number | null; visible: boolean }> | undefined;
+      if (
+        row.witnessKind !== 'render-opportunity-task' ||
+        !leds ||
+        leds.length !== 3 ||
+        leds.some(
+          (led) =>
+            !led.visible ||
+            !Number.isFinite(led.loadedAt) ||
+            led.loadedAt > Number(row.witnessAt) ||
+            !Number.isFinite(led.brightness),
+        ) ||
+        leds.slice(1).some((led) => led.brightness !== 0)
+      ) {
+        fail('missing-native-witness');
+        return;
+      }
+      const led = leds[0]!;
+      const high = led.brightness > 0;
+      if (high && led.brightness !== onBrightness) fail('incorrect-native-brightness');
+      if (high !== priorNative) {
+        if (native.length < 9) {
+          native.push({ at: Number(row.witnessAt), high });
+          if (nativeFronts() === 7) seventhNativeRecordAt = row.at;
+        }
+        priorNative = high;
+      }
+    }
+  };
+  const envelope = (row: { kind: string; data: unknown }) => {
+    if (row.kind === 'browser') accept(row.data as Realtime682Record);
+    if (row.kind === 'start-action') startAt = Number((row.data as { at: number }).at);
+    if (row.kind === 'long-stop-action') stopAt = Number((row.data as { at: number }).at);
+    if (row.kind === 'long-stop-ui')
+      stopVisible = (row.data as { visible: boolean }).visible === true;
+    if (row.kind === 'ack-barrier') acknowledgement = row.data as typeof acknowledgement;
+  };
+  const state = () => ({
+    h0,
+    nativeFronts: nativeFronts(),
+    retainedEdges: physical.length + native.length,
+    sequence,
+  });
+  const finish = () => {
+    if (h0 === null || startAt === null || h0 - startAt < 0 || h0 - startAt > 5000)
+      fail('startup-boundary');
+    if (stopAt === null || !stopTrusted || !stopVisible) fail('missing-native-Stop');
+    if (
+      !acknowledgement ||
+      acknowledgement.sent !== sequence ||
+      acknowledgement.acknowledged !== sequence ||
+      acknowledgement.dropped !== 0 ||
+      !Array.isArray(acknowledgement.errors) ||
+      acknowledgement.errors.length !== 0
+    )
+      fail('incomplete-final-ACK');
+    if (
+      lastHorizon < 6 * phaseMs * 1000 + 17 ||
+      (h0 !== null && Math.abs(lastHorizon / 1000 - (lastReadyAt - h0)) > 250)
+    )
+      fail('model-wall-clock');
+    const report = realtime682ShortCycleAudit(phaseMs, h0 ?? NaN, physical, native, 3);
+    for (const error of report.errors) fail(error);
+    return {
+      errors,
+      errorCount,
+      report,
+      readyCount,
+      sequence,
+      h0,
+      lastHorizon,
+      lastReadyAt,
+      stopAt,
+      stopTrusted,
+      stopVisible,
+      acknowledgement,
+    };
+  };
+  const hasSevenNativeFrontsBefore = (deadline: number) =>
+    seventhNativeRecordAt !== null && seventhNativeRecordAt < deadline;
+  return { accept, envelope, state, finish, hasSevenNativeFrontsBefore };
+}
+
+async function readRealtime682LongAudit(path: string, phaseMs: number, source: string) {
+  const audit = createRealtime682LongAudit(phaseMs, source);
+  const lines = createInterface({
+    input: createReadStream(path, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  });
+  for await (const line of lines) {
+    if (!line || line.length > 1_048_576)
+      throw new Error('Invalid or oversized original journal line');
+    audit.envelope(JSON.parse(line) as { kind: string; data: unknown });
+  }
+  return audit.finish();
+}
+
+// Test-only passive transport. A batch remains pending until Node has flushed
+// its contiguous originals. Closed pages cannot erase already acknowledged data.
+async function realtime682Journal(
+  page: Page,
+  path: string,
+  long?: { phaseMs: number; observe: (row: Realtime682Record) => void },
+) {
+  const records: Realtime682Record[] = [];
+  const errors: string[] = [];
+  let acknowledged = 0;
+  let onAcknowledgedBatch: ((batch: Realtime682Record[]) => void) | undefined;
+  const waitForAcknowledgedRecord = (
+    predicate: (record: Realtime682Record) => boolean,
+    timeout: number,
+  ) =>
+    new Promise<void>((resolve, reject) => {
+      const deadline = performance.now() + timeout;
+      const finish = (matched: boolean) => {
+        clearTimeout(timer);
+        onAcknowledgedBatch = undefined;
+        if (matched) resolve();
+        else reject(new Error(`No matching browser evidence acknowledged within ${timeout} ms`));
+      };
+      const timer = setTimeout(() => finish(false), timeout);
+      onAcknowledgedBatch = (batch) => {
+        if (performance.now() >= deadline) finish(false);
+        else if (batch.some(predicate)) finish(true);
+      };
+      onAcknowledgedBatch(records);
+    });
+  const retain = (kind: string, data: unknown) => {
+    try {
+      appendFileSync(path, `${JSON.stringify({ kind, nodeAt: Date.now(), data })}\n`, {
+        encoding: 'utf8',
+        flush: true,
+      });
+      return true;
+    } catch (error) {
+      errors.push(String(error));
+      return false;
+    }
+  };
+  writeFileSync(path, '', { encoding: 'utf8', flush: true });
+  retain('start', {
+    wallModelLimitMs: 250,
+    publicationLimitMs: 50,
+    acquisitionMs: long ? 6 * long.phaseMs + 1000 : 22_000,
+    probeOverhead: 'UNKNOWN_NONZERO',
+  });
+  await page.exposeBinding('__realtime682Batch', (_, batch: Realtime682Record[]) => {
+    if (errors.length) throw new Error('Baseline journal failed; no ACK');
+    try {
+      if (!Array.isArray(batch) || batch.length === 0 || batch.length > 256)
+        throw new Error('Invalid baseline batch');
+      for (const [index, row] of batch.entries()) {
+        if (row.sequence !== acknowledged + index + 1 || !Number.isFinite(row.at))
+          throw new Error('Baseline journal sequence gap');
+      }
+      const originals = batch
+        .map((data) => `${JSON.stringify({ kind: 'browser', nodeAt: Date.now(), data })}\n`)
+        .join('');
+      appendFileSync(path, originals, { encoding: 'utf8', flush: true });
+      for (const row of batch) {
+        records.push(row);
+        if (long) {
+          if (records.length > 2048) records.splice(0, records.length - 2048);
+          long.observe(row);
+        }
+      }
+      acknowledged = batch.at(-1)!.sequence;
+      onAcknowledgedBatch?.(batch);
+      return acknowledged;
+    } catch (error) {
+      errors.push(String(error));
+      throw error;
+    }
+  });
+  const recordLimit = long ? Math.ceil(((6 * long.phaseMs + 30_000) / 1000) * 500) + 1000 : 30_000;
+  if (long)
+    retain('long-journal-contract', {
+      recordLimit,
+      retainedNodeRecords: 2048,
+      pendingBrowserRecords: 10_000,
+      batchLimit: 256,
+    });
+  await page.addInitScript((recordLimit: number) => {
+    type Row = { sequence: number; kind: string; at: number; [key: string]: unknown };
+    const host = window as unknown as Window & {
+      __realtime682Batch: (rows: Row[]) => Promise<number>;
+      __realtime682StopRecording: () => void;
+      __realtime682ShortCapture: () => void;
+      __realtime682Flush: () => Promise<{
+        sent: number;
+        acknowledged: number;
+        dropped: number;
+        errors: string[];
+      }>;
+    };
+    let accepting = true;
+    host.__realtime682StopRecording = () => {
+      accepting = false;
+    };
+    let sequence = 0,
+      acknowledged = 0,
+      dropped = 0;
+    const pending: Row[] = [],
+      errors: string[] = [];
+    let flight: Promise<void> | null = null;
+    const flush = (): Promise<void> => {
+      if (flight) return flight;
+      if (!pending.length) return Promise.resolve();
+      const batch = pending.slice(0, 256);
+      flight = host
+        .__realtime682Batch(batch)
+        .then((ack) => {
+          if (ack !== batch.at(-1)!.sequence) throw new Error('Invalid Node ACK');
+          pending.splice(0, batch.length);
+          acknowledged = ack;
+        })
+        .catch((error) => {
+          errors.push(String(error));
+        })
+        .finally(() => {
+          flight = null;
+        });
+      return flight;
+    };
+    const push = (kind: string, data: Record<string, unknown>) => {
+      if (!accepting) return;
+      if (pending.length >= 10_000 || sequence >= recordLimit) {
+        dropped++;
+        return;
+      }
+      pending.push({ sequence: ++sequence, kind, at: performance.now(), ...structuredClone(data) });
+      queueMicrotask(() => {
+        void flush();
+      });
+    };
+    host.__realtime682Flush = async () => {
+      const target = sequence;
+      while (acknowledged < target && errors.length === 0) await flush();
+      return { sent: target, acknowledged, dropped, errors: [...errors] };
+    };
+    const requests = new Map<string, { at: number; generation: number; source: string }>();
+    const OriginalWorker = window.Worker;
+    window.Worker = new Proxy(OriginalWorker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
+          return worker;
+        const post = worker.postMessage.bind(worker);
+        worker.postMessage = ((...values: unknown[]) => {
+          const request = values[0] as {
+            kind: string;
+            requestId: string;
+            generationId: number;
+            requestedHorizonMicroseconds: number;
+            inputEvents?: unknown;
+            document?: SchematicDocument;
+          };
+          if (request.kind === 'advance') {
+            const source = String(
+              request.document?.components.find((row) => row.id === 'uno')?.stateProperties?.[
+                'arduinoSource'
+              ] ?? '',
+            );
+            requests.set(request.requestId, {
+              at: performance.now(),
+              generation: request.generationId,
+              source,
+            });
+            push('request', {
+              id: request.requestId,
+              generation: request.generationId,
+              source,
+              horizon: request.requestedHorizonMicroseconds,
+              inputs: request.inputEvents ?? [],
+            });
+          }
+          Reflect.apply(post, worker, values);
+        }) as Worker['postMessage'];
+        worker.addEventListener('message', (event: MessageEvent) => {
+          const response = event.data as {
+            ok: boolean;
+            kind?: string;
+            code?: string;
+            requestId: string;
+            generationId: number;
+            advance?: SimulationTimedAdvancePayload;
+            metrics?: { computeMs: number };
+          };
+          const request = requests.get(response.requestId);
+          if (!request) return;
+          requests.delete(response.requestId);
+          push('response', {
+            id: response.requestId,
+            generation: response.generationId,
+            requestGeneration: request.generation,
+            source: request.source,
+            requestAt: request.at,
+            ok: response.ok,
+            code: response.code ?? null,
+            computeMs: response.metrics?.computeMs ?? null,
+            advance: response.advance
+              ? {
+                  executionStatus: response.advance.executionStatus,
+                  requestedHorizonMicroseconds: response.advance.requestedHorizonMicroseconds,
+                  committedHorizonMicroseconds: response.advance.committedHorizonMicroseconds,
+                  result: response.advance.result,
+                  ledTemporal: response.advance.ledTemporal ?? null,
+                  serial: response.advance.serial,
+                  diagnostics: response.advance.diagnostics,
+                }
+              : null,
+          });
+        });
+        return worker;
+      },
+    });
+    const loaded = new WeakMap<Element, { href: string; at: number }>();
+    const href = (element: Element) =>
+      element.getAttribute('href') ??
+      element.getAttributeNS('http://www.w3.org/1999/xlink', 'href') ??
+      '';
+    const invalidate = (entries: MutationRecord[]) => {
+      for (const entry of entries)
+        if (entry.target instanceof SVGImageElement) loaded.delete(entry.target);
+    };
+    const mutations = new MutationObserver(invalidate);
+    mutations.observe(document, { attributes: true, attributeFilter: ['href'], subtree: true });
+    document.addEventListener(
+      'load',
+      (event) => {
+        const element = event.target;
+        if (element instanceof SVGImageElement) {
+          // A mutation queued before this genuine load must not erase that load
+          // later merely because MutationObserver delivery follows the event.
+          invalidate(mutations.takeRecords());
+          loaded.set(element, { href: href(element), at: performance.now() });
+          push('load', { href: href(element) });
+        }
+      },
+      true,
+    );
+    document.addEventListener(
+      'error',
+      (event) => {
+        if (event.target instanceof SVGImageElement) {
+          loaded.delete(event.target);
+          push('image-error', { href: href(event.target) });
+        }
+      },
+      true,
+    );
+    const buttonPointers = new Set<number>();
+    for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'input', 'submit', 'click'])
+      document.addEventListener(
+        type,
+        (event) => {
+          const target = event.target as Element | null;
+          const component = target
+            ?.closest('[data-component-id]')
+            ?.getAttribute('data-component-id');
+          const monitor = target?.closest('.arduino-serial-monitor');
+          const control = target?.closest('button');
+          const pointer = event as PointerEvent;
+          const release = type === 'pointerup' || type === 'pointercancel';
+          const trackedRelease = release && buttonPointers.has(pointer.pointerId);
+          if (type === 'pointerdown' && component === 'button-682' && event.isTrusted)
+            buttonPointers.add(pointer.pointerId);
+          if (component === 'button-682' || monitor || control || trackedRelease) {
+            push('input', {
+              type,
+              trusted: event.isTrusted,
+              pointerOrigin: trackedRelease || component === 'button-682' ? 'button-682' : null,
+              pointerId: type.startsWith('pointer') ? pointer.pointerId : null,
+              buttons: type.startsWith('pointer') ? pointer.buttons : null,
+              rawTarget: {
+                tag: target?.tagName ?? null,
+                id: target?.id ?? null,
+                className: target?.getAttribute('class') ?? null,
+                component: component ?? null,
+                stage: Boolean(target?.closest('.workbench-stage')),
+              },
+              value: monitor && target instanceof HTMLInputElement ? target.value : null,
+              controlLabel:
+                control?.getAttribute('aria-label') ??
+                control?.getAttribute('title') ??
+                control?.textContent?.trim() ??
+                null,
+              target:
+                component === 'button-682'
+                  ? component
+                  : monitor
+                    ? 'serial'
+                    : (control?.textContent?.trim() ??
+                      (target?.closest('.workbench-stage') ? 'stage' : null)),
+            });
+          }
+          if (release) buttonPointers.delete(pointer.pointerId);
+        },
+        true,
+      );
+    const visible = (element: Element | null | undefined) => {
+      if (!element?.isConnected) return false;
+      const box = element.getBoundingClientRect();
+      if (!(
+        box.width > 0 &&
+        box.height > 0 &&
+        box.left >= 0 &&
+        box.top >= 0 &&
+        box.right <= innerWidth &&
+        box.bottom <= innerHeight
+      ))
+        return false;
+      for (let node: Element | null = element; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (
+          style.display === 'none' ||
+          style.visibility !== 'visible' ||
+          Number(style.opacity) === 0
+        )
+          return false;
+      }
+      return true;
+    };
+    let capturingShortCycles = false;
+    host.__realtime682ShortCapture = () => {
+      capturingShortCycles = true;
+    };
+    let previous: { at: number; leds: unknown[] } | null = null;
+    let monitorSignature = '';
+    let renderTaskPending = false;
+    let renderTaskEpoch = 0;
+    const sampleRenderedOpportunity = () => {
+      invalidate(mutations.takeRecords());
+      const monitor = document.querySelector('.arduino-serial-output');
+      const serial = {
+        texts: [...(monitor?.querySelectorAll(':scope > div') ?? [])].map((row) => row.textContent),
+        visible: visible(monitor),
+      };
+      if (JSON.stringify(serial) !== monitorSignature) {
+        monitorSignature = JSON.stringify(serial);
+        push('monitor', serial);
+      }
+      return {
+        at: performance.now(),
+        leds: ['led0', 'led1', 'led2'].map((id) => {
+          const root = document.querySelector(`[data-component-id="${id}"]`);
+          const visual = root?.querySelector('[data-led-brightness]');
+          const image = root?.querySelector<SVGImageElement>('image[data-led-asset-active="true"]');
+          const current = image ? loaded.get(image) : undefined;
+          const box = image?.getBoundingClientRect();
+          const stage = document.querySelector('.workbench-stage')?.getBoundingClientRect();
+          return {
+            id,
+            brightness: visual ? Number(visual.getAttribute('data-led-brightness')) : null,
+            href: image ? href(image) : null,
+            loadedAt: current?.href === (image ? href(image) : null) ? current.at : null,
+            visible:
+              visible(image) &&
+              !!box &&
+              !!stage &&
+              box.left >= stage.left &&
+              box.top >= stage.top &&
+              box.right <= stage.right &&
+              box.bottom <= stage.bottom,
+          };
+        }),
+      };
+    };
+    const paint = () => {
+      // The observer may run before the product RAF callback. Its immediate
+      // timestamp is diagnostic only, never a sampled native vector.
+      push('raf-snapshot', { rafAt: performance.now(), epoch: renderTaskEpoch + 1 });
+      if (renderTaskPending && capturingShortCycles)
+        push('render-opportunity-missed', { epoch: renderTaskEpoch });
+      if (previous)
+        push('paint', {
+          witnessAt: previous.at,
+          witnessKind: 'render-opportunity-task',
+          leds: previous.leds,
+        });
+      previous = null;
+      const epoch = ++renderTaskEpoch;
+      renderTaskPending = true;
+      // Read the actual vector in a task after this RAF callback batch, never
+      // backdate a pre-product-RAF value and call it a visible frame. This is a
+      // render-opportunity DOM witness, not proof of physical display pixels.
+      setTimeout(() => {
+        if (epoch !== renderTaskEpoch) {
+          if (capturingShortCycles) push('render-opportunity-late', { epoch });
+          return;
+        }
+        renderTaskPending = false;
+        previous = sampleRenderedOpportunity();
+        push('render-task-snapshot', previous);
+      }, 0);
+      requestAnimationFrame(paint);
+    };
+    requestAnimationFrame(paint);
+  }, recordLimit);
+  const barrier = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const status = await Promise.race([
+        page.evaluate(() =>
+          (
+            window as unknown as {
+              __realtime682Flush: () => Promise<{
+                sent: number;
+                acknowledged: number;
+                dropped: number;
+                errors: string[];
+              }>;
+            }
+          ).__realtime682Flush(),
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Node ACK barrier incomplete after 1500 ms')),
+            1500,
+          );
+        }),
+      ]);
+      if (!retain('ack-barrier', status)) throw new Error('Baseline journal retention failed');
+      if (
+        status.dropped ||
+        status.errors.length ||
+        status.sent > status.acknowledged ||
+        status.acknowledged > acknowledged
+      )
+        throw new Error('Incomplete baseline journal');
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  const finish = async () => {
+    if (!long) throw new Error('Only the prospective long journal may stop recording');
+    await page.evaluate(() =>
+      (
+        window as unknown as { __realtime682StopRecording: () => void }
+      ).__realtime682StopRecording(),
+    );
+    await barrier();
+  };
+  return { records, retain, barrier, finish, errors, waitForAcknowledgedRecord };
+}
+
+function realtime682Fixture(source: string, button: boolean): SchematicDocument {
+  let document: SchematicDocument = {
+    schemaVersion: 4,
+    components: [],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+  for (const [type, id, x, y] of [
+    ['arduino-uno', 'uno', 230, 230],
+    ['resistor-axial', 'r0', 680, 200],
+    ['led-5mm', 'led0', 680, 330],
+    ['resistor-axial', 'r1', 820, 200],
+    ['led-5mm', 'led1', 820, 330],
+    ['resistor-axial', 'r2', 960, 200],
+    ['led-5mm', 'led2', 960, 330],
+    ...(button ? [['button-tactile-6mm', 'button-682', 900, 520]] : []),
+  ] as Array<[string, string, number, number]>)
+    document = addComponentToDocument(document, type, { x, y }, id).document;
+  document.components = document.components.map((row) =>
+    row.id === 'uno'
+      ? {
+          ...row,
+          stateProperties: {
+            ...row.stateProperties,
+            arduinoSource: source,
+            arduinoWorkspace: '',
+            arduinoCodeMode: 'text',
+            arduinoSerialOpen: true,
+            arduinoBaudRate: 9600,
+          },
+        }
+      : row.id.startsWith('r')
+        ? { ...row, value: 330 }
+        : row,
+  );
+  for (let index = 0; index < 3; index++)
+    document.connections.push(
+      {
+        id: `out-${index}`,
+        from: { componentId: 'uno', terminal: `d${13 - index}` as 'd13' },
+        to: { componentId: `r${index}`, terminal: 'lead-1' },
+      },
+      {
+        id: `load-${index}`,
+        from: { componentId: `r${index}`, terminal: 'lead-2' },
+        to: { componentId: `led${index}`, terminal: 'anode' },
+      },
+      {
+        id: `ground-${index}`,
+        from: { componentId: `led${index}`, terminal: 'cathode' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    );
+  if (button)
+    document.connections.push(
+      {
+        id: 'button-input',
+        from: { componentId: 'uno', terminal: 'd2' },
+        to: { componentId: 'button-682', terminal: 'SW-A1' },
+      },
+      {
+        id: 'button-ground',
+        from: { componentId: 'button-682', terminal: 'SW-B1' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    );
+  return document;
+}
+
+test.describe('Issue 682 acknowledged native realtime baseline', () => {
+  let pool: ReturnType<typeof e2eAdminPool>;
+  let cookies: import('@playwright/test').Cookie[];
+  test.beforeAll(async ({ browser, baseURL }, info) => {
+    pool = e2eAdminPool();
+    const context = await browser.newContext(baseURL === undefined ? {} : { baseURL });
+    try {
+      const page = await context.newPage();
+      await loginWithOrganization(
+        page,
+        await seedTeacher(pool, `realtime-682-${info.workerIndex}`),
+      );
+      cookies = await context.cookies();
+    } finally {
+      await context.close();
+    }
+  });
+  test.afterAll(async () => pool.end());
+  for (const mode of [
+    'delays',
+    'button-serial',
+    'short20',
+    'short30',
+    'short50',
+    'short100',
+    'long1000',
+    'long5000',
+    'long10000',
+    'long20000',
+  ] as const)
+    test(`${mode}: strict real time and acknowledged native evidence`, async ({ page }, info) => {
+      const shortMs = mode.startsWith('short') ? Number(mode.slice(5)) : null;
+      const longMs = mode.startsWith('long') ? Number(mode.slice(4)) : null;
+      const phaseMs = shortMs ?? longMs;
+      if (longMs !== null) test.setTimeout(6 * longMs + 30_000);
+      const source =
+        phaseMs !== null
+          ? `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(${phaseMs});digitalWrite(13,LOW);delay(${phaseMs});}`
+          : mode === 'delays'
+            ? `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);digitalWrite(12,LOW);digitalWrite(11,LOW);digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(20000);digitalWrite(13,LOW);}void loop(){delay(20000);}`
+            : `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}if(Serial.available()>0){int received=Serial.read();Serial.println(received);digitalWrite(11,received==65);}delay(30);}`;
+      const longAudit = longMs === null ? null : createRealtime682LongAudit(longMs, source);
+      const journalPath = info.outputPath('realtime-682-native.jsonl');
+      const journal = await realtime682Journal(
+        page,
+        journalPath,
+        longMs === null ? undefined : { phaseMs: longMs, observe: longAudit!.accept },
+      );
+      let primary: unknown,
+        failed = false,
+        held = false;
+      const responses = () =>
+        journal.records.filter(
+          (row) =>
+            row.kind === 'response' &&
+            row.source === source &&
+            (row.advance as SimulationTimedAdvancePayload | null)?.executionStatus === 'ready',
+        );
+      const latest = (id: string) =>
+        (
+          responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined
+        )?.result?.components.find((row) => row.componentId === id)?.brightness ?? -1;
+      const nativeLevel = (index: number) => {
+        const led = (
+          journal.records.findLast((row) => row.kind === 'paint')?.leds as
+            | Array<{ brightness: number | null; loadedAt: number | null; visible: boolean }>
+            | undefined
+        )?.[index];
+        return led?.visible && led.loadedAt !== null && Number.isFinite(led.brightness)
+          ? Number(led.brightness! > 0)
+          : -1;
+      };
+      try {
+        await page.context().addCookies(cookies);
+        await page.setViewportSize({ width: 1600, height: 1000 });
+        await page.goto('/#/home');
+        const origin = new URL(page.url()).origin;
+        const created = await page.request.post('/api/projects', {
+          headers: { origin, 'idempotency-key': crypto.randomUUID() },
+          data: {
+            scope: 'personal',
+            classroomId: null,
+            module: 'electronics',
+            title: `Realtime682 ${mode}`,
+          },
+        });
+        expect(created.status()).toBe(201);
+        const id = ((await created.json()) as { project: { id: string } }).project.id;
+        const read = async () => {
+          const result = await page.request.get(`/api/projects/${id}`);
+          expect(result.status()).toBe(200);
+          return (await result.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+        };
+        const initial = await read();
+        const fixture = realtime682Fixture(
+          'void setup(){}void loop(){delay(100);}',
+          mode === 'button-serial',
+        );
+        const seed = await page.request.put(`/api/projects/${id}/draft`, {
+          headers: { origin },
+          data: {
+            document: fixture,
+            baseRevision: initial.draft.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seed.status()).toBe(200);
+        const before = await read();
+        await page.goto(`/#/home/${id}`);
+        await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+        await page.locator('.arduino-source-editor textarea').fill(source);
+        const savedResponse = page.waitForResponse(
+          (row) =>
+            new URL(row.url()).pathname === `/api/projects/${id}/draft` &&
+            row.request().method() === 'PUT',
+        );
+        await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+        expect((await savedResponse).status()).toBe(200);
+        const saved = await read();
+        journal.retain('saved', { before, saved, source });
+        expect(saved.draft.revision).toBe(before.draft.revision + 1);
+        expect(saved.draft.document).toEqual({
+          ...before.draft.document,
+          components: before.draft.document.components.map((row) =>
+            row.id === 'uno'
+              ? { ...row, stateProperties: { ...row.stateProperties, arduinoSource: source } }
+              : row,
+          ),
+        });
+        await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+        await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+        const board = await part(page, 'uno').boundingBox(),
+          stage = await page.locator('.workbench-stage').boundingBox();
+        expect(
+          board &&
+            stage &&
+            Object.values(board).every(Number.isFinite) &&
+            board.x >= stage.x &&
+            board.y >= stage.y &&
+            board.x + board.width <= stage.x + stage.width &&
+            board.y + board.height <= stage.y + stage.height,
+        ).toBe(true);
+        if (phaseMs !== null) {
+          const intervals = await page.evaluate(async () => {
+            const frames: number[] = [];
+            for (let index = 0; index < 31; index++)
+              frames.push(await new Promise<number>((resolve) => requestAnimationFrame(resolve)));
+            return frames.slice(1).map((at, index) => at - frames[index]!);
+          });
+          const ordered = [...intervals].sort((a, b) => a - b);
+          const median = (ordered[14]! + ordered[15]!) / 2,
+            p95 = ordered[28]!;
+          journal.retain('short-calibration', {
+            intervals,
+            median,
+            p95,
+            nominalFrameMs: 1000 / 60,
+          });
+          expect(median, 'INFRASTRUCTURE: pre-Start RAF median').toBeGreaterThanOrEqual(15);
+          expect(median, 'INFRASTRUCTURE: pre-Start RAF median').toBeLessThanOrEqual(18);
+          expect(p95, 'INFRASTRUCTURE: pre-Start RAF p95').toBeLessThanOrEqual(20);
+        }
+        await journal.barrier();
+        if (phaseMs !== null)
+          await page.evaluate(() =>
+            (
+              window as unknown as { __realtime682ShortCapture: () => void }
+            ).__realtime682ShortCapture(),
+          );
+        const startAt = await page.evaluate(() => performance.now());
+        journal.retain('start-action', { source, at: startAt });
+        await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+        if (longMs !== null && longAudit) {
+          // The new long budget measures actual wall time. A model horizon alone
+          // cannot end acquisition; seven following-RAF native witnesses must arrive.
+          await expect.poll(() => longAudit.state().h0, { timeout: 5000 }).not.toBeNull();
+          const h0 = longAudit.state().h0!;
+          const deadline = h0 + 6 * longMs + 1000;
+          const remaining = await page.evaluate(
+            (deadline) => deadline - performance.now(),
+            deadline,
+          );
+          expect(remaining).toBeGreaterThan(0);
+          await journal.waitForAcknowledgedRecord(
+            () => longAudit.hasSevenNativeFrontsBefore(deadline),
+            remaining,
+          );
+          await journal.barrier();
+          journal.retain('long-stop-action', { at: await page.evaluate(() => performance.now()) });
+          await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          await expect(
+            page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+          ).toBeVisible();
+          journal.retain('long-stop-ui', { visible: true });
+          await journal.finish();
+          const report = await readRealtime682LongAudit(journalPath, longMs, source);
+          journal.retain('long-cycle-result', {
+            longMs,
+            report,
+            retainedNodeRecords: journal.records.length,
+          });
+          expect(report.errors).toEqual([]);
+          expect(report.errorCount).toBe(0);
+          expect(journal.records.length).toBeLessThanOrEqual(2048);
+          expect(journal.errors).toEqual([]);
+          journal.retain('complete', { mode });
+        } else {
+          if (shortMs !== null) {
+            await expect
+              .poll(
+                () =>
+                  (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
+                    ?.committedHorizonMicroseconds ?? 0,
+              )
+              .toBeGreaterThanOrEqual(shortMs * 22_000 + 1000);
+          } else if (mode === 'delays') {
+            let finalLowResponseAt: number | undefined;
+            await journal.waitForAcknowledgedRecord((row) => {
+              if (
+                finalLowResponseAt === undefined &&
+                row.kind === 'response' &&
+                row.source === source
+              ) {
+                const advance = row.advance as SimulationTimedAdvancePayload | null;
+                if (
+                  advance?.executionStatus === 'ready' &&
+                  advance.committedHorizonMicroseconds >= 21_031_000 &&
+                  advance.result?.components.find((led) => led.componentId === 'led0')
+                    ?.brightness === 0
+                )
+                  finalLowResponseAt = row.at;
+              }
+              if (
+                row.kind !== 'paint' ||
+                finalLowResponseAt === undefined ||
+                typeof row.witnessAt !== 'number' ||
+                !Number.isFinite(row.witnessAt) ||
+                row.witnessAt < finalLowResponseAt
+              )
+                return false;
+              const [led] = row.leds as Array<{
+                brightness: number | null;
+                loadedAt: number | null;
+                visible: boolean;
+              }>;
+              return led?.visible === true && Number.isFinite(led.loadedAt) && led.brightness === 0;
+            }, 22_000);
+          } else {
+            await expect.poll(() => latest('led0')).toBe(0);
+            const box = await part(page, 'button-682').boundingBox();
+            const buttonStage = await page.locator('.workbench-stage').boundingBox();
+            journal.retain('button-geometry', { box, stage: buttonStage });
+            expect(
+              box &&
+                buttonStage &&
+                Object.values(box).every(Number.isFinite) &&
+                box.x >= buttonStage.x &&
+                box.y >= buttonStage.y &&
+                box.x + box.width <= buttonStage.x + buttonStage.width &&
+                box.y + box.height <= buttonStage.y + buttonStage.height,
+            ).toBe(true);
+            const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+            const buttonHit = await page.evaluate(
+              ({ x, y }) =>
+                document
+                  .elementFromPoint(x, y)
+                  ?.closest('[data-component-id]')
+                  ?.getAttribute('data-component-id'),
+              point,
+            );
+            journal.retain('button-hit', { point, componentId: buttonHit });
+            expect(buttonHit).toBe('button-682');
+            await page.mouse.move(point.x, point.y);
+            await page.mouse.down();
+            held = true;
+            await expect.poll(() => latest('led0')).toBeGreaterThan(0);
+            await expect.poll(() => nativeLevel(0)).toBe(1);
+            await page.mouse.up();
+            held = false;
+            await expect.poll(() => latest('led0')).toBe(0);
+            await expect.poll(() => nativeLevel(0)).toBe(0);
+            await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+            await page
+              .getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true })
+              .fill('A');
+            await page.getByRole('button', { name: 'Отпр.', exact: true }).click();
+            await expect
+              .poll(() => {
+                const monitor = journal.records.findLast((row) => row.kind === 'monitor');
+                return monitor?.visible
+                  ? (monitor.texts as string[]).map((value) => value.trim())
+                  : null;
+              })
+              .toEqual(['65']);
+            await expect(page.locator('.arduino-serial-output > div')).toHaveText(['65']);
+            await expect.poll(() => latest('led2')).toBeGreaterThan(0);
+            await expect.poll(() => nativeLevel(2)).toBe(1);
+          }
+          await journal.barrier(); // All assertions below use acknowledged Node originals.
+          const ready = responses();
+          expect(ready.length).toBeGreaterThan(0);
+          const groups: Array<{ at: number; levels: string }> = [];
+          // Check every acknowledged record, but create a Playwright assertion step only
+          // on failure: thousands of successful steps otherwise consume the live test budget.
+          for (const row of journal.records.filter(
+            (row) => row.kind === 'response' && row.source === source,
+          )) {
+            const advance = row.advance as SimulationTimedAdvancePayload | null;
+            if (row.ok !== true) expect(row.ok).toBe(true);
+            if (!Object.is(row.generation, row.requestGeneration))
+              expect(row.generation).toBe(row.requestGeneration);
+            if (!Number.isFinite(row.computeMs)) expect(Number.isFinite(row.computeMs)).toBe(true);
+            if (advance?.executionStatus === 'fault')
+              expect(advance.executionStatus).not.toBe('fault');
+            if (advance?.executionStatus === 'yielded') {
+              if (advance.result !== null) expect(advance.result).toBeNull();
+              continue;
+            }
+            if (advance?.result?.solved !== true) expect(advance?.result?.solved).toBe(true);
+            if (advance?.result?.quality?.passed !== true)
+              expect(advance?.result?.quality?.passed).toBe(true);
+            if (!Array.isArray(advance?.diagnostics) || advance.diagnostics.length !== 0)
+              expect(advance?.diagnostics).toEqual([]);
+            if (
+              !Object.is(
+                advance?.committedHorizonMicroseconds,
+                advance?.requestedHorizonMicroseconds,
+              )
+            )
+              expect(advance?.committedHorizonMicroseconds).toBe(
+                advance?.requestedHorizonMicroseconds,
+              );
+            const levels = ['led0', 'led1', 'led2']
+              .map((id) =>
+                Number(
+                  (advance!.result!.components.find((item) => item.componentId === id)
+                    ?.brightness ?? 0) > 0,
+                ),
+              )
+              .join(',');
+            if (groups.at(-1)?.levels !== levels) groups.push({ at: row.at, levels });
+          }
+          const paint = journal.records.filter(
+            (row) => row.kind === 'paint' && Number(row.witnessAt) >= ready[0]!.at,
+          );
+          expect(paint.length).toBeGreaterThan(0);
+          for (const row of paint) {
+            const group = groups.findLast((group) => group.at <= Number(row.witnessAt));
+            if (!group || Number(row.witnessAt) - group.at <= 50) continue;
+            const leds = row.leds as Array<{
+              brightness: number;
+              loadedAt: number | null;
+              visible: boolean;
+            }>;
+            const loaded = leds.every((led) => led.visible && led.loadedAt !== null);
+            if (!loaded) expect(loaded).toBe(true);
+            const paintedLevels = leds.map((led) => Number(led.brightness > 0)).join(',');
+            if (paintedLevels !== group.levels) expect(paintedLevels).toBe(group.levels);
+          }
+          if (shortMs !== null) {
+            const h0 = ready[0]!;
+            expect(
+              journal.records.filter(
+                (row) =>
+                  ['render-opportunity-missed', 'render-opportunity-late'].includes(row.kind) &&
+                  row.at >= h0.at,
+              ),
+            ).toEqual([]);
+            expect(h0.at - startAt).toBeLessThanOrEqual(5000);
+            expect((h0.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds).toBe(
+              0,
+            );
+            const electrical: ShortCycleEdge[] = [];
+            let onBrightness: number | undefined;
+            for (const row of ready)
+              for (const sample of (
+                row.advance as SimulationTimedAdvancePayload
+              ).ledTemporal!.components.find((led) => led.componentId === 'led0')!.samples) {
+                if (sample.brightness > 0) onBrightness ??= Math.round(sample.brightness);
+                if (electrical.at(-1)?.high !== sample.brightness > 0)
+                  electrical.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
+              }
+            const native: ShortCycleEdge[] = [];
+            let seenHigh = false;
+            for (const row of paint) {
+              const led = (
+                row.leds as Array<{ brightness: number; loadedAt: number | null; visible: boolean }>
+              )[0]!;
+              seenHigh ||= led.brightness > 0;
+              if (seenHigh) {
+                if (!led.visible) expect(led.visible).toBe(true);
+                if (led.loadedAt === null) expect(led.loadedAt).not.toBeNull();
+                if (!Number.isFinite(led.brightness))
+                  expect(Number.isFinite(led.brightness)).toBe(true);
+                if (led.brightness > 0 && led.brightness !== onBrightness)
+                  expect(led.brightness).toBe(onBrightness);
+              }
+              const high = led.brightness > 0;
+              if (native.at(-1)?.high !== high) native.push({ at: Number(row.witnessAt), high });
+            }
+            const report = realtime682ShortCycleAudit(shortMs, h0.at, electrical, native);
+            journal.retain('short-cycle-result', { shortMs, h0, report });
+            expect(report.shown[0]!.at - h0.at).toBeLessThanOrEqual(50);
+            expect(report.errors).toEqual([]);
+          } else if (mode === 'delays') {
+            const first = ready[0]!,
+              last = ready.at(-1)!;
+            const startUs = (first.advance as SimulationTimedAdvancePayload)
+              .committedHorizonMicroseconds;
+            const modelMs =
+              ((last.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds -
+                startUs) /
+              1000;
+            journal.retain('clock-result', { modelMs, wallMs: last.at - first.at, groups });
+            expect(startUs).toBe(0);
+            expect(modelMs).toBeGreaterThanOrEqual(21_031);
+            expect(Math.abs(modelMs - (last.at - first.at))).toBeLessThanOrEqual(250);
+            const edges: Array<{ at: number; high: boolean }> = [];
+            for (const row of ready)
+              for (const sample of (
+                row.advance as SimulationTimedAdvancePayload
+              ).ledTemporal!.components.find(
+                (led: { componentId: string }) => led.componentId === 'led0',
+              )!.samples)
+                if (edges.at(-1)?.high !== sample.brightness > 0)
+                  edges.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
+            const high = edges.findIndex((edge) => edge.high);
+            const actual = edges.slice(high, high + 4);
+            expect(actual.map((edge) => edge.high)).toEqual([true, false, true, false]);
+            const visible: Array<{ at: number; high: boolean }> = [];
+            for (const row of paint) {
+              const high = (row.leds as Array<{ brightness: number }>)[0]!.brightness > 0;
+              if (visible.at(-1)?.high !== high) visible.push({ at: Number(row.witnessAt), high });
+            }
+            const shown = visible.slice(visible.findIndex((edge) => edge.high));
+            expect(shown.slice(0, 4).map((edge) => edge.high)).toEqual([true, false, true, false]);
+            for (const [index, ms] of [30, 1000, 20_000].entries()) {
+              expect(actual[index + 1]!.at - actual[index]!.at).toBe(ms * 1000 + 2);
+              expect(Math.abs(shown[index + 1]!.at - shown[index]!.at - ms)).toBeLessThanOrEqual(
+                250,
+              );
+            }
+          } else {
+            expect(realtime682ButtonRelease(journal.records)).toBe(true);
+            expect(
+              journal.records.some(
+                (row) =>
+                  row.kind === 'input' &&
+                  row.type === 'submit' &&
+                  row.target === 'serial' &&
+                  row.trusted,
+              ),
+            ).toBe(true);
+            const beforeReset = responses().at(-1)!;
+            journal.retain('reset-boundary', {
+              generation: beforeReset.generation,
+              sequence: beforeReset.sequence,
+            });
+            await page.getByTestId('arduino-reset-button').click();
+            await expect(page.locator('.arduino-serial-output > div')).toHaveCount(0);
+            await expect
+              .poll(() => {
+                const fresh = responses().find(
+                  (row) =>
+                    row.sequence > beforeReset.sequence &&
+                    row.generation !== beforeReset.generation,
+                );
+                const advance = fresh?.advance as SimulationTimedAdvancePayload | undefined;
+                return fresh &&
+                  fresh.generation === fresh.requestGeneration &&
+                  advance?.committedHorizonMicroseconds === 0
+                  ? advance.result?.components.find((row) => row.componentId === 'led2')?.brightness
+                  : null;
+              })
+              .toBe(0);
+            await expect.poll(() => nativeLevel(2)).toBe(0);
+          }
+          await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          await expect(
+            page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+          ).toBeVisible();
+          await journal.barrier();
+          journal.retain('complete', { mode });
+        }
+      } catch (error) {
+        failed = true;
+        primary = error;
+        journal.retain('primary-error', String(error));
+      } finally {
+        journal.retain('node-final', {
+          failed,
+          retainedNodeRecords: journal.records.length,
+          acknowledgedRecords: longAudit?.state().sequence ?? journal.records.length,
+          errors: journal.errors,
+          completion: failed ? 'FAIL_OR_INCOMPLETE' : 'COMPLETE',
+        });
+        if (held && !page.isClosed()) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await Promise.race([
+              page.mouse.up(),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error('Optional release incomplete')), 500);
+              }),
+            ]);
+          } catch (error) {
+            journal.retain('secondary-release-error', String(error));
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        }
+        if (!page.isClosed())
+          await page
+            .screenshot({ path: info.outputPath('realtime-682.png'), timeout: 500 })
+            .catch((error) => journal.retain('optional-png-error', String(error)));
+      }
+      if (failed) throw primary;
+      if (journal.errors.length) throw new Error('Baseline retention incomplete');
+    });
+});
+
 const ID = '10000000-0000-4000-8000-000000000001';
 const touchVideoTest = test.extend({
   hasTouch: true,
@@ -1154,16 +2587,48 @@ async function openEditor(
     revision,
     updatedAt: '2026-09-09T00:00:00Z',
   });
-  await page.addInitScript(() => {
-    const original = Storage.prototype.setItem;
-    (window as unknown as { draftWrites: number }).draftWrites = 0;
-    Storage.prototype.setItem = function (key, value) {
-      if (key.includes('draft')) {
-        (window as unknown as { draftWrites: number }).draftWrites++;
-      }
-      return original.call(this, key, value);
-    };
-  });
+  await page.addInitScript(
+    ({ prefix, projectId, userId }) => {
+      const original = Storage.prototype.setItem;
+      (window as unknown as { draftWrites: number }).draftWrites = 0;
+      Storage.prototype.setItem = function (key, value) {
+        const result = original.call(this, key, value);
+        // One durable writer record is one local commit. Reload hints, mirrors
+        // and byte acknowledgements are separate storage operations.
+        if (
+          this === window.localStorage &&
+          key.startsWith(prefix) &&
+          key.length > prefix.length &&
+          !key.endsWith(':ack') &&
+          this.getItem(key) === value
+        ) {
+          try {
+            const draft = JSON.parse(value) as Record<string, unknown>;
+            if (
+              draft['schemaVersion'] === 3 &&
+              draft['projectId'] === projectId &&
+              draft['userId'] === userId &&
+              draft['identityKind'] === 'account' &&
+              draft['moduleKey'] === 'electronics' &&
+              Number.isSafeInteger(draft['baseRevision']) &&
+              typeof draft['document'] === 'object' &&
+              draft['document'] !== null &&
+              !Array.isArray(draft['document'])
+            )
+              (window as unknown as { draftWrites: number }).draftWrites++;
+          } catch {
+            // An invalid or unconfirmed write cannot prove a document commit.
+          }
+        }
+        return result;
+      };
+    },
+    {
+      prefix: localProjectDraftKey(ID, user.id, 'account') + ':electronics-editor:',
+      projectId: ID,
+      userId: user.id,
+    },
+  );
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     let body: unknown;
@@ -1252,6 +2717,76 @@ async function openEditor(
 
 const part = (page: Page, id: string) =>
   page.locator('[data-testid="schematic-component"][data-component-id="' + id + '"]');
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`Arduino workspace messages: repeated native menu and reopen at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fixture = documentFixture();
+    const initial = {
+      ...fixture,
+      components: fixture.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, arduinoCodeMode: 'blocks' },
+            }
+          : component,
+      ),
+    } as SchematicDocument;
+    const { errors, readEditorDocument } = await openEditor(page, initial);
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    const code = page.getByRole('region', { name: 'Редактор кода Arduino' });
+    await expect(code).toBeVisible();
+    const background = code.locator('.blocklyMainBackground');
+    await expect(background).toBeVisible();
+    const openWorkspaceMenu = async () => {
+      const box = await background.boundingBox();
+      if (!box) throw new Error('Arduino workspace has no visible background');
+      // The flyout covers the left side of the SVG. Click the uncovered area
+      // relative to the background so Playwright waits for the panel to settle.
+      await background.click({ button: 'right', position: { x: box.width - 25, y: 35 } });
+    };
+    const readProgram = async () => {
+      const doc = await readEditorDocument();
+      const state = doc.components.find((component) => component.id === 'uno')!.stateProperties!;
+      return { source: state.arduinoSource, workspace: JSON.parse(String(state.arduinoWorkspace)) };
+    };
+    await expect.poll(async () => (await readProgram()).source).toContain('void setup()');
+    const before = await readProgram();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await openWorkspaceMenu();
+      const menu = page.locator('.blocklyContextMenu');
+      await expect(menu).toBeVisible();
+      await expect(menu.getByText(/^Удалить \d+ блоки$/)).toBeVisible();
+      const box = await menu.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+      await page.keyboard.press('Escape');
+      await expect(menu).toBeHidden();
+    }
+    expect(await readProgram()).toEqual(before);
+    await page
+      .getByRole('button', {
+        name: width >= 1024 ? 'Закрыть редактор кода' : 'Закрыть панель кода',
+        exact: true,
+      })
+      .click();
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await openWorkspaceMenu();
+    await expect(
+      page.locator('.blocklyContextMenu').getByText(/^Удалить \d+ блоки$/),
+    ).toBeVisible();
+    await page.screenshot({ path: `reports/interactions/arduino-workspace-messages-${width}.png` });
+    await page.keyboard.press('Escape');
+    expect(await readProgram()).toEqual(before);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+    expect(errors).toEqual([]);
+  });
+}
 const frames = (page: Page) =>
   page.evaluate(
     () =>
@@ -1354,7 +2889,7 @@ test.describe('asset recovery in the built editor', () => {
     );
     await expect.poll(() => failedMaskRequests).toBe(1);
     await expect(part(page, 'battery')).toHaveAttribute('data-hit-mask-status', 'ready');
-    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+    await expect(part(page, 'led').locator('image.workbench-led-asset').first()).toHaveAttribute(
       'href',
       /\.svg$/,
     );
@@ -1873,13 +3408,13 @@ test.describe('asset recovery in the built editor', () => {
     const doc = documentFixture();
     doc.components = doc.components.map((component) =>
       component.id === 'led'
-        ? { ...component, stateProperties: { ...component.stateProperties, ledFault: 'reverse' } }
+        ? { ...component, stateProperties: { ...component.stateProperties, ledFault: 'burned' } }
         : component,
     );
     let badBodies = 0;
     let retries = 0;
     await page.route(
-      (url) => url.pathname.endsWith('/led_red_reverse_polarity.svg'),
+      (url) => url.pathname.endsWith('/led_red_burned.svg'),
       async (route) => {
         const url = new URL(route.request().url());
         if (url.searchParams.has('asa-image-retry')) retries += 1;
@@ -1902,7 +3437,7 @@ test.describe('asset recovery in the built editor', () => {
     const writes = await page.evaluate(
       () => (window as unknown as { draftWrites: number }).draftWrites,
     );
-    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+    await expect(part(page, 'led').locator('image.workbench-led-asset').first()).toHaveAttribute(
       'href',
       /asa-image-retry=0/,
       { timeout: 10_000 },
@@ -1964,40 +3499,476 @@ test.describe('asset recovery in the built editor', () => {
 
   test('a failed catalog owner image recovers without placing or saving a component', async ({
     page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    const asset = catalogEntry('battery-holder-aa-2')!.asset;
-    let failures = 0;
-    await page.route(
-      (url) => url.pathname === asset,
-      async (route) => {
-        const url = new URL(route.request().url());
-        if (
-          route.request().resourceType() === 'image' &&
-          !url.searchParams.has('asa-image-retry')
-        ) {
-          failures += 1;
-          await route.fulfill({ status: 404, body: 'temporarily unavailable' });
-        } else await route.continue();
-      },
-    );
-    const empty: SchematicDocument = {
-      schemaVersion: 4,
-      components: [],
-      connections: [],
-      viewport: { x: 0, y: 0, zoom: 1 },
-      simulation: { running: false, maxIterations: 24 },
+  }, info) => {
+    const assetPath = catalogEntry('battery-holder-aa-2')!.asset;
+    const rawPath = info.outputPath('ordinary-image-recovery-native.jsonl');
+    const retentionErrors: string[] = [];
+    let dropped = 0;
+    let retained = 0;
+    let primary: unknown;
+    let hasPrimary = false;
+    let editorSnapshot: (() => unknown) | undefined;
+    let browserSnapshot: unknown;
+    const errorText = (error: unknown) =>
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    writeFileSync(rawPath, '', 'utf8');
+    const retain = (kind: string, data: unknown) => {
+      if (retained++ >= 10000) {
+        dropped++;
+        return;
+      }
+      try {
+        appendFileSync(rawPath, `${JSON.stringify({ kind, nodeAt: Date.now(), data })}\n`, 'utf8');
+      } catch (error) {
+        retentionErrors.push(errorText(error));
+      }
     };
-    const { readDocument, requests, errors } = await openEditor(page, empty);
-    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
-    await card.scrollIntoViewIfNeeded();
-    await expect(card.locator('image')).toHaveAttribute('href', /asa-image-retry=0/, {
-      timeout: 10_000,
+    retain('start', {
+      asset: assetPath,
+      limitations: {
+        ReactHandlerAndPrivateCache: 'UNKNOWN',
+        parserCloneOtherRealmBeforeObservation: 'NOT_OBSERVED',
+        mutationTime: 'observer delivery',
+        creationFunctionIdentity: 'CHANGED',
+        timingInterference: 'UNKNOWN_NONZERO',
+        transport: 'microtask batch outside native callbacks',
+      },
     });
-    expect(failures).toBeGreaterThanOrEqual(1);
-    expect(readDocument()).toEqual(empty);
-    expect(requests).toHaveLength(0);
-    expect(errors).toEqual([]);
+    const requestIds = new WeakMap<Request, number>();
+    let nextRequest = 0;
+    const relevantRequest = (request: Request) => new URL(request.url()).pathname === assetPath;
+    const onRequest = (request: Request) => {
+      if (!relevantRequest(request)) return;
+      const id = ++nextRequest;
+      requestIds.set(request, id);
+      retain('request', {
+        id,
+        url: request.url(),
+        resource: request.resourceType(),
+        method: request.method(),
+      });
+    };
+    const onResponse = (response: import('@playwright/test').Response) => {
+      if (relevantRequest(response.request()))
+        retain('response', {
+          id: requestIds.get(response.request()) ?? 'UNKNOWN',
+          url: response.url(),
+          status: response.status(),
+        });
+    };
+    const onFinished = (request: Request) => {
+      if (relevantRequest(request))
+        retain('requestfinished', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          timing: request.timing(),
+        });
+    };
+    const onFailed = (request: Request) => {
+      if (relevantRequest(request))
+        retain('requestfailed', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          failure: request.failure(),
+          timing: request.timing(),
+        });
+    };
+    page.on('request', onRequest);
+    page.on('response', onResponse);
+    page.on('requestfinished', onFinished);
+    page.on('requestfailed', onFailed);
+    try {
+      await page.exposeBinding('__recoveryNativeBatch', (_, batch: unknown) =>
+        retain('browser-batch', batch),
+      );
+      await page.addInitScript((asset: string) => {
+        const apply = Reflect.apply;
+        const ids = new WeakMap<Node, number>();
+        const eventIds = new WeakMap<Event, number>();
+        const lastRoots = new WeakMap<Element, Element>();
+        const listening = new WeakSet<Element>();
+        let nextId = 0,
+          nextEventId = 0,
+          sequence = 0,
+          dropped = 0,
+          sent = 0;
+        const entries: unknown[] = [];
+        const deliveryErrors: string[] = [];
+        const installationErrors: string[] = [];
+        let pending = false;
+        const id = (node: Node) => {
+          let value = ids.get(node);
+          if (!value) {
+            value = ++nextId;
+            ids.set(node, value);
+          }
+          return value;
+        };
+        const href = (node: Element) =>
+          node.getAttribute('href') ?? node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+        const relevant = (node: Element) => {
+          if (node.namespaceURI !== 'http://www.w3.org/2000/svg' || node.localName !== 'image')
+            return false;
+          try {
+            const value = href(node);
+            return !!value && new URL(value, document.baseURI).pathname === asset;
+          } catch {
+            return false;
+          }
+        };
+        // Native callbacks only retain small immutable data. Binding/serialization
+        // runs in a separate microtask; its timing interference remains unknown.
+        const flush = () => {
+          if (pending || sent === entries.length) return;
+          pending = true;
+          queueMicrotask(() => {
+            const end = entries.length;
+            const batch = entries.slice(sent, end);
+            try {
+              const sink = (
+                window as unknown as { __recoveryNativeBatch: (batch: unknown) => Promise<void> }
+              ).__recoveryNativeBatch;
+              void sink(batch).then(
+                () => {
+                  sent = end;
+                  pending = false;
+                  flush();
+                },
+                (error) => {
+                  deliveryErrors.push(String(error));
+                  pending = false;
+                },
+              );
+            } catch (error) {
+              deliveryErrors.push(String(error));
+              pending = false;
+            }
+          });
+        };
+        const emit = (kind: string, data: unknown) => {
+          if (entries.length >= 5000) {
+            dropped++;
+            return;
+          }
+          entries.push({ sequence: ++sequence, at: performance.now(), kind, data });
+          flush();
+        };
+        const rootOf = (node: Element) => {
+          const root =
+            node.closest('.workbench-catalog-card, [data-component-id], .workbench-stage') ??
+            lastRoots.get(node);
+          if (root) lastRoots.set(node, root);
+          return root;
+        };
+        const state = (node: Element) => {
+          const root = rootOf(node);
+          return {
+            imageId: id(node),
+            connected: node.isConnected,
+            href: href(node),
+            root: root
+              ? {
+                  id: id(root),
+                  connected: root.isConnected,
+                  kind: root.matches('.workbench-catalog-card') ? 'catalog' : 'stage',
+                  family: root.getAttribute('data-family-id'),
+                  component: root.getAttribute('data-component-id'),
+                  failed: !!root.querySelector('[data-owner-image-status="failed"]'),
+                  badges: [...root.querySelectorAll('[role="status"]')].map((badge) => ({
+                    id: id(badge),
+                    label: badge.getAttribute('aria-label'),
+                    text: badge.textContent,
+                  })),
+                }
+              : 'UNKNOWN',
+          };
+        };
+        const native = (delivery: string, event: Event) => {
+          const node = event.target;
+          if (!(node instanceof Element) || !relevant(node)) return;
+          let eventId = eventIds.get(event);
+          if (!eventId) {
+            eventId = ++nextEventId;
+            eventIds.set(event, eventId);
+          }
+          const root = rootOf(node);
+          emit('native', {
+            eventId,
+            delivery,
+            phase: event.eventPhase,
+            type: event.type,
+            trusted: event.isTrusted,
+            imageId: id(node),
+            connected: node.isConnected,
+            href: href(node),
+            rootId: root ? id(root) : 'UNKNOWN',
+          });
+        };
+        const attach = (node: Element) => {
+          if (listening.has(node)) return;
+          node.addEventListener('error', (event) => native('direct', event), { passive: true });
+          node.addEventListener('load', (event) => native('direct', event), { passive: true });
+          listening.add(node);
+        };
+        const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'createElementNS');
+        const original = descriptor?.value as Document['createElementNS'] | undefined;
+        let wrapper: Document['createElementNS'] | undefined;
+        let installationCount = 0;
+        try {
+          if (!descriptor || typeof original !== 'function')
+            throw new Error('Original createElementNS descriptor unavailable');
+          wrapper = function (this: Document, ...args: Parameters<Document['createElementNS']>) {
+            // Never catch the original call: original receiver/args/return/throw
+            // propagate unchanged. Only observer failures are isolated.
+            const result = apply(original, this, args) as Element;
+            try {
+              if (
+                result.namespaceURI === 'http://www.w3.org/2000/svg' &&
+                result.localName === 'image'
+              ) {
+                attach(result);
+                emit('creation-image', {
+                  imageId: id(result),
+                  connected: result.isConnected,
+                  hrefBeforeCaller: href(result),
+                });
+              }
+            } catch (error) {
+              installationErrors.push(`attach: ${String(error)}`);
+            }
+            return result;
+          } as Document['createElementNS'];
+          Object.defineProperty(Document.prototype, 'createElementNS', {
+            ...descriptor,
+            value: wrapper,
+          });
+          installationCount++;
+        } catch (error) {
+          installationErrors.push(String(error));
+        }
+        emit('creation-install', {
+          installationCount,
+          replacementCount: installationCount,
+          originalFunctionId: 'captured-original-1',
+          wrapperFunctionId: 'observer-wrapper-2',
+          sameFunction: original === wrapper,
+          originalName: original?.name,
+          originalLength: original?.length,
+          wrapperName: wrapper?.name,
+          wrapperLength: wrapper?.length,
+          installed: Document.prototype.createElementNS === wrapper,
+          descriptor: descriptor
+            ? {
+                configurable: descriptor.configurable,
+                enumerable: descriptor.enumerable,
+                writable: descriptor.writable,
+              }
+            : 'NOT_AVAILABLE',
+          timingInterference: 'UNKNOWN_NONZERO',
+          errors: [...installationErrors],
+        });
+        document.addEventListener('error', (event) => native('document-capture', event), {
+          capture: true,
+          passive: true,
+        });
+        document.addEventListener('load', (event) => native('document-capture', event), {
+          capture: true,
+          passive: true,
+        });
+        const images = (node: Node): Element[] =>
+          node instanceof Element
+            ? [
+                ...(node.namespaceURI === 'http://www.w3.org/2000/svg' && node.localName === 'image'
+                  ? [node]
+                  : []),
+                ...[...node.querySelectorAll('image')].filter(
+                  (image) => image.namespaceURI === 'http://www.w3.org/2000/svg',
+                ),
+              ]
+            : [];
+        const observe = (image: Element, reason: string) => {
+          attach(image);
+          if (relevant(image)) emit(reason, state(image));
+        };
+        new MutationObserver((mutations) => {
+          try {
+            for (const mutation of mutations) {
+              if (mutation.type === 'childList') {
+                for (const node of mutation.addedNodes)
+                  for (const image of images(node)) observe(image, 'added-delivery');
+                for (const node of mutation.removedNodes)
+                  for (const image of images(node))
+                    if (relevant(image)) emit('removed-delivery', state(image));
+              }
+              const target =
+                mutation.target instanceof Element
+                  ? mutation.target
+                  : mutation.target.parentElement;
+              if (!target) continue;
+              if (relevant(target) && mutation.attributeName === 'href')
+                observe(target, 'href-delivery');
+              const root = rootOf(target);
+              const affected = relevant(target)
+                ? [target]
+                : root
+                  ? images(root).filter(relevant)
+                  : [];
+              for (const image of affected)
+                emit('mutation-delivery', {
+                  type: mutation.type,
+                  attribute: mutation.attributeName,
+                  oldValue: mutation.oldValue,
+                  targetId: id(target),
+                  state: state(image),
+                });
+            }
+          } catch (error) {
+            deliveryErrors.push(`mutation: ${String(error)}`);
+          }
+        }).observe(document, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeOldValue: true,
+          attributeFilter: ['href', 'data-owner-image-status', 'role', 'aria-label'],
+        });
+        (
+          window as unknown as { __recoveryNativeSnapshot: () => unknown }
+        ).__recoveryNativeSnapshot = () => ({
+          entries,
+          sent,
+          pending,
+          dropped,
+          deliveryErrors,
+          installationErrors,
+          installationCount,
+          replacementDetected: Document.prototype.createElementNS !== wrapper,
+          current: [...document.querySelectorAll('image')].filter(relevant).map(state),
+          limitations: {
+            parserCloneOtherRealmBeforeObservation: 'NOT_OBSERVED',
+            ReactHandlerAndPrivateCache: 'UNKNOWN',
+            mutationTime: 'delivery',
+            timingInterference: 'UNKNOWN_NONZERO',
+          },
+        });
+      }, assetPath);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const asset = catalogEntry('battery-holder-aa-2')!.asset;
+      let failures = 0;
+      await page.route(
+        (url) => url.pathname === asset,
+        async (route) => {
+          const url = new URL(route.request().url());
+          if (
+            route.request().resourceType() === 'image' &&
+            !url.searchParams.has('asa-image-retry')
+          ) {
+            failures += 1;
+            await route.fulfill({ status: 404, body: 'temporarily unavailable' });
+          } else await route.continue();
+        },
+      );
+      const empty: SchematicDocument = {
+        schemaVersion: 4,
+        components: [],
+        connections: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        simulation: { running: false, maxIterations: 24 },
+      };
+      const { readDocument, requests, errors } = await openEditor(page, empty);
+      editorSnapshot = () => ({ initial: empty, current: readDocument(), requests, errors });
+      retain('editor-initial', editorSnapshot());
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      await card.scrollIntoViewIfNeeded();
+      await expect(card.locator('image')).toHaveAttribute('href', /asa-image-retry=0/, {
+        timeout: 10_000,
+      });
+      expect(failures).toBeGreaterThanOrEqual(1);
+      expect(readDocument()).toEqual(empty);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } catch (error) {
+      hasPrimary = true;
+      primary = error;
+      retain('primary-error', errorText(error));
+    } finally {
+      // Durable Node originals precede all optional browser awaits, on PASS/FAIL.
+      try {
+        retain('editor-final', editorSnapshot?.() ?? 'NOT_AVAILABLE');
+      } catch (error) {
+        retentionErrors.push(`editor-final: ${errorText(error)}`);
+      }
+      retain('node-final', {
+        dropped,
+        retentionErrors,
+        primary: hasPrimary ? errorText(primary) : null,
+      });
+      const supplemental = async (kind: string, action: () => Promise<unknown>) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const value = await Promise.race([
+            action(),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error('Supplement NOT_AVAILABLE after bounded capture')),
+                1000,
+              );
+            }),
+          ]);
+          retain(kind, value);
+          return value;
+        } catch (error) {
+          retentionErrors.push(`${kind}: ${errorText(error)}`);
+          retain('secondary-error', { kind, error: errorText(error) });
+          return 'NOT_AVAILABLE';
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      };
+      browserSnapshot = await supplemental('browser-final', () =>
+        page.evaluate(
+          () =>
+            (
+              window as unknown as { __recoveryNativeSnapshot?: () => unknown }
+            ).__recoveryNativeSnapshot?.() ?? 'NOT_AVAILABLE',
+        ),
+      );
+      await supplemental('native-png', async () => {
+        const path = info.outputPath('ordinary-image-recovery-native.png');
+        await page.screenshot({ path, timeout: 900 });
+        return path;
+      });
+      retain('final', { dropped, retentionErrors });
+      await supplemental('attachment', () =>
+        info.attach('ordinary-image-recovery-native', {
+          path: rawPath,
+          contentType: 'application/x-ndjson',
+        }),
+      );
+      page.off('request', onRequest);
+      page.off('response', onResponse);
+      page.off('requestfinished', onFinished);
+      page.off('requestfailed', onFailed);
+    }
+    const issues = browserSnapshot as {
+      dropped?: number;
+      deliveryErrors?: string[];
+      installationErrors?: string[];
+      installationCount?: number;
+      replacementDetected?: boolean;
+    };
+    if (hasPrimary) throw primary;
+    if (
+      dropped ||
+      retentionErrors.length ||
+      browserSnapshot === 'NOT_AVAILABLE' ||
+      issues.dropped ||
+      issues.deliveryErrors?.length ||
+      issues.installationErrors?.length ||
+      issues.installationCount !== 1 ||
+      issues.replacementDetected
+    )
+      throw new Error(
+        `Incomplete recovery observation: ${JSON.stringify({ dropped, retentionErrors, issues })}`,
+      );
   });
 
   test('ordinary image commit-gap error reaches stage and catalog before native delivery', async ({
@@ -2081,46 +4052,384 @@ test.describe('asset recovery in the built editor', () => {
   });
   test('a permanently missing ordinary image shows an accessible failure on stage and catalog', async ({
     page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    const asset = catalogEntry('battery-holder-aa-2')!.asset;
-    let imageRequests = 0;
-    await page.route(
-      (url) => url.pathname === asset,
-      async (route) => {
-        if (route.request().resourceType() !== 'image') return route.continue();
-        imageRequests += 1;
-        await route.fulfill({ status: 404, body: 'missing' });
+  }, info) => {
+    const observedAsset = catalogEntry('battery-holder-aa-2')!.asset;
+    const rawPath = info.outputPath('ordinary-image-native.jsonl');
+    const records: unknown[] = [];
+    const retentionErrors: string[] = [];
+    let dropped = 0;
+    let primary: unknown;
+    let hasPrimary = false;
+    let checkpoint = 'pre-app';
+    let browserSnapshot: unknown;
+    let editorSnapshot: (() => unknown) | undefined;
+    const errorText = (error: unknown) =>
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    const retain = (kind: string, data: unknown) => {
+      const record = { kind, nodeAt: Date.now(), checkpoint, data };
+      if (records.length >= 10_000) {
+        dropped += 1;
+        return;
+      }
+      records.push(record);
+      try {
+        appendFileSync(rawPath, `${JSON.stringify(record)}\n`, 'utf8');
+      } catch (error) {
+        retentionErrors.push(errorText(error));
+      }
+    };
+    writeFileSync(rawPath, '', 'utf8');
+    retain('start', {
+      asset: observedAsset,
+      limitations: {
+        detachedBeforeObservation: 'NOT_OBSERVED',
+        React: 'UNKNOWN',
+        hooks: 'UNKNOWN',
+        sharedPromiseAndCache: 'UNKNOWN',
+        mutationTime: 'observer delivery',
+        overhead: 'UNKNOWN',
       },
-    );
-    const doc = addComponentToDocument(
-      documentFixture(),
-      'battery-holder-aa-2',
-      { x: 790, y: 450 },
-      'holder',
-    ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
-    const initial = readDocument();
-    const stageError = part(page, 'holder').getByRole('status', {
-      name: 'Изображение детали не загрузилось',
     });
-    await expect(stageError).toBeVisible({ timeout: 10_000 });
-    await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
-    await expect(part(page, 'holder').locator('[data-owner-image-status="failed"]')).toBeVisible();
-    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
-    await card.scrollIntoViewIfNeeded();
-    await expect(
-      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
-    ).toBeVisible();
-    const requestsAtFailure = imageRequests;
-    await page.waitForTimeout(800);
-    expect(imageRequests).toBe(requestsAtFailure);
-    // Stage and catalog each load the original and validated retry URL; the
-    // shared recovery promise makes at most three probe requests between them.
-    expect(imageRequests).toBeLessThanOrEqual(7);
-    expect(readDocument()).toEqual(initial);
-    expect(requests).toHaveLength(0);
-    expect(errors).toEqual([]);
+    const requestIds = new WeakMap<Request, number>();
+    let nextRequest = 0;
+    const relevant = (request: Request) => new URL(request.url()).pathname === observedAsset;
+    const onRequest = (request: Request) => {
+      if (!relevant(request)) return;
+      const id = ++nextRequest;
+      requestIds.set(request, id);
+      retain('request', {
+        id,
+        url: request.url(),
+        method: request.method(),
+        resource: request.resourceType(),
+      });
+    };
+    const onResponse = (response: import('@playwright/test').Response) => {
+      const request = response.request();
+      if (relevant(request))
+        retain('response', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          url: response.url(),
+          status: response.status(),
+        });
+    };
+    const onFailed = (request: Request) => {
+      if (relevant(request))
+        retain('requestfailed', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          url: request.url(),
+          failure: request.failure(),
+        });
+    };
+    page.on('request', onRequest);
+    page.on('response', onResponse);
+    page.on('requestfailed', onFailed);
+    try {
+      await page.exposeBinding('__ordinaryImageNativeRecord', (_, data: unknown) =>
+        retain('browser', data),
+      );
+      await page.addInitScript((asset) => {
+        const ids = new WeakMap<Node, number>();
+        const eventIds = new WeakMap<Event, number>();
+        let nextEventId = 0;
+        const lastRoot = new WeakMap<Element, Element>();
+        const listening = new WeakSet<Element>();
+        let sequence = 0;
+        let nextId = 0;
+        let dropped = 0;
+        const entries: unknown[] = [];
+        const deliveryErrors: string[] = [];
+        const id = (node: Node) => {
+          let value = ids.get(node);
+          if (!value) {
+            value = ++nextId;
+            ids.set(node, value);
+          }
+          return value;
+        };
+        const relevant = (node: Element) => {
+          if (node.namespaceURI !== 'http://www.w3.org/2000/svg' || node.localName !== 'image')
+            return false;
+          const href =
+            node.getAttribute('href') ??
+            node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+          try {
+            return !!href && new URL(href, document.baseURI).pathname === asset;
+          } catch {
+            return false;
+          }
+        };
+        const snapshot = (node: Element) => {
+          const root =
+            node.closest('.workbench-catalog-card, [data-component-id], .workbench-stage') ??
+            lastRoot.get(node);
+          if (root) lastRoot.set(node, root);
+          const href =
+            node.getAttribute('href') ??
+            node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+          let cycle: string | null = null;
+          let retry: string | null = null;
+          try {
+            const url = new URL(href ?? '', document.baseURI);
+            cycle = url.searchParams.get('asa-image-cycle');
+            retry = url.searchParams.get('asa-image-retry');
+          } catch {
+            /* An invalid href remains recorded verbatim. */
+          }
+          return {
+            id: id(node),
+            connected: node.isConnected,
+            href,
+            cycle,
+            retry,
+            root: root
+              ? {
+                  id: id(root),
+                  connected: root.isConnected,
+                  kind: root.matches('.workbench-catalog-card') ? 'catalog' : 'stage',
+                  family: root.getAttribute('data-family-id'),
+                  component: root.getAttribute('data-component-id'),
+                  failed: root.querySelectorAll('[data-owner-image-status="failed"]').length,
+                  badges: [...root.querySelectorAll('[role="status"]')].map((badge) => ({
+                    id: id(badge),
+                    label: badge.getAttribute('aria-label'),
+                    text: badge.textContent,
+                  })),
+                }
+              : 'UNKNOWN',
+          };
+        };
+        const emit = (kind: string, data: unknown) => {
+          if (entries.length >= 5_000) {
+            dropped += 1;
+            return;
+          }
+          const entry = { sequence: ++sequence, at: performance.now(), kind, data };
+          entries.push(entry);
+          const binding = (
+            window as unknown as { __ordinaryImageNativeRecord: (entry: unknown) => Promise<void> }
+          ).__ordinaryImageNativeRecord;
+          try {
+            void binding(entry).catch((error) => deliveryErrors.push(String(error)));
+          } catch (error) {
+            deliveryErrors.push(String(error));
+          }
+        };
+        const native = (delivery: string, event: Event) => {
+          const target = event.target;
+          if (!(target instanceof Element) || !relevant(target)) return;
+          let eventId = eventIds.get(event);
+          if (!eventId) {
+            eventId = ++nextEventId;
+            eventIds.set(event, eventId);
+          }
+          emit('native', {
+            eventId,
+            delivery,
+            phase: event.eventPhase,
+            type: event.type,
+            trusted: event.isTrusted,
+            target: snapshot(target),
+            path: event
+              .composedPath()
+              .filter((node): node is Node => node instanceof Node)
+              .map(id),
+          });
+        };
+        document.addEventListener('error', (event) => native('document-capture', event), true);
+        document.addEventListener('load', (event) => native('document-capture', event), true);
+        const images = (node: Node): Element[] => {
+          if (!(node instanceof Element)) return [];
+          return [
+            ...(node.namespaceURI === 'http://www.w3.org/2000/svg' && node.localName === 'image'
+              ? [node]
+              : []),
+            ...[...node.querySelectorAll('image')].filter(
+              (image) => image.namespaceURI === 'http://www.w3.org/2000/svg',
+            ),
+          ];
+        };
+        const observe = (image: Element, reason: string) => {
+          const state = snapshot(image);
+          if (relevant(image)) emit(reason, state);
+          if (!listening.has(image)) {
+            listening.add(image);
+            image.addEventListener('error', (event) => native('direct', event));
+            image.addEventListener('load', (event) => native('direct', event));
+          }
+        };
+        new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.type === 'childList') {
+              for (const node of mutation.addedNodes)
+                for (const image of images(node)) observe(image, 'added-observed');
+              for (const node of mutation.removedNodes)
+                for (const image of images(node))
+                  if (relevant(image)) emit('removed-observed', snapshot(image));
+            }
+            const target =
+              mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+            if (!target) continue;
+            const root = target.closest(
+              '.workbench-catalog-card, [data-component-id], .workbench-stage',
+            );
+            if (relevant(target) && mutation.attributeName === 'href')
+              observe(target, 'href-observed');
+            const affected = relevant(target)
+              ? [target]
+              : root
+                ? images(root).filter(relevant)
+                : [];
+            for (const image of affected)
+              emit('mutation-delivery', {
+                type: mutation.type,
+                attribute: mutation.attributeName,
+                oldValue: mutation.oldValue,
+                targetId: id(target),
+                state: snapshot(image),
+              });
+          }
+        }).observe(document, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeOldValue: true,
+          attributeFilter: ['href', 'data-owner-image-status', 'role', 'aria-label'],
+        });
+        (
+          window as unknown as { __ordinaryImageNativeSnapshot: () => unknown }
+        ).__ordinaryImageNativeSnapshot = () => ({
+          entries,
+          dropped,
+          deliveryErrors,
+          current: [...document.querySelectorAll('image')].filter(relevant).map(snapshot),
+          limitations: {
+            detachedBeforeObservation: 'NOT_OBSERVED',
+            ReactHooksAndSharedCache: 'UNKNOWN',
+            mutationTime: 'delivery',
+            overhead: 'UNKNOWN',
+          },
+        });
+      }, observedAsset);
+      checkpoint = 'original-case';
+      retain('checkpoint', checkpoint);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const asset = catalogEntry('battery-holder-aa-2')!.asset;
+      let imageRequests = 0;
+      await page.route(
+        (url) => url.pathname === asset,
+        async (route) => {
+          if (route.request().resourceType() !== 'image') return route.continue();
+          imageRequests += 1;
+          await route.fulfill({ status: 404, body: 'missing' });
+        },
+      );
+      const doc = addComponentToDocument(
+        documentFixture(),
+        'battery-holder-aa-2',
+        { x: 790, y: 450 },
+        'holder',
+      ).document;
+      const { readDocument, requests, errors } = await openEditor(page, doc);
+      const initial = readDocument();
+      editorSnapshot = () => ({ initial, current: readDocument(), requests, errors });
+      retain('editor-initial', editorSnapshot());
+      const stageError = part(page, 'holder').getByRole('status', {
+        name: 'Изображение детали не загрузилось',
+      });
+      await expect(stageError).toBeVisible({ timeout: 10_000 });
+      await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
+      await expect(
+        part(page, 'holder').locator('[data-owner-image-status="failed"]'),
+      ).toBeVisible();
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      await card.scrollIntoViewIfNeeded();
+      await expect(
+        card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+      const requestsAtFailure = imageRequests;
+      await page.waitForTimeout(800);
+      expect(imageRequests).toBe(requestsAtFailure);
+      // Stage and catalog each load the original and validated retry URL; the
+      // shared recovery promise makes at most three probe requests between them.
+      expect(imageRequests).toBeLessThanOrEqual(7);
+      expect(readDocument()).toEqual(initial);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } catch (error) {
+      hasPrimary = true;
+      primary = error;
+      retain('primary-error', errorText(error));
+    } finally {
+      checkpoint = 'finally-node-first';
+      try {
+        retain('editor-final', editorSnapshot?.() ?? 'NOT_AVAILABLE');
+      } catch (error) {
+        retentionErrors.push(`editor-final: ${errorText(error)}`);
+      }
+      retain('checkpoint', {
+        checkpoint,
+        dropped,
+        retentionErrors,
+        primary: hasPrimary ? errorText(primary) : null,
+      });
+      if (hasPrimary) {
+        retain('supplements-skipped', {
+          reason: 'primary-error',
+          snapshot: 'NOT_AVAILABLE',
+          dom: 'NOT_AVAILABLE',
+          png: 'NOT_AVAILABLE',
+          attachment: 'NOT_AVAILABLE',
+          dropped,
+          retentionErrors,
+        });
+      } else {
+        const supplemental = async (kind: string, action: () => Promise<unknown>) => {
+          try {
+            const value = await action();
+            retain(kind, value);
+            return value;
+          } catch (error) {
+            retentionErrors.push(`${kind}: ${errorText(error)}`);
+            retain('secondary-error', { kind, error: errorText(error) });
+            return 'NOT_AVAILABLE';
+          }
+        };
+        browserSnapshot = await supplemental('browser-final', () =>
+          page.evaluate(
+            () =>
+              (
+                window as unknown as { __ordinaryImageNativeSnapshot?: () => unknown }
+              ).__ordinaryImageNativeSnapshot?.() ?? 'NOT_AVAILABLE',
+          ),
+        );
+        await supplemental('dom-final', () => page.content());
+        await supplemental('native-png', async () => {
+          const path = info.outputPath('ordinary-image-native.png');
+          await page.screenshot({ path });
+          return path;
+        });
+        retain('final', { browserSnapshot, dropped, retentionErrors });
+        await supplemental('attachment', () =>
+          info.attach('ordinary-image-native', {
+            path: rawPath,
+            contentType: 'application/x-ndjson',
+          }),
+        );
+      }
+      page.off('request', onRequest);
+      page.off('response', onResponse);
+      page.off('requestfailed', onFailed);
+    }
+    const browserIssues = browserSnapshot as
+      { dropped?: number; deliveryErrors?: string[] } | undefined;
+    if (browserIssues?.dropped || browserIssues?.deliveryErrors?.length)
+      retentionErrors.push(`Browser retention incomplete: ${JSON.stringify(browserIssues)}`);
+    if (hasPrimary) throw primary;
+    if (retentionErrors.length || dropped || browserSnapshot === 'NOT_AVAILABLE')
+      throw new Error(
+        `Incomplete passive evidence: ${JSON.stringify({ retentionErrors, dropped, browserSnapshot })}`,
+      );
   });
 
   test('a late ordinary image error stays visible after shared permanent recovery stops', async ({
@@ -2548,6 +4857,24 @@ touchVideoTest.describe('interaction: native touch', () => {
     async ({ page, context }) => {
       await openEditor(page);
       const shelf = page.locator('.workbench-catalog-grid');
+      // The schematic can mount before its lazy catalog. Native CDP input has
+      // no locator auto-wait, so first prove that the actual gesture surface exists.
+      await expect(shelf).toBeVisible();
+      await expect(shelf.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible();
+      await expect
+        .poll(() =>
+          shelf.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            return (
+              el.scrollWidth - el.clientWidth > 100 &&
+              box.left <= 340 &&
+              box.right > 340 &&
+              box.top <= 775 &&
+              box.bottom > 775
+            );
+          }),
+        )
+        .toBe(true);
       const session = await context.newCDPSession(page);
       const send = (
         type: 'touchStart' | 'touchMove' | 'touchEnd',
@@ -2719,11 +5046,18 @@ function layeredCrossingDocument(): SchematicDocument {
     { x: 720, y: 650 },
     'cross-resistor',
   ).document;
+  document = addComponentToDocument(
+    document,
+    'regulated-power-supply',
+    { x: 1100, y: 180 },
+    'cross-psu',
+  ).document;
   const crossingVertices = (componentId: string) => {
     const center = componentCenterInDocument(document, componentId);
+    const halfSpan = componentId === 'uno' || componentId === 'cross-psu' ? 20 : 80;
     return [
-      { x: center.x - 80, y: center.y },
-      { x: center.x + 80, y: center.y },
+      { x: center.x - halfSpan, y: center.y },
+      { x: center.x + halfSpan, y: center.y },
     ];
   };
   return {
@@ -2735,6 +5069,20 @@ function layeredCrossingDocument(): SchematicDocument {
         to: { componentId: 'battery', terminal: 'BAT+' },
         vertices: crossingVertices('uno'),
         color: '#e3212b',
+      },
+      {
+        id: 'psu-cross',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT+' },
+        vertices: crossingVertices('cross-psu'),
+        color: '#9234c4',
+      },
+      {
+        id: 'battery-cross',
+        from: { componentId: 'led', terminal: 'anode' },
+        to: { componentId: 'battery', terminal: 'BAT-' },
+        vertices: crossingVertices('battery'),
+        color: '#21a4b8',
       },
       {
         id: 'led-cross',
@@ -2759,6 +5107,413 @@ function layeredCrossingDocument(): SchematicDocument {
       },
     ],
   };
+}
+
+// F2 real persistence observer: public requests/responses only. Expected documents
+// are admitted before actions; neither request nor server bodies become the oracle.
+function f2Canonical(document: SchematicDocument) {
+  const parsed = parseElectronicsDocument(document);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) throw new Error(parsed.message);
+  expect(parsed.document).toEqual(document);
+  expect(normalizeLoadedDocument(document)).toEqual(document);
+  return document;
+}
+
+function f2LedgerHealthy(
+  rows: {
+    body: { document: SchematicDocument; baseRevision: number; mutationId: string };
+    phase: string;
+    acknowledgements: number;
+    status?: number;
+    revision?: number;
+    document?: SchematicDocument;
+  }[],
+  admitted: SchematicDocument[],
+  initialRevision: number,
+) {
+  const ids = new Set<string>();
+  let revision = initialRevision;
+  for (const row of rows) {
+    if (
+      !admitted.some((expected) => isDeepStrictEqual(expected, row.body.document)) ||
+      !row.body.mutationId ||
+      ids.has(row.body.mutationId) ||
+      row.body.baseRevision !== revision ||
+      row.acknowledgements !== 1 ||
+      row.status !== 200 ||
+      row.revision !== revision + 1 ||
+      !isDeepStrictEqual(row.document, row.body.document)
+    )
+      return false;
+    ids.add(row.body.mutationId);
+    revision++;
+  }
+  return true;
+}
+
+function f2ObserveLoadedDocument(localKey: string) {
+  const stringify = JSON.stringify;
+  const setItem = Storage.prototype.setItem;
+  const state = {
+    candidate: null as unknown,
+    saved: null as unknown,
+    errors: [] as string[],
+  };
+  Object.defineProperty(window, 'f2LoadedDocument', { value: state });
+  JSON.stringify = new Proxy(stringify, {
+    apply(target, receiver, args) {
+      const result = Reflect.apply(target, receiver, args);
+      try {
+        const value = args[0];
+        if (
+          value &&
+          value.schemaVersion === 4 &&
+          Array.isArray(value.components) &&
+          Array.isArray(value.connections) &&
+          value.viewport &&
+          value.simulation
+        ) {
+          state.candidate = {
+            document: JSON.parse(Reflect.apply(stringify, JSON, [value])),
+            href: location.href,
+            stack: new Error().stack ?? null,
+          };
+        }
+      } catch (error) {
+        state.errors.push(String(error));
+      }
+      return result;
+    },
+  });
+  Storage.prototype.setItem = new Proxy(setItem, {
+    apply(target, receiver, args) {
+      const result = Reflect.apply(target, receiver, args);
+      if (
+        receiver === sessionStorage &&
+        args[0] === `${localKey}:electronics-editor:` &&
+        args[1] === 'saved'
+      ) {
+        state.saved = state.candidate;
+      }
+      return result;
+    },
+  });
+}
+
+async function f2RealEditor(page: Page, fixture: SchematicDocument, input: string) {
+  f2Canonical(fixture);
+  mkdirSync('reports/interactions', { recursive: true });
+  const path = `reports/interactions/f2-real-${input}.jsonl`;
+  writeFileSync(path, '', { encoding: 'utf8', flush: true });
+  let sequence = 0;
+  const retentionErrors: string[] = [];
+  const journal = (kind: string, data: unknown) => {
+    try {
+      appendFileSync(
+        path,
+        `${JSON.stringify({ sequence: ++sequence, kind, nodeAt: Date.now(), data })}\n`,
+        { encoding: 'utf8', flush: true },
+      );
+    } catch (error) {
+      retentionErrors.push(String(error));
+    }
+  };
+  const requireRetention = () => expect(retentionErrors).toEqual([]);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => {
+    errors.push(error.message);
+    journal('pageerror', error.message);
+  });
+  try {
+    await page.goto('/#/home');
+    const origin = new URL(page.url()).origin;
+    const created = await page.context().request.post('/api/projects', {
+      headers: { origin, 'idempotency-key': crypto.randomUUID() },
+      data: {
+        scope: 'personal',
+        classroomId: null,
+        module: 'electronics',
+        title: `F2 real ${input}`,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { project } = (await created.json()) as { project: { id: string } };
+    const server = async (target = page) => {
+      const reply = await target.context().request.get(`/api/projects/${project.id}`);
+      const body = (await reply.json()) as {
+        draft: { document: SchematicDocument; revision: number };
+      };
+      journal('server-get', { status: reply.status(), body });
+      expect(reply.status()).toBe(200);
+      return body.draft;
+    };
+    const initial = await server();
+    const seeded = await page.context().request.put(`/api/projects/${project.id}/draft`, {
+      headers: { origin },
+      data: { document: fixture, baseRevision: initial.revision, mutationId: crypto.randomUUID() },
+    });
+    journal('fixture-seed', { status: seeded.status(), body: await seeded.json(), fixture });
+    expect(seeded.status()).toBe(200);
+    const baseline = await server();
+    expect(baseline.document).toEqual(fixture);
+    expect(baseline.revision).toBe(initial.revision + 1);
+    const me = await page.context().request.get('/api/auth/me');
+    expect(me.status()).toBe(200);
+    const identity = (await me.json()) as { user: { id: string } };
+    const localKey = localProjectDraftKey(project.id, identity.user.id, 'account');
+    const storage = async (target: Page) =>
+      target.evaluate(
+        (key) => ({
+          local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+          session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+        }),
+        localKey,
+      );
+    const admitted = [structuredClone(fixture)];
+    const admit = (document: SchematicDocument) => {
+      f2Canonical(document);
+      admitted.push(structuredClone(document));
+      journal('admitted', document);
+    };
+    type Row = Parameters<typeof f2LedgerHealthy>[0][number];
+    const rows: Row[] = [];
+    const requests = new Map<Request, Row>();
+    const pending: Promise<void>[] = [];
+    const finished = new Map<Request, () => void>();
+    const failures: string[] = [];
+    let phase = 'native-edit';
+    page.on('request', (request) => {
+      if (
+        request.method() !== 'PUT' ||
+        new URL(request.url()).pathname !== `/api/projects/${project.id}/draft`
+      )
+        return;
+      try {
+        const body = request.postDataJSON() as Row['body'];
+        const row: Row = { body, phase, acknowledgements: 0 };
+        rows.push(row);
+        requests.set(request, row);
+        pending.push(new Promise<void>((resolve) => finished.set(request, resolve)));
+        journal('put-request', row);
+        if (!admitted.some((expected) => isDeepStrictEqual(expected, body.document)))
+          failures.push('Unadmitted PUT document');
+      } catch (error) {
+        failures.push(String(error));
+      }
+    });
+    page.on('response', (response) => {
+      if (
+        response.request().method() !== 'PUT' ||
+        new URL(response.url()).pathname !== `/api/projects/${project.id}/draft`
+      )
+        return;
+      const row = requests.get(response.request());
+      if (!row) {
+        failures.push('Orphan PUT response');
+        journal('orphan-response', response.url());
+        return;
+      }
+      void (async () => {
+        try {
+          const body = (await response.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+          row.acknowledgements++;
+          row.status = response.status();
+          row.revision = body.draft?.revision;
+          row.document = body.draft?.document;
+          journal('put-acknowledged', row);
+        } catch (error) {
+          failures.push(String(error));
+          journal('response-error', String(error));
+        } finally {
+          finished.get(response.request())?.();
+        }
+      })();
+    });
+    page.on('requestfailed', (request) => {
+      if (requests.has(request)) {
+        failures.push(`PUT failed: ${request.failure()?.errorText}`);
+        journal('put-failed', request.failure());
+        finished.get(request)?.();
+      }
+    });
+    const settle = async () => {
+      await frames(page);
+      await Promise.all(pending);
+      journal('ledger', { rows, admitted, failures });
+      requireRetention();
+      expect(failures).toEqual([]);
+      expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
+    };
+    await page.addInitScript(f2ObserveLoadedDocument, localKey);
+    const readEditorDocument = async (target = page): Promise<SchematicDocument> => {
+      const record = await target.evaluate((key) => {
+        const raw = localStorage.getItem(key);
+        return raw === null ? null : JSON.parse(raw);
+      }, localKey);
+      journal('local-document', record);
+      requireRetention();
+      if (record !== null) {
+        expect(record).toMatchObject({
+          schemaVersion: 3,
+          identityKind: 'account',
+          userId: identity.user.id,
+          projectId: project.id,
+          moduleKey: 'electronics',
+        });
+        expect(Number.isSafeInteger(record.baseRevision)).toBe(true);
+        return record.document as SchematicDocument;
+      }
+      // Public serialization observes the actual document passed to load's history
+      // initialization. The subsequent fixture-scoped saved hint fences that load.
+      // This is per realm, never the source page's expected/acknowledged document.
+      const observed = await target.evaluate(
+        () =>
+          (
+            window as unknown as {
+              f2LoadedDocument: {
+                saved: { document: SchematicDocument; href: string; stack: string | null } | null;
+                errors: string[];
+              };
+            }
+          ).f2LoadedDocument,
+      );
+      journal('loaded-document', observed);
+      requireRetention();
+      expect(observed.errors).toEqual([]);
+      expect(observed.saved).not.toBeNull();
+      if (!observed.saved) throw new Error('Missing actual loaded document observation');
+      const loadedURL = new URL(observed.saved.href);
+      const expectedView = {
+        kind: 'editor' as const,
+        projectId: project.id,
+        moduleKey: 'electronics' as const,
+        returnTo: { kind: 'home' as const },
+      };
+      const expectedURL = new URL(creatorViewToHref(expectedView), origin);
+      journal('loaded-document-route', { observed: loadedURL.href, expected: expectedURL.href });
+      expect(loadedURL.origin).toBe(origin);
+      expect(loadedURL.href).toBe(expectedURL.href);
+      expect(creatorViewFromLocation(loadedURL)).toEqual(expectedView);
+      return observed.saved.document;
+    };
+    await page.addInitScript((key) => {
+      (window as unknown as { f2PreApp: unknown }).f2PreApp = {
+        local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+        session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+      };
+    }, localKey);
+    const beforeNavigation = new URL(page.url());
+    const declaredNavigation = new URL(`/?f2-realm=${project.id}#/home/${project.id}`, origin);
+    journal('declared-document-navigation', {
+      before: beforeNavigation.href,
+      after: declaredNavigation.href,
+    });
+    expect(declaredNavigation.pathname + declaredNavigation.search).not.toBe(
+      beforeNavigation.pathname + beforeNavigation.search,
+    );
+    await page.goto(declaredNavigation.href, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('schematic-component')).toHaveCount(fixture.components.length);
+    const preApp = await page.evaluate(() => (window as unknown as { f2PreApp: unknown }).f2PreApp);
+    journal('initial-preapp', preApp);
+    expect(preApp).toEqual({ local: [], session: [] });
+    journal('initial-storage', await storage(page));
+    expect(await storage(page)).toEqual({
+      local: [],
+      session: [[`${localKey}:electronics-editor:`, 'saved']],
+    });
+    return {
+      project,
+      origin,
+      localKey,
+      storage,
+      journal,
+      requireRetention,
+      errors,
+      rows,
+      admitted,
+      admit,
+      settle,
+      server,
+      readEditorDocument,
+      requireComplete: () => {
+        requireRetention();
+        expect(failures).toEqual([]);
+        expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
+        expect(rows.filter((row) => row.phase === 'intended-save')).toHaveLength(1);
+        expect(rows.filter((row) => row.phase === 'after-save')).toHaveLength(0);
+      },
+      finalSave: async (expected: SchematicDocument) => {
+        await settle();
+        const before = await server();
+        expect(before.revision).toBe(baseline.revision + rows.length);
+        const index = rows.length;
+        phase = 'intended-save';
+        await page.evaluate(installNativeSaveInputObserver);
+        const response = page.waitForResponse(
+          (reply) =>
+            reply.request().method() === 'PUT' &&
+            new URL(reply.url()).pathname === `/api/projects/${project.id}/draft`,
+        );
+        const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+        if (input === 'touch') {
+          const box = await save.boundingBox();
+          expect(box).not.toBeNull();
+          if (!box) throw new Error('Native Save has no visible bounds');
+          const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          expect(
+            await page.evaluate(
+              ({ x, y }) =>
+                document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'),
+              point,
+            ),
+          ).toBe('Сохранить проект');
+          const session = await page.context().newCDPSession(page);
+          try {
+            await session.send('Input.dispatchTouchEvent', {
+              type: 'touchStart',
+              touchPoints: [{ id: 1, ...point }],
+            });
+            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          } finally {
+            await session.detach();
+          }
+        } else await save.click();
+        const nativeSave = await page.evaluate(
+          () => (window as unknown as { f2SaveInput: unknown }).f2SaveInput,
+        );
+        journal('native-save', nativeSave);
+        expect(nativeSave).toEqual({
+          trusted: true,
+          pointerType: input,
+          ariaLabel: 'Сохранить проект',
+          saveButton: true,
+        });
+        await response;
+        await settle();
+        journal('intended-save', { index, rows: rows.slice(index), expected });
+        expect(rows.slice(index)).toHaveLength(1);
+        expect(rows[index].phase).toBe('intended-save');
+        expect(rows[index].body.document).toEqual(expected);
+        expect(rows[index].body.baseRevision).toBe(before.revision);
+        expect(rows[index].revision).toBe(before.revision + 1);
+        const saved = await server();
+        expect(saved.document).toEqual(expected);
+        expect(saved.revision).toBe(before.revision + 1);
+        phase = 'after-save';
+        return saved;
+      },
+    };
+  } catch (error) {
+    // The caller has not received the helper yet: retain its primary error here.
+    journal('helper-primary-error', {
+      message: String(error),
+      stack: error instanceof Error ? error.stack : null,
+    });
+    throw error;
+  }
 }
 
 wireVideoTest.describe('interaction: natural precise wire routing', () => {
@@ -2857,12 +5612,18 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
             endpointCenter.y - endpointVisibleCenter.y,
           ),
         ).toBeLessThanOrEqual(0.5);
-        expect(Number(await componentHit.getAttribute('r'))).toBe(9);
+        expect(await componentHit.evaluate((element) => element.localName)).toBe('rect');
+        expect(Number(await componentHit.getAttribute('width'))).toBeCloseTo(9.2, 4);
+        expect(Number(await componentHit.getAttribute('rx'))).toBe(1.6);
+        expect(await breadboardHit.evaluate((element) => element.localName)).toBe('rect');
+        expect(Number(await breadboardHit.getAttribute('width'))).toBeCloseTo(9.2, 4);
         expect(Number(await componentDot.getAttribute('width'))).toBe(8);
-        expect(Number(await endpoint.getAttribute('r'))).toBe(9);
+        expect(Number(await endpoint.getAttribute('r'))).toBe(5);
         expect(Number(await endpointVisible.getAttribute('r'))).toBe(4);
-        expect(dotBox.width).toBeLessThan(hitBox.width);
-        expect(endpointVisibleBox.width).toBeLessThan(endpointBox.width);
+        // SVG bounding boxes may omit painted strokes, but the collision
+        // bounds must never extend beyond the drawn marker plus its outline.
+        expect(hitBox.width - dotBox.width).toBeLessThanOrEqual(1.4 * zoom);
+        expect(endpointBox.width - endpointVisibleBox.width).toBeLessThanOrEqual(2.2 * zoom);
 
         samples.set(zoom, {
           hit: hitBox.width,
@@ -2894,8 +5655,8 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         }
       }
 
-      // Prove that the retained collision geometry, not the smaller visible
-      // marker, owns pointer input near its outer edge.
+      // The rounded-rect terminal target covers the painted square corners
+      // without the former circular halo. The endpoint circle stays painted-size.
       await page.keyboard.press('Escape');
       const edgeTerminal = wireTerminal(page, 'led', 'cathode');
       const edgeTerminalBox = await edgeTerminal.boundingBox();
@@ -2932,104 +5693,481 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     },
   );
 
-  wireVideoTest(
-    'F2 SVG layering keeps wires above breadboard and below Arduino/LED/resistor with matching pointer ownership',
-    async ({ page }) => {
-      await page.setViewportSize({ width: 1440, height: 1000 });
-      const fixture = layeredCrossingDocument();
-      await openEditor(page, fixture);
-      await page
-        .getByRole('button', {
-          name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
-          exact: true,
-        })
-        .click();
-
-      for (const [componentId, wireId] of [
-        ['uno', 'uno-cross'],
-        ['led', 'led-cross'],
-        ['cross-resistor', 'resistor-cross'],
-      ] as const) {
-        const body = part(page, componentId).locator('.workbench-part');
-        const box = await body.boundingBox();
-        if (!box) throw new Error('Missing foreground body ' + componentId);
-        const crossingWire = page.locator(
-          '[data-testid="wire-hit"][data-wire-id="' + wireId + '"]',
-        );
-        const candidatePoints = await crossingWire.evaluate((element, bounds) => {
-          const path = element as SVGPathElement;
-          const matrix = path.getScreenCTM();
-          if (!matrix) return [];
-          const length = path.getTotalLength();
-          const points: Array<{ x: number; y: number }> = [];
-          for (let index = 1; index < 80; index += 1) {
-            const point = path.getPointAtLength((length * index) / 80).matrixTransform(matrix);
-            if (
-              point.x > bounds.x + 2 &&
-              point.x < bounds.x + bounds.width - 2 &&
-              point.y > bounds.y + 2 &&
-              point.y < bounds.y + bounds.height - 2
-            )
-              points.push({ x: point.x, y: point.y });
-          }
-          return points;
-        }, box);
-        expect(candidatePoints.length).toBeGreaterThan(0);
-
-        let componentOwnedPoint: { x: number; y: number } | null = null;
-        for (const point of candidatePoints) {
-          await page.mouse.click(point.x, point.y);
-          if (
-            await part(page, componentId).evaluate((node) =>
-              node.classList.contains('workbench-component-selected'),
-            )
-          ) {
-            componentOwnedPoint = point;
-            break;
-          }
-          await page.keyboard.press('Escape');
-        }
-        expect(
-          componentOwnedPoint,
-          'wire crossing must resolve pointer ownership to visible ' + componentId + ' artwork',
-        ).not.toBeNull();
-        await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
-        await page.keyboard.press('Escape');
+  wireVideoTest.describe('F2 real persistence', () => {
+    let pool: ReturnType<typeof e2eAdminPool>;
+    let cookies: import('@playwright/test').Cookie[];
+    wireVideoTest.beforeAll(async ({ browser, baseURL }, info) => {
+      pool = e2eAdminPool();
+      const context = await browser.newContext(baseURL ? { baseURL } : {});
+      try {
+        const login = await context.newPage();
+        await loginWithOrganization(login, await seedTeacher(pool, `f2-auth-${info.workerIndex}`));
+        cookies = await context.cookies();
+      } finally {
+        await context.close();
       }
-
-      const board = part(page, 'board').locator('.workbench-part');
-      const boardBox = await board.boundingBox();
-      if (!boardBox) throw new Error('Missing breadboard body');
-      const boardWire = page.locator('[data-testid="wire-hit"][data-wire-id="board-cross"]');
-      const selectablePoint = await boardWire.evaluate((element, bounds) => {
-        const path = element as SVGPathElement;
-        const matrix = path.getScreenCTM();
-        if (!matrix) return null;
-        const length = path.getTotalLength();
-        for (let index = 1; index < 240; index += 1) {
-          const point = path.getPointAtLength((length * index) / 240).matrixTransform(matrix);
-          if (
-            point.x <= bounds.x + 4 ||
-            point.x >= bounds.x + bounds.width - 4 ||
-            point.y <= bounds.y + 4 ||
-            point.y >= bounds.y + bounds.height - 4
-          )
-            continue;
-          const top = document.elementFromPoint(point.x, point.y);
-          const wireTarget = top?.closest<SVGElement>(
-            '[data-testid="wire-hit"], [data-testid="wire-segment"]',
+    });
+    wireVideoTest.afterAll(async () => pool.end());
+    for (const input of ['mouse', 'touch'] as const) {
+      wireVideoTest(
+        `F2 SVG layering: native ${input} wires above breadboard/Uno/PSU and below battery/LED/resistor/terminals`,
+        async ({ page, browser }) => {
+          // Three real wire crossings, negative hit cases, native input, Save and
+          // reopen form one full F2 journey; measured mouse/touch each take ~56s.
+          // Scope this finite budget to F2 only, leaving every other test unchanged.
+          wireVideoTest.setTimeout(90_000);
+          await page.setViewportSize(
+            input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
           );
-          if (wireTarget?.dataset['wireId'] === 'board-cross') return { x: point.x, y: point.y };
-        }
-        return null;
-      }, boardBox);
-      expect(selectablePoint).not.toBeNull();
-      await page.mouse.click(selectablePoint!.x, selectablePoint!.y);
-      await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
-
-      await page.screenshot({ path: 'reports/interactions/f2-scene-layering.png' });
-    },
-  );
+          await page.context().addCookies(cookies);
+          const fixture = f2Canonical(layeredCrossingDocument());
+          let expected = structuredClone(fixture);
+          const real = await f2RealEditor(page, fixture, input);
+          const { readEditorDocument, errors } = real;
+          const ready = async () => {
+            await expect(page.getByTestId('schematic-component')).toHaveCount(
+              fixture.components.length,
+            );
+            for (const component of fixture.components)
+              await expect(part(page, component.id)).toHaveAttribute(
+                'data-hit-mask-status',
+                'ready',
+              );
+          };
+          await ready();
+          await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+          const session = input === 'touch' ? await page.context().newCDPSession(page) : null;
+          if (session) await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+          await page.evaluate(() => {
+            const probe = window as unknown as {
+              layeringDown: { trusted: boolean; pointerType: string; testId: string | null } | null;
+            };
+            probe.layeringDown = null;
+            window.addEventListener(
+              'pointerdown',
+              (event) => {
+                probe.layeringDown = {
+                  trusted: event.isTrusted,
+                  pointerType: event.pointerType,
+                  testId: (event.target as Element).getAttribute('data-testid'),
+                };
+              },
+              true,
+            );
+          });
+          const press = async (from: { x: number; y: number }, to = from) => {
+            const targetTestId = await page.evaluate(
+              ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-testid') ?? null,
+              from,
+            );
+            await page.evaluate(() => {
+              (window as unknown as { layeringDown: unknown }).layeringDown = null;
+            });
+            if (session) {
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: [{ ...from, id: 1 }],
+              });
+              if (to.x !== from.x || to.y !== from.y)
+                await session.send('Input.dispatchTouchEvent', {
+                  type: 'touchMove',
+                  touchPoints: [{ ...to, id: 1 }],
+                });
+              await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } else {
+              await page.mouse.move(from.x, from.y);
+              await page.mouse.down();
+              if (to.x !== from.x || to.y !== from.y)
+                await page.mouse.move(to.x, to.y, { steps: 6 });
+              await page.mouse.up();
+            }
+            await frames(page);
+            const actual = await page.evaluate(
+              () => (window as unknown as { layeringDown: unknown }).layeringDown,
+            );
+            real.journal('native-pointer', { from, to, actual, targetTestId });
+            expect(actual).toEqual({ trusted: true, pointerType: input, testId: targetTestId });
+          };
+          const screenPoint = async (point: { x: number; y: number }) =>
+            page.locator('.workbench-canvas').evaluate((element, world) => {
+              const point = new DOMPoint(world.x, world.y).matrixTransform(
+                (element as SVGSVGElement).getScreenCTM()!,
+              );
+              return { x: point.x, y: point.y };
+            }, point);
+          const owner = async (point: { x: number; y: number }) =>
+            page.evaluate(({ x, y }) => {
+              const top = document.elementFromPoint(x, y);
+              return {
+                wire: top?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
+                component:
+                  top?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+                terminal:
+                  top?.closest('[data-terminal-id]')?.getAttribute('data-terminal-id') ?? null,
+                testId: top?.getAttribute('data-testid') ?? null,
+              };
+            }, point);
+          let primaryError: unknown;
+          try {
+            // Native owner-image hits may reach a wire handler. Its alpha-aware
+            // foreground arbitration must still select the painted component.
+            for (const [componentId, wireId] of [
+              ['battery', 'battery-cross'],
+              ['led', 'led-cross'],
+              ['cross-resistor', 'resistor-cross'],
+            ] as const) {
+              const point = await screenPoint(componentCenterInDocument(fixture, componentId));
+              const hit = await owner(point);
+              expect(hit.terminal).toBeNull();
+              expect(hit.component === componentId || hit.wire === wireId).toBe(true);
+              await press(point);
+              await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
+              await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+              await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+              expect(await readEditorDocument()).toEqual(fixture);
+              await page.keyboard.press('Escape');
+            }
+            for (const [componentId, wireId] of [
+              ['uno', 'uno-cross'],
+              ['cross-psu', 'psu-cross'],
+              ['board', 'board-cross'],
+            ] as const) {
+              const center = componentCenterInDocument(fixture, componentId);
+              const point = await screenPoint(center);
+              expect(await owner(point)).toMatchObject({ wire: wireId, terminal: null });
+              await press(point);
+              await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
+              await expect(page.getByTestId('wire-endpoint').first()).toHaveAttribute(
+                'data-wire-id',
+                wireId,
+              );
+              await expect(part(page, componentId)).not.toHaveClass(/workbench-component-selected/);
+              const vertex = page
+                .locator(`[data-testid="wire-vertex"][data-wire-id="${wireId}"]`)
+                .first();
+              const vertexCenter = await locatorCenter(vertex);
+              const from = { x: Math.round(vertexCenter.x), y: Math.round(vertexCenter.y) };
+              real.journal('vertex-grab-quantization', {
+                vertexCenter,
+                from,
+                delta: { x: 27, y: 19 },
+              });
+              expect(await owner(from)).toMatchObject({ wire: wireId, testId: 'wire-vertex' });
+              const before = structuredClone(expected);
+              expect(await readEditorDocument()).toEqual(before);
+              const oldVertices = before.connections.find((wire) => wire.id === wireId)!.vertices!;
+              const to = { x: from.x + 27, y: from.y + 19 };
+              // Independent expected endpoint from the public pointer transform and
+              // the declared gesture, including the existing soft-assist hysteresis.
+              const geometry = await page
+                .locator('.workbench-canvas')
+                .evaluate((node, projectId) => {
+                  const rect = node.getBoundingClientRect();
+                  const viewport = JSON.parse(
+                    localStorage.getItem(`asa-electronics-viewport:${projectId}`)!,
+                  );
+                  return {
+                    rect: {
+                      left: rect.left,
+                      top: rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                    },
+                    viewport,
+                  };
+                }, real.project.id);
+              expect(geometry.viewport).not.toBeNull();
+              const wire = before.connections.find((item) => item.id === wireId)!;
+              const previousComponent = before.components.find(
+                (item) => item.id === wire.from.componentId,
+              )!;
+              const previous = terminalPositionInDocument(
+                before,
+                previousComponent,
+                wire.from.terminal,
+              )!;
+              const next = wire.vertices![1];
+              const asScreen = (point: { x: number; y: number }) =>
+                worldToClient(point, geometry.rect, geometry.viewport, STAGE_WIDTH, STAGE_HEIGHT);
+              let assist: Parameters<typeof resolveWireVertexAssist>[3] = null;
+              let destination = next;
+              const steps = input === 'touch' ? 1 : 6;
+              for (let index = 1; index <= steps; index++) {
+                const screen = {
+                  x: from.x + ((to.x - from.x) * index) / steps,
+                  y: from.y + ((to.y - from.y) * index) / steps,
+                };
+                const resolved = resolveWireVertexAssist(
+                  asScreen(previous),
+                  asScreen(next),
+                  screen,
+                  assist,
+                );
+                assist = resolved.target;
+                destination = assist
+                  ? assist === 'previous-x-next-y'
+                    ? { x: previous.x, y: next.y }
+                    : { x: next.x, y: previous.y }
+                  : clientToWorld(
+                      screen.x,
+                      screen.y,
+                      geometry.rect,
+                      geometry.viewport,
+                      STAGE_WIDTH,
+                      STAGE_HEIGHT,
+                    );
+              }
+              expected = {
+                ...before,
+                connections: before.connections.map((item) =>
+                  item.id === wireId
+                    ? { ...item, vertices: [destination, ...item.vertices!.slice(1)] }
+                    : item,
+                ),
+              };
+              real.admit(expected);
+              real.journal('declared-drag', { wireId, from, to, geometry, destination, expected });
+              await press(from, to);
+              await expect
+                .poll(
+                  async () =>
+                    (await readEditorDocument()).connections.find((wire) => wire.id === wireId)!
+                      .vertices,
+                )
+                .not.toEqual(oldVertices);
+              const after = await readEditorDocument();
+              real.journal('drag-document', after);
+              expect(after).toEqual(expected);
+              expect(after.components).toEqual(fixture.components);
+              expect(after.connections).toHaveLength(fixture.connections.length);
+              for (const wire of before.connections) {
+                const changed = after.connections.find((item) => item.id === wire.id)!;
+                if (wire.id === wireId) {
+                  expect({ ...changed, vertices: wire.vertices }).toEqual(wire);
+                  expect(changed.vertices).toHaveLength(oldVertices.length);
+                  expect(changed.vertices![1]).toEqual(oldVertices[1]);
+                } else expect(changed).toEqual(wire);
+              }
+              const moved = await locatorCenter(vertex);
+              expect(moved.x).toBeCloseTo(to.x, 0);
+              expect(moved.y).toBeCloseTo(to.y, 0);
+              await page.keyboard.press('Escape');
+              if (componentId !== 'board') {
+                // A body press away from the cable must not select any wire.
+                // Breadboard holes have their own terminal interaction contract.
+                // Use the existing bounded alpha-aware body point helper. The
+                // actual native pointer press and selection assertion below remain
+                // the oracle; an exposed grid pixel cannot silently pass them.
+                const bodyPoint = await pointOnBody(page, componentId);
+                expect(await owner(bodyPoint)).toMatchObject({
+                  wire: null,
+                  terminal: null,
+                });
+                await press(bodyPoint);
+                await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
+                await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+                await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+                expect(await readEditorDocument()).toEqual(after);
+                await page.keyboard.press('Escape');
+              }
+            }
+            const routed = structuredClone(expected);
+            expect(await readEditorDocument()).toEqual(routed);
+            for (const componentId of ['uno', 'cross-psu', 'battery', 'led']) {
+              const terminal = page
+                .locator(`[data-terminal-component-id="${componentId}"]`)
+                .first();
+              const point = await locatorCenter(terminal);
+              expect((await owner(point)).terminal).toBe(
+                await terminal.getAttribute('data-terminal-id'),
+              );
+              await press(point);
+              await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+              await page.keyboard.press('Escape');
+              await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+              expect(await readEditorDocument()).toEqual(routed);
+            }
+            // Existing runtime power slider must remain usable under crossing wires.
+            const slider = part(page, 'cross-psu').locator(
+              '.workbench-regulated-supply-power-slider',
+            );
+            const sliderPoint = await locatorCenter(slider);
+            const controlHit = await page.evaluate(({ x, y }) => {
+              const hit = document.elementFromPoint(x, y);
+              const control = document
+                .elementsFromPoint(x, y)
+                .find(
+                  (element) =>
+                    element.matches('rect.workbench-regulated-supply-power-switch') &&
+                    element.closest('[data-component-id]')?.getAttribute('data-component-id') ===
+                      'cross-psu',
+                );
+              const runtime = control?.closest('.workbench-regulated-supply-runtime');
+              const output = runtime?.getAttribute('data-output-enabled');
+              return {
+                top: {
+                  tag: hit?.tagName,
+                  class: hit?.getAttribute('class'),
+                  wire: hit?.getAttribute('data-wire-id'),
+                },
+                slider: !!runtime && (output === 'true' || output === 'false'),
+                component:
+                  control?.closest('[data-component-id]')?.getAttribute('data-component-id') ??
+                  null,
+                output,
+              };
+            }, sliderPoint);
+            real.journal('psu-slider-hit', { sliderPoint, controlHit });
+            expect(controlHit).toMatchObject({ slider: true, component: 'cross-psu' });
+            expected = {
+              ...expected,
+              components: expected.components.map((component) =>
+                component.id === 'cross-psu'
+                  ? {
+                      ...component,
+                      state: !component.stateProperties?.['outputEnabled'],
+                      stateProperties: {
+                        ...component.stateProperties,
+                        outputEnabled: !component.stateProperties?.['outputEnabled'],
+                      },
+                    }
+                  : component,
+              ),
+            };
+            real.admit(expected);
+            await press(sliderPoint);
+            await expect(
+              part(page, 'cross-psu').getByTestId('regulated-power-supply-runtime'),
+            ).toHaveAttribute(
+              'data-output-enabled',
+              String(
+                expected.components.find((component) => component.id === 'cross-psu')!
+                  .stateProperties!['outputEnabled'],
+              ),
+            );
+            await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+            expect(await readEditorDocument()).toEqual(expected);
+            const saved = await real.finalSave(expected);
+            const paths = await page.getByTestId('schematic-wire').evaluateAll((nodes) =>
+              nodes.map((node) => ({
+                id: node.getAttribute('data-wire-id'),
+                d: node.getAttribute('d'),
+              })),
+            );
+            const fresh = await browser.newContext({
+              baseURL: real.origin,
+              viewport:
+                input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+              hasTouch: input === 'touch',
+            });
+            let freshError: unknown;
+            try {
+              await fresh.addCookies(await page.context().cookies());
+              const state = await fresh.storageState();
+              real.journal('fresh-storage-state', state.origins);
+              expect(state.origins).toEqual([]);
+              await fresh.addInitScript(f2ObserveLoadedDocument, real.localKey);
+              await fresh.addInitScript((key) => {
+                (window as unknown as { f2PreApp: unknown }).f2PreApp = {
+                  local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+                  session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+                };
+              }, real.localKey);
+              const reopened = await fresh.newPage();
+              reopened.on('pageerror', (error) => {
+                errors.push(error.message);
+                real.journal('reopen-pageerror', error.message);
+              });
+              await reopened.goto(`/#/home/${real.project.id}`, { waitUntil: 'domcontentloaded' });
+              await expect(reopened.getByTestId('schematic-component')).toHaveCount(
+                expected.components.length,
+              );
+              const preApp = await reopened.evaluate(
+                () => (window as unknown as { f2PreApp: unknown }).f2PreApp,
+              );
+              const postLoad = await real.storage(reopened);
+              const server = await real.server(reopened);
+              real.journal('fresh-reopen', { preApp, postLoad, server, expected });
+              expect(preApp).toEqual({ local: [], session: [] });
+              expect(postLoad).toEqual({
+                local: [],
+                session: [[`${real.localKey}:electronics-editor:`, 'saved']],
+              });
+              expect(server).toEqual(saved);
+              expect(await readEditorDocument(reopened)).toEqual(expected);
+              for (const component of expected.components) {
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-x',
+                  String(component.position.x),
+                );
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-y',
+                  String(component.position.y),
+                );
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-hit-mask-status',
+                  'ready',
+                );
+              }
+              await reopened.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+              expect(
+                await reopened.getByTestId('schematic-wire').evaluateAll((nodes) =>
+                  nodes.map((node) => ({
+                    id: node.getAttribute('data-wire-id'),
+                    d: node.getAttribute('d'),
+                  })),
+                ),
+              ).toEqual(paths);
+              await expect(
+                part(reopened, 'cross-psu').getByTestId('regulated-power-supply-runtime'),
+              ).toHaveAttribute(
+                'data-output-enabled',
+                String(
+                  expected.components.find((component) => component.id === 'cross-psu')!
+                    .stateProperties!['outputEnabled'],
+                ),
+              );
+              await reopened.screenshot({
+                path: `reports/interactions/f2-real-reopened-${input}.png`,
+              });
+            } catch (error) {
+              freshError = error;
+            }
+            try {
+              await fresh.close();
+            } catch (error) {
+              freshError ??= error;
+            }
+            if (freshError) throw freshError;
+            await real.settle();
+            real.journal('accepted-before-close', { saved, expected, rows: real.rows, errors });
+            expect(errors).toEqual([]);
+            await page.screenshot({ path: `reports/interactions/f2-scene-layering-${input}.png` });
+          } catch (error) {
+            primaryError = error;
+            try {
+              real.journal('primary-failure', String(error));
+            } catch {
+              /* Preserve the primary failure. */
+            }
+          }
+          try {
+            await session?.detach();
+          } catch (error) {
+            primaryError ??= error;
+          }
+          try {
+            await page.context().close();
+          } catch (error) {
+            primaryError ??= error;
+          }
+          if (primaryError) throw primaryError;
+          real.journal('complete', { expected, rows: real.rows, errors, contextsClosed: true });
+          real.requireComplete();
+        },
+      );
+    }
+  });
 
   wireVideoTest(
     'R1_SOFT_WIRE_ASSIST + FREE_EXIT + ALT_DISABLE + CLICK_CLICK_CONNECT',
@@ -4828,6 +7966,7 @@ test.describe('owner D3-D6 acceptance', () => {
       .locator('input, select, button')
       .evaluateAll((controls) =>
         controls.some((control) => {
+          if (control.getClientRects().length === 0) return false;
           const box = control.getBoundingClientRect();
           const panel = control.closest('.workbench-inspector')?.getBoundingClientRect();
           return Boolean(panel && (box.left < panel.left - 1 || box.right > panel.right + 1));
@@ -4870,4 +8009,535 @@ test.describe('owner D3-D6 acceptance', () => {
     expect(await cards.count()).toBeGreaterThan(0);
     await page.screenshot({ path: 'reports/interactions/d6-all-components-default.png' });
   });
+});
+
+// Unlike openEditor above, these journeys use the real isolated API and server draft.
+// The fixed centre of the battery holder's opaque owner-image body is used; no
+// alpha-pixel/DOM-target search chooses a point that happens to pass the product.
+test.describe('ELECTRONICS-E03 native field boundary real API', () => {
+  test.use({ hasTouch: true });
+  let pool: ReturnType<typeof e2eAdminPool>;
+  let authCookies: import('@playwright/test').Cookie[];
+  test.beforeAll(async ({ browser, baseURL }, info) => {
+    pool = e2eAdminPool();
+    const bootstrap = await browser.newContext({ baseURL });
+    try {
+      const loginPage = await bootstrap.newPage();
+      const actor = await seedTeacher(pool, `field-auth-${info.workerIndex}`);
+      await loginWithOrganization(loginPage, actor);
+      authCookies = await bootstrap.cookies();
+    } finally {
+      await bootstrap.close();
+    }
+  });
+  test.afterAll(async () => pool.end());
+
+  for (const width of [1440, 1024, 390, 320]) {
+    for (const [boundary, x, y] of [
+      ['left', -5_000, 0],
+      ['right', 6_000, 0],
+      ['top', 0, -4_000],
+      ['bottom', 0, 5_000],
+      ['top-left', -5_000, -4_000],
+      ['top-right', 6_000, -4_000],
+      ['bottom-left', -5_000, 5_000],
+      ['bottom-right', 6_000, 5_000],
+    ] as const) {
+      test(`${width} ${boundary}: native opaque grab, whole save and cookies-only reopen`, async ({
+        page,
+        browser,
+      }, info) => {
+        await page.context().addCookies(authCookies);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto('/#/home');
+        await page.setViewportSize({ width, height: 900 });
+        const origin = new URL(page.url()).origin;
+        const created = await page.context().request.post('/api/projects', {
+          headers: { origin, 'idempotency-key': crypto.randomUUID() },
+          data: { scope: 'personal', classroomId: null, module: 'electronics', title: 'E03 field' },
+        });
+        expect(created.status()).toBe(201);
+        const { project } = (await created.json()) as { project: { id: string } };
+        const server = async (target: Page) => {
+          const response = await target.context().request.get(`/api/projects/${project.id}`);
+          expect(response.status()).toBe(200);
+          return (await response.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+        };
+        let fixture: SchematicDocument = {
+          schemaVersion: 4,
+          components: [],
+          connections: [],
+          viewport: { x: x - 800, y: y - 490, zoom: 1 },
+          simulation: { running: false, maxIterations: 24 },
+        };
+        for (const [type, id, dx, dy] of [
+          ['resistor-axial', 'field-resistor', 0, 0],
+          ['battery-holder-aa-2', 'field-source', -130, 140],
+          ['led-5mm', 'field-led', 140, 140],
+          ['arduino-uno', 'field-uno', -130, -200],
+        ] as const)
+          fixture = addComponentToDocument(fixture, type, { x: x + dx, y: y + dy }, id).document;
+        const sketch =
+          'void setup() { pinMode(13, OUTPUT); }\nvoid loop() { digitalWrite(13, HIGH); delay(250); digitalWrite(13, LOW); delay(250); }';
+        fixture = {
+          ...fixture,
+          components: fixture.components.map((component) =>
+            component.id === 'field-uno'
+              ? {
+                  ...component,
+                  stateProperties: {
+                    ...component.stateProperties,
+                    arduinoCodeMode: 'text',
+                    arduinoSource: sketch,
+                    arduinoSerialOpen: false,
+                    arduinoBaudRate: 9600,
+                  },
+                }
+              : component.id === 'field-resistor'
+                ? { ...component, value: 220 }
+                : component,
+          ),
+          connections: [
+            {
+              id: 'field-positive',
+              from: { componentId: 'field-source', terminal: 'BAT+' },
+              to: { componentId: 'field-resistor', terminal: 'lead-1' },
+              color: '#e3212b',
+              vertices: [{ x: x - 70, y: y - 70 }],
+            },
+            {
+              id: 'field-load',
+              from: { componentId: 'field-resistor', terminal: 'lead-2' },
+              to: { componentId: 'field-led', terminal: 'anode' },
+              color: '#149447',
+              vertices: [],
+            },
+            {
+              id: 'field-return',
+              from: { componentId: 'field-led', terminal: 'cathode' },
+              to: { componentId: 'field-source', terminal: 'BAT-' },
+              color: '#2a3035',
+              vertices: [{ x, y: y + 260 }],
+            },
+          ],
+        };
+        const initial = await server(page);
+        const seeded = await page.context().request.put(`/api/projects/${project.id}/draft`, {
+          headers: { origin },
+          data: {
+            document: fixture,
+            baseRevision: initial.draft.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seeded.status()).toBe(200);
+        const baseline = await server(page);
+        expect(baseline.draft.document).toEqual(fixture);
+        const session = await page.context().request.get('/api/auth/me');
+        expect(session.status()).toBe(200);
+        const identity = (await session.json()) as { user: { id: string } };
+        const draftKey = `asa-project-local-draft:user:account:${encodeURIComponent(identity.user.id)}:${encodeURIComponent(project.id)}`;
+        const local = async (target: Page): Promise<SchematicDocument | null> =>
+          target.evaluate((key) => {
+            const raw = localStorage.getItem(key);
+            return raw === null ? null : (JSON.parse(raw).document as SchematicDocument);
+          }, draftKey);
+        const observeInput = async (target: Page) => {
+          const install = () => {
+            if (Array.isArray((window as unknown as { fieldEvents?: unknown[] }).fieldEvents))
+              return;
+            const events: unknown[] = [];
+            (window as unknown as { fieldEvents: unknown[] }).fieldEvents = events;
+            for (const type of [
+              'pointerdown',
+              'pointermove',
+              'pointerup',
+              'gotpointercapture',
+              'lostpointercapture',
+              'pointercancel',
+              'click',
+            ])
+              window.addEventListener(
+                type,
+                (event) => {
+                  const pointer = event as PointerEvent;
+                  const node = event.target instanceof Element ? event.target : null;
+                  if (!node?.closest('.workbench-canvas')) return;
+                  events.push({
+                    type,
+                    trusted: event.isTrusted,
+                    atMs: performance.now(),
+                    x: pointer.clientX,
+                    y: pointer.clientY,
+                    button: pointer.button,
+                    buttons: pointer.buttons,
+                    pointerId: pointer.pointerId,
+                    pointerType: pointer.pointerType,
+                    shift: pointer.shiftKey,
+                    target: node.localName,
+                    targetClass: node.getAttribute('class'),
+                    path: event.composedPath().flatMap((item) =>
+                      item instanceof Element
+                        ? [
+                            {
+                              tag: item.localName,
+                              class: item.getAttribute('class'),
+                              componentId: item.getAttribute('data-component-id'),
+                              testId: item.getAttribute('data-testid'),
+                              pointerEvents: getComputedStyle(item).pointerEvents,
+                            },
+                          ]
+                        : [],
+                    ),
+                    viewBox: node.closest('svg.workbench-canvas')?.getAttribute('viewBox'),
+                  });
+                },
+                true,
+              );
+          };
+          await target.addInitScript(install);
+          // Hash navigation may retain this document; addInitScript alone then
+          // never runs. Install the same read-only observer in the current one.
+          await target.evaluate(install);
+        };
+        const receipts: unknown[] = [];
+        const requests: unknown[] = [];
+        page.on('request', (request) => {
+          if (
+            request.method() === 'PUT' &&
+            new URL(request.url()).pathname === `/api/projects/${project.id}/draft`
+          )
+            requests.push(request.postDataJSON());
+        });
+        const capture = async (target: Page, phase: string, extra: unknown = null) => {
+          const observed = await target.evaluate(() => ({
+            viewBox: document.querySelector('.workbench-canvas')?.getAttribute('viewBox'),
+            components: Array.from(
+              document.querySelectorAll('[data-testid="schematic-component"]'),
+            ).map((element) => ({
+              id: element.getAttribute('data-component-id'),
+              x: element.getAttribute('data-x'),
+              y: element.getAttribute('data-y'),
+              mask: element.getAttribute('data-hit-mask-status'),
+              selected: element.classList.contains('workbench-component-selected'),
+            })),
+            events: (window as unknown as { fieldEvents: unknown[] }).fieldEvents,
+            documentUrl: location.href,
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: innerWidth,
+          }));
+          receipts.push({ phase, extra, observed, local: await local(target) });
+          const rawPath = info.outputPath('field-boundary.json');
+          writeFileSync(
+            rawPath,
+            JSON.stringify({ width, boundary, fixture, baseline, requests, receipts }, null, 2),
+          );
+          await target.screenshot({ path: info.outputPath(`${phase}.png`), fullPage: true });
+        };
+        const grabbedId = 'field-source';
+        const grabbedAsset = catalogEntry('battery-holder-aa-2')!.asset;
+        const bodyPoint = async (target: Page) =>
+          part(target, grabbedId)
+            .locator('.workbench-part')
+            .evaluate(async (element, asset) => {
+              const body = element.querySelector<SVGRectElement>('.workbench-component-body-hit')!;
+              const matrix = (element as SVGGraphicsElement).getScreenCTM();
+              if (!matrix) throw new Error('Battery holder has no real screen CTM');
+              const local = { x: body.width.baseVal.value / 2, y: body.height.baseVal.value / 2 };
+              const point = new DOMPoint(local.x, local.y).matrixTransform(matrix);
+              const hit = document.elementFromPoint(point.x, point.y);
+              const stageMatrix = document
+                .querySelector<SVGSVGElement>('.workbench-canvas')!
+                .getScreenCTM()!;
+              // A single fixed sample independently records this known body's
+              // opacity. It does not search alpha pixels or change any DOM target.
+              const image = new Image();
+              image.src = asset;
+              await image.decode();
+              const canvas = document.createElement('canvas');
+              canvas.width = image.naturalWidth;
+              canvas.height = image.naturalHeight;
+              const context = canvas.getContext('2d')!;
+              context.drawImage(image, 0, 0, canvas.width, canvas.height);
+              return {
+                x: point.x,
+                y: point.y,
+                local,
+                matrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+                stageScale: stageMatrix.a,
+                opaqueCentreAlpha: context.getImageData(
+                  Math.floor(canvas.width / 2),
+                  Math.floor(canvas.height / 2),
+                  1,
+                  1,
+                ).data[3],
+                assetSize: { width: canvas.width, height: canvas.height },
+                target: hit?.localName,
+                targetClass: hit?.getAttribute('class'),
+                targetAncestry: (() => {
+                  const ancestors = [];
+                  for (let node = hit; node; node = node.parentElement)
+                    ancestors.push({
+                      tag: node.localName,
+                      class: node.getAttribute('class'),
+                      componentId: node.getAttribute('data-component-id'),
+                      testId: node.getAttribute('data-testid'),
+                      path: node.getAttribute('d'),
+                      pointerEvents: getComputedStyle(node).pointerEvents,
+                    });
+                  return ancestors;
+                })(),
+                world: new DOMPoint(point.x, point.y)
+                  .matrixTransform(stageMatrix.inverse())
+                  .toJSON(),
+              };
+            }, grabbedAsset);
+        const requireReady = async (target: Page) => {
+          await expect(part(target, grabbedId)).toHaveAttribute('data-hit-mask-status', 'ready');
+          await expect(target.getByTestId('schematic-component')).toHaveCount(4);
+        };
+        const drag = async (target: Page, phase: string, touch = false) => {
+          const before = {
+            x: Number(await part(target, grabbedId).getAttribute('data-x')),
+            y: Number(await part(target, grabbedId).getAttribute('data-y')),
+          };
+          const point = await bodyPoint(target);
+          const viewBox = await target.locator('.workbench-canvas').getAttribute('viewBox');
+          await capture(target, `${phase}-before`, { before, point, viewBox, touch });
+          // These checks prove that the opaque body is reachable through the
+          // *actual* native SVG root, rather than through a terminal/wire/panel.
+          expect(point.target).toBe('svg');
+          expect(point.targetClass).toContain('workbench-canvas');
+          expect(point.opaqueCentreAlpha).toBeGreaterThan(0);
+          const eventStart = await target.evaluate(
+            () => (window as unknown as { fieldEvents: unknown[] }).fieldEvents.length,
+          );
+          if (touch) {
+            const cdp = await target.context().newCDPSession(target);
+            try {
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: [{ x: point.x, y: point.y, id: 1 }],
+              });
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [{ x: point.x + 24, y: point.y + 18, id: 1 }],
+              });
+              await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } finally {
+              await cdp.detach();
+            }
+          } else {
+            await target.mouse.move(point.x, point.y);
+            await target.mouse.down();
+            await target.mouse.move(point.x + 24, point.y + 18, { steps: 6 });
+            await target.mouse.up();
+          }
+          await frames(target);
+          const events = await target.evaluate(
+            (offset) =>
+              (
+                window as unknown as {
+                  fieldEvents: {
+                    type: string;
+                    trusted: boolean;
+                    pointerType: string;
+                    target: string;
+                    targetClass: string | null;
+                  }[];
+                }
+              ).fieldEvents.slice(offset),
+            eventStart,
+          );
+          await capture(target, `${phase}-after`, { before, point, viewBox, touch, events });
+          expect(events.length).toBeGreaterThan(0);
+          expect(events.every((event) => event.trusted)).toBe(true);
+          const down = events.findIndex((event) => event.type === 'pointerdown');
+          const up = events.findIndex((event) => event.type === 'pointerup');
+          expect(down).toBeGreaterThanOrEqual(0);
+          expect(up).toBeGreaterThan(down);
+          expect(events.slice(down + 1, up).some((event) => event.type === 'pointermove')).toBe(
+            true,
+          );
+          expect(events[down].pointerType).toBe(touch ? 'touch' : 'mouse');
+          expect(events[down].target).toBe('svg');
+          expect(events[down].targetClass).toContain('workbench-canvas');
+          await expect(part(target, grabbedId)).not.toHaveAttribute('data-x', String(before.x));
+          await expect(target.locator('.workbench-canvas')).toHaveAttribute('viewBox', viewBox!);
+          const expected = {
+            x: before.x + Math.round((24 / point.stageScale) * 1000) / 1000,
+            y: before.y + Math.round((18 / point.stageScale) * 1000) / 1000,
+          };
+          expect(Number(await part(target, grabbedId).getAttribute('data-x'))).toBeCloseTo(
+            expected.x,
+            4,
+          );
+          expect(Number(await part(target, grabbedId).getAttribute('data-y'))).toBeCloseTo(
+            expected.y,
+            4,
+          );
+          return expected;
+        };
+        await observeInput(page);
+        await page.goto(`/#/home/${project.id}`);
+        await requireReady(page);
+        try {
+          await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+          const stage = await page.locator('.workbench-canvas').boundingBox();
+          if (!stage) throw new Error('Stage is absent');
+          const pan = { x: stage.x + stage.width * 0.25, y: stage.y + stage.height * 0.15 };
+          const initialViewBox = await page.locator('.workbench-canvas').getAttribute('viewBox');
+          await page.mouse.move(pan.x, pan.y);
+          await page.mouse.down({ button: 'middle' });
+          await page.mouse.move(pan.x + 12, pan.y + 8, { steps: 3 });
+          await page.mouse.up({ button: 'middle' });
+          await expect(page.locator('.workbench-canvas')).not.toHaveAttribute(
+            'viewBox',
+            initialViewBox!,
+          );
+          expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
+          const zoomIn = page.getByRole('button', {
+            name: 'Увеличить масштаб',
+            exact: true,
+            includeHidden: true,
+          });
+          const scale = () =>
+            page
+              .locator('.workbench-canvas')
+              .evaluate((canvas) => (canvas as SVGSVGElement).getScreenCTM()!.a);
+          const scaleBefore = await scale();
+          const zoomFactor = 1.18;
+          if (width <= 390) {
+            await expect(zoomIn).toBeHidden();
+            const centerX = stage.x + stage.width / 2;
+            const centerY = stage.y + stage.height / 2;
+            const halfSpan = 40;
+            const touchPoints = (span: number) => [
+              { id: 1, x: centerX - span, y: centerY },
+              { id: 2, x: centerX + span, y: centerY },
+            ];
+            const cdp = await page.context().newCDPSession(page);
+            try {
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: touchPoints(halfSpan),
+              });
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: touchPoints(halfSpan * zoomFactor),
+              });
+              await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } finally {
+              await cdp.detach();
+            }
+          } else {
+            await zoomIn.click();
+          }
+          await expect.poll(async () => (await scale()) / scaleBefore).toBeCloseTo(zoomFactor, 2);
+          // The resistor legitimately has a native painted path. Keep Shift/
+          // right-button controls on it, separate from the owner-image probe.
+          const point = await part(page, 'field-resistor')
+            .locator('.workbench-part')
+            .evaluate((element) => {
+              const body = element.querySelector<SVGRectElement>('.workbench-component-body-hit')!;
+              const matrix = (element as SVGGraphicsElement).getScreenCTM()!;
+              const point = new DOMPoint(
+                body.width.baseVal.value / 2,
+                body.height.baseVal.value / 2,
+              ).matrixTransform(matrix);
+              return { x: point.x, y: point.y };
+            });
+          await page.keyboard.down('Shift');
+          await page.mouse.click(point.x, point.y);
+          await page.keyboard.up('Shift');
+          await expect(part(page, 'field-resistor')).toHaveClass(/workbench-component-selected/);
+          expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
+          await page.mouse.click(point.x, point.y, { button: 'right' });
+          expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
+          await page.keyboard.press('Escape');
+          await expect(
+            page.locator('[data-testid="schematic-component"].workbench-component-selected'),
+          ).toHaveCount(0);
+          expect((await local(page)) ?? fixture).toEqual(fixture);
+          const moved = await drag(page, 'closed-panel-mouse');
+          const expected = await local(page);
+          expect(expected).not.toBeNull();
+          expect(expected).toEqual({
+            ...fixture,
+            components: fixture.components.map((component) =>
+              component.id === grabbedId
+                ? { ...component, position: moved, holeBindings: {} }
+                : component,
+            ),
+          });
+          expect(expected!.connections).toEqual(fixture.connections);
+          const response = page.waitForResponse(
+            (reply) =>
+              new URL(reply.url()).pathname === `/api/projects/${project.id}/draft` &&
+              reply.request().method() === 'PUT',
+          );
+          await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+          expect((await response).status()).toBe(200);
+          const confirmed = await server(page);
+          expect(confirmed.draft.revision).toBeGreaterThan(baseline.draft.revision);
+          expect(confirmed.draft.document).toEqual(expected);
+          await capture(page, 'saved', confirmed);
+          const profile = await browser.newContext({
+            baseURL: origin,
+            viewport: { width, height: 900 },
+            hasTouch: true,
+          });
+          try {
+            await profile.addCookies(await page.context().cookies());
+            const reopened = await profile.newPage();
+            await observeInput(reopened);
+            await reopened.goto(`/#/home/${project.id}`);
+            await requireReady(reopened);
+            expect(await local(reopened)).toBeNull();
+            expect((await server(reopened)).draft.document).toEqual(confirmed.draft.document);
+            for (const component of expected!.components) {
+              await expect(part(reopened, component.id)).toHaveAttribute(
+                'data-x',
+                String(component.position.x),
+              );
+              await expect(part(reopened, component.id)).toHaveAttribute(
+                'data-y',
+                String(component.position.y),
+              );
+            }
+            await reopened
+              .getByRole('button', { name: 'Открыть редактор кода', exact: true })
+              .click();
+            await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(
+              sketch,
+            );
+            await reopened.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+            const movedAgain = await drag(reopened, 'open-panel-reopened', width <= 390);
+            const final = await local(reopened);
+            expect(final).toEqual({
+              ...confirmed.draft.document,
+              components: confirmed.draft.document.components.map((component) =>
+                component.id === grabbedId ? { ...component, position: movedAgain } : component,
+              ),
+            });
+            expect(final!.connections).toEqual(fixture.connections);
+            expect(final!.components.find((component) => component.id === 'field-uno')).toEqual(
+              fixture.components.find((component) => component.id === 'field-uno'),
+            );
+            await capture(reopened, 'complete', { confirmed, final });
+          } finally {
+            await profile.close();
+          }
+        } finally {
+          await capture(page, 'initial-context-final');
+          await info.attach('field-boundary', {
+            path: info.outputPath('field-boundary.json'),
+            contentType: 'application/json',
+          });
+        }
+      });
+    }
+  }
 });

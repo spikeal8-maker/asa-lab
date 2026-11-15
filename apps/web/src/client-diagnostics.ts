@@ -1,8 +1,24 @@
 import { newClientId } from './client-id';
+import { isAuthRequest, isLifecycleCancellation } from './auth-request';
+import {
+  REQUEST_OPERATIONS,
+  REQUEST_METHODS,
+  REQUEST_FAILURE_KINDS,
+  requestMethod,
+  requestOperation,
+  requestFailureKind,
+} from './request-diagnostic-details';
 import { diagnosticQuality } from './telemetry-quality';
 import { isTelemetryPath } from './telemetry-contract';
 import {
+  clientException,
+  validClientException,
+  exceptionMatchesCode,
+  type ClientException,
+} from './client-error-details';
+import {
   ASSET_SCRIPT,
+  criticalDiagnostic,
   DiagnosticOutbox,
   FAILURE_CATEGORIES,
   FAILURE_CODES,
@@ -19,6 +35,7 @@ export type DiagnosticCode =
   | 'autosave_failed'
   | 'session_refresh_failed'
   | 'request_failed'
+  | 'request_cancelled'
   | 'request_slow'
   | 'editor_ready'
   | 'editor_heartbeat'
@@ -26,6 +43,11 @@ export type DiagnosticCode =
   | 'editor_recovered';
 export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth';
 export interface DiagnosticDetail {
+  readonly operation?: string;
+  readonly method?: string;
+  readonly clientAttemptId?: string;
+  readonly failureKind?: string;
+  readonly exception?: ClientException;
   readonly category?: string;
   readonly failureCode?: string;
   readonly script?: string;
@@ -39,6 +61,7 @@ export interface DiagnosticDetail {
 const recent = new Map<string, number>();
 let windowStarted = 0;
 let count = 0;
+let criticalCount = 0;
 let installed = false;
 let outbox: DiagnosticOutbox | undefined;
 function diagnosticOutbox(): DiagnosticOutbox {
@@ -76,28 +99,63 @@ export function reportClientDiagnostic(
     const now = Date.now();
     const quality = diagnosticQuality();
     quality.increment('attempted');
-    if (now - windowStarted > 60_000) {
+    if (now - windowStarted >= 60_000) {
       windowStarted = now;
       count = 0;
+      criticalCount = 0;
     }
-    const health = ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(code);
-    const key = `${context.instanceId}:${module}:${code}`;
-    if (!health && count >= 12) {
-      quality.increment('suppressed');
-      return;
-    }
-    if (now - (recent.get(key) ?? -Infinity) < (health ? 60_000 : 10_000)) {
+    const baseKey = `${context.instanceId}:${module}:${code}`;
+    const scratchSave =
+      code === 'autosave_failed' &&
+      module === 'scratch' &&
+      ['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+        detail.failureCode ?? '',
+      );
+    const exception =
+      validClientException(detail.exception) && exceptionMatchesCode(detail.exception, code)
+        ? detail.exception
+        : undefined;
+    // The controlled-exit wrapper can report the same precise Scratch save failure a second time.
+    if (!scratchSave && now - (recent.get(baseKey) ?? -Infinity) < 10_000) {
       quality.increment('deduplicated');
       return;
     }
-    if (recent.size > 200) for (const [id, at] of recent) if (now - at > 60_000) recent.delete(id);
-    recent.set(key, now);
-    if (!health) count += 1;
+    for (const [id, at] of recent) if (now - at >= 10_000) recent.delete(id);
+    if (scratchSave) {
+      if (recent.size >= 50) recent.delete(recent.keys().next().value!);
+      recent.set(baseKey, now);
+    }
     const revision =
       typeof __ASA_BUILD_REVISION__ === 'string' && /^[a-f0-9]{7,64}$/.test(__ASA_BUILD_REVISION__)
         ? __ASA_BUILD_REVISION__
         : 'unknown';
     const safe = {
+      ...(REQUEST_OPERATIONS.includes(detail.operation as (typeof REQUEST_OPERATIONS)[number])
+        ? { operation: detail.operation }
+        : {}),
+      ...(REQUEST_METHODS.includes(detail.method as (typeof REQUEST_METHODS)[number])
+        ? { method: detail.method }
+        : {}),
+      ...(REQUEST_FAILURE_KINDS.includes(
+        detail.failureKind as (typeof REQUEST_FAILURE_KINDS)[number],
+      )
+        ? { failureKind: detail.failureKind }
+        : {}),
+      ...(detail.clientAttemptId && UUID.test(detail.clientAttemptId)
+        ? { clientAttemptId: detail.clientAttemptId }
+        : {}),
+      ...(exception
+        ? {
+            exception: {
+              ...exception,
+              frames: exception.frames.map((f) => ({
+                script: f.script,
+                line: f.line,
+                column: f.column,
+              })),
+            },
+          }
+        : {}),
       ...(FAILURE_CATEGORIES.includes(detail.category as (typeof FAILURE_CATEGORIES)[number])
         ? { category: detail.category }
         : {}),
@@ -129,7 +187,8 @@ export function reportClientDiagnostic(
         ? { phase: detail.phase }
         : {}),
     };
-    diagnosticOutbox().enqueue(
+    const critical = criticalDiagnostic(code);
+    const enqueued = diagnosticOutbox().enqueue(
       {
         code,
         module,
@@ -140,9 +199,34 @@ export function reportClientDiagnostic(
         ...safe,
       },
       false,
+      critical ? criticalCount < 4 : count < 8,
     );
+    // Repeats still join a pending aggregate after admission is exhausted. Reserve four
+    // envelopes for render/autosave so network noise cannot spend their reporting budget.
+    if (enqueued) {
+      if (critical) criticalCount += 1;
+      else count += 1;
+    }
   } catch {
     /* Diagnostics must not change the product action. */
+  }
+}
+
+export function reportRenderDiagnostic(
+  error: unknown,
+  capture: 'app_boundary' | 'editor_boundary',
+): void {
+  try {
+    reportClientDiagnostic(
+      'render_failed',
+      capture === 'app_boundary' ? 'portal' : context.module,
+      {
+        phase: 'runtime',
+        exception: clientException(error, capture, window.location.origin),
+      },
+    );
+  } catch {
+    /* Error reporting must never break the boundary fallback. */
   }
 }
 
@@ -177,11 +261,20 @@ export function installClientDiagnostics(): void {
     }
     reportClientDiagnostic('window_error', context.module, {
       phase: 'runtime',
+      exception: clientException(
+        event.error,
+        'window',
+        window.location.origin,
+        script ? { script, line: event.lineno, column: event.colno } : undefined,
+      ),
       ...(script ? { script, line: event.lineno, column: event.colno } : {}),
     });
   });
-  window.addEventListener('unhandledrejection', () =>
-    reportClientDiagnostic('unhandled_rejection', context.module),
+  window.addEventListener('unhandledrejection', (event) =>
+    reportClientDiagnostic('unhandled_rejection', context.module, {
+      phase: 'runtime',
+      exception: clientException(event.reason, 'rejection', window.location.origin),
+    }),
   );
   const original = window.fetch.bind(window);
   window.fetch = async (input, init) => {
@@ -198,43 +291,58 @@ export function installClientDiagnostics(): void {
     )
       return original(input, init);
     const active = context;
+    const module = isAuthRequest(url.pathname) ? 'auth' : active.module;
+    const method = requestMethod(init?.method ?? (input instanceof Request ? input.method : 'GET'));
+    const operation = requestOperation(url.pathname, method, module);
+    const clientAttemptId = newClientId();
+    const requestDetail = { operation, method, clientAttemptId };
+    const signal =
+      init?.signal !== undefined
+        ? init.signal
+        : input instanceof Request
+          ? input.signal
+          : undefined;
     const headers = new Headers(
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
     headers.set('x-asa-diagnostic-instance', active.instanceId);
-    headers.set(
-      'x-asa-diagnostic-module',
-      url.pathname.includes('/auth/') ? 'auth' : active.module,
-    );
+    headers.set('x-asa-diagnostic-module', module);
+    headers.set('x-asa-client-attempt-id', clientAttemptId);
     const started = performance.now();
     try {
       const response = await original(input, { ...init, headers });
       const durationMs = performance.now() - started;
+      const failed = response.status === 429 || response.status >= 500;
       // Late responses from a closed editor cannot belong to its successor.
-      if (
-        active.instanceId === context.instanceId &&
-        (response.status >= 500 || durationMs >= 10_000)
-      )
-        reportClientDiagnostic(
-          response.status >= 500 ? 'request_failed' : 'request_slow',
-          active.module,
-          {
-            phase: 'request',
-            httpStatus: response.status,
-            durationMs,
-            relatedRequestId: response.headers.get('x-request-id') ?? undefined,
-          },
-        );
+      if (active.instanceId === context.instanceId && (failed || durationMs >= 10_000))
+        reportClientDiagnostic(failed ? 'request_failed' : 'request_slow', module, {
+          ...requestDetail,
+          ...(failed ? { failureKind: 'http' } : {}),
+          phase: 'request',
+          httpStatus: response.status,
+          durationMs,
+          relatedRequestId: response.headers.get('x-request-id') ?? undefined,
+        });
       return response;
     } catch (failure) {
-      if (
-        active.instanceId === context.instanceId &&
-        !(failure instanceof DOMException && failure.name === 'AbortError')
-      )
-        reportClientDiagnostic('request_failed', active.module, {
-          phase: 'request',
-          durationMs: performance.now() - started,
-        });
+      const failureKind = requestFailureKind(failure, signal);
+      const lifecycleRead =
+        failureKind === 'cancelled' &&
+        ['GET', 'HEAD'].includes(method) &&
+        isLifecycleCancellation(signal?.reason);
+      if (active.instanceId === context.instanceId && !lifecycleRead)
+        reportClientDiagnostic(
+          failureKind === 'cancelled' && ['GET', 'HEAD'].includes(method)
+            ? 'request_cancelled'
+            : 'request_failed',
+          module,
+          {
+            ...requestDetail,
+            failureKind,
+            phase: 'request',
+            durationMs: performance.now() - started,
+          },
+        );
       throw failure;
     }
   };

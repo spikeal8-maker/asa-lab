@@ -1,0 +1,186 @@
+[
+  {
+    "viewportWidth": 1440,
+    "documentWidth": 1440,
+    "overflowing": [
+      {
+        "tag": "rect",
+        "className": "[object SVGAnimatedString]",
+        "right": 1891
+      }
+    ],
+    "header": {
+      "x": 0,
+      "right": 1440
+    },
+    "avatar": {
+      "x": 1394,
+      "right": 1428
+    },
+    "save": {
+      "x": 447.6875,
+      "right": 565.03125
+    },
+    "tabs": [
+      {
+        "width": 118.5,
+        "x": 898,
+        "right": 1016.5
+      },
+      {
+        "width": 118.5,
+        "x": 1018.5,
+        "right": 1137
+      },
+      {
+        "width": 118.5,
+        "x": 1139,
+        "right": 1257.5
+      },
+      {
+        "width": 118.5,
+        "x": 1259.5,
+        "right": 1378
+      }
+    ],
+    "statusWidth": 1
+  },
+  {
+    "viewportWidth": 1024,
+    "documentWidth": 1024,
+    "overflowing": [
+      {
+        "tag": "rect",
+        "className": "[object SVGAnimatedString]",
+        "right": 1416
+      }
+    ],
+    "header": {
+      "x": 0,
+      "right": 1024
+    },
+    "avatar": {
+      "x": 978,
+      "right": 1012
+    },
+    "save": {
+      "x": 344.171875,
+      "right": 461.515625
+    },
+    "tabs": [
+      {
+        "width": 101.5,
+        "x": 550,
+        "right": 651.5
+      },
+      {
+        "width": 101.5,
+        "x": 653.5,
+        "right": 755
+      },
+      {
+        "width": 101.5,
+        "x": 757,
+        "right": 858.5
+      },
+      {
+        "width": 101.5,
+        "x": 860.5,
+        "right": 962
+      }
+    ],
+    "statusWidth": 1
+  },
+  {
+    "viewportWidth": 390,
+    "documentWidth": 390,
+    "overflowing": [
+      {
+        "tag": "rect",
+        "className": "[object SVGAnimatedString]",
+        "right": 541
+      }
+    ],
+    "header": {
+      "x": 0,
+      "right": 390
+    },
+    "avatar": {
+      "x": 351,
+      "right": 383
+    },
+    "save": {
+      "x": 129,
+      "right": 162
+    },
+    "tabs": [
+      {
+        "width": 30.25,
+        "x": 218,
+        "right": 248.25
+      },
+      {
+        "width": 30.25,
+        "x": 249.25,
+        "right": 279.5
+      },
+      {
+        "width": 30.25,
+        "x": 280.5,
+        "right": 310.75
+      },
+      {
+        "width": 30.25,
+        "x": 311.75,
+        "right": 342
+      }
+    ],
+    "statusWidth": 1
+  },
+  {
+    "viewportWidth": 320,
+    "documentWidth": 320,
+    "overflowing": [
+      {
+        "tag": "rect",
+        "className": "[object SVGAnimatedString]",
+        "right": 446
+      }
+    ],
+    "header": {
+      "x": 0,
+      "right": 320
+    },
+    "avatar": {
+      "x": 287,
+      "right": 315
+    },
+    "save": {
+      "x": 117,
+      "right": 147
+    },
+    "tabs": [
+      {
+        "width": 27,
+        "x": 168,
+        "right": 195
+      },
+      {
+        "width": 27,
+        "x": 196,
+        "right": 223
+      },
+      {
+        "width": 27,
+        "x": 224,
+        "right": 251
+      },
+      {
+        "width": 27,
+        "x": 252,
+        "right": 279
+      }
+    ],
+    "statusWidth": 1
+  }
+]

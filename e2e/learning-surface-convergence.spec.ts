@@ -23,7 +23,100 @@ test.afterAll(async () => {
 
 async function openLearnerLearning(page: import('@playwright/test').Page): Promise<void> {
   await openPortalSection(page, 'Моё обучение');
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
 }
+
+test('teacher issues the first assignment from the class on a small screen and finds it in the journal', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  await openPortalSection(page, 'Классы');
+  await page.getByRole('button', { name: 'Создать класс' }).first().click();
+  const create = page.getByRole('dialog', { name: 'Создать класс' });
+  const className = 'Первое задание из журнала';
+  await create.getByLabel('Название класса').fill(className);
+  await create.getByRole('button', { name: 'Создать', exact: true }).click();
+  await page
+    .getByTestId('classroom-card')
+    .filter({ hasText: className })
+    .locator('.classroom-row-title')
+    .click();
+
+  await page.getByRole('button', { name: 'Добавить ученика' }).click();
+  const seat = page.getByRole('dialog');
+  await seat.getByLabel('Имя в списке класса').fill('Анна');
+  await seat.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await expect(seat).toBeHidden();
+
+  const code = page.locator('.classroom-code-chip');
+  await code.click();
+  const joinCode = (await code.innerText()).trim();
+  const learnerCode = page
+    .getByRole('row')
+    .filter({ hasText: 'Анна' })
+    .locator('.classroom-login-handle');
+  await learnerCode.click();
+  const studentCode = (await learnerCode.innerText()).trim();
+
+  const issue = page.getByRole('button', { name: 'Выдать задание', exact: true });
+  await expect(issue).toBeVisible();
+  await page.screenshot({ path: evidenceDir + '/issue-from-class-desktop.png' });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await issue.click();
+  const picker = page.getByRole('dialog', { name: 'Назначить задание' });
+  await picker.getByRole('button', { name: 'Создать новое задание', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Новое задание класса' });
+  const title = 'Почему лампа загорается';
+  await editor.getByLabel('Тип задания').selectOption('essay');
+  await editor.getByLabel('Название задания', { exact: true }).fill(title);
+  await editor
+    .getByLabel('Содержание', { exact: true })
+    .fill('Объясните, когда лампа в цепи загорится.');
+  await editor.getByRole('button', { name: 'К выдаче', exact: true }).click();
+  await expect(picker.getByText(title, { exact: true })).toBeVisible();
+  await expect(picker.getByLabel('Весь класс')).toBeChecked();
+  await picker.screenshot({ path: evidenceDir + '/issue-from-class-mobile.png' });
+  await picker.getByRole('button', { name: 'Назначить', exact: true }).click();
+
+  await expect(picker).toBeHidden();
+  await expect(issue).toBeFocused();
+  const learner = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const pupil = await learner.newPage();
+    await pupil.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
+    await pupil.getByLabel('Код ученика', { exact: true }).fill(studentCode);
+    await pupil.getByRole('button', { name: 'Войти', exact: true }).click();
+    await openLearnerLearning(pupil);
+    await pupil.getByRole('button', { name: 'Открыть письменный ответ', exact: true }).click();
+    await pupil.getByRole('button', { name: 'Написать ответ', exact: true }).click();
+    await pupil.getByLabel('Ваш письменный ответ').fill('Ток течёт по замкнутой цепи.');
+    await pupil.getByRole('button', { name: 'Сдать ответ', exact: true }).click();
+    await expect(pupil.locator('.essay-response').getByRole('status')).toContainText('Ответ сдан');
+    await pupil.screenshot({ path: evidenceDir + '/direct-essay-learner-mobile.png' });
+  } finally {
+    await learner.close();
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Журнал', exact: true }).click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  const table = page.getByRole('table', { name: 'Журнал работ класса' });
+  await expect(table.getByRole('columnheader', { name: title })).toBeVisible();
+  await expect(table.getByRole('rowheader', { name: 'Анна' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ждут проверки: 1', exact: true }).click();
+  await page.getByRole('button', { name: `Проверить: ${title} · Анна`, exact: true }).click();
+  const review = page.getByRole('region', { name: 'Проверка сдачи' });
+  await expect(review.getByTestId('submission-essay-text')).toHaveText(
+    'Ток течёт по замкнутой цепи.',
+  );
+  await review.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(review.getByText(/Ревизия 1 · Принято/)).toBeVisible();
+});
 
 test('legacy, revision and selected-result semantics stay equal across learner and teacher surfaces', async ({
   browser,
@@ -51,19 +144,18 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   const seatDialog = page.getByRole('dialog');
   await seatDialog.getByLabel('Имя в списке класса').fill('Алина Canonical');
   await seatDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
-  await expect(page.getByText(/Алина Canonical добавлен/)).toBeVisible();
-  await page
-    .getByRole('row')
-    .filter({ hasText: 'Алина Canonical' })
-    .locator('.classroom-login-handle')
-    .click();
-  const studentCode = (
-    await page
-      .getByRole('row')
-      .filter({ hasText: 'Алина Canonical' })
-      .locator('.classroom-login-handle')
-      .innerText()
-  ).trim();
+  const successRibbon = page
+    .locator('.system-feedback-ribbon.system-feedback-success')
+    .filter({ hasText: /Алина Canonical добавлен/ });
+  await expect(successRibbon).toHaveCount(1);
+  await expect(successRibbon).toBeVisible();
+  const statusAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(statusAnnouncement).toHaveCount(1);
+  await expect(statusAnnouncement).toContainText(/Успех\. Алина Canonical добавлен/);
+  const studentRow = page.getByRole('row').filter({ hasText: 'Алина Canonical' });
+  await expect(studentRow).toBeVisible();
+  await studentRow.locator('.classroom-login-handle').click();
+  const studentCode = (await studentRow.locator('.classroom-login-handle').innerText()).trim();
   expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
 
   const scope = await admin.query(
@@ -281,6 +373,10 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await student.reload();
   await openLearnerLearning(student);
   await expect(assignment).toContainText('В работе');
+  await student
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Результаты', exact: true })
+    .click();
   const learnerResult = student
     .locator('.seat-results li')
     .filter({ hasText: 'Canonical project' });

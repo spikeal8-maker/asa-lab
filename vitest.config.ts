@@ -1,39 +1,169 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
-export default defineConfig({
-  resolve: {
-    alias: [
-      {
-        find: '@asa-lab/electronics/engine',
-        replacement: fileURLToPath(new URL('./contexts/electronics/engine.ts', import.meta.url)),
-      },
-      {
-        find: '@asa-lab/electronics/simulation',
-        replacement: fileURLToPath(
-          new URL('./contexts/electronics/simulation.ts', import.meta.url),
-        ),
-      },
-      {
-        find: '@asa-lab/electronics',
-        replacement: fileURLToPath(new URL('./contexts/electronics/index.ts', import.meta.url)),
-      },
-      {
-        find: '@asa-lab/three-d',
-        replacement: fileURLToPath(new URL('./contexts/three-d/index.ts', import.meta.url)),
-      },
-    ],
+// Inline Vitest v4 projects do not inherit root aliases unless "extends" is
+// enabled, which would also concatenate the root's broad include list.
+// Share aliases explicitly while keeping the projects' file sets disjoint.
+const sharedAliases = [
+  {
+    find: '@asa-lab/electronics/timed-state',
+    replacement: fileURLToPath(new URL('./contexts/electronics/timed-state.ts', import.meta.url)),
   },
+  {
+    find: '@asa-lab/electronics/rendering',
+    replacement: fileURLToPath(new URL('./contexts/electronics/rendering.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/contracts',
+    replacement: fileURLToPath(new URL('./packages/contracts/src/index.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/electronics/engine',
+    replacement: fileURLToPath(new URL('./contexts/electronics/engine.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/electronics/simulation',
+    replacement: fileURLToPath(new URL('./contexts/electronics/simulation.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/electronics',
+    replacement: fileURLToPath(new URL('./contexts/electronics/index.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/three-d/document',
+    replacement: fileURLToPath(new URL('./contexts/three-d/domain/document.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/robotics/runtime',
+    replacement: fileURLToPath(
+      new URL('./contexts/robotics/domain/world-runtime.ts', import.meta.url),
+    ),
+  },
+  {
+    find: '@asa-lab/robotics/world-authoring',
+    replacement: fileURLToPath(
+      new URL('./contexts/robotics/domain/world-authoring.ts', import.meta.url),
+    ),
+  },
+  {
+    find: '@asa-lab/robotics/document',
+    replacement: fileURLToPath(new URL('./contexts/robotics/domain/document.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/robotics/world-document',
+    replacement: fileURLToPath(
+      new URL('./contexts/robotics/domain/world-document.ts', import.meta.url),
+    ),
+  },
+  {
+    find: '@asa-lab/robotics/world-physics',
+    replacement: fileURLToPath(
+      new URL('./contexts/robotics/domain/world-physics.ts', import.meta.url),
+    ),
+  },
+  {
+    find: '@asa-lab/robotics/world',
+    replacement: fileURLToPath(new URL('./contexts/robotics/domain/world.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/robotics',
+    replacement: fileURLToPath(new URL('./contexts/robotics/index.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/three-d/operations',
+    replacement: fileURLToPath(new URL('./contexts/three-d/domain/operations.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/three-d',
+    replacement: fileURLToPath(new URL('./contexts/three-d/index.ts', import.meta.url)),
+  },
+];
+
+const allSpecs = [
+  'apps/**/src/**/*.spec.ts',
+  'packages/**/src/**/*.spec.ts',
+  'contexts/**/testing/**/*.spec.ts',
+  'tests/**/*.spec.ts',
+];
+const excludedSpecs = ['**/node_modules/**', '**/dist/**', 'e2e/**'];
+const timedOwnershipSpecs = ['contexts/electronics/testing/engine-timed-api.spec.ts'];
+// The synchronous owner geometry regressions keep their original deadlines.
+// Give them a separate group so other test files do not compete for CPU.
+const ownerGeometrySpecs = ['apps/web/src/three-d/testing/owner-geometry-regressions.spec.ts'];
+const sharedDdlSpecs = [
+  'tests/courses/activity-participations.pg.spec.ts',
+  'tests/courses/learning-direct-project-attempts.pg.spec.ts',
+  'tests/portal/public-projects.pg.spec.ts',
+  'tests/courses/classroom-manual-journal.pg.spec.ts',
+];
+
+export default defineConfig({
+  resolve: { alias: sharedAliases },
   test: {
     globals: false,
     environment: 'node',
-    include: [
-      'apps/**/src/**/*.spec.ts',
-      'packages/**/src/**/*.spec.ts',
-      'contexts/**/testing/**/*.spec.ts',
-      'tests/**/*.spec.ts',
-    ],
-    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+    include: allSpecs,
+    exclude: excludedSpecs,
     reporters: ['default'],
+    // The original three shared-lock suites retain their advisory locks,
+    // exact limits and failure-trigger assertions. Journal trigger DDL also
+    // locks a shared table, so it must not overlap ordinary learner writes.
+    // The CPU-heavy ownership oracle below runs
+    // afterwards so unrelated parallel files cannot consume its five-second budget.
+    projects: [
+      {
+        resolve: { alias: sharedAliases },
+        test: {
+          name: 'parallel',
+          globals: false,
+          environment: 'node',
+          include: allSpecs,
+          exclude: [
+            ...excludedSpecs,
+            ...sharedDdlSpecs,
+            ...timedOwnershipSpecs,
+            ...ownerGeometrySpecs,
+          ],
+          sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        resolve: { alias: sharedAliases },
+        test: {
+          name: 'serialized-submissions',
+          globals: false,
+          environment: 'node',
+          include: sharedDdlSpecs,
+          exclude: excludedSpecs,
+          fileParallelism: false,
+          sequence: { groupOrder: 1 },
+        },
+      },
+      {
+        resolve: { alias: sharedAliases },
+        test: {
+          name: 'serialized-engine-ownership',
+          globals: false,
+          environment: 'node',
+          include: timedOwnershipSpecs,
+          exclude: excludedSpecs,
+          fileParallelism: false,
+          sequence: { groupOrder: 2 },
+        },
+      },
+      {
+        resolve: { alias: sharedAliases },
+        test: {
+          name: 'serialized-owner-geometry',
+          globals: false,
+          environment: 'node',
+          include: ownerGeometrySpecs,
+          exclude: excludedSpecs,
+          fileParallelism: false,
+          maxWorkers: 1,
+          sequence: { groupOrder: 3 },
+        },
+      },
+    ],
   },
 });

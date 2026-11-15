@@ -2,6 +2,7 @@ export {
   CanonicalLearningContractError,
   adaptCourseProjectCanonicalInput,
   adaptDirectProjectCanonicalInput,
+  adaptEssayCanonicalInput,
   adaptQuizCanonicalInput,
   resolveCanonicalLearningState,
   type AssessmentResultSnapshot,

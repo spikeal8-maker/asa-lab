@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { LessonBlock } from '../api';
 import './lesson-blocks.css';
 
@@ -32,16 +32,107 @@ function ExternalMediaLink({
   );
 }
 
+type LocalMedia = Extract<LessonBlock, { type: 'image' | 'video' | 'audio' }>;
+
+function LocalMediaBlock({ block }: { readonly block: LocalMedia }): JSX.Element {
+  const container = useRef<HTMLElement | null>(null);
+  const [state, setState] = useState({ attempt: 0, failed: false });
+  const attempt = state.attempt;
+  const setContainer = (element: HTMLElement | null) => {
+    container.current = element;
+  };
+  const setFailed = (failed: boolean) => {
+    // An event queued by a removed element must not affect a later retry.
+    setState((current) =>
+      current.attempt === attempt && current.failed !== failed ? { ...current, failed } : current,
+    );
+  };
+  const retry = () => {
+    // Keep keyboard focus in this block when its retry button disappears.
+    container.current?.focus({ preventScroll: true });
+    setState((current) => ({ attempt: current.attempt + 1, failed: false }));
+  };
+  const failure = state.failed ? (
+    <div className="lesson-media-error">
+      <p role="alert">
+        {block.type === 'image'
+          ? 'Не удалось загрузить изображение'
+          : block.type === 'video'
+            ? 'Не удалось загрузить видео'
+            : 'Не удалось загрузить аудио'}
+      </p>
+      <div className="lesson-media-error-actions">
+        <button type="button" onClick={retry}>
+          Повторить загрузку
+        </button>
+        <a href={block.url} target="_blank" rel="noreferrer">
+          Открыть отдельно
+        </a>
+      </div>
+    </div>
+  ) : null;
+
+  if (block.type === 'image') {
+    return (
+      <figure className="lesson-media-block" ref={setContainer} tabIndex={-1}>
+        <img
+          key={attempt}
+          src={block.url}
+          alt={block.alt}
+          loading="lazy"
+          onError={() => setFailed(true)}
+          onLoad={() => setFailed(false)}
+        />
+        {block.caption ? <figcaption>{block.caption}</figcaption> : null}
+        {failure}
+      </figure>
+    );
+  }
+  if (block.type === 'video') {
+    return (
+      <figure className="lesson-media-block" ref={setContainer} tabIndex={-1}>
+        {block.title ? <figcaption>{block.title}</figcaption> : null}
+        <video
+          key={attempt}
+          controls
+          preload="metadata"
+          src={block.url}
+          onError={() => setFailed(true)}
+          onLoadedData={() => setFailed(false)}
+        />
+        {failure}
+      </figure>
+    );
+  }
+  return (
+    <div className="lesson-audio-block" ref={setContainer} tabIndex={-1}>
+      {block.title ? <strong>{block.title}</strong> : null}
+      <audio
+        key={attempt}
+        controls
+        preload="metadata"
+        src={block.url}
+        onError={() => setFailed(true)}
+        onLoadedData={() => setFailed(false)}
+      />
+      {failure}
+    </div>
+  );
+}
+
 export function LessonBlocks({
   blocks,
   legacyContent = null,
   compact = false,
+  mediaScopeKey,
   renderActivity,
   renderMaterial,
 }: {
   readonly blocks: readonly LessonBlock[];
   readonly legacyContent?: string | null;
   readonly compact?: boolean;
+  /** Copied lessons can retain block IDs; only their media state needs a new scope. */
+  readonly mediaScopeKey?: string;
   readonly renderActivity?: (block: Extract<LessonBlock, { type: 'activity' }>) => ReactNode;
   readonly renderMaterial?: (block: Extract<LessonBlock, { type: 'manual-material' }>) => ReactNode;
 }): JSX.Element | null {
@@ -120,10 +211,10 @@ export function LessonBlocks({
             );
           }
           return (
-            <figure key={block.id} className="lesson-media-block">
-              <img src={block.url} alt={block.alt} loading="lazy" />
-              {block.caption ? <figcaption>{block.caption}</figcaption> : null}
-            </figure>
+            <LocalMediaBlock
+              key={JSON.stringify([mediaScopeKey, block.id, block.type, block.url])}
+              block={block}
+            />
           );
         }
         if (block.type === 'video') {
@@ -133,10 +224,10 @@ export function LessonBlocks({
             );
           }
           return (
-            <figure key={block.id} className="lesson-media-block">
-              {block.title ? <figcaption>{block.title}</figcaption> : null}
-              <video controls preload="metadata" src={block.url} />
-            </figure>
+            <LocalMediaBlock
+              key={JSON.stringify([mediaScopeKey, block.id, block.type, block.url])}
+              block={block}
+            />
           );
         }
         if (block.type === 'activity') {
@@ -174,10 +265,10 @@ export function LessonBlocks({
             );
           }
           return (
-            <div key={block.id} className="lesson-audio-block">
-              {block.title ? <strong>{block.title}</strong> : null}
-              <audio controls preload="metadata" src={block.url} />
-            </div>
+            <LocalMediaBlock
+              key={JSON.stringify([mediaScopeKey, block.id, block.type, block.url])}
+              block={block}
+            />
           );
         }
         return (

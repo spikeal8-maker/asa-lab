@@ -30,7 +30,7 @@ export function telemetryReceipt(request: Pick<Request, 'url' | 'method' | 'post
         eventId: body.eventId,
         receiptId: body.eventId,
         operation: body.eventType,
-        recordId: body.eventId,
+        recordId: 1,
         receivedAt: timestamp,
         persistedAt: timestamp,
       },

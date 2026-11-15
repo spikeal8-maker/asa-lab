@@ -1,0 +1,169 @@
+diff --git a/packages/scratch-gui/src/lib/vm-manager-hoc.jsx b/packages/scratch-gui/src/lib/vm-manager-hoc.jsx
+index 152a8a432ee30afc3323ff3e8e1c49618dc03bb9..fe6c528d7bb5f8bcf9fc1d5713e3377b3c09f0f1 100644
+--- a/packages/scratch-gui/src/lib/vm-manager-hoc.jsx
++++ b/packages/scratch-gui/src/lib/vm-manager-hoc.jsx
+@@ -9,6 +9,8 @@
+ import {setProjectUnchanged} from '../reducers/project-changed';
+ import {
+     LoadingStates,
++    getIsFetchingWithId,
++    getIsLoading,
+     getIsLoadingWithId,
+     onLoadedProject,
+     projectError
+@@ -23,6 +25,8 @@
+     class VMManager extends React.Component {
+         constructor (props) {
+             super(props);
++            this.currentLoad = null;
++            this.unmounted = false;
+             bindAll(this, [
+                 'loadProject'
+             ]);
+@@ -40,6 +44,12 @@
+             }
+         }
+         componentDidUpdate (prevProps) {
++            const load = this.currentLoad;
++            if (load && (!this.isCurrentLoad(load) ||
++                (load.published && this.props.loadingState !== prevProps.loadingState &&
++                    (getIsFetchingWithId(this.props.loadingState) || getIsLoading(this.props.loadingState))))) {
++                this.cancelLoad();
++            }
+             // if project is in loading state, AND fonts are loaded,
+             // and they weren't both that way until now... load project!
+             if (this.props.isLoadingWithId && this.props.fontsLoaded &&
+@@ -51,27 +61,102 @@
+                 this.props.vm.start();
+             }
+         }
++        componentWillUnmount () {
++            this.unmounted = true;
++            this.cancelLoad();
++        }
++        isCurrentLoad (load) {
++            return !this.unmounted && this.currentLoad === load &&
++                this.props.vm === load.vm && this.props.projectId === load.projectId &&
++                this.props.projectData === load.projectData &&
++                (load.published || (this.props.isLoadingWithId && this.props.loadingState === load.loadingState));
++        }
++        cancelLoad () {
++            const load = this.currentLoad;
++            this.currentLoad = null;
++            if (!load) return;
++            if (load.timeoutId !== null) {
++                clearTimeout(load.timeoutId);
++                load.timeoutId = null;
++            }
++            if (load.finishSettling) {
++                const finishSettling = load.finishSettling;
++                load.finishSettling = null;
++                finishSettling();
++            }
++        }
+         loadProject () {
+-            return this.props.vm.loadProject(this.props.projectData)
++            this.cancelLoad();
++            if (this.unmounted) return Promise.resolve();
++            const load = {
++                vm: this.props.vm,
++                projectId: this.props.projectId,
++                projectData: this.props.projectData,
++                loadingState: this.props.loadingState,
++                timeoutId: null,
++                finishSettling: null,
++                published: false
++            };
++            this.currentLoad = load;
++            let loading;
++            try {
++                loading = load.vm.loadProject(load.projectData);
++            } catch (e) {
++                if (this.currentLoad === load) this.cancelLoad();
++                throw e;
++            }
++            return loading
+                 .then(() => {
+-                    this.props.onLoadedProject(this.props.loadingState, this.props.canSave);
+-                    // Wrap in a setTimeout because skin loading in
+-                    // the renderer can be async.
+-                    setTimeout(() => this.props.onSetProjectUnchanged());
++                    if (!this.isCurrentLoad(load)) {
++                        if (this.currentLoad === load) this.cancelLoad();
++                        return;
++                    }
++                    // Let asynchronous renderer skins settle while this load is still loading.
++                    return new Promise(resolve => {
++                        load.finishSettling = resolve;
++                        load.timeoutId = setTimeout(() => {
++                            load.timeoutId = null;
++                            load.finishSettling = null;
++                            resolve();
++                        });
++                    });
++                })
++                .then(() => {
++                    if (!this.isCurrentLoad(load)) {
++                        if (this.currentLoad === load) this.cancelLoad();
++                        return;
++                    }
++                    // Finish this load's baseline before loaded callbacks can accept an edit.
++                    this.props.onSetProjectUnchanged();
++                    if (!this.isCurrentLoad(load)) {
++                        if (this.currentLoad === load) this.cancelLoad();
++                        return;
++                    }
++                    load.published = true;
++                    this.props.onLoadedProject(load.loadingState, this.props.canSave);
+
+                     // If the vm is not running, call draw on the renderer manually
+                     // This draws the state of the loaded project with no blocks running
+                     // which closely matches the 2.0 behavior, except for monitors–
+                     // 2.0 runs monitors and shows updates (e.g. timer monitor)
+                     // before the VM starts running other hat blocks.
+-                    if (!this.props.isStarted) {
++                    if (this.isCurrentLoad(load) && !this.props.isStarted) {
+                         // Wrap in a setTimeout because skin loading in
+                         // the renderer can be async.
+-                        setTimeout(() => this.props.vm.renderer.draw());
++                        load.timeoutId = setTimeout(() => {
++                            load.timeoutId = null;
++                            const current = this.isCurrentLoad(load);
++                            if (this.currentLoad === load) this.currentLoad = null;
++                            if (current) load.vm.renderer.draw();
++                        });
++                    } else if (this.currentLoad === load) {
++                        this.currentLoad = null;
+                     }
+                 })
+                 .catch(e => {
+-                    this.props.onError(e);
++                    const current = this.isCurrentLoad(load);
++                    if (this.currentLoad === load) this.cancelLoad();
++                    if (current) this.props.onError(e);
+                 });
+         }
+         render () {
+diff --git a/packages/scratch-gui/src/lib/project-fetcher-hoc.jsx b/packages/scratch-gui/src/lib/project-fetcher-hoc.jsx
+index d26c1de37b9442b76f339333d0e717b2be2da538..6e88d786d79684d2deb5157160faa0147910c5bc 100644
+--- a/packages/scratch-gui/src/lib/project-fetcher-hoc.jsx
++++ b/packages/scratch-gui/src/lib/project-fetcher-hoc.jsx
+@@ -11,6 +11,7 @@
+     getIsCreatingNew,
+     getIsFetchingWithId,
+     getIsLoading,
++    getIsLoadingWithId,
+     getIsShowingProject,
+     onFetchedProjectData,
+     projectError,
+@@ -71,7 +72,9 @@
+             if (this.props.isFetchingWithId && !prevProps.isFetchingWithId) {
+                 this.fetchProject(this.props.reduxProjectId, this.props.loadingState);
+             }
+-            if (this.props.isShowingProject && !prevProps.isShowingProject) {
++            if (this.props.isShowingProject && !prevProps.isShowingProject &&
++                !getIsLoadingWithId(prevProps.loadingState)) {
++                // VMManager finishes initial-load baselines before publishing the showing state.
+                 this.props.onProjectUnchanged();
+             }
+             if (this.props.isShowingProject && (prevProps.isLoadingProject || prevProps.isCreatingNew)) {

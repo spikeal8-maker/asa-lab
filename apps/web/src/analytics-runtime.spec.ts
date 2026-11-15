@@ -44,7 +44,7 @@ function response(body: Record<string, unknown>) {
               pipeline: body.pipeline,
               acknowledgementStage: body.acknowledgementStage,
             }
-          : { recordId: projectId }),
+          : { recordId: 1 }),
     }),
     { status: 200 },
   );
@@ -52,6 +52,7 @@ function response(body: Record<string, unknown>) {
 beforeEach(async () => {
   vi.resetModules();
   vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.setSystemTime(new Date('2026-10-13T12:00:00Z'));
   sessionStorage.clear();
   (
@@ -105,6 +106,298 @@ const qualityBodies = () => qualityCalls().map(([, init]) => JSON.parse(init!.bo
 const savedQuality = () => JSON.parse(sessionStorage.getItem('asa:quality:v2:product')!);
 const savedQueue = () => JSON.parse(sessionStorage.getItem('asa:analytics:v2')!);
 
+describe('workspace handoff in the actual analytics runtime', () => {
+  it('does not turn repeated context/online notifications during a telemetry 503 into retries or auth work', async () => {
+    const { fetchWithSessionRefresh } = await import('./session-fetch');
+    transport.mockImplementation(async (path) => {
+      if (path === '/api/projects/foreground') return Response.json({ saved: true });
+      return new Response('{}', { status: 503, headers: { 'retry-after': '20' } });
+    });
+    context.setTelemetryContext(actor, true, 'projects');
+    await vi.advanceTimersByTimeAsync(0);
+    const visits = () =>
+      transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/events');
+    const original = visits()[0]![1]!.body;
+    for (let n = 0; n < 100; n++) {
+      context.setTelemetryContext(actor, true, n % 2 ? 'home' : 'projects');
+      window.dispatchEvent(new Event('online'));
+    }
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(visits()).toHaveLength(1);
+    expect(qualityCalls()).toHaveLength(1);
+    expect((await fetchWithSessionRefresh('/api/projects/foreground')).status).toBe(200);
+    expect(
+      transport.mock.calls.filter(([path]) => String(path).startsWith('/api/auth/')),
+    ).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(visits()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(visits()).toHaveLength(2);
+    expect(visits()[1]![1]!.body).toBe(original);
+  });
+  it.each([4001, 3000])(
+    'preserves the observation deadline and separate proof budget for a 401 %s ms after release',
+    async (delay) => {
+      const { fetchWithSessionRefresh } = await import('./session-fetch');
+      const { analyticsSessionTransport } = await import('./analytics-runtime');
+      let productRequests = 0;
+      let completeTouch!: (value: Response) => void;
+      let completeProof!: (value: Response) => void;
+      transport.mockImplementation((path, init) => {
+        if (path === '/api/projects/handoff')
+          return Promise.resolve(
+            new Response('{}', { status: ++productRequests === 1 ? 401 : 200 }),
+          );
+        if (path === '/api/auth/refresh') return Promise.resolve(Response.json({}));
+        if (path === '/api/auth/me')
+          return new Promise((resolve) => {
+            completeProof = resolve;
+          });
+        const body = JSON.parse(init!.body as string);
+        if (body.operation === 'touch')
+          return new Promise((resolve) => {
+            completeTouch = resolve;
+          });
+        return Promise.resolve(response(body));
+      });
+      context.setTelemetryContext(actor, true, 'editor.electronics');
+      await vi.advanceTimersByTimeAsync(0);
+      const activity = analyticsSessionTransport(actor, 'electronics');
+      expect(await activity.start(projectId, projectId)).toBe(true);
+      const generation = context.telemetryContext().generation;
+      const mutation = context.beginTelemetryWorkspaceSwitch();
+      expect((await fetchWithSessionRefresh('/api/projects/handoff')).status).toBe(200);
+      vi.setSystemTime(Date.now() + 8000);
+      context.finishTelemetryWorkspaceSwitch(mutation, false);
+      context.observeTelemetryIdentity(context.beginTelemetryIdentityObservation(), {
+        authenticated: true,
+        account: { id: actor.accountId },
+        activeWorkspace: { workspaceId: actor.workspaceId },
+      });
+      expect(context.telemetryContext().generation).toBe(generation);
+      const pending = activity.touch(projectId, false);
+      vi.setSystemTime(Date.now() + delay);
+      completeTouch(new Response('{}', { status: 401 }));
+      expect(await pending).toBe(false);
+      for (let n = 0; n < 30; n++) await Promise.resolve();
+      expect(transport.mock.calls.filter(([path]) => path === '/api/auth/me')).toHaveLength(
+        delay === 4001 ? 0 : 1,
+      );
+      expect(context.telemetryContext().generation).toBe(generation);
+      if (delay === 3000) {
+        // Once admitted before the observation expires, the existing proof keeps its own 12s budget.
+        vi.setSystemTime(Date.now() + 5000);
+        completeProof(
+          Response.json({
+            authenticated: true,
+            account: { id: actor.accountId },
+            activeWorkspace: { workspaceId: actor.workspaceId },
+          }),
+        );
+        for (let n = 0; n < 30; n++) await Promise.resolve();
+        expect(context.telemetryContext().generation).toBe(generation + 1);
+      }
+    },
+  );
+
+  it.each([
+    ['events', 'before'],
+    ['events', 'during'],
+    ['quality', 'before'],
+    ['quality', 'during'],
+    ['healthy', 'before'],
+    ['healthy', 'during'],
+  ] as const)(
+    'retains independent product recovery for %s delivery when the product request starts %s handoff',
+    async (stoppedAt, started) => {
+      const { api } = await import('./api');
+      const { fetchWithSessionRefresh } = await import('./session-fetch');
+      const { analyticsSessionTransport } = await import('./analytics-runtime');
+      let completePost!: (value: Response) => void;
+      let completeProduct!: (value: Response) => void;
+      let productRequests = 0;
+      let terminalEventId: string | undefined;
+      transport.mockImplementation((path, init) => {
+        if (path === '/api/session/context')
+          return new Promise((resolve) => {
+            completePost = resolve;
+          });
+        if (path === '/api/projects/handoff') {
+          if (++productRequests === 1)
+            return new Promise((resolve) => {
+              completeProduct = resolve;
+            });
+          return Promise.resolve(Response.json({ projects: [] }));
+        }
+        if (path === '/api/auth/refresh') return Promise.resolve(Response.json({}));
+        if (path === '/api/auth/me')
+          return Promise.resolve(
+            Response.json({
+              authenticated: true,
+              account: { id: actor.accountId },
+              activeWorkspace: { workspaceId: actor.workspaceId },
+            }),
+          );
+        const body = JSON.parse(init!.body as string);
+        if (
+          !terminalEventId &&
+          ((stoppedAt === 'events' && path === '/api/analytics/v2/events') ||
+            (stoppedAt === 'quality' && path === '/api/analytics/v2/quality'))
+        ) {
+          terminalEventId = body.eventId;
+          return Promise.resolve(new Response('{}', { status: 401 }));
+        }
+        return Promise.resolve(response(body));
+      });
+      context.setTelemetryContext(actor, true, 'editor.electronics');
+      await vi.advanceTimersByTimeAsync(1000);
+      const original = context.telemetryContext();
+      const activity = analyticsSessionTransport(actor, 'electronics');
+      if (stoppedAt === 'healthy') expect(await activity.start(projectId, projectId)).toBe(true);
+      const before =
+        started === 'before' ? fetchWithSessionRefresh('/api/projects/handoff') : undefined;
+      const mutation = api.switchWorkspace(projectId);
+      const product = before ?? fetchWithSessionRefresh('/api/projects/handoff');
+      completeProduct(new Response('{}', { status: 401 }));
+      expect((await product).status).toBe(200);
+      expect(context.telemetryContext()).toEqual({ ...original, ready: false });
+      expect(transport.mock.calls.filter(([path]) => path === '/api/auth/me')).toHaveLength(0);
+      completePost(Response.json({ error: { code: 'forbidden' } }, { status: 403 }));
+      expect((await mutation).ok).toBe(false);
+      await api.me();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(context.telemetryContext()).toMatchObject({
+        ready: true,
+        actor,
+        continuity: original.continuity,
+        generation: original.generation + (stoppedAt === 'healthy' ? 0 : 1),
+      });
+      if (stoppedAt === 'healthy') expect(await activity.touch(projectId, false)).toBe(true);
+      else expect(await activity.start(projectId, projectId)).toBe(true);
+      expect(operations().map((body) => body.operation)).toEqual(
+        stoppedAt === 'healthy' ? ['start', 'touch'] : ['start'],
+      );
+      expect(
+        transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/events'),
+      ).toHaveLength(1);
+      expect(transport.mock.calls.filter(([path]) => path === '/api/auth/me')).toHaveLength(
+        stoppedAt === 'healthy' ? 1 : 2,
+      );
+      expect(transport.mock.calls.filter(([path]) => path === '/api/auth/refresh')).toHaveLength(1);
+      expect(productRequests).toBe(2);
+      if (terminalEventId)
+        expect(
+          transport.mock.calls.filter(
+            ([, init]) => init?.body && JSON.parse(init.body as string).eventId === terminalEventId,
+          ),
+        ).toHaveLength(1);
+    },
+  );
+
+  it('never retries the old quality envelope in the successful POST-to-me gap', async () => {
+    const { api } = await import('./api');
+    const successor = { ...actor, workspaceId: projectId };
+    let serverWorkspace = actor.workspaceId;
+    let completePost!: (value: Response) => void;
+    let completeMe!: (value: Response) => void;
+    const staleStarts: unknown[] = [];
+    transport.mockImplementation((path, init) => {
+      if (path === '/api/session/context')
+        return new Promise((resolve) => {
+          completePost = resolve;
+        });
+      if (path === '/api/auth/me')
+        return new Promise((resolve) => {
+          completeMe = resolve;
+        });
+      const body = JSON.parse(init!.body as string);
+      if (body.actorExpectation.workspaceId !== serverWorkspace) {
+        staleStarts.push(body);
+        return Promise.resolve(
+          Response.json({ error: { code: 'context_mismatch' } }, { status: 409 }),
+        );
+      }
+      if (path === '/api/analytics/v2/quality' && serverWorkspace === actor.workspaceId)
+        return Promise.resolve(new Response('{}', { status: 503 }));
+      return Promise.resolve(response(body));
+    });
+    context.setTelemetryContext(actor, true, 'account');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(qualityCalls()).toHaveLength(1);
+    const original = savedQuality().pending;
+    const post = api.switchWorkspace(successor.workspaceId);
+    expect(context.telemetryContext().ready).toBe(false);
+    serverWorkspace = successor.workspaceId;
+    completePost(
+      Response.json(
+        { activeWorkspace: { workspaceId: serverWorkspace, kind: 'organization' } },
+        { status: 201 },
+      ),
+    );
+    expect((await post).ok).toBe(true);
+    context.setTelemetryContext(actor, true, 'account');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(qualityCalls()).toHaveLength(1);
+    expect(savedQuality().pending).toEqual(original);
+    const me = api.me();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(qualityCalls()).toHaveLength(1);
+    completeMe(
+      Response.json({
+        authenticated: true,
+        account: { id: actor.accountId },
+        activeWorkspace: { workspaceId: serverWorkspace },
+      }),
+    );
+    await me;
+    expect(context.telemetryContext().ready).toBe(false);
+    context.setTelemetryContext(successor, true, 'home');
+    await vi.advanceTimersByTimeAsync(1000);
+    context.setTelemetryContext(actor, true, 'account');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(staleStarts).toEqual([]);
+    expect(qualityCalls()).toHaveLength(2);
+    expect(
+      qualityBodies()
+        .slice(1)
+        .every((body) => body.actorExpectation.workspaceId === serverWorkspace),
+    ).toBe(true);
+    expect(JSON.parse(sessionStorage.getItem('asa:quality:v2:product:retired')!)[0]).toMatchObject({
+      actorExpectation: actor,
+      coverage: { uncleanEnd: true, final: true },
+    });
+  });
+
+  it('retains a mounted editor owner and session after unchanged proof without another visit or start', async () => {
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    const [tracker] = await mountTrackers();
+    await vi.advanceTimersByTimeAsync(0);
+    const original = context.telemetryContext();
+    const start = operations()[0];
+    const mutation = context.beginTelemetryWorkspaceSwitch();
+    expect(context.telemetryContext()).toEqual({ ...original, ready: false });
+    context.finishTelemetryWorkspaceSwitch(mutation, false);
+    context.observeTelemetryIdentity(context.beginTelemetryIdentityObservation(), {
+      authenticated: true,
+      account: { id: actor.accountId },
+      activeWorkspace: { workspaceId: actor.workspaceId },
+    });
+    expect(context.telemetryContext()).toEqual(original);
+    await vi.advanceTimersByTimeAsync(29_000);
+    tracker!.input();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(operations().map((body) => body.operation)).toEqual(['start', 'touch']);
+    expect(operations()[1]).toMatchObject({
+      sessionId: start.sessionId,
+      visitId: start.visitId,
+      actorExpectation: actor,
+    });
+    expect(
+      transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/events'),
+    ).toHaveLength(1);
+  });
+});
+
 describe('OBS007 mounted runtime BFCache restoration', () => {
   const hide = () => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
   const show = (persisted = true) =>
@@ -135,6 +428,8 @@ describe('OBS007 mounted runtime BFCache restoration', () => {
     expect(transport).toHaveBeenCalledTimes(calls);
     show();
     await vi.advanceTimersByTimeAsync(0);
+    expect(operations().map((body) => body.operation)).toEqual(['start']);
+    await vi.advanceTimersByTimeAsync(1000); // BFCache restoration cannot shorten an outage cooldown.
     const sessions = transport.mock.calls.filter(
       ([path]) => path === '/api/analytics/v2/module-session',
     );
@@ -240,6 +535,27 @@ async function mountTrackers(apis?: ActivityTransport[], input = true) {
 }
 describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
   async function mountHost(strict = false) {
+    // The real game host checks current admission and Project Core before it is ready.
+    // Keep those reads separate from the unchanged analytics receipt transport.
+    const analyticsTransport = transport.getMockImplementation()!;
+    transport.mockImplementation(async (path, init) => {
+      if (path === '/api/games/access?game=chess') {
+        expect(init?.method ?? 'GET').toBe('GET');
+        return new Response(JSON.stringify({ granted: true, reason: 'allowed', threshold: null }), {
+          status: 200,
+        });
+      }
+      if (path === `/api/projects/${projectId}`) {
+        expect(init?.method ?? 'GET').toBe('GET');
+        return new Response(
+          JSON.stringify({
+            project: { id: projectId, moduleKey: 'chess', title: 'Observed game' },
+          }),
+          { status: 200 },
+        );
+      }
+      return analyticsTransport(path, init);
+    });
     vi.doMock('./chess/load-chess-editor', () => ({
       loadChessEditor: async () => ({ default: () => null }),
     }));
@@ -256,6 +572,9 @@ describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
       onBack: () => undefined,
     });
     await act(async () => root!.render(strict ? createElement(StrictMode, null, host) : host));
+    expect(transport.mock.calls.map(([path]) => path)).toEqual(
+      expect.arrayContaining(['/api/games/access?game=chess', `/api/projects/${projectId}`]),
+    );
   }
 
   afterEach(() => {
@@ -325,6 +644,39 @@ describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
 });
 
 describe('actual runtime identity and React ownership', () => {
+  it('does not replay acknowledged visits when the same Account switches workspace', async () => {
+    const visits = () =>
+      transport.mock.calls
+        .filter(([path]) => path === '/api/analytics/v2/events')
+        .map(([, init]) => JSON.parse(init!.body as string));
+    context.setTelemetryContext(actor, true, 'home');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(visits()).toHaveLength(1);
+    const original = visits()[0];
+    expect(savedQueue().visits).toEqual([]);
+    expect(savedQuality().snapshot.counters).toMatchObject({ acknowledged: 1, retried: 0 });
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(visits()).toEqual([original]);
+    const successor = { ...actor, workspaceId: projectId };
+    context.setTelemetryContext(successor, true, 'learning');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(visits()).toHaveLength(2);
+    const next = visits()[1];
+    expect(next.actorExpectation).toEqual(successor);
+    expect(next.eventId).not.toBe(original.eventId);
+    expect(next.visitId).not.toBe(original.visitId);
+    expect(savedQueue()).toEqual({
+      schemaVersion: 2,
+      actor: successor,
+      sessions: [],
+      visits: [],
+    });
+    context.setTelemetryContext({ ...successor }, true, 'projects');
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(visits()).toEqual([original, next]);
+    expect(savedQuality().snapshot.counters).toMatchObject({ acknowledged: 1, retried: 0 });
+  });
   it('StrictMode probe creates one visit and one start; disposal records the exact original close', async () => {
     const { trackInputActivity } = await import('./activity-lifecycle');
     const { analyticsSessionTransport } = await import('./analytics-runtime');
@@ -469,7 +821,7 @@ describe('pagehide closes mounted activity before final quality', () => {
       coverage: { final: false },
     });
     runtimePagehide.call(window, new Event('pagehide'));
-    expect(qualityCalls()[1]![1]!.body).toBe(frozenBody);
+    expect(qualityCalls()).toHaveLength(1);
     expect(savedQuality().pending).toEqual(frozen);
     await vi.advanceTimersByTimeAsync(0);
     expect(savedQuality().snapshot).toMatchObject({
@@ -478,13 +830,15 @@ describe('pagehide closes mounted activity before final quality', () => {
       gauges: { pending: 0, inFlight: 1 },
     });
     await vi.advanceTimersByTimeAsync(1000);
+    expect(qualityCalls()[1]![1]!.body).toBe(frozenBody);
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(qualityBodies()[2]).toMatchObject({
       sequence: 2,
       streamId: frozen.streamId,
       counters: { attempted: 3, enqueued: 3 },
       coverage: { final: true },
-      gauges: { pending: 0, inFlight: 1 },
     });
+    expect(qualityBodies()[2].gauges.pending + qualityBodies()[2].gauges.inFlight).toBe(1);
     expect(qualityBodies()[2].eventId).not.toBe(frozen.eventId);
     expect(qualityCalls()[0]![1]!.body).toBe(frozenBody);
   });

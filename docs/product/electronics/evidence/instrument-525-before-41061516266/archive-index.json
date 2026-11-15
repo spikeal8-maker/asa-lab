@@ -1,0 +1,10 @@
+{
+  "path": "selected-raw16.zip",
+  "bytes": 5651785,
+  "sha256": "f397e89c9c3872eb2223bd6a18d3610d07535419aa6f039ff9c34646331ecbd7",
+  "run": 41061516266,
+  "head": "8ebe3f2b2b6140a2750997d2392ae80aae586009",
+  "artifact": 12984666079,
+  "selected_raw_count": 16,
+  "full_zip_downloaded": false
+}

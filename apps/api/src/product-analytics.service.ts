@@ -1,8 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { isIP } from 'node:net';
 import type pg from 'pg';
-import type { ActiveContext } from '@asa-lab/identity';
-import type { SeatContext } from './seat-context.js';
+import {
+  ActiveContextUseCase,
+  PgSessionV2Store,
+  PgSessionStore,
+  PgAccountDirectory,
+  type ActiveContext,
+} from '@asa-lab/identity';
+import { SeatContextUseCase, type SeatContext } from './seat-context.js';
 import type { ClientNetworkKind } from './client-address.js';
 import { AnalyticsDeliveryQueue, AnalyticsDeliveryError } from './analytics-delivery-queue.js';
 import { clientEnvironment } from './client-environment.js';
@@ -11,12 +18,14 @@ export type AnalyticsEventType =
   | 'auth.login'
   | 'auth.register'
   | 'auth.max'
+  | 'auth.telegram'
   | 'auth.class_join'
   | 'session.observed'
   | 'module.opened';
 export type AnalyticsOutcome = 'succeeded' | 'failed' | 'blocked';
-export type AnalyticsAuthMethod = 'password' | 'organization' | 'max' | 'class_code';
-export type AnalyticsModuleKey = 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
+export type AnalyticsAuthMethod = 'password' | 'organization' | 'max' | 'telegram' | 'class_code';
+export type AnalyticsModuleKey =
+  'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks' | 'robotics';
 export type AnalyticsActor =
   | { readonly kind: 'anonymous' }
   | { readonly kind: 'account'; readonly context: ActiveContext }
@@ -95,6 +104,59 @@ export function observationMetadata(input: ConnectionObservation) {
 /** Product decisions never wait for background observation writes. */
 export class ProductAnalyticsService {
   readonly queue: AnalyticsDeliveryQueue;
+  private readonly admitted = new AsyncLocalStorage<{
+    active: boolean;
+    writes: number;
+    writing: boolean;
+  }>();
+
+  /** Admit BEFORE any cookie lookup. Authority and write share one bounded
+   * worker and the isolated analytics pool, never the critical request pool.
+   * The callback must await its persistence operation before returning. */
+  authenticatedRequest<T>(
+    accountToken: string | undefined,
+    studentToken: string | undefined,
+    run: (account: ActiveContext | null, student: SeatContext | null) => Promise<T>,
+  ): Promise<T> {
+    if (this.admitted.getStore()?.active)
+      return Promise.reject(new AnalyticsDeliveryError('telemetry_unavailable'));
+    const admission = { active: true, writes: 0, writing: false };
+    return this.queue.submit(() =>
+      this.admitted.run(admission, async () => {
+        try {
+          if (!this.pool) throw new AnalyticsDeliveryError('telemetry_unavailable');
+          const account = await new ActiveContextUseCase(
+            new PgSessionV2Store(this.pool),
+            new PgSessionStore(this.pool),
+            new PgAccountDirectory(this.pool),
+          ).resolve(accountToken);
+          // Deliberately serial: no unbounded pg-pool waiting list, even with
+          // simultaneous Account and Seat cookies. No authorization cache.
+          const student = await new SeatContextUseCase(this.pool).resolve(studentToken);
+          const result = await run(account, student);
+          if (admission.writes !== 1) throw new AnalyticsDeliveryError('telemetry_unavailable');
+          return result;
+        } finally {
+          admission.active = false;
+        }
+      }),
+    );
+  }
+
+  private async submit<T>(run: () => Promise<T>): Promise<T> {
+    const admission = this.admitted.getStore();
+    if (!admission?.active) return this.queue.submit(run);
+    if (admission.writing || admission.writes !== 0)
+      throw new AnalyticsDeliveryError('telemetry_unavailable');
+    admission.writing = true;
+    try {
+      const result = await run();
+      admission.writes += 1;
+      return result;
+    } finally {
+      admission.writing = false;
+    }
+  }
   constructor(
     private readonly pool: pg.Pool | null,
     queue?: AnalyticsDeliveryQueue,
@@ -110,8 +172,9 @@ export class ProductAnalyticsService {
 
   private async confirmedLegacy(run: () => Promise<boolean>): Promise<boolean> {
     try {
-      return await this.queue.submit(run);
-    } catch {
+      return await this.submit(run);
+    } catch (error) {
+      if (this.admitted.getStore()?.active) throw error;
       return false;
     }
   }
@@ -162,7 +225,21 @@ export class ProductAnalyticsService {
           input.networkKind ?? 'unknown',
           input.userAgentSummary?.trim().slice(0, 128) || null,
         ],
-      );
+      ).catch((cause: unknown) => {
+        const sql = cause as { code?: unknown; message?: unknown } | null;
+        // Only these explicit policy refusals from this operation are expected
+        // non-acceptance. Missing grants, connection failures and timeouts must
+        // remain delivery failures. Throw through the queue so its persisted
+        // counter cannot report a denied operation as a durable write.
+        if (
+          sql?.code === '42501' &&
+          (sql.message === 'module session actor denied' ||
+            sql.message === 'module session context denied' ||
+            sql.message === 'module session identifier collision')
+        )
+          throw new AnalyticsDeliveryError('context_denied');
+        throw cause;
+      });
       const persistedId: unknown = result.rows[0]?.analytics_start_module_session;
       if (
         typeof persistedId !== 'string' ||
@@ -183,7 +260,18 @@ export class ProductAnalyticsService {
       const result = await this.pool!.query(
         'SELECT analytics_touch_module_session($1,$2,$3,$4,$5)',
         [input.sessionId, values[0], values[1], values[2], input.closed],
-      );
+      ).catch((cause: unknown) => {
+        const sql = cause as { code?: unknown; message?: unknown } | null;
+        // Keep a refused heartbeat distinct from an unavailable delivery, with
+        // the same queue rejection accounting as a refused session start.
+        if (
+          sql?.code === '42501' &&
+          (sql.message === 'module session denied' ||
+            sql.message === 'module session project denied')
+        )
+          throw new AnalyticsDeliveryError('context_denied');
+        throw cause;
+      });
       if (!Number.isInteger(result.rows[0]?.analytics_touch_module_session))
         throw new AnalyticsDeliveryError('telemetry_unavailable');
       return true;
@@ -221,7 +309,7 @@ export class ProductAnalyticsService {
     receivedAt: string,
   ): Promise<AnalyticsReceipt> {
     const frozen = structuredClone({ actor: actorValues(actor), semantic, metadata });
-    return this.queue.submit(() =>
+    return this.submit(() =>
       this.writeReceipt(
         eventId,
         frozen.actor,
@@ -231,6 +319,21 @@ export class ProductAnalyticsService {
         receivedAt,
       ),
     );
+  }
+  persistAcquisition(
+    eventId: string,
+    actor: AnalyticsActor,
+    semantic: object,
+    receivedAt: string,
+  ): Promise<AnalyticsReceipt> {
+    const frozen = structuredClone({ actor: actorValues(actor), semantic });
+    return this.submit(async () => {
+      const result = await this.pool!.query(
+        'SELECT analytics_acquisition_ingest($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::timestamptz) AS receipt',
+        [eventId, ...frozen.actor, JSON.stringify(frozen.semantic), receivedAt],
+      );
+      return confirmedReceipt(result.rows[0]?.receipt, eventId, 'acquisition.observed');
+    });
   }
   enqueueEvent(event: ProductAnalyticsEvent): { state: 'queued' | 'unavailable' } {
     const eventId = randomUUID();

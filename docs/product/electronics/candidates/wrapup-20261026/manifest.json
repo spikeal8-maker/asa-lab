@@ -1,0 +1,37 @@
+[
+  {
+    "task": "751-tooltips",
+    "status": "WIP_NOT_READY_DO_NOT_APPLY_TO_MAIN",
+    "candidateSha": "c32354392cf90515ffd5ffcfb38c8fb06d52a621",
+    "baseSha": "81bdb813c7765c9280442efb2dea6b32e543c91e",
+    "patchSha256": "1650e21bc03a6dd9375f71eec9a57168bf4dd8006b24030b4f2bc25a98b4f824",
+    "paths": [
+      "apps/web/src/electronics/WorkbenchHeader.tsx",
+      "apps/web/src/electronics/WorkbenchTooltip.tsx",
+      "apps/web/src/electronics/testing/workbench-tooltips.browser.mjs",
+      "apps/web/src/electronics/workbench.css"
+    ],
+    "patchFile": "751-tooltips.patch.gz",
+    "encoding": "gzip",
+    "archiveSha256": "9ce5b6a45c5e031ab7cf07b4834efb965b485d79e24538c8230342606c0a64a8"
+  },
+  {
+    "task": "789-block-modulo",
+    "status": "WIP_NOT_READY_DO_NOT_APPLY_TO_MAIN",
+    "candidateSha": "58112cb5dada2917e91056617d1e1eecd5bfd203",
+    "baseSha": "81bdb813c7765c9280442efb2dea6b32e543c91e",
+    "patchSha256": "d5260a7510b2f3684507f12a7434577d51acffee3ac89de42eb9080feeee105a",
+    "paths": [
+      "apps/web/src/electronics/arduino-blocks.ts",
+      "apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts",
+      "contexts/electronics/domain/arduino-capabilities.ts",
+      "contexts/electronics/domain/arduino-modulo-adapter.ts",
+      "contexts/electronics/domain/arduino-program-runtime.ts",
+      "contexts/electronics/index.ts",
+      "docs/product/electronics/evidence/block-modulo-789.json"
+    ],
+    "patchFile": "789-block-modulo.patch.gz",
+    "encoding": "gzip",
+    "archiveSha256": "9ecb90a189eafd16aaa31f2c3247797a7eec40d0e078955825ca6c565c53077e"
+  }
+]

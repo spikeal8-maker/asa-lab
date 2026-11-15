@@ -1,6 +1,8 @@
+import { emitApplicationLog } from './application-log-store.js';
 import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { clientAddress } from './client-address.js';
+import { validClientException } from './client-error-details.js';
 
 const CODES = new Set([
   'render_failed',
@@ -13,6 +15,7 @@ const CODES = new Set([
   'autosave_failed',
   'session_refresh_failed',
   'request_failed',
+  'request_cancelled',
   'request_slow',
   'editor_ready',
   'editor_heartbeat',
@@ -30,6 +33,9 @@ const CATEGORIES = [
   'technical',
 ];
 const FAILURES = [
+  'scratch-save-asset',
+  'scratch-save-draft',
+  'scratch-save-prepare',
   'worker-start',
   'worker-runtime',
   'worker-message',
@@ -77,9 +83,41 @@ export class ClientDiagnosticsController {
             'script',
             'line',
             'column',
+            'exception',
+            'operation',
+            'method',
+            'clientAttemptId',
+            'failureKind',
+            'repetitionCount',
+            'firstOccurredAt',
+            'lastOccurredAt',
           ].includes(key),
       ) ||
-      ['instanceId', 'relatedRequestId', 'eventId'].some(
+      (value['operation'] !== undefined &&
+        ![
+          'auth_me',
+          'auth_refresh',
+          'auth_other',
+          'project_read',
+          'project_save',
+          'electronics_draft_read',
+          'electronics_draft_write',
+          'blocks_runtime_session',
+          'other_api',
+        ].includes(value['operation'] as string)) ||
+      (value['method'] !== undefined &&
+        !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'OTHER'].includes(
+          value['method'] as string,
+        )) ||
+      (value['failureKind'] !== undefined &&
+        !['http', 'timeout', 'cancelled', 'network', 'unknown'].includes(
+          value['failureKind'] as string,
+        )) ||
+      (value['code'] === 'request_cancelled' &&
+        (value['failureKind'] !== 'cancelled' ||
+          !['GET', 'HEAD'].includes(value['method'] as string) ||
+          value['phase'] !== 'request')) ||
+      ['instanceId', 'relatedRequestId', 'eventId', 'clientAttemptId'].some(
         (key) =>
           value[key] !== undefined &&
           (typeof value[key] !== 'string' || !UUID.test(value[key] as string)),
@@ -88,11 +126,34 @@ export class ClientDiagnosticsController {
         (!Number.isSafeInteger(value['occurredAt']) ||
           (value['occurredAt'] as number) < 0 ||
           (value['occurredAt'] as number) > 8_640_000_000_000_000)) ||
+      // Optional for legacy clients. An aggregate counts all occurrences, including the first.
+      (['repetitionCount', 'firstOccurredAt', 'lastOccurredAt'].some(
+        (key) => value[key] !== undefined,
+      ) &&
+        (typeof value['eventId'] !== 'string' ||
+          !Number.isSafeInteger(value['repetitionCount']) ||
+          (value['repetitionCount'] as number) < 1 ||
+          (value['repetitionCount'] as number) > 1_000_000 ||
+          !Number.isSafeInteger(value['firstOccurredAt']) ||
+          value['firstOccurredAt'] !== value['occurredAt'] ||
+          !Number.isSafeInteger(value['lastOccurredAt']) ||
+          (value['lastOccurredAt'] as number) < (value['firstOccurredAt'] as number) ||
+          (value['lastOccurredAt'] as number) > 8_640_000_000_000_000 ||
+          (value['lastOccurredAt'] as number) - (value['firstOccurredAt'] as number) >
+            15 * 60_000)) ||
       (value['category'] !== undefined && !CATEGORIES.includes(value['category'] as string)) ||
+      (value['exception'] !== undefined &&
+        !validClientException(value['exception'], value['code'])) ||
       (value['failureCode'] !== undefined && !FAILURES.includes(value['failureCode'] as string)) ||
+      (['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+        value['failureCode'] as string,
+      ) &&
+        (value['code'] !== 'autosave_failed' ||
+          value['module'] !== 'scratch' ||
+          value['phase'] !== 'save')) ||
       (value['script'] !== undefined &&
         (typeof value['script'] !== 'string' ||
-          !/^\/assets\/[A-Za-z0-9_-]{1,160}\.js$/.test(value['script']))) ||
+          !/^\/assets\/[A-Za-z0-9_.-]{1,160}\.js$/.test(value['script']))) ||
       ['line', 'column'].some(
         (k) =>
           value[k] !== undefined &&
@@ -133,9 +194,12 @@ export class ClientDiagnosticsController {
     for (const [id, until] of this.accepted) if (until <= time) this.accepted.delete(id);
     const eventKey = value['eventId'] ? `${key}:${value['eventId']}` : undefined;
     if (eventKey && this.accepted.has(eventKey)) return { accepted: true };
-    const level = ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(
-      value['code'] as string,
-    )
+    const level = [
+      'editor_ready',
+      'editor_heartbeat',
+      'editor_recovered',
+      'request_cancelled',
+    ].includes(value['code'] as string)
       ? 'info'
       : ['editor_unresponsive', 'request_slow'].includes(value['code'] as string) ||
           (value['code'] === 'simulation_failed' &&
@@ -144,7 +208,7 @@ export class ClientDiagnosticsController {
             ))
         ? 'warn'
         : 'error';
-    process.stdout.write(
+    emitApplicationLog(
       `${JSON.stringify({ ...value, time: new Date(time).toISOString(), kind: 'client_diagnostic', level, requestId: request.id, untrustedClientReport: true })}\n`,
     );
     if (eventKey) {

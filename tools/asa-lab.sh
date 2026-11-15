@@ -75,14 +75,53 @@ assert_startup_identity() (
   asa_assert_installation_identity "$repo_root" "$default_project" false "$@"
 )
 
+assert_settings_encryption_key() {
+  key_state=$(awk '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      if (NR == 1) sub(/^\357\273\277/, "", line)
+      if (line !~ /^[ \t]*(export[ \t]+)?ASA_SETTINGS_ENCRYPTION_KEY([ \t=]|$)/) next
+      count++
+      sub(/^[ \t]*(export[ \t]+)?ASA_SETTINGS_ENCRYPTION_KEY[ \t]*/, "", line)
+      if (substr(line, 1, 1) != "=") next
+      sub(/^=[ \t]*/, "", line)
+      quote = substr(line, 1, 1)
+      if (quote == "\"" || quote == sprintf("%c", 39)) {
+        rest = substr(line, 2)
+        closing = index(rest, quote)
+        if (closing == 0 || substr(rest, closing + 1) !~ /^[ \t]*(#.*)?$/) next
+        line = substr(rest, 1, closing - 1)
+      } else {
+        sub(/[ \t]+#.*/, "", line)
+        sub(/[ \t]+$/, "", line)
+      }
+      if ((length(line) == 64 && line !~ /[^a-fA-F0-9]/) ||
+          (length(line) == 43 && line !~ /[^A-Za-z0-9_-]/)) valid = 1
+    }
+    END {
+      if (count == 0) print "missing"
+      else if (count > 1) print "duplicated"
+      else if (!valid) print "invalid"
+      else print "valid"
+    }
+  ' .env)
+  if [ "$key_state" != valid ]; then
+    echo "Existing .env has a $key_state ASA_SETTINGS_ENCRYPTION_KEY; no file changes were made." >&2
+    echo "Restore the original key from the protected installation backup. Do not generate a replacement for stored integration credentials." >&2
+    exit 78
+  fi
+}
+
 create_environment() {
   case "$profile" in
     staging|production) production_like=true ;;
     *) production_like=false ;;
   esac
   if [ -f .env ]; then
+    assert_settings_encryption_key
     if grep -Eq 'replace-with|CHANGE_ME|change-me' .env; then
-      echo ".env still contains placeholder credentials; replace them or remove .env and rerun." >&2
+      echo ".env still contains placeholder credentials; correct them in the saved configuration and preserve the existing ASA_SETTINGS_ENCRYPTION_KEY. Do not delete .env or generate a replacement key." >&2
       exit 78
     fi
     if ! grep -Eq '^MIGRATION_DATABASE_URL=[^[:space:]]' .env ||
@@ -91,10 +130,6 @@ create_environment() {
       echo "Legacy .env is missing the dedicated migration target guard." >&2
       echo "Add MIGRATION_DATABASE_URL, MIGRATION_EXPECT_DATABASE and MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted." >&2
       exit 78
-    fi
-    if ! grep -Eq '^ASA_SETTINGS_ENCRYPTION_KEY=([a-fA-F0-9]{64}|[A-Za-z0-9_-]{43})[[:space:]]*$' .env; then
-      printf '\nASA_SETTINGS_ENCRYPTION_KEY=%s\n' "$(random_hex 32)" >>.env
-      echo "Added a private runtime settings encryption key to .env."
     fi
     if ! grep -Eq '^ASA_BLOCKS_RUNTIME_SIGNING_KEY=[a-fA-F0-9]{64}[[:space:]]*$' .env; then
       printf '\nASA_BLOCKS_RUNTIME_SIGNING_KEY=%s\n' "$(random_hex 32)" >>.env
@@ -179,6 +214,11 @@ environment_value() {
 }
 
 ready() {
+  if grep -q '^ASA_SEARCH_SECRET=' .env; then
+    search_revision=$(compose exec -T search cat /usr/local/share/asa-search/asa-commit.txt 2>/dev/null || true)
+    [ "$search_revision" = "$ASA_BUILD_REVISION" ] || return 1
+    compose exec -T search /usr/local/searxng/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).read()" >/dev/null 2>&1 || return 1
+  fi
   output=$(compose exec -T web wget -q -O - http://127.0.0.1:8080/health/ready 2>/dev/null || true)
   case "$output" in
     *'"status":"ready"'*|*'"status": "ready"'*)
@@ -236,10 +276,12 @@ case "$action" in
   up)
     require_docker
     assert_startup_identity
+    command -v python3 >/dev/null 2>&1 || { echo 'Python 3 is required for private configuration.' >&2; exit 69; }
     create_environment
+    python3 tools/deployment/search_secret.py --create
     if [ "$profile" != test ]; then python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile"; fi
     compose config --quiet
-    for service in minio scratch api web; do compose build "$service"; done
+    for service in minio search scratch api web; do compose build "$service"; done
     assert_startup_identity
     compose up -d --no-build
     wait_for_ready

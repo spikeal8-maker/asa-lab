@@ -57,4 +57,7 @@ export {
   type ProjectErrorCode,
   type UseCaseResult,
 } from './application/project.usecases.js';
-export { PgProjectRepository } from './infrastructure/pg-project.repository.js';
+export {
+  PgProjectRepository,
+  type ProjectTransactionGuard,
+} from './infrastructure/pg-project.repository.js';

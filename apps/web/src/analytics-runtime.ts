@@ -1,6 +1,7 @@
 import { newClientId } from './client-id';
 import { finalizeInputActivitiesForPageHide } from './activity-lifecycle';
 import { AnalyticsDelivery, browserAnalytics } from './analytics-delivery';
+import { observeCurrentAcquisition } from './acquisition-observation';
 import {
   actorKey,
   record,
@@ -32,6 +33,12 @@ function clearProductObservation(): void {
   observationTimer = undefined;
 }
 function update(context: TelemetryContext): void {
+  // Optional campaign claims have their own queue and never change canonical visit envelopes.
+  try {
+    observeCurrentAcquisition(context.ready ? context.actor : null);
+  } catch {
+    // Optional intake failures cannot interrupt canonical visit/session delivery.
+  }
   if (proof && !sameTelemetryBinding(proof.context)) proof.controller.abort();
   if (productObservation && !sameTelemetryBinding(productObservation.context))
     clearProductObservation();
@@ -176,12 +183,12 @@ function recoverAuthentication(observation: ProductObservation): void {
       if (proof === pending) proof = undefined;
     });
 }
-subscribeProductConfirmation((context) => {
-  if (proof || context.actor?.kind !== 'account') return;
+subscribeProductConfirmation((context, deadline) => {
+  if (proof || context.actor?.kind !== 'account' || Date.now() >= deadline) return;
   clearProductObservation();
-  productObservation = { context, deadline: Date.now() + 12_000 };
+  productObservation = { context, deadline };
   // A telemetry request has a 12s deadline; a healthy refresh needs no speculative identity read.
-  observationTimer = setTimeout(clearProductObservation, 12_000);
+  observationTimer = setTimeout(clearProductObservation, Math.max(0, deadline - Date.now()));
   recoverAuthentication(productObservation);
 });
 if (typeof window !== 'undefined') {

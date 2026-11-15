@@ -11,8 +11,16 @@ import {
   logModule,
 } from './log-subsystems.js';
 import { projectDatabaseEntry } from './database-diagnostics.js';
+import {
+  hostRequiredCoverage,
+  readRequiredSources,
+  type RequiredSourcesDeclaration,
+} from './required-log-coverage.js';
 
 export const LOG_STORE_FORMAT = 2;
+// A 30-day store can contain tens of thousands of small immutable segments.
+// Keep metadata bounded without rejecting a valid retained history at 16 MiB.
+export const MAX_LOG_CATALOG_BYTES = 64 * 1024 * 1024;
 const MAX_SEGMENT_BYTES = 4 * 1024 * 1024;
 const MAX_EXPORT_BYTES = 3584 * 1024 * 1024;
 
@@ -46,6 +54,19 @@ export interface LogFilter {
   readonly before: { readonly time: string; readonly id: string } | null;
 }
 
+export interface LogTrendWindow {
+  readonly from: string;
+  readonly to: string;
+  readonly bucketSeconds: number;
+}
+
+export interface LogErrorTrend {
+  readonly coverage: 'available' | 'partial' | 'unavailable';
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly points: readonly { readonly at: string; readonly counts: Record<string, number> }[];
+}
+
 export interface LogScanState {
   readonly catalog: LogCatalog;
   readonly offset: number;
@@ -69,6 +90,9 @@ interface Segment {
 }
 
 export interface LogCatalog {
+  readonly requiredSources?: RequiredSourcesDeclaration;
+  readonly historyAudit?: unknown;
+  readonly applicationOwned?: boolean;
   readonly version: number;
   readonly collectedAt: string;
   readonly retentionDays: number;
@@ -81,6 +105,11 @@ export interface LogCatalog {
     readonly checkedAt: string;
     readonly lastCollectedAt: string | null;
     readonly detail: string;
+    readonly collectedThrough?: string | null;
+    readonly applicable?: boolean;
+    readonly stale?: boolean;
+    readonly possibleCoverageGap?: boolean;
+    readonly incomplete?: boolean;
   }[];
   readonly segments: readonly Segment[];
 }
@@ -88,7 +117,7 @@ export interface LogCatalog {
 export async function readLogCatalog(root: string): Promise<LogCatalog | null> {
   try {
     const path = join(root, 'catalog.json');
-    if ((await stat(path)).size > 16 * 1024 * 1024) throw new Error('LOG_CATALOG_INVALID');
+    if ((await stat(path)).size > MAX_LOG_CATALOG_BYTES) throw new Error('LOG_CATALOG_INVALID');
     const catalog = JSON.parse(await readFile(path, 'utf8')) as LogCatalog;
     if (
       catalog.version !== 1 ||
@@ -97,7 +126,10 @@ export async function readLogCatalog(root: string): Promise<LogCatalog | null> {
     ) {
       throw new Error('LOG_CATALOG_INVALID');
     }
-    return catalog;
+    const requiredSources = readRequiredSources(catalog.requiredSources);
+    const normalized = { ...catalog };
+    delete normalized.requiredSources;
+    return requiredSources ? { ...normalized, requiredSources } : normalized;
   } catch (failure) {
     if ((failure as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw failure;
@@ -145,13 +177,13 @@ function segmentRange(segment: Segment): readonly [bigint, bigint] {
   return [BigInt(match[1]!), BigInt(match[2]!)];
 }
 
-async function segmentData(root: string, segment: Segment) {
+async function segmentData(root: string, segment: Segment, signal?: AbortSignal) {
   segmentRange(segment);
   const path = join(root, segment.file);
   try {
     const size = (await stat(path)).size;
     if (size > MAX_SEGMENT_BYTES || size !== segment.bytes) throw new Error('LOG_SEGMENT_INVALID');
-    const stored = await readFile(path);
+    const stored = await readFile(path, { signal });
     const raw = segment.file.endsWith('.gz')
       ? gunzipSync(stored, { maxOutputLength: MAX_SEGMENT_BYTES })
       : stored;
@@ -168,6 +200,45 @@ async function segmentData(root: string, segment: Segment) {
       throw new Error('LOG_SNAPSHOT_CHANGED', { cause: failure });
     if (failure instanceof Error && failure.message.startsWith('LOG_')) throw failure;
     throw new Error('LOG_SEGMENT_INVALID', { cause: failure });
+  }
+}
+
+/** Recent content proofs for immutable native segments; bounded incremental work.
+ * Search/export still verifies every selected segment independently of this cache. */
+export async function verifyNativeLogIntegrity(
+  root: string,
+  catalog: LogCatalog,
+  proofs: Map<string, number>,
+  budgetMs = 250,
+): Promise<'ok' | 'partial' | 'invalid'> {
+  const deadline = performance.now() + budgetMs;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(0, budgetMs));
+  const proofKey = (segment: Segment) =>
+    `${root}\0${segment.file}\0${segment.sha256}\0${segment.bytes}\0${segment.rawBytes}`;
+  const current = new Set(catalog.segments.map(proofKey));
+  for (const key of proofs.keys()) if (!current.has(key)) proofs.delete(key);
+  try {
+    for (const segment of catalog.segments) {
+      const key = proofKey(segment);
+      const verified = proofs.get(key);
+      if (verified !== undefined && Date.now() - verified >= 0 && Date.now() - verified <= 300_000)
+        continue;
+      if (performance.now() >= deadline) return 'partial';
+      await segmentData(root, segment, controller.signal);
+      proofs.set(key, Date.now());
+      if (performance.now() >= deadline) return 'partial';
+    }
+    if (performance.now() >= deadline || controller.signal.aborted) return 'partial';
+    if (JSON.stringify(await readLogCatalog(root)) !== JSON.stringify(catalog)) return 'partial';
+    if (performance.now() >= deadline || controller.signal.aborted) return 'partial';
+    return 'ok';
+  } catch {
+    if (controller.signal.aborted || performance.now() >= deadline) return 'partial';
+    proofs.clear();
+    return 'invalid';
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -228,6 +299,120 @@ async function* entries(root: string, segment: Segment): AsyncGenerator<LogEntry
   for (const line of raw.toString('utf8').split('\n')) {
     if (line) yield parseEntry(line);
   }
+}
+
+function errorSystem(event: LogEntry): string {
+  if (
+    event.origin === 'ai_image_jobs' ||
+    event.origin === 'ai_usage_journal' ||
+    (event.source === 'metrics' && /^provider:(?:ollama|comfyui)$/.test(event.origin))
+  )
+    return 'ai';
+  if (event.source === 'api' && event.message.startsWith('{')) {
+    try {
+      const value = JSON.parse(event.message);
+      if (typeof value?.path === 'string' && /^\/api\/ai(?:\/|$)/.test(value.path)) return 'ai';
+    } catch {
+      // Keep the normal subsystem for historical plain messages.
+    }
+  }
+  return event.subsystem ?? 'api';
+}
+
+function isCleanContainerExit(event: LogEntry): boolean {
+  if (!event.message.startsWith('{') || !event.message.includes('"container_state"')) return false;
+  try {
+    const state = JSON.parse(event.message);
+    return (
+      state?.kind === 'container_state' &&
+      state.service === event.source &&
+      state.Status === 'exited' &&
+      state.ExitCode === 0 &&
+      // Docker can retain the final health probe result after a graceful stop.
+      // An unhealthy running container is still counted below.
+      state.OOMKilled === false
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function trendHealth(root: string): Promise<{ state: string; checkedAt: string } | null> {
+  const file = join(root, 'collector-health.json');
+  try {
+    if ((await stat(file)).size > 64 * 1024) return null;
+    const value = JSON.parse(await readFile(file, 'utf8'));
+    return typeof value?.state === 'string' && typeof value.checkedAt === 'string'
+      ? { state: value.state, checkedAt: value.checkedAt }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function errorTrend(root: string, window: LogTrendWindow): Promise<LogErrorTrend> {
+  const catalog = await readLogCatalog(root);
+  const unavailable = { coverage: 'unavailable', from: null, to: null, points: [] } as const;
+  if (!catalog?.segments.length) return unavailable;
+
+  const requestedFrom = Date.parse(window.from);
+  const requestedTo = Date.parse(window.to);
+  const step = window.bucketSeconds * 1000;
+  const origin = Date.parse('2000-01-02T21:00:00Z'); // Moscow Monday midnight, as in the dashboard.
+  const oldest = catalog.segments.reduce(
+    (start, part) => Math.min(start, Date.parse(part.first)),
+    Infinity,
+  );
+  const to = Math.min(requestedTo, Date.parse(catalog.collectedAt));
+  let from = Math.max(requestedFrom, oldest);
+  if (!(from < to)) return unavailable;
+
+  const selected = catalog.segments
+    .filter((part) => Date.parse(part.last) >= from && Date.parse(part.first) < to)
+    .sort((a, b) => b.last.localeCompare(a.last));
+  const seen = new Set<string>();
+  const buckets = new Map<number, Record<string, number>>();
+  const started = performance.now();
+  let scanned = 0;
+  for (const part of selected) {
+    if (scanned >= 160_000 || performance.now() - started > 5_000) {
+      // An unread segment can overlap any preceding bucket. Do not show a partial count as its total.
+      from = Math.max(from, origin + Math.ceil((Date.parse(part.last) + 1 - origin) / step) * step);
+      break;
+    }
+    for await (const event of entries(root, part)) {
+      scanned++;
+      const time = Date.parse(event.time);
+      if (
+        event.level !== 'error' ||
+        time < from ||
+        time >= to ||
+        seen.has(event.id) ||
+        isCleanContainerExit(event)
+      )
+        continue;
+      seen.add(event.id);
+      const system = errorSystem(event);
+      const at = origin + Math.floor((time - origin) / step) * step;
+      const point = buckets.get(at) ?? (Object.create(null) as Record<string, number>);
+      point[system] = (point[system] ?? 0) + 1;
+      buckets.set(at, point);
+    }
+  }
+  if (!(from < to)) return unavailable;
+  const coverage = hostRequiredCoverage(catalog, await trendHealth(root));
+  return {
+    coverage:
+      from === requestedFrom && to === requestedTo && coverage.state === 'ok'
+        ? 'available'
+        : 'partial',
+    from: new Date(from).toISOString(),
+    to: new Date(to).toISOString(),
+    points: [...buckets]
+      .filter(([at]) => at + step > from)
+      .sort(([a], [b]) => a - b)
+      .map(([at, counts]) => ({ at: new Date(at).toISOString(), counts })),
+  };
 }
 
 export async function queryLogs(
@@ -482,6 +667,13 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
             sourceStatusIncluded: false,
             exportedAt: new Date().toISOString(),
             normalized: true,
+            coverage: {
+              application: catalog.applicationOwned ? 'embedded' : 'host-collector',
+              host: catalog.applicationOwned ? 'not_included' : 'collector_snapshot',
+              complete: false,
+              statement:
+                'Only retained matching evidence; absence of events does not prove absence of errors',
+            },
           },
           null,
           2,
@@ -513,15 +705,18 @@ if (parentPort) {
   const task = workerData as {
     root: string;
     filter: LogFilter;
-    kind: 'query' | 'export';
+    kind: 'query' | 'export' | 'trend';
     limit: number;
     output: string;
     scanState?: LogScanState;
+    window?: LogTrendWindow;
   };
   const run =
-    task.kind === 'query'
-      ? queryLogs(task.root, task.filter, task.limit, task.scanState)
-      : exportLogs(task.root, task.filter, task.output);
+    task.kind === 'trend' && task.window
+      ? errorTrend(task.root, task.window)
+      : task.kind === 'query'
+        ? queryLogs(task.root, task.filter, task.limit, task.scanState)
+        : exportLogs(task.root, task.filter, task.output);
   void run
     .then((result) => parentPort!.postMessage({ ok: true, result }))
     .catch((failure: unknown) => {

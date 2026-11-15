@@ -1,3 +1,12 @@
+import 'reflect-metadata';
+import { Module } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import cookie from '@fastify/cookie';
+import { PublicProjectsController } from '../../apps/api/src/public-projects.controller.js';
+import { GalleryController } from '../../apps/api/src/gallery.controller.js';
+import { TOKENS, SESSION_COOKIE } from '../../apps/api/src/tokens.js';
+import { createApiModuleRegistry } from '../../apps/api/src/module-registry.js';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
@@ -52,6 +61,11 @@ async function prepare() {
     [teacherPrincipal, [classroomId]],
   );
   expect(prepared.rows[0].ready).toBe(true);
+  await admin.query(
+    'INSERT INTO classroom_project_policies(classroom_id,tenant_id,publish,download) VALUES($1,$2,true,false) ON CONFLICT(classroom_id) DO UPDATE SET publish=true',
+    [classroomId, teacher.tenantId],
+  );
+
   const principal = await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId]);
   const seatPrincipal = principal.rows[0].id as string;
 
@@ -92,10 +106,13 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     const f = await prepare();
     const projectId = await f.project(f.seatPrincipal, null);
 
-    // Default class policy and Seat policy are both safe. Teacher authorship
-    // is authorized but cannot bypass either layer, even through direct SQL.
+    // Distribution is authorized, yet the Safe Mode persistence guard denies
+    // the canonical writer while either protection layer is enabled.
     await expect(
-      runtime.query('SELECT gallery_publish($1,$2) AS ok', [f.teacherPrincipal, projectId]),
+      admin.query(
+        "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS publication",
+        [f.seatPrincipal, projectId],
+      ),
     ).rejects.toMatchObject({ code: 'P5S01' });
     const firstCounts = await admin.query(
       `SELECT
@@ -113,15 +130,18 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     // Individual protection cannot be overridden by disabling only the class default.
     await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [f.classroomId]);
     await expect(
-      runtime.query('SELECT gallery_publish($1,$2) AS ok', [f.teacherPrincipal, projectId]),
+      admin.query(
+        "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS publication",
+        [f.seatPrincipal, projectId],
+      ),
     ).rejects.toMatchObject({ code: 'P5S01' });
 
     await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [f.seatId]);
-    const published = await runtime.query('SELECT gallery_publish($1,$2) AS ok', [
-      f.teacherPrincipal,
-      projectId,
-    ]);
-    expect(published.rows[0].ok).toBe(true);
+    const published = await admin.query(
+      "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS result",
+      [f.seatPrincipal, projectId],
+    );
+    expect(published.rows[0].result?.publication?.publicationId).toBeTruthy();
 
     const state = await admin.query(
       `SELECT
@@ -133,10 +153,10 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     expect(state.rows[0]).toMatchObject({ state_count: 1, gallery_count: 1, revisions: 1 });
 
     // Taking an already published item down must remain possible after protection
-    // is switched on. This slice does NOT automatically revoke old publications.
+    // is switched on. Old published links must already be shielded at the read boundary.
     await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [f.classroomId]);
     const removed = await runtime.query('SELECT gallery_unpublish($1,$2) AS ok', [
-      f.teacherPrincipal,
+      f.seatPrincipal,
       projectId,
     ]);
     expect(removed.rows[0].ok).toBe(true);
@@ -146,7 +166,10 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     );
     expect(afterRemove.rows[0].count).toBe(0);
     await expect(
-      runtime.query('SELECT gallery_publish($1,$2) AS ok', [f.teacherPrincipal, projectId]),
+      admin.query(
+        "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS publication",
+        [f.seatPrincipal, projectId],
+      ),
     ).rejects.toMatchObject({ code: 'P5S01' });
 
     // The legacy projection is guarded too; a direct insert cannot bypass
@@ -174,6 +197,170 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     const scoped = await f.project(f.teacherPrincipal, f.classroomId);
     await expect(
       runtime.query('SELECT gallery_publish($1,$2) AS ok', [f.teacherPrincipal, scoped]),
+    ).rejects.toMatchObject({ code: 'P5P01' });
+    await expect(
+      admin.query(
+        "INSERT INTO project_publication_state(id,project_id,tenant_id,owner_principal_id,state) VALUES(gen_random_uuid(),$1,$2,$3,'public')",
+        [scoped, f.teacher.tenantId, f.teacherPrincipal],
+      ),
     ).rejects.toMatchObject({ code: 'P5S01' });
+  });
+});
+
+describe('Safe Mode retroactively blocks public reads and retains withdrawal authority', () => {
+  it('hides an already public Seat work across SQL and real HTTP, including after OFF', async () => {
+    const f = await prepare();
+    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [f.classroomId]);
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [f.seatId]);
+    const projectId = await f.project(f.seatPrincipal, null);
+    expect(
+      (
+        await admin.query(
+          "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS result",
+          [f.seatPrincipal, projectId],
+        )
+      ).rows[0].result?.publication?.publicationId !== undefined,
+    ).toBe(true);
+
+    const publication = (
+      await admin.query(
+        'SELECT id, current_revision_id FROM project_publication_state WHERE project_id=$1',
+        [projectId],
+      )
+    ).rows[0] as { id: string; current_revision_id: string };
+    const revisionId = publication.current_revision_id;
+    const publicId = publication.id;
+
+    const visible = () =>
+      admin.query('SELECT project_publication_readable($1) AS allowed', [publicId]);
+    const publicList = () =>
+      runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [publicId]);
+    const publicImage = () =>
+      runtime.query('SELECT * FROM public_project_image($1,$2)', [publicId, revisionId]);
+    const publicArtifact = () =>
+      runtime.query('SELECT * FROM public_project_artifact_document($1,$2)', [
+        publicId,
+        revisionId,
+      ]);
+    const legacyImage = () => runtime.query('SELECT * FROM gallery_snapshot($1)', [projectId]);
+
+    expect((await visible()).rows[0].allowed).toBe(true);
+    expect((await publicList()).rowCount).toBe(1);
+    expect((await publicImage()).rowCount).toBe(1);
+    expect((await publicArtifact()).rowCount).toBe(1);
+    expect((await legacyImage()).rowCount).toBe(1);
+
+    @Module({})
+    class PublicHttpTestModule {}
+    const app = await NestFactory.create<NestFastifyApplication>(
+      {
+        module: PublicHttpTestModule,
+        controllers: [PublicProjectsController, GalleryController],
+        providers: [
+          { provide: TOKENS.pool, useValue: runtime },
+          { provide: TOKENS.moduleRegistry, useValue: createApiModuleRegistry() },
+          { provide: TOKENS.accountDirectory, useValue: {} },
+          {
+            provide: TOKENS.activeContextUseCase,
+            useValue: {
+              resolve: async (token: string | undefined) =>
+                token === 'safe-http-session'
+                  ? { principalId: f.teacherPrincipal, accountId: f.teacherAccount }
+                  : null,
+            },
+          },
+          { provide: TOKENS.seatContextUseCase, useValue: { resolveExisting: async () => null } },
+        ],
+      },
+      new FastifyAdapter(),
+      { logger: false },
+    );
+    try {
+      await app.register(cookie);
+      await app.init();
+      await app.getHttpAdapter().getInstance().ready();
+
+      const route = '/api/public-projects/' + publicId;
+      expect((await app.inject({ method: 'GET', url: route })).statusCode).toBe(200);
+      expect(
+        (await app.inject({ method: 'GET', url: route + '/image?revision=' + revisionId }))
+          .statusCode,
+      ).toBe(200);
+
+      await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [
+        f.classroomId,
+      ]);
+      expect((await visible()).rows[0].allowed).toBe(false);
+      expect((await publicList()).rowCount).toBe(0);
+      expect((await publicImage()).rowCount).toBe(0);
+      expect((await publicArtifact()).rowCount).toBe(0);
+      expect((await legacyImage()).rowCount).toBe(0);
+      expect((await app.inject({ method: 'GET', url: route })).statusCode).toBe(404);
+      expect(
+        (await app.inject({ method: 'GET', url: route + '/image?revision=' + revisionId }))
+          .statusCode,
+      ).toBe(404);
+      expect(
+        (await app.inject({ method: 'GET', url: route + '/artifact?revisionId=' + revisionId }))
+          .statusCode,
+      ).toBe(404);
+      const catalog = (await app.inject({ method: 'GET', url: '/api/public-projects' })).json();
+      expect(
+        catalog.items.some((entry: { publicationId: string }) => entry.publicationId === publicId),
+      ).toBe(false);
+      expect(
+        (
+          await app.inject({
+            method: 'GET',
+            url: '/api/gallery/' + projectId + '/image',
+            headers: { cookie: SESSION_COOKIE + '=safe-http-session' },
+          })
+        ).statusCode,
+      ).toBe(404);
+
+      const revocation = await admin.query(
+        'SELECT count(*)::integer AS count FROM classroom_gallery_safe_mode_revocations WHERE publication_id=$1',
+        [publicId],
+      );
+      expect(revocation.rows[0].count).toBe(1);
+      expect(
+        (
+          await admin.query(
+            'SELECT state, current_revision_id FROM project_publication_state WHERE id=$1',
+            [publicId],
+          )
+        ).rows[0],
+      ).toEqual({ state: 'public', current_revision_id: revisionId });
+
+      await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [
+        f.classroomId,
+      ]);
+      expect((await visible()).rows[0].allowed).toBe(false);
+      expect((await app.inject({ method: 'GET', url: route })).statusCode).toBe(404);
+      await expect(
+        admin.query("UPDATE project_publication_state SET state='public' WHERE id=$1", [publicId]),
+      ).rejects.toMatchObject({ code: 'P5S01' });
+      await expect(
+        admin.query("UPDATE project_publications SET visibility='public' WHERE project_id=$1", [
+          projectId,
+        ]),
+      ).rejects.toMatchObject({ code: 'P5S01' });
+      expect(
+        (
+          await runtime.query(
+            'SELECT * FROM public_project_copy_documents(ARRAY[$1]::uuid[],ARRAY[$2]::uuid[])',
+            [publicId, revisionId],
+          )
+        ).rowCount,
+      ).toBe(0);
+
+      expect(
+        (await runtime.query('SELECT gallery_unpublish($1,$2) AS ok', [f.seatPrincipal, projectId]))
+          .rows[0].ok,
+      ).toBe(true);
+      expect((await publicList()).rowCount).toBe(0);
+    } finally {
+      await app.close();
+    }
   });
 });

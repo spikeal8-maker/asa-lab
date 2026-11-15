@@ -1,7 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
+import { AuthProviderStatus, SocialAuthButtons, useAuthProviders } from '../auth-providers';
+import { newRegistrationUsername, registrationDisplayName } from '../registration-profile';
 
 export function RegisterPage({
   onRegistered,
@@ -17,105 +19,83 @@ export function RegisterPage({
   onMaxRegistered?: (session: SessionPayload) => void;
 }): JSX.Element {
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(newRegistrationUsername);
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [country, setCountry] = useState('RU');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
-  const [maxLaunchUrl, setMaxLaunchUrl] = useState<string | null>(null);
-  const [pairingToken, setPairingToken] = useState<string | null>(null);
-  const [pairingLaunchUrl, setPairingLaunchUrl] = useState<string | null>(null);
+  const { providers, status: providerStatus, refresh: refreshProviders } = useAuthProviders();
+  const [socialRegistration, setSocialRegistration] = useState(false);
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
+  const alive = useRef(true);
+  const generation = useRef(0);
+  const pending = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    alive.current = true;
+    setBusy(false);
     let active = true;
-    if (!maxInitData) {
-      void api.maxConfig().then((result) => {
-        if (active && result.ok && result.data.enabled) setMaxLaunchUrl(result.data.launchUrl);
-      });
-    }
     void api.localPreviewConfig().then((result) => {
       if (active && result.ok) setLocalPreviewEnabled(result.data.enabled);
     });
     return () => {
       active = false;
+      alive.current = false;
+      generation.current += 1;
+      pending.current?.abort();
+      pending.current = null;
     };
   }, [maxInitData]);
 
-  useEffect(() => {
-    if (!pairingToken) return;
-    let active = true;
-    let timer: number | null = null;
-    const check = async (): Promise<void> => {
-      const result = await api.completeMaxPairing(pairingToken);
-      if (!active) return;
-      if (result.ok && result.data.status === 'authenticated') {
-        setPairingToken(null);
-        onRegistered(result.data.session);
-        return;
-      }
-      if (!result.ok && result.status !== 0) {
-        setPairingToken(null);
-        setMessage(
-          result.error.code === 'max_pairing_expired'
-            ? 'Время входа истекло. Откройте MAX ещё раз.'
-            : 'Не удалось завершить вход через MAX.',
-        );
-        return;
-      }
-      timer = window.setTimeout(() => void check(), 6_000);
-    };
-    timer = window.setTimeout(() => void check(), 2_000);
-    return () => {
-      active = false;
-      if (timer !== null) window.clearTimeout(timer);
-    };
-  }, [onRegistered, pairingToken]);
-
-  async function openMax(): Promise<void> {
-    const popup = window.open('', '_blank');
-    if (popup) popup.opener = null;
-    setBusy(true);
-    setMessage(null);
-    const result = await api.startMaxPairing();
+  function leave(action: () => void): void {
+    alive.current = false;
+    generation.current += 1;
+    pending.current?.abort();
+    pending.current = null;
     setBusy(false);
-    if (!result.ok) {
-      popup?.close();
-      setMessage('Не удалось создать вход через MAX. Попробуйте ещё раз.');
-      return;
-    }
-    setPairingToken(result.data.pairingToken);
-    setPairingLaunchUrl(result.data.launchUrl);
-    setMessage(
-      'В MAX нажмите «Начать». Если аккаунта ещё нет, он создастся автоматически — без почты и пароля.',
-    );
-    if (popup) popup.location.href = result.data.launchUrl;
+    action();
   }
 
   async function enterLocalPreview(): Promise<void> {
+    if (!alive.current || pending.current) return;
+    const controller = new AbortController();
+    const current = ++generation.current;
+    pending.current = controller;
     setBusy(true);
     setMessage(null);
-    const result = await api.localPreviewSession();
+    const result = await api.localPreviewSession(controller.signal);
+    if (pending.current === controller) pending.current = null;
+    if (!alive.current || current !== generation.current || controller.signal.aborted) return;
     setBusy(false);
     if (result.ok) {
       onRegistered(result.data);
       return;
     }
-    setMessage('Не удалось войти в локальный preview. Обновите страницу и попробуйте ещё раз.');
+    setMessage(
+      result.error.code === 'auth_timeout'
+        ? result.error.message
+        : 'Не удалось войти в локальный preview. Обновите страницу и попробуйте ещё раз.',
+    );
   }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (!alive.current || pending.current) return;
     setMessage(null);
-    if (!email.trim() || !username.trim() || (!maxInitData && !password) || !birthDate) {
+    if (!email.trim() || !password || !birthDate) {
+      setMessage('Заполните почту, пароль и дату рождения.');
+      return;
+    }
+    if (maxInitData && (password.length < 10 || password !== confirmPassword)) {
       setMessage(
-        maxInitData
-          ? 'Заполните email, имя пользователя и дату рождения.'
-          : 'Заполните email, имя пользователя, пароль и дату рождения.',
+        password.length < 10
+          ? 'Пароль должен содержать не меньше 10 символов.'
+          : 'Повтор пароля не совпадает.',
       );
       return;
     }
@@ -124,24 +104,36 @@ export function RegisterPage({
       return;
     }
     setBusy(true);
+    const controller = new AbortController();
+    const current = ++generation.current;
+    pending.current = controller;
     const result = maxInitData
-      ? await api.maxRegister({
-          initData: maxInitData,
-          email: email.trim(),
-          username: username.trim().toLowerCase(),
-          displayName: displayName.trim(),
-          birthDate,
-          country,
-        })
-      : await api.register({
-          email: email.trim(),
-          username: username.trim().toLowerCase(),
-          displayName: displayName.trim(),
-          password,
-          birthDate,
-          country,
-          botProof: botProof as BotProof,
-        });
+      ? await api.maxRegister(
+          {
+            initData: maxInitData,
+            email: email.trim(),
+            username,
+            displayName: registrationDisplayName(displayName),
+            birthDate,
+            country,
+            password,
+          },
+          controller.signal,
+        )
+      : await api.register(
+          {
+            email: email.trim(),
+            username,
+            displayName: registrationDisplayName(displayName),
+            password,
+            birthDate,
+            country,
+            botProof: botProof as BotProof,
+          },
+          controller.signal,
+        );
+    if (pending.current === controller) pending.current = null;
+    if (!alive.current || current !== generation.current || controller.signal.aborted) return;
     setBusy(false);
     if (result.ok) {
       (maxInitData ? (onMaxRegistered ?? onRegistered) : onRegistered)(result.data);
@@ -149,9 +141,16 @@ export function RegisterPage({
     }
     setBotProof(null);
     setBotReset((value) => value + 1);
+    if (result.status === 409 && result.error.code === 'username_taken') {
+      setUsername(newRegistrationUsername());
+      setMessage('Не удалось завершить регистрацию. Повторите отправку формы.');
+      return;
+    }
     setMessage(
       result.status === 0
-        ? 'Сервер недоступен. Попробуйте ещё раз.'
+        ? result.error.code === 'auth_timeout'
+          ? result.error.message
+          : 'Ответ сервера не получен. Результат регистрации неизвестен. Проверьте, создан ли аккаунт, через страницу входа.'
         : result.error.message || 'Не удалось создать аккаунт.',
     );
   }
@@ -159,36 +158,35 @@ export function RegisterPage({
   return (
     <div className="page-center">
       <main className="login-card auth-register-card" aria-busy={busy}>
-        <button type="button" className="btn-ghost entry-back" onClick={onBackToLogin}>
+        <button type="button" className="btn-ghost entry-back" onClick={() => leave(onBackToLogin)}>
           ← К входу
         </button>
-        <AuthHomeBrand onHome={onHome} />
+        <AuthHomeBrand onHome={() => leave(onHome)} />
         <h1 className="auth-title">{maxInitData ? 'Продолжить с MAX' : 'Создать аккаунт'}</h1>
         {maxInitData ? (
           <p className="max-link-copy">
-            MAX подтвердил вас. Осталось заполнить данные аккаунта ASA Lab — пароль не нужен.
+            MAX подтвердил вас. Укажите данные аккаунта и пароль для входа, если MAX недоступен.
           </p>
         ) : null}
-        <form className="auth-register-form" onSubmit={(event) => void submit(event)} noValidate>
+        <form
+          className="auth-register-form"
+          onSubmit={(event) => void submit(event)}
+          noValidate
+          hidden={socialRegistration}
+        >
           <div className="auth-field">
             <label htmlFor="register-email">Email</label>
             <input
               id="register-email"
               type="email"
               autoComplete="email"
+              aria-describedby="register-email-hint"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-          </div>
-          <div className="auth-field">
-            <label htmlFor="register-username">Имя пользователя</label>
-            <input
-              id="register-username"
-              autoComplete="username"
-              spellCheck={false}
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-            />
+            <p id="register-email-hint" className="field-hint">
+              Почта будет вашим логином.
+            </p>
           </div>
           <div className="auth-field">
             <label htmlFor="register-name">Отображаемое имя</label>
@@ -204,9 +202,20 @@ export function RegisterPage({
             <input
               id="register-birth-date"
               type="date"
+              aria-describedby="register-age-hint"
               value={birthDate}
               onChange={(event) => setBirthDate(event.target.value)}
             />
+            <p id="register-age-hint" className="field-hint">
+              Личный аккаунт — с 18 лет.
+            </p>
+            <details className="auth-field-help">
+              <summary title="Зачем указывать дату рождения">Почему нужна дата рождения?</summary>
+              <p>
+                Она нужна для проверки возраста при создании личного аккаунта. Ученики могут входить
+                по коду класса без личного аккаунта.
+              </p>
+            </details>
           </div>
           <div className="auth-field">
             <label htmlFor="register-country">Страна</label>
@@ -222,19 +231,36 @@ export function RegisterPage({
               <option value="RS">Сербия</option>
             </select>
           </div>
-          {maxInitData ? null : (
+          <div className="auth-field">
+            <label htmlFor="register-password">Пароль</label>
+            <input
+              id="register-password"
+              type="password"
+              autoComplete="new-password"
+              aria-describedby="register-password-hint"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <p id="register-password-hint" className="field-hint">
+              Не меньше 10 символов.
+            </p>
+          </div>
+          {maxInitData ? (
             <div className="auth-field">
-              <label htmlFor="register-password">Пароль</label>
+              <label htmlFor="register-confirm-password">Повторите пароль</label>
               <input
-                id="register-password"
+                id="register-confirm-password"
                 type="password"
                 autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                aria-describedby="register-confirm-password-hint"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
               />
-              <p className="field-hint">Не короче 10 символов. Личный аккаунт — с 18 лет.</p>
+              <p id="register-confirm-password-hint" className="field-hint">
+                Пароль для входа, если мессенджер недоступен.
+              </p>
             </div>
-          )}
+          ) : null}
           <div className="auth-register-wide">
             {maxInitData ? (
               <p className="field-hint">Личный аккаунт доступен с 18 лет.</p>
@@ -258,20 +284,21 @@ export function RegisterPage({
             </button>
           </div>
         </form>
-        {maxLaunchUrl && !maxInitData ? (
-          <button
-            type="button"
-            className="btn-secondary max-login-button"
-            disabled={busy || pairingToken !== null}
-            onClick={() => void openMax()}
-          >
-            {pairingToken ? 'Подтвердите регистрацию в MAX…' : 'Зарегистрироваться через MAX'}
-          </button>
+        {!maxInitData ? (
+          <AuthProviderStatus status={providerStatus} onRetry={() => void refreshProviders()} />
         ) : null}
-        {pairingLaunchUrl && pairingToken ? (
-          <a className="auth-max-fallback" href={pairingLaunchUrl} target="_blank" rel="noreferrer">
-            MAX не открылся? Открыть ещё раз
-          </a>
+        {!maxInitData ? (
+          <SocialAuthButtons
+            providers={providers}
+            purpose="register"
+            disabled={busy}
+            onAuthenticated={(session) => {
+              if (alive.current && !pending.current) onRegistered(session);
+            }}
+            onUnavailable={() => void refreshProviders()}
+            onUsePassword={() => leave(onBackToLogin)}
+            onRegistrationActiveChange={setSocialRegistration}
+          />
         ) : null}
         {localPreviewEnabled && !maxInitData ? (
           <button

@@ -1,0 +1,578 @@
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AdminPublicationsPage } from '../AdminPublicationsPage';
+import { call, type AdminScope } from '../admin-api';
+import {
+  adminHref,
+  adminSectionFromLocation,
+  scopeSupportsAdminSection,
+} from '../admin-navigation';
+
+vi.mock('../admin-api', () => ({ call: vi.fn() }));
+vi.mock('../PublicationAcquisitionSettings', () => ({
+  PublicationAcquisitionSettings: () => null,
+}));
+
+const publication = {
+  publicationId: 'publication-1',
+  revisionId: 'revision-1',
+  title: 'Реальный проект',
+  authorLabel: 'Публичный автор',
+  moduleKey: 'electronics',
+  publishedAt: '2026-10-21T12:00:00Z',
+  state: 'public',
+  hidden: false,
+  moderationVersion: 0,
+  reason: null,
+  moderatedAt: null,
+  featured: false,
+  pinned: false,
+  pinVersion: 0,
+  editorialEligible: true,
+  editorialVersion: 0,
+  lifecycleVersion: 0,
+};
+let root: Root;
+let host: HTMLDivElement;
+const denied = vi.fn();
+
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.mocked(call).mockReset();
+  denied.mockReset();
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = false;
+    },
+  });
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+});
+afterEach(async () => {
+  await act(async () => root.unmount());
+  host.remove();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+async function mount(
+  hidden = false,
+  nextOffset: number | null = null,
+  editorialEligible = !hidden,
+) {
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          ...publication,
+          hidden,
+          editorialEligible,
+          moderationVersion: hidden ? 1 : 0,
+          reason: hidden ? 'Нарушение' : null,
+        },
+      ],
+      nextOffset,
+    },
+  });
+  await act(async () =>
+    root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+  );
+}
+function button(label: string): HTMLButtonElement {
+  return [...host.querySelectorAll('button')].find((item) => item.textContent === label)!;
+}
+async function click(label: string) {
+  await act(async () => button(label).click());
+}
+async function enterReason(value = 'Проверенная причина') {
+  await act(async () => {
+    const field = host.querySelector('textarea')!;
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      field,
+      value,
+    );
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+function submit() {
+  host
+    .querySelector('form')!
+    .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+}
+
+describe('publications moderation', () => {
+  it('keeps retained legacy metadata visible without unsupported image or moderation actions', async () => {
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        items: [
+          {
+            ...publication,
+            schemaVersion: 1,
+            moderationSupported: false,
+            editorialEligible: false,
+          },
+        ],
+        nextOffset: null,
+      },
+    });
+    await act(async () =>
+      root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+    );
+    expect(host.textContent).toContain('Реальный проект');
+    expect(host.textContent).toContain('Исходные данные сохранены');
+    expect(host.querySelector('img')).toBeNull();
+    expect(host.querySelector('a')).toBeNull();
+    expect(button('Скрыть')).toBeUndefined();
+    expect(button('Выбор редакции')).toBeUndefined();
+    expect(button('Закрепить')).toBeUndefined();
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')).toBeNull();
+  });
+
+  it('keeps the loaded publication visible after a failed refresh and allows retry', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: { code: 'temporarily_unavailable', message: 'Service unavailable' },
+    });
+    await click('Обновить');
+    expect(host.textContent).toContain('Реальный проект');
+    expect(host.querySelector('[role="alert"]')).not.toBeNull();
+    expect(host.textContent).not.toContain('Публикаций пока нет');
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { items: [publication], nextOffset: null },
+    });
+    await click('Обновить');
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(host.textContent).toContain('Реальный проект');
+  });
+
+  it('exposes the route only for a platform administrator', () => {
+    expect(adminHref('publications')).toBe('/#/admin/publications');
+    expect(adminSectionFromLocation({ hash: '#/admin/publications' })).toBe('publications');
+    for (const kind of ['platform', 'organization'] as const) {
+      for (const role of ['platform_admin', 'moderator', 'school_admin', 'owner'] as const) {
+        const scope: AdminScope = {
+          kind,
+          role,
+          id: null,
+          title: 'Scope',
+          permissions: ['administration.moderation.read'],
+        };
+        expect(scopeSupportsAdminSection(scope, 'publications')).toBe(
+          kind === 'platform' && role === 'platform_admin',
+        );
+      }
+    }
+  });
+  it('loads real metadata and an authorized same-origin frozen image with fallback', async () => {
+    await mount();
+    expect(call).toHaveBeenCalledExactlyOnceWith('/api/admin/v1/publications?offset=0&limit=25');
+    expect(host.textContent).toContain('Публичный автор');
+    const image = host.querySelector('img')!;
+    expect(image.getAttribute('src')).toBe('/api/admin/v1/publications/publication-1/image');
+    await act(async () => image.dispatchEvent(new Event('error')));
+    expect(host.querySelector('[aria-label="Превью недоступно"]')).not.toBeNull();
+    expect(host.querySelector('a')?.getAttribute('href')).toBe('/#/public-projects/publication-1');
+  });
+  it.each([false, true])(
+    'requires reason and explicit confirmation (hidden=%s)',
+    async (hidden) => {
+      await mount(hidden);
+      await click(hidden ? 'Восстановить' : 'Скрыть');
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(host.textContent).toContain('Рабочий проект не удаляется');
+      expect(button(hidden ? 'Подтвердить восстановление' : 'Подтвердить скрытие').disabled).toBe(
+        true,
+      );
+      await enterReason('   ');
+      await act(async () => submit());
+      expect(call).toHaveBeenCalledTimes(1);
+      await enterReason();
+      vi.mocked(call).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: {
+          publicationId: publication.publicationId,
+          hidden: !hidden,
+          reason: hidden ? null : 'Проверенная причина',
+          moderatedAt: '2026-10-22T00:00:00Z',
+          moderationVersion: hidden ? 2 : 1,
+        },
+      });
+      // Eligibility is server-derived and must be reloaded after a restore;
+      // it cannot be inferred from moderation.hidden or the old cached row.
+      if (hidden) {
+        vi.mocked(call).mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          data: {
+            items: [
+              {
+                ...publication,
+                hidden: false,
+                editorialEligible: true,
+                moderationVersion: 2,
+              },
+            ],
+            nextOffset: null,
+          },
+        });
+      }
+      await act(async () => submit());
+      expect(call).toHaveBeenNthCalledWith(
+        2,
+        `/api/admin/v1/publications/publication-1/${hidden ? 'restore' : 'hide'}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            reason: 'Проверенная причина',
+            expectedVersion: hidden ? 1 : 0,
+            expectedRevisionId: publication.revisionId,
+          }),
+        },
+      );
+      expect(host.querySelector('dialog')).toBeNull();
+      expect(host.querySelector('a') !== null).toBe(hidden);
+      if (hidden) {
+        expect(call).toHaveBeenNthCalledWith(3, '/api/admin/v1/publications?offset=0&limit=25');
+        expect(button('Выбор редакции')).toBeDefined();
+      } else {
+        expect(button('Выбор редакции')).toBeUndefined();
+      }
+    },
+  );
+  it('publishes a real editorial toggle only after a matching server receipt', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        publicationId: publication.publicationId,
+        revisionId: publication.revisionId,
+        featured: true,
+        editorialVersion: 1,
+        lifecycleVersion: 0,
+      },
+    });
+    await click('Выбор редакции');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications/publication-1/featured', {
+      method: 'POST',
+      body: JSON.stringify({
+        featured: true,
+        expectedVersion: 0,
+        expectedRevisionId: publication.revisionId,
+        expectedModerationVersion: 0,
+        expectedLifecycleVersion: 0,
+      }),
+    });
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')?.textContent).toContain(
+      'Выбор редакции',
+    );
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        publicationId: publication.publicationId,
+        revisionId: publication.revisionId,
+        featured: false,
+        editorialVersion: 2,
+        lifecycleVersion: 0,
+      },
+    });
+    await click('Снять отметку');
+    expect(button('Выбор редакции')).not.toBeNull();
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')).toBeNull();
+  });
+
+  it('hides unavailable editorial controls even when an archived publication remains public', async () => {
+    await mount(false, null, false);
+    expect(button('Выбор редакции')).toBeUndefined();
+    expect(button('Снять отметку')).toBeUndefined();
+    expect(host.querySelector('a')).toBeNull();
+    expect(button('Скрыть')).toBeDefined();
+    expect(call).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a failed editorial request uncommitted and never shows it for hidden content', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'conflict', message: 'Changed' },
+    });
+    await click('Выбор редакции');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('изменилась');
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')).toBeNull();
+  });
+
+  it('blocks duplicate submissions and never invents success after a server error', async () => {
+    await mount();
+    await click('Скрыть');
+    await enterReason();
+    let finish!: (value: Awaited<ReturnType<typeof call>>) => void;
+    vi.mocked(call).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => {
+      submit();
+      submit();
+    });
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(button('Сохраняем…').disabled).toBe(true);
+    await act(async () =>
+      finish({ ok: false, status: 500, error: { code: 'server_error', message: 'Failed' } }),
+    );
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'Изменение не подтверждено',
+    );
+    expect(host.querySelector('dialog')).not.toBeNull();
+    expect(host.querySelector('a')).not.toBeNull();
+  });
+  it.each([401, 403])('stops interactions after HTTP %s', async (status) => {
+    await mount();
+    await click('Скрыть');
+    await enterReason();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status,
+      error: { code: 'forbidden', message: 'Denied' },
+    });
+    await act(async () => submit());
+    expect(denied).toHaveBeenCalledTimes(1);
+    expect(button('Обновить').disabled).toBe(true);
+    expect(host.querySelector('img')).toBeNull();
+  });
+  it('cancels without a write and restores focus', async () => {
+    await mount();
+    const trigger = button('Скрыть');
+    await click('Скрыть');
+    await click('Отмена');
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(trigger);
+  });
+  it('keeps hidden publications private while allowing the authorized preview', async () => {
+    await mount(true);
+    expect(host.querySelector('a')).toBeNull();
+    expect(host.textContent).toContain('Причина: Нарушение');
+    expect(host.querySelector('img')?.getAttribute('src')).toBe(
+      '/api/admin/v1/publications/publication-1/image',
+    );
+    await click('Восстановить');
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('textarea')).toBe(document.activeElement);
+  });
+  it('shows loading and a retryable list error without displaying sample data', async () => {
+    let finish!: () => void;
+    vi.mocked(call).mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { ok: false, status: 500, error: { code: 'server_error', message: 'Failed' } };
+    });
+    await act(async () =>
+      root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+    );
+    expect(host.querySelector('[role="status"]')?.textContent).toContain('Загружаем');
+    expect(button('Обновить').disabled).toBe(true);
+    await act(async () => finish());
+    expect(host.querySelector('[role="alert"]')).not.toBeNull();
+    expect(host.querySelector('li')).toBeNull();
+    expect(button('Обновить').disabled).toBe(false);
+  });
+  it('loads another page and refreshes from offset zero', async () => {
+    await mount(false, 25);
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { items: [], nextOffset: null },
+    });
+    await click('Показать ещё');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications?offset=25&limit=25');
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { items: [], nextOffset: null },
+    });
+    await click('Обновить');
+    expect(host.textContent).toContain('Публикаций пока нет');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications?offset=0&limit=25');
+  });
+
+  it('pins and unpins only after matching server CAS receipts without changing editorial choice', async () => {
+    await mount();
+    expect(button('Закрепить')).toBeDefined();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        publicationId: publication.publicationId,
+        revisionId: publication.revisionId,
+        pinned: true,
+        pinVersion: 1,
+        lifecycleVersion: 0,
+      },
+    });
+    await click('Закрепить');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications/publication-1/pin', {
+      method: 'POST',
+      body: JSON.stringify({
+        pinned: true,
+        expectedVersion: 0,
+        expectedRevisionId: publication.revisionId,
+        expectedModerationVersion: 0,
+        expectedLifecycleVersion: 0,
+      }),
+    });
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')?.textContent).toContain(
+      'Закреплено',
+    );
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')).toBeNull();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        publicationId: publication.publicationId,
+        revisionId: publication.revisionId,
+        pinned: false,
+        pinVersion: 2,
+        lifecycleVersion: 0,
+      },
+    });
+    await click('Открепить');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications/publication-1/pin', {
+      method: 'POST',
+      body: JSON.stringify({
+        pinned: false,
+        expectedVersion: 1,
+        expectedRevisionId: publication.revisionId,
+        expectedModerationVersion: 0,
+        expectedLifecycleVersion: 0,
+      }),
+    });
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')).toBeNull();
+    expect(button('Закрепить')).toBeDefined();
+  });
+
+  it('retains unpinned UI after conflict and withholds the pin control for ineligible publication', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'conflict', message: 'Changed' },
+    });
+    await click('Закрепить');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Закрепление изменилось');
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')).toBeNull();
+    expect(button('Открепить')).toBeUndefined();
+  });
+});
+
+describe('authoritative reaction list refresh', () => {
+  function reactionPage(count = 1) {
+    return {
+      ok: true as const,
+      status: 200,
+      data: {
+        items: [{ ...publication, likeCount: count, reactionsEnabled: true, reactionsVersion: 0 }],
+        nextOffset: null,
+      },
+    };
+  }
+  async function mountReactions() {
+    vi.mocked(call).mockResolvedValueOnce(reactionPage());
+    await act(async () =>
+      root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+    );
+  }
+  function reactionInput(): HTMLInputElement {
+    return host.querySelector<HTMLInputElement>('[aria-label="Причина изменения реакций"]')!;
+  }
+  async function typeReactionReason(value: string) {
+    await act(async () => {
+      const field = reactionInput();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, value);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+  it('accepts fresh counts only after a successful full read and preserves a form during rerender/loading/failed refresh', async () => {
+    await mountReactions();
+    await typeReactionReason('Unsaved reason');
+    const originalInput = reactionInput();
+    await act(async () =>
+      root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+    );
+    expect(reactionInput()).toBe(originalInput);
+    expect(reactionInput().value).toBe('Unsaved reason');
+    let finish!: (value: ReturnType<typeof reactionPage>) => void;
+    vi.mocked(call).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await click('Обновить');
+    expect(reactionInput()).toBe(originalInput);
+    expect(reactionInput().value).toBe('Unsaved reason');
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('1 нравится');
+    await act(async () => finish(reactionPage(2)));
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('2 нравится');
+    expect(reactionInput().value).toBe('');
+    await typeReactionReason('Retain on failure');
+    const refreshedInput = reactionInput();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'private' },
+    });
+    await click('Обновить');
+    expect(reactionInput()).toBe(refreshedInput);
+    expect(reactionInput().value).toBe('Retain on failure');
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('2 нравится');
+  });
+  it('recovers a failed mutation from a successful list refresh even when count, revision and settings version are identical', async () => {
+    await mountReactions();
+    await typeReactionReason('Reviewed setting');
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'private' },
+    });
+    await click('Отключить реакции');
+    expect(reactionInput()).toBeNull();
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('обновите список');
+    vi.mocked(call).mockResolvedValueOnce(reactionPage());
+    await click('Обновить');
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('1 нравится · Реакции включены');
+    expect(reactionInput().value).toBe('');
+    await typeReactionReason('Retry after authoritative refresh');
+    expect(button('Отключить реакции').disabled).toBe(false);
+  });
+});

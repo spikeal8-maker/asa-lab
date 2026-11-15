@@ -36,6 +36,13 @@ export type WorkbenchView = 'breadboard' | 'schematic' | 'bom';
 export type Selection =
   | { kind: 'component'; id: string; ids: string[] }
   | { kind: 'wire'; id: string; vertexIndex?: number; segmentIndex?: number }
+  | {
+      kind: 'annotation';
+      editing?: boolean;
+      id: string;
+      ids: string[];
+      copied?: readonly import('../api').SchematicAnnotation[];
+    }
   | null;
 export type SaveStatus = 'saved' | 'dirty' | 'saving' | 'error';
 

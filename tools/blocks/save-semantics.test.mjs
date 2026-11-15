@@ -141,6 +141,131 @@ function loadStorage(fetchMock, randomUUID) {
   return (options) => context.AsaBlocksStorage.createReadOnlyStorage(runtimeStandalone, options);
 }
 
+test('terminal draft failure reports bounded status/request correlation and cannot be replaced by an observer error', async () => {
+  for (const status of [400, 401, 403, 409, 429, 503]) {
+    const failures = [];
+    const requestId = '33333333-3333-4333-8333-333333333333';
+    const create = loadStorage(
+      async () => new globalThis.Response('{}', { status, headers: { 'x-request-id': requestId } }),
+      () => '22222222-2222-4222-8222-222222222222',
+    );
+    const storage = create({
+      projectId: PROJECT_ID,
+      apiOrigin: API_ORIGIN,
+      draftRevision: 23,
+      canSave: true,
+      projectJson: null,
+      assets: [],
+      getRuntimeToken: () => TOKEN,
+      getProjectGeneration: () => 7,
+      onSaveFailure: (detail) => {
+        failures.push(detail);
+        throw new Error('private observer failure');
+      },
+    });
+    await assert.rejects(
+      storage.saveProject(PROJECT_ID, JSON.stringify(project('private-work'))),
+      /draft_write_failed/,
+    );
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].failureCode, 'scratch-save-draft');
+    assert.equal(failures[0].httpStatus, status);
+    assert.equal(failures[0].relatedRequestId, requestId);
+    assert.deepEqual(Object.keys(failures[0]).sort(), [
+      'durationMs',
+      'failureCode',
+      'httpStatus',
+      'relatedRequestId',
+    ]);
+    assert.equal(storage.getConfirmedRevision(), 23);
+    assert.equal(storage.getUpstreamSaveSequence(), 1);
+  }
+});
+
+test('one failed asset in fallback produces one logical failure, not an additional draft failure', async () => {
+  const failures = [];
+  const sound = asset('a'.repeat(32), 'wav', Uint8Array.of(1, 2, 3));
+  const create = loadStorage(
+    async () => {
+      throw 400;
+    },
+    () => '22222222-2222-4222-8222-222222222222',
+  );
+  let storage;
+  storage = create({
+    projectId: PROJECT_ID,
+    apiOrigin: API_ORIGIN,
+    draftRevision: 23,
+    canSave: true,
+    projectJson: null,
+    assets: [],
+    getRuntimeToken: () => TOKEN,
+    getProjectGeneration: () => 2,
+    getProjectAssets: () => [
+      { ...sound, data: sound.bytes, assetType: storage.scratchStorage.AssetType.Sound },
+    ],
+    onSaveFailure: (detail) => failures.push(detail),
+  });
+  await assert.rejects(
+    storage.saveProject(PROJECT_ID, JSON.stringify(project('private-work', [sound]))),
+    (error) => error === 400,
+  );
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].failureCode, 'scratch-save-asset');
+  assert.equal(failures[0].httpStatus, 400);
+  assert.equal(storage.getUpstreamSaveSequence(), 1);
+  assert.equal(storage.getConfirmedRevision(), 23);
+});
+
+test('a successful authority retry emits no save failure and a private request header is never forwarded', async () => {
+  const failures = [];
+  let token = TOKEN,
+    calls = 0;
+  const create = loadStorage(
+    async () =>
+      ++calls === 1
+        ? new globalThis.Response('{}', { status: 401 })
+        : new globalThis.Response('{"status":"ok","revision":24}'),
+    () => '22222222-2222-4222-8222-222222222222',
+  );
+  const storage = create({
+    projectId: PROJECT_ID,
+    apiOrigin: API_ORIGIN,
+    draftRevision: 23,
+    canSave: true,
+    projectJson: null,
+    assets: [],
+    getRuntimeToken: () => token,
+    refreshRuntimeToken: async () => {
+      token = 'new.token.value';
+      return true;
+    },
+    getProjectGeneration: () => 1,
+    onSaveFailure: (detail) => failures.push(detail),
+  });
+  await storage.saveProject(PROJECT_ID, JSON.stringify(project('work')));
+  assert.equal(failures.length, 0);
+  assert.equal(calls, 2);
+  const rejected = loadStorage(
+    async () =>
+      new globalThis.Response('{}', { status: 400, headers: { 'x-request-id': 'PRIVATE_TOKEN' } }),
+    () => '22222222-2222-4222-8222-222222222222',
+  )({
+    projectId: PROJECT_ID,
+    apiOrigin: API_ORIGIN,
+    draftRevision: 23,
+    canSave: true,
+    projectJson: null,
+    assets: [],
+    getRuntimeToken: () => TOKEN,
+    onSaveFailure: (detail) => failures.push(detail),
+  });
+  await assert.rejects(rejected.saveProject(PROJECT_ID, JSON.stringify(project('work'))));
+  assert.equal(failures.length, 1);
+  assert.equal(Object.hasOwn(failures[0], 'relatedRequestId'), false);
+  assert.equal(JSON.stringify(failures).includes('PRIVATE_TOKEN'), false);
+});
+
 async function storeAsset(storage, value) {
   const type =
     value.dataFormat === 'svg'
@@ -150,6 +275,130 @@ async function storeAsset(storage, value) {
         : storage.scratchStorage.AssetType.Sound;
   return storage.scratchStorage.store(type, value.dataFormat, value.bytes, value.assetId);
 }
+
+test('clean VM media without an ASA canonical reference is uploaded before the draft and reused', async () => {
+  const bytes = Uint8Array.of(82, 73, 70, 70, 1, 2, 3, 4);
+  const pop = asset(createHash('md5').update(bytes).digest('hex'), 'wav', bytes);
+  const calls = [];
+  const create = loadStorage(
+    async (url, init) => {
+      calls.push({ url, init });
+      if (url.endsWith('/draft'))
+        return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 }));
+      assert.deepEqual(Array.from(init.body), Array.from(bytes));
+      return new globalThis.Response(JSON.stringify({ status: 'ok', asset: reference(pop) }));
+    },
+    () => '22222222-2222-4222-8222-222222222222',
+  );
+  let live;
+  const storage = create({
+    projectId: PROJECT_ID,
+    projectJson: project('Existing'),
+    assets: [],
+    draftRevision: 23,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+    getProjectAssets: () => [live],
+    getProjectGeneration: () => 1,
+  });
+  live = {
+    assetId: pop.assetId,
+    dataFormat: 'wav',
+    data: bytes,
+    assetType: storage.scratchStorage.AssetType.Sound,
+    clean: true,
+  };
+
+  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
+  assert.equal(storage.getConfirmedRevision(), 24);
+  assert.equal(calls.length, 2);
+  assert.ok(calls[0].url.endsWith(`/${pop.assetId}.wav`));
+  assert.ok(calls[1].url.endsWith('/draft'));
+  assert.deepEqual(JSON.parse(calls[1].init.body).document.assets, [reference(pop)]);
+  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
+  assert.equal(calls.length, 2, 'unchanged confirmed media and draft make no writes');
+});
+
+test('failed clean-media acknowledgement cannot write a draft or mark the project durable', async () => {
+  const pop = asset('8'.repeat(32), 'wav', Uint8Array.of(1, 2, 3));
+  const calls = [];
+  const create = loadStorage(
+    async (url) => {
+      calls.push(url);
+      return new globalThis.Response(
+        JSON.stringify({ status: 'ok', asset: { ...reference(pop), sha256: '0'.repeat(64) } }),
+      );
+    },
+    () => '22222222-2222-4222-8222-222222222222',
+  );
+  let live;
+  let durable = 0;
+  const storage = create({
+    projectId: PROJECT_ID,
+    projectJson: project('Existing'),
+    assets: [],
+    draftRevision: 23,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+    getProjectAssets: () => [live],
+    getProjectGeneration: () => 1,
+    onProjectDurable: () => {
+      durable += 1;
+    },
+  });
+  live = {
+    assetId: pop.assetId,
+    dataFormat: 'wav',
+    data: pop.bytes,
+    assetType: storage.scratchStorage.AssetType.Sound,
+    clean: true,
+  };
+  await assert.rejects(
+    storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop]))),
+    /asset_reference_mismatch/,
+  );
+  assert.equal(storage.getConfirmedRevision(), 23);
+  assert.equal(durable, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls.some((url) => url.endsWith('/draft')),
+    false,
+  );
+  assert.equal(storage.getUpstreamSaveSequence(), 1, 'one failed checkpoint produces one outcome');
+});
+
+test('one unavailable clean-media reference blocks every fallback upload and the draft', async () => {
+  const sound = asset('8'.repeat(32), 'wav', Uint8Array.of(1, 2, 3));
+  const missing = asset('9'.repeat(32), 'wav', Uint8Array.of(4, 5, 6));
+  const calls = [];
+  const create = loadStorage(async (url) => {
+    calls.push(url);
+    throw new Error('no write may start with unavailable snapshot bytes');
+  });
+  let live;
+  const storage = create({
+    projectId: PROJECT_ID,
+    projectJson: project('Existing'),
+    assets: [],
+    draftRevision: 23,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+    getProjectAssets: () => [live],
+  });
+  live = {
+    assetId: sound.assetId,
+    dataFormat: 'wav',
+    data: sound.bytes,
+    assetType: storage.scratchStorage.AssetType.Sound,
+    clean: true,
+  };
+  await assert.rejects(
+    storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [sound, missing]))),
+    /asset_reference_missing/,
+  );
+  assert.equal(storage.getConfirmedRevision(), 23);
+  assert.deepEqual(calls, []);
+});
 
 test('project-open asset read renews expired authority and still verifies the returned bytes', async () => {
   const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));

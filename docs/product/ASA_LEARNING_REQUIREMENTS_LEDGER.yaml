@@ -543,12 +543,21 @@ requirements:
   normative_ref: PRODUCT-INTEGRATED-V15 §4.16
   source_paths:
   - migrations/0145_course_authoring_closure.sql
+  - migrations/0231_course_prepublication_diagnostics.sql
   - apps/api/src/courses.controller.ts
   - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/components/LessonBlockEditor.tsx
+  - apps/web/src/learning/course-prepublication-diagnostic.ts
+  - apps/web/src/api-call.ts
+  - schemas/openapi.yaml
   evidence:
   - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/course-authoring-closure.pg.spec.ts
+  - tests/courses/course-prepublication-diagnostics.pg.spec.ts
+  - tests/courses/course-prepublication-contract.spec.ts
+  - apps/api/src/courses.controller.spec.ts
+  - apps/web/src/learning/testing/course-prepublication-diagnostics.spec.ts
   - e2e/learning-course-01.spec.ts
   verification:
     source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
@@ -571,11 +580,15 @@ requirements:
   source_paths:
   - apps/api/src/courses.controller.ts
   - migrations/0145_course_authoring_closure.sql
+  - migrations/0232_course_archive_assignment_atomicity.sql
   evidence:
   - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/course-authoring-closure.pg.spec.ts
   - tests/courses/course-canonical-delivery.pg.spec.ts
+  - tests/courses/course-archive-assignment.pg.spec.ts
+  - apps/api/src/courses.controller.spec.ts
+  - e2e/learning-course-01.spec.ts
   verification:
     source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
     method: concurrency_risk_from_source
@@ -651,6 +664,9 @@ requirements:
   normative_ref: PRODUCT-INTEGRATED-V15 §4.2.1 / §4.16
   source_paths:
   - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/components/LessonBlocks.tsx
+  - apps/web/src/components/SeatCourses.tsx
+  - apps/web/src/components/lesson-blocks.css
   - apps/web/src/components/AuthorVersionHistory.tsx
   - apps/web/src/pages/AssignmentLibraryPage.tsx
   - apps/api/src/courses.controller.ts
@@ -658,6 +674,7 @@ requirements:
   - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
   tests:
   - e2e/learning-course-01.spec.ts
+  - apps/web/src/learning/testing/lesson-blocks-media.spec.ts
   - tests/courses/course-version-diff.spec.ts
   verification:
     source_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe

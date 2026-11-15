@@ -189,4 +189,27 @@ describe('workbench draft save state', () => {
     expect(save).toHaveBeenLastCalledWith(next);
     scheduler.dispose();
   });
+
+  it('honors a later conflict retry deadline even while the merged document is merely dirty', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let state: TimedDraftSaveState<Draft> = {
+      document: at1000,
+      savedDocument: at220,
+      savingDocument: null,
+      failed: false,
+      paused: false,
+    };
+    const save = vi.fn();
+    const scheduler = new WorkbenchAutosaveScheduler(() => state, save);
+    scheduler.update();
+    vi.advanceTimersByTime(50_000);
+    state = { ...state, retryAt: 110_000 };
+    // Even an already armed timer must read the new bound when it fires.
+    vi.advanceTimersByTime(59_999);
+    expect(save).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(save).toHaveBeenCalledExactlyOnceWith(at1000);
+    scheduler.dispose();
+  });
 });

@@ -11,6 +11,238 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it('accepts optional bounded occurrence aggregates and logs a replayed event only once', () => {
+    const controller = new ClientDiagnosticsController();
+    const first = Date.now() - 1000;
+    const body = {
+      code: 'request_failed',
+      module: 'portal',
+      revision: 'abcdef0',
+      eventId: '20000000-0000-4000-8000-000000000001',
+      occurredAt: first,
+      repetitionCount: 37,
+      firstOccurredAt: first,
+      lastOccurredAt: first + 1000,
+      operation: 'project_read',
+      method: 'GET',
+      failureKind: 'http',
+      httpStatus: 503,
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(controller.report(reportRequest(), body)).toEqual({ accepted: true });
+      expect(controller.report(reportRequest(), body)).toEqual({ accepted: true });
+      expect(out).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject(body);
+      // Old clients need none of the new fields or even a delivery event ID.
+      expect(
+        controller.report(reportRequest(), {
+          code: 'render_failed',
+          module: 'portal',
+          revision: 'abcdef0',
+        }),
+      ).toEqual({ accepted: true });
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it('rejects partial, unbounded and malformed aggregates before logging', () => {
+    const controller = new ClientDiagnosticsController();
+    const body = {
+      code: 'request_failed',
+      module: 'portal',
+      revision: 'abcdef0',
+      eventId: '20000000-0000-4000-8000-000000000001',
+      occurredAt: 1_000_000,
+      repetitionCount: 2,
+      firstOccurredAt: 1_000_000,
+      lastOccurredAt: 1_001_000,
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      for (const extra of [
+        { repetitionCount: 0 },
+        { repetitionCount: 1.5 },
+        { repetitionCount: 1_000_001 },
+        { repetitionCount: '2' },
+        { repetitionCount: Infinity },
+        { repetitionCount: undefined },
+        { firstOccurredAt: undefined },
+        { firstOccurredAt: 999_999 },
+        { lastOccurredAt: undefined },
+        { lastOccurredAt: 999_999 },
+        { lastOccurredAt: 1_900_001 },
+        { lastOccurredAt: 'PRIVATE' },
+        { eventId: undefined },
+        { occurredAt: undefined },
+        { token: 'PRIVATE' },
+      ])
+        expect(() => controller.report(reportRequest(), { ...body, ...extra })).toThrow();
+      expect(out).not.toHaveBeenCalled();
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it('logs safe cancelled reads as info and rejects malformed or private request fields', () => {
+    const controller = new ClientDiagnosticsController();
+    const body = {
+      code: 'request_cancelled',
+      module: 'auth',
+      revision: 'abcdef0',
+      phase: 'request',
+      method: 'GET',
+      operation: 'auth_me',
+      failureKind: 'cancelled',
+      clientAttemptId: '30000000-0000-4000-8000-000000000001',
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      controller.report(reportRequest(), body);
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject({
+        ...body,
+        level: 'info',
+        requestId: reportRequest().id,
+        untrustedClientReport: true,
+      });
+      for (const extra of [
+        { operation: '/api/auth/me?token=PRIVATE' },
+        { method: 'PRIVATE' },
+        { failureKind: 'PRIVATE' },
+        { clientAttemptId: 'PRIVATE' },
+        { clientAttemptId: ['30000000-0000-4000-8000-000000000001'] },
+        { url: '/api/PRIVATE' },
+        { method: 'PUT' },
+        { failureKind: 'timeout' },
+      ])
+        expect(() => controller.report(reportRequest(), { ...body, ...extra })).toThrow();
+      expect(out).toHaveBeenCalledTimes(1);
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it('accepts safe generated Worker asset coordinates as well as ordinary chunks', () => {
+    const controller = new ClientDiagnosticsController();
+    const frame = { script: '/assets/simulation.worker-1234abcd.js', line: 1, column: 20 };
+    const body = {
+      code: 'window_error',
+      module: 'electronics',
+      revision: 'a'.repeat(40),
+      ...frame,
+      exception: { kind: 'unknown', capture: 'window', handling: 'unhandled', frames: [frame] },
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      controller.report(reportRequest(), body);
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject(body);
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it.each([
+    [{ script: '/assets/index-1234abcd.js?secret=x', line: 1, column: 1 }],
+    [{ script: '/assets/index-1234abcd.js', line: 0, column: 1 }],
+    [null],
+    Array(6).fill({ script: '/assets/index-1234abcd.js', line: 1, column: 1 }),
+  ])('rejects invalid/oversized exception frames before logging: %j', (...frames) => {
+    const controller = new ClientDiagnosticsController();
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(() =>
+        controller.report(reportRequest(), {
+          code: 'window_error',
+          module: 'electronics',
+          revision: 'a'.repeat(40),
+          exception: { kind: 'TypeError', capture: 'window', handling: 'unhandled', frames },
+        }),
+      ).toThrow();
+      expect(out).not.toHaveBeenCalled();
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it('logs bounded untrusted exception coordinates and rejects private fields or false recovery', () => {
+    const controller = new ClientDiagnosticsController();
+    const exception = {
+      kind: 'TypeError',
+      capture: 'window',
+      handling: 'unhandled',
+      frames: [{ script: '/assets/ArduinoCodePanel-1234abcd.js', line: 7, column: 2 }],
+    };
+    const body = {
+      code: 'window_error',
+      module: 'electronics',
+      revision: 'a'.repeat(40),
+      exception,
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(controller.report(reportRequest(), body)).toEqual({ accepted: true });
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject({
+        ...body,
+        kind: 'client_diagnostic',
+        level: 'error',
+        untrustedClientReport: true,
+      });
+      for (const extra of [
+        { message: 'PRIVATE' },
+        { handling: 'recovered' },
+        { frames: [{ ...exception.frames[0], source: 'PRIVATE' }] },
+        { kind: 'PRIVATE' },
+      ])
+        expect(() =>
+          controller.report(reportRequest(), { ...body, exception: { ...exception, ...extra } }),
+        ).toThrow();
+      expect(() =>
+        controller.report(reportRequest(), { ...body, code: 'editor_recovered' }),
+      ).toThrow();
+      expect(out).toHaveBeenCalledTimes(1);
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it('records only finite Scratch save stages with request correlation and rejects mismatched contexts', () => {
+    const controller = new ClientDiagnosticsController();
+    const request = reportRequest();
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      for (const failureCode of [
+        'scratch-save-asset',
+        'scratch-save-draft',
+        'scratch-save-prepare',
+      ]) {
+        const body = {
+          code: 'autosave_failed',
+          module: 'scratch',
+          phase: 'save',
+          revision: 'abcdef0',
+          failureCode,
+          durationMs: 42,
+          httpStatus: 400,
+          relatedRequestId: request.id,
+        };
+        expect(controller.report(request, body)).toEqual({ accepted: true });
+        for (const extra of [
+          { module: 'portal' },
+          { phase: 'runtime' },
+          { code: 'editor_heartbeat' },
+          { message: 'secret' },
+          { failureCode: 'raw-secret' },
+        ])
+          expect(() => controller.report(request, { ...body, ...extra })).toThrow();
+      }
+      expect(out).toHaveBeenCalledTimes(3);
+      for (const call of out.mock.calls)
+        expect(JSON.parse(String(call[0]))).toMatchObject({
+          code: 'autosave_failed',
+          phase: 'save',
+          level: 'error',
+          untrustedClientReport: true,
+          relatedRequestId: request.id,
+        });
+    } finally {
+      out.mockRestore();
+    }
+  });
   afterEach(() => {
     delete process.env.ASA_TRUSTED_PROXY_CIDRS;
   });

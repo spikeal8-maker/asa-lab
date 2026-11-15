@@ -1,0 +1,11 @@
+
+ RUN  v4.1.11 C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab
+
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-presentation.spec.ts (20 tests) 59ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-speed-control.spec.ts (1 test) 71ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-header-time.spec.ts (1 test) 162ms
+
+ Test Files  3 passed (3)
+      Tests  22 passed (22)
+   Start at  07:33:14
+   Duration  2.32s (transform 533ms, setup 0ms, import 1.21s, tests 292ms, environment 1.94s)

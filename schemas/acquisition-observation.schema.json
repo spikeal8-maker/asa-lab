@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asa-lab.dev/schemas/acquisition-observation.schema.json",
+  "title": "Optional authenticated browser campaign claim; no registration attribution",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "eventId", "actorExpectation", "source", "medium", "campaign"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "actorExpectation": {
+      "$ref": "#/$defs/Actor"
+    },
+    "source": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "medium": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "campaign": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    }
+  },
+  "anyOf": [
+    {
+      "properties": {
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "properties": {
+        "medium": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "properties": {
+        "campaign": {
+          "type": "string"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Actor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "accountId", "workspaceId"],
+          "properties": {
+            "kind": {
+              "const": "account"
+            },
+            "accountId": {
+              "$ref": "#/$defs/Id"
+            },
+            "workspaceId": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "seatId", "classId"],
+          "properties": {
+            "kind": {
+              "const": "student"
+            },
+            "seatId": {
+              "$ref": "#/$defs/Id"
+            },
+            "classId": {
+              "$ref": "#/$defs/Id"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

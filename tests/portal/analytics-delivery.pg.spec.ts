@@ -3,6 +3,14 @@ import { performance } from 'node:perf_hooks';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp, analyticsPoolSettings } from '../../apps/api/dist/app.factory.js';
+import { AnalyticsDelivery } from '../../apps/web/src/analytics-delivery';
+import {
+  confirmedAnalytics,
+  validEnvelope,
+  type AnalyticsEnvelope,
+  type StoragePort,
+  type TelemetryActor,
+} from '../../apps/web/src/telemetry-contract';
 import { inject, type NestApp } from './app';
 import { seedTeacher, testAdminPool, testAppPool } from './helpers';
 
@@ -137,6 +145,42 @@ async function makeSeat(materialize: boolean, targetClass = classId) {
     : null;
   return { seatId, principal, studentCode: result.json().student.studentCode as string };
 }
+// Historical rows predate new-Seat identity initialization. Preserve that state
+// explicitly; issuing another current Seat or deleting its principal would not
+// exercise the retained denial and first-use allocation contracts.
+async function historicalSeatWithoutPrincipal() {
+  const studentCode = randomUUID().replaceAll('-', '').slice(0, 8);
+  const created = await admin.query(
+    `INSERT INTO public.classroom_student_seats(
+       tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+       safe_mode,status,created_by)
+     SELECT access.tenant_id,$2,'Historical receipt fixture',$3,$3,true,'issued',access.user_id
+       FROM public.classroom_teacher_access($1,$2) access
+      WHERE access.user_id IS NOT NULL RETURNING id`,
+    [owner.accountId, classId, studentCode],
+  );
+  expect(created.rows).toHaveLength(1);
+  const seatId = created.rows[0].id as string;
+  // The existing teacher credential command does not initialize the Seat principal.
+  const issued = await runtime.query(
+    'SELECT result_code,code_version FROM classroom_student_code_set($1,$2,$3,$4,$5)',
+    [owner.accountId, classId, seatId, studentCode, randomUUID()],
+  );
+  expect(issued.rows).toEqual([{ result_code: 'ok', code_version: 1 }]);
+  // The real teacher promotion route also supports enforced protected-code storage.
+  const protectedCode = await inject(app, {
+    method: 'POST',
+    url: `/api/classrooms/${classId}/seats/${seatId}/code`,
+    headers: { cookie },
+    payload: { studentCode, requestId: randomUUID() },
+  });
+  expect(protectedCode.statusCode, protectedCode.body).toBe(201);
+  expect(protectedCode.json()).toMatchObject({ studentCode, version: 1 });
+  expect(
+    (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId])).rows,
+  ).toHaveLength(0);
+  return { seatId, studentCode };
+}
 async function project(asCookie = cookie) {
   const result = await inject(app, {
     method: 'POST',
@@ -183,6 +227,91 @@ afterAll(async () => {
 });
 
 describe('real PostgreSQL observability delivery receipts', () => {
+  it('acknowledges the real numeric visit receipt in the shipping queue with one durable effect and no replay', async () => {
+    const actor: TelemetryActor = {
+      kind: 'account',
+      accountId: owner.accountId!,
+      workspaceId: owner.workspaceId!,
+    };
+    const values = new Map<string, string>();
+    const requests: AnalyticsEnvelope[] = [];
+    const responses: { status: number; body: unknown }[] = [];
+    let persistedAfterResponse!: () => void;
+    const processed = new Promise<void>((resolve) => (persistedAfterResponse = resolve));
+    const storage: StoragePort = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => {
+        values.set(key, value);
+        // Observe the shipping queue's first persisted state after real response consumption.
+        // A rejected acknowledgement resolves this too, exposing the retained visit immediately.
+        if (key === 'asa:analytics:v2' && responses.length) persistedAfterResponse();
+      },
+    };
+    const transport: typeof fetch = async (path, init) => {
+      requests.push(JSON.parse(init!.body as string) as AnalyticsEnvelope);
+      const response = await inject(app, {
+        method: 'POST',
+        url: String(path),
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: init!.body as string,
+      });
+      responses.push({ status: response.statusCode, body: response.json() });
+      return new Response(response.body, {
+        status: response.statusCode,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const worker = new AnalyticsDelivery(actor, { storage, transport, id: randomUUID });
+    let restored: AnalyticsDelivery | undefined;
+    try {
+      worker.visit(randomUUID(), 'home', null);
+      await processed;
+      expect(requests).toHaveLength(1);
+      expect(responses).toHaveLength(1);
+      const envelope = requests[0]!;
+      const response = responses[0]!;
+      expect(validEnvelope(envelope)).toBe(true);
+      expect(envelope.eventId).toBe(envelope.eventId.toLowerCase());
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        eventId: envelope.eventId,
+        receiptId: envelope.eventId,
+        operation: 'visit.observed',
+        recordId: expect.any(Number),
+      });
+      expect(confirmedAnalytics(response.body, envelope)).toBe(true);
+      expect(worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+      expect(JSON.parse(storage.getItem('asa:analytics:v2')!)).toEqual({
+        schemaVersion: 2,
+        actor,
+        sessions: [],
+        visits: [],
+      });
+      expect(worker.quality.read().counters).toMatchObject({ acknowledged: 1, retried: 0 });
+      worker.retryNow();
+      expect(requests).toHaveLength(1);
+      worker.retire();
+      restored = new AnalyticsDelivery(actor, { storage, transport, id: randomUUID });
+      restored.retryNow();
+      expect(restored.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+      expect(requests).toHaveLength(1);
+      const rows = (
+        await admin.query(
+          'SELECT id::text, event_type FROM product_analytics_events WHERE receipt_event_id=$1',
+          [envelope.eventId],
+        )
+      ).rows;
+      expect(rows).toEqual([
+        {
+          id: String((response.body as { recordId: number }).recordId),
+          event_type: 'visit.observed',
+        },
+      ]);
+    } finally {
+      worker.retire();
+      restored?.retire();
+    }
+  });
   it('confirms uppercase UUID input and replays canonical lowercase envelopes with one domain effect', async () => {
     const eventId = `abcdefab${randomUUID().slice(8)}`;
     const visitId = randomUUID();
@@ -595,7 +724,7 @@ describe('real PostgreSQL observability delivery receipts', () => {
     expect(rows.map((r) => r.occurrence_count)).toEqual([1, 2]);
     expect(rows[1].first_occurred_at.toISOString()).toBe(new Date(late).toISOString());
     expect(rows[1].occurred_at.toISOString()).toBe(new Date(later).toISOString());
-    const noPrincipal = await makeSeat(false);
+    const noPrincipal = await historicalSeatWithoutPrincipal();
     await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
       noPrincipal.seatId,
     ]);
@@ -865,7 +994,7 @@ describe('real PostgreSQL observability delivery receipts', () => {
   });
 
   it('materializes one canonical Seat principal under independent connection and first product request races', async () => {
-    const seat = await makeSeat(false);
+    const seat = await historicalSeatWithoutPrincipal();
     const isolatedMain = testAppPool();
     const isolatedApp = await createApiApp({
       pool: isolatedMain,

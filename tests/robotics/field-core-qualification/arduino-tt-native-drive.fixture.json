@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "id": "D02-TT-NATIVE-DRIVE-1172-v1",
+  "scope": "TEST_ONLY",
+  "unoReference": {
+    "receiptSha256": "e1d5fb5939d639d1cc0b5e6d3aa518c2ed77e7518721012a2162fb7b06909832",
+    "sketchSha256": "450900a98a269b20fe9ab28f9c2ffeb6d58cc65c573cd37544f1a720f771d661",
+    "gpioSha256": "1c503198299f4e9893139d10b6f091f36a2a67654da4e62d864d3dbaf0b1d432",
+    "source": "void setup() {\n  pinMode(5, OUTPUT);\n  digitalWrite(5, LOW);\n  delay(250);\n  digitalWrite(5, HIGH);\n  delay(1200);\n  for (int cycle = 0; cycle < 8; cycle++) {\n    digitalWrite(5, LOW);\n    delayMicroseconds(320);\n    digitalWrite(5, HIGH);\n    delayMicroseconds(180);\n  }\n  delay(4550);\n  digitalWrite(5, LOW);\n}\n\nvoid loop() {\n  delay(1000);\n}\r\n",
+    "gpio": [
+      {
+        "sequence": 0,
+        "atMicroseconds": 0,
+        "terminal": "d5",
+        "kind": "pin-mode-change",
+        "mode": "OUTPUT"
+      },
+      {
+        "sequence": 1,
+        "atMicroseconds": 0,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 2,
+        "atMicroseconds": 250003,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 3,
+        "atMicroseconds": 1450009,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 4,
+        "atMicroseconds": 1450331,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 5,
+        "atMicroseconds": 1450518,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 6,
+        "atMicroseconds": 1450840,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 7,
+        "atMicroseconds": 1451027,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 8,
+        "atMicroseconds": 1451349,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 9,
+        "atMicroseconds": 1451536,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 10,
+        "atMicroseconds": 1451858,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 11,
+        "atMicroseconds": 1452045,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 12,
+        "atMicroseconds": 1452367,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 13,
+        "atMicroseconds": 1452554,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 14,
+        "atMicroseconds": 1452876,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 15,
+        "atMicroseconds": 1453063,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 16,
+        "atMicroseconds": 1453385,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 17,
+        "atMicroseconds": 1453572,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      },
+      {
+        "sequence": 18,
+        "atMicroseconds": 1453894,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 5
+      },
+      {
+        "sequence": 19,
+        "atMicroseconds": 6004082,
+        "terminal": "d5",
+        "kind": "output-change",
+        "voltageVolt": 0
+      }
+    ]
+  },
+  "engine": {
+    "version": "4.0.0",
+    "sourceCommit": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "declaredNpmLicense": "Apache-2.0",
+    "packageSha256": "a7d2c0108c77aa9826a2df5aa40f79e4812339b218fe237e478f73eb586fc0d9",
+    "glueSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de",
+    "profile": {
+      "gravity": [0, 0, -9.81],
+      "integrator": 3,
+      "solver": 2,
+      "jacobian": 0,
+      "cone": 1,
+      "iterations": 100,
+      "ls_iterations": 50,
+      "noslip_iterations": 20,
+      "ccd_iterations": 100,
+      "disableflags": 65536,
+      "enableflags": 32
+    }
+  },
+  "motor": {
+    "profileId": "adafruit-3777-tt-48to1",
+    "gearRatio": 48,
+    "rotorInertiaKgM2": 2e-7,
+    "reflectedInertiaKgM2": 0.0004608
+  },
+  "mechanics": {
+    "pivotM": [0, 0, 0.05],
+    "axis": [0, 0, 1],
+    "bodyMassKg": 0.1,
+    "bodyLocalComM": [0.04, 0, 0],
+    "bodyHalfExtentsM": [0.035, 0.005, 0.005],
+    "stopCenterM": [0.055, 0.036, 0.05],
+    "stopHalfExtentsM": [0.01, 0.005, 0.012],
+    "contactDimension": 1
+  },
+  "windows": {
+    "drivenFromUs": 3000000,
+    "drivenToUs": 5500000,
+    "offAtUs": 6004082,
+    "coastEndUs": 6104082,
+    "horizonUs": 10000000
+  },
+  "limits": {
+    "maxIntervalUs": 500,
+    "maxIntervalsPerWorld": 22000,
+    "maxSessionCallsPerWorld": 24000,
+    "repeats": 2,
+    "receiptMaxBytes": 100663296,
+    "wallMs": 360000,
+    "nativeClockToleranceUs": 0.01,
+    "relativeEnergyLimit": 0.01,
+    "absoluteEnergyLimitJ": 0.0001,
+    "terminalReadTolerance": 2e-5
+  },
+  "witness": {
+    "minimumDrivenMeanSpeedDifferenceRadPerSecond": 0.1,
+    "minimumDrivenMeanCurrentDifferenceA": 0.0001,
+    "minimumStopContactImpulseNs": 1e-6,
+    "minimumFreeCoastAngleRadian": 0.01,
+    "minimumFlybackCurrentAmp": 1e-6
+  }
+}

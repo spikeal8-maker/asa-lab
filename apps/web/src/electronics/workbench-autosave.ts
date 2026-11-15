@@ -65,7 +65,8 @@ export function transientSaveRetryDelay(): number {
 export interface TimedDraftSaveState<TDocument> extends DraftSaveState<TDocument> {
   /** A simulation is starting, so its first local Worker result has not arrived yet. */
   readonly paused: boolean;
-  /** Only transient failures may be retried. Null/absent means a hard stop. */
+  /** Earliest automatic retry after transport failure or safe conflict rebase.
+   * A failed state with null/absent retryAt remains a hard stop. */
   readonly retryAt?: number | null;
 }
 
@@ -96,6 +97,7 @@ export class WorkbenchAutosaveScheduler<TDocument> {
       if (this.deadline === null) return;
     } else if (state.document === state.savingDocument) return;
     this.deadline ??= Date.now() + AUTOSAVE_INTERVAL_MS;
+    this.deadline = Math.max(this.deadline, state.retryAt ?? 0);
     if (state.savingDocument !== null || state.paused) return;
 
     this.timer = setTimeout(() => this.onDeadline(), Math.max(0, this.deadline - Date.now()));
@@ -122,6 +124,7 @@ export class WorkbenchAutosaveScheduler<TDocument> {
         : !autosaveIsDue(state)) ||
       state.paused ||
       this.deadline === null ||
+      (state.retryAt != null && Date.now() < state.retryAt) ||
       Date.now() < this.deadline
     ) {
       this.update();

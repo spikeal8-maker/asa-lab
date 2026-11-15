@@ -56,7 +56,7 @@ function ack(body: Record<string, unknown>): Response {
             pipeline: body.pipeline,
             acknowledgementStage: body.acknowledgementStage,
           }
-        : { recordId: project }),
+        : { recordId: 1 }),
   });
 }
 const count = (path: string) => transport.mock.calls.filter(([url]) => url === path).length;

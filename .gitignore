@@ -72,3 +72,7 @@ reports/blocks/
 
 # dev orchestrator graceful stop marker
 .asa-dev-stop
+
+# Encrypted debug archives are build artifacts; owner private keys never belong in Git.
+apps/web/private-symbols/
+*.private.pem

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { switchSelectedTerminal } from '@asa-lab/electronics';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
 import {
   api,
@@ -14,6 +15,7 @@ import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState } from './workbench-model';
 import {
   WorkbenchAutosaveScheduler,
+  AUTOSAVE_INTERVAL_MS,
   draftSaveStatus,
   transientSaveRetryDelay,
 } from './workbench-autosave';
@@ -24,14 +26,13 @@ import {
   mergeElectronicsDocuments,
 } from './electronics-document-merge';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
-import {
-  clearLocalProjectDraft,
-  readLocalProjectDraft,
-  writeLocalProjectDraft,
-} from '../modules/project-local-draft';
+import { createElectronicsProjectRecovery } from './electronics-project-recovery';
+import { repairElectronicsDocumentIdentifiers } from './electronics-document-repair';
 
 export type SimulationRuntimeStatus =
   'stopped' | 'validating' | 'starting' | 'running' | 'stopping';
+
+const MAX_CONFLICT_REBASES = 3;
 
 interface PersistenceScope {
   readonly projectId: string;
@@ -40,7 +41,31 @@ interface PersistenceScope {
   active: boolean;
   detachedRequested: boolean;
   blocked: boolean;
+  conflictRebases: number;
+  conflictRetryAt: number | null;
   confirmed: { revision: number; document: SchematicDocument } | null;
+}
+
+function createPersistenceScope(
+  projectId: string,
+  userId: string,
+  identityKind: 'account' | 'seat',
+): PersistenceScope {
+  return {
+    projectId,
+    userId,
+    identityKind,
+    active: true,
+    detachedRequested: false,
+    blocked: false,
+    conflictRebases: 0,
+    conflictRetryAt: null,
+    confirmed: null,
+  };
+}
+
+function conflictRetryPending(scope: PersistenceScope): boolean {
+  return scope.conflictRetryAt !== null && Date.now() < scope.conflictRetryAt;
 }
 
 function isLocalSchematicDocument(value: unknown): value is SchematicDocument {
@@ -68,7 +93,10 @@ function migratedTerminal(
     resistor: { a: 'lead-1', b: 'lead-2' },
     led: { a: 'anode', b: 'cathode' },
     button: { a: 'SW-A1', b: 'SW-B1' },
-    switch: { a: 'common', b: component.state ? 'throw-right' : 'throw-left' },
+    switch: {
+      a: 'common',
+      b: switchSelectedTerminal(component),
+    },
     potentiometer: { a: 'terminal-1', b: 'terminal-2', wiper: 'wiper' },
     diode: { a: 'anode', b: 'cathode' },
     lamp: { a: 'L1', b: 'L2' },
@@ -138,7 +166,7 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
   }));
   let normalized: SchematicDocument = {
     ...document,
-    schemaVersion: 4,
+    schemaVersion: document.schemaVersion === 5 ? 5 : 4,
     components,
     connections,
     viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },
@@ -200,30 +228,49 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
   // written into the new one's state.
   const serverRevisionRef = useRef<number | null>(null);
   const identityKind = seatLearner ? 'seat' : 'account';
-  const scopeRef = useRef<PersistenceScope>({
-    projectId,
-    userId,
-    identityKind,
-    active: true,
-    detachedRequested: false,
-    blocked: false,
-    confirmed: null,
-  });
+  const recovery = useMemo(() => {
+    let session: Storage | null = null;
+    try {
+      session = window.sessionStorage;
+    } catch {
+      /* recovery still works without a reload hint */
+    }
+    return createElectronicsProjectRecovery<SchematicDocument>(
+      () => window.localStorage,
+      session,
+      projectId,
+      userId,
+      identityKind,
+      (source, confirmed, preserveOriginal) => {
+        const original = normalizeLoadedDocument(source.document);
+        const repair = repairElectronicsDocumentIdentifiers(original);
+        if (repair.status === 'blocked') return false;
+        const repaired = repair.document;
+        const local = repaired ?? original;
+        const remote = normalizeLoadedDocument(confirmed);
+        if (electronicsDocumentsEqual(local, remote)) return !repaired || preserveOriginal();
+        if (!source.baseDocument) return false;
+        const originalBase = normalizeLoadedDocument(source.baseDocument);
+        const baseRepair = repairElectronicsDocumentIdentifiers(originalBase);
+        if (baseRepair.status === 'blocked') return false;
+        const repairedBase = baseRepair.document;
+        const merged = mergeElectronicsDocuments(repairedBase ?? originalBase, local, remote);
+        return (
+          merged.ok &&
+          electronicsDocumentsEqual(merged.document, remote) &&
+          (!(repaired || repairedBase) || preserveOriginal())
+        );
+      },
+    );
+  }, [projectId, userId, identityKind]);
+  const scopeRef = useRef(createPersistenceScope(projectId, userId, identityKind));
   if (
     scopeRef.current.projectId !== projectId ||
     scopeRef.current.userId !== userId ||
     scopeRef.current.identityKind !== identityKind
   ) {
     scopeRef.current.active = false;
-    scopeRef.current = {
-      projectId,
-      userId,
-      identityKind,
-      active: true,
-      detachedRequested: false,
-      blocked: false,
-      confirmed: null,
-    };
+    scopeRef.current = createPersistenceScope(projectId, userId, identityKind);
     documentRef.current = null;
     savedDocumentRef.current = null;
     savingDocumentRef.current = null;
@@ -244,18 +291,14 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       const baseRevision = serverRevisionRef.current;
       const stored =
         baseRevision !== null &&
-        writeLocalProjectDraft(() => window.localStorage, {
-          projectId,
-          userId,
-          identityKind,
-          moduleKey: 'electronics',
+        recovery.write({
           baseRevision,
           ...(serverDocumentRef.current ? { baseDocument: serverDocumentRef.current } : {}),
           document: next,
         });
       setLocalDocument(stored ? next : null);
     },
-    [inScope, projectId, userId, identityKind],
+    [inScope, recovery],
   );
 
   const saveStatus = draftSaveStatus({
@@ -288,13 +331,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       if (!inScope() || (event.key !== null && !event.key.startsWith('asa-project-local-draft:')))
         return;
       const current = documentRef.current;
-      const local = readLocalProjectDraft(
-        () => window.localStorage,
-        projectId,
-        'electronics',
-        userId,
-        identityKind,
-      );
+      const local = recovery.readOwned();
       try {
         setLocalDocument(
           current && local && JSON.stringify(local.document) === JSON.stringify(current)
@@ -307,7 +344,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [inScope, projectId, userId, identityKind]);
+  }, [inScope, recovery]);
 
   const initialiseHistory = useCallback((next: SchematicDocument) => {
     historyRef.current = { entries: [cloneJson(next)], cursor: 0 };
@@ -346,37 +383,64 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
     const serverDocument = normalizeLoadedDocument(response.data.draft.document);
-    const migrated = !electronicsDocumentPayloadsEqual(
-      serverDocument,
-      response.data.draft.document,
-    );
-    const local = readLocalProjectDraft(
-      () => window.localStorage,
-      projectId,
-      'electronics',
-      userId,
-      identityKind,
-    );
-    const localDocument =
+    const local = recovery.read();
+    const originalLocal =
       local && isLocalSchematicDocument(local.document)
         ? normalizeLoadedDocument(local.document)
         : null;
-    const localBaseDocument =
+    const originalLocalBase =
       local?.baseDocument && isLocalSchematicDocument(local.baseDocument)
         ? normalizeLoadedDocument(local.baseDocument)
         : null;
+    const serverRepair = repairElectronicsDocumentIdentifiers(serverDocument);
+    const localRepair = originalLocal && repairElectronicsDocumentIdentifiers(originalLocal);
+    const baseRepair = originalLocalBase && repairElectronicsDocumentIdentifiers(originalLocalBase);
+    if ([serverRepair, localRepair, baseRepair].some((repair) => repair?.status === 'blocked')) {
+      // Ambiguous identities or unrelated corruption must not rewrite the source slot.
+      loadedScopeRef.current = scope;
+      setStatus('error');
+      return;
+    }
+    const repairedServer = serverRepair.document;
+    const repairedLocal = localRepair?.document;
+    const repairedBase = baseRepair?.document;
+    if (
+      (local && !recovery.preserveOriginal(local, Boolean(repairedLocal || repairedBase))) ||
+      (repairedServer &&
+        !recovery.preserveOriginal({
+          schemaVersion: 3,
+          projectId,
+          userId,
+          identityKind,
+          moduleKey: 'electronics',
+          baseRevision: response.data.draft.revision,
+          document: response.data.draft.document,
+          updatedAt: response.data.draft.updatedAt,
+        }))
+    ) {
+      // Never rewrite a recovery slot until the full original has verified storage.
+      loadedScopeRef.current = scope;
+      setStatus('error');
+      return;
+    }
+    const localDocument = repairedLocal ?? originalLocal;
+    const localBaseDocument = repairedBase ?? originalLocalBase;
+    const projectedServer = repairedServer ?? serverDocument;
+    const migrated =
+      repairedServer !== null ||
+      !electronicsDocumentPayloadsEqual(serverDocument, response.data.draft.document);
     const localMatchesServer =
       localDocument !== null && electronicsDocumentsEqual(localDocument, serverDocument);
     const restored = localDocument !== null && !localMatchesServer;
     let revisionConflict = false;
     let mergedLocalDraft = false;
-    let nextDocument = restored ? (localDocument as SchematicDocument) : serverDocument;
+    let nextDocument = restored ? (localDocument as SchematicDocument) : projectedServer;
     serverDocumentRef.current = serverDocument;
     serverRevisionRef.current = response.data.draft.revision;
     scope.confirmed = { revision: response.data.draft.revision, document: serverDocument };
     if (restored && local && local.baseRevision !== response.data.draft.revision) {
       const merged = localBaseDocument
-        ? mergeElectronicsDocuments(localBaseDocument, nextDocument, serverDocument)
+        ? mergeElectronicsDocuments(localBaseDocument, nextDocument, projectedServer)
         : null;
       if (merged?.ok) {
         nextDocument = merged.document;
@@ -387,7 +451,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         // overwrite the newer server document. A later save will retry the
         // same safe merge or return the actionable conflict again.
         serverRevisionRef.current = local.baseRevision;
-        serverDocumentRef.current = localBaseDocument;
+        serverDocumentRef.current = originalLocalBase;
       }
     }
     documentRef.current = nextDocument;
@@ -401,7 +465,14 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     setVersions(response.data.versions);
     // A migrated document is not what the server holds, so it stays unsaved
     // until autosave writes the migration back.
-    const knownSavedDocument = restored ? serverDocument : migrated ? null : nextDocument;
+    const knownSavedDocument =
+      !migrated && mergedLocalDraft && electronicsDocumentsEqual(nextDocument, serverDocument)
+        ? nextDocument
+        : restored
+          ? serverDocument
+          : migrated
+            ? null
+            : nextDocument;
     savedDocumentRef.current = knownSavedDocument;
     setSavedDocument(knownSavedDocument);
     savingDocumentRef.current = null;
@@ -410,7 +481,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     setSimulationStatus(nextDocument.simulation.running ? 'running' : 'stopped');
     initialiseHistory(nextDocument);
     if (knownSavedDocument === nextDocument) {
-      clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind);
+      recovery.clear(nextDocument);
       setLocalDocument(null);
     }
     if (revisionConflict) {
@@ -427,7 +498,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       setNotice('Восстановлены несохранённые изменения из этого браузера.');
     }
     setStatus('ready');
-  }, [initialiseHistory, projectId, userId, identityKind, seatLearner, inScope, scope, storeLocal]);
+  }, [initialiseHistory, projectId, userId, seatLearner, inScope, scope, storeLocal, recovery]);
 
   useEffect(() => {
     scope.active = true;
@@ -472,7 +543,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         setSavedDocument(remoteDocument);
         setResult(response.data.result);
         setVersions(response.data.versions);
-        clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind);
+        recovery.clear(remoteDocument);
         setLocalDocument(null);
         initialiseHistory(remoteDocument);
         setNotice('Получены изменения общей схемы.');
@@ -486,16 +557,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       active = false;
       window.removeEventListener('focus', onFocus);
     };
-  }, [
-    initialiseHistory,
-    projectId,
-    userId,
-    identityKind,
-    inScope,
-    scope,
-    simulationRunning,
-    status,
-  ]);
+  }, [initialiseHistory, projectId, userId, recovery, inScope, scope, simulationRunning, status]);
 
   const pushHistory = useCallback((next: SchematicDocument): void => {
     const state = historyRef.current;
@@ -521,22 +583,39 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     historyRef.current.cursor < historyRef.current.entries.length - 1;
   void historyTick;
 
-  function undo(): void {
+  function undo(
+    allow?: (current: SchematicDocument, target: SchematicDocument) => boolean,
+  ): boolean {
     const history = historyRef.current;
-    if (history.cursor <= 0) return;
+    const current = documentRef.current;
+    const target = history.entries[history.cursor - 1];
+    if (history.cursor <= 0 || !current || !target || (allow && !allow(current, target)))
+      return false;
     history.cursor -= 1;
-    setDocument(cloneJson(history.entries[history.cursor] as SchematicDocument));
+    setDocument(retainAnnotationVersion(current, cloneJson(target)));
     setHistoryTick((value) => value + 1);
     setNotice('Последнее изменение отменено.');
+    return true;
   }
 
-  function redo(): void {
+  function redo(
+    allow?: (current: SchematicDocument, target: SchematicDocument) => boolean,
+  ): boolean {
     const history = historyRef.current;
-    if (history.cursor >= history.entries.length - 1) return;
+    const current = documentRef.current;
+    const target = history.entries[history.cursor + 1];
+    if (
+      history.cursor >= history.entries.length - 1 ||
+      !current ||
+      !target ||
+      (allow && !allow(current, target))
+    )
+      return false;
     history.cursor += 1;
-    setDocument(cloneJson(history.entries[history.cursor] as SchematicDocument));
+    setDocument(retainAnnotationVersion(current, cloneJson(target)));
     setHistoryTick((value) => value + 1);
     setNotice('Изменение повторено.');
+    return true;
   }
 
   const failSave = useCallback(
@@ -620,6 +699,8 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         if (response.ok) {
           scope.confirmed = { revision: response.data.draft.revision, document: nextDocument };
           scope.blocked = false;
+          scope.conflictRebases = 0;
+          scope.conflictRetryAt = null;
         } else {
           scope.blocked = !(
             response.status === 0 ||
@@ -632,7 +713,13 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
           if (response.error.code === 'project_revision_conflict') {
             const latest = await api.openProject<SchematicDocument, SolveResult>(sentForProject);
             const baseDocument = serverDocumentRef.current;
-            if (latest.ok && baseDocument && inScope()) {
+            if (
+              latest.ok &&
+              Number.isSafeInteger(latest.data.draft.revision) &&
+              latest.data.draft.revision > baseRevision &&
+              baseDocument &&
+              inScope()
+            ) {
               const remoteDocument = normalizeLoadedDocument(latest.data.draft.document);
               const sentMerge = mergeElectronicsDocuments(
                 baseDocument,
@@ -645,37 +732,38 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
                 : sentMerge;
               if (liveMerge.ok) {
                 const mergedDocument = liveMerge.document;
+                const reconciled = electronicsDocumentsEqual(mergedDocument, remoteDocument);
+                if (!reconciled && scope.conflictRebases >= MAX_CONFLICT_REBASES) {
+                  failSave('conflict', false);
+                  return null;
+                }
+                scope.conflictRebases = reconciled ? 0 : scope.conflictRebases + 1;
+                scope.conflictRetryAt = reconciled ? null : Date.now() + AUTOSAVE_INTERVAL_MS;
                 serverRevisionRef.current = latest.data.draft.revision;
                 serverDocumentRef.current = remoteDocument;
                 scope.confirmed = {
                   revision: latest.data.draft.revision,
-                  document: remoteDocument,
+                  document: reconciled ? mergedDocument : remoteDocument,
                 };
                 scope.blocked = false;
-                savedDocumentRef.current = remoteDocument;
-                setSavedDocument(remoteDocument);
+                // A readback can confirm a write whose reply was lost. Preserve
+                // local viewport state, but share identity for the saved indicator.
+                const knownSaved = reconciled ? mergedDocument : remoteDocument;
+                savedDocumentRef.current = knownSaved;
+                setSavedDocument(knownSaved);
                 documentRef.current = mergedDocument;
                 setDocumentState(mergedDocument);
-                setResult(
-                  electronicsDocumentsEqual(mergedDocument, remoteDocument)
-                    ? latest.data.result
-                    : null,
-                );
+                setResult(reconciled ? latest.data.result : null);
                 setVersions(latest.data.versions);
                 saveFailedRef.current = false;
                 saveIssueRef.current = null;
-                retryAtRef.current = null;
+                retryAtRef.current = scope.conflictRetryAt;
                 setSaveFailed(false);
                 setSaveError(null);
                 setSaveIssue(null);
                 initialiseHistory(mergedDocument);
-                if (electronicsDocumentsEqual(mergedDocument, remoteDocument)) {
-                  clearLocalProjectDraft(
-                    () => window.localStorage,
-                    sentForProject,
-                    userId,
-                    identityKind,
-                  );
+                if (reconciled) {
+                  recovery.clear(mergedDocument);
                   setLocalDocument(null);
                 } else {
                   storeLocal(mergedDocument);
@@ -717,7 +805,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         savedDocumentRef.current = nextDocument;
         setSavedDocument(nextDocument);
         if (documentRef.current === nextDocument) {
-          clearLocalProjectDraft(() => window.localStorage, sentForProject, userId, identityKind);
+          recovery.clear(nextDocument);
           setLocalDocument(null);
         } else if (documentRef.current) {
           storeLocal(documentRef.current);
@@ -744,7 +832,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       initialiseHistory,
       projectId,
       userId,
-      identityKind,
+      recovery,
       seatLearner,
       inScope,
       failSave,
@@ -759,13 +847,22 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       quiet = false,
       unloading = false,
       detached = false,
+      explicit = !quiet,
     ): Promise<SolveResult | null> => {
+      // Do not cancel the scheduled retry when a safety event is suppressed.
+      if (!explicit && conflictRetryPending(scope)) return Promise.resolve(null);
+      if (explicit && saveFailedRef.current && saveIssueRef.current === 'conflict') {
+        // Only an explicit retry starts a new reconciliation budget.
+        scope.conflictRebases = 0;
+        scope.conflictRetryAt = null;
+      }
       autosaveSchedulerRef.current?.markSaveRequested(nextDocument);
       const send = (): Promise<SolveResult | null> => {
         if (detached) {
           if (
             scopeRef.current !== scope ||
             scope.blocked ||
+            conflictRetryPending(scope) ||
             scope.confirmed?.document === nextDocument
           )
             return Promise.resolve(null);
@@ -780,10 +877,11 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         // write before savingDocumentRef moves. A failed or completed first
         // request must not cause another automatic write of that snapshot.
         if (
-          quiet &&
-          (savedDocumentRef.current === nextDocument ||
-            (saveFailedRef.current &&
-              (retryAtRef.current === null || Date.now() < retryAtRef.current)))
+          (quiet && savedDocumentRef.current === nextDocument) ||
+          (!explicit &&
+            (conflictRetryPending(scope) ||
+              (saveFailedRef.current &&
+                (retryAtRef.current === null || Date.now() < retryAtRef.current))))
         ) {
           return Promise.resolve(null);
         }
@@ -921,7 +1019,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
   async function checkpoint(): Promise<void> {
     if (!document || busy || !inScope()) return;
     setBusy(true);
-    const saved = await persist(document, true);
+    const saved = await persist(document, true, false, false, true);
     if (!inScope()) return;
     const response = saved ? await api.createCheckpoint(projectId) : null;
     if (!inScope()) return;
@@ -1004,3 +1102,4 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
   };
 }
 import { reportClientDiagnostic } from '../client-diagnostics';
+import { retainAnnotationVersion } from './workbench-annotations';

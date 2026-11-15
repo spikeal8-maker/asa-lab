@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -8,7 +10,7 @@ import {
 } from 'react';
 import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
-import { visualAsset } from './component-catalog';
+import { visualAsset, SPST_COMPONENT_TYPE } from './component-catalog';
 import { OwnerServoVisual } from './OwnerServoVisual';
 import {
   subscribeSharedQuietAssetRecovery,
@@ -33,12 +35,30 @@ import {
   vibrationMotorRuntimeMarkup,
   vibrationMotorVisualMotion,
   WORLD_UNITS_PER_MM,
+  instrumentReadoutStyle,
   type RgbCommonMode,
   type ResistorTolerancePercent,
   type SevenSegmentColour,
   type SevenSegmentId,
   type MultimeterVisualMode,
 } from './production-asset-contracts';
+
+/** One quality-derived optical frame requested by the workbench presenter. */
+export interface LedAssetPreparation {
+  readonly token: string;
+  readonly asset: string;
+}
+
+/** A resource lease, not a claim that the browser has painted this frame. */
+export interface LedAssetReadiness extends LedAssetPreparation {
+  readonly componentId: string;
+  readonly href: string;
+  readonly element: SVGImageElement;
+  readonly bindingRevision: number;
+  readonly status: 'ready' | 'error' | 'invalidated';
+  readonly isCurrent: () => boolean;
+  readonly isActive: () => boolean;
+}
 
 const TINKERCAD_MODEL_UNIT_MM = 0.254;
 const TINKERCAD_MODEL_TO_WORLD = TINKERCAD_MODEL_UNIT_MM * WORLD_UNITS_PER_MM;
@@ -66,6 +86,12 @@ interface Props {
   readonly height: number;
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
+  readonly effectiveArduinoLActive?: boolean | undefined;
+  readonly effectiveSevenSegmentBrightness?: Readonly<Record<string, number>> | undefined;
+  readonly preparedLedAsset?: LedAssetPreparation | undefined;
+  readonly committedLedAsset?: LedAssetReadiness | undefined;
+  readonly rollbackLedAsset?: LedAssetReadiness | undefined;
+  readonly onLedAssetReadiness?: ((event: LedAssetReadiness) => void) | undefined;
   readonly result?: ComponentResult | undefined;
   readonly selected?: boolean;
   readonly selectionOffset?: number;
@@ -75,6 +101,7 @@ interface Props {
   readonly onArduinoReset?: (() => void) | undefined;
   readonly onMultimeterModeChange?:
     ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
+  readonly onSupplySwitchAvailability?: ((id: string, available: boolean) => void) | undefined;
   readonly onRegulatedPowerSupplyChange?:
     | ((patch: {
         readonly voltageSetpointVolt?: number;
@@ -360,6 +387,7 @@ function recoverOwnerImage(asset: string): Promise<string> {
 
 function useOwnerImageHref(asset: string): {
   readonly href: string;
+  readonly mountHref: (element: SVGImageElement | null) => void;
   readonly failed: boolean;
   readonly onError: () => void;
   readonly onLoad: () => void;
@@ -371,6 +399,10 @@ function useOwnerImageHref(asset: string): {
   const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
   useEffect(() => {
     let active = true;
+    const existingRecovery = recoveredOwnerImages.get(asset);
+    const existingCycle = ownerImageCycles.get(asset);
+    let ownEventReceived = false;
+    let observerFailed = false;
     let pending: Promise<boolean> | null = null;
     const load = (): Promise<boolean> => {
       if (pending) return pending;
@@ -432,7 +464,12 @@ function useOwnerImageHref(asset: string): {
         });
         return;
       }
-      if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
+      if (
+        current.current.asset === asset &&
+        current.current.failed &&
+        failedOwnerImages.has(asset) &&
+        !observerFailed
+      )
         return;
       if (
         current.current.asset === asset &&
@@ -450,9 +487,20 @@ function useOwnerImageHref(asset: string): {
     };
     const mountedHandlers = {
       asset,
-      error: recover,
+      error: () => {
+        ownEventReceived = true;
+        recover();
+        observerFailed = false;
+      },
       load: () => {
-        if (active && current.current.asset === asset) recovery.recovered();
+        ownEventReceived = true;
+        if (active && current.current.asset === asset) {
+          if (observerFailed) {
+            observerFailed = false;
+            setLoaded({ ...current.current, failed: false });
+          }
+          recovery.recovered();
+        }
       },
     };
     handlers.current = mountedHandlers;
@@ -463,6 +511,21 @@ function useOwnerImageHref(asset: string): {
       earlyEvent.current = null;
       mountedHandlers[kind]();
     }
+    // A late same-asset consumer may never receive its own native error.
+    // Observe only work already started elsewhere; native events own newer proof.
+    const observeExistingFailure = (): void => {
+      if (
+        active &&
+        !ownEventReceived &&
+        ownerImageCycles.get(asset) === existingCycle &&
+        failedOwnerImages.has(asset)
+      ) {
+        observerFailed = true;
+        setLoaded({ asset, href: asset, failed: true });
+      }
+    };
+    if (existingRecovery) void existingRecovery.catch(observeExistingFailure);
+    else observeExistingFailure();
     const retry = (): void => {
       if (failedOwnerImages.has(asset)) start();
     };
@@ -486,12 +549,480 @@ function useOwnerImageHref(asset: string): {
     if (handlers.current?.asset === asset) handlers.current[kind]();
     else earlyEvent.current = { asset, kind };
   };
+  const href = loaded.asset === asset ? loaded.href : asset;
+  const mountHref = useCallback(
+    (element: SVGImageElement | null) => {
+      // A detached SVG image can fail before its error reaches the React root.
+      if (element && element.getAttribute('href') !== href) element.setAttribute('href', href);
+    },
+    [href],
+  );
   return {
-    href: loaded.asset === asset ? loaded.href : asset,
+    href,
+    mountHref,
     failed: loaded.asset === asset && loaded.failed,
     onError: () => notify('error'),
     onLoad: () => notify('load'),
   };
+}
+
+interface MountedLedBindingState {
+  readonly element: SVGImageElement;
+  readonly asset: string;
+  readonly href: string;
+  readonly bindingRevision: number;
+  readonly loaded: boolean;
+  readonly failed: boolean;
+}
+
+/**
+ * Owns one mounted body image. Resource warmup and selection copies cannot
+ * produce a lease. The binding key also rejects a callback retained from an
+ * earlier A -> B -> A render of the same native element.
+ */
+export function createMountedLedAssetBinding(changed: () => void) {
+  let element: SVGImageElement | null = null;
+  let asset = '';
+  let href = '';
+  let key: object | null = null;
+  let revision = 0;
+  let loaded = false;
+  let failed = false;
+  let observer: MutationObserver | null = null;
+  const currentHref = () => element?.getAttribute('href') ?? '';
+  const observeMutations = (records: readonly MutationRecord[]) => {
+    if (!records.some((record) => record.target === element && record.oldValue !== currentHref()))
+      return;
+    revision++;
+    loaded = false;
+    failed = false;
+    changed();
+  };
+  const flushMutations = () => {
+    if (observer) observeMutations(observer.takeRecords());
+  };
+  const connected = () => !!element?.isConnected && currentHref() === href;
+  return {
+    bind(next: SVGImageElement | null, nextAsset: string, nextHref: string, nextKey: object) {
+      // React may run an older ref cleanup after a replacement has attached.
+      if (next === null && key !== nextKey) return;
+      if (next === element && nextAsset === asset && nextHref === href && nextKey === key) return;
+      observer?.disconnect();
+      observer = null;
+      revision++;
+      element = next;
+      asset = nextAsset;
+      href = nextHref;
+      key = nextKey;
+      loaded = false;
+      failed = false;
+      if (element) {
+        observer = new MutationObserver(observeMutations);
+        observer.observe(element, {
+          attributes: true,
+          attributeFilter: ['href', 'xlink:href'],
+          attributeOldValue: true,
+        });
+      }
+      changed();
+    },
+    native(
+      kind: 'load' | 'error',
+      event: Pick<Event, 'target' | 'isTrusted'>,
+      expectedKey: object,
+    ) {
+      flushMutations();
+      if (expectedKey !== key || !event.isTrusted || event.target !== element || !connected())
+        return false;
+      if (kind === 'error') {
+        revision++;
+        loaded = false;
+        failed = true;
+        changed();
+      } else if (!loaded || failed) {
+        loaded = true;
+        failed = false;
+        changed();
+      }
+      return true;
+    },
+    state(): MountedLedBindingState | null {
+      flushMutations();
+      return element
+        ? { element, asset, href, bindingRevision: revision, loaded: loaded && connected(), failed }
+        : null;
+    },
+    lease(
+      request: LedAssetPreparation,
+      componentId: string,
+      requestIsCurrent: () => boolean,
+    ): LedAssetReadiness | null {
+      flushMutations();
+      if (!element || !loaded || failed || asset !== request.asset || !connected()) return null;
+      const leasedElement = element;
+      const leasedHref = href;
+      const leasedRevision = revision;
+      const isCurrent = () => {
+        flushMutations();
+        return (
+          element === leasedElement &&
+          revision === leasedRevision &&
+          asset === request.asset &&
+          href === leasedHref &&
+          loaded &&
+          !failed &&
+          connected() &&
+          requestIsCurrent()
+        );
+      };
+      return {
+        ...request,
+        componentId,
+        href: leasedHref,
+        element: leasedElement,
+        bindingRevision: leasedRevision,
+        status: 'ready',
+        isCurrent,
+        isActive: () =>
+          isCurrent() &&
+          leasedElement.parentElement?.querySelector('.workbench-led-asset') === leasedElement &&
+          leasedElement.getAttribute('data-led-asset-active') === 'true' &&
+          leasedElement.getAttribute('data-led-asset-token') === request.token &&
+          leasedElement.style.opacity === '1',
+      };
+    },
+  };
+}
+
+type MountedLedAssetBinding = ReturnType<typeof createMountedLedAssetBinding>;
+type OwnerLedImageGeometry = {
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly transform: string | undefined;
+  readonly preserveAspectRatio: string;
+};
+
+function OwnerLedAssetSlot({
+  slot,
+  asset,
+  active,
+  token,
+  register,
+  ...geometry
+}: OwnerLedImageGeometry & {
+  readonly slot: number;
+  readonly asset: string;
+  readonly active: boolean;
+  readonly token: string | undefined;
+  readonly register: (slot: number, binding: MountedLedAssetBinding) => void;
+}) {
+  const ownerImage = useOwnerImageHref(asset);
+  const binding: MountedLedAssetBinding = useMemo(
+    () => createMountedLedAssetBinding(() => register(slot, binding)),
+    [register, slot],
+  );
+  const bindingKey = useMemo(() => ({}), [asset, ownerImage.href]);
+  const bind = useCallback(
+    (element: SVGImageElement | null) => binding.bind(element, asset, ownerImage.href, bindingKey),
+    [asset, binding, bindingKey, ownerImage.href],
+  );
+  return (
+    <>
+      <image
+        {...geometry}
+        ref={bind}
+        className="workbench-led-asset"
+        href={ownerImage.href}
+        style={{ opacity: active ? 1 : 0 }}
+        data-led-asset-active={active ? 'true' : 'false'}
+        data-led-asset-token={active ? token : undefined}
+        data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
+        aria-hidden={!active}
+        onLoad={(event) => {
+          if (binding.native('load', event.nativeEvent, bindingKey)) ownerImage.onLoad();
+        }}
+        onError={(event) => {
+          if (binding.native('error', event.nativeEvent, bindingKey)) ownerImage.onError();
+        }}
+        pointerEvents="none"
+      />
+      {ownerImage.failed && (
+        <OwnerAssetErrorBadge
+          width={geometry.width}
+          height={geometry.height}
+          testId="owner-image-error"
+        />
+      )}
+    </>
+  );
+}
+
+/** At most OFF + current + pending. A promoted node keeps its exact href. */
+function OwnerPreparedLedImage({
+  asset,
+  offAsset,
+  componentId,
+  running,
+  prepared,
+  committed,
+  rollback,
+  onReadiness,
+  ...geometry
+}: OwnerLedImageGeometry & {
+  readonly asset: string;
+  readonly offAsset: string;
+  readonly componentId: string;
+  readonly running: boolean;
+  readonly prepared: LedAssetPreparation | undefined;
+  readonly committed: LedAssetReadiness | undefined;
+  readonly rollback: LedAssetReadiness | undefined;
+  readonly onReadiness: (event: LedAssetReadiness) => void;
+}) {
+  const [slots, setSlots] = useState<readonly { id: number; asset: string }[]>([
+    { id: 0, asset: offAsset },
+  ]);
+  const bindings = useRef(new Map<number, MountedLedAssetBinding>());
+  const issued = useRef(new Map<string, LedAssetReadiness>());
+  const reportedErrors = useRef(new Map<string, { element: SVGImageElement; revision: number }>());
+  const current = useRef({ prepared, committed, rollback, running, componentId, onReadiness });
+  const publish = useRef<() => void>(() => {});
+  const publicationQueued = useRef(false);
+  const publishing = useRef(false);
+  const lastActive = useRef(0);
+  const register = useCallback((slot: number, binding: MountedLedAssetBinding) => {
+    bindings.current.set(slot, binding);
+    // A lease may synchronously flush a pending href mutation during render.
+    // Notify the host afterwards, never by setting its state from that render.
+    if (publicationQueued.current) return;
+    publicationQueued.current = true;
+    queueMicrotask(() => {
+      publicationQueued.current = false;
+      publish.current();
+    });
+  }, []);
+  const offReady = useCallback(() => {
+    const state = bindings.current.get(0)?.state();
+    return state?.asset === offAsset && state.loaded && !state.failed;
+  }, [offAsset]);
+  const requestIsCurrent = useCallback(
+    (request: LedAssetPreparation, owner: string) => {
+      const live = current.current;
+      return (
+        live.running &&
+        (live.prepared !== undefined || live.committed !== undefined) &&
+        live.componentId === owner &&
+        offReady() &&
+        [live.prepared, live.committed, live.rollback].some(
+          (candidate) => candidate?.token === request.token && candidate.asset === request.asset,
+        )
+      );
+    },
+    [offReady],
+  );
+  const currentLeaseSlot = (lease: LedAssetReadiness | undefined): number | undefined => {
+    const issuedLease = lease ? issued.current.get(lease.token) : undefined;
+    if (
+      !running ||
+      !lease ||
+      lease.status !== 'ready' ||
+      lease.componentId !== componentId ||
+      !issuedLease ||
+      issuedLease.element !== lease.element ||
+      issuedLease.bindingRevision !== lease.bindingRevision ||
+      issuedLease.href !== lease.href ||
+      !issuedLease.isCurrent() ||
+      !lease.isCurrent()
+    )
+      return undefined;
+    return slots.find((slot) => {
+      const state = bindings.current.get(slot.id)?.state();
+      return (
+        slot.asset === lease.asset &&
+        state?.asset === lease.asset &&
+        state.element === lease.element &&
+        state.href === lease.href &&
+        state.bindingRevision === lease.bindingRevision &&
+        state.loaded &&
+        !state.failed
+      );
+    })?.id;
+  };
+  const targetSlot = committed?.asset === asset ? currentLeaseSlot(committed) : undefined;
+  const rollbackSlot = currentLeaseSlot(rollback);
+  const previewSlot = !running ? slots.find((slot) => slot.asset === asset)?.id : undefined;
+  // Clearing the committed token is an explicit Stop/Reset/source cancellation.
+  // The host retains the previous lease until its layout ACK. If a proposed
+  // node becomes invalid after render selected it, rollback can still select
+  // the previous exact node; the renderer never decides that an ACK occurred.
+  // A stopped editor may preview a configured fault, always at zero brightness.
+  // This does not issue a simulation lease or replace the resident OFF resource.
+  const active = !running
+    ? (previewSlot ?? 0)
+    : !committed
+      ? 0
+      : (targetSlot ?? lastActive.current);
+  const activeToken = running && targetSlot !== undefined ? committed?.token : undefined;
+
+  useLayoutEffect(() => {
+    current.current = { prepared, committed, rollback, running, componentId, onReadiness };
+    if (targetSlot !== undefined || !running || !committed)
+      lastActive.current = running ? active : 0;
+    publish.current = () => {
+      if (publishing.current) return;
+      publishing.current = true;
+      try {
+        const live = current.current;
+        const relevant = live.running
+          ? [live.prepared, live.committed, live.rollback].filter(
+              (request): request is LedAssetPreparation => request !== undefined,
+            )
+          : [];
+        for (const token of reportedErrors.current.keys())
+          if (!relevant.some((request) => request.token === token))
+            reportedErrors.current.delete(token);
+        for (const [token, previous] of issued.current) {
+          if (
+            !relevant.some(
+              (request) => request.token === token && request.asset === previous.asset,
+            ) ||
+            !previous.isCurrent()
+          ) {
+            issued.current.delete(token);
+            live.onReadiness({
+              ...previous,
+              status: 'invalidated',
+              isCurrent: () => false,
+              isActive: () => false,
+            });
+          }
+        }
+        if (!live.prepared || !live.running) return;
+        const request = live.prepared;
+        const binding = [...bindings.current.values()].find(
+          (candidate) => candidate.state()?.asset === request.asset,
+        );
+        const state = binding?.state();
+        if (!binding || !state) return;
+        if (state.failed) {
+          const previous = reportedErrors.current.get(request.token);
+          if (previous?.element === state.element && previous.revision === state.bindingRevision)
+            return;
+          reportedErrors.current.set(request.token, {
+            element: state.element,
+            revision: state.bindingRevision,
+          });
+          live.onReadiness({
+            ...request,
+            componentId: live.componentId,
+            href: state.href,
+            element: state.element,
+            bindingRevision: state.bindingRevision,
+            status: 'error',
+            isCurrent: () => false,
+            isActive: () => false,
+          });
+          return;
+        }
+        if (!offReady()) return;
+        const previous = issued.current.get(request.token);
+        if (
+          previous?.element === state.element &&
+          previous.bindingRevision === state.bindingRevision &&
+          previous.isCurrent()
+        )
+          return;
+        const lease: LedAssetReadiness | null = binding.lease(
+          request,
+          live.componentId,
+          () =>
+            issued.current.get(request.token) === lease && requestIsCurrent(request, componentId),
+        );
+        if (!lease) return;
+        issued.current.set(request.token, lease);
+        if (!lease.isCurrent()) {
+          issued.current.delete(request.token);
+          return;
+        }
+        reportedErrors.current.delete(request.token);
+        live.onReadiness(lease);
+      } finally {
+        publishing.current = false;
+      }
+    };
+    const requestedAsset = running ? prepared?.asset : asset;
+    if (requestedAsset !== undefined && !slots.some((slot) => slot.asset === requestedAsset)) {
+      const reusable = slots.find(
+        (slot) => slot.id !== 0 && slot.id !== active && slot.id !== rollbackSlot,
+      );
+      if (reusable) {
+        setSlots(
+          slots.map((slot) =>
+            slot.id === reusable.id ? { ...slot, asset: requestedAsset } : slot,
+          ),
+        );
+      } else if (slots.length < 3) {
+        setSlots([...slots, { id: slots.length, asset: requestedAsset }]);
+      }
+    }
+    publish.current();
+  }, [
+    active,
+    asset,
+    committed,
+    componentId,
+    offAsset,
+    offReady,
+    onReadiness,
+    prepared,
+    requestIsCurrent,
+    rollback,
+    rollbackSlot,
+    running,
+    slots,
+    targetSlot,
+  ]);
+
+  useLayoutEffect(
+    () => () => {
+      publish.current = () => {};
+      for (const previous of issued.current.values())
+        current.current.onReadiness({
+          ...previous,
+          status: 'invalidated',
+          isCurrent: () => false,
+          isActive: () => false,
+        });
+      issued.current.clear();
+      reportedErrors.current.clear();
+      current.current = {
+        ...current.current,
+        running: false,
+        prepared: undefined,
+        committed: undefined,
+        rollback: undefined,
+      };
+    },
+    [],
+  );
+
+  return (
+    <g className="workbench-led-assets">
+      {[...slots]
+        .sort((left, right) => Number(right.id === active) - Number(left.id === active))
+        .map((slot) => (
+          <OwnerLedAssetSlot
+            key={slot.id}
+            slot={slot.id}
+            asset={slot.asset}
+            active={slot.id === active}
+            token={activeToken}
+            register={register}
+            {...geometry}
+          />
+        ))}
+    </g>
+  );
 }
 
 function OwnerMultimeterVisual({
@@ -568,6 +1099,7 @@ function OwnerMultimeterVisual({
       {displayValue ? (
         <text
           className="workbench-multimeter-reading"
+          style={instrumentReadoutStyle}
           x="218.5"
           y="108"
           fontSize="58"
@@ -620,20 +1152,93 @@ function OwnerPiezoVisual({
   );
 }
 
+function knobPointerRatio(
+  event: ReactPointerEvent<SVGSVGElement>,
+  centerX: number,
+  centerY: number,
+): number | null {
+  const matrix = event.currentTarget.getScreenCTM();
+  if (!matrix) return null;
+  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+  let angle = (Math.atan2(point.y - centerY, point.x - centerX) * 180) / Math.PI;
+  if (angle < 0) angle += 360;
+  let arcAngle = angle;
+  if (angle <= 45) arcAngle = angle + 360;
+  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
+  return (arcAngle - 135) / 270;
+}
 function regulatedSupplyValueFromPointer(
   event: ReactPointerEvent<SVGSVGElement>,
   centerY: number,
   maximum: number,
 ): number | null {
-  const matrix = event.currentTarget.getScreenCTM();
-  if (!matrix) return null;
-  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-  let angle = (Math.atan2(point.y - centerY, point.x - 234) * 180) / Math.PI;
-  if (angle < 0) angle += 360;
-  let arcAngle = angle;
-  if (angle <= 45) arcAngle = angle + 360;
-  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
-  return Math.min(maximum, Math.max(0, ((arcAngle - 135) / 270) * maximum));
+  const ratio = knobPointerRatio(event, 234, centerY);
+  return ratio === null ? null : Math.min(maximum, Math.max(0, ratio * maximum));
+}
+function stopKnobEvent(event: ReactPointerEvent<SVGSVGElement>): void {
+  event.preventDefault();
+  event.stopPropagation();
+}
+function knobDragHandlers<T extends string>(
+  knob: T | null,
+  setKnob: (knob: T | null) => void,
+  update: (event: ReactPointerEvent<SVGSVGElement>, knob: T) => void,
+  supply: boolean,
+) {
+  return {
+    onPointerMove: (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!knob) return;
+      update(event, knob);
+      if (supply) {
+        stopKnobEvent(event);
+      }
+    },
+    onPointerUp: (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!knob) return;
+      if (!supply) setKnob(null);
+      if (event.currentTarget.hasPointerCapture(event.pointerId))
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      if (supply) {
+        setKnob(null);
+        stopKnobEvent(event);
+      }
+    },
+    onPointerCancel: () => setKnob(null),
+  };
+}
+
+function instrumentPointerDown<T extends string>(
+  event: ReactPointerEvent<SVGSVGElement>,
+  prefix: string | Record<string, string>,
+  power: string,
+  onChange:
+    | ((patch: { outputEnabled?: boolean; waveform?: 'square' | 'sine' | 'triangle' }) => void)
+    | undefined,
+  outputEnabled: boolean,
+  waveforms: boolean,
+  knobs: readonly T[],
+  setKnob: (knob: T | null) => void,
+  update: (event: ReactPointerEvent<SVGSVGElement>, knob: T) => void,
+): void {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const matches = (kind: string) =>
+    target.closest(typeof prefix === 'string' ? prefix + kind : prefix[kind]!);
+  if (matches(power)) onChange?.({ outputEnabled: !outputEnabled });
+  else {
+    const waveform = waveforms
+      ? (['square', 'sine', 'triangle'] as const).find(matches)
+      : undefined;
+    if (waveform) onChange?.({ waveform });
+    else {
+      const knob = knobs.find((kind) => matches(kind + (waveforms ? '' : '-knob')));
+      if (!knob) return;
+      setKnob(knob);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      update(event, knob);
+    }
+  }
+  stopKnobEvent(event);
 }
 
 function OwnerRegulatedPowerSupplyVisual({
@@ -644,6 +1249,7 @@ function OwnerRegulatedPowerSupplyVisual({
   result,
   simulationRunning,
   onChange,
+  onSwitchAvailability,
 }: {
   readonly asset: string;
   readonly width: number;
@@ -652,6 +1258,7 @@ function OwnerRegulatedPowerSupplyVisual({
   readonly result?: ComponentResult | undefined;
   readonly simulationRunning: boolean;
   readonly onChange?: Props['onRegulatedPowerSupplyChange'];
+  readonly onSwitchAvailability?: Props['onSupplySwitchAvailability'];
 }): JSX.Element {
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
@@ -701,6 +1308,30 @@ function OwnerRegulatedPowerSupplyVisual({
       voltageSetpointVolt,
     ],
   );
+  const runtimeRef = useRef<SVGSVGElement>(null);
+  const hasLiveMarkup = Boolean(markup);
+  useLayoutEffect(() => {
+    const runtime = runtimeRef.current;
+    const track = runtime?.querySelector<SVGRectElement>(
+      'rect.workbench-regulated-supply-power-switch:not(.workbench-regulated-supply-power-slider)',
+    );
+    const available = Boolean(
+      hasLiveMarkup &&
+      runtime?.isConnected &&
+      track &&
+      runtime.getAttribute('viewBox') === '0 0 294 237' &&
+      !track.hasAttribute('transform') &&
+      [
+        ['x', 14],
+        ['y', 202],
+        ['width', 67],
+        ['height', 26],
+        ['rx', 13],
+      ].every(([name, value]) => Number(track.getAttribute(String(name))) === value),
+    );
+    onSwitchAvailability?.(component.id, available);
+    return () => onSwitchAvailability?.(component.id, false);
+  }, [component.id, hasLiveMarkup, ownerSvg, onSwitchAvailability]);
   const updateKnob = (
     event: ReactPointerEvent<SVGSVGElement>,
     knob: 'voltage' | 'current',
@@ -729,6 +1360,7 @@ function OwnerRegulatedPowerSupplyVisual({
     );
   return (
     <svg
+      ref={runtimeRef}
       className="workbench-regulated-supply-runtime"
       data-testid="regulated-power-supply-runtime"
       data-output-enabled={String(outputEnabled)}
@@ -740,43 +1372,25 @@ function OwnerRegulatedPowerSupplyVisual({
       width={width}
       height={height}
       viewBox="0 0 294 237"
-      preserveAspectRatio="xMidYMid meet"
       pointerEvents="all"
-      onPointerDown={(event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        if (target.closest('.workbench-regulated-supply-power-switch')) {
-          onChange?.({ outputEnabled: !outputEnabled });
-        } else if (target.closest('.workbench-regulated-supply-voltage-knob')) {
-          setDraggingKnob('voltage');
-          event.currentTarget.setPointerCapture(event.pointerId);
-          updateKnob(event, 'voltage');
-        } else if (target.closest('.workbench-regulated-supply-current-knob')) {
-          setDraggingKnob('current');
-          event.currentTarget.setPointerCapture(event.pointerId);
-          updateKnob(event, 'current');
-        } else {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerMove={(event) => {
-        if (!draggingKnob) return;
-        updateKnob(event, draggingKnob);
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerUp={(event) => {
-        if (!draggingKnob) return;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-        setDraggingKnob(null);
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerCancel={() => setDraggingKnob(null)}
+      onPointerDown={(event) =>
+        instrumentPointerDown(
+          event,
+          {
+            'power-switch': '.workbench-regulated-supply-power-switch',
+            'voltage-knob': '.workbench-regulated-supply-voltage-knob',
+            'current-knob': '.workbench-regulated-supply-current-knob',
+          },
+          'power-switch',
+          onChange,
+          outputEnabled,
+          false,
+          ['voltage', 'current'] as const,
+          setDraggingKnob,
+          updateKnob,
+        )
+      }
+      {...knobDragHandlers(draggingKnob, setDraggingKnob, updateKnob, true)}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
@@ -787,15 +1401,9 @@ function signalGeneratorValueFromPointer(
   centerY: number,
   kind: 'frequency' | 'amplitude' | 'offset',
 ): number | null {
-  const matrix = event.currentTarget.getScreenCTM();
-  if (!matrix) return null;
-  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-  let angle = (Math.atan2(point.y - centerY, point.x - 267) * 180) / Math.PI;
-  if (angle < 0) angle += 360;
-  let arcAngle = angle;
-  if (angle <= 45) arcAngle = angle + 360;
-  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
-  const ratio = Math.min(1, Math.max(0, (arcAngle - 135) / 270));
+  const rawRatio = knobPointerRatio(event, 267, centerY);
+  if (rawRatio === null) return null;
+  const ratio = Math.min(1, Math.max(0, rawRatio));
   if (kind === 'frequency') return Number((10 ** (ratio * 6)).toPrecision(3));
   if (kind === 'amplitude') return Math.round(ratio * 200) / 20;
   return Math.round((ratio * 10 - 5) * 20) / 20;
@@ -886,44 +1494,20 @@ function OwnerSignalGeneratorVisual({
       viewBox="0 0 579 405"
       preserveAspectRatio="xMidYMid meet"
       pointerEvents="all"
-      onPointerDown={(event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        if (target.closest('.workbench-signal-generator-power')) {
-          onChange?.({ outputEnabled: !outputEnabled });
-        } else if (target.closest('.workbench-signal-generator-square')) {
-          onChange?.({ waveform: 'square' });
-        } else if (target.closest('.workbench-signal-generator-sine')) {
-          onChange?.({ waveform: 'sine' });
-        } else if (target.closest('.workbench-signal-generator-triangle')) {
-          onChange?.({ waveform: 'triangle' });
-        } else {
-          const knob = target.closest('.workbench-signal-generator-frequency')
-            ? 'frequency'
-            : target.closest('.workbench-signal-generator-amplitude')
-              ? 'amplitude'
-              : target.closest('.workbench-signal-generator-offset')
-                ? 'offset'
-                : null;
-          if (!knob) return;
-          setDraggingKnob(knob);
-          event.currentTarget.setPointerCapture(event.pointerId);
-          updateKnob(event, knob);
-        }
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerMove={(event) => {
-        if (draggingKnob) updateKnob(event, draggingKnob);
-      }}
-      onPointerUp={(event) => {
-        if (!draggingKnob) return;
-        setDraggingKnob(null);
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-      }}
-      onPointerCancel={() => setDraggingKnob(null)}
+      onPointerDown={(event) =>
+        instrumentPointerDown(
+          event,
+          '.workbench-signal-generator-',
+          'power',
+          onChange,
+          outputEnabled,
+          true,
+          ['frequency', 'amplitude', 'offset'] as const,
+          setDraggingKnob,
+          updateKnob,
+        )
+      }
+      {...knobDragHandlers(draggingKnob, setDraggingKnob, updateKnob, false)}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
@@ -1259,6 +1843,12 @@ export function ProductionComponentVisual({
   height,
   visualState,
   effectiveBrightness,
+  effectiveSevenSegmentBrightness,
+  effectiveArduinoLActive,
+  preparedLedAsset,
+  committedLedAsset,
+  rollbackLedAsset,
+  onLedAssetReadiness,
   result,
   selected = false,
   selectionOffset = 2,
@@ -1268,6 +1858,7 @@ export function ProductionComponentVisual({
   onArduinoReset,
   onMultimeterModeChange,
   onRegulatedPowerSupplyChange,
+  onSupplySwitchAvailability,
   onSignalGeneratorChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
@@ -1346,6 +1937,17 @@ export function ProductionComponentVisual({
           }
         : component;
   const asset = visualAsset(entry, visualComponent, visualState);
+  const offAsset =
+    entry.key === 'led-5mm'
+      ? visualAsset(
+          entry,
+          {
+            ...component,
+            stateProperties: { ...properties, ledBrightness: 0, ledFault: 'none' },
+          },
+          'off',
+        )
+      : asset;
   const ownerImage = useOwnerImageHref(asset);
   const toleranceValue = Number(properties['tolerancePercent'] ?? 5);
   const tolerance: ResistorTolerancePercent = [1, 2, 5, 10].includes(toleranceValue)
@@ -1355,6 +1957,7 @@ export function ProductionComponentVisual({
     entry.key === 'resistor-axial'
       ? resistorBandState(Math.max(0.1, Number(component.value ?? 220)), tolerance).bands
       : null;
+  const selectionModelRadius = selectionOffset / TINKERCAD_MODEL_TO_WORLD;
   const selectionFilterId = `component-selection-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const arduinoGlowFilterId = `arduino-led-glow-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const imageFit = entry.assetFit === 'stretch' ? 'none' : 'xMidYMid meet';
@@ -1364,7 +1967,7 @@ export function ProductionComponentVisual({
   const arduinoLActive =
     entry.key === 'arduino-uno' &&
     simulationRunning &&
-    Number(result?.terminalVoltages['d13'] ?? 0) >= 2.5;
+    (effectiveArduinoLActive ?? Number(result?.terminalVoltages['d13'] ?? 0) >= 2.5);
   const arduinoTxActive =
     entry.key === 'arduino-uno' &&
     simulationRunning &&
@@ -1410,11 +2013,9 @@ export function ProductionComponentVisual({
   // Canonical selection contract: docs/product/electronics/README.md, section 7.
   // The rendered asset and its alpha-silhouette outline MUST share one transform;
   // per-component rectangle/capsule bounds are intentionally forbidden.
-  const usesMeasuredTinkercadGeometry = [
-    'resistor-axial',
-    'button-tactile-6mm',
-    'switch-spdt',
-  ].includes(entry.key);
+  const twoPinSwitch = entry.key === SPST_COMPONENT_TYPE;
+  const usesMeasuredTinkercadGeometry =
+    entry.kind === 'switch' || ['resistor-axial', 'button-tactile-6mm'].includes(entry.key);
   return (
     <svg
       className={`workbench-production-visual${
@@ -1443,7 +2044,11 @@ export function ProductionComponentVisual({
       data-piezo-frequency={entry.familyId === 'piezo' ? piezoFrequencyHz : undefined}
       data-piezo-sounding={entry.familyId === 'piezo' ? String(piezoActive) : undefined}
       style={
-        rgbIsLit ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties) : undefined
+        {
+          ...(rgbIsLit ? { '--workbench-rgb-led-glow': rgbDisplayColour } : {}),
+          '--workbench-readout-mirror-x': properties['mirrorX'] === true ? -1 : 1,
+          '--workbench-readout-mirror-y': properties['mirrorY'] === true ? -1 : 1,
+        } as CSSProperties
       }
       role="presentation"
     >
@@ -1487,7 +2092,7 @@ export function ProductionComponentVisual({
             </g>
           ) : (
             <image
-              href={ownerImage.href}
+              ref={ownerImage.mountHref}
               onError={ownerImage.onError}
               onLoad={ownerImage.onLoad}
               y={ownerAssetY}
@@ -1505,15 +2110,6 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pitch"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          <line
-            x1="0"
-            y1="-20"
-            x2="0"
-            y2="20"
-            stroke="#8c8c8c"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
           {selected ? (
             <g className="workbench-tinkercad-selection" pointerEvents="none">
               <line
@@ -1523,7 +2119,7 @@ export function ProductionComponentVisual({
                 y2="20"
                 fill="none"
                 stroke="#3b8ed7"
-                strokeWidth="2"
+                strokeWidth={2 + 2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -1531,12 +2127,21 @@ export function ProductionComponentVisual({
                 d={TINKERCAD_RESISTOR_BODY}
                 fill="#3b8ed7"
                 stroke="#3b8ed7"
-                strokeWidth="3.5"
+                strokeWidth={2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </g>
           ) : null}
+          <line
+            x1="0"
+            y1="-20"
+            x2="0"
+            y2="20"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
           <path d={TINKERCAD_RESISTOR_BODY} fill="#d9b477" />
           {resistorBands ? (
             <g data-testid="resistor-colour-bands">
@@ -1563,6 +2168,38 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pin-6x6"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="-10"
+                y1="-15"
+                x2="-10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <line
+                x1="10"
+                y1="-15"
+                x2="10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <rect
+                x="-12"
+                y="-12"
+                width="24"
+                height="24"
+                rx="1"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth={2 * selectionModelRadius}
+              />
+            </g>
+          ) : null}
           <line
             x1="-10"
             y1="-15"
@@ -1581,38 +2218,6 @@ export function ProductionComponentVisual({
             strokeWidth="2"
             strokeLinecap="round"
           />
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              <line
-                x1="-10"
-                y1="-15"
-                x2="-10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <line
-                x1="10"
-                y1="-15"
-                x2="10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <rect
-                x="-12"
-                y="-12"
-                width="24"
-                height="24"
-                rx="1"
-                fill="none"
-                stroke="#3b8ed7"
-                strokeWidth="3"
-              />
-            </g>
-          ) : null}
           <rect x="-12" y="-12" width="24" height="24" rx="1" fill="#bfbfbf" />
           <path d={TINKERCAD_BUTTON_FRAME} fill="#a3a3a3" />
           {[
@@ -1627,35 +2232,22 @@ export function ProductionComponentVisual({
           <circle cx="0" cy="0" r="6.99" fill="#333333" />
           <path d={TINKERCAD_BUTTON_RIM} fill="#f4f4f4" opacity="0.2" />
         </g>
-      ) : entry.key === 'switch-spdt' ? (
+      ) : entry.kind === 'switch' ? (
         <g
           className="workbench-tinkercad-switch"
-          data-visual-contract="tinkercad-spdt-three-pin"
+          data-visual-contract={`tinkercad-sp${twoPinSwitch ? 'st-two' : 'dt-three'}-pin`}
           transform={`translate(${width / 2} ${height}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          {[-10, 0, 10].map((x) => (
-            <line
-              key={`pin-${x}`}
-              x1={x}
-              y1="0"
-              x2={x}
-              y2="-5"
-              stroke="#8c8c8c"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          ))}
           {selected ? (
             <g className="workbench-tinkercad-selection" pointerEvents="none">
-              {[-10, 0, 10].map((x) => (
+              {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
                 <line
-                  key={`selected-${x}`}
+                  key={x}
                   x1={x}
-                  y1="0"
                   x2={x}
                   y2="-5"
                   stroke="#3b8ed7"
-                  strokeWidth="2"
+                  strokeWidth={2 + 2 * selectionModelRadius}
                   strokeLinecap="round"
                 />
               ))}
@@ -1667,10 +2259,21 @@ export function ProductionComponentVisual({
                 rx="1"
                 fill="#3b8ed7"
                 stroke="#3b8ed7"
-                strokeWidth="3.5"
+                strokeWidth={2 * selectionModelRadius}
               />
             </g>
           ) : null}
+          {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
+            <line
+              key={x}
+              x1={x}
+              x2={x}
+              y2="-5"
+              stroke="#8c8c8c"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          ))}
           <g
             data-testid="spdt-actuator"
             transform="translate(0 -10)"
@@ -1760,6 +2363,7 @@ export function ProductionComponentVisual({
               result={result}
               simulationRunning={simulationRunning}
               onChange={onRegulatedPowerSupplyChange}
+              onSwitchAvailability={onSupplySwitchAvailability}
             />
           ) : entry.key === 'signal-generator' ? (
             <OwnerSignalGeneratorVisual
@@ -1778,11 +2382,28 @@ export function ProductionComponentVisual({
               result={result}
               simulationRunning={simulationRunning}
             />
+          ) : entry.key === 'led-5mm' && onLedAssetReadiness ? (
+            <OwnerPreparedLedImage
+              key={`${component.id}:${offAsset}`}
+              asset={simulationRunning ? asset : visualAsset(entry, component, 'off')}
+              offAsset={offAsset}
+              componentId={component.id}
+              running={simulationRunning}
+              prepared={preparedLedAsset}
+              committed={committedLedAsset}
+              rollback={rollbackLedAsset}
+              onReadiness={onLedAssetReadiness}
+              y={ownerAssetY}
+              width={ownerAssetWidth}
+              height={ownerAssetHeight}
+              transform={ownerAssetTransform}
+              preserveAspectRatio={imageFit}
+            />
           ) : (
             <>
               <image
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
-                href={ownerImage.href}
+                ref={ownerImage.mountHref}
                 onError={ownerImage.onError}
                 onLoad={ownerImage.onLoad}
                 data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
@@ -1938,7 +2559,17 @@ export function ProductionComponentVisual({
           <g transform={`scale(${width / 12.7} ${height / 19.05})`}>
             {SEGMENT_IDS.map((segment) => {
               const brightness = simulationRunning
-                ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.[segment] ?? 0)))
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      Number(
+                        effectiveSevenSegmentBrightness?.[segment] ??
+                          result?.branchBrightness?.[segment] ??
+                          0,
+                      ),
+                    ),
+                  )
                 : 0;
               const opacity = brightness / 100;
               return segment === 'dp' ? (

@@ -124,3 +124,18 @@
     transition: none;
   }
 }
+
+.games-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+
+.game-card-reason {
+  display: block;
+  line-height: 1.45;
+  margin-top: 8px;
+  color: var(--text-muted, #526173);
+}

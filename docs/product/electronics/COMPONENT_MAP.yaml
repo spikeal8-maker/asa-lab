@@ -36,6 +36,12 @@ areas:
   ui-assets-persistence: components/ui-assets-persistence.yaml
   delivery-portability: components/delivery-portability.yaml
 components:
+  electronics.ui.arduino-editor:
+    card: components/ui-assets-persistence.yaml
+    keywords:
+    - ArduinoCodePanel
+    - Blockly editor error
+    - Arduino TypeError
   electronics.engine.public-api:
     card: components/engine-worker-clock.yaml
     keywords:

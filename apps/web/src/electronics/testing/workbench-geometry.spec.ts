@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clientToWorld,
   completeOrthogonalRoute,
+  roundedRectContainsOffset,
   gestureViewport,
   fitViewportToScreen,
   diagnosticBadgeGeometry,
@@ -13,6 +14,7 @@ import {
   resolveWireVertexAssist,
   stageReadoutGeometry,
   TERMINAL_HIT_RADIUS,
+  TERMINAL_HIT_CORNER_RADIUS,
   TERMINAL_MARKER_SIZE,
   TERMINAL_TOUCH_HIT_RADIUS,
   WIRE_ENDPOINT_HIT_RADIUS,
@@ -228,13 +230,48 @@ describe('what the canvas is allowed to move', () => {
     ]);
   });
 
-  it('keeps visible terminal and endpoint markers smaller than their collision targets', () => {
-    expect(TERMINAL_MARKER_SIZE).toBe(8);
-    expect(TERMINAL_HIT_RADIUS).toBe(9);
-    expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(14);
-    expect(WIRE_ENDPOINT_VISIBLE_RADIUS).toBe(4);
-    expect(WIRE_ENDPOINT_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_VISIBLE_RADIUS);
-    expect(WIRE_ENDPOINT_TOUCH_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_HIT_RADIUS);
+  it('limits mouse and touch contact capture to the painted contact and wire endpoint dots', () => {
+    // Idle/selected terminals use a 1.2-unit stroke; the more-specific
+    // wiring-hover CSS widens the stroke to 2. A shared hit radius must fit
+    // inside BOTH states, not treat the wider hover marker as an idle halo.
+    // Breadboard contact squares likewise paint out to 5 units.
+    const terminalPaintEdge = TERMINAL_MARKER_SIZE / 2 + 1.2 / 2;
+    const wiringHoverPaintEdge = TERMINAL_MARKER_SIZE / 2 + 2 / 2;
+    const wireEndpointPaintEdge = WIRE_ENDPOINT_VISIBLE_RADIUS + 2 / 2;
+    expect(terminalPaintEdge).toBe(4.6);
+    expect(wiringHoverPaintEdge).toBe(5);
+    expect(wireEndpointPaintEdge).toBe(5);
+    expect(TERMINAL_HIT_RADIUS).toBeLessThanOrEqual(wiringHoverPaintEdge);
+    expect(TERMINAL_HIT_CORNER_RADIUS).toBe(1.6);
+    expect(TERMINAL_HIT_RADIUS).toBe(terminalPaintEdge);
+    expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(terminalPaintEdge);
+    expect(WIRE_ENDPOINT_HIT_RADIUS).toBe(wireEndpointPaintEdge);
+    expect(WIRE_ENDPOINT_TOUCH_HIT_RADIUS).toBe(wireEndpointPaintEdge);
+
+    for (const radius of [
+      TERMINAL_HIT_RADIUS,
+      TERMINAL_TOUCH_HIT_RADIUS,
+      WIRE_ENDPOINT_HIT_RADIUS,
+      WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
+    ]) {
+      // A pointer just outside the painted dot must not trigger its target.
+      expect(Math.hypot(radius + 0.01, 0)).toBeGreaterThan(radius);
+      expect(Math.hypot(radius - 0.01, 0)).toBeLessThan(radius);
+    }
+  });
+
+  it('captures the painted rounded-square corners but not the invisible halo', () => {
+    const half = TERMINAL_HIT_RADIUS;
+    const corner = TERMINAL_HIT_CORNER_RADIUS;
+    expect(roundedRectContainsOffset(3.9, 3.9, half, half, corner, corner)).toBe(true);
+    expect(roundedRectContainsOffset(4.6, 0, half, half, corner, corner)).toBe(true);
+    expect(roundedRectContainsOffset(4.61, 0, half, half, corner, corner)).toBe(false);
+    expect(roundedRectContainsOffset(4.5, 4.5, half, half, corner, corner)).toBe(false);
+    for (const zoom of [0.5, 1, 2, 4]) {
+      const scaledGeometry = [half * zoom, half * zoom, corner * zoom, corner * zoom] as const;
+      expect(roundedRectContainsOffset(3.9 * zoom, 3.9 * zoom, ...scaledGeometry)).toBe(true);
+      expect(roundedRectContainsOffset(4.61 * zoom, 0, ...scaledGeometry)).toBe(false);
+    }
   });
 
   it('soft-locks a dragged bend to one canonical elbow with hysteresis and Alt disable', () => {

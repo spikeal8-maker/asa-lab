@@ -1,10 +1,113 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { Buffer } from 'node:buffer';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { privateSymbols } from '../../tools/web-private-symbols.mjs';
+
+/** Opt-in private evidence from actual Rollup output, never original source text. */
+function renderedModuleEvidence({
+  revision,
+  repositoryRoot,
+  output,
+  electronicsWorker = false,
+}: {
+  revision: string;
+  repositoryRoot: string;
+  output: string;
+  electronicsWorker?: boolean;
+}): Plugin {
+  return {
+    name: 'asa-publication-rendered-module-evidence',
+    apply: 'build',
+    generateBundle: {
+      order: 'post',
+      handler(_options, bundle) {
+        if (!/^[a-f0-9]{40}$/.test(revision)) throw Error('Invalid evidence revision');
+        const sanitize = (id: string) => {
+          const value = id.replaceAll('\0', '').replaceAll('\\', '/').split('?')[0];
+          const path = relative(
+            repositoryRoot,
+            isAbsolute(value) ? value : resolve(repositoryRoot, value),
+          );
+          return path === '..' || path.startsWith(`..${sep}`)
+            ? '<external>'
+            : path.split(sep).join('/');
+        };
+        const assets: Record<
+          string,
+          {
+            sha256: string;
+            bytes: number;
+            imports: string[];
+            dynamicImports: string[];
+            dynamicImportOwners: {
+              importer: string;
+              targetModule: string;
+              targetFile: string | null;
+            }[];
+            modules: { id: string; renderedLength: number }[];
+            zeroLengthModules: string[];
+          }
+        > = {};
+        const moduleChunks = new Map<string, string>();
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== 'chunk') continue;
+          for (const id of Object.keys(chunk.modules)) moduleChunks.set(id, chunk.fileName);
+        }
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== 'chunk' || !chunk.fileName.endsWith('.js')) continue;
+          const modules = Object.entries(chunk.modules).map(([id, module]) => ({
+            id: sanitize(id),
+            renderedLength: module.renderedLength,
+          }));
+          assets[`/${chunk.fileName}`] = {
+            sha256: createHash('sha256').update(chunk.code).digest('hex'),
+            bytes: Buffer.byteLength(chunk.code),
+            imports: chunk.imports,
+            dynamicImports: chunk.dynamicImports,
+            dynamicImportOwners: Object.keys(chunk.modules).flatMap((importer) =>
+              (this.getModuleInfo(importer)?.dynamicallyImportedIds ?? []).map((target) => ({
+                importer: sanitize(importer),
+                targetModule: sanitize(target),
+                targetFile: moduleChunks.get(target) ?? null,
+              })),
+            ),
+            modules: modules.filter((module) => module.renderedLength > 0),
+            zeroLengthModules: modules
+              .filter((module) => module.renderedLength === 0)
+              .map((module) => module.id),
+          };
+        }
+        if (!Object.keys(assets).length) throw Error('No rendered module evidence');
+        if (
+          electronicsWorker &&
+          !Object.values(assets).some((asset) =>
+            asset.modules.some(
+              (module) => module.id === 'apps/web/src/electronics/simulation.worker.ts',
+            ),
+          )
+        )
+          return;
+        mkdirSync(output, { recursive: true });
+        writeFileSync(
+          resolve(
+            output,
+            `${electronicsWorker ? 'web-electronics-worker' : 'web'}-rendered-modules-${revision}.json`,
+          ),
+          JSON.stringify({
+            format: 'asa-web-rendered-modules-v1',
+            revision,
+            assets,
+          }),
+        );
+      },
+    },
+  };
+}
 
 const root = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(root, '../..');
@@ -67,8 +170,37 @@ export default defineConfig(({ command }) => {
 
   return {
     root,
+    worker: {
+      format: 'es',
+      plugins: () =>
+        process.env['ASA_CAPTURE_PUBLICATION_GRAPH'] === 'true'
+          ? [
+              renderedModuleEvidence({
+                revision: buildRevision,
+                repositoryRoot,
+                output: resolve(root, 'private-symbols'),
+                electronicsWorker: true,
+              }),
+            ]
+          : [],
+    },
     plugins: [
       react(),
+      ...(process.env['ASA_CAPTURE_PUBLICATION_GRAPH'] === 'true'
+        ? [
+            renderedModuleEvidence({
+              revision: buildRevision,
+              repositoryRoot,
+              output: resolve(root, 'private-symbols'),
+            }),
+          ]
+        : []),
+      privateSymbols({
+        revision: buildRevision,
+        repositoryRoot,
+        output: resolve(root, 'private-symbols'),
+        publicKey: readFileSync(resolve(repositoryRoot, 'tools/web-symbols-public.pem'), 'utf8'),
+      }),
       {
         name: 'asa-lab-build-metadata',
         generateBundle() {
@@ -78,6 +210,18 @@ export default defineConfig(({ command }) => {
     ],
     resolve: {
       alias: [
+        {
+          find: '@asa-lab/electronics/timed-state',
+          replacement: resolve(repositoryRoot, 'contexts/electronics/timed-state.ts'),
+        },
+        {
+          find: /^@asa-lab\/contracts$/,
+          replacement: resolve(repositoryRoot, 'packages/contracts/src/index.ts'),
+        },
+        {
+          find: '@asa-lab/electronics/rendering',
+          replacement: resolve(repositoryRoot, 'contexts/electronics/rendering.ts'),
+        },
         {
           find: '@asa-lab/electronics/engine',
           replacement: resolve(repositoryRoot, 'contexts/electronics/engine.ts'),
@@ -89,6 +233,14 @@ export default defineConfig(({ command }) => {
         {
           find: '@asa-lab/electronics',
           replacement: resolve(repositoryRoot, 'contexts/electronics/index.ts'),
+        },
+        {
+          find: '@asa-lab/three-d/document',
+          replacement: resolve(repositoryRoot, 'contexts/three-d/domain/document.ts'),
+        },
+        {
+          find: '@asa-lab/three-d/operations',
+          replacement: resolve(repositoryRoot, 'contexts/three-d/domain/operations.ts'),
         },
         {
           find: '@asa-lab/three-d',
@@ -125,6 +277,7 @@ export default defineConfig(({ command }) => {
       __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(blocksRuntimeOrigin),
     },
     build: {
+      sourcemap: 'hidden',
       manifest: true,
       outDir: 'dist',
       emptyOutDir: true,
@@ -142,6 +295,34 @@ export default defineConfig(({ command }) => {
               : 'assets/[name]-[hash][extname]';
           },
           manualChunks(id) {
+            // The public viewer needs pure geometry data, not the module provider
+            // and its SDK dependencies absorbed into the recovery/engine chunks.
+            if (id.includes('/contexts/three-d/domain/document.')) {
+              return 'three-d-document';
+            }
+            // Static block metadata is shared with read-only publication code.
+            // Keep Rollup from absorbing it into the solver's dependency chunk.
+            if (id.includes('/contexts/electronics/domain/arduino-block-support.')) {
+              return 'electronics-block-support';
+            }
+            // Pure rendering topology and controls are also read by the public
+            // viewer, so keep them outside the solver chunk.
+            if (
+              /\/contexts\/electronics\/domain\/(?:switch-topology|photoresistor-input)\./.test(id)
+            ) {
+              return 'electronics-rendering-topology';
+            }
+            // Shared storage and CommonJS interop are also used on Home. Keep
+            // them separate so Home does not eagerly load the Electronics engine.
+            if (
+              id.includes('commonjsHelpers') ||
+              /\/(modules\/project-local-draft|components\/sha256)\./.test(id)
+            ) {
+              return 'project-draft-storage';
+            }
+            if (/\/electronics\/electronics-(document-repair|project-recovery)\./.test(id)) {
+              return 'electronics-recovery';
+            }
             if (id.includes('/node_modules/.pnpm/three@') || id.includes('/node_modules/three/')) {
               return 'three-vendor';
             }

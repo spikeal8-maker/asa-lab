@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as solver from '../domain/solver.js';
+import { createHash } from 'node:crypto';
 import {
   advanceArduinoCircuitClock,
+  createArduinoCircuitClockExecutor,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitInputEvent,
@@ -116,6 +119,134 @@ function through(
   }
   throw new Error('Scheduler did not reach target');
 }
+describe('Arduino operating-point reuse mathematical timing', () => {
+  it('keeps the public factory borrowed and invokes its external observer', () => {
+    const doc = circuit([
+      board('uno', 'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1);}'),
+    ]);
+    const observations: number[] = [];
+    const execute = createArduinoCircuitClockExecutor(doc, (time) => observations.push(time));
+    (doc.components[0]!.stateProperties as Record<string, unknown>).arduinoSource =
+      'void setup(){pinMode(13,OUTPUT);digitalWrite(13,LOW);}void loop(){delay(1);}';
+    const actual = execute(50);
+    const expected = advanceArduinoCircuitClock(doc, 50);
+    expect(actual).toStrictEqual(expected);
+    expect(actual.state!.boards[0]!.runtime.outputVoltages.d13).toBe(0);
+    expect(observations.length).toBeGreaterThan(0);
+  });
+
+  const ownerCircuit = (delay: number | null) => {
+    const pins = [13, 12, 11];
+    const source = `void setup(){${pins.map((pin) => `pinMode(${pin},OUTPUT);`).join('')}}
+      void loop(){${pins.map((pin) => `digitalWrite(${pin},HIGH);`).join('')}
+      ${delay === null ? '' : `delay(${delay});${pins.map((pin) => `digitalWrite(${pin},LOW);`).join('')}delay(${delay});`}}`;
+    const uno = board('uno', source);
+    const components: SchematicComponent[] = [{ ...uno, pinIds: [...uno.pinIds!, 'd12', 'd11'] }];
+    const wires: [string, string, string, string][] = [];
+    for (const pin of pins) {
+      components.push(
+        {
+          ...part(`r${pin}`, 'resistor', 330),
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        },
+        {
+          ...part(`led${pin}`, 'led', 2),
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+        },
+      );
+      wires.push(
+        ['uno', `d${pin}`, `r${pin}`, 'lead-1'],
+        [`r${pin}`, 'lead-2', `led${pin}`, 'anode'],
+        [`led${pin}`, 'cathode', 'uno', 'power-gnd-1'],
+      );
+    }
+    return circuit(components, wires);
+  };
+
+  it.each([1, 50, 100, 2000])('keeps exact three-pin fronts for delay(%i)', (delay) => {
+    const document = ownerCircuit(delay);
+    const d = delay * 1000;
+    const period = 2 * d + 9;
+    const end = 2 * period + 8;
+    const done = through(document, end);
+    expect(done.executionStatus).toBe('ready');
+    expect(done.result?.quality.passed).toBe(true);
+    for (const [index, pin] of [13, 12, 11].entries()) {
+      const edges = done.events.filter(
+        (event) => event.kind === 'output-change' && event.terminal === `d${pin}`,
+      );
+      const high = edges.filter((event) => event.voltage === 5);
+      expect(high.map((event) => event.atMicroseconds)).toEqual([
+        4 + index,
+        4 + index + period,
+        4 + index + 2 * period,
+      ]);
+      expect(
+        edges
+          .filter((event) => event.voltage === 0 && event.atMicroseconds > high[0]!.atMicroseconds)
+          .map((event) => event.atMicroseconds),
+      ).toEqual([d + 8 + index, d + 8 + index + period]);
+    }
+    // Partitioning/serialized continuation must not change thermal integration or GPIO.
+    const first = through(document, period);
+    const resumed = through(document, end, JSON.parse(JSON.stringify(first.state)));
+    expect(resumed.state).toEqual(done.state);
+    expect(resumed.result).toEqual(done.result);
+    expect([...first.events, ...resumed.events]).toEqual(done.events);
+  });
+
+  it('keeps a no-delay three-output sketch bounded, exact and complete after JSON yields', () => {
+    const document = ownerCircuit(null);
+    const whole = through(document, 2048);
+    const partitioned = through(document, 2048, undefined, undefined, 7);
+    expect(partitioned.state).toEqual(whole.state);
+    expect(partitioned.result).toEqual(whole.result);
+    expect(partitioned.events).toEqual(whole.events);
+    expect(whole.state?.reachedMicroseconds).toBe(2048);
+    expect(whole.result?.quality.passed).toBe(true);
+    for (const pin of [13, 12, 11])
+      expect(
+        whole.result?.components.find((entry) => entry.componentId === `led${pin}`)?.brightness,
+      ).toBeGreaterThan(0);
+  });
+
+  it('preserves the instruction cost of 2000 delay calls rather than replacing them by one delay', () => {
+    const make = (calls: string) => {
+      const document = ownerCircuit(null);
+      return {
+        ...document,
+        components: document.components.map((entry) =>
+          entry.id === 'uno'
+            ? {
+                ...entry,
+                stateProperties: {
+                  arduinoSource: `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);${calls}digitalWrite(13,LOW);delay(100);}`,
+                },
+              }
+            : entry,
+        ),
+      };
+    };
+    const single = through(make('delay(2000);'), 2_003_000);
+    const repeated = through(make('delay(1);'.repeat(2000)), 2_003_000);
+    const low = (result: ArduinoCircuitClockAdvance) =>
+      result.events.find(
+        (event) =>
+          event.kind === 'output-change' &&
+          event.terminal === 'd13' &&
+          event.voltage === 0 &&
+          event.atMicroseconds > 2,
+      )!.atMicroseconds;
+    expect(low(single)).toBe(2_000_004);
+    expect(low(repeated)).toBe(2_002_003);
+    expect(low(repeated) - low(single)).toBe(1999);
+    expect(single.result?.quality.passed).toBe(true);
+    expect(repeated.result?.quality.passed).toBe(true);
+  });
+});
+
 const idle = 'void loop(){delay(100);}';
 const runtime = (result: ArduinoCircuitClockAdvance, id = 'uno') =>
   result.state!.boards.find((entry) => entry.componentId === id)!.runtime;
@@ -183,7 +314,158 @@ function pingUltrasonicCircuit(distanceMeters = 1, powered = true) {
   return circuit([board('uno', source), pingUltrasonic('ping', distanceMeters)], wires);
 }
 
+function coupledPhysicalCircuit() {
+  return circuit(
+    [
+      board(
+        'uno',
+        'int analog=0;int digital=0;void setup(){pinMode(2,INPUT_PULLUP);pinMode(13,OUTPUT);}void loop(){analog=analogRead(A0);digital=digitalRead(2);digitalWrite(13,digital);delayMicroseconds(400);}',
+      ),
+      part('source', 'source', 5),
+      part('rc', 'resistor'),
+      {
+        ...part('cap', 'visual', 10),
+        componentTypeId: 'electrolytic-capacitor',
+        pinIds: ['positive', 'negative'],
+        stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+      },
+      {
+        ...part('motor', 'visual', 5),
+        componentTypeId: 'dc-motor',
+        pinIds: ['negative', 'positive'],
+      },
+      part('rled', 'resistor', 330),
+      part('led', 'led', 2),
+      part('key', 'button'),
+    ],
+    [
+      ['source', 'a', 'rc', 'a'],
+      ['rc', 'b', 'cap', 'positive'],
+      ['cap', 'negative', 'source', 'b'],
+      ['cap', 'positive', 'uno', 'a0'],
+      ['source', 'b', 'uno', 'power-gnd-1'],
+      ['source', 'a', 'motor', 'positive'],
+      ['motor', 'negative', 'source', 'b'],
+      ['uno', 'd13', 'rled', 'a'],
+      ['rled', 'b', 'led', 'a'],
+      ['led', 'b', 'source', 'b'],
+      ['uno', 'd2', 'key', 'a'],
+      ['key', 'b', 'source', 'b'],
+    ],
+  );
+}
+const physicalInputs: readonly ArduinoCircuitInputEvent[] = [
+  { atMicroseconds: 1000, componentId: 'key', property: 'state', value: true },
+  { atMicroseconds: 2000, componentId: 'key', property: 'state', value: false },
+];
+
 describe('Arduino shared dc-inputs-v1 circuit clock', () => {
+  it('invalidates normalized sensor preparation before the next ADC read after a timed input', () => {
+    const source =
+      'int before=0;int after=0;void setup(){before=analogRead(A0);delayMicroseconds(500);after=analogRead(A0);}void loop(){delay(1000);}';
+    const sensor: SchematicComponent = {
+      ...part('temperature', 'visual', 25),
+      componentTypeId: 'temperature-sensor',
+      pinIds: ['pin-1', 'pin-2', 'pin-3'],
+      stateProperties: { temperatureCelsius: 25 },
+    };
+    const document = circuit(
+      [board('uno', source), sensor],
+      [
+        ['temperature', 'pin-1', 'uno', 'power-5v'],
+        ['temperature', 'pin-2', 'uno', 'a0'],
+        ['temperature', 'pin-3', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      {
+        atMicroseconds: 250,
+        componentId: 'temperature',
+        property: 'temperatureCelsius',
+        value: 75,
+      },
+    ];
+    const whole = through(document, 1000, undefined, inputs, 256);
+    expect(whole.executionStatus, JSON.stringify(whole.diagnostics)).toBe('ready');
+    expect(whole.result!.quality.passed).toBe(true);
+    const readings = runtime(whole).variables;
+    expect(readings['after']).toBeGreaterThan(Number(readings['before']) + 80);
+    const first = through(document, 200, undefined, inputs, 1);
+    const partitioned = through(document, 1000, JSON.parse(JSON.stringify(first.state)), inputs, 7);
+    expect(partitioned.state).toEqual(whole.state);
+    expect(partitioned.result).toEqual(whole.result);
+    expect(
+      document.components.find((entry) => entry.id === 'temperature')!.stateProperties![
+        'temperatureCelsius'
+      ],
+    ).toBe(25);
+  });
+  it('keeps nested canonical documents immutable while applying inputs and continuing JSON state', () => {
+    const freeze = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return;
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    };
+    const document = coupledPhysicalCircuit();
+    const original = JSON.stringify(document);
+    freeze(document);
+    freeze(physicalInputs);
+    const first = through(document, 1500, undefined, physicalInputs, 7);
+    const done = through(
+      document,
+      5000,
+      JSON.parse(JSON.stringify(first.state)),
+      physicalInputs,
+      1,
+    );
+    expect(done.executionStatus).toBe('ready');
+    expect(done.result!.quality.passed).toBe(true);
+    expect(JSON.stringify(document)).toBe(original);
+    // Compare every canonical field, including physical history, against an uninterrupted run.
+    const whole = through(document, 5000, undefined, physicalInputs, 256);
+    expect(done.state).toEqual(whole.state);
+    expect(done.result).toEqual(whole.result);
+    expect(done.diagnostics).toEqual(whole.diagnostics);
+  });
+  it.each([1, 7, 256, 1024])(
+    'preserves the pre-optimization full RC/heat/motor/ADC/GPIO trace with budget %i',
+    (budget) => {
+      const done = through(coupledPhysicalCircuit(), 5000, undefined, physicalInputs, budget);
+      expect(done.executionStatus).toBe('ready');
+      expect(done.result!.quality.passed).toBe(true);
+      expect(runtime(done).variables).toMatchObject({ analog: 393, digital: 1 });
+      expect(done.state!.physicalState!.capacitors[0]!.voltageVolt).toBeGreaterThan(1);
+      expect(done.state!.physicalState!.motors![0]!.currentAmp).toBeGreaterThan(0);
+      expect(
+        done.state!.physicalState!.thermal.some((entry) => entry.temperatureCelsius > 25),
+      ).toBe(true);
+      // Whole, unrounded output from the retained pre-optimization scheduler: state,
+      // ordered events, all electrical observations, diagnostics and independent quality.
+      expect(createHash('sha256').update(JSON.stringify(done)).digest('hex')).toBe(
+        'add3bf882d26e126dd468ab7fdbd52d844eb2eac1b7db3297479c3564c680137',
+      );
+    },
+  );
+
+  it('preserves physical checkpoints across speculative horizons and same-time input barriers', () => {
+    const doc = coupledPhysicalCircuit();
+    const whole = through(doc, 5000, undefined, physicalInputs);
+    let previous: ArduinoCircuitClockState | undefined;
+    const events: ArduinoCircuitClockAdvance['events'][number][] = [];
+    let last: ArduinoCircuitClockAdvance | undefined;
+    for (const horizon of [999, 1000, 1001, 1999, 2000, 2001, 5000]) {
+      last = through(doc, horizon, previous, physicalInputs, 3);
+      expect(last.executionStatus).toBe('ready');
+      events.push(...last.events);
+      previous = JSON.parse(JSON.stringify(last.state));
+    }
+    expect(JSON.stringify({ ...last, events })).toBe(JSON.stringify(whole));
+    const repeated = through(doc, 5000, previous, physicalInputs);
+    expect(repeated.events).toEqual([]);
+    expect(repeated.state).toEqual(whole.state);
+    expect(repeated.result).toEqual(whole.result);
+  });
+
   it('verifies the existing DC path from committed GPIO, without replaying input-dependent code', () => {
     const doc = circuit(
       [
@@ -850,6 +1132,157 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(failed.result!.diagnostics.map((entry) => entry.code)).toContain('component_failed');
   });
 
+  it('runs an Uno-powered photoresistor on the thermal clock and carries burnout forward', () => {
+    const ldr = { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 1 } };
+    const doc = circuit(
+      [board('uno', 'void setup(){}void loop(){delay(100);}'), ldr],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const early = through(doc, 5_000);
+    expect(early.executionStatus).toBe('ready');
+    expect(early.state?.profile).toBe('electrothermal-v1');
+    const observation = early.result!.components.find((entry) => entry.componentId === 'ldr')!;
+    expect(observation.powerUtilizationPercent).toBeGreaterThan(100);
+    expect(observation.accumulatedDamagePercent).toBeLessThan(1);
+    const physical = early.state!.physicalState!;
+    // Resume near the end of sustained overload so this test need not replay
+    // tens of thousands of 1 ms barriers for a mildly overloaded sensor.
+    const nearFailure: ArduinoCircuitClockState = {
+      ...early.state!,
+      physicalState: {
+        ...physical,
+        thermal: physical.thermal.map((entry) =>
+          entry.componentId === 'ldr' ? { ...entry, accumulatedDamage: 0.99999 } : entry,
+        ),
+      },
+    };
+    const failed = through(doc, 15_000, nearFailure);
+    expect(failed.executionStatus).toBe('ready');
+    expect(failed.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+      current: 0,
+      deviceHealth: 'failed_open',
+    });
+    const dimmed = through(doc, 20_000, failed.state!, [
+      { atMicroseconds: 16_000, componentId: 'ldr', property: 'illumination', value: 0 },
+    ]);
+    expect(dimmed.state?.reachedMicroseconds).toBe(20_000);
+    expect(dimmed.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+      current: 0,
+      deviceHealth: 'failed_open',
+    });
+  });
+
+  it('keeps a passive photoresistor observable across a light change without a source', () => {
+    const doc = circuit([
+      { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 0 } },
+    ]);
+    const dark = through(doc, 0);
+    expect(dark.executionStatus).toBe('ready');
+    expect(dark.state?.profile).toBe('dc-inputs-v1');
+    expect(dark.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+    const lit = through(doc, 2_000, dark.state!, [
+      { atMicroseconds: 1_000, componentId: 'ldr', property: 'illumination', value: 1 },
+    ]);
+    expect(lit.executionStatus).toBe('ready');
+    expect(lit.state).toMatchObject({ profile: 'dc-inputs-v1', reachedMicroseconds: 2_000 });
+    expect(lit.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+  });
+
+  it('samples live photoresistor light through a safe Uno divider on the same clock', () => {
+    const doc = circuit(
+      [
+        board('uno', 'int reading;void setup(){}void loop(){reading=analogRead(A0);delay(1);}'),
+        { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 0 } },
+        part('sense', 'resistor', 10_000),
+      ],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'sense', 'a'],
+        ['ldr', 'b', 'uno', 'a0'],
+        ['sense', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const dark = through(doc, 5_000);
+    expect(dark.state?.profile).toBe('electrothermal-v1');
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 6_000, componentId: 'ldr', property: 'illumination', value: 1 },
+      { atMicroseconds: 12_000, componentId: 'ldr', property: 'illumination', value: 0 },
+    ];
+    const bright = through(doc, 10_000, dark.state!, inputs.slice(0, 1));
+    const darkAgain = through(doc, 16_000, bright.state!, inputs);
+    const whole = through(doc, 16_000, undefined, inputs);
+    expect(darkAgain.state?.reachedMicroseconds).toBe(16_000);
+    expect(darkAgain.result).toStrictEqual(whole.result);
+    expect(darkAgain.state).toStrictEqual(whole.state);
+    expect(runtime(bright).variables.reading).toBeGreaterThan(900);
+    expect(runtime(dark).variables.reading).toBeLessThan(20);
+    expect(runtime(darkAgain).variables.reading).toBe(runtime(dark).variables.reading);
+    for (const sample of [dark, bright, darkAgain]) {
+      expect(sample.result?.quality.passed).toBe(true);
+      expect(sample.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+        deviceHealth: 'normal',
+        accumulatedDamagePercent: 0,
+      });
+    }
+  });
+
+  it('reads lamp light on A0 as the filament warms and cools without electrical coupling', () => {
+    const doc = circuit(
+      [
+        board('uno', 'int reading;void setup(){}void loop(){reading=analogRead(A0);delay(10);}'),
+        {
+          ...part('ldr', 'photoresistor', 0),
+          stateProperties: {
+            illumination: 0,
+            lightSourceComponentId: 'lamp',
+            lightSourceDistanceCm: 10,
+          },
+        },
+        part('sense', 'resistor', 10_000),
+        part('lamp-power', 'source', 6),
+        { ...part('switch', 'button', 0), state: false },
+        {
+          ...part('lamp', 'lamp', 6),
+          componentTypeId: 'incandescent-lamp',
+          pinIds: ['L1', 'L2'],
+        },
+      ],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'sense', 'a'],
+        ['ldr', 'b', 'uno', 'a0'],
+        ['sense', 'b', 'uno', 'power-gnd-1'],
+        ['lamp-power', 'a', 'switch', 'a'],
+        ['switch', 'b', 'lamp', 'L1'],
+        ['lamp', 'L2', 'lamp-power', 'b'],
+      ],
+    );
+    const dark = through(doc, 20_000);
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 21_000, componentId: 'switch', property: 'state', value: true },
+      { atMicroseconds: 601_000, componentId: 'switch', property: 'state', value: false },
+    ];
+    const warm = through(doc, 600_000, dark.state!, inputs.slice(0, 1));
+    const cold = through(doc, 1_100_000, warm.state!, inputs);
+    const sensor = (frame: ArduinoCircuitClockAdvance) =>
+      frame.result!.components.find((entry) => entry.componentId === 'ldr')!;
+    expect(sensor(dark)).toMatchObject({ illuminanceLux: 0, effectiveResistanceOhm: 1_000_000 });
+    expect(sensor(warm).illuminanceLux).toBeGreaterThan(60);
+    expect(sensor(warm).effectiveResistanceOhm).toBeLessThan(5_000);
+    expect(sensor(warm).current).toBeCloseTo(
+      sensor(warm).voltageDrop / sensor(warm).effectiveResistanceOhm!,
+      8,
+    );
+    expect(runtime(dark).variables.reading).toBeLessThan(20);
+    expect(runtime(warm).variables.reading).toBeGreaterThan(600);
+    expect(runtime(cold).variables.reading).toBe(runtime(dark).variables.reading);
+    expect(cold.state?.reachedMicroseconds).toBe(1_100_000);
+    for (const frame of [dark, warm, cold]) expect(frame.result?.quality.passed).toBe(true);
+  });
+
   it('rejects malformed continuation before any carried GPIO is used as a source', () => {
     const doc = buttonCircuit();
     const valid = through(doc, 10).state!;
@@ -1188,9 +1621,31 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(done.events.some((event) => event.componentId === 'b-unsupported')).toBe(false);
   });
 
+  it('loads a switch programme and keeps an independent board executing', () => {
+    const source =
+      'void setup(){pinMode(13,OUTPUT);}void loop(){switch(2){case 2:digitalWrite(13,HIGH);break;default:digitalWrite(13,LOW);}delay(1);}';
+    const done = through(
+      circuit([
+        board('switch-board', source),
+        board(
+          'peer',
+          'void setup(){pinMode(13,OUTPUT);digitalWrite(13,LOW);}void loop(){delay(100);}',
+        ),
+      ]),
+      10,
+    );
+    expect(done.executionStatus).toBe('ready');
+    expect(
+      done.state!.boards.find((entry) => entry.componentId === 'switch-board')!.loadedSource,
+    ).toBe(source);
+    expect(runtime(done, 'switch-board').outputVoltages.d13).toBe(5);
+    expect(runtime(done, 'peer').outputVoltages.d13).toBe(0);
+    expect(done.diagnostics.filter((entry) => entry.code === 'unsupported-syntax')).toEqual([]);
+  });
+
   it.each([
-    ['unsupported-call', 'void setup(){random();}void loop(){}'],
-    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['unsupported-call', 'void setup(){shiftIn(2,3,4);}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){goto done;done:;}void loop(){}'],
     ['preprocessor', '#include <Unknown.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps known unsupported %s board-local without last-good', (code, source) => {
     const result = through(circuit([board('uno', source)]), 10);
@@ -1210,8 +1665,8 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
   });
 
   it.each([
-    ['unsupported-call', 'void setup(){random();}void loop(){}'],
-    ['unsupported-syntax', 'void setup(){int x=1;switch(x){case 1:break;}}void loop(){}'],
+    ['unsupported-call', 'void setup(){shiftIn(2,3,4);}void loop(){}'],
+    ['unsupported-syntax', 'void setup(){goto done;done:;}void loop(){}'],
     ['preprocessor', '#include <Unknown.h>\nvoid setup(){}\nvoid loop(){}'],
   ])('keeps last-good runtime through known unsupported %s editor source', (code, source) => {
     const sourceA =
@@ -1242,7 +1697,7 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
           'a-valid',
           'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(100);}',
         ),
-        board('b-unsupported', 'void setup(){random();}void loop(){}'),
+        board('b-unsupported', 'void setup(){shiftIn(2,3,4);}void loop(){}'),
       ]),
       10,
     );
@@ -1621,5 +2076,147 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
       advanceArduinoCircuitClock(busy, 100000, first.state!, { maxClockEvents: 8 }).state!
         .reachedMicroseconds,
     ).toBe(15);
+  });
+});
+
+describe('legacy interactive LED sleeping physics observation', () => {
+  const source =
+    'void setup(){pinMode(13,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){digitalWrite(13,digitalRead(2)==LOW);if(Serial.available()>0){int received=Serial.read();Serial.println(received);}delay(30);}';
+  const document = () =>
+    circuit(
+      [
+        board('uno', source),
+        {
+          ...part('r', 'resistor', 330),
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        },
+        { ...part('led', 'led', 2), componentTypeId: 'led-5mm', pinIds: ['anode', 'cathode'] },
+        {
+          ...part('key', 'button'),
+          componentTypeId: 'button-tactile-6mm',
+          pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+        },
+      ],
+      [
+        ['uno', 'd13', 'r', 'lead-1'],
+        ['r', 'lead-2', 'led', 'anode'],
+        ['led', 'cathode', 'uno', 'power-gnd-1'],
+        ['uno', 'd2', 'key', 'SW-A1'],
+        ['key', 'SW-B1', 'uno', 'power-gnd-1'],
+      ],
+    );
+  const inputs: ArduinoCircuitInputEvent[] = [
+    { atMicroseconds: 225001, componentId: 'key', property: 'state', value: true },
+    { atMicroseconds: 325001, componentId: 'key', property: 'state', value: false },
+    { atMicroseconds: 675001, componentId: 'uno', property: 'serialRx', value: 'A' },
+  ];
+  it('preserves every byte of 59 complete legacy frames, inputs, thermal history and Serial', () => {
+    let state: ArduinoCircuitClockState | undefined;
+    const frames: ArduinoCircuitClockAdvance[] = [];
+    for (let horizon = 0; horizon <= 1450000; horizon += 25000) {
+      const done = through(document(), horizon, state, inputs, 1024);
+      expect(done.executionStatus).toBe('ready');
+      expect(done.result?.quality.passed).toBe(true);
+      expect(done.state?.profile).toBe('electrothermal-v1');
+      frames.push(done);
+      state = JSON.parse(JSON.stringify(done.state));
+    }
+    expect(createHash('sha256').update(JSON.stringify(frames)).digest('hex')).toBe(
+      'e458e5d8f505221d9c9b0d5d2614d1fcb89a01b89ac9c2cf056c272446198164',
+    );
+  });
+  it.each([225000, 225001, 225002, 325000, 325001, 325002, 675000, 675001, 675002])(
+    'retains exact input and MCU wake barriers at %i us',
+    (horizon) => {
+      const doc = document();
+      const whole = through(doc, horizon, undefined, inputs, 1024);
+      const split = through(doc, horizon - 1, undefined, inputs, 7);
+      const done = through(doc, horizon, JSON.parse(JSON.stringify(split.state)), inputs, 1);
+      expect(done.state).toEqual(whole.state);
+      expect(done.result).toEqual(whole.result);
+      expect(done.diagnostics).toEqual(whole.diagnostics);
+    },
+  );
+  it('does not repeatedly observe an unchanged sleeping circuit at all 25 physics barriers', () => {
+    const spy = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino');
+    try {
+      const first = through(document(), 1000, undefined, inputs, 1024);
+      spy.mockClear();
+      const done = through(document(), 25000, first.state!, inputs, 1024);
+      expect(done.executionStatus).toBe('ready');
+      expect(done.result?.quality.passed).toBe(true);
+      expect(spy.mock.calls.length).toBeGreaterThanOrEqual(24);
+      expect(spy.mock.calls.length).toBeLessThan(40);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it('never skips a failed physical solve while the MCU sleeps', () => {
+    const doc = document();
+    const first = through(doc, 1000, undefined, inputs, 1024);
+    const original = solver.solveRcCircuitWithHeldArduino;
+    const spy = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino').mockImplementation((...args) => {
+      const result = original(...args);
+      return { ...result, solved: false };
+    });
+    try {
+      const done = advanceArduinoCircuitClock(doc, 25000, first.state!, {
+        inputs,
+        maxClockEvents: 1024,
+      });
+      expect(done.executionStatus).toBe('fault');
+      expect(done.result).toBeNull();
+      expect(done.state).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it('loads changed source immediately instead of skipping its pending setup as sleeping', () => {
+    const doc = document();
+    const first = through(doc, 1000, undefined, inputs, 1024);
+    const replacement =
+      'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(30);}';
+    const changed = {
+      ...doc,
+      components: doc.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, arduinoSource: replacement },
+            }
+          : component,
+      ),
+    };
+    const done = through(changed, 2000, first.state!, inputs, 1024);
+    expect(done.executionStatus).toBe('ready');
+    expect(done.state!.boards[0]!.loadedSource).toBe(replacement);
+    expect(runtime(done).outputVoltages.d13).toBe(5);
+    expect(done.events.some((event) => event.kind === 'output-change')).toBe(true);
+  });
+  it('keeps an unsupported extra model fail-closed outside the narrow sleeping eligibility', () => {
+    const doc = document();
+    const done = through(
+      {
+        ...doc,
+        components: [
+          ...doc.components,
+          { ...part('unknown', 'visual'), componentTypeId: 'unknown-component' },
+        ],
+      },
+      25000,
+      undefined,
+      inputs,
+    );
+    expect(done.executionStatus).toBe('fault');
+    expect(done.result).toBeNull();
+    expect(done.state).toBeNull();
+    expect(done.diagnostics[0]?.code).toBe('clocked_profile_unsupported');
+  });
+  it('Reset reproduces the complete initial canonical frame after button and Serial activity', () => {
+    const doc = document();
+    const initial = through(doc, 0, undefined, inputs);
+    through(doc, 800000, undefined, inputs);
+    expect(through(doc, 0, undefined, inputs)).toEqual(initial);
   });
 });

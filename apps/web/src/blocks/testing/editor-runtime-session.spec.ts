@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement, type ComponentProps } from 'react';
+import { act, createElement, StrictMode, useLayoutEffect, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlocksEditor } from '../BlocksEditor';
@@ -57,7 +57,7 @@ function telemetryResponse(input: RequestInfo | URL, options?: RequestInit): Res
             pipeline: body['pipeline'],
             acknowledgementStage: body['acknowledgementStage'],
           }
-        : { recordId: PROJECT_ID }),
+        : { recordId: 1 }),
   });
 }
 
@@ -86,7 +86,7 @@ function session(runtimeToken = 'real.runtime.token', expiresAt = 4_000_000_000)
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', date: new Date().toUTCString() },
   });
 }
 
@@ -131,24 +131,34 @@ let container: HTMLDivElement | null = null;
 
 async function renderEditor(
   overrides: Partial<ComponentProps<typeof BlocksEditor>> = {},
+  onLayout?: (iframe: HTMLIFrameElement) => void,
+  strictMode = false,
 ): Promise<HTMLIFrameElement> {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
 
+  const editor = createElement(BlocksEditor, {
+    projectId: PROJECT_ID,
+    recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
+    onBack: vi.fn(),
+    onHomeClick: vi.fn(),
+    accountLabel: 'ASA test user',
+    accountInitials: 'AT',
+    onAccountClick: vi.fn(),
+    ...overrides,
+  });
+  function CommitProbe() {
+    useLayoutEffect(() => {
+      const iframe = container!.querySelector('iframe');
+      if (!iframe) throw new Error('Scratch iframe missing during commit');
+      onLayout?.(iframe);
+    }, []);
+    return editor;
+  }
   await act(async () => {
-    root?.render(
-      createElement(BlocksEditor, {
-        projectId: PROJECT_ID,
-        recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
-        onBack: vi.fn(),
-        onHomeClick: vi.fn(),
-        accountLabel: 'ASA test user',
-        accountInitials: 'AT',
-        onAccountClick: vi.fn(),
-        ...overrides,
-      }),
-    );
+    const rendered = onLayout ? createElement(CommitProbe) : editor;
+    root?.render(strictMode ? createElement(StrictMode, null, rendered) : rendered);
     await flushAsync();
   });
   const iframe = container.querySelector('iframe');
@@ -190,6 +200,153 @@ afterEach(async () => {
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
+  it('starts cached runtime navigation only after DOM insertion and identity layout', async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const appendChild = Node.prototype.appendChild;
+    const srcSetter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src')!.set!;
+    let loaded = false;
+    let ancestorLayoutComplete = false;
+    let navigatedDuringInsertion = false;
+    let postMessage!: ReturnType<typeof spyOnPostMessage>;
+    vi.spyOn(Node.prototype, 'appendChild').mockImplementation(function <T extends Node>(
+      this: Node,
+      child: T,
+    ): T {
+      const result = appendChild.call(this, child) as T;
+      const frame =
+        child instanceof HTMLIFrameElement
+          ? child
+          : child instanceof Element
+            ? child.querySelector('iframe')
+            : null;
+      if (!loaded && frame?.isConnected) {
+        loaded = true;
+        navigatedDuringInsertion = frame.hasAttribute('src');
+        frame.dispatchEvent(new Event('load'));
+      }
+      return result;
+    });
+    vi.spyOn(HTMLIFrameElement.prototype, 'src', 'set').mockImplementation(function (
+      this: HTMLIFrameElement,
+      value: string,
+    ) {
+      expect(ancestorLayoutComplete).toBe(true);
+      srcSetter.call(this, value);
+      postMessage = spyOnPostMessage(this);
+      // A cached real navigation may finish synchronously from the setter.
+      this.dispatchEvent(new Event('load'));
+    });
+    const iframe = await renderEditor({}, () => {
+      expect(loaded).toBe(true);
+      ancestorLayoutComplete = true;
+    });
+    expect(loaded).toBe(true);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/blocks/runtime-session')),
+    ).toHaveLength(1);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    expect(navigatedDuringInsertion).toBe(false);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(
+      container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]')?.dataset.state,
+    ).toBe('ready');
+  });
+
+  it('ignores the initial blank load before passive effects and bootstraps the real runtime', async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor({}, (frame) => {
+      expect(frame.hasAttribute('src')).toBe(false);
+      frame.dispatchEvent(new Event('load'));
+    });
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/blocks/runtime-session')),
+    ).toHaveLength(0);
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const grants = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/blocks/runtime-session'),
+    );
+    expect(grants).toHaveLength(1);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(
+      container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]')?.dataset.state,
+    ).toBe('ready');
+  });
+
+  it('reuses one real navigation through StrictMode replay and ignores load after disposal', async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const srcSetter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src')!.set!;
+    let navigations = 0;
+    let postMessage!: ReturnType<typeof spyOnPostMessage>;
+    vi.spyOn(HTMLIFrameElement.prototype, 'src', 'set').mockImplementation(function (
+      this: HTMLIFrameElement,
+      value: string,
+    ) {
+      navigations += 1;
+      srcSetter.call(this, value);
+      postMessage = spyOnPostMessage(this);
+      this.dispatchEvent(new Event('load'));
+    });
+    const iframe = await renderEditor({}, undefined, true);
+    expect(navigations).toBe(1);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(
+      container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]')?.dataset.state,
+    ).toBe('ready');
+    await act(async () => root?.unmount());
+    root = null;
+    const grantsBefore = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/blocks/runtime-session'),
+    ).length;
+    await fireLoad(iframe);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/blocks/runtime-session')),
+    ).toHaveLength(grantsBefore);
+  });
+
+  it('binds activity after ancestor identity layout even when frame load arrives during commit', async () => {
+    const telemetry: Array<Record<string, unknown>> = [];
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    setTelemetryContext(null, false, 'unknown');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (input, options) => {
+        if (String(input) === '/api/analytics/v2/module-session') {
+          telemetry.push(JSON.parse(options?.body as string) as Record<string, unknown>);
+        }
+        return telemetryResponse(input, options) ?? jsonResponse(session());
+      }),
+    );
+    const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR }, (frame) => {
+      // React runs descendant layout effects before this ancestor identity proof.
+      setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
+      frame.dispatchEvent(new Event('load'));
+    });
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(telemetry).toHaveLength(0);
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    expect(telemetry.filter((event) => event['operation'] === 'start')).toHaveLength(1);
+    expect(telemetry[0]?.['actorExpectation']).toEqual(TELEMETRY_ACTOR);
+  });
+
   it.each(['project', 'principal'] as const)(
     'closes analytics and binds a fresh iframe on %s change',
     async (change: 'project' | 'principal') => {
@@ -674,6 +831,119 @@ describe('BlocksEditor runtime session bootstrap', () => {
 
     expect(container!.querySelector('[data-asa-blocks-save]')).toBeNull();
     expect(container!.textContent).not.toContain('Сохранить в ASA');
+  });
+
+  it.each([-3, 3])(
+    'opens and refreshes with a %s hour client offset and a later clock jump',
+    async (hours) => {
+      vi.useFakeTimers();
+      const serverStart = Date.UTC(2030, 0, 1);
+      vi.setSystemTime(serverStart + hours * 3_600_000);
+      let grants = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input, options) => {
+          const telemetry = telemetryResponse(input, options);
+          if (telemetry) return telemetry;
+          grants += 1;
+          const serverNow = serverStart + performance.now();
+          const answer = jsonResponse(
+            session(`grant.number.${grants}`, Math.floor(serverNow / 1000) + 600),
+          );
+          answer.headers.set('date', new Date(serverNow).toUTCString());
+          return answer;
+        }),
+      );
+      const iframe = await renderEditor();
+      const post = spyOnPostMessage(iframe);
+      await fireLoad(iframe);
+      expect(initCalls(post)).toHaveLength(1);
+      vi.setSystemTime(serverStart + 86_400_000);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(539_000);
+      });
+      expect(grants).toBe(2);
+      expect(initCalls(post)).toHaveLength(1);
+      expect(
+        post.mock.calls.filter(
+          ([m]) => (m as Record<string, unknown>)['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE',
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('refreshes on resume even when monotonic time froze, coalesces events and stops after unmount', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        return jsonResponse(session(`grant.number.${grants}`));
+      }),
+    );
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pageshow'));
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(grants).toBe(2);
+    expect(initCalls(post)).toHaveLength(1);
+    await act(async () => root?.unmount());
+    root = null;
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(grants).toBe(2);
+  });
+
+  it('discards a pre-suspension refresh response and waits for a fresh grant in the same flight', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let resolveOld!: (value: Response) => void;
+    const oldResponse = new Promise<Response>((resolve) => {
+      resolveOld = resolve;
+    });
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        if (grants === 2) return oldResponse;
+        return jsonResponse(
+          session(grants === 1 ? 'initial.runtime.token' : 'fresh.runtime.token'),
+        );
+      }),
+    );
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(grants).toBe(2);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      resolveOld(jsonResponse(session('stale.runtime.token')));
+      await flushAsync();
+    });
+    expect(grants).toBe(3);
+    const updates = post.mock.calls
+      .map(([m]) => m as Record<string, unknown>)
+      .filter((m) => m['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE');
+    expect(updates.map((m) => m['runtimeToken'])).toEqual(['fresh.runtime.token']);
+    expect(initCalls(post)).toHaveLength(1);
   });
 
   it('refreshes expiring authority proactively with TOKEN_UPDATE and no second INIT', async () => {

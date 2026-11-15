@@ -1,0 +1,11 @@
+import { readFile, writeFile } from 'node:fs/promises';
+let source=await readFile(new URL('./after.mjs',import.meta.url),'utf8');
+source=source.replace('return npnDefinitionIsOriginal();',`const start=performance.now(); const value=npnDefinitionIsOriginal(); globalThis.__cost.guardMs+=performance.now()-start; globalThis.__cost.guardCalls++; return value;`);
+source=source.replace('const index = slots.findIndex(',`globalThis.__cost.lookupCalls++; globalThis.__cost.keys.add(JSON.stringify(key)); const searchStart=performance.now(); const index = slots.findIndex(`);
+source=source.replace('const slot = index < 0 ?',`globalThis.__cost.searchMs+=performance.now()-searchStart; if(index<0)globalThis.__cost.misses++; const slot = index < 0 ?`);
+await writeFile(new URL('./profile-built.mjs',import.meta.url),source);
+const module=await import('./profile-built.mjs');
+globalThis.__npnProbe={calls:0,hits:0};globalThis.__cost={guardMs:0,guardCalls:0,lookupCalls:0,keys:new Set(),searchMs:0,misses:0};
+const start=performance.now();module.run();const elapsedMs=performance.now()-start;
+const receipt={...globalThis.__cost,distinctKeys:globalThis.__cost.keys.size,keys:undefined,elapsedMs,...globalThis.__npnProbe};
+await writeFile(new URL('./profile.json',import.meta.url),JSON.stringify(receipt,null,2));console.log(JSON.stringify(receipt));

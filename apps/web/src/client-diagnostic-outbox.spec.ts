@@ -21,14 +21,277 @@ function storage() {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.setSystemTime(1_000_000);
 });
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 describe('bounded diagnostics delivery', () => {
+  it('coalesces distinct attempts and freezes a sent aggregate through failure, wakeups and retry', async () => {
+    vi.mocked(Math.random).mockReturnValue(0.5);
+    const disk = storage();
+    const quality = new TelemetryQuality(undefined, { getItem: () => null, setItem() {} });
+    let finish!: (response: Response) => void;
+    const transport = vi.fn<typeof fetch>(
+      async () => new Response('{"accepted":true}', { status: 202 }),
+    );
+    transport.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.stubGlobal('fetch', transport);
+    const outbox = new DiagnosticOutbox(disk, quality);
+    const report = (n: number) => ({
+      ...event(n),
+      code: 'request_failed',
+      phase: 'request',
+      operation: 'project_read',
+      method: 'GET',
+      httpStatus: 503,
+      failureKind: 'http',
+      clientAttemptId: id(n + 1000),
+      relatedRequestId: id(n + 2000),
+    });
+    for (let n = 1; n <= 100; n++) outbox.enqueue(report(n));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).toHaveBeenCalledTimes(1);
+    const original = transport.mock.calls[0]![1]!.body;
+    expect(JSON.parse(original as string)).toMatchObject({
+      eventId: id(1),
+      repetitionCount: 100,
+      firstOccurredAt: 1_000_000,
+      lastOccurredAt: 1_000_000,
+      clientAttemptId: id(1001),
+    });
+    await vi.advanceTimersByTimeAsync(500);
+    for (let n = 101; n <= 103; n++) outbox.enqueue(report(n));
+    finish(new Response('{}', { status: 503 }));
+    await vi.advanceTimersByTimeAsync(0);
+    for (let n = 0; n < 100; n++) outbox.retryNow();
+    await vi.advanceTimersByTimeAsync(1499);
+    expect(transport).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(transport.mock.calls[1]![1]!.body).toBe(original);
+    await vi.advanceTimersByTimeAsync(8000);
+    expect(transport).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(transport.mock.calls[2]![1]!.body as string)).toMatchObject({
+      eventId: id(101),
+      repetitionCount: 3,
+      firstOccurredAt: 1_000_500,
+      lastOccurredAt: 1_000_500,
+    });
+    expect(JSON.parse(disk.getItem())).toEqual([]);
+    expect(quality.read().counters).toMatchObject({
+      attempted: 103,
+      enqueued: 2,
+      coalesced: 101,
+      acknowledged: 103,
+      retried: 1,
+    });
+  });
+  it('protects queued render/autosave reports from network eviction and counts discarded occurrences', async () => {
+    const disk = storage();
+    const quality = new TelemetryQuality(undefined, { getItem: () => null, setItem() {} });
+    const now = Date.now();
+    disk.setItem(
+      '',
+      JSON.stringify([
+        {
+          ...event(1),
+          code: 'editor_heartbeat',
+          repetitionCount: 7,
+          firstOccurredAt: now,
+          lastOccurredAt: now,
+        },
+        ...Array.from({ length: 49 }, (_, n) => ({ ...event(n + 2), instanceId: id(n + 500) })),
+      ]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(() => new Promise(() => {})),
+    );
+    const outbox = new DiagnosticOutbox(disk, quality);
+    outbox.enqueue({ ...event(100), code: 'request_failed' });
+    outbox.enqueue({ ...event(101), code: 'render_failed' });
+    outbox.enqueue({ ...event(102), code: 'request_slow' });
+    const queued = JSON.parse(disk.getItem());
+    expect(queued).toHaveLength(50);
+    expect(
+      queued.filter((entry: { code: string }) => entry.code === 'autosave_failed'),
+    ).toHaveLength(49);
+    expect(queued.some((entry: { code: string }) => entry.code === 'render_failed')).toBe(true);
+    expect(quality.read().counters).toMatchObject({ evicted: 8, suppressed: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  it('counts expired and permanently rejected aggregate occurrences, while treating malformed stored counts as unknown', async () => {
+    const disk = storage();
+    const quality = new TelemetryQuality(undefined, { getItem: () => null, setItem() {} });
+    const now = Date.now();
+    disk.setItem(
+      '',
+      JSON.stringify([
+        {
+          ...event(1),
+          occurredAt: now - 900_001,
+          repetitionCount: 13,
+          firstOccurredAt: now - 900_001,
+          lastOccurredAt: now - 900_000,
+        },
+        { ...event(2), repetitionCount: 1e30, firstOccurredAt: now, lastOccurredAt: now },
+        { ...event(3), repetitionCount: 2, lastOccurredAt: now },
+        { ...event(4), repetitionCount: 11, firstOccurredAt: now, lastOccurredAt: now },
+      ]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async () => new Response('{}', { status: 400 })),
+    );
+    new DiagnosticOutbox(disk, quality).retryNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(JSON.parse(disk.getItem())).toEqual([]);
+    expect(quality.read().counters).toMatchObject({
+      expired: 13,
+      permanentRejected: 11,
+      invalidStored: 2,
+      acknowledged: 0,
+    });
+  });
+  it('never changes a restored aggregate when new identical failures arrive', async () => {
+    const disk = storage();
+    const now = Date.now();
+    const saved = { ...event(1), repetitionCount: 9, firstOccurredAt: now, lastOccurredAt: now };
+    disk.setItem('', JSON.stringify([saved]));
+    const transport = vi.fn<typeof fetch>(async () => new Response('{}', { status: 503 }));
+    vi.stubGlobal('fetch', transport);
+    const outbox = new DiagnosticOutbox(disk);
+    outbox.enqueue(event(2));
+    outbox.enqueue(event(3));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(JSON.parse(transport.mock.calls[0]![1]!.body as string)).toEqual(saved);
+    expect(JSON.parse(disk.getItem())).toHaveLength(2);
+    expect(JSON.parse(disk.getItem())[1]).toMatchObject({ eventId: id(2), repetitionCount: 2 });
+  });
+  it('persists only bounded request metadata and safe cancelled reads', async () => {
+    const disk = storage();
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    const outbox = new DiagnosticOutbox(disk);
+    const body = {
+      ...event(),
+      code: 'request_cancelled',
+      phase: 'request',
+      method: 'GET',
+      operation: 'auth_me',
+      failureKind: 'cancelled',
+      clientAttemptId: id(7),
+    };
+    outbox.enqueue(body);
+    let n = 2;
+    for (const extra of [
+      { operation: '/api/PRIVATE?token=secret' },
+      { method: 'PRIVATE' },
+      { failureKind: 'PRIVATE' },
+      { clientAttemptId: 'PRIVATE' },
+      { url: 'PRIVATE' },
+      { method: 'PUT' },
+      { failureKind: 'timeout' },
+    ])
+      outbox.enqueue({ ...body, eventId: id(n++), ...extra });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(JSON.parse(disk.getItem())).toEqual([body]);
+    expect(disk.getItem()).not.toMatch(/PRIVATE|token|secret/);
+  });
+  it('retains a safe exception through outage and reload, and drops private nested extras', async () => {
+    const disk = storage();
+    const exception = {
+      kind: 'TypeError',
+      capture: 'window',
+      handling: 'unhandled',
+      frames: [{ script: '/assets/ArduinoCodePanel-1234abcd.js', line: 5, column: 10 }],
+    };
+    const body = { ...event(), code: 'window_error', exception };
+    let status = 503;
+    const transport = vi.fn<typeof fetch>(
+      async () => new Response('{"accepted":true}', { status }),
+    );
+    vi.stubGlobal('fetch', transport);
+    const first = new DiagnosticOutbox(disk);
+    first.enqueue(body);
+    first.enqueue({
+      ...event(2),
+      code: 'window_error',
+      exception: { ...exception, message: 'PRIVATE' },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const original = transport.mock.calls[0]![1]!.body;
+    expect(JSON.parse(String(original)).exception).toEqual(exception);
+    expect(disk.getItem()).not.toContain('PRIVATE');
+    vi.clearAllTimers();
+    status = 202;
+    new DiagnosticOutbox(disk).retryNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport.mock.calls.at(-1)![1]!.body).toBe(original);
+    expect(JSON.parse(disk.getItem())).toEqual([]);
+  });
+  it.each(['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'])(
+    'retains %s through a failed delivery and reload with the same event identity',
+    async (failureCode) => {
+      const port = storage();
+      let status = 503;
+      const transport = vi.fn<typeof fetch>(
+        async () => new Response(JSON.stringify({ accepted: true }), { status }),
+      );
+      vi.stubGlobal('fetch', transport);
+      const first = new DiagnosticOutbox(port);
+      first.enqueue({
+        ...event(),
+        module: 'scratch',
+        phase: 'save',
+        failureCode,
+        httpStatus: 400,
+        durationMs: 1,
+        relatedRequestId: id(8),
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      const original = transport.mock.calls[0]![1]!.body;
+      vi.clearAllTimers(); // Browser reload destroys the old retry timer.
+      status = 202;
+      const restored = new DiagnosticOutbox(port);
+      restored.retryNow();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(transport.mock.calls.at(-1)![1]!.body).toBe(original);
+      expect(JSON.parse(port.getItem())).toEqual([]);
+    },
+  );
+
+  it('rejects restored Scratch save reports with foreign contexts or private extra fields', async () => {
+    const port = storage();
+    port.setItem(
+      'queue',
+      JSON.stringify([
+        { ...event(), module: 'portal', phase: 'save', failureCode: 'scratch-save-asset' },
+        { ...event(2), module: 'scratch', phase: 'runtime', failureCode: 'scratch-save-draft' },
+        {
+          ...event(3),
+          module: 'scratch',
+          phase: 'save',
+          failureCode: 'scratch-save-draft',
+          token: 'secret',
+        },
+      ]),
+    );
+    const transport = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', transport);
+    new DiagnosticOutbox(port).retryNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).not.toHaveBeenCalled();
+    expect(JSON.parse(port.getItem())).toEqual([]);
+  });
   it.each(['read', 'write', 'absent'] as const)(
     'reports %s queue storage failure through healthy anonymous quality and keeps bounded retryable memory',
     async (failure) => {
@@ -96,7 +359,7 @@ describe('bounded diagnostics delivery', () => {
       ).toBe(original);
       expect(quality.read().counters.acknowledged).toBe(1);
       status = 503;
-      for (let n = 2; n <= 62; n++) outbox.enqueue(event(n));
+      for (let n = 2; n <= 62; n++) outbox.enqueue({ ...event(n), instanceId: id(n + 1000) });
       await vi.advanceTimersByTimeAsync(0);
       expect(quality.read().gauges).toEqual({ pending: 50, inFlight: 0 });
       expect(quality.read().counters).toMatchObject({ storageUnavailable: 1, evicted: 11 });
@@ -219,7 +482,7 @@ describe('bounded diagnostics delivery', () => {
     const outbox = new DiagnosticOutbox(disk);
     outbox.enqueue({ ...event(), code: 'editor_heartbeat' });
     await vi.advanceTimersByTimeAsync(0); // The failed flight settled; the queued health report can be evicted.
-    for (let n = 2; n <= 51; n++) outbox.enqueue(event(n));
+    for (let n = 2; n <= 51; n++) outbox.enqueue({ ...event(n), instanceId: id(n + 1000) });
     expect(JSON.parse(disk.getItem())).toHaveLength(50);
     expect(disk.getItem()).not.toContain('editor_heartbeat');
     await vi.advanceTimersByTimeAsync(16 * 60_000);

@@ -5,7 +5,9 @@ import type {
   SchematicDocument,
   Terminal,
 } from '../api';
+import { photoresistorLightSourceId } from '@asa-lab/electronics';
 import { resolveElectricalModelIdentity } from '@asa-lab/electronics/simulation';
+import { newClientId } from '../client-id';
 import {
   catalogEntry,
   componentPointPosition,
@@ -233,7 +235,6 @@ export function updateSelectionVariant(
 export function duplicateComponentInDocument(
   document: SchematicDocument,
   selection: Selection,
-  id: string,
 ): {
   document: SchematicDocument;
   component: SchematicComponent;
@@ -243,14 +244,25 @@ export function duplicateComponentInDocument(
   const selectedIds = new Set(selection.ids);
   const sources = document.components.filter((item) => selectedIds.has(item.id));
   if (sources.length === 0) return null;
+  // Copy identities must not inherit the previous copy's ID: repeated pastes
+  // otherwise exceed the document's 64-character limit.
+  const id = newClientId();
+  const copySuffix = ' — копия';
   const idMap = new Map<string, string>();
   sources.forEach((source, index) => idMap.set(source.id, `${id}-${index + 1}`));
-  const components = sources.map((source) => ({
-    ...source,
-    id: idMap.get(source.id) as string,
-    name: `${source.name ?? source.kind} — копия`,
-    position: { x: source.position.x + 28, y: source.position.y + 28 },
-  }));
+  const components = sources.map((source) => {
+    const lampId = photoresistorLightSourceId(source);
+    const copiedLampId = lampId ? idMap.get(lampId) : undefined;
+    return {
+      ...source,
+      id: idMap.get(source.id) as string,
+      name: `${(source.name ?? source.kind).slice(0, 120 - copySuffix.length)}${copySuffix}`,
+      position: { x: source.position.x + 28, y: source.position.y + 28 },
+      ...(copiedLampId
+        ? { stateProperties: { ...source.stateProperties, lightSourceComponentId: copiedLampId } }
+        : {}),
+    };
+  });
   const connections = document.connections
     .filter(
       (wire) => selectedIds.has(wire.from.componentId) && selectedIds.has(wire.to.componentId),
@@ -279,6 +291,13 @@ export function removeSelectionFromDocument(
   document: SchematicDocument,
   selection: Exclude<Selection, null>,
 ): SchematicDocument {
+  if (selection.kind === 'annotation') {
+    const ids = new Set(selection.ids);
+    const annotations = document.annotations?.filter((item) => !ids.has(item.id));
+    return !annotations || annotations.length === document.annotations?.length
+      ? document
+      : { ...document, schemaVersion: 5, annotations };
+  }
   if (selection.kind === 'wire') {
     return {
       ...document,
@@ -288,7 +307,22 @@ export function removeSelectionFromDocument(
   const ids = new Set(selection.ids);
   return {
     ...document,
-    components: document.components.filter((item) => !ids.has(item.id)),
+    components: document.components
+      .filter((item) => !ids.has(item.id))
+      .map((item) => {
+        const lampId = photoresistorLightSourceId(item);
+        if (lampId && ids.has(lampId)) {
+          const stateProperties = { ...item.stateProperties };
+          delete stateProperties['lightSourceComponentId'];
+          item = { ...item, stateProperties };
+        }
+        if (!item.holeBindings) return item;
+        const retained = Object.entries(item.holeBindings).filter(
+          ([, binding]) => !ids.has(binding.breadboardComponentId),
+        );
+        if (retained.length === Object.keys(item.holeBindings).length) return item;
+        return { ...item, holeBindings: Object.fromEntries(retained) };
+      }),
     connections: document.connections.filter(
       (wire) => !ids.has(wire.from.componentId) && !ids.has(wire.to.componentId),
     ),
@@ -402,7 +436,9 @@ export function updateSelectionState(
               ...item.stateProperties,
               ...(item.kind === 'button'
                 ? { contactState: state ? 'pressed' : 'released' }
-                : { selectedThrow: state ? 'right' : 'left' }),
+                : item.componentTypeId === 'switch-spst'
+                  ? { contactState: state ? 'open' : 'closed' }
+                  : { selectedThrow: state ? 'right' : 'left' }),
             },
           }
         : item,
@@ -1069,21 +1105,29 @@ export function moveComponentInDocument(
 
 export function sceneBounds(
   document: SchematicDocument,
+  includeAnnotations = false,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
   const placed = document.components.filter((component) => catalogEntry(component));
-  if (placed.length === 0) return null;
-  return placed.reduce(
-    (acc, component) => {
-      const entry = catalogEntry(component);
-      if (!entry) return acc;
-      const size = renderedSize(entry, component.rotation ?? 0);
-      return {
-        minX: Math.min(acc.minX, component.position.x),
-        minY: Math.min(acc.minY, component.position.y),
-        maxX: Math.max(acc.maxX, component.position.x + size.width),
-        maxY: Math.max(acc.maxY, component.position.y + size.height),
-      };
-    },
+  const annotations = includeAnnotations ? (document.annotations ?? []) : [];
+  if (placed.length === 0 && annotations.length === 0) return null;
+  const annotationBounds = annotations.reduce(
+    (bounds, annotation) => ({
+      minX: Math.min(bounds.minX, annotation.position.x),
+      minY: Math.min(bounds.minY, annotation.position.y),
+      maxX: Math.max(bounds.maxX, annotation.position.x + annotation.size.width),
+      maxY: Math.max(bounds.maxY, annotation.position.y + annotation.size.height),
+    }),
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
   );
+  return placed.reduce((acc, component) => {
+    const entry = catalogEntry(component);
+    if (!entry) return acc;
+    const size = renderedSize(entry, component.rotation ?? 0);
+    return {
+      minX: Math.min(acc.minX, component.position.x),
+      minY: Math.min(acc.minY, component.position.y),
+      maxX: Math.max(acc.maxX, component.position.x + size.width),
+      maxY: Math.max(acc.maxY, component.position.y + size.height),
+    };
+  }, annotationBounds);
 }

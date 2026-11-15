@@ -1,0 +1,45 @@
+schema_version: 1.0.0
+context: identity
+surfaces:
+  - id: SURF-PROJECT-COLLECTION-PICKER
+    routes: ['#/projects', '#/home']
+    implementation:
+      files:
+        - apps/web/src/components/CollectPicker.tsx
+        - apps/web/src/pages/MyProjectsPage.tsx
+        - apps/web/src/pages/CreatorHomePage.tsx
+        - apps/web/src/modules/useHomeProjectActions.tsx
+        - apps/web/src/components/collect-picker.css
+        - apps/web/src/components/CollectPicker.spec.ts
+        - e2e/project-collections-baseline.spec.ts
+        - e2e/fixtures/project-collections.ts
+    invariants: [IDA-AUTH-001]
+    tests:
+      - TST-COLLECT-PICKER-BROWSER-001
+      - TST-COLLECT-PICKER-FORMAT-001
+      - TST-COLLECT-PICKER-LINT-001
+      - TST-COLLECT-PICKER-UNIT-001
+    local_profile:
+      id: collect-picker-presentation-v1
+      version: 1
+      test_family: apps/web/src/components/CollectPicker
+      test_ids: &picker_tests
+        - TST-COLLECT-PICKER-FORMAT-001
+        - TST-COLLECT-PICKER-LINT-001
+        - TST-COLLECT-PICKER-UNIT-001
+    controls:
+      - id: CTRL-PROJECT-COLLECTION-PICKER-STYLE
+        change_class: L0_LOCAL_UI
+        files: [apps/web/src/components/collect-picker.css]
+        invariants: [IDA-AUTH-001]
+        tests: *picker_tests
+      - id: CTRL-PROJECT-COLLECTION-PICKER-MUTATION
+        change_class: L2_DOMAIN_MUTATION
+        files:
+          - apps/web/src/components/CollectPicker.tsx
+          - apps/web/src/pages/MyProjectsPage.tsx
+          - apps/web/src/pages/CreatorHomePage.tsx
+          - apps/web/src/modules/useHomeProjectActions.tsx
+          - apps/web/src/components/CollectPicker.spec.ts
+        invariants: [IDA-AUTH-001]
+        tests: *picker_tests

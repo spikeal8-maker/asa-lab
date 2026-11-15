@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import type { FastifyRequest, FastifyReply } from 'fastify';
+import { SeatContextUseCase } from './seat-context';
+
+const request = { cookies: {} } as FastifyRequest;
+const reply = { header: () => reply } as unknown as FastifyReply;
 import { createApiModuleRegistry } from './module-registry';
 import { ModulesController } from './modules.controller';
 
 describe('ModulesController', () => {
-  it('returns Electronics, ASA Chess, ASA Checkers and ASA 3D as creatable modules', () => {
-    const controller = new ModulesController(createApiModuleRegistry());
-    const modules = controller.list().items;
+  it('returns implemented environments including Robotics as creatable modules', async () => {
+    const controller = new ModulesController(
+      createApiModuleRegistry(),
+      new SeatContextUseCase(null),
+      null,
+    );
+    const modules = (await controller.list(request, reply)).items;
     expect(modules.find((module) => module.moduleKey === 'electronics')).toMatchObject({
       displayName: 'Электроника',
       defaultProjectTitlePrefix: 'Электрическая цепь',
@@ -48,11 +57,33 @@ describe('ModulesController', () => {
       previewKind: 'scene',
       learningCapabilities: { assignable: true },
     });
+    expect(modules.find((module) => module.moduleKey === 'robotics')).toMatchObject({
+      displayName: 'Виртуальная робототехника',
+      defaultProjectTitlePrefix: 'Проект робототехники',
+      projectType: 'robot-world',
+      schemaVersion: 3,
+      availability: 'active',
+      creatable: true,
+      editorRoute: '/projects/:projectId/robotics',
+      viewerRoute: '/view/projects/:versionId/robotics',
+      safeModeSupported: true,
+      previewKind: 'scene',
+      learningCapabilities: {
+        assignable: false,
+        editableEvidence: false,
+        submitProjectVersion: false,
+        preview: 'none',
+      },
+    });
   });
 
-  it('keeps unimplemented environments visible but not creatable', () => {
-    const controller = new ModulesController(createApiModuleRegistry());
-    const modules = controller.list().items;
+  it('keeps unimplemented environments visible but not creatable', async () => {
+    const controller = new ModulesController(
+      createApiModuleRegistry(),
+      new SeatContextUseCase(null),
+      null,
+    );
+    const modules = (await controller.list(request, reply)).items;
     expect(modules.find((module) => module.moduleKey === 'drawing')).toMatchObject({
       availability: 'coming_soon',
       creatable: false,
@@ -71,7 +102,7 @@ describe('ModulesController', () => {
     );
   });
 
-  it('keeps active game and Scratch project modules out of the learning chooser', () => {
+  it('keeps game, Scratch and Robotics project activation separate from learning support', () => {
     const registry = createApiModuleRegistry();
     expect(
       registry
@@ -86,22 +117,31 @@ describe('ModulesController', () => {
     });
   });
 
-  it.each([undefined, '0', '1'])('keeps Scratch creatable with legacy preview flag %s', (flag) => {
-    const previous = process.env['ASA_BLOCKS_PREVIEW'];
-    if (flag === undefined) delete process.env['ASA_BLOCKS_PREVIEW'];
-    else process.env['ASA_BLOCKS_PREVIEW'] = flag;
-    try {
-      const controller = new ModulesController(createApiModuleRegistry());
-      expect(controller.list().items.find((module) => module.moduleKey === 'blocks')).toMatchObject(
-        {
+  it.each([undefined, '0', '1'])(
+    'keeps Scratch creatable with legacy preview flag %s',
+    async (flag) => {
+      const previous = process.env['ASA_BLOCKS_PREVIEW'];
+      if (flag === undefined) delete process.env['ASA_BLOCKS_PREVIEW'];
+      else process.env['ASA_BLOCKS_PREVIEW'] = flag;
+      try {
+        const controller = new ModulesController(
+          createApiModuleRegistry(),
+          new SeatContextUseCase(null),
+          null,
+        );
+        expect(
+          (await controller.list(request, reply)).items.find(
+            (module) => module.moduleKey === 'blocks',
+          ),
+        ).toMatchObject({
           displayName: 'Scratch',
           availability: 'active',
           creatable: true,
-        },
-      );
-    } finally {
-      if (previous === undefined) delete process.env['ASA_BLOCKS_PREVIEW'];
-      else process.env['ASA_BLOCKS_PREVIEW'] = previous;
-    }
-  });
+        });
+      } finally {
+        if (previous === undefined) delete process.env['ASA_BLOCKS_PREVIEW'];
+        else process.env['ASA_BLOCKS_PREVIEW'] = previous;
+      }
+    },
+  );
 });

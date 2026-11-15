@@ -9,6 +9,9 @@ reports
 pnpm-lock.yaml
 *.tsbuildinfo
 
+# Original Scratch library bytes: formatting would change the MD5 asset identity.
+apps/api/src/testing/fixtures/scratch-library/1e2c3987e4cdb1f317b1773662719b13.svg
+
 # Markdown and prose docs are governed separately (not part of the code format
 # gate); the architecture/governance docs predate this workspace.
 **/*.md

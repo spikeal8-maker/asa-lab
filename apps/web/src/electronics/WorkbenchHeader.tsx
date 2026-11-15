@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { SimulationSpeedControl } from './SimulationSpeedControl';
 import type { PublicUser } from '../api';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { EditorPersistenceIndicator } from '../components/editor-chrome/EditorPersistenceIndicator';
@@ -22,6 +23,7 @@ import {
   ViewIcon,
   WireIcon,
 } from './workbench-icons';
+import { WorkbenchTooltip } from './WorkbenchTooltip';
 import { WIRE_COLORS, type ToolButtonProps, type WorkbenchView } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
@@ -33,6 +35,7 @@ const WIRE_COLOR_NAMES: Readonly<Record<string, string>> = {
   '#e7a400': 'Жёлтый',
   '#8d45c7': 'Фиолетовый',
 };
+const MIRROR_KEY_HINT = 'Отразить (M)';
 
 function ToolButton({
   label,
@@ -42,7 +45,15 @@ function ToolButton({
   onClick,
   children,
   touchCommand = false,
-}: ToolButtonProps & { touchCommand?: boolean }): JSX.Element {
+  className,
+  title = label,
+  'aria-label': ariaLabel = label,
+}: ToolButtonProps & {
+  touchCommand?: boolean;
+  className?: string;
+  title?: string;
+  'aria-label'?: string;
+}): JSX.Element {
   const tap = useRef<{ id: number; x: number; y: number } | null>(null);
   const suppressTouchClick = useRef(false);
   useEffect(() => {
@@ -65,9 +76,9 @@ function ToolButton({
   return (
     <button
       type="button"
-      className={`workbench-tool${active ? ' active' : ''}${danger ? ' danger' : ''}`}
-      aria-label={label}
-      title={label}
+      className={className ?? `workbench-tool${active ? ' active' : ''}${danger ? ' danger' : ''}`}
+      aria-label={ariaLabel}
+      data-workbench-tooltip={title}
       disabled={disabled}
       onPointerDown={(event) => {
         suppressTouchClick.current = false;
@@ -138,6 +149,36 @@ function formatSimulationTime(totalSeconds: number): string {
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
+function SimulationClock({
+  port,
+  controller,
+}: {
+  readonly port: ElectronicsWorkbenchController['nativeOpticalPresentation'];
+  readonly controller: ElectronicsWorkbenchController;
+}) {
+  const microseconds = useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock);
+  const clock = (
+    <span
+      className="workbench-simulation-time"
+      aria-label="Время моделирования"
+      data-time-ms={microseconds / 1000}
+    >
+      <span className="workbench-simulation-time-prefix">Время моделирования: </span>
+      {formatSimulationTime(microseconds / 1_000_000)}
+    </span>
+  );
+  return controller.simulationPacing ? (
+    <SimulationSpeedControl
+      pacing={controller.simulationPacing}
+      onChange={controller.setSimulationRate}
+    >
+      {clock}
+    </SimulationSpeedControl>
+  ) : (
+    clock
+  );
+}
+
 export function WorkbenchHeader({
   controller: c,
   onBack,
@@ -166,7 +207,7 @@ export function WorkbenchHeader({
   onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
-  const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const avatar = useEditorAvatar(user);
 
   return (
@@ -235,119 +276,17 @@ export function WorkbenchHeader({
         </nav>
       </header>
       <div
+        ref={toolbarRef}
         className={`workbench-toolbar ${view}`}
         role="toolbar"
         aria-label="Инструменты редактора"
       >
         {view === 'breadboard' ? (
-          <div className="workbench-toolbar-group workbench-breadboard-tools">
-            <ToolButton
-              label="Копировать (Ctrl+C)"
-              onClick={c.copySelected}
-              disabled={!hasComponentSelection}
-            >
-              <DuplicateIcon />
-            </ToolButton>
-            <ToolButton
-              label="Вставить (Ctrl+V)"
-              onClick={c.pasteCopied}
-              disabled={!c.hasClipboard}
-            >
-              <PasteIcon />
-            </ToolButton>
-            <ToolButton
-              label="Удалить (Delete)"
-              onClick={c.removeSelection}
-              disabled={!c.selection}
-              danger
-            >
-              <DeleteIcon />
-            </ToolButton>
-            <span className="workbench-toolbar-divider" />
-            <ToolButton
-              label="Отменить (Ctrl+Z)"
-              touchCommand
-              onClick={c.undo}
-              disabled={!c.canUndo}
-            >
-              <UndoIcon />
-            </ToolButton>
-            <ToolButton
-              label="Повторить (Ctrl+Shift+Z)"
-              touchCommand
-              onClick={c.redo}
-              disabled={!c.canRedo}
-            >
-              <RedoIcon />
-            </ToolButton>
-            <span className="workbench-toolbar-divider" />
-            <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
-              <CommentIcon />
-            </ToolButton>
-            <ToolButton
-              label="Показать или скрыть заметки"
-              active={notesOpen}
-              onClick={onToggleNotes}
-            >
-              <ViewIcon />
-            </ToolButton>
-            <span className="workbench-toolbar-gap small" />
-            <details className="workbench-wire-color" ref={wireColorMenuRef}>
-              <summary aria-label="Цвет провода" title="Цвет провода">
-                <span style={{ background: c.activeWireColor }} />
-                <ChevronIcon />
-              </summary>
-              <div className="workbench-wire-color-menu" role="menu" aria-label="Цвет провода">
-                {WIRE_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={c.activeWireColor === color}
-                    className={c.activeWireColor === color ? 'active' : ''}
-                    onClick={() => {
-                      c.setWireColor(color);
-                      wireColorMenuRef.current?.removeAttribute('open');
-                    }}
-                    aria-label={`Цвет провода: ${WIRE_COLOR_NAMES[color]}`}
-                    title={WIRE_COLOR_NAMES[color]}
-                  >
-                    <span style={{ background: color }} />
-                  </button>
-                ))}
-              </div>
-            </details>
-            <span className="workbench-toolbar-gap small" />
-            <button
-              type="button"
-              className={`workbench-wire-style${c.orthogonalWireMode ? ' active' : ''}`}
-              aria-label="Автоматическая прокладка провода под 90 градусов"
-              aria-pressed={c.orthogonalWireMode}
-              title={
-                c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
-              }
-              onClick={c.toggleWireRoute}
-              style={{ color: c.activeWireColor }}
-            >
-              <WireIcon />
-              <ChevronIcon />
-            </button>
-            <span className="workbench-toolbar-gap rotate" />
-            <ToolButton
-              label="Повернуть на 45° (R)"
-              onClick={c.rotateSelected}
-              disabled={!hasComponentSelection}
-            >
-              <RotateIcon />
-            </ToolButton>
-            <ToolButton
-              label="Отразить"
-              onClick={() => c.mirrorSelected('horizontal')}
-              disabled={!hasComponentSelection}
-            >
-              <MirrorIcon />
-            </ToolButton>
-          </div>
+          <WorkbenchEditingTools
+            controller={c}
+            notesOpen={notesOpen}
+            onToggleNotes={onToggleNotes}
+          />
         ) : (
           <div className="workbench-toolbar-group workbench-view-tools">
             <strong>{view === 'schematic' ? 'Схема' : 'Список компонентов'}</strong>
@@ -362,6 +301,7 @@ export function WorkbenchHeader({
                 </ToolButton>
                 <ToolButton
                   label="Отразить"
+                  title={MIRROR_KEY_HINT}
                   onClick={() => c.mirrorSelected('horizontal')}
                   disabled={!hasComponentSelection}
                 >
@@ -379,9 +319,7 @@ export function WorkbenchHeader({
           </div>
         )}
         {c.simulationRunning ? (
-          <span className="workbench-simulation-time" aria-label="Время моделирования">
-            Время моделирования: {formatSimulationTime(c.committedSimulationTimeMs / 1000)}
-          </span>
+          <SimulationClock port={c.nativeOpticalPresentation} controller={c} />
         ) : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
@@ -391,7 +329,7 @@ export function WorkbenchHeader({
               className="workbench-pill emergency-copy"
               onClick={c.exportEmergencyCopy}
               aria-label="Получить аварийную копию проекта"
-              title="Скачать всю схему и скетчи Arduino в JSON"
+              data-workbench-tooltip="Скачать схему и код в JSON"
             >
               Копия JSON
             </button>
@@ -400,7 +338,7 @@ export function WorkbenchHeader({
             type="button"
             className="workbench-mobile-library-toggle"
             aria-label="Каталог деталей"
-            title="Каталог деталей"
+            data-workbench-tooltip="Каталог деталей"
             aria-pressed={c.libraryOpen && !codeOpen}
             onClick={onToggleLibrary}
           >
@@ -409,22 +347,12 @@ export function WorkbenchHeader({
           <button
             type="button"
             className={`workbench-pill code${codeOpen ? ' active' : ''}`}
-            title={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
+            data-workbench-tooltip={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
             aria-label={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
             aria-pressed={codeOpen}
             onClick={onToggleCode}
           >
             <CodeIcon /> Код
-          </button>
-          <button
-            type="button"
-            className="workbench-pill save"
-            aria-label="Сохранить проект"
-            title="Сохранить проект сейчас"
-            onClick={() => void c.saveNow()}
-            disabled={c.busy || c.saveStatus === 'saved' || c.saveStatus === 'saving'}
-          >
-            <SaveIcon /> Сохранить
           </button>
           <button
             type="button"
@@ -434,17 +362,28 @@ export function WorkbenchHeader({
             data-simulation-status={c.simulationStatus}
             aria-pressed={c.simulationRunning}
             aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
-            title={
+            data-workbench-tooltip={`${
               c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'
-            }
+            } (Ctrl/⌘+Enter)`}
           >
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
             {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
           </button>
+          <ToolButton
+            className="workbench-pill save"
+            label="Сохранить проект"
+            aria-label="Сохранить проект"
+            title="Сохранить проект сейчас"
+            touchCommand
+            onClick={() => void c.saveNow()}
+            disabled={c.busy || c.saveStatus === 'saved' || c.saveStatus === 'saving'}
+          >
+            <SaveIcon /> Сохранить
+          </ToolButton>
           <button
             type="button"
             className="workbench-pill"
-            title="Публикация и совместный доступ пока недоступны в локальной версии"
+            data-workbench-tooltip="Общий доступ пока недоступен"
             aria-label="Отправить — пока недоступно"
             aria-disabled="true"
             disabled
@@ -454,6 +393,7 @@ export function WorkbenchHeader({
           </button>
         </div>
       </div>
+      <WorkbenchTooltip root={toolbarRef} />
       {c.simulationMessage ? (
         <div
           className="workbench-simulation-message"
@@ -466,5 +406,135 @@ export function WorkbenchHeader({
         </div>
       ) : null}
     </>
+  );
+}
+
+/** Native edit actions shared by Electronics and Robotics; both use the same tool definitions. */
+export function WorkbenchEditingTools({
+  controller: c,
+  notesOpen = false,
+  onToggleNotes = () => undefined,
+  showNotes = true,
+}: {
+  controller: ElectronicsWorkbenchController;
+  notesOpen?: boolean;
+  onToggleNotes?: () => void;
+  showNotes?: boolean;
+}): JSX.Element {
+  const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
+  const hasComponentSelection = c.selection?.kind === 'component';
+  return (
+    <div className="workbench-toolbar-group workbench-breadboard-tools">
+      <ToolButton
+        label="Копировать (Ctrl+C)"
+        onClick={c.copySelected}
+        disabled={!hasComponentSelection && c.selection?.kind !== 'annotation'}
+      >
+        <DuplicateIcon />
+      </ToolButton>
+      <ToolButton
+        label="Дублировать"
+        onClick={c.duplicateSelected}
+        disabled={!hasComponentSelection && c.selection?.kind !== 'annotation'}
+      >
+        <DuplicateIcon />
+      </ToolButton>
+      <ToolButton label="Вставить (Ctrl+V)" onClick={c.pasteCopied} disabled={!c.hasClipboard}>
+        <PasteIcon />
+      </ToolButton>
+      <ToolButton
+        label="Удалить (Delete)"
+        onClick={c.removeSelection}
+        disabled={!c.selection}
+        danger
+      >
+        <DeleteIcon />
+      </ToolButton>
+      <span className="workbench-toolbar-divider" />
+      <ToolButton label="Отменить (Ctrl+Z)" touchCommand onClick={c.undo} disabled={!c.canUndo}>
+        <UndoIcon />
+      </ToolButton>
+      <ToolButton
+        label="Повторить (Ctrl+Shift+Z)"
+        touchCommand
+        onClick={c.redo}
+        disabled={!c.canRedo}
+      >
+        <RedoIcon />
+      </ToolButton>
+      <span className="workbench-toolbar-divider" />
+      {showNotes ? (
+        <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
+          <CommentIcon />
+        </ToolButton>
+      ) : null}
+      <ToolButton label="Добавить текст на схему" onClick={c.addCanvasText} disabled={!c.document}>
+        <span aria-hidden="true" className="workbench-text-icon">
+          T
+        </span>
+      </ToolButton>
+      {showNotes ? (
+        <ToolButton label="Показать или скрыть заметки" active={notesOpen} onClick={onToggleNotes}>
+          <ViewIcon />
+        </ToolButton>
+      ) : null}
+      <span className="workbench-toolbar-gap small" />
+      <details className="workbench-wire-color" ref={wireColorMenuRef}>
+        <summary aria-label="Цвет провода" data-workbench-tooltip="Цвет провода">
+          <span style={{ background: c.activeWireColor }} />
+          <ChevronIcon />
+        </summary>
+        <div className="workbench-wire-color-menu" role="menu" aria-label="Цвет провода">
+          {WIRE_COLORS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              role="menuitemradio"
+              aria-checked={c.activeWireColor === color}
+              className={c.activeWireColor === color ? 'active' : ''}
+              onClick={() => {
+                c.setWireColor(color);
+                wireColorMenuRef.current?.removeAttribute('open');
+              }}
+              aria-label={`Цвет провода: ${WIRE_COLOR_NAMES[color]}`}
+              data-workbench-tooltip={WIRE_COLOR_NAMES[color]}
+            >
+              <span style={{ background: color }} />
+            </button>
+          ))}
+        </div>
+      </details>
+      <span className="workbench-toolbar-gap small" />
+      <button
+        type="button"
+        className={`workbench-wire-style${c.orthogonalWireMode ? ' active' : ''}`}
+        aria-label="Автоматическая прокладка провода под 90 градусов"
+        aria-pressed={c.orthogonalWireMode}
+        data-workbench-tooltip={
+          c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
+        }
+        onClick={c.toggleWireRoute}
+        style={{ color: c.activeWireColor }}
+      >
+        <WireIcon />
+        <ChevronIcon />
+      </button>
+      <span className="workbench-toolbar-gap rotate" />
+      <ToolButton
+        label="Повернуть на 45° (R)"
+        onClick={c.rotateSelected}
+        disabled={!hasComponentSelection}
+      >
+        <RotateIcon />
+      </ToolButton>
+      <ToolButton
+        label="Отразить"
+        title={MIRROR_KEY_HINT}
+        onClick={() => c.mirrorSelected('horizontal')}
+        disabled={!hasComponentSelection}
+      >
+        <MirrorIcon />
+      </ToolButton>
+    </div>
   );
 }

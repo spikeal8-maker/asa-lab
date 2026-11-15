@@ -56,10 +56,295 @@ function controller(
     query,
     connect: vi.fn(async () => ({ query, release: vi.fn() })),
   } as unknown as pg.Pool;
-  return { value: new CoursesController(activeContext, accounts, pool), query };
+  return { value: new CoursesController(activeContext, accounts, pool), query, accounts };
 }
 
+describe('structured course prepublication diagnostics', () => {
+  it('reads usage through the actor-scoped readers and returns only delivery metadata', async () => {
+    const target = controller([
+      {
+        run_id: RUN_ID,
+        classroom_id: CLASSROOM_ID,
+        classroom_title: 'Class A',
+        classroom_status: 'active',
+        course_version_id: VERSION_ID,
+        version_number: '2',
+        run_title: 'Pinned v2',
+        run_status: 'closed',
+        audience_type: 'named_learners',
+        members: [{ label: 'must not leave server' }],
+        submitted_count: 42,
+      },
+    ]);
+    await expect(target.value.usage(request(), COURSE_ID)).resolves.toEqual({
+      items: [
+        {
+          id: RUN_ID,
+          classroomId: CLASSROOM_ID,
+          classroomTitle: 'Class A',
+          classroomStatus: 'active',
+          courseVersionId: VERSION_ID,
+          versionNumber: 2,
+          title: 'Pinned v2',
+          status: 'closed',
+          audienceType: 'named_learners',
+        },
+      ],
+    });
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('course_library_list_v3($1)'),
+      ['principal-id', 'account-id', COURSE_ID],
+    );
+    expect(target.query.mock.calls[0]?.[0]).toContain(
+      'classroom_course_runs_for_teacher_v2($2,classroom.id)',
+    );
+  });
+
+  it('distinguishes unused owned courses from inaccessible IDs without exposing counts', async () => {
+    const authorOnly = controller([{ run_id: null }]);
+    vi.mocked(authorOnly.accounts.capabilities).mockResolvedValue([
+      { capability: 'content_author', state: 'verified' },
+    ] as Awaited<ReturnType<AccountDirectoryPort['capabilities']>>);
+    await expect(authorOnly.value.usage(request(), COURSE_ID)).resolves.toEqual({ items: [] });
+    expect(authorOnly.query).toHaveBeenCalledWith(expect.any(String), [
+      'principal-id',
+      null,
+      COURSE_ID,
+    ]);
+    await expect(controller([]).value.usage(request(), COURSE_ID)).rejects.toMatchObject({
+      status: 404,
+    });
+    const target = controller();
+    await expect(target.value.usage(request(), 'not-a-uuid')).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(target.query).not.toHaveBeenCalled();
+  });
+
+  it('returns the exact second block and field without another read or parsing the display path', async () => {
+    const target = controller([
+      {
+        result_code: 'prepublish_invalid',
+        version_id: null,
+        version_number: null,
+        published_at: null,
+        reused: false,
+        problem_kind: 'lesson',
+        problem_id: LESSON_ID,
+        problem_path: 'Произвольный заголовок раздела → урока',
+        problem_message: 'Выберите доступную практику.',
+        problem_section_id: SECTION_ID,
+        problem_lesson_id: LESSON_ID,
+        problem_block_id: 'second-practice',
+        problem_field: 'learningActivityVersionId',
+        problem_reason: 'pin_unavailable',
+      },
+    ]);
+    await expect(
+      target.value.publish(request(), COURSE_ID, {
+        expectedRevision: 7,
+        requestId: 'diagnostic:test:0001',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        error: {
+          code: 'prepublish_invalid',
+          diagnostic: {
+            courseId: COURSE_ID,
+            draftRevision: 7,
+            sectionId: SECTION_ID,
+            lessonId: LESSON_ID,
+            blockId: 'second-practice',
+            field: 'learningActivityVersionId',
+            reason: 'pin_unavailable',
+            path: 'Произвольный заголовок раздела → урока',
+            message: 'Выберите доступную практику.',
+          },
+        },
+      },
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_publish_v4'), [
+      'principal-id',
+      COURSE_ID,
+      7,
+      'diagnostic:test:0001',
+    ]);
+  });
+
+  it('never exposes a diagnostic from an unavailable course', async () => {
+    const target = controller([
+      {
+        result_code: 'course_not_found',
+        problem_section_id: SECTION_ID,
+        problem_lesson_id: LESSON_ID,
+        problem_block_id: 'foreign-block',
+      },
+    ]);
+    const denied = target.value.publish(request(), COURSE_ID, {
+      expectedRevision: 7,
+      requestId: 'diagnostic:test:0002',
+    });
+    await expect(denied).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(denied).rejects.toHaveProperty('response', {
+      error: { code: 'course_not_found', message: 'Курс не найден.' },
+    });
+  });
+});
+
 describe('course outline API', () => {
+  it('returns exact published dependency descriptors beside the untouched historical outline', async () => {
+    const outline = { course: { title: 'Immutable V1' }, sections: [] };
+    const pins = [
+      {
+        pointer: '/sections/0/lessons/0/assignment',
+        pinKind: 'project',
+        available: false,
+        activityId: null,
+        versionId: null,
+        versionNumber: null,
+        title: null,
+        instructions: null,
+        goal: null,
+        goalSnapshotPresent: null,
+        blocks: null,
+        blocksSnapshotPresent: null,
+        moduleKey: null,
+        resultMode: null,
+        maxPoints: null,
+        policySnapshot: null,
+        contentDigest: null,
+      },
+    ];
+    const target = controller([
+      {
+        id: VERSION_ID,
+        version_number: '1',
+        outline,
+        published_at: new Date('2026-10-20T00:00:00Z'),
+        pinned_activities: pins,
+      },
+    ]);
+    await expect(target.value.versions(request(), COURSE_ID)).resolves.toEqual({
+      items: [
+        {
+          id: VERSION_ID,
+          versionNumber: 1,
+          outline,
+          publishedAt: '2026-10-20T00:00:00.000Z',
+          pinnedActivities: pins,
+        },
+      ],
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('course_author_version_pins($1,$2,history.id)'),
+      ['principal-id', COURSE_ID],
+    );
+  });
+
+  it.each(['create', 'update'] as const)(
+    'returns the exact course %s revision from the guarded save receipt',
+    async (action) => {
+      const target = controller([{ result_code: 'ok', id: COURSE_ID, draft_revision: '8' }]);
+      const input = {
+        title: 'Saved metadata',
+        summary: 'Saved description',
+        expectedRevision: 7,
+        requestId: 'course-metadata-save-0001',
+      };
+      const result =
+        action === 'create'
+          ? target.value.create(request(), input)
+          : target.value.update(request(), COURSE_ID, input);
+      await expect(result).resolves.toEqual({ id: COURSE_ID, draftRevision: 8 });
+      expect(target.query).toHaveBeenCalledTimes(1);
+      expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_save_v2'), [
+        'principal-id',
+        'tenant-id',
+        action === 'create' ? null : COURSE_ID,
+        input.title,
+        input.summary,
+        null,
+        null,
+        7,
+        input.requestId,
+      ]);
+    },
+  );
+
+  it.each([undefined, null, 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'does not acknowledge a course save with invalid revision %s',
+    async (draftRevision) => {
+      const target = controller([
+        { result_code: 'ok', id: COURSE_ID, draft_revision: draftRevision },
+      ]);
+      await expect(
+        target.value.update(request(), COURSE_ID, {
+          title: 'Saved metadata',
+          summary: null,
+          expectedRevision: 7,
+          requestId: 'course-metadata-save-0002',
+        }),
+      ).rejects.toMatchObject({
+        status: 503,
+        response: { error: { code: 'draft_revision_missing' } },
+      });
+      expect(target.query).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['create', 'update'] as const)(
+    'returns the section %s revision before committing its locked mutation',
+    async (action) => {
+      const target = controller([{ id: SECTION_ID }]);
+      const input = { title: 'Saved section', summary: 'Saved description', expectedRevision: 1 };
+      const result =
+        action === 'create'
+          ? target.value.createSection(request(), COURSE_ID, input)
+          : target.value.updateSection(request(), COURSE_ID, SECTION_ID, input);
+      await expect(result).resolves.toEqual({ id: SECTION_ID, draftRevision: 3 });
+      expect(target.query.mock.calls.map(([sql]) => sql)).toEqual([
+        'BEGIN',
+        'SELECT course_draft_lock($1,$2,$3) AS ok',
+        expect.stringContaining('course_section_save'),
+        'SELECT course_draft_revision($1,$2) AS draft_revision',
+        'COMMIT',
+      ]);
+    },
+  );
+
+  it('rolls back a section save when its exact revision receipt is missing', async () => {
+    const target = controller();
+    target.query.mockImplementation(async (sql) => ({
+      rows: sql.includes('course_draft_lock')
+        ? [{ ok: true }]
+        : sql.includes('course_section_save')
+          ? [{ id: SECTION_ID }]
+          : [],
+    }));
+    await expect(
+      target.value.createSection(request(), COURSE_ID, {
+        title: 'Saved section',
+        summary: null,
+        expectedRevision: 1,
+      }),
+    ).rejects.toMatchObject({
+      status: 503,
+      response: { error: { code: 'draft_revision_missing' } },
+    });
+    expect(target.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      'SELECT course_draft_lock($1,$2,$3) AS ok',
+      expect.stringContaining('course_section_save'),
+      'SELECT course_draft_revision($1,$2) AS draft_revision',
+      'ROLLBACK',
+    ]);
+  });
+
   it('copies only an explicitly viewed release and returns its durable replay receipt', async () => {
     const target = controller([
       {
@@ -345,6 +630,87 @@ describe('course outline API', () => {
       expect.stringContaining('classroom_course_run_assign'),
       ['principal-id', CLASSROOM_ID, COURSE_ID, '2026-09-01T12:00:00.000Z'],
     );
+  });
+
+  it('returns an exact assignment receipt after the course was archived without a separate state read', async () => {
+    const target = controller();
+    target.query.mockImplementation(async (sql) => ({
+      rows: sql.includes('course_library_list')
+        ? [{ archived_at: '2026-10-20T10:00:00.000Z' }]
+        : [{ result_code: 'ok', run_id: RUN_ID, version_number: 3, reused: true }],
+    }));
+
+    await expect(
+      target.value.assignCourseToClassroom(request(), CLASSROOM_ID, {
+        courseId: COURSE_ID,
+        dueAt: null,
+        versionNumber: 3,
+        audienceType: 'whole_class',
+        seatIds: [],
+        requestId: 'archive-replay-0001',
+        timeZone: 'Europe/Moscow',
+      }),
+    ).resolves.toEqual({ runId: RUN_ID, versionNumber: 3, reused: true });
+    expect(target.query).toHaveBeenCalledTimes(1);
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('classroom_course_run_assign_v4'),
+      [
+        'principal-id',
+        CLASSROOM_ID,
+        COURSE_ID,
+        null,
+        3,
+        'whole_class',
+        [],
+        'archive-replay-0001',
+        'Europe/Moscow',
+      ],
+    );
+  });
+
+  it.each(['legacy', 'canonical', 'with_timezone'] as const)(
+    'shows the atomic archive refusal for a %s assignment',
+    async (mode) => {
+      const target = controller([
+        { result_code: 'course_archived', run_id: null, version_number: null, reused: false },
+      ]);
+      await expect(
+        target.value.assignCourseToClassroom(request(), CLASSROOM_ID, {
+          courseId: COURSE_ID,
+          ...(mode === 'legacy'
+            ? {}
+            : {
+                versionNumber: 1,
+                audienceType: 'whole_class',
+                seatIds: [],
+                requestId: 'archive-new-command',
+              }),
+          ...(mode === 'with_timezone' ? { timeZone: 'Europe/Moscow' } : {}),
+        }),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: {
+          error: {
+            code: 'course_archived',
+            message: 'Восстановите курс из архива перед назначением.',
+          },
+        },
+      });
+      expect(target.query).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not reveal a foreign course when the assignment transaction denies it', async () => {
+    const target = controller([
+      { result_code: 'course_not_found', run_id: null, version_number: null, reused: false },
+    ]);
+    await expect(
+      target.value.assignCourseToClassroom(request(), CLASSROOM_ID, { courseId: COURSE_ID }),
+    ).rejects.toMatchObject({
+      status: 404,
+      response: { error: { code: 'course_not_found', message: 'Курс не найден.' } },
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
   });
 
   it('groups lessons by section and keeps an empty section visible', async () => {

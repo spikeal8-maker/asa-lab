@@ -1,4 +1,4 @@
-import type { Terminal } from './document.js';
+import type { SchematicComponent, Terminal } from './document.js';
 
 export type SpdtThrow = 'left' | 'right';
 
@@ -35,4 +35,22 @@ export function spdtConnections(selected: SpdtThrow): readonly (readonly [Termin
 
 export function spdtSelectedTerminal(state: boolean | undefined): Terminal {
   return spdtConnections(spdtThrowFromState(state))[0]?.[1] ?? 'throw-left';
+}
+
+/** Production SPDT always conducts; SPST closes only in the left position.
+ * Keep the historical two-terminal generic switch (true = closed) unchanged.
+ */
+export function switchContactClosed(component: SchematicComponent): boolean {
+  return component.componentTypeId === 'switch-spst'
+    ? component.state !== true
+    : component.componentTypeId
+      ? true
+      : component.state === true;
+}
+
+/** The open SPST still exposes the same left physical terminal. */
+export function switchSelectedTerminal(component?: SchematicComponent | null): Terminal {
+  return component?.componentTypeId === 'switch-spst'
+    ? 'throw-left'
+    : spdtSelectedTerminal(component?.state);
 }

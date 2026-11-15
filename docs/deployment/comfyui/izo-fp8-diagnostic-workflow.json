@@ -1,0 +1,111 @@
+{
+  "FK:155": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "FK:153": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader"
+  },
+  "FK:165": {
+    "inputs": {
+      "unet_name": "flux-2-klein-4b-fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader"
+  },
+  "FK:166": {
+    "inputs": {
+      "text": "A blue ceramic vase on a wooden table, soft daylight",
+      "clip": [
+        "FK:155",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "FK:156": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "FK:155",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "FK:169": {
+    "inputs": {
+      "shift": 3.0,
+      "model": [
+        "FK:165",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow"
+  },
+  "FK:170": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage"
+  },
+  "FK:171": {
+    "inputs": {
+      "seed": 42,
+      "steps": 4,
+      "cfg": 1.0,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": [
+        "FK:169",
+        0
+      ],
+      "positive": [
+        "FK:166",
+        0
+      ],
+      "negative": [
+        "FK:156",
+        0
+      ],
+      "latent_image": [
+        "FK:170",
+        0
+      ]
+    },
+    "class_type": "KSampler"
+  },
+  "FK:152": {
+    "inputs": {
+      "samples": [
+        "FK:171",
+        0
+      ],
+      "vae": [
+        "FK:153",
+        0
+      ]
+    },
+    "class_type": "VAEDecode"
+  },
+  "FK:86": {
+    "inputs": {
+      "filename_prefix": "diagnostics/portable-3060-test",
+      "images": [
+        "FK:152",
+        0
+      ]
+    },
+    "class_type": "SaveImage"
+  }
+}

@@ -8,6 +8,8 @@ import {
   canonicalProjectionKey,
 } from './learning-canonical-projection.service.js';
 
+type CanonicalProjections = Map<string, CanonicalLearningProjection>;
+
 export type WorkRow = {
   projectId: string;
   seatId: string;
@@ -140,11 +142,12 @@ export async function learningWorkContextForProject(
   viewerPrincipalId: string,
   projectId: string,
   projectModuleKey: string,
-  projections: Map<string, CanonicalLearningProjection>,
-  asOf = new Date().toISOString(),
+  projections: CanonicalProjections | (() => Promise<CanonicalProjections>),
+  asOf?: string,
   prefetchedOrigin?: readonly { context: WorkRow; evidence: EvidenceRow }[],
   includeSampleImage = true,
 ): Promise<LearningWorkContext> {
+  let contextAsOf = asOf ?? new Date().toISOString();
   const origin =
     prefetchedOrigin === undefined
       ? await pool.query<{ context: WorkRow; evidence: EvidenceRow }>(
@@ -160,7 +163,11 @@ export async function learningWorkContextForProject(
   if (immutableOrigin) {
     row = origin.rows[0]!.context;
     try {
-      projection = canonicalProjectionFromEvidence(origin.rows[0]!.evidence, projectId, asOf);
+      projection = canonicalProjectionFromEvidence(
+        origin.rows[0]!.evidence,
+        projectId,
+        contextAsOf,
+      );
     } catch {
       return { state: 'unavailable', projectId };
     }
@@ -221,7 +228,14 @@ export async function learningWorkContextForProject(
         legacyReworkSupported = readable && proof.rows[0]?.proof?.submitAllowed === true;
       }
       if (!readable) return { state: 'denied', projectId };
-      projection = projections.get(canonicalProjectionKey(row.seatId, row.classroomAssignmentId));
+      const resolvedProjections =
+        typeof projections === 'function' ? await projections() : projections;
+      // Unpinned action eligibility uses the time after the canonical read.
+      if (typeof projections === 'function' && asOf === undefined)
+        contextAsOf = new Date().toISOString();
+      projection = resolvedProjections.get(
+        canonicalProjectionKey(row.seatId, row.classroomAssignmentId),
+      );
     } else {
       const exists = await pool.query<{ linked: boolean }>(
         'SELECT learning_work_project_origin_exists($1, $2) AS linked',
@@ -277,7 +291,7 @@ export async function learningWorkContextForProject(
     sampleImage = sample.rows[0]?.sample_image ?? null;
   }
 
-  const canAct = timeAllowsAction(row, asOf);
+  const canAct = timeAllowsAction(row, contextAsOf);
   const workflow = projection.surface.workflowState;
   let archiveBucket: 'active' | 'completed' | 'learning_archive' | null = null;
   if (immutableOrigin) {

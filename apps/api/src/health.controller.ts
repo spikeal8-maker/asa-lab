@@ -4,6 +4,7 @@ import type pg from 'pg';
 import type { RuntimeMetrics, RuntimeMetricsSnapshot } from '@asa-lab/observability';
 import { runtimeBuildMetadata } from './build-metadata.js';
 import { TOKENS } from './tokens.js';
+import { validateCredentialConfiguration } from './credential-configuration.cjs';
 
 const READINESS_TIMEOUT_MS = 1500;
 /**
@@ -19,7 +20,7 @@ type DatabaseState = 'up' | 'busy' | 'down';
 
 export interface ReadinessBody {
   status: 'ready' | 'not_ready';
-  dependencies: { database: DatabaseState };
+  dependencies: { database: DatabaseState; credentialConfiguration: 'valid' | 'invalid' };
   deployment: {
     readonly revision: string;
     readonly builtAt: string | null;
@@ -49,17 +50,26 @@ export class HealthController {
 
   @Get('ready')
   async ready(@Res({ passthrough: true }) reply: FastifyReply): Promise<ReadinessBody> {
+    let credentialConfiguration: 'valid' | 'invalid' = 'valid';
+    try {
+      validateCredentialConfiguration();
+    } catch {
+      // Only global configuration affects readiness. Never expose secret values,
+      // key IDs or row-level credential failures through this public probe.
+      credentialConfiguration = 'invalid';
+    }
     const probe = await this.probeDatabase();
     const build = runtimeBuildMetadata();
     const synchronized =
       build.expectedSchemaVersion === null || probe.schemaVersion === null
         ? null
         : build.expectedSchemaVersion === probe.schemaVersion;
-    const ready = probe.database !== 'down' && synchronized !== false;
+    const ready =
+      probe.database !== 'down' && synchronized !== false && credentialConfiguration === 'valid';
     reply.code(ready ? 200 : 503);
     return {
       status: ready ? 'ready' : 'not_ready',
-      dependencies: { database: probe.database },
+      dependencies: { database: probe.database, credentialConfiguration },
       deployment: {
         revision: build.revision,
         builtAt: build.builtAt,

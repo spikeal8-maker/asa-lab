@@ -1,5 +1,76 @@
 # Админ → Логи: критический разбор и контракт
 
+## Пункт 1: свежие журналы и сохранность ресурсных замеров (23 октября 2026)
+
+- Каждый checkpoint проверяет SHA-256 **фактических сжатых байтов** всех активных
+  сегментов и текущие пары sequence/ID частного индекса. Повторная распаковка
+  неизменной истории заменена подписанной локальной квитанцией: она связывает
+  эти доказательства с вычисленными из содержимого метаданными. Изменение файла,
+  индекса или подделка квитанции требуют полной проверки сегмента. Размер,
+  время изменения и file ID не являются доказательством целостности.
+- Ключ квитанций `.asa/diagnostics/private/segment-verification.key` локален
+  и не относится к входу пользователей. При сохранённом checksum в descriptor
+  catalog или `state.segments` потеря ключа приводит к повторной полной проверке,
+  а не доверию старому cache. Отсутствующий descriptor со старой квитанцией требует
+  отдельной проверки основания для восстановления, описанной ниже. Неизменные
+  payload/ID, правила retirement, восстановления compaction и ограничения хранения сохраняются.
+- Сначала собираются свежие Docker/БД события; исторические Docker и БД окна
+  обходятся по очереди: один контейнер и одна таблица за цикл. Новый live-курсор
+  БД начинается с последних пяти минут (запрос также покрывает недавнее окно),
+  а прежние курсоры и отдельная сверка всей retained-истории сохраняются.
+  Незавершённые окна остаются `pending`; новая live-полоса не доказывает
+  полноту исторического сбора. Checkpoint выполняется между завершёнными
+  порциями вне savepoint. Сбор Windows работает отдельным read-only worker:
+  только основной поток принимает результат и меняет SQLite/курсоры.
+- Ресурсный producer запускается до проверки истории. Его отдельный
+  `private/resources.sqlite` переживает задержки и перезапуск процесса.
+  ACK допускается только после durable commit основного индекса **и** успешной
+  публикации catalog, содержащего соответствующий sample. Повтор после сбоя
+  использует прежние stream/sequence и не создаёт повторного события.
+  Истёкший retention и явное вытеснение квотой имеют отдельный terminal loss
+  disposition: это **не** успешный ACK. После catalog с предупреждением запись
+  удаляется из spool атомарно с увеличением durable `droppedSamplesTotal` и
+  `expiredSamplesTotal`/`quotaDiscardedSamplesTotal`. Повтор disposition не
+  увеличивает счётчик второй раз. Так старые непубликуемые записи не блокируют
+  свежую запись за первой порцией из 128 элементов. Потери сохраняют
+  `possibleCoverageGap=true` и `pending`, включая перезапуск и восстановление
+  публикации свежих замеров; полнота покрытия не объявляется восстановленной.
+- Spool ограничен 16 МиБ или одной восьмой общего бюджета, если она меньше;
+  payload занимает не более половины этого лимита, размер одной записи —
+  максимум 256 КиБ. SQLite ограничивает число страниц; временный rollback journal
+  также учитывается общей физической квотой diagnostics. При переполнении старые
+  не подтверждённые образцы не вытесняются: новая потеря учитывается в устойчивом
+  `droppedSamplesTotal`. Ошибка диска обозначается фиксированным `spoolError`.
+  Недоступный spool сохраняется для расследования, core-сбор продолжается с явно
+  неполной ресурсной диагностикой. Это не гарантия доставки при заполненном диске.
+- Catalog содержит для источника `publicationAgeSeconds`, `coverageLagSeconds`
+  и `stale`. Свежая полоса старше 60 секунд получает `pending`, а не ложный `ok`.
+  Эти дополнительные поля не меняют reader format. Существующее поле `detail`
+  сообщает задержку также читателям, не отображающим новые числовые поля.
+
+Цель — публикация свежих событий в пределах 60 секунд при работающих адаптерах
+и потоке в пределах ограниченных порций. **Первое создание квитанций, legacy
+upgrade, повреждение истории, медленный диск или недоступные внешние команды
+могут превысить 60 секунд**; ресурсный spool сохраняет уже полученные образцы,
+но не восстанавливает не сделанные измерения. Ресурсные targets до проверки
+канонического Docker помечаются неполными. Сквозная производительность рабочей
+установки требует отдельного замера после разрешённого deployment.
+
+Focused evidence: 103 Python tests, четыре платформенных skip; дополнительно
+четыре проверки SQL/catalog/quota recovery и работы background/checkpoint.
+После independent review: пять целевых проверок expiry-prefix128+fresh129,
+quota recovery/idempotence, SQL failure, catalog-crash replay и spool overflow
+прошли за 2,320 с. Это исправление terminal disposition не меняет правила ACK.
+Синтетические 512 gzip-сегментов с примерно 8 МиБ varied raw text: cold audit
+3,687 с, warm 0,375 с, restart 0,390 с, публикация свежей записи 0,641 с.
+Warm/restart не распаковывали retained gzip; compressed SHA и индекс проверялись.
+Это ограниченный regression benchmark, **не** доказательство 60 секунд на
+27 тысячах production-сегментов или готовности к 5000 пользователям.
+
+Проверки: `python tools/test_collect_logs.py`,
+`python -m unittest discover -s tools -p test_coverage_diagnostics.py`,
+`python -m unittest tools.deployment.test_collector`.
+
 ## Разбор до реализации
 
 1. Docker stdout принадлежит контейнеру, а не установке. При замене контейнера
@@ -179,6 +250,81 @@ Authorization и body и проверяет отсутствие маркера 
   длинные сообщения, ошибку и готовность скачивания.
 - Не выполняется очистка production logs, БД, volumes или существующих архивов.
 
+## Обязательные подключённые источники
+
+`GET /api/admin/v1/logs/status` разделяет две проверки. `coverageComplete: false`
+сохраняет ограничения всей истории: установка не доказывает события до начала
+сбора, неизвестный аварийный хвост и все возможные внешние источники. Отдельный
+`requiredCoverage` проверяет конечный набор подключённых обязательных источников
+в текущем наблюдении; его `state: ok` не меняет глобальный исторический флаг.
+
+Host catalog публикует `requiredSources`:
+
+```json
+{
+  "version": 1,
+  "policy": "asa-connected-v1",
+  "platform": "linux",
+  "auditMaxAgeSeconds": 900,
+  "sources": [
+    {"source":"docker","applicable":true,"maxAgeSeconds":300,"requireThrough":false},
+    {"source":"windows:Security","applicable":false,"maxAgeSeconds":300,"requireThrough":true,"reason":"other-platform"}
+  ]
+}
+```
+
+Это сокращённый пример формата, а не достаточная декларация. API требует весь
+baseline: Docker, свежие полосы `api/web/scratch/postgres/minio:recent`,
+`database-events` и каждую таблицу действующего database diagnostic contract,
+`metrics`, `docker-lifecycle`, `operations:updates`, `operations:backup`, применимые источники ОС и
+все дополнительные объявленные настроенные источники. Наблюдаемые дополнительные
+`*:recent`, `database-events:*`, `operations:*`, `provider:*` также нельзя молча
+исключить. Оператор и нагрузочный runner дополнительно фиксируют точный ожидаемый
+набор настроенных backup/provider/file источников; API не угадывает конфигурацию
+внешних компьютеров. Набор из одного API, пустой набор или неизвестная версия
+не могут подтвердить обязательное покрытие.
+
+`operations:backup` объявляется всегда: сборщик наблюдает локальные результаты
+операций даже без внешнего `backupSuccessReceipt`. Пока подтверждённой успешной
+копии нет, источник остаётся `pending`, а обязательное покрытие — неполным.
+Отсутствие настройки не исключает резервирование из проверки. При настроенном
+внешнем receipt просроченное или некорректное подтверждение также не даёт `ok`.
+
+Каждая применимая строка требует `ok`, свежих `checkedAt` и `lastCollectedAt`,
+отсутствия явного gap/stale/incomplete и, при `requireThrough: true`, свежего
+`collectedThrough`. Интервалы ограничены 10–900 секундами; штатный publisher
+использует 300. Будущее более чем на 5 секунд не считается свежим доказательством.
+`pending/error/unavailable`, пропущенная строка и незавершённый курсор не дают
+зелёного результата. Неприменимость разрешена только явной политикой другой ОС:
+Windows и её явно перечисленные каналы на Linux (включая обязательные
+Application/System/Security), `linux:journal` на Windows.
+Просто проигнорировать недоступный источник нельзя.
+
+Каталог должен быть полным и содержать проверяемые метаданные сегментов.
+`historyAudit` подтверждает недавнюю завершённую проверку retained-целостности:
+`incomplete: false`, согласованные checked/total и срок до 900 секунд. Новый
+running sweep допустим только с недавним доказательством предыдущего завершения
+и неистёкшим deadline. Первый незавершённый, просроченный или повреждённый audit
+не подтверждает покрытие. Это проверка сохранившихся байтов, не доказательство
+полноты всех исторических событий.
+
+Нативный writer API проверяется отдельно: реальный `flush`, idle/ready состояние,
+accepted/persisted без pending, отсутствие dropped/failures и исправный защищённый
+каталог. SHA-256 его immutable-сегментов проверяется порциями с бюджетом 250 мс
+на status; доказательства тех же immutable metadata используются до 300 секунд.
+Новые сегменты требуют нового доказательства. Холодная/частичная/просроченная
+проверка и изменившийся snapshot дают unknown, а не ложный успех. Это ограниченный
+кэш недавней проверки, не непрерывный аудит диска. Search/export всегда проверяет
+выбранные реальные байты независимо от этого status-кэша.
+
+Ответ `requiredCoverage` содержит `version`, `policy`, `state` (`ok`, `incomplete`,
+`unknown`), `requiredSourceIds`, `excludedSourceIds`, результаты `sources` с
+`requireThrough/maxAgeSeconds/checkedAt/collectedThrough/reason`, `native` с
+безопасными счётчиками, `historyAudit` и `limitations`. Только совместные `ok`
+host/source/native/audit доказательства дают `requiredCoverage.state: ok`.
+Админка называет это исправным сбором обязательных подключённых источников и
+продолжает показывать, что полнота всей истории не подтверждена.
+
 ## Эксплуатация
 
 ### Установка сборщика
@@ -188,6 +334,28 @@ Authorization и body и проверяет отсутствие маркера 
 подготавливают и сверяют сборщик своей канонической установки. Ручной второй шаг
 для обычного запуска больше не нужен. `doctor`, `check` и `log_collector.py status`
 только читают состояние: не создают `.env`, каталоги, задачи или службы.
+Если installed checkout старого выпуска не содержит один из пяти текущих digest
+inputs (например legacy dfee без `tools/deployment/operational.py`), read-only status
+возвращает `unavailable / COLLECTOR_SOURCE_CONTRACT`, `scriptDigest: null` и закрытую
+причину missing/unreadable/unsafe input. Он не вычисляет альтернативный четырёхфайловый
+digest и не объявляет legacy runtime проверенным или просто `stale`. Некорректные,
+недоступные или перенаправленные config/metadata дают `COLLECTOR_STATUS_CONFIG` без
+raw текста, путей или секретов. Состояние приложения проверяется отдельно: такое
+предупреждение само по себе не обрывает остальные guards `doctor/check` и не
+означает здоровую log coverage или разрешение update.
+Неверный тип heartbeat `checkedAt` также даёт закрытый `unavailable`, а не исключение
+парсера. Проверка root/project остаётся точной по каноническому Installation.root;
+Windows 8.3 alias в тестах приводится к тому же canonical path, не принимается
+как альтернативная production identity.
+
+Этот compatibility path действует только при наблюдении. Алгоритм `digest`,
+ownership/identity/config проверки prepare/reconcile/install/update не ослаблены;
+отсутствующие файлы не создаются и старый collector не запускается. Внешнему
+approved manager для read-only config validation дополнительно нужен собственный
+`tools/deployment/operational.py` из того же reviewed tooling closure; это не
+подстановка файла в installed checkout. Реальный bootstrap/OCI check требует
+отдельной проверки, а старый CLI без immutable selector по-прежнему не является
+поддерживаемым способом сохранить выбранный release.
 Прямой `docker compose up` сам по себе не устанавливает host runner.
 Для явного повторного согласования уже существующей установки доступна обёртка:
 
@@ -215,6 +383,38 @@ API получает дополнительную числовую группу 
 Rootless Docker / user namespace remapping пока не подтверждены для автоматического
 host-store доступа и не входят в этот режим поддержки. Недостаток прав остаётся
 видимым `degraded`/`unavailable`, без открытия журналов всем пользователям.
+
+Для Linux, который уже обслуживается непосредственно root, предусмотрен отдельный
+явно выбранный режим `system-root`. Выбор сохраняется в приватной
+`.asa/installation.json`; обычные последующие install/update/source up/reconcile
+используют его без повторного ввода. Новая установка выбирает его флагами менеджера:
+
+```bash
+python3 tools/asa_manager.py install --collector-mode system-root --collector-reader-gid 1000
+```
+
+`1000` — пример заранее выбранной ненулевой группы чтения API; она не должна
+совпадать с группой Docker socket. Для уже работающей root-установки выбор можно
+сделать командой `python3 tools/log_collector.py prepare --mode system-root
+--reader-gid 1000`, затем выполнить штатный install/update для применения группы
+API или `sh tools/install-log-collector.sh`, если API уже имеет нужную группу.
+Prepare и reconcile сами не перезапускают API. Команды выполняются из канонического
+каталога с уже имеющимися правами root. `status`, `doctor` и `check` режим не выбирают.
+
+Root-служба допустима только для root-owned checkout: runtime Python, все файлы
+`tools`, контракт `apps/api/src/database-diagnostic-contract.json`, конфигурация,
+диагностическое хранилище и родительские каталоги проверяются
+на владельца root, отсутствие symlink и записи для группы/остальных. Доверенный
+системный Python может использовать штатный symlink на проверяемый executable;
+его каталог также должен контролироваться root. Установщик не исправляет чужое
+владение или writable checkout автоматически. Существующий непривилегированный
+runner и чужой legacy unit автоматически в root-режим не переводятся. Проверки
+точного argv, effective unit, владельца и дополнительных команд сохраняются.
+Приватный индекс остаётся `root`, `0700`; опубликованные журналы — `root`, группа
+чтения API, каталоги `2750`, файлы `0640`, mount API только read-only. Членство
+пользователей в Docker/системных группах, права socket, sudo и lingering не меняются.
+Это привилегированный сборщик ОС, поэтому root-controlled checkout — обязательная
+граница доверия, включая обновление его исходников.
 
 Перед изменением задачи/службы сверяются точные action, root, owner и interpreter;
 для systemd также effective unit path, drop-ins, дополнительные команды,
@@ -260,6 +460,7 @@ adapter неприменим, исключается из completeness aggregate
 | --- | --- | --- |
 | Windows 11 x64 | Python 3.11+, Git, Docker Desktop с Linux amd64 containers, Task Scheduler, пользователь Docker вошёл в систему | Без входа пользователя сбор не обещается; Windows Security требует имеющихся прав |
 | Linux amd64 с systemd и rootful Docker Engine | Python 3.11+, Git, systemctl и busctl с JSON-поддержкой, Docker Compose plugin, оператор уже имеет доступ к Docker; работает user manager либо заранее разрешён system mode | User mode до входа требует existing linger; system journal без прав честно unavailable |
+| Linux amd64, явно выбранный `system-root` | Те же runtime/systemd требования; существующий root-доступ, root-controlled canonical checkout и persisted ненулевой API reader GID | Автостарт при загрузке; существующий nonroot runner не конвертируется; никакие Docker-права другим аккаунтам не выдаются |
 
 Общие требования приложения, диска/RAM и браузеров описаны в
 [Portable Operations](PORTABLE_OPERATIONS.md). ARM, macOS, non-systemd Linux и
@@ -369,6 +570,37 @@ SQLite копируется через его backup API, опубликован
 reader или восстановление целого защищённого диагностического снимка с остановленным
 сборщиком. Откат отдельно только SQLite, catalog или сегментов не является восстановлением.
 
+Прерывание публикации после commit индексированных записей может оставить
+исправный immutable-сегмент без descriptor в catalog и `state.segments`.
+Такой сегмент проходит обязательную повторную проверку фактических байтов и
+sequence/ID даже за пределами бюджета поэтапного аудита. Результат полной
+проверки текущего процесса сохраняет ожидаемый checksum, если descriptor
+отсутствует; существующие противоречащие метаданные не заменяются этим результатом.
+Только после успешной проверки штатная публикация добавляет descriptor.
+
+При холодном запуске существующая квитанция сегмента без descriptor должна
+аутентифицировать фактические байты и sequence/ID. Если её HMAC не совпадает и
+независимый проверенный checksum отсутствует, новые байты не становятся новым
+эталоном: прежняя квитанция сохраняется, существующий `audit.error` не очищается,
+публикация блокируется.
+Это относится и к утрате ключа при таком разрыве metadata. Требуется проверенный
+защищённый снимок; удаление квитанции или ключа не является восстановлением.
+При имеющемся descriptor либо checksum, уже проверенном текущим процессом,
+сохраняется полная проверка против этого checksum после отказа cache. Новые сегменты
+без предшествующей квитанции проходят обычную полную проверку владения;
+pending compaction проверяется по durable originals.
+
+Сохранённый `history:audit.state=error` продолжает блокировать текущий процесс.
+Холодный запуск существующего сборщика выполняет полную проверку истории и
+переводит audit в `complete` только после её успешного завершения; ошибка этой
+проверки не снимает прежний `error`. Перед разрешённым recovery
+сохраните согласованный защищённый снимок диагностики, включая private index,
+ключ квитанций и ресурсный spool. Используйте проверенный выпуск и существующий
+runner с подтверждённой идентичностью; применимость recovery к Windows требует
+проверки на Windows. Не очищайте audit, не удаляйте spool/сегменты и не меняйте
+ключ для обхода ошибки. Новый heartbeat не заменяет успешные audit, catalog и ACK;
+прежние потери samples остаются неполным покрытием после возобновления публикации.
+
 Если ранее был скачан нормализованный архив ASA с `manifest.normalized=true`,
 его записи можно вернуть в диагностическую историю без изменения рабочей БД:
 
@@ -462,3 +694,98 @@ ingress-политики внешний посетитель останется 
 Диагностика браузера сохраняет отдельный предел 600 сообщений в минуту, но
 использует проверенный адрес посетителя, а не общий TCP-адрес Web-контейнера.
 Если адрес не определён, применяется общий ограниченный бюджет `unknown`.
+
+
+### Admission evidence and deployment provenance checks
+
+`asa doctor` prints `CLIENT_PROVENANCE` with the configured ingress/API trust
+boundaries. `loopback_only` means only local ingress is configured;
+`external_policy_unverified` means explicit external trust is configured. Neither
+state verifies a visitor IP (`verifiedVisitorIp` remains false). The command is
+read-only, does not discover and trust gateways, and does not edit `.env`.
+For Docker Desktop or an HTTP tunnel, verify the complete outer-proxy → tunnel →
+Caddy chain with a controlled external request and forged-header rejection before
+configuring only the attested peer CIDRs. A missing original address cannot be
+reconstructed inside the application. Never classify a Docker gateway as a pupil.
+
+HTTP terminal logs now carry finite server-owned `admission` evidence for
+StudentSeat sign-in and unsuccessful class resolution:
+
+- `credentialCheck`: `class_not_found`, `student_rejected` or `student_accepted`.
+- `blockedBudgets`: `candidate_class`, `source_class`, `source_total`, or
+  `class_lookup_source`; all exceeded budgets are reported, not their keys.
+- `limiterPhase`: `after_failed_validation` or `not_applied` for accepted sign-in.
+
+Together with `addressResolution`, this distinguishes a wrong-code rejection
+from a rate-limited wrong-code rejection behind an unresolved proxy or shared NAT.
+It does not prove earlier historical 429s rejected correct credentials. Thresholds
+and failure-only validation order are unchanged; accepted credentials are still
+validated even after failed-attempt budgets are exhausted. No IP, code, hash,
+cookie or body is included in this diagnostic. Missing `admission` does not mean
+success: parser failures, unavailable database and other routes can end before
+an admission decision. Existing anonymous Account pre-check limits can still
+share an `unknown` bucket when external provenance is missing; resolving ingress
+is required rather than inventing browser identities or relaxing protection.
+
+
+#### Observed external route, 24 October 2026
+
+Read-only inspection of the running external proxy configuration confirmed the
+route: public TLS ingress → Traefik → FRPS HTTP vhost → local FRP client →
+Docker-published Web port → Caddy → API. Host-header forwarding is enabled; FRPS
+requires TLS for its client transport. Local Caddy currently trusts only loopback
+ingress, while the Docker-published port presents a gateway peer. Server access
+is available; the remaining prerequisite is an attested forwarded-address chain
+and spoof-rejection test, not obtaining access to the proxy.
+
+The inspected outer route also has an independent rate limiter: average 600
+requests per minute, burst 300. Its higher-priority password login/registration
+route additionally applies average 60 per minute, burst 30. The inspected auth
+matcher does not include StudentSeat `/api/class-join` routes. These are external
+proxy limits, separate from application failure-only admission budgets. A shared
+school NAT can therefore encounter an outer-edge ceiling even when the API and
+database have spare capacity; this configuration alone is not evidence that the
+43 historical application 429s came from that edge limiter. Request correlation
+and effective source-key verification are required before attributing a failure
+or selecting new limits. No external policy was changed during this source slice.
+
+Before deploying an ingress change, preserve and review the exact existing
+proxy configuration, verify the effective source key and forwarded hops using a
+controlled visitor, test spoofed headers and direct entry, and prepare rollback.
+Do not blindly trust a Docker gateway CIDR on a reachable host port: all callers
+through that port may appear to have the same trusted peer. A proposed external
+rate policy must account for school NAT traffic and retain abuse protection;
+raising limits without these checks is not the application IP fix.
+
+## Операционные источники диагностики
+
+Версионированная декларация обязательных источников, закрытые события update/backup,
+сводки Ollama/ComfyUI и безопасная проекция AI-ledger описаны в
+[Operational diagnostics](OPERATIONAL_DIAGNOSTICS.md). Источники активируются только
+после штатного обновления; этот документ не подтверждает live-сбор. Отсутствие
+реальной квитанции или ошибка источника не заменяется пустым успешным журналом.
+
+### Container stdout/stderr disk budget
+
+The base Compose configuration explicitly selects Docker `json-file` logging with
+`max-size: 10m` and `max-file: 5` for the eight owned services: `postgres`, `api`,
+`web`, `scratch`, `minio`, `minio-init`, `search`, and `migration`. These settings
+survive the supported dev/test/staging/production overlays. They bound the rotating
+stdout/stderr files per container; they do not change the shared Docker daemon or
+other projects. Additional preview/test-only services are outside this policy.
+
+The eight logging mappings are written explicitly without YAML anchors or aliases.
+This preserves the same Compose values while admitting the CI transport guard's
+existing duplicate-key and zero-alias YAML parser. The dependency-free Python
+resource regression checks the eight complete explicit logging mappings; the
+Node-provisioned CI transport guard separately parses the full Compose model.
+
+Existing containers acquire the policy only when recreated through an authorized
+normal ASA release/update operation. Persistent volumes and installation identity
+must be retained. Do not truncate live logs, prune Docker storage, or recreate a
+working database merely to apply this source change. Docker rotation, the host
+collector's separate default 1 GiB budget, and the API native journal's separate
+128 MiB budget are independent. Rotation does not guarantee a retention duration
+or that a delayed collector captured every event; monitor source gaps and disk
+usage. The real merged Compose contract runs in Linux CI with
+`ASA_TEST_DOCKER_COMPOSE=1 python -m unittest tools.deployment.test_resources -v`.

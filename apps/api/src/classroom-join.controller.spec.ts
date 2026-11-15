@@ -796,6 +796,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         snapshot_revision: 7,
         work_updated_at: '2026-09-20T22:00:00.000Z',
         shared_assignment: false,
+        academic_result_visible: true,
         modern_provenance: {
           modernCourseRun: true,
           activityRunId: activityRunA,
@@ -819,6 +820,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         snapshot_revision: null,
         work_updated_at: null,
         shared_assignment: false,
+        academic_result_visible: true,
         modern_provenance: {
           modernCourseRun: true,
           activityRunId: activityRunB,
@@ -856,6 +858,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         ...evidenceBase,
         classroomAssignmentId: assignmentA,
         activityRunId: activityRunA,
+        participation: { applicable: true, status: 'active', excused: false },
         legacyWork: {
           projectId: projectA,
           startedAt: '2026-09-20T21:00:00.000Z',
@@ -866,6 +869,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         ...evidenceBase,
         classroomAssignmentId: assignmentB,
         activityRunId: activityRunB,
+        participation: { applicable: true, status: 'active', excused: false },
         legacyWork: null,
       },
     ];
@@ -901,6 +905,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
             rows: occurrenceRows.map((row) => ({
               ...row,
               modern_provenance: { modernCourseRun: false, projectReadable: false },
+              academic_result_visible: false,
               not_started_visible: false,
             })),
           };
@@ -948,6 +953,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroomAssignmentId: assignmentA,
         learningActivityVersionId: versionA,
         moduleKey: 'electronics',
+        requirement: 'required',
         projectId: projectA,
         snapshotRevision: 7,
         workOriginAmbiguous: false,
@@ -962,6 +968,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroomAssignmentId: assignmentB,
         learningActivityVersionId: versionB,
         moduleKey: 'three-d',
+        requirement: 'required',
         projectId: null,
         workOriginAmbiguous: false,
         canonicalState: {
@@ -970,6 +977,331 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         },
       });
     }
+    // Pin the exact authorized principal for each SQL reader; duplicate
+    // aliases can mask an incorrect Account-side projection.
+    const queriedSql = query.mock.calls.map(([statement]) => statement);
+    const accountOccurrenceSql = queriedSql.find((statement) =>
+      statement.includes('FROM classroom_course_activity_occurrences_for_account($1)'),
+    );
+    const seatOccurrenceSql = queriedSql.find((statement) =>
+      statement.includes('FROM classroom_course_activity_occurrences_for_seat($1)'),
+    );
+    expect(accountOccurrenceSql?.match(/AS academic_result_visible/g)).toHaveLength(1);
+    expect(seatOccurrenceSql?.match(/AS academic_result_visible/g)).toHaveLength(1);
+    expect(accountOccurrenceSql).toContain('$2, occurrence.seat_id, occurrence.activity_run_id');
+    expect(accountOccurrenceSql).not.toContain(
+      'principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id',
+    );
+    expect(seatOccurrenceSql).toContain(
+      'principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id',
+    );
+
+    // Regression: both frozen Activity occurrences share one compatibility handout,
+    // but Electronics is accepted while 3D is still waiting for review. Selected
+    // academic results must be scoped to Seat + ActivityRun, never the handout.
+    const sharedAttemptA = '66000000-0000-4000-8000-000000000091';
+    const sharedAttemptB = '66000000-0000-4000-8000-000000000092';
+    const sharedAcceptedResult = (attemptId: string, suffix: string) => ({
+      id: `67000000-0000-4000-8000-0000000000${suffix}`,
+      attemptId,
+      rawPoints: 20,
+      maxPoints: 20,
+      percentageBasisPoints: 10000,
+      displayGrade: '5',
+      outcome: 'passed',
+      publishedAt: '2026-10-27T09:30:00.000Z',
+      completionValue: true,
+    });
+    const attempt = (
+      id: string,
+      state: 'submitted' | 'closed',
+      reviewDecision: 'accepted' | 'changes_requested' | null,
+    ) => ({
+      id,
+      attemptNumber: 1,
+      state,
+      reviewDecision,
+      startedAt: '2026-10-27T09:00:00.000Z',
+      submittedAt: '2026-10-27T09:20:00.000Z',
+      lateState: 'on_time',
+    });
+    Object.assign(occurrenceRows[0], { shared_assignment: true });
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentA,
+      shared_assignment: true,
+      not_started_visible: true,
+    });
+    Object.assign(evidenceRows[0], {
+      attempt: attempt(sharedAttemptA, 'closed', 'accepted'),
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: sharedAttemptA,
+      selectedRevision: sharedAcceptedResult(sharedAttemptA, '91'),
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentA,
+      attempt: attempt(sharedAttemptB, 'submitted', null),
+      participation: { applicable: true, status: 'active', excused: false },
+    });
+
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.map((item) => item.classroomAssignmentId)).toEqual([
+        assignmentA,
+        assignmentA,
+      ]);
+      expect(practices?.map((item) => item.requirement)).toEqual(['required', 'required']);
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[0]?.canonicalState?.activityRunId).toBe(activityRunA);
+      expect(practices?.[1]?.canonicalState).toMatchObject({
+        activityRunId: activityRunB,
+        workflowState: 'submitted',
+        selectedResult: null,
+      });
+      // Shared assignment metadata cannot grant access to either project's bytes.
+      expect(practices?.map((item) => item.projectId)).toEqual([null, null]);
+    }
+
+    // On a legacy shared handout SQL cannot prove a unique modern Project.
+    // The exact published academic result must survive that independent denial.
+    const originalWorkRows = occurrenceRows.map((row) => ({ ...row }));
+    for (const row of occurrenceRows) {
+      Object.assign(row, {
+        modern_provenance: { modernCourseRun: false, projectReadable: false },
+        academic_result_visible: true,
+        project_id: null,
+        not_started_visible: false,
+      });
+    }
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[1]?.canonicalState?.selectedResult ?? null).toBeNull();
+      expect(practices?.map((practice) => practice.projectId)).toEqual([null, null]);
+    }
+    for (const [index, row] of occurrenceRows.entries()) {
+      Object.assign(row, originalWorkRows[index]);
+    }
+
+    // Historical modern lineage does not prove the frozen version or current
+    // academic authorization. Respect SQL's denial without Project/origin proof.
+    Object.assign(occurrenceRows[0], {
+      academic_result_visible: false,
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunA,
+        projectReadable: false,
+      },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const denied = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0];
+      expect(denied?.canonicalState).toBeNull();
+      expect(denied?.projectId).toBeNull();
+    }
+    Object.assign(occurrenceRows[0], originalWorkRows[0]);
+
+    // Another learner's accepted 3D cannot credit this seat even if a
+    // compromised upstream list accidentally includes that evidence row.
+    const foreignAttemptId = '66000000-0000-4000-8000-000000000093';
+    evidenceRows.push({
+      ...evidenceBase,
+      seatId: '50000000-0000-4000-8000-000000000099',
+      classroomAssignmentId: assignmentA,
+      activityRunId: activityRunB,
+      participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
+      attempt: attempt(foreignAttemptId, 'closed', 'accepted'),
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: foreignAttemptId,
+      selectedRevision: sharedAcceptedResult(foreignAttemptId, '93'),
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[1]?.canonicalState?.selectedResult).toBeNull();
+      expect(practices?.[1]?.projectId).toBeNull();
+    }
+    evidenceRows.pop();
+
+    Object.assign(evidenceRows[1], {
+      attempt: attempt(sharedAttemptB, 'closed', 'changes_requested'),
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[1]?.canonicalState?.workflowState).toBe('changes_requested');
+      expect(practices?.[1]?.canonicalState?.selectedResult).toBeNull();
+    }
+
+    Object.assign(evidenceRows[1], {
+      attempt: attempt(sharedAttemptB, 'closed', 'accepted'),
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: sharedAttemptB,
+      selectedRevision: sharedAcceptedResult(sharedAttemptB, '92'),
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      const states = practices?.map((item) => item.canonicalState);
+      const completed = states?.map((state) => state?.selectedResult?.completionValue);
+      expect(completed).toEqual([true, true]);
+    }
+
+    // Withdrawn participation retains published history in PostgreSQL, but
+    // cannot complete the pinned practice in SQL 0267 or on the client.
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'withdrawn', excused: false },
+    });
+    Object.assign(occurrenceRows[1], {
+      academic_result_visible: false,
+      not_started_visible: false,
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        requirement: 'not_assigned',
+        canonicalState: null,
+      });
+    }
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'active', excused: false },
+    });
+    occurrenceRows[1]!.academic_result_visible = true;
+
+    Object.assign(occurrenceRows[0], { shared_assignment: false });
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentB,
+      shared_assignment: false,
+      not_started_visible: false,
+    });
+    Object.assign(evidenceRows[0], {
+      attempt: null,
+      selectedAttemptExists: false,
+      resultSelectionSource: 'none',
+      selectedAttemptId: null,
+      selectedRevision: null,
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentB,
+      attempt: null,
+      selectedAttemptExists: false,
+      resultSelectionSource: 'none',
+      selectedAttemptId: null,
+      selectedRevision: null,
+    });
+
+    // A teacher excused 3D BEFORE the student started, so no Project/Attempt
+    // or valid modern work origin exists. Both learner surfaces must keep the
+    // authoritative participation decision, but never synthesize work access.
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'active', excused: true },
+    });
+    Object.assign(occurrenceRows[1], {
+      modern_provenance: { modernCourseRun: false, projectReadable: false },
+      not_started_visible: false,
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        blockId: 'activity-b',
+        requirement: 'excused',
+        canonicalState: null,
+        projectId: null,
+      });
+    }
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: false, status: 'active', excused: false },
+    });
+    occurrenceRows[1]!.academic_result_visible = false;
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        requirement: 'not_assigned',
+        canonicalState: null,
+      });
+    }
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'active', excused: false },
+      activityRunId: activityRunA,
+    });
+    occurrenceRows[1]!.academic_result_visible = true;
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        requirement: 'unknown',
+        canonicalState: null,
+      });
+    }
+    Object.assign(evidenceRows[1], { activityRunId: activityRunB });
+    Object.assign(occurrenceRows[1], {
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunB,
+        projectReadable: false,
+      },
+      not_started_visible: true,
+    });
+
+    // Same handout, two exact Course Activity Runs: handout-keyed projections
+    // collapse but run-keyed participation must retain both eligibility states.
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentA,
+      shared_assignment: true,
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentA,
+      participation: { applicable: true, status: 'active', excused: true },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]).toMatchObject({
+        activityRunId: activityRunA,
+        requirement: 'required',
+      });
+      expect(practices?.[1]).toMatchObject({
+        activityRunId: activityRunB,
+        requirement: 'excused',
+      });
+    }
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentB,
+      shared_assignment: false,
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentB,
+      participation: { applicable: true, status: 'active', excused: false },
+    });
+
     Object.assign(occurrenceRows[1], { task_blocks: { present: true, blocks: null } });
     for (const payload of [
       await controller.accountCourseRuns(accountRequest),
@@ -1290,6 +1622,65 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       canonicalState: null,
       workOriginAmbiguous: true,
     });
+    // Essay proof is independent of Project provenance and cannot fall back
+    // to generic task fields when scheduled or when an Account link is denied.
+    originRows = [];
+    presenceRows = [];
+    Object.assign(occurrenceRows[0], {
+      activity_kind: 'essay',
+      project_id: null,
+      shared_assignment: false,
+      academic_result_visible: false,
+      not_started_visible: false,
+      modern_provenance: { modernCourseRun: false, projectReadable: false },
+      goal: 'Скрытая цель из общего адаптера',
+      task_blocks: { present: true, blocks: [{ type: 'paragraph', text: 'Скрытая инструкция' }] },
+      essay_context: {
+        resultCode: 'ok',
+        activityRunId: activityRunA,
+        activityVersionId: versionA,
+        goal: null,
+        blocks: null,
+        attempt: null,
+      },
+    });
+    for (const payload of [
+      await controller.courseRuns(seatRequest()),
+      await controller.accountCourseRuns(accountRequest),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences[0]).toMatchObject({
+        activityKind: 'essay',
+        moduleKey: null,
+        goal: null,
+        blocks: null,
+        projectId: null,
+      });
+    }
+    for (const proof of [
+      { resultCode: 'forbidden' },
+      {
+        resultCode: 'ok',
+        activityRunId: activityRunB,
+        activityVersionId: versionA,
+        goal: 'Неверный Run',
+        blocks: [{ type: 'paragraph', text: 'Неверный Run' }],
+        attempt: null,
+      },
+    ]) {
+      Object.assign(occurrenceRows[0], { essay_context: proof });
+      for (const payload of [
+        await controller.courseRuns(seatRequest()),
+        await controller.accountCourseRuns(accountRequest),
+      ]) {
+        expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences[0]).toMatchObject({
+          activityKind: 'essay',
+          moduleKey: null,
+          goal: null,
+          blocks: null,
+          canonicalState: null,
+        });
+      }
+    }
   });
 
   it('rejects legacy shared Course Activity start and submit before either mutation', async () => {
@@ -1727,5 +2118,102 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
       false,
     );
+  });
+});
+
+describe('direct File assignment list', () => {
+  it('uses the exact File Run projection for both learner identities without inventing a project', async () => {
+    const seatId = 'seat-id';
+    const assignmentId = 'assignment-id';
+    const submittedAt = '2026-09-29T11:00:00.000Z';
+    const runId = 'authorized-file-run';
+    const row = {
+      id: assignmentId,
+      seat_id: seatId,
+      status: 'closed',
+      project_id: 'unrelated-project',
+      file_assignment: { activityRunId: runId, submittedAt } as Record<string, unknown>,
+      legacy_provenance: { legacyDirect: true, legacyProjectReadable: true, submitAllowed: true },
+    };
+    const evidence = {
+      tenantId: 'tenant-id',
+      schoolId: 'school-id',
+      classroomId: 'class-id',
+      classroomAssignmentId: assignmentId,
+      kind: 'file',
+      dueAt: null,
+      assignmentStatus: 'closed',
+      seatId,
+      accountId: 'account-id',
+      principalId: 'principal-id',
+      learnerId: 'learner-id',
+      identityResolution: 'learner_identity',
+      seatStatus: 'active',
+      classroomAccess: 'active',
+      legacyWork: null,
+      courseProgressPresent: false,
+      activityRunId: runId,
+      participation: { applicable: true, status: 'active', excused: false },
+      attempt: {
+        id: 'attempt-id',
+        attemptNumber: 1,
+        revisionOfAttemptId: null,
+        state: 'submitted',
+        reviewDecision: null as string | null,
+        startedAt: '2026-09-29T10:00:00.000Z',
+        submittedAt,
+        lateState: 'on_time',
+      },
+      selectedAttemptExists: false,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: null,
+      selectedResult: null,
+      selectionConflict: null,
+      validUnselectedResultCount: 0,
+    };
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) return { rows: [{ seat_id: seatId }] };
+      if (sql.includes('classroom_assignments_for_')) return { rows: [row] };
+      if (sql.includes('learning_canonical_evidence_for_')) {
+        // Keep a sibling last to detect accidental handout-keyed lookup.
+        return {
+          rows: [
+            { evidence },
+            { evidence: { ...evidence, activityRunId: 'other-run', attempt: null } },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id', principalId: 'account-principal' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.40');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    const reads = [
+      () => controller.assignments(seatRequest()),
+      () => controller.accountAssignments(accountRequest),
+    ];
+    for (const [state, decision, workflowState] of [
+      ['submitted', null, 'submitted'],
+      ['closed', 'changes_requested', 'changes_requested'],
+      ['closed', 'accepted', 'completed'],
+    ] as const) {
+      evidence.attempt.state = state;
+      evidence.attempt.reviewDecision = decision;
+      for (const read of reads) {
+        expect((await read()).items[0]).toMatchObject({
+          activityKind: 'file',
+          activityRunId: runId,
+          submittedAt,
+          projectId: null,
+          legacySubmitAllowed: false,
+          canonicalState: { activityRunId: runId, workflowState },
+        });
+      }
+    }
+    row.file_assignment = {};
+    for (const read of reads) expect((await read()).items).toEqual([]);
   });
 });

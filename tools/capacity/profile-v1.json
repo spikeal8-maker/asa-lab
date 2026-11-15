@@ -1,0 +1,80 @@
+{
+  "id": "C3000-PROFILE-V1",
+  "seed": 20261016,
+  "targetActiveSessions": 3000,
+  "stages": [30, 100, 300, 1000, 3000],
+  "exploratoryExtension": { "sessions": 5000, "requiresSeparateEvidence": true },
+  "identityPercent": { "account": 50, "studentSeat": 50 },
+  "admissionPercent": { "newLogin": 50, "existing": 25, "refresh": 25 },
+  "modulePercent": { "blocks": 40, "electronics": 30, "three-d": 10, "learning": 15, "games": 5 },
+  "grouping": { "usersPerClass": 30, "classesPerSchool": 10, "schoolsPerNat": 1 },
+  "arrivalRampSeconds": 120,
+  "steadySeconds": 1800,
+  "documentSizes": [
+    { "bytes": 65536, "percent": 60 },
+    { "bytes": 262144, "percent": 30 },
+    { "bytes": 1048576, "percent": 10 }
+  ],
+  "mediaSizes": [
+    { "bytes": 32768, "percent": 60 },
+    { "bytes": 262144, "percent": 30 },
+    { "bytes": 2097152, "percent": 10 }
+  ],
+  "cachePhases": ["cold-independent-contexts", "warm-reopen-same-context"],
+  "editEverySeconds": 5,
+  "autosaveEverySeconds": 60,
+  "saveJitterSeconds": 15,
+  "teacherBurstEverySeconds": 300,
+  "failureCases": [
+    "revision-conflict",
+    "lost-save-response-idempotent-retry",
+    "network-loss-10s",
+    "dependency-503-10s",
+    "true-session-revocation",
+    "replace-api-after-acknowledged-save"
+  ],
+  "slo": {
+    "readP95Ms": 400,
+    "writeP95Ms": 700,
+    "loginP95Ms": 2000,
+    "checkpointP95Ms": 1500,
+    "saveErrorRateBelow": 0.001,
+    "unexpectedLogout": 0,
+    "acknowledgedSaveLoss": 0,
+    "crossIdentityRead": 0
+  },
+  "promotionRequires": [
+    "previous-stage-slo-pass",
+    "offered-load-completed",
+    "generator-headroom",
+    "independent-identities",
+    "save-roundtrip-correct",
+    "all-required-layer-evidence",
+    "capacity-477-blockers-closed-or-owner-deferred"
+  ],
+  "backendBaseline": {
+    "id": "CLASSROOM-API-30-V2",
+    "sessions": 30,
+    "accounts": 15,
+    "studentSeats": 15,
+    "blocks": 15,
+    "electronics": 15,
+    "saveWaves": 2,
+    "waveIntervalSeconds": 60,
+    "identityProbeSeconds": [15, 30, 45],
+    "requestTimeoutMs": 10000,
+    "sampleIntervalMs": 1000,
+    "scope": "real-api-postgresql-minio-loopback-only",
+    "missingLayers": [
+      "browser-ui-vm",
+      "representative-media-size-distribution",
+      "caddy-static-cache",
+      "external-ingress",
+      "learning-3d-games",
+      "multi-school-nat",
+      "host-container-restart",
+      "full-size-distribution",
+      "open-arrival-rate-capacity"
+    ]
+  }
+}

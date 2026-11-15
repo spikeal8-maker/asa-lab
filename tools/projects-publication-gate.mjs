@@ -1,0 +1,309 @@
+#!/usr/bin/env node
+import process from 'node:process';
+import console from 'node:console';
+import { URL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import pg from 'pg';
+import { runPublicationBrowserPartitions } from './projects-publication-partitions.mjs';
+
+// Both gates require the same real PostgreSQL boundary as CI. Missing database
+// access is a failure, never a skipped suite that can be reported as acceptance.
+const browser = process.argv.includes('--browser');
+for (const path of browser
+  ? [
+      'e2e/publication-likes.spec.ts',
+      'e2e/publication-comments.spec.ts',
+      'e2e/student-project-policy.spec.ts',
+      'e2e/public-projects.spec.ts',
+      'e2e/public-project-electronics-viewer.spec.ts',
+      'e2e/public-project-electronics-player.spec.ts',
+      'e2e/public-project-copy.spec.ts',
+      'e2e/public-project-admin-moderation.spec.ts',
+      'e2e/gallery.spec.ts',
+      'e2e/project-hub.spec.ts',
+      'e2e/robotics-projects.spec.ts',
+    ]
+  : [
+      'tests/portal/publication-likes.pg.spec.ts',
+      'tests/portal/publication-comments.pg.spec.ts',
+      'apps/web/src/projects-public/PublicationComments.spec.ts',
+      'apps/web/src/projects-public/SharePublicationLink.spec.ts',
+      'apps/web/src/admin/testing/publication-comments.spec.ts',
+      'apps/api/src/publication-likes.controller.spec.ts',
+      'apps/web/src/projects-public/PublicationLike.spec.ts',
+      'apps/web/src/projects-public/PublicProjectsPage.spec.ts',
+      'apps/web/src/admin/testing/publication-reactions.spec.ts',
+      'tests/portal/student-project-policy.pg.spec.ts',
+      'apps/api/src/project-distribution.controller.spec.ts',
+      'apps/web/src/components/ClassroomProjectSettings.spec.ts',
+      'tests/portal/public-projects.pg.spec.ts',
+      'tests/portal/public-project-artifact.http.pg.spec.ts',
+      'tests/portal/public-electronics-calculation-parity.spec.ts',
+      'contexts/projects/testing/public-project-display-artifact.spec.ts',
+      'apps/api/src/public-project-artifact.spec.ts',
+      'apps/web/src/projects-public/electronics-public-runtime.spec.ts',
+      'apps/web/src/projects-public/ElectronicsPublicationScene.playback.spec.ts',
+      'contexts/electronics/testing/timed-state.spec.ts',
+      'apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts',
+      'tests/portal/public-project-copy.pg.spec.ts',
+      'tests/portal/public-project-moderation.pg.spec.ts',
+      'tests/portal/public-project-pinning.pg.spec.ts',
+      'tests/migration/project-publication-moderation.pg.spec.ts',
+      'tests/migration/project-publication-editorial.pg.spec.ts',
+      'tests/migration/project-publication-pins.pg.spec.ts',
+      'tests/migration/public-project-author-name.pg.spec.ts',
+      'tests/migration/publication-copy-counts.pg.spec.ts',
+      'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
+      'apps/api/src/public-project-reports.controller.spec.ts',
+      'tests/migration/project-publication-reports.pg.spec.ts',
+      'tests/portal/public-project-reports.http.pg.spec.ts',
+      'apps/api/src/public-projects.spec.ts',
+      'apps/api/src/public-project-copy.spec.ts',
+      'apps/api/src/admin-public-projects.controller.spec.ts',
+      'apps/web/src/admin/testing/publication-acquisition.spec.ts',
+      'contexts/robotics/testing/document.spec.ts',
+      'contexts/robotics/testing/module.spec.ts',
+      'apps/web/src/robotics/testing/robotics-project-parity.spec.ts',
+      'apps/web/src/robotics/testing/robotics-project-host.spec.ts',
+      'apps/web/src/robotics/testing/robotics-local-host.spec.ts',
+      'apps/web/src/robotics/testing/robotics-lab.spec.ts',
+      'apps/api/src/modules.controller.spec.ts',
+      'apps/api/src/product-analytics.controller.spec.ts',
+      'tests/portal/robotics-projects-api.pg.spec.ts',
+      'tests/migration/robotics-projects-upgrade.pg.spec.ts',
+      'contexts/projects/testing/public-robotics-artifact.spec.ts',
+      'apps/api/src/robotics-public-artifact.spec.ts',
+      'apps/web/src/projects-public/PublicRoboticsViewer.spec.ts',
+      'apps/web/src/projects-public/PublicationArtifact.spec.ts',
+      'tests/portal/robotics-publication.pg.spec.ts',
+    ]) {
+  if (!existsSync(path)) {
+    console.error(`BLOCKED: required publication evidence file is missing: ${path}`);
+    process.exit(78);
+  }
+}
+const adminUrl = process.env.TEST_DATABASE_URL;
+const runtimeUrl = process.env.APP_TEST_DATABASE_URL;
+if (!adminUrl || !runtimeUrl) {
+  console.error('BLOCKED: TEST_DATABASE_URL and APP_TEST_DATABASE_URL are required');
+  process.exit(78);
+}
+const adminTarget = new URL(adminUrl);
+const runtimeTarget = new URL(runtimeUrl);
+if (
+  !adminTarget.pathname.endsWith('_test') ||
+  runtimeTarget.pathname !== adminTarget.pathname ||
+  runtimeTarget.hostname !== adminTarget.hostname ||
+  runtimeTarget.port !== adminTarget.port
+) {
+  console.error('BLOCKED: admin and runtime must use the same isolated *_test PostgreSQL');
+  process.exit(78);
+}
+const client = new pg.Client({ connectionString: runtimeUrl, connectionTimeoutMillis: 10_000 });
+try {
+  await client.connect();
+  const result = await client.query(
+    `SELECT current_user AS runtime_role, current_database() AS database,
+            version() AS engine, role.rolsuper, role.rolbypassrls
+       FROM pg_roles role WHERE role.rolname = current_user`,
+  );
+  const role = result.rows[0];
+  if (
+    !role ||
+    role.runtime_role !== 'asalab_app' ||
+    role.rolsuper ||
+    role.rolbypassrls ||
+    !String(role.engine).startsWith('PostgreSQL ')
+  ) {
+    throw new Error('real PostgreSQL with the restricted asalab_app role is required');
+  }
+  console.log(`PostgreSQL boundary: ${role.database}; restricted ${role.runtime_role}`);
+} catch (cause) {
+  console.error(`BLOCKED: PostgreSQL precondition failed (${cause.code ?? cause.name})`);
+  process.exitCode = 78;
+} finally {
+  await client.end();
+}
+if (process.exitCode) process.exit(process.exitCode);
+
+const checkout = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' });
+const checkoutRevision = checkout.stdout?.trim();
+const expectedRevision = process.env.ASA_BUILD_REVISION?.trim() || checkoutRevision;
+if (
+  checkout.status !== 0 ||
+  !/^[a-f0-9]{40}$/.test(checkoutRevision ?? '') ||
+  expectedRevision !== checkoutRevision
+) {
+  console.error(
+    'BLOCKED: exact checkout revision is unavailable or differs from ASA_BUILD_REVISION',
+  );
+  process.exit(78);
+}
+const env = {
+  ...process.env,
+  ASA_BUILD_REVISION: expectedRevision,
+  VITE_ASA_BUILD_REVISION: expectedRevision,
+  NX_SKIP_NX_CACHE: 'true',
+  NX_DAEMON: 'false',
+  ASA_CAPTURE_PUBLICATION_GRAPH: 'true',
+};
+function verifyBuiltRevision() {
+  const path = 'apps/web/dist/build-metadata.json';
+  if (!existsSync(path)) {
+    console.error('BLOCKED: built web revision metadata is missing');
+    process.exit(78);
+  }
+  const metadata = JSON.parse(readFileSync(path, 'utf8'));
+  if (metadata.revision !== expectedRevision) {
+    console.error('BLOCKED: built web revision differs from the checked-out publication candidate');
+    process.exit(78);
+  }
+  console.log(`Built publication candidate: ${metadata.revision}`);
+  verifyEmittedViewerGraph();
+}
+function verifyEmittedViewerGraph() {
+  const result = spawnSync(process.execPath, ['tools/public-electronics-emitted-graph.mjs'], {
+    stdio: 'inherit',
+    env,
+  });
+  if (result.error || result.status !== 0) process.exit(result.status ?? 78);
+}
+function run(args) {
+  console.log(`\n> pnpm ${args.join(' ')}`);
+  const result = spawnSync('pnpm', args, {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env,
+  });
+  if (result.error) {
+    console.error(result.error.message);
+    process.exit(78);
+  }
+  // Playwright clears its output directory on startup. Re-create the exact-build
+  // receipt after browser execution, including on a failing browser run.
+  if (args.includes('playwright')) verifyEmittedViewerGraph();
+  if (result.status !== 0) process.exit(result.status ?? 1);
+  return result.status;
+}
+
+if (browser) {
+  for (const file of ['apps/api/dist/main.js', 'apps/web/dist/index.html']) {
+    if (!existsSync(file)) {
+      console.error(`BLOCKED: ${file} is missing; run gate:projects-publication first`);
+      process.exit(78);
+    }
+  }
+  verifyBuiltRevision();
+  runPublicationBrowserPartitions(run, env);
+} else {
+  run(['exec', 'node', '--test', 'tools/projects-publication-partitions.test.mjs']);
+  run(['exec', 'node', '--test', 'tools/public-electronics-emitted-graph.test.mjs']);
+  run(['db:migrate:check']);
+  // Nx follows ^build dependencies. API injection tests import the built API;
+  // the browser then serves exactly these built files, not a Vite dev server.
+  run(['exec', 'nx', 'run-many', '-t', 'build', '--projects=api,web', '--parallel=2']);
+  verifyBuiltRevision();
+  run([
+    'exec',
+    'nx',
+    'run-many',
+    '-t',
+    'typecheck',
+    '--projects=projects,robotics,api,web',
+    '--parallel=2',
+  ]);
+  run([
+    'exec',
+    'tsc',
+    '--noEmit',
+    '--target',
+    'ES2022',
+    '--module',
+    'esnext',
+    '--moduleResolution',
+    'bundler',
+    '--skipLibCheck',
+    '--strict',
+    '--types',
+    'node',
+    '--allowSyntheticDefaultImports',
+    'e2e/publication-likes.spec.ts',
+    'e2e/publication-comments.spec.ts',
+    'e2e/student-project-policy.spec.ts',
+    'e2e/public-projects.spec.ts',
+    'e2e/public-project-electronics-viewer.spec.ts',
+    'e2e/public-project-electronics-player.spec.ts',
+    'e2e/public-project-copy.spec.ts',
+    'e2e/public-project-admin-moderation.spec.ts',
+    'e2e/gallery.spec.ts',
+    'e2e/robotics-projects.spec.ts',
+  ]);
+  run([
+    'exec',
+    'vitest',
+    'run',
+    'contexts/projects/testing',
+    'contexts/robotics/testing',
+    'apps/web/src/robotics/testing/robotics-project-parity.spec.ts',
+    'apps/web/src/robotics/testing/robotics-project-host.spec.ts',
+    'apps/web/src/robotics/testing/robotics-local-host.spec.ts',
+    'apps/web/src/robotics/testing/robotics-lab.spec.ts',
+    'apps/api/src/modules.controller.spec.ts',
+    'apps/api/src/product-analytics.controller.spec.ts',
+    'tests/portal/robotics-projects-api.pg.spec.ts',
+    'tests/migration/robotics-projects-upgrade.pg.spec.ts',
+    'apps/api/src/robotics-public-artifact.spec.ts',
+    'tests/portal/robotics-publication.pg.spec.ts',
+    'tests/portal/projects-api.spec.ts',
+    'tests/portal/project-transactions.spec.ts',
+    'tests/portal/project-publication-revisions.pg.spec.ts',
+    'tests/portal/publication-likes.pg.spec.ts',
+    'tests/portal/publication-comments.pg.spec.ts',
+    'apps/web/src/admin/testing/publication-comments.spec.ts',
+    'apps/api/src/publication-likes.controller.spec.ts',
+    'apps/web/src/admin/testing/publication-reactions.spec.ts',
+    'tests/portal/student-project-policy.pg.spec.ts',
+    'apps/api/src/project-distribution.controller.spec.ts',
+    'apps/web/src/components/ClassroomProjectSettings.spec.ts',
+    'tests/portal/public-projects.pg.spec.ts',
+    'tests/portal/public-project-artifact.http.pg.spec.ts',
+    'tests/portal/public-electronics-calculation-parity.spec.ts',
+    'apps/api/src/public-project-artifact.spec.ts',
+    'apps/web/src/projects-public/electronics-public-runtime.spec.ts',
+    'apps/web/src/projects-public/ElectronicsPublicationScene.playback.spec.ts',
+    'contexts/electronics/testing/timed-state.spec.ts',
+    'apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts',
+    'apps/api/src/public-scratch-player.spec.ts',
+    'tests/portal/public-scratch-player.pg.spec.ts',
+    'tests/portal/public-project-copy.pg.spec.ts',
+    'tests/portal/public-project-moderation.pg.spec.ts',
+    'tests/portal/public-project-pinning.pg.spec.ts',
+    'tests/migration/project-publication-moderation.pg.spec.ts',
+    'tests/migration/project-publication-editorial.pg.spec.ts',
+    'tests/migration/project-publication-pins.pg.spec.ts',
+    'tests/migration/public-project-author-name.pg.spec.ts',
+    'tests/migration/publication-copy-counts.pg.spec.ts',
+    'apps/api/src/public-project-reports.controller.spec.ts',
+    'tests/migration/project-publication-reports.pg.spec.ts',
+    'tests/portal/public-project-reports.http.pg.spec.ts',
+    'apps/api/src/public-projects.spec.ts',
+    'apps/api/src/public-project-copy.spec.ts',
+    'apps/api/src/admin-public-projects.controller.spec.ts',
+    'apps/web/src/admin/testing/admin-publications.spec.ts',
+    'apps/web/src/admin/testing/publication-acquisition.spec.ts',
+    'apps/web/src/admin/testing/admin-navigation.spec.ts',
+    'apps/web/src/projects-public',
+    '--maxWorkers=2',
+  ]);
+  run(['test:creator-portal']);
+  // Verify supported populated database upgrades from 0225 through 0247.
+  run([
+    'exec',
+    'vitest',
+    'run',
+    'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
+    '--maxWorkers=1',
+  ]);
+}
+console.log(`Public Projects ${browser ? 'real browser' : 'code and PostgreSQL'} gate: PASS`);

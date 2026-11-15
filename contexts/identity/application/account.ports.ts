@@ -1,11 +1,11 @@
 export interface AccountRecord {
   readonly id: string;
-  readonly email: string;
-  readonly passwordHash: string;
+  readonly email: string | null;
+  readonly passwordHash: string | null;
 }
 
 export interface AccountPasswordContext {
-  readonly passwordHash: string;
+  readonly passwordHash: string | null;
   readonly passwordConfigured: boolean;
   readonly authenticationSource: string;
 }
@@ -43,7 +43,7 @@ export interface CapabilityRef {
 }
 
 export interface AccountProfileRecord {
-  readonly email: string;
+  readonly email: string | null;
   readonly emailVerificationState: string;
   readonly username: string;
   readonly displayName: string;
@@ -149,7 +149,7 @@ export interface ActiveContext {
   readonly workspaceKind: 'personal' | 'organization';
   readonly tenantId: string;
   readonly userId: string | null;
-  readonly email: string;
+  readonly email: string | null;
   readonly displayName: string;
   readonly schoolId: string | null;
 }

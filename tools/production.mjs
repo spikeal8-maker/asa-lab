@@ -3,10 +3,14 @@
 // It never builds at startup: deployment builds and verifies first, then this
 // process starts only already-produced artifacts with the runtime-role DB URL.
 import { spawn, spawnSync } from 'node:child_process';
+import { Buffer } from 'node:buffer';
+import console from 'node:console';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import process from 'node:process';
 import { apiChildEnv } from './child-env.mjs';
 import { verifyWebArtifact } from './verify-web-artifact.mjs';
+import credentialConfiguration from '../apps/api/src/credential-configuration.cjs';
 
 function loadDotEnvLocal() {
   const file = '.env.local';
@@ -34,6 +38,16 @@ function resolvePort(raw) {
 }
 
 loadDotEnvLocal();
+try {
+  credentialConfiguration.validateCredentialConfiguration({
+    ...process.env,
+    NODE_ENV: 'production',
+  });
+} catch (error) {
+  // The shared validator emits setting names only, never supplied secret material.
+  console.error(error instanceof Error ? error.message : 'Credential configuration is invalid.');
+  process.exit(78);
+}
 const port = resolvePort(process.env.ASA_API_PORT);
 const entry = resolve('apps/api/dist/main.js');
 const webEntry = resolve('apps/web/dist/index.html');

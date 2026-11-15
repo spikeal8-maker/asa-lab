@@ -3,8 +3,22 @@ import { createReadStream } from 'node:fs';
 import { mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { applicationLogStore } from './application-log-store.js';
 import type { Readable } from 'node:stream';
-import { readLogCatalog, type LogFilter, type LogScanState } from './admin-logs.worker.js';
+import {
+  readLogCatalog,
+  verifyNativeLogIntegrity,
+  type LogFilter,
+  type LogErrorTrend,
+  type LogScanState,
+  type LogTrendWindow,
+} from './admin-logs.worker.js';
+import {
+  combineRequiredCoverage,
+  completeCatalogMetadata,
+  hostRequiredCoverage,
+  type NativeCoverage,
+} from './required-log-coverage.js';
 
 interface ExportJob {
   readonly id: string;
@@ -18,7 +32,12 @@ interface ExportJob {
 }
 
 export class AdminLogsService {
+  private readonly nativeIntegrityProofs = new Map<string, number>();
   private running = 0;
+  private readonly trends = new Map<
+    string,
+    { expiresAt: number; result: Promise<LogErrorTrend> }
+  >();
   private readonly jobs = new Map<string, ExportJob>();
   private lastCleanup = 0;
   private readonly scans = new Map<
@@ -30,23 +49,158 @@ export class AdminLogsService {
       state?: LogScanState;
       createdAt: number;
       busy: boolean;
+      root?: string;
     }
   >();
   constructor(
     private readonly root = process.env['ASA_LOG_STORE'] ?? '/var/lib/asa-logs',
     private readonly exportsRoot = process.env['ASA_LOG_EXPORTS'] ?? '/tmp/asa-log-exports',
+    private readonly localStore = applicationLogStore,
   ) {}
 
   async status() {
+    const local = this.localStore();
+    if (local) {
+      await local.flush();
+      let hostState: string;
+      let hostStatus: Awaited<ReturnType<AdminLogsService['statusAt']>> | undefined;
+      try {
+        hostStatus = await this.statusAt(this.root);
+        hostState = hostStatus.state;
+      } catch {
+        hostState = 'invalid';
+      }
+      const observed = await this.statusAt(local.root);
+      // A quiet in-process writer is not a dead OS collector. Preserve the last
+      // actual event timestamp, and never apply this exception to write errors.
+      const own =
+        observed.state === 'stale' && local.isIdleHealthy()
+          ? { ...observed, state: 'ok' as const }
+          : observed;
+      const native = await this.nativeCoverage(local, own);
+      const requiredCoverage = combineRequiredCoverage(hostStatus?.requiredCoverage, native);
+      if (hostStatus?.state === 'ok')
+        return {
+          ...hostStatus,
+          applicationCollection: 'embedded',
+          hostCollection: hostState,
+          embeddedCollection: own.state,
+          coverageComplete: false,
+          requiredCoverage,
+          ...(own.state === 'error' || own.state === 'unavailable'
+            ? { state: 'error' as const, collectorHealth: own.collectorHealth }
+            : {}),
+        };
+      return {
+        ...own,
+        applicationCollection: 'embedded',
+        hostCollection: hostState,
+        coverageComplete: false,
+        requiredCoverage,
+        collectorHealth: own.collectorHealth
+          ? {
+              ...own.collectorHealth,
+              detail: `${own.collectorHealth.detail}; optional host collection: ${hostState}`,
+            }
+          : null,
+      };
+    }
+    const host = await this.statusAt(this.root);
+    return {
+      ...host,
+      coverageComplete: false,
+      requiredCoverage: combineRequiredCoverage(host.requiredCoverage, {
+        state: 'unknown',
+        reason: 'native_writer_unavailable',
+      }),
+    };
+  }
+
+  private async nativeCoverage(
+    local: NonNullable<ReturnType<typeof applicationLogStore>>,
+    observed: Awaited<ReturnType<AdminLogsService['statusAt']>>,
+  ): Promise<NativeCoverage> {
+    const counters = {
+      ...local.counters,
+      pending: Math.max(0, local.counters.accepted - local.counters.persisted),
+    };
+    if (
+      counters.persisted > counters.accepted ||
+      Object.values(counters).some((value) => !Number.isSafeInteger(value) || value < 0)
+    )
+      return { state: 'unknown', reason: 'native_counters_invalid' };
+    if (
+      !local.isIdleHealthy() ||
+      counters.dropped ||
+      counters.failures ||
+      counters.pending ||
+      observed.state !== 'ok' ||
+      observed.collectorHealth?.state !== 'ok'
+    )
+      return { state: 'incomplete', reason: 'native_writer_incomplete', counters };
+    try {
+      const catalog = await readLogCatalog(local.root);
+      if (
+        !catalog ||
+        catalog.applicationOwned !== true ||
+        !completeCatalogMetadata(catalog) ||
+        Date.parse(catalog.collectedAt) > Date.now() + 5000 ||
+        !Number.isFinite(Date.parse(observed.collectorHealth.lastSuccessAt ?? '')) ||
+        Date.parse(observed.collectorHealth.lastSuccessAt ?? '') > Date.now() + 5000 ||
+        Date.parse(observed.collectorHealth.checkedAt) > Date.now() + 5000 ||
+        catalog.maxBytes > 128 * 1024 * 1024 ||
+        catalog.sources.length !== 1 ||
+        catalog.sources[0]?.source !== 'api' ||
+        catalog.sources[0].state !== 'ok'
+      )
+        return { state: 'unknown', reason: 'native_catalog_metadata_invalid', counters };
+      const integrity = await verifyNativeLogIntegrity(
+        local.root,
+        catalog,
+        this.nativeIntegrityProofs,
+      );
+      if (
+        !local.isIdleHealthy() ||
+        Object.keys(local.counters).some(
+          (key) =>
+            local.counters[key as keyof typeof local.counters] !==
+            counters[key as keyof typeof local.counters],
+        )
+      )
+        return { state: 'incomplete', reason: 'native_writer_changed_during_check', counters };
+      return {
+        state: integrity === 'ok' ? 'ok' : integrity === 'partial' ? 'unknown' : 'incomplete',
+        reason:
+          integrity === 'ok'
+            ? 'native_writer_and_recent_integrity_verified'
+            : integrity === 'partial'
+              ? 'native_integrity_pending'
+              : 'native_integrity_failed',
+        counters,
+      };
+    } catch {
+      return { state: 'incomplete', reason: 'native_catalog_unreadable', counters };
+    }
+  }
+
+  private async statusAt(root: string) {
     await this.expireJobs();
     let collectorHealth: {
       state: string;
       checkedAt: string;
       lastSuccessAt: string | null;
       detail: string;
+      historyAudit?: {
+        state: string;
+        generation: string;
+        checked: number;
+        total: number;
+        deadline: number;
+        lastCompletedAt: string | null;
+      };
     } | null = null;
     try {
-      const path = join(this.root, 'collector-health.json');
+      const path = join(root, 'collector-health.json');
       if ((await stat(path)).size > 4096) throw new Error('LOG_HEALTH_INVALID');
       const value = JSON.parse(await readFile(path, 'utf8'));
       if (
@@ -61,6 +215,34 @@ export class AdminLogsService {
         lastSuccessAt: typeof value.lastSuccessAt === 'string' ? value.lastSuccessAt : null,
         detail: typeof value.detail === 'string' ? value.detail.slice(0, 500) : '',
       };
+      const audit = value.historyAudit;
+      if (audit !== undefined) {
+        if (
+          !audit ||
+          !['running', 'complete', 'overdue', 'error'].includes(audit.state) ||
+          typeof audit.generation !== 'string' ||
+          !Number.isSafeInteger(audit.checked) ||
+          audit.checked < 0 ||
+          !Number.isSafeInteger(audit.total) ||
+          audit.total < 0 ||
+          !Number.isFinite(audit.deadline)
+        )
+          throw new Error('LOG_HEALTH_INVALID');
+        const overdue = audit.state !== 'complete' && Date.now() > audit.deadline * 1000;
+        collectorHealth.historyAudit = {
+          state: overdue ? 'overdue' : audit.state,
+          generation: audit.generation.slice(0, 64),
+          checked: audit.checked,
+          total: audit.total,
+          deadline: audit.deadline,
+          lastCompletedAt: typeof audit.lastCompletedAt === 'string' ? audit.lastCompletedAt : null,
+        };
+        if (overdue || audit.state === 'error') {
+          collectorHealth.state = 'error';
+          collectorHealth.detail =
+            'Retained history audit incomplete; integrity verification required';
+        }
+      }
     } catch (failure) {
       if ((failure as NodeJS.ErrnoException).code !== 'ENOENT')
         collectorHealth = {
@@ -70,10 +252,16 @@ export class AdminLogsService {
           detail: 'Collector health file is unreadable',
         };
     }
-    const catalog = await readLogCatalog(this.root);
+    let catalog;
+    let invalidCatalog = false;
+    try {
+      catalog = await readLogCatalog(root);
+    } catch {
+      invalidCatalog = true;
+    }
     if (!catalog)
       return {
-        state: 'unavailable' as const,
+        state: invalidCatalog ? ('error' as const) : ('unavailable' as const),
         collectorHealth,
         collectedAt: null,
         sources: [],
@@ -82,6 +270,7 @@ export class AdminLogsService {
         first: null,
         last: null,
         trimmed: false,
+        requiredCoverage: hostRequiredCoverage(null, collectorHealth),
       };
     const age = Date.now() - Date.parse(catalog.collectedAt);
     const sourceFailures = catalog.sources.filter((s) => s.state === 'error');
@@ -108,14 +297,17 @@ export class AdminLogsService {
         null,
       ),
       trimmed: catalog.trimmed,
+      requiredCoverage: hostRequiredCoverage(catalog, collectorHealth),
     };
   }
 
   private async worker(
-    kind: 'query' | 'export',
+    kind: 'query' | 'export' | 'trend',
     filter: LogFilter,
     output = '',
     scanState?: LogScanState,
+    root = this.root,
+    window?: LogTrendWindow,
   ): Promise<unknown> {
     if (this.running >= 2) throw new Error('LOG_BUSY');
     this.running += 1;
@@ -123,7 +315,7 @@ export class AdminLogsService {
       let worker: Worker;
       try {
         worker = new Worker(join(__dirname, 'admin-logs.worker.js'), {
-          workerData: { kind, root: this.root, filter, limit: 100, output, scanState },
+          workerData: { kind, root, filter, limit: 100, output, scanState, window },
           resourceLimits: { maxOldGenerationSizeMb: 128 },
         });
       } catch {
@@ -155,6 +347,47 @@ export class AdminLogsService {
     });
   }
 
+  trend(window: LogTrendWindow): Promise<LogErrorTrend> {
+    const key = JSON.stringify(window);
+    const now = Date.now();
+    for (const [id, entry] of this.trends) {
+      if (entry.expiresAt <= now) this.trends.delete(id);
+    }
+    const cached = this.trends.get(key);
+    if (cached) return cached.result;
+    if (this.trends.size >= 16) throw new Error('LOG_BUSY');
+    const filter: LogFilter = {
+      from: window.from,
+      to: window.to,
+      scope: 'all',
+      source: '',
+      module: '',
+      level: 'error',
+      search: '',
+      before: null,
+    };
+    const result = this.queryRoot(filter)
+      .then(async (root): Promise<LogErrorTrend> => {
+        const trend = (await this.worker(
+          'trend',
+          filter,
+          '',
+          undefined,
+          root,
+          window,
+        )) as LogErrorTrend;
+        return root !== this.root && trend.coverage === 'available'
+          ? { ...trend, coverage: 'partial' }
+          : trend;
+      })
+      .catch((failure: unknown) => {
+        if (this.trends.get(key)?.result === result) this.trends.delete(key);
+        throw failure;
+      });
+    this.trends.set(key, { expiresAt: now + 30_000, result });
+    return result;
+  }
+
   async query(
     filter: LogFilter,
     owner = '',
@@ -181,11 +414,19 @@ export class AdminLogsService {
       effectiveFilter: filter,
       createdAt: Date.now(),
       busy: false,
+      root: this.root,
     };
     active.busy = true;
     this.scans.set(id, active);
     try {
-      const result = (await this.worker('query', active.effectiveFilter, '', scan?.state)) as {
+      if (!scan && this.localStore()) active.root = await this.queryRoot(filter);
+      const result = (await this.worker(
+        'query',
+        active.effectiveFilter,
+        '',
+        scan?.state,
+        active.root,
+      )) as {
         items: unknown[];
         next: unknown;
         partial: boolean;
@@ -195,7 +436,7 @@ export class AdminLogsService {
       const { scanState, ...page } = result;
       if (!scanState) {
         this.scans.delete(id);
-        return { ...page, scanCursor: null };
+        return { ...page, scanCursor: null, coverage: this.coverage(active.root) };
       }
       this.scans.set(id, {
         owner,
@@ -204,12 +445,38 @@ export class AdminLogsService {
         state: scanState,
         createdAt: scan?.createdAt ?? Date.now(),
         busy: false,
+        root: active.root ?? this.root,
       });
-      return { ...page, scanCursor: id };
+      return { ...page, scanCursor: id, coverage: this.coverage(active.root) };
     } catch (failure) {
       this.scans.delete(id);
       throw failure;
     }
+  }
+
+  private coverage(root: string | undefined) {
+    const embedded = !!root && root !== this.root;
+    return {
+      application: embedded ? 'embedded' : 'host-collector',
+      host: embedded ? 'not_included' : 'included',
+      complete: false,
+    };
+  }
+
+  private async queryRoot(filter: LogFilter): Promise<string> {
+    const local = this.localStore();
+    if (!local || filter.scope === 'host') return this.root;
+    await local.flush();
+    // Application evidence is available even when an optional OS runner cannot
+    // run. An "all" fallback is marked incomplete, never advertised as host logs.
+    try {
+      const host = await this.statusAt(this.root);
+      if (host.state === 'ok' || (filter.scope !== 'application' && host.state !== 'unavailable'))
+        return this.root;
+    } catch {
+      /* Invalid history stays visible through status; it is not erased. */
+    }
+    return local.root;
   }
 
   private async expireJobs(): Promise<void> {
@@ -253,7 +520,13 @@ export class AdminLogsService {
       error: null,
     };
     this.jobs.set(id, job);
-    void this.worker('export', filter, job.output)
+    void this.queryRoot(filter)
+      .then((root) => {
+        // Never package application-only evidence under the "all logs" label.
+        if (root !== this.root && filter.scope !== 'application')
+          throw new Error('LOG_COLLECTOR_UNAVAILABLE');
+        return this.worker('export', filter, job.output, undefined, root);
+      })
       .then((value) => {
         const result = value as { count: number; bytes: number };
         job.state = 'ready';

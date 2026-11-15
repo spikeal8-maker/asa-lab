@@ -1,0 +1,58 @@
+name: Portal Header Responsive
+
+on:
+  push:
+    branches:
+      - assistant/portal-header-responsive-20261017
+  pull_request:
+    paths:
+      - apps/web/src/App.tsx
+      - apps/web/src/creator-portal/portal-header-adaptive.css
+      - apps/web/src/modules/classroom-mobile.css
+      - e2e/portal-header-responsive.spec.ts
+      - .github/workflows/portal-header-responsive.yml
+  workflow_dispatch:
+
+jobs:
+  portal-header-proof:
+    name: Shared header — widths, zoom, routes, controls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Build exact production UI
+        run: pnpm exec nx run web:build --skip-nx-cache
+      - name: Header one-row, visible labels, 4K scaling and accessible controls
+        env:
+          ASA_E2E_EXTERNAL: 'true'
+        run: >-
+          pnpm exec playwright test e2e/portal-header-responsive.spec.ts
+          --config playwright.config.ts --workers=1 --reporter=list
+      - name: Preserve viewport screenshots and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-header-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: |
+            e2e/artifacts/owner-preview/portal-header-adaptive
+            reports/playwright
+            apps/web/dist/build-metadata.json
+          if-no-files-found: warn
+          retention-days: 14

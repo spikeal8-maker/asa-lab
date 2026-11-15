@@ -1,4 +1,5 @@
 import type { ComponentKind, ProductionStateValue, SchematicComponent } from './document.js';
+import { captureDeviceModelDefinition } from './models/device-model.js';
 
 export type ElectricalModelId =
   | 'ideal-dc-source'
@@ -11,6 +12,7 @@ export type ElectricalModelId =
   | 'seven-segment'
   | 'momentary-button'
   | 'spdt-switch'
+  | 'spst-switch'
   | 'potentiometer'
   | 'capacitor'
   | 'photoresistor'
@@ -57,6 +59,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'seven-segment',
   'momentary-button',
   'spdt-switch',
+  'spst-switch',
   'potentiometer',
   'capacitor',
   'photoresistor',
@@ -85,7 +88,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'pir-sensor': identity('pir-motion-sensor', 'pir-digital-motion-v1'),
   'temperature-sensor': identity('analog-temperature-sensor', 'tmp36-to92-dc'),
   'ultrasonic-sensor': identity('ping-ultrasonic-distance-sensor', 'ping-3pin-canonical-echo-v1'),
-  'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1'),
+  'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1', 2),
   'servo-motor': identity('servo-motor-signal', 'servo-pulse-angle-v1'),
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
   'resistor-axial': identity('resistor', 'axial-resistor'),
@@ -94,6 +97,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'seven-segment-display': identity('seven-segment', 'single-digit-seven-segment-10pin', 2),
   'button-tactile-6mm': identity('momentary-button', 'tactile-button-6mm'),
   'switch-spdt': identity('spdt-switch', 'slide-switch-spdt'),
+  'switch-spst': identity('spst-switch', 'slide-switch-spst'),
   potentiometer: identity('potentiometer', 'generic-potentiometer'),
   'electrolytic-capacitor': identity('capacitor', 'generic-electrolytic-capacitor'),
   photoresistor: identity('photoresistor', 'generic-photoresistor', 2),
@@ -124,6 +128,17 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'signal-generator': identity('function-generator', 'asa-function-generator-1mhz'),
   oscilloscope: identity('oscilloscope', 'asa-two-terminal-oscilloscope'),
 };
+
+const strictIdentityDefinitionsAreOriginal = captureDeviceModelDefinition([
+  EXACT_IDENTITIES['arduino-uno'],
+  EXACT_IDENTITIES['resistor-axial'],
+  EXACT_IDENTITIES['led-5mm'],
+]);
+
+/** Package-internal origin of the three shared identities used by the strict route. */
+export function strictElectricalIdentitiesHaveOriginalDefinition(): boolean {
+  return strictIdentityDefinitionsAreOriginal();
+}
 
 function identity(
   electricalModelId: ElectricalModelId,
@@ -206,6 +221,16 @@ export function electricalModelIdentityForComponent(
       component.electricalModelId === 'unsupported' &&
       component.electricalModelVersion === 1 &&
       component.modelProfileId === `unsupported-${component.componentTypeId}` &&
+      component.modelProfileVersion === 1
+    )
+      return resolveElectricalModelIdentity(component);
+    // The former always-reflecting profile is the default of the new optional
+    // echoAvailable input. Only its exact installed identity is compatible.
+    if (
+      component.componentTypeId === 'ultrasonic-hc-sr04' &&
+      component.electricalModelId === 'hc-sr04-distance-sensor' &&
+      component.electricalModelVersion === 1 &&
+      component.modelProfileId === 'hc-sr04-canonical-echo-v1' &&
       component.modelProfileVersion === 1
     )
       return resolveElectricalModelIdentity(component);

@@ -1,3 +1,5 @@
+import { sendTaskImage } from './learning-task-image.js';
+import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
   Controller,
@@ -19,6 +21,7 @@ import { effectiveAccountActions } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { cataloguePreview, type CataloguePreviewRow } from './course-preview.js';
 import { checkBodyShape } from './validation.js';
+import { COURSE_USAGE_SQL } from './course-usage-query.js';
 import {
   LearningCanonicalProjectionService,
   type CanonicalLearningProjection,
@@ -245,6 +248,11 @@ interface CoursePublishRow {
   problem_id: string | null;
   problem_path: string | null;
   problem_message: string | null;
+  problem_section_id: string | null;
+  problem_lesson_id: string | null;
+  problem_block_id: string | null;
+  problem_field: string | null;
+  problem_reason: string | null;
 }
 
 interface ClassroomCourseRunRow {
@@ -634,7 +642,7 @@ export class CoursesController {
 
   @Post('courses')
   async create(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
-    return { id: await this.save(request, null, rawBody) };
+    return this.save(request, null, rawBody);
   }
 
   /**
@@ -681,14 +689,14 @@ export class CoursesController {
     @Body() rawBody: unknown,
   ) {
     this.requireUuid(courseId, 'course');
-    return { id: await this.save(request, courseId, rawBody) };
+    return this.save(request, courseId, rawBody);
   }
 
   private async save(
     request: FastifyRequest,
     courseId: string | null,
     rawBody: unknown,
-  ): Promise<string> {
+  ): Promise<{ id: string; draftRevision: number }> {
     const context = await this.requireAuthor(request);
     const shape = checkBodyShape(rawBody, [
       'title',
@@ -735,7 +743,14 @@ export class CoursesController {
         ),
         409,
       );
-    return id;
+    const draftRevision = Number(result.rows[0]?.draft_revision);
+    if (!Number.isSafeInteger(draftRevision) || draftRevision < 1) {
+      throw new HttpException(
+        error('draft_revision_missing', 'Не удалось подтвердить версию курса.'),
+        503,
+      );
+    }
+    return { id, draftRevision };
   }
 
   /**
@@ -748,15 +763,30 @@ export class CoursesController {
   async versions(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
     const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
-    const result = await this.requirePool().query('SELECT * FROM course_author_versions($1,$2)', [
-      context.principalId,
-      courseId,
-    ]);
+    const result = await this.requirePool().query(
+      `SELECT history.*, COALESCE((
+         SELECT jsonb_agg(jsonb_build_object(
+           'pointer',pin.pointer,'pinKind',pin.pin_kind,'available',pin.available,
+           'activityId',pin.activity_id,'versionId',pin.version_id,
+           'versionNumber',pin.version_number,'title',pin.title,
+           'instructions',pin.instructions,'goal',pin.goal,
+           'goalSnapshotPresent',pin.goal_snapshot_present,
+           'blocks',pin.blocks,'blocksSnapshotPresent',pin.blocks_snapshot_present,
+           'moduleKey',pin.module_key,'resultMode',pin.result_mode,
+           'maxPoints',pin.max_points,'policySnapshot',pin.policy_snapshot,
+           'contentDigest',pin.content_digest) ORDER BY pin.pointer)
+         FROM course_author_version_pins($1,$2,history.id) pin
+       ),'[]'::jsonb) AS pinned_activities
+       FROM course_author_versions($1,$2) history
+       ORDER BY history.version_number DESC`,
+      [context.principalId, courseId],
+    );
     return {
       items: result.rows.map((row) => ({
         id: row['id'],
         versionNumber: Number(row['version_number']),
         outline: row['outline'],
+        pinnedActivities: row['pinned_activities'],
         publishedAt: iso(row['published_at']),
       })),
     };
@@ -824,24 +854,43 @@ export class CoursesController {
       );
     const result = await this.requirePool().query(
       `SELECT result_code, version_id, version_number, published_at, reused,
-              problem_kind, problem_id, problem_path, problem_message
-         FROM course_publish_v3($1, $2,$3,$4)`,
+              problem_kind, problem_id, problem_path, problem_message,
+              problem_section_id, problem_lesson_id, problem_block_id, problem_field, problem_reason
+         FROM course_publish_v4($1, $2,$3,$4)`,
       [context.principalId, courseId, shape.body['expectedRevision'], shape.body['requestId']],
     );
     const row = result.rows[0] as CoursePublishRow | undefined;
     if (!row || row.result_code === 'course_not_found') {
       throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
     }
-    if (row.result_code === 'course_empty') {
-      throw new HttpException(
-        error('course_empty', 'Добавьте хотя бы один урок перед публикацией.'),
-        409,
-      );
-    }
-    if (row.result_code === 'prepublish_invalid') {
+    if (row.result_code === 'course_empty' || row.result_code === 'prepublish_invalid') {
       const path = row.problem_path ? `${row.problem_path}: ` : '';
+      const message =
+        row.problem_message ??
+        (row.result_code === 'course_empty'
+          ? 'Добавьте хотя бы один урок перед публикацией.'
+          : 'Исправьте содержание курса.');
       throw new HttpException(
-        error('prepublish_invalid', path + (row.problem_message ?? 'Исправьте содержание курса.')),
+        {
+          error: {
+            code: row.result_code,
+            message: path + message,
+            diagnostic: {
+              courseId,
+              draftRevision: shape.body['expectedRevision'],
+              sectionId: row.problem_section_id ?? null,
+              lessonId: row.problem_lesson_id ?? null,
+              blockId: row.problem_block_id ?? null,
+              field:
+                row.problem_field ?? (row.result_code === 'course_empty' ? 'lessons' : 'blocks'),
+              reason:
+                row.problem_reason ??
+                (row.result_code === 'course_empty' ? 'course_empty' : 'block_invalid'),
+              path: row.problem_path ?? 'Курс',
+              message,
+            },
+          },
+        },
         409,
       );
     }
@@ -861,6 +910,40 @@ export class CoursesController {
 
   // Проведение курса в классе. Здесь используется опубликованная версия, а не
   // редактируемый черновик из методической мастерской.
+
+  @Get('courses/:courseId/usage')
+  async usage(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
+    const context = await this.requireAuthor(request);
+    this.requireUuid(courseId, 'course');
+    const capabilities = await this.accounts.capabilities(context.accountId);
+    const canReadClasses = capabilities.some(
+      (entry) =>
+        entry.capability === 'educator' &&
+        (entry.state === 'verified' || entry.state === 'provisional'),
+    );
+    const result = await this.requirePool().query(COURSE_USAGE_SQL, [
+      context.principalId,
+      canReadClasses ? context.accountId : null,
+      courseId,
+    ]);
+    if (result.rows.length === 0)
+      throw new HttpException(error('not_found', 'Курс не найден.'), 404);
+    return {
+      items: result.rows
+        .filter((row) => row.run_id !== null)
+        .map((row) => ({
+          id: row.run_id as string,
+          classroomId: row.classroom_id as string,
+          classroomTitle: row.classroom_title as string,
+          classroomStatus: row.classroom_status as 'active' | 'archived',
+          courseVersionId: row.course_version_id as string,
+          versionNumber: Number(row.version_number),
+          title: row.run_title as string,
+          status: row.run_status as 'open' | 'closed',
+          audienceType: row.audience_type as 'whole_class' | 'named_learners' | null,
+        })),
+    };
+  }
 
   @Get('classrooms/:classroomId/course-runs')
   async classroomRuns(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
@@ -933,19 +1016,9 @@ export class CoursesController {
         error('validation_error', 'Проверьте версию курса и аудиторию.'),
         400,
       );
-    const courseState = await this.requirePool().query(
-      'SELECT archived_at FROM course_library_list_v3($1) WHERE id=$2',
-      [context.principalId, courseId],
-    );
-    if (courseState.rows.length === 0) {
-      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
-    }
-    if (courseState.rows[0]?.['archived_at'] !== null) {
-      throw new HttpException(
-        error('course_archived', 'Восстановите курс из архива перед назначением.'),
-        409,
-      );
-    }
+    // The assignment transaction owns authorization, exact replay and the
+    // course archive lock. A separate library read would race with archive
+    // and reject a lawful replay of an already completed assignment.
     const result = canonical
       ? await this.requirePool().query(
           timeZone === undefined
@@ -978,6 +1051,15 @@ export class CoursesController {
       | undefined;
     if (!row || row.result_code === 'classroom_not_found') {
       throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+    }
+    if (row.result_code === 'course_not_found') {
+      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    }
+    if (row.result_code === 'course_archived') {
+      throw new HttpException(
+        error('course_archived', 'Восстановите курс из архива перед назначением.'),
+        409,
+      );
     }
     if (row.result_code === 'course_not_published') {
       throw new HttpException(error('course_not_published', 'Сначала опубликуйте курс.'), 409);
@@ -1244,7 +1326,7 @@ export class CoursesController {
     @Param('courseId') courseId: string,
     @Body() rawBody: unknown,
   ) {
-    return { id: await this.saveSection(request, courseId, null, rawBody) };
+    return this.saveSection(request, courseId, null, rawBody);
   }
 
   @Patch('courses/:courseId/sections/:sectionId')
@@ -1255,7 +1337,7 @@ export class CoursesController {
     @Body() rawBody: unknown,
   ) {
     this.requireUuid(sectionId, 'section');
-    return { id: await this.saveSection(request, courseId, sectionId, rawBody) };
+    return this.saveSection(request, courseId, sectionId, rawBody);
   }
 
   private async saveSection(
@@ -1263,7 +1345,7 @@ export class CoursesController {
     courseId: string,
     sectionId: string | null,
     rawBody: unknown,
-  ): Promise<string> {
+  ): Promise<{ id: string; draftRevision: number }> {
     const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     const shape = checkBodyShape(rawBody, ['title', 'summary', 'expectedRevision']);
@@ -1282,10 +1364,11 @@ export class CoursesController {
       shape.body['expectedRevision'],
       'SELECT course_section_save($1, $2, $3, $4, $5) AS id',
       [context.principalId, courseId, sectionId, title, summary],
+      true,
     );
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
     if (!id) throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
-    return id;
+    return { id, draftRevision: Number(result.draftRevision) };
   }
 
   @Post('courses/:courseId/sections/:sectionId/move')
@@ -1923,12 +2006,14 @@ export class CoursesController {
       !row ||
       row.content_hash !== contentHash ||
       (role === 'file'
-        ? row.content_type !== 'application/pdf'
+        ? !isLearningTaskFileContentType(row.content_type)
         : !['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type))
     )
       throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
     reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
-    if (role === 'file') reply.header('content-disposition', 'attachment; filename="material.pdf"');
+    if (role === 'file') reply.header('content-disposition', 'attachment');
+    if (role === 'image')
+      return sendTaskImage(request, reply, row.media_bytes, row.content_type, contentHash);
     reply.type(row.content_type).send(row.media_bytes);
   }
 

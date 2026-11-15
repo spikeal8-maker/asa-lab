@@ -9,6 +9,8 @@ import {
   safeServerError,
   diagnosticContext,
   requestFailures,
+  requestValidationReasons,
+  safeValidationReason,
   recordServerFailure,
 } from './server-diagnostics.js';
 
@@ -25,6 +27,43 @@ class DiagnosticFixtureController {
 class DiagnosticFixtureModule {}
 
 describe('structured server error evidence', () => {
+  it.each([
+    ['electronics_hole_binding_reference', 400, 'validation_error', true],
+    ['robotics_document_version', 400, 'validation_error', true],
+    ['robotics_document_version', 500, 'validation_error', false],
+    ['robotics_document_version', 400, 'permission_denied', false],
+    ['private-student-data', 400, 'validation_error', false],
+    ['electronics_hole_binding_reference', 500, 'validation_error', false],
+    ['electronics_hole_binding_reference', 403, 'permission_denied', false],
+  ])(
+    'admits only finite validation reasons for HTTP400: %s/%s',
+    (reasonCode, status, code, admitted) => {
+      const request = {
+        id: 'test',
+        method: 'PUT',
+        raw: { url: '/api/projects/p1/draft' },
+        headers: {},
+      } as unknown as FastifyRequest;
+      const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+      try {
+        recordServerFailure(
+          new HttpException(
+            { error: { code, reasonCode, message: 'private-student-data' } },
+            status,
+          ),
+          request,
+          status,
+          null,
+          null,
+        );
+        expect(requestValidationReasons.get(request)).toBe(admitted ? reasonCode : undefined);
+        expect(JSON.stringify(out.mock.calls)).not.toContain('private-student-data');
+        expect(safeValidationReason('password=private-student-data')).toBeUndefined();
+      } finally {
+        out.mockRestore();
+      }
+    },
+  );
   it('redacts invitation capabilities and queries before writing stdout', () => {
     expect(
       safeLogPath('/api/classroom-teacher-invitations/private-capability/accept?secret=x'),
@@ -112,6 +151,7 @@ describe('structured server error evidence', () => {
       headers: {
         'x-asa-diagnostic-module': 'scratch',
         'x-asa-diagnostic-instance': '20000000-0000-4000-8000-000000000001',
+        'x-asa-client-attempt-id': '30000000-0000-4000-8000-000000000001',
       },
     } as unknown as FastifyRequest;
     const host = {
@@ -131,6 +171,8 @@ describe('structured server error evidence', () => {
         module: 'scratch',
         revision: 'abcdef0',
         status: 500,
+        clientAttemptId: request.headers['x-asa-client-attempt-id'],
+        untrustedClientContext: true,
       });
       expect(JSON.stringify(event)).not.toContain('private-value');
       expect(reply.mock.calls[0]![1]).toEqual({
@@ -147,9 +189,25 @@ describe('structured server error evidence', () => {
           headers: {
             'x-asa-diagnostic-instance': 'private-value',
             'x-asa-diagnostic-module': 'secret',
+            'x-asa-client-attempt-id': 'private-value',
           },
         } as FastifyRequest),
       ).toEqual({});
+      expect(
+        diagnosticContext({
+          ...request,
+          headers: { 'x-asa-client-attempt-id': ['30000000-0000-4000-8000-000000000001'] },
+        } as unknown as FastifyRequest),
+      ).toEqual({});
+      expect(
+        diagnosticContext({
+          ...request,
+          headers: { 'x-asa-client-attempt-id': '30000000-0000-4000-8000-000000000001' },
+        } as unknown as FastifyRequest),
+      ).toEqual({
+        clientAttemptId: '30000000-0000-4000-8000-000000000001',
+        untrustedClientContext: true,
+      });
     } finally {
       out.mockRestore();
     }

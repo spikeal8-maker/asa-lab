@@ -1,4 +1,5 @@
 import type { ModuleSummary } from '../api';
+import { ProjectModuleIcon } from './ProjectModuleIcon';
 
 export function ModuleGlyph({
   module,
@@ -7,6 +8,21 @@ export function ModuleGlyph({
   module: ModuleSummary;
   size?: number;
 }): JSX.Element {
+  if (
+    [
+      'three-d',
+      'electronics',
+      'blocks',
+      'cad',
+      'robotics',
+      'ai',
+      'drawing',
+      'vector',
+      'programming',
+    ].includes(module.moduleKey)
+  ) {
+    return <ProjectModuleIcon moduleKey={module.moduleKey} size={size} />;
+  }
   const common = {
     width: size,
     height: size,

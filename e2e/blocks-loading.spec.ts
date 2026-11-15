@@ -136,6 +136,44 @@ test('delayed startup shows one full-screen ASA loader until canonical editor-re
   }
 });
 
+test('first navigation and reload reach editor-ready without Retry', async () => {
+  test.setTimeout(300_000);
+  const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
+  try {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const page = await fixture.context.newPage();
+      try {
+        await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+        const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+        await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+          'data-editor-state',
+          'ready',
+          { timeout: 45000 },
+        );
+        await expect(page.locator('[data-asa-blocks-loading-overlay]')).toHaveAttribute(
+          'data-state',
+          'ready',
+        );
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+          'data-editor-state',
+          'ready',
+          { timeout: 45000 },
+        );
+        await expect(page.locator('[data-asa-blocks-loading-overlay]')).toHaveAttribute(
+          'data-state',
+          'ready',
+        );
+      } finally {
+        await page.close();
+      }
+    }
+    expect(fixture.pageErrors).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('runtime startup failure uses the central ASA error screen and Back returns to projects', async () => {
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   await fixture.context.route(

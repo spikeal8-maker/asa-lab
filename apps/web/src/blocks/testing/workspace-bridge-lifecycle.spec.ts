@@ -57,7 +57,7 @@ function capability(token: string): Response {
       projectJson: { targets: [], monitors: [], extensions: [] },
       assets: [],
     }),
-    { status: 200 },
+    { status: 200, headers: { date: new Date().toUTCString() } },
   );
 }
 async function settle(): Promise<void> {

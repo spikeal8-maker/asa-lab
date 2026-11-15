@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpException,
   Inject,
   Param,
@@ -19,16 +20,10 @@ import { hashSessionToken } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { cataloguePreview, type CataloguePreviewRow } from './course-preview.js';
+import { throwPublicationError } from './public-projects.errors.js';
 
-/**
- * The gallery: work somebody chose to show, and what people say about it.
- *
- * Everything here is deliberately public to signed-in people across schools —
- * that is what makes it a gallery rather than another view of a class. What is
- * NOT here is any way to reach unpublished work: the only door onto a picture
- * from another tenant is gallery_snapshot, and it opens for published projects
- * alone.
- */
+/** Compatibility routes for explicit Public Projects. SQL applies the same
+ * current policy and frozen publication projection as the anonymous API. */
 
 const STUDENT_SESSION_COOKIE = 'asa_student_session';
 
@@ -115,6 +110,7 @@ export class GalleryController {
   }
 
   @Get()
+  @Header('Cache-Control', 'no-store')
   async list(
     @Req() request: FastifyRequest,
     @Query('sort') sort: string | undefined,
@@ -223,8 +219,11 @@ export class GalleryController {
   async mine(@Req() request: FastifyRequest) {
     const viewer = await this.requireViewer(request);
     const result = await this.requirePool().query(
-      `SELECT project_id FROM project_publications
-        WHERE owner_principal_id = $1 OR published_by_principal_id = $1`,
+      `SELECT legacy.project_id FROM project_publications legacy
+        WHERE (legacy.owner_principal_id = $1 OR legacy.published_by_principal_id = $1)
+          AND EXISTS (
+            SELECT 1 FROM public.gallery_state($1, legacy.project_id)
+          )`,
       [viewer.principalId],
     );
     return { projectIds: (result.rows as Array<{ project_id: string }>).map((r) => r.project_id) };
@@ -237,6 +236,7 @@ export class GalleryController {
     @Param('projectId') projectId: string,
     @Res({ passthrough: false }) reply: FastifyReply,
   ) {
+    reply.header('cache-control', 'no-store');
     await this.requireViewer(request);
     this.requireUuid(projectId, 'project');
     const result = await this.requirePool().query(
@@ -253,88 +253,38 @@ export class GalleryController {
         .header('x-content-type-options', 'nosniff')
         .header('content-security-policy', "default-src 'none'; sandbox")
         .header('cross-origin-resource-policy', 'same-origin')
-        .header('cache-control', 'private, max-age=300')
+        .header('cache-control', 'no-store')
         .send(row.image)
     );
   }
 
-  /**
-   * One published work in full: what its own page shows.
-   *
-   * Including the model document — what the work is built from. A gallery you
-   * can only look at teaches nothing; a child learns by opening somebody's
-   * castle and seeing which shapes it is made of.
-   */
+  /** Retired detail route. Public detail is addressed by publication identity. */
   @Get(':projectId/work')
+  @Header('Cache-Control', 'no-store')
   async work(@Req() request: FastifyRequest, @Param('projectId') projectId: string) {
-    const viewer = await this.requireViewer(request);
+    await this.requireViewer(request);
     this.requireUuid(projectId, 'project');
-    const result = await this.requirePool().query(
-      `SELECT project_id, title, module_key, author_label, published_at, snapshot_revision,
-              editors_choice, like_count, wow_count, viewer_liked, viewer_wowed,
-              viewer_may_remove, viewer_is_author, document_json,
-              copied_from_author, copied_from_title,
-              description, tags, license, visibility, copy_count
-         FROM gallery_work($1, $2)`,
-      [viewer.principalId, projectId],
-    );
-    const row = result.rows[0] as
-      | (GalleryRow & {
-          viewer_is_author: boolean;
-          document_json: unknown;
-          copied_from_author: string | null;
-          copied_from_title: string | null;
-          description: string | null;
-          tags: string[] | null;
-          license: string;
-          visibility: 'link' | 'public';
-          copy_count: number | string;
-        })
-      | undefined;
-    if (!row) throw new HttpException(error('not_published', 'Работа не опубликована.'), 404);
-    return {
-      work: {
-        projectId: row.project_id,
-        title: row.title,
-        moduleKey: row.module_key,
-        authorLabel: row.author_label,
-        publishedAt: iso(row.published_at),
-        snapshotRevision: Number(row.snapshot_revision),
-        editorsChoice: row.editors_choice === true,
-        likeCount: Number(row.like_count),
-        wowCount: Number(row.wow_count),
-        viewerLiked: row.viewer_liked === true,
-        viewerWowed: row.viewer_wowed === true,
-        viewerMayRemove: row.viewer_may_remove === true,
-        viewerIsAuthor: row.viewer_is_author === true,
-        document: row.document_json ?? null,
-        copiedFromAuthor: row.copied_from_author,
-        copiedFromTitle: row.copied_from_title,
-        description: row.description,
-        tags: row.tags ?? [],
-        license: row.license,
-        visibility: row.visibility,
-        // Сколько раз работу взяли за основу — то число, ради которого автор
-        // вообще выкладывает: его работой воспользовались столько раз.
-        copyCount: Number(row.copy_count ?? 0),
-      },
-    };
+    throw new HttpException(error('not_available', 'Публикация недоступна.'), 404);
   }
 
-  /**
-   * Taking a copy into your own projects.
-   *
-   * The one place a project document crosses a school boundary. The copy is
-   * always personal — somebody else's work cannot be dropped straight into a
-   * class, because class work is what a learner made, not what they fetched —
-   * and it carries where it came from for the rest of its life.
-   */
+  /** The legacy copy command stays closed until exact-revision copy is available. */
   @Post(':projectId/copy')
   async copy(
     @Req() request: FastifyRequest,
     @Param('projectId') projectId: string,
     @Body() rawBody: unknown,
   ) {
+    // A selected StudentSeat cannot create Account personal work by carrying
+    // another cookie. Public viewing and Account-only copy keep their own ACL.
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      throw new HttpException(
+        error(
+          'account_context_required',
+          'Копирование в личные проекты доступно после выхода из ученического режима.',
+        ),
+        403,
+      );
+    }
     const viewer = await this.requireViewer(request);
     this.requireUuid(projectId, 'project');
     const shape = checkBodyShape(rawBody ?? {}, ['title']);
@@ -358,6 +308,7 @@ export class GalleryController {
 
   /** Whether this project is on the wall, for the button on its own card. */
   @Get(':projectId/state')
+  @Header('Cache-Control', 'no-store')
   async state(@Req() request: FastifyRequest, @Param('projectId') projectId: string) {
     const viewer = await this.requireViewer(request);
     this.requireUuid(projectId, 'project');
@@ -385,13 +336,8 @@ export class GalleryController {
     };
   }
 
-  /**
-   * Putting work on the wall.
-   *
-   * A seat learner is refused here by the function, not by this controller: the
-   * rule is "the author, or the teacher of the author's class", and a child on
-   * a seat is neither for anyone but themselves. Their teacher shares it.
-   */
+  /** Explicit publication requires the Account owner of a personal Project.
+   * The SQL command also enforces this rule for callers outside this controller. */
   @Post(':projectId')
   async publish(@Req() request: FastifyRequest, @Param('projectId') projectId: string) {
     const viewer = await this.requireViewer(request);
@@ -431,7 +377,7 @@ export class GalleryController {
           403,
         );
       }
-      throw cause;
+      throwPublicationError(cause);
     }
     if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
       throw new HttpException(

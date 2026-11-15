@@ -46,6 +46,7 @@ function fixture(
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
 });
 
@@ -76,7 +77,7 @@ describe('OBS007 quality after BFCache', () => {
       ledger.start();
       await vi.advanceTimersByTimeAsync(1000);
       expect(transport.mock.calls[1]![1]!.body).toBe(frozen);
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(60_000);
       const next = JSON.parse(transport.mock.calls[2]![1]!.body as string);
       expect(next).toMatchObject({
         streamId: JSON.parse(frozen as string).streamId,
@@ -118,7 +119,7 @@ describe('OBS007 quality after BFCache', () => {
         new Response(JSON.stringify(acknowledgement(original)), { status: identity ? 200 : 202 }),
       );
       await final;
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(60_000);
       expect(JSON.parse(transport.mock.calls[1]![1]!.body as string)).toMatchObject({
         streamId: original.streamId,
         sequence: 2,
@@ -145,8 +146,125 @@ afterEach(() => {
   ledgers.splice(0).forEach((ledger) => ledger.retire());
   vi.clearAllTimers();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 describe('independent truthful cumulative quality', () => {
+  it('sends at most one regular snapshot per minute under continuous gauges, counters and flush notifications', async () => {
+    const f = fixture();
+    await f.ledger.flush();
+    const writes = vi.spyOn(f.disk, 'setItem');
+    for (let n = 0; n < 100; n++) f.ledger.gauges(0, 0);
+    expect(writes).not.toHaveBeenCalled();
+    for (let n = 0; n < 59; n++) {
+      f.ledger.increment('attempted');
+      f.ledger.gauges(n % 2, 0);
+      await f.ledger.flush();
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+    expect(f.fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.fetch).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(f.fetch.mock.calls[1]![1]!.body as string)).toMatchObject({
+      sequence: 2,
+      counters: { attempted: 59 },
+      gauges: { pending: 0, inFlight: 0 },
+    });
+  });
+  it('preserves a quality cooldown and immutable sequence through online, final, BFCache and pause/resume notifications', async () => {
+    const f = fixture();
+    f.fetch.mockResolvedValueOnce(
+      new Response('{}', { status: 503, headers: { 'retry-after': '20' } }),
+    );
+    await f.ledger.flush();
+    const original = f.fetch.mock.calls[0]![1]!.body;
+    for (let n = 0; n < 50; n++) {
+      f.ledger.increment('attempted');
+      await f.ledger.flush(true);
+      f.ledger.resumeAfterPageShow();
+    }
+    await vi.advanceTimersByTimeAsync(10_000);
+    f.ledger.pause();
+    f.ledger.start();
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(f.fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(f.fetch).toHaveBeenCalledTimes(2);
+    expect(f.fetch.mock.calls[1]![1]!.body).toBe(original);
+    expect(f.ledger.read().counters).toMatchObject({ attempted: 50, retried: 0, acknowledged: 0 });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(JSON.parse(f.fetch.mock.calls[2]![1]!.body as string)).toMatchObject({
+      sequence: 2,
+      counters: { attempted: 50 },
+      coverage: { final: false },
+    });
+  });
+  it.each([200, 401, 503])(
+    'preserves the immutable sequence across pause and ignores late HTTP%s from the cancelled attempt',
+    async (status) => {
+      const f = fixture();
+      let release!: (value: unknown) => void;
+      const response = new Response('{}', { status });
+      if (status === 503) {
+        f.fetch.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              release = () => resolve(response);
+            }),
+        );
+      } else {
+        vi.spyOn(response, 'json').mockReturnValue(
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+        );
+        f.fetch.mockResolvedValueOnce(response);
+      }
+      const first = f.ledger.flush();
+      await vi.advanceTimersByTimeAsync(0);
+      const original = f.fetch.mock.calls[0]![1]!.body;
+      const key = 'asa:quality:v2:product';
+      const pending = JSON.parse(f.disk.getItem(key)!).pending;
+      f.ledger.pause();
+      expect(f.fetch.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+      await first;
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(f.fetch).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(f.disk.getItem(key)!).pending).toEqual(pending);
+      f.ledger.start();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.fetch.mock.calls[1]![1]!.body).toBe(original);
+      expect(JSON.parse(f.disk.getItem(key)!).pending).toBeNull();
+      const saved = f.disk.getItem(key);
+      release(acknowledgement(pending));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.disk.getItem(key)).toBe(saved);
+      expect(f.ledger.canRecoverAuthentication()).toBe(false);
+    },
+  );
+  it('aborts a retiring quality attempt without letting a late acknowledgement overwrite successor storage', async () => {
+    const f = fixture();
+    let release!: (value: Response) => void;
+    f.fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const first = f.ledger.flush();
+    const original = JSON.parse(f.fetch.mock.calls[0]![1]!.body as string);
+    f.ledger.retire();
+    expect(f.fetch.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+    const successor = fixture({ ...actor, workspaceId: id(9) }, f.disk, undefined, 500);
+    const saved = f.disk.getItem('asa:quality:v2:product');
+    release(Response.json(acknowledgement(original)));
+    await first;
+    expect(f.disk.getItem('asa:quality:v2:product')).toBe(saved);
+    expect(successor.ledger.read().actorExpectation).toEqual({ ...actor, workspaceId: id(9) });
+    expect(JSON.parse(f.disk.getItem('asa:quality:v2:product:retired')!)[0]).toMatchObject({
+      actorExpectation: actor,
+      coverage: { uncleanEnd: true, final: true },
+    });
+  });
   it('normalizes historical queue failures after reload without changing the frozen pending snapshot', async () => {
     const f = fixture(
       actor,
@@ -169,7 +287,7 @@ describe('independent truthful cumulative quality', () => {
     });
     await resumed.ledger.flush();
     expect(resumed.fetch.mock.calls[0]![1]!.body).toBe(original);
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(60_000);
     const next = JSON.parse(resumed.fetch.mock.calls[1]![1]!.body as string);
     expect(next).toMatchObject({
       sequence: 2,
@@ -197,7 +315,7 @@ describe('independent truthful cumulative quality', () => {
       });
       await vi.advanceTimersByTimeAsync(1000);
       expect(f.fetch.mock.calls[1]![1]!.body).toBe(original);
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(60_000);
       expect(JSON.parse(f.fetch.mock.calls[2]![1]!.body as string)).toMatchObject({
         sequence: 2,
         counters: { storageUnavailable: 1 },
@@ -268,7 +386,7 @@ describe('independent truthful cumulative quality', () => {
       await vi.advanceTimersByTimeAsync(1000);
       expect(transport.mock.calls[1]![1]!.body).toBe(original);
       expect(JSON.parse(disk.getItem(key)!).pending).toBeNull();
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(60_000);
       const next = JSON.parse(transport.mock.calls[2]![1]!.body as string);
       expect(next.sequence).toBe(2);
       expect(next.eventId).not.toBe(JSON.parse(original as string).eventId);
@@ -299,7 +417,7 @@ describe('independent truthful cumulative quality', () => {
     f.ledger.increment('evicted');
     await vi.advanceTimersByTimeAsync(1000);
     expect(f.fetch.mock.calls[1]![1]!.body).toBe(original);
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(60_000);
     const next = JSON.parse(f.fetch.mock.calls[2]![1]!.body as string);
     expect(next).toMatchObject({ sequence: 2, counters: { attempted: 3, evicted: 1 } });
     expect(next.eventId).not.toBe(JSON.parse(original as string).eventId);

@@ -1,9 +1,23 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
+import {
+  instrumentReadoutStyle,
+  multimeterRuntimeMarkup,
+  regulatedPowerSupplyRuntimeMarkup,
+  signalGeneratorRuntimeMarkup,
+  oscilloscopeRuntimeMarkup,
+} from '../production-asset-contracts';
+import {
+  KEYBOARD_NUDGE_STEP,
+  KEYBOARD_NUDGE_LARGE_STEP,
+  resolveWorkbenchShortcut,
+} from '../workbench-shortcuts';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
+const diagnosticSource = readFileSync(resolve(electronicsRoot, 'NativeLedDiagnostic.tsx'), 'utf8');
 const sidebarSource = readFileSync(resolve(electronicsRoot, 'WorkbenchSidebars.tsx'), 'utf8');
 const headerSource = readFileSync(resolve(electronicsRoot, 'WorkbenchHeader.tsx'), 'utf8');
 const editorSource = readFileSync(resolve(electronicsRoot, '../pages/SchematicEditor.tsx'), 'utf8');
@@ -18,6 +32,10 @@ const productionVisualSource = readFileSync(
 const previewSource = readFileSync(resolve(electronicsRoot, 'component-preview.tsx'), 'utf8');
 const controllerModuleSource = readFileSync(
   resolve(electronicsRoot, 'use-electronics-workbench.ts'),
+  'utf8',
+);
+const simulationLoaderSource = readFileSync(
+  resolve(electronicsRoot, 'load-simulation-worker-controller.ts'),
   'utf8',
 );
 const projectStateSource = readFileSync(
@@ -38,11 +56,95 @@ const dragPreviewSource = readFileSync(
 );
 
 describe('owner-reference Electronics presentation contract', () => {
+  it('counterreflects each individual instrument text while retaining rotation and owner windows', () => {
+    const owner = (path: string) =>
+      readFileSync(
+        resolve(
+          process.cwd(),
+          `apps/web/public/assets/electronics/component-database/components/${path}/component.svg`,
+        ),
+        'utf8',
+      );
+    const generated = [
+      multimeterRuntimeMarkup(owner('instruments/multimeter'), 'voltage', '-3.000 V'),
+      regulatedPowerSupplyRuntimeMarkup(owner('power/regulated-power-supply'), {
+        voltageSetpointVolt: 5,
+        currentLimitAmp: 1,
+        outputEnabled: true,
+        mode: 'cv',
+        voltageDisplay: '-3.000 V',
+        currentDisplay: '0.500 A',
+      }),
+      signalGeneratorRuntimeMarkup(owner('instruments/signal-generator'), {
+        frequencyHz: 1000,
+        amplitudeVpp: 5,
+        dcOffsetVolt: -1,
+        outputEnabled: true,
+        waveform: 'sine',
+      }),
+      oscilloscopeRuntimeMarkup(owner('instruments/oscilloscope'), {
+        displayEnabled: true,
+        voltsPerDivision: 1,
+        timePerDivisionMs: 2,
+        inputVoltageVolt: -3,
+        trace: [
+          { timeMs: 0, voltageVolt: -3 },
+          { timeMs: 1, voltageVolt: 2 },
+        ],
+      }),
+    ];
+    const texts = generated.flatMap((markup) =>
+      [...markup.matchAll(/<text\b[^>]*style="[^"]*transform-box:[^"]*"[^>]*>/g)].map(
+        ([text]) => text,
+      ),
+    );
+    expect(texts).toHaveLength(8);
+    for (const text of texts) {
+      expect(text).toContain(`transform-box:${instrumentReadoutStyle.transformBox}`);
+      expect(text).toContain(`transform-origin:${instrumentReadoutStyle.transformOrigin}`);
+      expect(text).toContain(`transform:${instrumentReadoutStyle.transform}`);
+    }
+    expect(instrumentReadoutStyle.transformBox).toBe('fill-box');
+    expect(instrumentReadoutStyle.transformOrigin).toBe('center');
+    expect(instrumentReadoutStyle.transform).toContain('--workbench-readout-mirror-x, 1');
+    expect(instrumentReadoutStyle.transform).toContain('--workbench-readout-mirror-y, 1');
+    expect(generated.join('')).not.toMatch(/<(?:g|path|rect)\b[^>]*style="[^"]*transform-box/);
+    expect(generated[0]).toContain('>-3.000 V</text>');
+    expect(generated[2]).toContain('>-1.00 V</text>');
+    expect(generated[3]).toContain('workbench-oscilloscope-trace');
+    expect(productionVisualSource).toMatch(
+      /className="workbench-multimeter-reading"\s+style=\{instrumentReadoutStyle\}/,
+    );
+    const styleSource = productionVisualSource.match(
+      /style=\{\s*(\{\s*\.\.\.\(rgbIsLit[\s\S]*?\}) as CSSProperties\s*\}/,
+    )?.[1];
+    expect(styleSource).toBeDefined();
+    for (const [mirrorX, mirrorY, x, y] of [
+      [false, false, 1, 1],
+      [true, false, -1, 1],
+      [false, true, 1, -1],
+      [true, true, -1, -1],
+      ['true', 'true', 1, 1],
+      [1, -1, 1, 1],
+      [null, undefined, 1, 1],
+    ] as const) {
+      // Execute the actual outer SVG style expression, including malformed
+      // legacy truthy values. Real text CTMs are checked by the native proof.
+      const style = runInNewContext(`(${styleSource})`, {
+        properties: { mirrorX, mirrorY },
+        rgbIsLit: true,
+        rgbDisplayColour: '#12ab34',
+      });
+      expect(style['--workbench-readout-mirror-x']).toBe(x);
+      expect(style['--workbench-readout-mirror-y']).toBe(y);
+      expect(style['--workbench-rgb-led-glow']).toBe('#12ab34');
+    }
+  });
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
     expect(stageSource).toContain('TERMINAL_MARKER_SIZE');
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
-    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(geometrySource).toContain('TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS');
     expect(stageSource).not.toContain('width={10 / c.viewport.zoom}');
     expect(stageSource).not.toContain('r={8 / c.viewport.zoom}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
@@ -134,7 +236,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('height * 0.88');
     expect(productionVisualSource).toContain('tinkercad-four-pin-6x6');
     expect(productionVisualSource).not.toContain('tinkercad-three-pin-rotary');
-    expect(productionVisualSource).toContain('tinkercad-spdt-three-pin');
+    // Actual SPDT/SPST contract values and geometry are asserted on rendered SVG in spst-switch.spec.ts.
     expect(stageSource).toContain('selectionOffset={1.6 / c.viewport.zoom}');
     expect(productionVisualSource).toContain('<feMorphology');
     expect(productionVisualSource).toContain('operator="dilate"');
@@ -159,7 +261,15 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('ASA Lab');
     expect(headerSource).not.toContain('workbench-brand-grid');
     expect(headerSource).toContain('Время моделирования:');
-    expect(headerSource).toContain('formatSimulationTime(c.committedSimulationTimeMs / 1000)');
+    expect(headerSource).toContain(
+      'useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock)',
+    );
+    // Additional UI props do not change the sole authoritative clock port.
+    expect(headerSource).toMatch(
+      /<SimulationClock\s+port=\{c\.nativeOpticalPresentation\}(?:\s|\/>)/,
+    );
+    expect(headerSource).toContain('formatSimulationTime(microseconds / 1_000_000)');
+    expect(headerSource).not.toContain('formatSimulationTime(c.simulationTimeMs');
     expect(headerSource).not.toContain('Date.now() - startedAt');
     expect(headerSource).toContain('<EditorPersistenceIndicator');
     expect(headerSource).toContain('localCopySaved={c.localCopySaved}');
@@ -177,12 +287,15 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
     expect(headerSource).toContain('data-simulation-status={c.simulationStatus}');
-    expect(controllerModuleSource).toContain('new ElectronicsLiveSimulationWorkerController()');
+    expect(controllerModuleSource).toContain('void loadSimulationWorkerController()');
+    expect(controllerModuleSource).toContain('if (currentSession()) start(new Controller())');
+    expect(simulationLoaderSource).toContain("await import('./live-simulation-worker-controller')");
+    expect(controllerModuleSource).not.toContain('new ElectronicsLiveSimulationWorkerController()');
     expect(controllerModuleSource).toContain(
-      'simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds)',
+      'simulationCommandRef.current?.((worker) => worker.update(runtimeDocument, horizon))',
     );
     expect(controllerModuleSource).toContain(
-      'simulationWorkerRef.current?.restart(currentRuntimeDocument)',
+      'simulationCommandRef.current?.((worker) => worker.restart(currentRuntimeDocument))',
     );
     expect(controllerModuleSource).not.toContain(
       'simulationWorkerRef.current?.update(runtimeDocument, simulationTimeMs)',
@@ -234,20 +347,21 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('pointerEvents="all"');
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
-    expect(stageSource).toContain("'led-diagnostic-badge'");
-    expect(stageSource).toContain('const showDiagnosticIndicator = isLedIndicator');
-    expect(stageSource).toContain('? ledOvercurrent || ledBurned');
-    expect(stageSource).toContain("'rgb-led-burnout-explosion'");
-    expect(stageSource).toContain("'component-diagnostic-indicator'");
-    expect(stageSource).toContain('!c.simulationRunning || !primaryDiagnostic');
+    expect(diagnosticSource).toContain("'led-diagnostic-badge'");
+    expect(diagnosticSource).toContain('const showDiagnosticIndicator = isLedIndicator');
+    expect(diagnosticSource).toContain('? ledOvercurrent || ledBurned');
+    expect(diagnosticSource).toContain("'rgb-led-burnout-explosion'");
+    expect(diagnosticSource).toContain("'component-diagnostic-indicator'");
+    expect(diagnosticSource).toContain('!c.simulationRunning || !primaryDiagnostic');
     expect(stageSource).toContain('workbench-diagnostic-layer');
     expect(stageSource).toContain('diagnosticBadgeGeometry(c.viewport.zoom)');
-    expect(stageSource).toContain('r={badgeGeometry.radius}');
-    expect(stageSource).toContain('fontSize={badgeGeometry.fontSize}');
-    expect(stageSource).toContain('aria-label={diagnosticText}');
+    expect(diagnosticSource).toContain('r={badgeGeometry.radius}');
+    expect(diagnosticSource).toContain('fontSize={badgeGeometry.fontSize}');
+    expect(diagnosticSource).toContain('aria-label={diagnosticText}');
     expect(stageSource).toContain('pointerEvents="all"');
-    expect(stageSource).toContain("'led-burnout-explosion'");
-    expect(stageSource).toContain('workbench-led-burnout-explosion');
+    expect(diagnosticSource).toContain("'led-burnout-explosion'");
+    expect(diagnosticSource).toContain('workbench-led-burnout-explosion');
+    expect(diagnosticSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).toContain('data-testid="component-model-warning"');
     expect(stageSource).toContain('data-screen-upright="true"');
@@ -369,7 +483,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('className="workbench-wire-endpoint-hit"');
     expect(geometrySource).toContain('TERMINAL_MARKER_SIZE = 8');
     expect(geometrySource).toContain('WIRE_ENDPOINT_VISIBLE_RADIUS = 4');
-    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = 9');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = WIRE_ENDPOINT_VISIBLE_RADIUS + 1');
     expect(workbenchCss).toMatch(
       /\.workbench-inspector\.wire-selected\s*\{[^}]*border:\s*1px solid #cbd3d9;/s,
     );
@@ -395,8 +509,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('{c.simulationRunning ? <StopIcon /> : <PlayIcon />}');
     expect(controllerModuleSource).toContain("useState<ComponentCategory>('all')");
     expect(controllerModuleSource).toContain('DESKTOP_INITIAL_ZOOM = 1.25');
-    expect(controllerModuleSource).toContain('KEYBOARD_NUDGE_STEP = 5');
-    expect(controllerModuleSource).toContain('KEYBOARD_NUDGE_LARGE_STEP = 20');
+    expect(KEYBOARD_NUDGE_STEP).toBe(5);
+    expect(KEYBOARD_NUDGE_LARGE_STEP).toBe(20);
     expect(sidebarSource).toContain('workbench-library-search-toggle');
     expect(workbenchCss).toContain('--wb-library-open-height: calc(156px');
     expect(workbenchCss).toContain('--wb-library-closed-height: calc(18px');
@@ -522,10 +636,13 @@ describe('owner-reference Electronics presentation contract', () => {
     );
 
     // Command shortcuts use physical codes and ignore editable ancestors.
-    expect(controllerSource).toContain('resolveWorkbenchShortcut(event)');
-    expect(controllerSource).toContain('isEditableShortcutTarget(event.target)');
+    expect(controllerSource).toContain(
+      'bindWorkbenchShortcuts(shortcutActionsRef, spacePressedRef)',
+    );
+    expect(shortcutsSource).toContain('resolveWorkbenchShortcut(event)');
+    expect(shortcutsSource).toContain('isEditableShortcutTarget(event.target)');
     expect(controllerSource).not.toContain('event.key.toLowerCase()');
-    expect(shortcutsSource).toContain("event.code === 'KeyC'");
+    expect(resolveWorkbenchShortcut({ code: 'KeyC', ctrlKey: true })).toBe('copy');
     expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
     expect(shortcutsSource).toContain('.monaco-editor textarea');
 
@@ -534,6 +651,138 @@ describe('owner-reference Electronics presentation contract', () => {
       "selection?.kind === 'component' && selection.ids.length === 1",
     );
     expect(sidebarSource).toContain('Выбрано: ${c.selection.ids.length}');
+  });
+
+  it('puts only Uno and regulated supply beside the existing board below wires without duplicate bodies', () => {
+    const predicateSource = stageSource.match(
+      /function wiresAboveComponentBody\([^)]*\): boolean \{[\s\S]*?\n\}/,
+    )?.[0];
+    expect(predicateSource).toBeDefined();
+    const predicate = runInNewContext(
+      `${predicateSource?.replace(': SchematicComponent', '').replace(': boolean', '')}; wiresAboveComponentBody`,
+    ) as (component: { kind: string; componentTypeId?: string }) => boolean;
+    const components = [
+      { kind: 'breadboard', componentTypeId: 'breadboard-full' },
+      { kind: 'arduino', componentTypeId: 'arduino-uno' },
+      { kind: 'source', componentTypeId: 'regulated-power-supply' },
+      { kind: 'source', componentTypeId: 'battery-9v' },
+      { kind: 'source', componentTypeId: 'battery-aa' },
+      { kind: 'source', componentTypeId: 'signal-generator' },
+      { kind: 'resistor', componentTypeId: 'resistor' },
+      { kind: 'arduino', componentTypeId: 'other-arduino' },
+      { kind: 'arduino' },
+      { kind: 'wire' },
+    ];
+    expect(components.map(predicate)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    const layer = (marker: string, next: string): string =>
+      stageSource.slice(stageSource.indexOf(marker), stageSource.indexOf(next));
+    expect(layer('data-testid="breadboard-body-layer"', 'workbench-wire-hit-layer')).toContain(
+      '.filter(wiresAboveComponentBody)',
+    );
+    const ordinaryBody = layer(
+      'data-testid="component-body-layer"',
+      'data-testid="terminal-overlay-layer"',
+    );
+    expect(ordinaryBody).toContain("component.kind !== 'wire'");
+    expect(ordinaryBody).not.toContain("component.kind !== 'breadboard'");
+    expect(ordinaryBody).toContain('!wiresAboveComponentBody(component)');
+    const orderingSource = stageSource.match(/const orderedComponents = \[[\s\S]*?\n {2}\];/)?.[0];
+    expect(orderingSource).toBeDefined();
+    const shuffled = [...components.slice(1), components[0]];
+    const ordered = runInNewContext(`${orderingSource}; orderedComponents`, {
+      document: { components: shuffled },
+    }) as typeof components;
+    expect(ordered).toEqual([components[0], ...components.slice(1)]);
+    const bodies = [
+      ...ordered.filter(predicate),
+      ...ordered.filter((component) => component.kind !== 'wire' && !predicate(component)),
+    ];
+    expect(new Set(bodies).size).toBe(components.length - 1);
+    expect(bodies).toHaveLength(components.length - 1);
+    const terminals = layer('data-testid="terminal-overlay-layer"', 'workbench-wire-editor-layer');
+    expect(terminals).not.toContain('wiresAboveComponentBody');
+    expect(terminals).toContain('renderComponentTerminalOverlay(component)');
+  });
+
+  it('keeps visible wires selectable over only Uno, regulated supply and the existing breadboard', () => {
+    const predicateSource = stageSource.match(
+      /function wiresAboveComponentBody\([^)]*\): boolean \{[\s\S]*?\n\}/,
+    )?.[0];
+    const handlerSource = stageSource
+      .slice(
+        stageSource.indexOf('  function handleWirePointerDown('),
+        stageSource.indexOf('  const orderedComponents'),
+      )
+      .replace(
+        /function handleWirePointerDown\([\s\S]*?\): void \{/,
+        'function handleWirePointerDown(event, wireId, segmentIndex) {',
+      );
+    for (const [kind, componentTypeId, overWire] of [
+      ['arduino', 'arduino-uno', true],
+      ['source', 'regulated-power-supply', true],
+      ['breadboard', 'breadboard-full', true],
+      ['source', 'battery-9v', false],
+      ['source', 'signal-generator', false],
+      ['resistor', 'resistor', false],
+      ['arduino', 'other-arduino', false],
+    ] as const) {
+      for (const shiftKey of [false, true]) {
+        const calls: unknown[][] = [];
+        const component = { id: 'part', kind, componentTypeId };
+        const c = {
+          pendingTerminal: null,
+          documentMutationEpoch: () => 0,
+          selectComponent: (...args: unknown[]) => calls.push(['component', ...args]),
+          startComponentDrag: () => calls.push(['drag']),
+          setSelection: (...args: unknown[]) => calls.push(['wire', ...args]),
+          startSegmentDrag: (...args: unknown[]) => calls.push(['segment', ...args]),
+        };
+        const handler = runInNewContext(
+          `${predicateSource?.replace(': SchematicComponent', '').replace(': boolean', '')}; ${handlerSource}; handleWirePointerDown`,
+          {
+            c,
+            window: { document: { elementsFromPoint: () => [] } },
+            componentAtClientPoint: () => component,
+            lastWireClick: { current: null },
+            pointerSequenceRef: { current: 1 },
+            isRepeatedClick: () => false,
+          },
+        ) as (event: unknown, wireId: string, segmentIndex?: number) => void;
+        const event = { clientX: 10, clientY: 20, shiftKey, stopPropagation: () => undefined };
+        handler(event, 'wire-1');
+        expect(calls).toEqual(
+          overWire
+            ? [['wire', { kind: 'wire', id: 'wire-1' }]]
+            : shiftKey
+              ? [['component', 'part', true]]
+              : [['drag']],
+        );
+        calls.length = 0;
+        handler(event, 'wire-1', 2);
+        expect(calls).toEqual(
+          overWire
+            ? [['segment', event, 'wire-1', 2]]
+            : shiftKey
+              ? [['component', 'part', true]]
+              : [['drag']],
+        );
+        calls.length = 0;
+        Object.assign(c, { pendingTerminal: { componentId: 'part', terminal: 'p' } });
+        handler(event, 'wire-1');
+        expect(calls).toEqual([]);
+      }
+    }
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {
@@ -756,7 +1005,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Math.abs(dy) >= 1.25 * Math.abs(dx)');
     expect(sidebarSource).toContain("touch.mode = 'scrolling'");
     expect(sidebarSource).toContain("touch.mode = 'dragging'");
-    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(geometrySource).toContain('TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS');
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
   });
 
@@ -777,11 +1026,11 @@ describe('owner-reference Electronics presentation contract', () => {
       'nextComponentSelection(current, componentId, additive)',
     );
     expect(controllerModuleSource).toContain('selection.ids.length === 1');
-    expect(shortcutsSource).toContain("event.code === 'KeyC'");
-    expect(shortcutsSource).toContain("event.code === 'KeyV'");
-    expect(shortcutsSource).toContain("event.code === 'KeyD'");
-    expect(shortcutsSource).toContain("event.code === 'KeyZ'");
-    expect(shortcutsSource).toContain("event.code === 'KeyY'");
+    expect(resolveWorkbenchShortcut({ code: 'KeyC', ctrlKey: true })).toBe('copy');
+    expect(resolveWorkbenchShortcut({ code: 'KeyV', ctrlKey: true })).toBe('paste');
+    expect(resolveWorkbenchShortcut({ code: 'KeyD', ctrlKey: true })).toBe('duplicate');
+    expect(resolveWorkbenchShortcut({ code: 'KeyZ', ctrlKey: true })).toBe('undo');
+    expect(resolveWorkbenchShortcut({ code: 'KeyY', ctrlKey: true })).toBe('redo');
     expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
     expect(shortcutsSource).toContain('.arduino-source-editor');
     expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'c'");

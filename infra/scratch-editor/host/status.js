@@ -28,6 +28,15 @@
       projectDirty(generation) {
         return post('ASA_BLOCKS_STATUS', { status: 'project-dirty', generation });
       },
+      saveFailed({ failureCode, httpStatus, relatedRequestId, durationMs }) {
+        return post('ASA_BLOCKS_STATUS', {
+          status: 'save-failed',
+          failureCode,
+          durationMs,
+          ...(httpStatus !== undefined ? { httpStatus } : {}),
+          ...(relatedRequestId !== undefined ? { relatedRequestId } : {}),
+        });
+      },
       userActivity() {
         return post('ASA_BLOCKS_USER_ACTIVITY');
       },

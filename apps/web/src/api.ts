@@ -11,14 +11,21 @@ import {
 } from './modules/project-draft-mutation';
 import { saveProjectSnapshot } from './project-snapshot-client';
 import { notifySessionLoggedOut } from './session-fetch';
+import {
+  beginTelemetryIdentityObservation,
+  beginTelemetryWorkspaceSwitch,
+  finishTelemetryWorkspaceSwitch,
+  observeTelemetryIdentity,
+} from './telemetry-context';
 
 export type { ApiError, ApiResult } from './api-call';
 export type { ProjectSnapshotInfo } from './project-snapshot-client';
 
 export interface PublicUser {
+  identityKind?: 'account' | 'student';
   id: string;
   displayName: string;
-  email: string;
+  email: string | null;
 }
 
 export type SafeTaskBlock =
@@ -29,7 +36,11 @@ export type SafeTaskBlock =
   | { type: 'file'; name: string; contentHash: string; src?: string };
 
 export interface AuthoredActivityDraft {
+  /** Explicit on new typed tasks; omitted only by historical author clients. */
+  kind?: 'project' | 'essay' | 'manual' | 'quiz' | 'file';
   quizVersionId?: string | null;
+  quizDraftId?: string | null;
+  quizDraftRevision?: number | null;
   starterProjectVersionId?: string | null;
   title: string;
   goal?: string | null;
@@ -48,7 +59,92 @@ export interface AuthoredActivityDraft {
   };
 }
 
+export interface EssayLearningResponse {
+  activityRunId: string;
+  participationId: string;
+  activityVersionId: string;
+  title: string;
+  instructions: string | null;
+  goal: string | null;
+  blocks: SafeTaskBlock[] | null;
+  resultMode: 'ungraded' | 'completion' | 'graded';
+  maxPoints: number | null;
+  canStart: boolean;
+  canEdit: boolean;
+  attempt: {
+    id: string;
+    number: number;
+    state: LearningAttemptState;
+    revisionOfAttemptId: string | null;
+    revision: number;
+    text: string;
+    savedAt: string;
+    submittedAt: string | null;
+    submissionId: string | null;
+    digest: string | null;
+    reviewDecision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused' | null;
+    feedback: string | null;
+  } | null;
+}
+
+export interface LearningAnswerFile {
+  id: string;
+  name: string;
+  sizeBytes: number;
+  contentType: string;
+  sha256: string;
+}
+
+export interface FileLearningResponse extends Omit<EssayLearningResponse, 'attempt'> {
+  attempt:
+    | (Omit<NonNullable<EssayLearningResponse['attempt']>, 'text'> & {
+        file: LearningAnswerFile | null;
+      })
+    | null;
+}
+
+export const fileLearningPath = (runId: string) =>
+  `/api/learning/file/runs/${encodeURIComponent(runId)}`;
+
+export type ExactLearningSubmission =
+  | {
+      kind: 'file';
+      submissionId: string;
+      sourceRevision: number;
+      digest: string;
+      file: LearningAnswerFile;
+    }
+  | {
+      kind: 'quiz';
+      submissionId: string;
+      sourceRevision: number;
+      digest: string;
+      questions: QuizAttemptQuestion[];
+      answers: Record<string, QuizAnswer>;
+      autoPoints: number;
+      manualPending: boolean;
+    }
+  | {
+      kind: 'essay';
+      submissionId: string;
+      sourceRevision: number;
+      digest: string;
+      text: string;
+    }
+  | {
+      /** Missing only on historical Project responses. */
+      kind?: 'project';
+      submissionId: string;
+      projectVersionId: string;
+      sourceRevision: number | null;
+      digest: string;
+      moduleKey: string;
+      document: unknown;
+      preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
+    };
+
 export interface AuthoredActivityLearnerPreview {
+  kind?: string;
   source: {
     kind: 'draft' | 'published';
     id: string | null;
@@ -123,6 +219,68 @@ export interface SessionPayload {
   navigation: { classes: boolean; classroomManagement: boolean; contentAuthoring?: boolean };
   /** The teacher's own zone; every classroom date is read in it. */
   timeZone: string | null;
+  verification?: AccountVerificationState;
+}
+
+export type AuthProviderId = 'max' | 'telegram' | 'email';
+export type SocialAuthProvider = 'max' | 'telegram';
+export type AuthProviderAvailabilityReason =
+  | 'ready'
+  | 'disabled'
+  | 'not_configured'
+  | 'invalid_token'
+  | 'delivery_unavailable'
+  | 'unavailable';
+
+export interface AuthProviderAvailability {
+  id: AuthProviderId;
+  available: boolean;
+  enforcementEligible?: boolean;
+  enforcementReason?: AuthProviderAvailabilityReason | 'delivery_unverified';
+  reason: AuthProviderAvailabilityReason;
+  checkedAt: string | null;
+  launchUrl?: string | null;
+}
+
+export interface AccountVerificationState {
+  policyEnabled: boolean;
+  required: boolean;
+  reason:
+    | 'disabled'
+    | 'verified'
+    | 'grace_period'
+    | 'providers_unavailable'
+    | 'providers_unverified'
+    | 'verification_required';
+  dueAt: string | null;
+  verifiedProvider: AuthProviderId | null;
+  providers: AuthProviderAvailability[];
+}
+
+export interface SocialPairing {
+  pairingToken: string;
+  launchUrl: string;
+  expiresAt: string;
+}
+
+export type SocialPairingResult =
+  | { status: 'pending' | 'expired' | 'invalid' | 'consumed' | 'unavailable' }
+  | { status: 'authenticated'; session: SessionPayload }
+  | { status: 'linked'; linked: true }
+  | {
+      status: 'registration_required';
+      profile: { displayName: string | null; username: string | null };
+    };
+
+export interface SocialRegistrationInput {
+  pairingToken: string;
+  /** Required for Telegram; native MAX creates an external-only Account. */
+  email?: string;
+  username: string;
+  displayName: string;
+  birthDate: string;
+  country: string;
+  password?: string;
 }
 
 export interface MaxAuthConfig {
@@ -141,6 +299,7 @@ export interface MaxAccountStatus {
   promptDue: boolean;
   promptDismissedUntil: string | null;
   available: boolean;
+  canUnlink?: boolean;
 }
 
 export interface AccountPasswordStatus {
@@ -149,7 +308,7 @@ export interface AccountPasswordStatus {
 }
 
 export interface AccountProfile {
-  email: string;
+  email: string | null;
   emailVerificationState: string;
   username: string;
   displayName: string;
@@ -293,14 +452,37 @@ export function visibilityLabel(value: string): string {
 }
 
 /** Курс — порядок, в котором проходят задания. */
+export interface PublishedCoursePin {
+  /** JSON pointer into this exact immutable outline, never a mutable root. */
+  pointer: string;
+  pinKind: 'project' | 'essay' | 'manual';
+  available: boolean;
+  activityId: string | null;
+  versionId: string | null;
+  versionNumber: number | null;
+  title: string | null;
+  instructions: string | null;
+  goal: string | null;
+  /** False means the historical version predates this snapshot; null means unavailable pin. */
+  goalSnapshotPresent: boolean | null;
+  blocks: SafeTaskBlock[] | null;
+  blocksSnapshotPresent: boolean | null;
+  moduleKey: string | null;
+  resultMode: string | null;
+  maxPoints: number | null;
+  policySnapshot: Record<string, unknown> | null;
+  contentDigest: string | null;
+}
+
 export interface PublishedAuthorVersion {
   id: string;
   versionNumber: number;
   title?: string;
   goal?: string | null;
   instructions?: string | null;
+  pinnedActivities?: PublishedCoursePin[];
   outline?: {
-    course: { title: string; summary: string | null };
+    course: { title: string; summary: string | null; ageBand?: string | null };
     sections: Array<{
       sourceSectionId: string;
       title: string;
@@ -318,6 +500,13 @@ export interface PublishedAuthorVersion {
           learningActivityVersionId?: string;
           sourceAssignmentId?: string;
           title?: string;
+          goal?: string | null;
+          brief?: string | null;
+          ageBand?: string | null;
+          staticSampleImage?: string | null;
+          hasVersionedSample?: boolean;
+          sampleContentType?: string | null;
+          sampleChecksum?: string | null;
           moduleKey?: string;
           resultMode?: string;
           maxPoints?: number | null;
@@ -443,6 +632,18 @@ export interface ClassroomCourseRunLesson {
   canonicalCounts: null | CanonicalLearningCounts;
 }
 
+export interface CourseUsageRun {
+  id: string;
+  classroomId: string;
+  classroomTitle: string;
+  classroomStatus: 'active' | 'archived';
+  courseVersionId: string;
+  versionNumber: number;
+  title: string;
+  status: 'open' | 'closed';
+  audienceType: 'whole_class' | 'named_learners' | null;
+}
+
 export interface ClassroomCourseRun {
   id: string;
   courseId: string;
@@ -465,6 +666,8 @@ export interface ClassroomCourseRun {
 }
 
 export interface CourseActivityOccurrence {
+  /** Exact assignment applicability. Missing on historic responses. */
+  requirement?: 'required' | 'excused' | 'not_assigned' | 'unknown';
   blockId: string;
   activityRunId: string;
   classroomAssignmentId: string;
@@ -472,7 +675,8 @@ export interface CourseActivityOccurrence {
   title: string;
   goal: string | null;
   blocks?: SafeTaskBlock[] | null | undefined;
-  moduleKey: string;
+  activityKind?: 'project' | 'essay' | 'quiz' | 'file';
+  moduleKey: string | null;
   sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
@@ -723,8 +927,8 @@ export interface LearningAssignableActivity {
   versionId: string;
   title: string;
   instructions: string | null;
-  kind: 'project';
-  moduleKey: string;
+  kind: 'project' | 'quiz' | 'file' | 'essay';
+  moduleKey: string | null;
 }
 
 export interface ClassroomAssignmentProgress {
@@ -910,6 +1114,8 @@ export interface LearnerResult {
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
+  activityVersionId?: string;
+  activityKind?: 'project' | 'essay' | 'quiz' | 'file';
   id: string;
   /** Exact Direct or lesson-level Course ActivityRun for atomic Start. */
   activityRunId?: string | null;
@@ -995,14 +1201,96 @@ export type LearningWorkContext =
     };
 
 export type QuizQuestionType =
-  'single_choice' | 'multiple_choice' | 'boolean' | 'numeric' | 'short_text';
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'boolean'
+  | 'numeric'
+  | 'short_text'
+  | 'matching'
+  | 'ordering'
+  | 'long_text_manual';
+
+export type QuizAnswer = { value: string | number | boolean | null } | { values: string[] };
+export interface QuizResponseSchema {
+  options?: Array<{ id: string; label: string }>;
+  left?: Array<{ id: string; label: string }>;
+  right?: Array<{ id: string; label: string }>;
+  input?: string;
+  [key: string]: unknown;
+}
+export interface QuizAttemptQuestion {
+  id: string;
+  type: QuizQuestionType;
+  promptBlocks: Array<{ type?: string; text?: string }>;
+  options?: Array<{ id: string; label: string }>;
+  responseSchema?: QuizResponseSchema;
+  maxPoints: number;
+}
+export interface LearningQuizAttempt {
+  attemptId: string;
+  version: number;
+  answers: Record<string, QuizAnswer>;
+  questions: QuizAttemptQuestion[];
+  questionOrder: string[];
+  state: string;
+  expiresAt: string | null;
+  serverNow: string;
+  lastSavedAt: string | null;
+  result?: { points: number | null; maxPoints: number; outcome: string; provisional: boolean };
+  /** Present only when the server releases per-question feedback. Never includes keys. */
+  feedback?: Array<{
+    questionVersionId: string;
+    points: number | null;
+    correct: boolean | null;
+    maxPoints: number;
+    manualPending: boolean;
+  }>;
+}
+export interface AuthoredQuestionPayload {
+  questionType: QuizQuestionType;
+  promptBlocks: Array<{ type: 'text'; text: string }>;
+  responseSchema: QuizResponseSchema;
+  answerKey: Record<string, unknown>;
+  maxPoints: number | null;
+  subject: null;
+  ageBand: null;
+  tags: string[];
+}
+export interface AuthoredQuizPayload {
+  title: string;
+  instructions: string | null;
+  questions: Array<{
+    questionId?: string;
+    questionDraftRevision?: number;
+    questionVersionId?: string;
+    maxPoints: number | null;
+    required: true;
+  }>;
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+}
+export interface QuizContentRoot<T> {
+  id: string;
+  kind?: string;
+  draftRevision: number;
+  latestVersionId: string | null;
+  draft: T;
+  versions: Array<{ id?: string; versionId?: string }>;
+}
+export interface QuizContentReceipt {
+  code: string;
+  id: string;
+  draftRevision: number;
+  latestVersionId?: string | null;
+  versionId?: string;
+}
 
 export interface QuestionBankItem {
   id: string;
   versionId: string;
   type: QuizQuestionType;
   promptBlocks: Array<{ type?: string; text?: string }>;
-  responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+  responseSchema: QuizResponseSchema;
   maxPoints: number;
   scope: 'personal' | 'school';
   subject: string | null;
@@ -1043,7 +1331,7 @@ export interface LearnerQuiz {
     versionId: string;
     type: QuizQuestionType;
     promptBlocks: Array<{ type?: string; text?: string }>;
-    responseSchema: { options?: Array<{ id: string; label: string }>; input?: string };
+    responseSchema: QuizResponseSchema;
     maxPoints: number;
     position: number;
   }>;
@@ -1369,12 +1657,21 @@ export interface SchematicConnection {
   vertices?: { x: number; y: number }[];
 }
 
+export interface SchematicAnnotation {
+  id: string;
+  text: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  fontSize: number;
+}
+
 export interface SchematicDocument {
-  schemaVersion: 4;
+  schemaVersion: 4 | 5;
   components: SchematicComponent[];
   connections: SchematicConnection[];
   viewport: { x: number; y: number; zoom: number };
   simulation: { running: boolean; maxIterations: number };
+  annotations?: SchematicAnnotation[];
 }
 
 export interface Diagnostic {
@@ -1505,6 +1802,7 @@ export interface ComponentResult {
   thermalLoadPercent?: number;
   accumulatedDamagePercent?: number;
   effectiveResistanceOhm?: number;
+  illuminanceLux?: number;
   ratedVoltageVolt?: number;
   ratedCurrentAmp?: number;
   ratedPowerWatt?: number;
@@ -1711,6 +2009,85 @@ export interface LearningNotification {
   readAt: string | null;
 }
 export const api = {
+  authoredQuestionVersion: (id: string) =>
+    call<{
+      id: string;
+      questionId: string;
+      type: QuizQuestionType;
+      promptBlocks: AuthoredQuestionPayload['promptBlocks'];
+      responseSchema: QuizResponseSchema;
+      maxPoints: number;
+      answerKey: Record<string, unknown>;
+    }>(`/api/learning/questions/versions/${encodeURIComponent(id)}`),
+  authoredQuizVersion: (id: string, versionId: string) =>
+    call<{
+      questions: Array<
+        QuizAttemptQuestion & { questionVersionId?: string; editableQuestion?: boolean }
+      >;
+    }>(`/api/learning/quizzes/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`),
+  questionDraft: (id: string) =>
+    call<QuizContentRoot<AuthoredQuestionPayload>>(
+      `/api/learning/questions/${encodeURIComponent(id)}`,
+    ),
+  createQuestionDraft: (payload: AuthoredQuestionPayload, requestId: string) =>
+    call<QuizContentReceipt>('/api/learning/questions', {
+      method: 'POST',
+      body: JSON.stringify({ requestId, payload }),
+    }),
+  saveQuestionDraft: (
+    id: string,
+    expectedRevision: number,
+    expectedHeadId: string | null,
+    payload: AuthoredQuestionPayload,
+    requestId: string,
+  ) =>
+    call<QuizContentReceipt>(`/api/learning/questions/${encodeURIComponent(id)}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify({ requestId, expectedRevision, expectedHeadId, payload }),
+    }),
+  quizDraft: (id: string) =>
+    call<QuizContentRoot<AuthoredQuizPayload>>(`/api/learning/quizzes/${encodeURIComponent(id)}`),
+  createQuizDraft: (payload: AuthoredQuizPayload, requestId: string) =>
+    call<QuizContentReceipt>('/api/learning/quizzes', {
+      method: 'POST',
+      body: JSON.stringify({ requestId, payload }),
+    }),
+  saveQuizDraft: (
+    id: string,
+    expectedRevision: number,
+    expectedHeadId: string | null,
+    payload: AuthoredQuizPayload,
+    requestId: string,
+  ) =>
+    call<QuizContentReceipt>(`/api/learning/quizzes/${encodeURIComponent(id)}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify({ requestId, expectedRevision, expectedHeadId, payload }),
+    }),
+  readQuizLearning: (runId: string) =>
+    call<{
+      participationId: string;
+      attempt: LearningQuizAttempt | null;
+      title: string | null;
+      canStart: boolean;
+      instructions: string | null;
+    }>(`/api/learning/quiz/runs/${encodeURIComponent(runId)}`),
+  startQuizLearning: (participationId: string, requestId: string) =>
+    call<{ attempt: LearningQuizAttempt; reused: boolean }>(
+      `/api/learning/activity-participations/${encodeURIComponent(participationId)}/attempts`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  readQuizAttempt: (id: string) =>
+    call<{ attempt: LearningQuizAttempt }>(`/api/learning/attempts/${encodeURIComponent(id)}`),
+  saveQuizAnswers: (id: string, expectedVersion: number, answers: Record<string, QuizAnswer>) =>
+    call<{ version: number; savedAt: string; expiresAt: string | null }>(
+      `/api/learning/attempts/${encodeURIComponent(id)}/quiz-answers`,
+      { method: 'PATCH', body: JSON.stringify({ expectedVersion, answers }) },
+    ),
+  submitQuizAttempt: (id: string, expectedVersion: number, requestId: string) =>
+    call<{ attempt: LearningQuizAttempt }>(
+      `/api/learning/attempts/${encodeURIComponent(id)}/submit`,
+      { method: 'POST', body: JSON.stringify({ requestId, expectedVersion }) },
+    ),
   legacyLearningReview: (classroomId: string, assignmentId: string, seatId: string) =>
     call<{
       attemptId: string;
@@ -1751,10 +2128,65 @@ export const api = {
       `/api/learning/notifications/classes/${id}/reminders`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
+  me: async (signal?: AbortSignal) => {
+    const observation = beginTelemetryIdentityObservation();
+    const result = await call<SessionPayload | { authenticated: false }>('/api/auth/me', {
+      ...(signal ? { signal } : {}),
+    });
+    if (result.ok) observeTelemetryIdentity(observation, result.data);
+    return result;
+  },
+  authProviders: (signal?: AbortSignal) =>
+    call<{ providers: AuthProviderAvailability[] }>('/api/auth/providers', {
+      ...(signal ? { signal } : {}),
+    }),
+  accountVerification: (signal?: AbortSignal) =>
+    call<AccountVerificationState>('/api/auth/verification', { ...(signal ? { signal } : {}) }),
+  socialStatus: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<MaxAccountStatus>(`/api/auth/${provider}/status`, {
+      ...(signal ? { signal } : {}),
+    }),
+  unlinkSocial: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<{ unlinked: boolean }>(`/api/auth/${provider}/unlink`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    }),
+  startSocialPairing: (
+    provider: SocialAuthProvider,
+    purpose: 'login' | 'register' | 'link',
+    signal?: AbortSignal,
+  ) =>
+    call<SocialPairing>(`/api/auth/${provider}/pairing/start`, {
+      method: 'POST',
+      body: JSON.stringify({ purpose }),
+      ...(signal ? { signal } : {}),
+    }),
+  completeSocialPairing: (
+    provider: SocialAuthProvider,
+    pairingToken: string,
+    signal?: AbortSignal,
+  ) =>
+    call<SocialPairingResult>(`/api/auth/${provider}/pairing/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ pairingToken }),
+      ...(signal ? { signal } : {}),
+    }),
+  registerSocialPairing: (
+    provider: SocialAuthProvider,
+    input: SocialRegistrationInput,
+    signal?: AbortSignal,
+  ) =>
+    call<SessionPayload>(`/api/auth/${provider}/pairing/register`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
+    }),
   localPreviewConfig: () => call<LocalPreviewAuthConfig>('/api/auth/local-preview/config'),
-  localPreviewSession: () =>
-    call<SessionPayload>('/api/auth/local-preview/session', { method: 'POST' }),
+  localPreviewSession: (signal?: AbortSignal) =>
+    call<SessionPayload>('/api/auth/local-preview/session', {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    }),
   maxConfig: () => call<MaxAuthConfig>('/api/auth/max/config'),
   maxStatus: () => call<MaxAccountStatus>('/api/auth/max/status'),
   dismissMaxPrompt: () =>
@@ -1778,17 +2210,22 @@ export const api = {
         body: JSON.stringify({ pairingToken }),
       },
     ),
-  maxRegister: (input: {
-    initData: string;
-    email: string;
-    username: string;
-    displayName: string;
-    birthDate: string;
-    country: string;
-  }) =>
+  maxRegister: (
+    input: {
+      initData: string;
+      email: string;
+      username: string;
+      displayName: string;
+      birthDate: string;
+      country: string;
+      password: string;
+    },
+    signal?: AbortSignal,
+  ) =>
     call<SessionPayload>('/api/auth/max/register', {
       method: 'POST',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   maxLink: (initData: string) =>
     call<{ linked: true }>('/api/auth/max/link', {
@@ -1799,36 +2236,44 @@ export const api = {
     call<{ required: boolean; challenge: BotChallenge }>(
       `/api/auth/bot-challenge?action=${encodeURIComponent(action)}`,
     ),
-  login: (identifier: string, password: string, botProof: BotProof) =>
+  login: (identifier: string, password: string, botProof: BotProof, signal?: AbortSignal) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ identifier, password, botProof }),
+      ...(signal ? { signal } : {}),
     }),
   loginWithWorkspace: (workspace: string, email: string, password: string, botProof: BotProof) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ workspace, email, password, botProof }),
     }),
-  register: (input: {
-    email: string;
-    password: string;
-    username: string;
-    displayName: string;
-    birthDate: string;
-    country: string;
-    botProof: BotProof;
-  }) =>
+  register: (
+    input: {
+      email: string;
+      password: string;
+      username: string;
+      displayName: string;
+      birthDate: string;
+      country: string;
+      botProof: BotProof;
+    },
+    signal?: AbortSignal,
+  ) =>
     call<SessionPayload>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   usernameAvailable: (username: string) =>
     call<{ available: boolean }>(
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
-  logout: async () => {
-    const result = await call<{ ok: true }>('/api/auth/logout', { method: 'POST' });
-    if (result.ok) notifySessionLoggedOut();
+  logout: async (signal?: AbortSignal) => {
+    const result = await call<{ ok: true }>('/api/auth/logout', {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    });
+    if (result.ok && !signal?.aborted) notifySessionLoggedOut();
     return result;
   },
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
@@ -1864,11 +2309,24 @@ export const api = {
     }),
   listWorkspaces: () =>
     call<{ items: WorkspaceRef[]; activeWorkspaceId: string }>('/api/workspaces'),
-  switchWorkspace: (workspaceId: string) =>
-    call<{ activeWorkspace: { workspaceId: string; kind: string } }>('/api/session/context', {
-      method: 'POST',
-      body: JSON.stringify({ workspaceId }),
-    }),
+  switchWorkspace: async (workspaceId: string) => {
+    const mutation = beginTelemetryWorkspaceSwitch();
+    let successful = false;
+    try {
+      const result = await call<{ activeWorkspace: { workspaceId: string; kind: string } }>(
+        '/api/session/context',
+        {
+          method: 'POST',
+          retryAfterRefresh: 'idempotent',
+          body: JSON.stringify({ workspaceId }),
+        },
+      );
+      successful = result.ok;
+      return result;
+    } finally {
+      finishTelemetryWorkspaceSwitch(mutation, !successful);
+    }
+  },
   selfAttestEducator: () =>
     call<{ capability: 'educator'; state: string; created: boolean }>(
       '/api/capabilities/educator/self-attest',
@@ -1930,7 +2388,7 @@ export const api = {
       `/api/learning/activities/${encodeURIComponent(id)}/draft`,
       {
         method: 'PUT',
-        body: JSON.stringify({ ...draft, expectedRevision }),
+        body: JSON.stringify({ ...draft, kind: undefined, expectedRevision }),
       },
     ),
   saveAuthoredActivityDraftSample: (id: string, expectedRevision: number, imageDataUrl: string) =>
@@ -1962,6 +2420,30 @@ export const api = {
         body: JSON.stringify({ expectedRevision, fileName, fileDataUrl }),
       },
     ),
+  uploadLargeAuthoredActivityTaskPdf: (id: string, expectedRevision: number, file: File) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-pdf/${expectedRevision}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(file.name),
+        },
+        body: file,
+      },
+    ),
+  uploadAuthoredActivityTaskAttachment: (id: string, expectedRevision: number, file: File) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-attachment/${expectedRevision}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(file.name),
+        },
+        body: file,
+      },
+    ),
   deleteAuthoredActivityDraftSample: (id: string, expectedRevision: number) =>
     call<{ draftRevision: number }>(
       `/api/learning/activities/${encodeURIComponent(id)}/draft-sample`,
@@ -1975,7 +2457,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         ...draft,
-        kind: draft.moduleKey === null ? 'manual' : 'project',
+        kind: draft.kind ?? (draft.moduleKey === null ? 'manual' : 'project'),
         scope: 'personal',
         visibility: 'private',
         requestId,
@@ -2114,7 +2596,11 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/review`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  awaitingReviewTotal: () => call<{ total: number }>('/api/classrooms/awaiting-review'),
+  awaitingReviewTotal: (signal?: AbortSignal) =>
+    call<{ total: number }>('/api/classrooms/awaiting-review', {
+      priority: 'low',
+      ...(signal ? { signal } : {}),
+    }),
   saveLearningAllowance: (
     classroomId: string,
     assignmentId: string,
@@ -2151,20 +2637,17 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/conditions`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  learningReviewContext: (classroomId: string, assignmentId: string, seatId: string) =>
+  learningReviewContext: (
+    classroomId: string,
+    assignmentId: string,
+    seatId: string,
+    activityRunId?: string,
+  ) =>
     call<LearningReviewContext>(
-      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context`,
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context${activityRunId === undefined ? '' : `?activityRunId=${encodeURIComponent(activityRunId)}`}`,
     ),
   exactLearningSubmission: (classroomId: string, attemptId: string) =>
-    call<{
-      submissionId: string;
-      projectVersionId: string;
-      sourceRevision: number | null;
-      digest: string;
-      moduleKey: string;
-      document: unknown;
-      preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
-    }>(
+    call<ExactLearningSubmission>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/submission`,
     ),
   selectLearningAttempt: (
@@ -2300,9 +2783,10 @@ export const api = {
         body: JSON.stringify({ decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
       },
     ),
-  attendedAssignments: () =>
+  attendedAssignments: (signal?: AbortSignal) =>
     call<{ items: Array<SeatAssignment & { classroomTitle: string }> }>(
       '/api/class-join/account/assignments',
+      { priority: 'low', ...(signal ? { signal } : {}) },
     ),
   gallery: async (
     options: { sort?: 'recent' | 'popular'; module?: string; offset?: number; limit?: 10 } = {},
@@ -2349,7 +2833,7 @@ export const api = {
       description: string | null;
       tags: string[];
       license: string;
-      visibility: 'private' | 'link' | 'public';
+      visibility?: 'private' | 'link' | 'public';
     },
   ) =>
     call<{ ok: true }>(`/api/projects/${encodeURIComponent(projectId)}/properties`, {
@@ -2464,7 +2948,7 @@ export const api = {
       requestId?: string;
     },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       courseId ? `/api/courses/${encodeURIComponent(courseId)}` : '/api/courses',
       {
         method: courseId ? 'PATCH' : 'POST',
@@ -2501,6 +2985,8 @@ export const api = {
     call<{ items: ClassroomCourseRun[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/course-runs`,
     ),
+  courseUsage: (courseId: string) =>
+    call<{ items: CourseUsageRun[] }>(`/api/courses/${encodeURIComponent(courseId)}/usage`),
   assignCourseToClassroom: (
     classroomId: string,
     courseId: string,
@@ -2527,7 +3013,7 @@ export const api = {
     sectionId: string | null,
     input: { title: string; summary: string | null; expectedRevision: number },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       sectionId
         ? `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}`
         : `/api/courses/${encodeURIComponent(courseId)}/sections`,
@@ -2836,8 +3322,11 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ completed }) },
     ),
   mySeatAwards: () => call<{ items: SeatAward[] }>('/api/class-join/me/awards'),
-  seatAssignmentCounts: () =>
-    call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts'),
+  seatAssignmentCounts: (signal?: AbortSignal) =>
+    call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts', {
+      priority: 'low',
+      ...(signal ? { signal } : {}),
+    }),
   startSeatAssignment: (assignmentId: string, projectId: string, legacyOnly = false) =>
     call<{
       projectId: string;
@@ -2855,6 +3344,58 @@ export const api = {
     call<LearningStartReceipt>(
       `/api/learning/work/runs/${encodeURIComponent(activityRunId)}/start`,
       { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  readFileLearning: (runId: string) => call<FileLearningResponse>(fileLearningPath(runId)),
+  startFileLearning: (runId: string, requestId: string) =>
+    call<FileLearningResponse>(`${fileLearningPath(runId)}/start`, {
+      method: 'POST',
+      body: JSON.stringify({ requestId }),
+    }),
+  saveFileLearning: (
+    runId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number; file: File },
+  ) =>
+    call<FileLearningResponse>(
+      `${fileLearningPath(runId)}/draft/${encodeURIComponent(input.attemptId)}/${input.expectedRevision}/${encodeURIComponent(input.requestId)}`,
+      {
+        method: 'PUT',
+        body: input.file,
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(input.file.name),
+        },
+      },
+    ),
+  submitFileLearning: (
+    runId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number },
+  ) =>
+    call<FileLearningResponse>(`${fileLearningPath(runId)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  readEssayLearning: (activityRunId: string) =>
+    call<EssayLearningResponse>(`/api/learning/essay/runs/${encodeURIComponent(activityRunId)}`),
+  startEssayLearning: (activityRunId: string, requestId: string) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/start`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  saveEssayLearning: (
+    activityRunId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number; text: string },
+  ) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/draft`,
+      { method: 'PUT', body: JSON.stringify(input) },
+    ),
+  submitEssayLearning: (
+    activityRunId: string,
+    input: { requestId: string; attemptId: string; expectedRevision: number },
+  ) =>
+    call<EssayLearningResponse>(
+      `/api/learning/essay/runs/${encodeURIComponent(activityRunId)}/submit`,
+      { method: 'POST', body: JSON.stringify(input) },
     ),
   submitLearningProject: (
     projectId: string,
@@ -3034,6 +3575,7 @@ export const api = {
   createProject: (options: CreateProjectOptions) =>
     call<{ project: Project; created: boolean }>('/api/projects', {
       method: 'POST',
+      retryAfterRefresh: 'idempotent',
       headers: { 'idempotency-key': options.idempotencyKey },
       body: JSON.stringify({
         scope: options.scope,
@@ -3053,6 +3595,7 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/duplicate`,
       {
         method: 'POST',
+        retryAfterRefresh: 'idempotent',
         headers: { 'idempotency-key': idempotencyKey },
         body: JSON.stringify({ title }),
       },
@@ -3067,13 +3610,13 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/learning-collection`,
       { method: 'POST', body: JSON.stringify({ collectionState }) },
     ),
-  openProject: <TDocument = unknown, TResult = unknown>(projectId: string) =>
+  openProject: <TDocument = unknown, TResult = unknown>(projectId: string, signal?: AbortSignal) =>
     call<{
       project: Project;
       draft: ProjectDraft<TDocument>;
       versions: ProjectVersion[];
       result: TResult | null;
-    }>(`/api/projects/${encodeURIComponent(projectId)}`),
+    }>(`/api/projects/${encodeURIComponent(projectId)}`, signal ? { signal } : undefined),
   saveDraft: async <TDocument = unknown, TResult = unknown>(
     projectId: string,
     document: TDocument,
@@ -3094,6 +3637,7 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
       {
         method: 'PUT',
+        retryAfterRefresh: 'idempotent',
         body,
         ...(keepalive ? { keepalive: true } : {}),
       },

@@ -6,7 +6,9 @@
   "tags": ["type:app", "scope:app"],
   "targets": {
     "build": {
-      "command": "tsc -p apps/api/tsconfig.json"
+      "command": "tsc -p apps/api/tsconfig.json && node tools/copy-api-runtime-assets.mjs",
+      "inputs": ["production", "^production", "{workspaceRoot}/tools/copy-api-runtime-assets.mjs"],
+      "outputs": ["{projectRoot}/dist"]
     },
     "typecheck": {
       "command": "tsc -p apps/api/tsconfig.json --noEmit"

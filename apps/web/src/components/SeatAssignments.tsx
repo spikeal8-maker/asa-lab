@@ -1,3 +1,6 @@
+import { EssayResponseEditor } from './EssayResponseEditor';
+import { QuizResponsePlayer } from './QuizResponsePlayer';
+import { FileResponseEditor } from './FileResponseEditor';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
@@ -25,29 +28,62 @@ import {
  */
 export function SeatAssignments({
   onOpenProject,
+  reloadSignal = 0,
+  onLoad,
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly reloadSignal?: number;
+  /** undefined: pending, null: failed, number: successfully loaded row count. */
+  readonly onLoad?: (count: number | null | undefined) => void;
 }): JSX.Element | null {
   const [items, setItems] = useState<SeatAssignment[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const starter = useRef(new AtomicLearningStarter());
   // Which task is being read. One at a time: a learner is doing one thing.
   const [openId, setOpenId] = useState<string | null>(null);
+  const fileGuard = useRef<(() => boolean) | null>(null);
+  const registerFileGuard = (_id: string, guard: (() => boolean) | null) => {
+    fileGuard.current = guard;
+  };
+  function openAssignment(id: string | null) {
+    if (id === openId || fileGuard.current?.() === false) return;
+    setOpenId(id);
+  }
   const destination = useLearningDestination();
   useEffect(() => {
-    if (destination.assignment) setOpenId(destination.assignment);
+    if (destination.assignment) openAssignment(destination.assignment);
   }, [destination.assignment]);
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
+  const live = useRef(false);
+  const request = useRef(0);
+  const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
-    const result = await api.seatAssignments();
-    setItems(result.ok ? result.data.items : []);
-  }, []);
+    if (!live.current) return;
+    const current = ++request.current;
+    onLoad?.(undefined);
+    try {
+      const result = await api.seatAssignments();
+      if (!live.current || current !== request.current) return;
+      setLoadError(!result.ok);
+      if (result.ok) setItems(result.data.items);
+      onLoad?.(result.ok ? result.data.items.length : null);
+    } catch {
+      if (!live.current || current !== request.current) return;
+      setLoadError(true);
+      onLoad?.(null);
+    }
+  }, [onLoad]);
 
   useEffect(() => {
+    live.current = true;
     void reload();
-  }, [reload]);
+    return () => {
+      live.current = false;
+      request.current++;
+    };
+  }, [reload, reloadSignal]);
 
   async function start(assignment: SeatAssignment): Promise<void> {
     setBusy(assignment.id);
@@ -63,11 +99,13 @@ export function SeatAssignments({
     onOpenProject(started.data.projectId, assignment.moduleKey);
   }
 
-  if (items === null || items.length === 0) return null;
+  const loadAlert = loadError && !onLoad ? <p role="alert">Не удалось загрузить задания.</p> : null;
+  if (items === null || items.length === 0) return loadAlert;
 
   return (
     <section className="seat-assignments" aria-labelledby="seat-assignments-title">
       <h2 id="seat-assignments-title">Задания от преподавателя</h2>
+      {loadAlert}
       {error ? (
         <p className="form-error" role="alert">
           {error}
@@ -83,8 +121,11 @@ export function SeatAssignments({
             // глазами, куда именно нажать, больше не нужно.
             onClick={(event) => {
               const target = event.target as HTMLElement;
-              if (target.closest('button, a')) return;
-              setOpenId(openId === assignment.id ? null : assignment.id);
+              if (
+                target.closest('button, a, input, label, textarea, .essay-response, .file-response')
+              )
+                return;
+              openAssignment(openId === assignment.id ? null : assignment.id);
             }}
           >
             {/* On a "make this" task the picture is half the brief: a paragraph
@@ -106,7 +147,7 @@ export function SeatAssignments({
                 type="button"
                 className="seat-assignment-open"
                 aria-expanded={openId === assignment.id}
-                onClick={() => setOpenId(openId === assignment.id ? null : assignment.id)}
+                onClick={() => openAssignment(openId === assignment.id ? null : assignment.id)}
               >
                 {assignment.title}
               </button>
@@ -161,6 +202,24 @@ export function SeatAssignments({
                       ) : null
                     }
                   />
+                  {assignment.activityKind === 'essay' &&
+                  assignment.activityRunId &&
+                  assignment.activityVersionId ? (
+                    <EssayResponseEditor
+                      key={assignment.activityRunId}
+                      activityRunId={assignment.activityRunId}
+                      activityVersionId={assignment.activityVersionId}
+                      onChanged={reload}
+                      onRegisterLeaveGuard={registerFileGuard}
+                    />
+                  ) : null}
+                  {assignment.activityKind === 'file' && assignment.activityRunId ? (
+                    <FileResponseEditor
+                      activityRunId={assignment.activityRunId}
+                      onChanged={reload}
+                      onRegisterLeaveGuard={registerFileGuard}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -208,6 +267,31 @@ export function SeatAssignments({
                         : 'Сдать'}
                   </button>
                 </>
+              ) : (assignment.activityKind === 'file' || assignment.activityKind === 'essay') &&
+                assignment.activityRunId ? (
+                openId !== assignment.id ? (
+                  <button
+                    type="button"
+                    className="portal-create-button"
+                    onClick={() => openAssignment(assignment.id)}
+                  >
+                    {assignment.activityKind === 'essay'
+                      ? 'Открыть письменный ответ'
+                      : 'Открыть файловый ответ'}
+                  </button>
+                ) : null
+              ) : assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                openId === assignment.id ? (
+                  <QuizResponsePlayer activityRunId={assignment.activityRunId} onChanged={reload} />
+                ) : (
+                  <button
+                    type="button"
+                    className="portal-create-button"
+                    onClick={() => openAssignment(assignment.id)}
+                  >
+                    Открыть тест
+                  </button>
+                )
               ) : assignment.activityRunId ? (
                 <button
                   type="button"

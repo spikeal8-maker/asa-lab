@@ -39,7 +39,7 @@ async function compactHome(page: Page): Promise<void> {
       };
     });
   });
-  expect(measurements).toHaveLength(2);
+  expect(measurements).toHaveLength(4);
   for (const measurement of measurements) {
     expect(measurement.sectionGap).toBeGreaterThanOrEqual(0);
     expect(measurement.sectionGap).toBeLessThanOrEqual(16);
@@ -95,7 +95,7 @@ test('Home: production-build baseline, desktop and mobile workspace', async ({ p
   await expect(page.locator('.portal-sidebar-avatar')).not.toHaveAttribute('role', 'button');
   await expect(page.locator('.portal-sidebar-avatar button')).toHaveCount(0);
   await page.locator('.portal-header .portal-quick-create > summary').click();
-  await expect(page.locator('.portal-header .portal-create-options button')).toHaveCount(2);
+  await expect(page.locator('.portal-header .portal-create-options button')).toHaveCount(4);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.screenshot({ path: `${evidence}/create-menu.png`, fullPage: true });
   await page.keyboard.press('Escape');
@@ -239,7 +239,7 @@ test('ten-item shelves scroll on phones, public feed errors never hide personal 
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: `${evidence}/mobile-filled.png`, fullPage: true });
-  await page.route('**/api/gallery?*', (route) =>
+  await page.route('**/api/public-projects?*', (route) =>
     route.fulfill({ status: 503, json: { error: { code: 'test_unavailable', message: 'Test' } } }),
   );
   await page.reload();

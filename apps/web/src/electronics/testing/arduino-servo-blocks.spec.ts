@@ -16,8 +16,12 @@ describe('block-generated Servo source vertical path', () => {
     try {
       const loop = workspace.newBlock('asa_loop');
       const write = workspace.newBlock('asa_servo_write');
-      write.setFieldValue('9', 'PIN');
-      write.setFieldValue('90', 'ANGLE');
+      const pin = workspace.newBlock('asa_pin');
+      pin.setFieldValue('9', 'VALUE');
+      write.getInput('PIN')!.connection!.connect(pin.outputConnection!);
+      const angle = workspace.newBlock('asa_number');
+      angle.setFieldValue('90', 'VALUE');
+      write.getInput('ANGLE')!.connection!.connect(angle.outputConnection!);
       loop.getInput('DO')!.connection!.connect(write.previousConnection!);
 
       const source = generateArduinoCode(workspace);

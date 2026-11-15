@@ -5,6 +5,7 @@ import {
   isTelemetryPath,
   safeReferrer,
   sendTelemetry,
+  telemetryRetryDelay,
   validEnvelope,
   type AnalyticsEnvelope,
 } from './telemetry-contract';
@@ -29,13 +30,135 @@ const receipt = {
   operation: 'visit.observed',
   receivedAt: event.clientOccurredAt,
   persistedAt: event.clientOccurredAt,
-  recordId: id(5),
+  recordId: 51,
 };
 afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 describe('actual v2 envelopes and persistence receipts', () => {
+  it('admits robotics under its own module and route without accepting arbitrary module strings', () => {
+    const envelope = {
+      schemaVersion: 2,
+      eventId: event.eventId,
+      actorExpectation: actor,
+      visitId: event.visitId,
+      clientOccurredAt: event.clientOccurredAt,
+      operation: 'start',
+      sessionId: id(6),
+      projectId: id(7),
+      moduleKey: 'robotics',
+    };
+    expect(validEnvelope(envelope)).toBe(true);
+    expect(validEnvelope({ ...envelope, moduleKey: 'robotics?private=source' })).toBe(false);
+    expect(validEnvelope({ ...event, entryRoute: 'editor.robotics' })).toBe(true);
+  });
+  it('spreads repeated retries without reducing their exponential floor or the server cooldown', () => {
+    const random = vi.spyOn(Math, 'random');
+    for (const failures of [1, 2, 3, 10, 1000]) {
+      random.mockReturnValue(0);
+      const earliest = telemetryRetryDelay(failures);
+      random.mockReturnValue(0.999);
+      const latest = telemetryRetryDelay(failures);
+      expect(earliest).toBe(Math.min(30_000, 1000 * 2 ** Math.min(5, failures - 1)));
+      expect(latest).toBeGreaterThan(earliest);
+      expect(latest).toBeLessThanOrEqual(60_000);
+      expect(telemetryRetryDelay(failures, 120_000)).toBe(120_000 + Math.floor(0.999 * earliest));
+    }
+    random.mockReturnValue(0);
+    const firstClient = telemetryRetryDelay(1, 20_000);
+    random.mockReturnValue(0.999);
+    const secondClient = telemetryRetryDelay(1, 20_000);
+    expect(firstClient).toBe(20_000);
+    expect(secondClient).toBe(20_999);
+  });
+  it.each([
+    ['20', 20_000],
+    ['999999999', 300_000],
+    ['Thu, 05 Nov 2026 12:00:30 GMT', 30_000],
+    ['Wed, 04 Nov 2026 12:00:30 GMT', undefined],
+    ['not-a-date', undefined],
+  ])(
+    'honors bounded Retry-After %s without escalating telemetry into foreground or auth work',
+    async (header, delay) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-11-05T12:00:00Z'));
+      const transport = vi.fn<typeof fetch>(
+        async () =>
+          new Response('{}', {
+            status: 503,
+            headers: { 'retry-after': header },
+          }),
+      );
+      const outcome = await sendTelemetry(
+        '/api/analytics/v2/events',
+        event,
+        { status: 200, confirmed: () => true },
+        transport,
+      );
+      expect(outcome).toEqual(
+        delay === undefined ? { kind: 'retry' } : { kind: 'retry', retryAfterMs: delay },
+      );
+      expect(transport.mock.calls[0]![1]).toMatchObject({
+        priority: 'low',
+        credentials: 'same-origin',
+      });
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('does not start a transport after its owner was already cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const transport = vi.fn<typeof fetch>();
+    expect(
+      await sendTelemetry(
+        '/api/analytics/v2/events',
+        event,
+        { status: 200, confirmed: () => true },
+        transport,
+        controller.signal,
+      ),
+    ).toEqual({ kind: 'retry' });
+    expect(transport).not.toHaveBeenCalled();
+  });
+  it.each(['fetch', 'body'] as const)(
+    'cancels a pending %s even if the transport ignores AbortSignal and finishes later',
+    async (phase) => {
+      const controller = new AbortController();
+      let release!: () => void;
+      const response = new Response('{}', { status: 200 });
+      if (phase === 'body')
+        vi.spyOn(response, 'json').mockReturnValue(
+          new Promise((resolve) => {
+            release = () => resolve(receipt);
+          }),
+        );
+      const transport = vi.fn<typeof fetch>(() =>
+        phase === 'fetch'
+          ? new Promise<Response>((resolve) => {
+              release = () => resolve(response);
+            })
+          : Promise.resolve(response),
+      );
+      const confirmed = vi.fn(() => true);
+      const delivery = sendTelemetry(
+        '/api/analytics/v2/events',
+        event,
+        { status: 200, confirmed },
+        transport,
+        controller.signal,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      controller.abort();
+      expect(await delivery).toEqual({ kind: 'retry' });
+      expect(transport.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+      release();
+      await Promise.resolve();
+      expect(confirmed).not.toHaveBeenCalled();
+    },
+  );
   for (const requiredStatus of [200, 202] as const) {
     it.each([200, 201, 202, 204, 206])(
       `requires HTTP${requiredStatus} and a valid body together (received HTTP%s)`,
@@ -95,6 +218,30 @@ describe('actual v2 envelopes and persistence receipts', () => {
   it('accepts actual visit recordId receipt without inventing a visitId echo', () => {
     expect(validEnvelope(event)).toBe(true);
     expect(confirmedAnalytics(receipt, event)).toBe(true);
+  });
+  it.each([1, 51, Number.MAX_SAFE_INTEGER])(
+    'acknowledges a positive safe numeric visit recordId %s',
+    (recordId) => {
+      expect(confirmedAnalytics({ ...receipt, recordId }, event)).toBe(true);
+    },
+  );
+  it.each([
+    undefined,
+    null,
+    id(5),
+    '51',
+    0,
+    -1,
+    1.5,
+    Number.MAX_SAFE_INTEGER + 1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    true,
+    {},
+    [],
+  ])('rejects a non-numeric, non-positive or unsafe visit recordId %j', (recordId) => {
+    expect(confirmedAnalytics({ ...receipt, recordId }, event)).toBe(false);
   });
   it.each([
     null,

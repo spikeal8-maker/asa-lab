@@ -17,6 +17,7 @@ import { ParticipantAssignmentsList } from './ParticipantAssignmentsList';
 import { avatarFileError, createAvatarDataUrl } from '../creator-portal/avatar-file';
 import { SEAT_AWARDS, SeatAwardRow } from './SeatAwards';
 import { useSchoolTime } from './school-time';
+import { useClassroomActionFeedback } from './ClassroomActionFeedback';
 import './classroom-participants.css';
 
 export const FACTOR_LABELS = {
@@ -77,7 +78,9 @@ export function ClassroomRatingSettings({
   const [settings, setSettings] = useState<ParticipantSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const { notice, setNotice } = useClassroomActionFeedback(
+    JSON.stringify(['rating', classroomId, readOnly]),
+  );
   const receipt = useRef<{ payload: string; id: string } | null>(null);
   const generation = useRef(0);
   const load = useCallback(async () => {
@@ -91,7 +94,6 @@ export function ClassroomRatingSettings({
   }, [classroomId]);
   useEffect(() => {
     setBusy(false);
-    setNotice('');
     receipt.current = null;
     void load();
     return () => {
@@ -258,6 +260,7 @@ export function ParticipantMeritsAndAvatars({
   profile,
   onChanged,
   readOnly = false,
+  mutationsDisabled = false,
   accountLearner = false,
   learnerView = false,
 }: {
@@ -266,6 +269,7 @@ export function ParticipantMeritsAndAvatars({
   profile: ParticipantProfile;
   onChanged: () => Promise<void>;
   readOnly?: boolean;
+  mutationsDisabled?: boolean;
   accountLearner?: boolean;
   learnerView?: boolean;
 }): JSX.Element {
@@ -274,10 +278,77 @@ export function ParticipantMeritsAndAvatars({
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [meritDraft, setMeritDraft] = useState<{
+    id: string;
+    title: string;
+    description: string;
+  } | null>(null);
+  const [meritHistory, setMeritHistory] = useState<{
+    offset: number;
+    hasMore: boolean;
+    items: Array<{
+      eventId: number;
+      meritId: string;
+      title: string;
+      granted: boolean;
+      at: string;
+    }>;
+  } | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [avatarTitle, setAvatarTitle] = useState('');
   const [secret, setSecret] = useState(false);
   const [achievement, setAchievement] = useState('');
-  const [uploads, setUploads] = useState<Array<{ title: string; dataUrl: string; id: string }>>([]);
+  type AvatarUploadInput = {
+    title: string;
+    dataUrl: string;
+    secret: boolean;
+    meritId: string | null;
+    builtinAward: string | null;
+  };
+  const [uploads, setUploads] = useState<
+    Array<{
+      name: string;
+      suffix: string;
+      dataUrl: string;
+      id: string;
+      attempted?: boolean;
+      submitted?: { input: AvatarUploadInput; unlockLabel: string };
+    }>
+  >([]);
+  const uploadSubmitted = uploads.some((file) => file.submitted);
+  const uploadControlStyle = {
+    minHeight: 44,
+    minWidth: 44,
+    maxWidth: '100%',
+    boxSizing: 'border-box' as const,
+  };
+  const uploadAtCapacity = profile.avatars.length >= 24;
+  const uploadBlocked = uploadAtCapacity && !uploads.some((file) => file.attempted);
+  const preparedUploads = uploads.map((file) => ({
+    ...file,
+    submitted: file.submitted ?? {
+      input: {
+        title: (avatarTitle.trim() || file.name).slice(0, 55) + file.suffix,
+        dataUrl: file.dataUrl,
+        secret,
+        meritId: secret && achievement.startsWith('custom:') ? achievement.slice(7) : null,
+        builtinAward: secret && achievement.startsWith('builtin:') ? achievement.slice(8) : null,
+      },
+      unlockLabel:
+        (achievement.startsWith('custom:')
+          ? profile.merits.find((merit) => merit.id === achievement.slice(7))?.title
+          : SEAT_AWARDS.find((award) => `builtin:${award.key}` === achievement)?.label) ??
+        'Только по выдаче доступа',
+    },
+  }));
+  function cancelUpload(): void {
+    setUploads([]);
+    setAvatarTitle('');
+    setSecret(false);
+    setAchievement('');
+    setError(null);
+  }
   const [choice, setChoice] = useState<string | null>(
     profile.avatars.find((a) => a.selected && a.available)?.id ?? null,
   );
@@ -287,11 +358,17 @@ export function ParticipantMeritsAndAvatars({
     setChoice(confirmedAvatar);
   }, [confirmedAvatar, classroomId, seatId]);
   const scope = useRef(0);
+  const historyRequest = useRef(0);
   useEffect(() => {
+    historyRequest.current++;
     setError(null);
     setBusy(false);
     setTitle('');
     setDescription('');
+    setMeritDraft(null);
+    setMeritHistory(null);
+    setHistoryBusy(false);
+    setHistoryError(null);
     setAvatarTitle('');
     setSecret(false);
     setAchievement('');
@@ -302,7 +379,7 @@ export function ParticipantMeritsAndAvatars({
     };
   }, [classroomId, seatId]);
   const archived = profile.status !== 'active';
-  const locked = busy || archived;
+  const locked = busy || archived || mutationsDisabled;
   async function mutate(
     action: string,
     input: Record<string, unknown>,
@@ -332,26 +409,78 @@ export function ParticipantMeritsAndAvatars({
     setBusy(true);
     setError(null);
     try {
-      if (await mutate(kind, input)) await onChanged();
+      if (await mutate(kind, input)) {
+        historyRequest.current++;
+        setMeritHistory(null);
+        setHistoryBusy(false);
+        setHistoryError(null);
+        await onChanged();
+      }
     } finally {
       if (token === scope.current) setBusy(false);
     }
   }
+  async function saveMeritEdit(): Promise<void> {
+    if (locked || !meritDraft) return;
+    const token = scope.current;
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await mutate('merit_update', meritDraft);
+      if (token !== scope.current || !saved) return;
+      setMeritDraft(null);
+      historyRequest.current++;
+      setMeritHistory(null);
+      setHistoryBusy(false);
+      setHistoryError(null);
+      await onChanged();
+    } finally {
+      if (token === scope.current) setBusy(false);
+    }
+  }
+  async function loadMeritHistory(more = false): Promise<void> {
+    if (historyBusy || (more && (!meritHistory || !meritHistory.hasMore))) return;
+    const token = scope.current;
+    const request = ++historyRequest.current;
+    const offset = more && meritHistory ? meritHistory.offset + meritHistory.items.length : 0;
+    setHistoryBusy(true);
+    setHistoryError(null);
+    try {
+      const result =
+        learnerView && !accountLearner
+          ? await participantsApi.seatMeritHistory(offset)
+          : await participantsApi.meritHistory(classroomId, seatId, offset);
+      if (token !== scope.current || request !== historyRequest.current) return;
+      if (!result.ok) {
+        setHistoryError(result.error.message);
+        return;
+      }
+      setMeritHistory(
+        more && meritHistory
+          ? { ...result.data, offset: 0, items: [...meritHistory.items, ...result.data.items] }
+          : result.data,
+      );
+    } finally {
+      if (token === scope.current && request === historyRequest.current) {
+        setHistoryBusy(false);
+      }
+    }
+  }
   async function upload(): Promise<void> {
-    if (locked || uploads.length === 0) return;
+    if (locked || uploads.length === 0 || uploadBlocked) return;
     setBusy(true);
     setError(null);
     const token = scope.current;
+    // Bind the complete batch to its request IDs before the first request. A lost
+    // response must retry exactly the same payload, including the unlock rule.
+    setUploads(preparedUploads);
     try {
-      for (const file of uploads) {
-        const input = {
-          title: file.title,
-          dataUrl: file.dataUrl,
-          secret,
-          meritId: achievement.startsWith('custom:') ? achievement.slice(7) : null,
-          builtinAward: achievement.startsWith('builtin:') ? achievement.slice(8) : null,
-        };
-        if (!(await mutate('avatar', input, file.id))) break;
+      for (const file of preparedUploads) {
+        if (uploadAtCapacity && !file.attempted) break;
+        setUploads((current) =>
+          current.map((item) => (item.id === file.id ? { ...item, attempted: true } : item)),
+        );
+        if (!(await mutate('avatar', file.submitted.input, file.id))) break;
         setUploads((current) => current.filter((item) => item.id !== file.id));
       }
       if (token === scope.current) await onChanged();
@@ -394,6 +523,63 @@ export function ParticipantMeritsAndAvatars({
                   {merit.granted ? 'Отозвать' : 'Выдать'}
                 </button>
               )}
+              {!readOnly ? (
+                <button
+                  type="button"
+                  disabled={locked}
+                  aria-label={`Редактировать награду: ${merit.title}`}
+                  onClick={() =>
+                    setMeritDraft({
+                      id: merit.id,
+                      title: merit.title,
+                      description: merit.description,
+                    })
+                  }
+                >
+                  Редактировать
+                </button>
+              ) : null}
+              {!readOnly && meritDraft?.id === merit.id ? (
+                <form
+                  className="participant-merit-edit"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveMeritEdit();
+                  }}
+                >
+                  <fieldset disabled={locked}>
+                    <legend>Редактирование награды</legend>
+                    <label>
+                      Название
+                      <input
+                        required
+                        maxLength={60}
+                        value={meritDraft.title}
+                        onChange={(event) =>
+                          setMeritDraft((draft) =>
+                            draft ? { ...draft, title: event.target.value } : draft,
+                          )
+                        }
+                      />
+                    </label>
+                    <label htmlFor={`${meritFormId}-edit-description`}>Описание награды</label>
+                    <textarea
+                      id={`${meritFormId}-edit-description`}
+                      maxLength={240}
+                      value={meritDraft.description}
+                      onChange={(event) =>
+                        setMeritDraft((draft) =>
+                          draft ? { ...draft, description: event.target.value } : draft,
+                        )
+                      }
+                    />
+                    <button type="submit">Сохранить изменения награды</button>
+                    <button type="button" onClick={() => setMeritDraft(null)}>
+                      Отменить редактирование
+                    </button>
+                  </fieldset>
+                </form>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -441,6 +627,51 @@ export function ParticipantMeritsAndAvatars({
             </fieldset>
           </form>
         ) : null}
+        <section aria-label="История наград">
+          <h4>История выдачи и отзыва наград</h4>
+          <button
+            type="button"
+            disabled={historyBusy}
+            onClick={() => {
+              if (meritHistory) {
+                historyRequest.current++;
+                setMeritHistory(null);
+                setHistoryError(null);
+                setHistoryBusy(false);
+              } else {
+                void loadMeritHistory();
+              }
+            }}
+          >
+            {meritHistory ? 'Скрыть историю наград' : 'Показать историю наград'}
+          </button>
+          {historyBusy ? <p role="status">Загрузка истории наград…</p> : null}
+          {historyError ? <p role="alert">{historyError}</p> : null}
+          {meritHistory ? (
+            <>
+              {meritHistory.items.length === 0 ? <p>Выдач и отзывов пока нет.</p> : null}
+              <ul className="participant-merit-history">
+                {meritHistory.items.map((entry) => (
+                  <li key={entry.eventId}>
+                    <span>
+                      {entry.granted ? 'Выдана' : 'Отозвана'}: {entry.title}
+                    </span>{' '}
+                    <time dateTime={entry.at}>{new Date(entry.at).toLocaleString('ru-RU')}</time>
+                  </li>
+                ))}
+              </ul>
+              {meritHistory.hasMore ? (
+                <button
+                  type="button"
+                  disabled={historyBusy}
+                  onClick={() => void loadMeritHistory(true)}
+                >
+                  Показать ещё записи
+                </button>
+              ) : null}
+            </>
+          ) : null}
+        </section>
       </section>
       <section>
         <h3>{learnerView ? 'Доступные мне аватары' : 'Аватары класса'}</h3>
@@ -458,7 +689,9 @@ export function ParticipantMeritsAndAvatars({
                 disabled={locked || !avatar.available}
                 aria-pressed={choice === avatar.id}
                 aria-label={`Выбрать ${avatar.title}`}
-                onClick={() => setChoice(avatar.id)}
+                onClick={() => {
+                  if (!locked) setChoice(avatar.id);
+                }}
               >
                 <img src={avatar.url} alt="" width={64} height={64} />
                 <span>{avatar.title}</span>
@@ -487,13 +720,20 @@ export function ParticipantMeritsAndAvatars({
           ))}
         </div>
         <div className="participant-actions">
-          <button type="button" disabled={locked} onClick={() => setChoice(null)}>
+          <button
+            type="button"
+            disabled={locked}
+            onClick={() => {
+              if (!locked) setChoice(null);
+            }}
+          >
             Обычный аватар
           </button>
           <button
             type="button"
             disabled={locked}
             onClick={() => {
+              if (locked) return;
               if (readOnly) {
                 const token = scope.current;
                 setBusy(true);
@@ -532,7 +772,10 @@ export function ParticipantMeritsAndAvatars({
           </button>
         </div>
         {!readOnly ? (
-          <fieldset disabled={locked || profile.avatars.length >= 24}>
+          <fieldset
+            disabled={locked || (profile.avatars.length >= 24 && uploads.length === 0)}
+            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}
+          >
             <legend>Загрузить аватары · до 24 на класс</legend>
             <p>
               PNG, JPEG, WebP до 8 МБ исходный файл; 320×320 после уменьшения, до 220 КБ. SVG и HTML
@@ -542,13 +785,17 @@ export function ParticipantMeritsAndAvatars({
               Название аватара
               <input
                 maxLength={60}
+                style={uploadControlStyle}
+                disabled={uploadSubmitted}
                 value={avatarTitle}
                 onChange={(e) => setAvatarTitle(e.target.value)}
               />
             </label>
-            <label>
+            <label style={{ minHeight: 44, alignItems: 'center' }}>
               <input
                 type="checkbox"
+                style={{ width: 20, height: 20, minWidth: 20, flexShrink: 0 }}
+                disabled={uploadSubmitted}
                 checked={secret}
                 onChange={(e) => setSecret(e.target.checked)}
               />
@@ -557,7 +804,12 @@ export function ParticipantMeritsAndAvatars({
             {secret ? (
               <label>
                 Открыть при достижении
-                <select value={achievement} onChange={(e) => setAchievement(e.target.value)}>
+                <select
+                  style={uploadControlStyle}
+                  disabled={uploadSubmitted}
+                  value={achievement}
+                  onChange={(e) => setAchievement(e.target.value)}
+                >
                   <option value="">Только по выдаче доступа</option>
                   {SEAT_AWARDS.map((award) => (
                     <option key={award.key} value={`builtin:${award.key}`}>
@@ -576,9 +828,12 @@ export function ParticipantMeritsAndAvatars({
               Файлы аватаров
               <input
                 type="file"
+                style={{ ...uploadControlStyle, width: '100%' }}
+                disabled={uploadSubmitted || profile.avatars.length >= 24}
                 accept="image/png,image/jpeg,image/webp"
                 multiple
                 onChange={(event) => {
+                  if (locked) return;
                   const files = [...(event.target.files ?? [])];
                   event.target.value = '';
                   setError(null);
@@ -590,9 +845,8 @@ export function ParticipantMeritsAndAvatars({
                   const token = scope.current;
                   void Promise.all(
                     files.map(async (file, i) => ({
-                      title:
-                        (avatarTitle.trim() || file.name.replace(/\.[^.]+$/, '')).slice(0, 55) +
-                        (files.length > 1 ? ` ${i + 1}` : ''),
+                      name: file.name.replace(/\.[^.]+$/, ''),
+                      suffix: files.length > 1 ? ` ${i + 1}` : '',
                       dataUrl: await avatarPng(file),
                       id: newClientId(),
                     })),
@@ -617,14 +871,44 @@ export function ParticipantMeritsAndAvatars({
             {uploads.length > 0 ? (
               <>
                 <div className="participant-avatar-grid">
-                  {uploads.map((file) => (
-                    <img key={file.id} src={file.dataUrl} alt={file.title} width={64} height={64} />
+                  {preparedUploads.map((file) => (
+                    <div key={file.id}>
+                      <img
+                        src={file.dataUrl}
+                        alt={file.submitted.input.title}
+                        width={64}
+                        height={64}
+                      />
+                      <p>{file.submitted.input.title}</p>
+                      <small>
+                        {file.submitted.input.secret
+                          ? `Секретный · ${file.submitted.unlockLabel}`
+                          : 'Доступен всем ученикам класса'}
+                      </small>
+                    </div>
                   ))}
                 </div>
-                <button type="button" onClick={() => void upload()}>
+                {uploadSubmitted ? (
+                  <p role="status">
+                    Параметры отправлены. Повтор загрузки сохранит те же названия и условия доступа.
+                    Отмена уберёт очередь, но уже сохранённые аватары останутся в классе.
+                  </p>
+                ) : null}
+                {uploadAtCapacity ? (
+                  <p role="status">
+                    В классе уже 24 аватара. Можно повторить только ранее отправленные файлы.
+                    Остальные файлы остаются в очереди; её можно отменить.
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  style={uploadControlStyle}
+                  disabled={uploadBlocked}
+                  onClick={() => void upload()}
+                >
                   Загрузить {uploads.length}
                 </button>
-                <button type="button" onClick={() => setUploads([])}>
+                <button type="button" style={uploadControlStyle} onClick={cancelUpload}>
                   Отмена загрузки
                 </button>
               </>
@@ -636,17 +920,114 @@ export function ParticipantMeritsAndAvatars({
   );
 }
 
+/** Preserve the complete authorized comment, but avoid a wall of text in the history list. */
+function ParticipantHistoryNote({ text }: { text: string }): JSX.Element {
+  const characters = Array.from(text);
+  if (characters.length <= 140) return <p>{text}</p>;
+  return (
+    <details className="participant-history-note">
+      <summary>
+        <span className="participant-history-note-preview">
+          {characters.slice(0, 72).join('').trimEnd()}…
+        </span>
+        <span className="participant-history-note-action">Весь текст</span>
+      </summary>
+      <p>{text}</p>
+    </details>
+  );
+}
+
+type ProfileResult = ParticipantGrades['results'][number];
+
+/** Strict ISO publication instant, with PostgreSQL's full microsecond precision. */
+function profilePublicationTime(value: string): readonly [number, number] | null {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|([+-])(\d{2}):?(\d{2}))$/.exec(
+      value,
+    );
+  if (!match || match[0] !== value) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = Number(match[10] ?? 0);
+  const offsetMinute = Number(match[11] ?? 0);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > days[month - 1]! ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  )
+    return null;
+  // Set the year explicitly: Date.UTC treats years 00..99 as 1900..1999.
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, 0);
+  const offset = (offsetHour * 60 + offsetMinute) * (match[9] === '-' ? -1 : 1);
+  return [date.getTime() - offset * 60_000, Number((match[7] ?? '').padEnd(6, '0'))];
+}
+
+/** Reconcile copies of the server projection, never synthesize grade fields. */
+function latestProfileResults(items: readonly ProfileResult[]): ProfileResult[] | null {
+  const groups = new Map<string, ProfileResult[]>();
+  const times = new Map<string, readonly [number, number]>();
+  for (const item of items) {
+    const time = profilePublicationTime(item.published_at);
+    if (!time) return null;
+    times.set(item.published_at, time);
+    const group = groups.get(item.assignment_id) ?? [];
+    group.push(item);
+    groups.set(item.assignment_id, group);
+  }
+  const compareTime = (a: ProfileResult, b: ProfileResult): number => {
+    const left = times.get(a.published_at)!;
+    const right = times.get(b.published_at)!;
+    return left[0] - right[0] || left[1] - right[1];
+  };
+  const payload = (r: ProfileResult) =>
+    JSON.stringify([r.assignment_title, r.raw_points, r.max_points, r.display_grade, r.feedback]);
+  const selected: ProfileResult[] = [];
+  for (const group of groups.values()) {
+    group.sort(
+      (a, b) =>
+        compareTime(a, b) ||
+        (a.published_at < b.published_at ? -1 : a.published_at > b.published_at ? 1 : 0),
+    );
+    const latest = group[group.length - 1]!;
+    // Equal instants with identical fields coalesce using a stable timestamp
+    // spelling. Conflicting fields have no authoritative ordering (no revision
+    // in this projection): fail closed and let explicit retry reread the pages.
+    if (group.some((r) => compareTime(r, latest) === 0 && payload(r) !== payload(latest)))
+      return null;
+    selected.push(latest);
+  }
+  return selected;
+}
+
 export function ParticipantGradeHistory({
   classroomId,
   seatId,
   seatSession = false,
   compact = false,
+  variant = 'default',
 }: {
   classroomId: string;
   seatId: string;
   seatSession?: boolean;
   compact?: boolean;
+  variant?: 'default' | 'teacherProfile';
 }): JSX.Element {
+  const teacherProfile = variant === 'teacherProfile';
+  const gradeRail = useRef<HTMLUListElement>(null);
   const time = useSchoolTime();
   const historyTime = useMemo(
     () =>
@@ -681,9 +1062,22 @@ export function ParticipantGradeHistory({
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
   const [loadedIdentity, setLoadedIdentity] = useState(identity);
+  const currentData = useRef(data);
+  currentData.current = data;
+  const paging = useRef(false);
+  const loggedOut = useRef(false);
+  const pages = useRef({ journal: [0], results: [0] });
+  type GradeStream = 'refresh' | 'journal' | 'results';
+  const failedPage = useRef<{ offset: number; resultOffset: number; stream: GradeStream } | null>(
+    null,
+  );
   function historyError(message: string, status: number): void {
     setError(message);
     if ([401, 403, 404].includes(status)) {
+      paging.current = false;
+      currentData.current = null;
+      pages.current = { journal: [0], results: [0] };
+      failedPage.current = { offset: 0, resultOffset: 0, stream: 'refresh' };
       generation.current++;
       gradeGeneration.current++;
       historyGeneration.current++;
@@ -733,10 +1127,152 @@ export function ParticipantGradeHistory({
     else historyError(r.error.message, r.status);
   }
   const load = useCallback(
-    async (offset = 0, resultOffset = 0) => {
+    async (offset = 0, resultOffset = 0, stream: GradeStream = 'refresh') => {
+      if (teacherProfile && (paging.current || loggedOut.current)) return;
       const token = ++gradeGeneration.current;
       setError(null);
       setLoading(true);
+      if (teacherProfile) {
+        paging.current = true;
+        // Refresh only the explicitly loaded pages, never chase next cursors.
+        // SQL 0209 projects only the journal page at offset, not every changed
+        // column. A results click refreshes the other already loaded journal
+        // pages once each. These companions update loaded IDs only; neither
+        // their columns/cursors nor their result pages expand the loaded set.
+        const requests =
+          stream === 'refresh'
+            ? Array.from(
+                { length: Math.max(pages.current.journal.length, pages.current.results.length) },
+                (_, i) => ({
+                  offset: pages.current.journal[i] ?? 0,
+                  resultOffset: pages.current.results[i] ?? 0,
+                  journal: i < pages.current.journal.length,
+                  results: i < pages.current.results.length,
+                }),
+              )
+            : [
+                {
+                  offset,
+                  resultOffset,
+                  journal: stream === 'journal',
+                  results: stream === 'results',
+                },
+                ...(stream === 'results'
+                  ? pages.current.journal
+                      .filter((loadedOffset) => loadedOffset !== offset)
+                      .map((loadedOffset) => ({
+                        offset: loadedOffset,
+                        resultOffset,
+                        journal: false,
+                        results: false,
+                      }))
+                  : []),
+              ];
+        let merged = stream === 'refresh' ? null : currentData.current;
+        const unique = <T,>(items: readonly T[], key: (item: T) => string): T[] => [
+          ...new Map(items.map((item) => [key(item), item])).values(),
+        ];
+        for (const request of requests) {
+          const result = await participantsApi.grades(
+            classroomId,
+            seatId,
+            request.offset,
+            request.resultOffset,
+          );
+          if (
+            token !== gradeGeneration.current ||
+            identity !== currentIdentity.current ||
+            loggedOut.current
+          )
+            return;
+          if (!result.ok) {
+            paging.current = false;
+            setLoading(false);
+            // This response belongs to the current identity, even when its first
+            // read failed. Expose its error/retry without revealing the old seat.
+            setLoadedIdentity(identity);
+            failedPage.current = { offset, resultOffset, stream };
+            historyError(result.error.message, result.status);
+            return;
+          }
+          const incoming = result.data;
+          const previous: ParticipantGrades | null = merged;
+          const journalColumns = request.journal
+            ? unique(
+                [...(previous?.journal.columns ?? []), ...incoming.journal.columns],
+                (c) => c.id,
+              )
+            : previous!.journal.columns;
+          const loadedColumns = new Set(journalColumns.map((c) => c.id));
+          const journalGrades = [
+            ...new Map(
+              [
+                ...(previous?.journal.grades ?? []),
+                ...(currentData.current?.journal.grades ?? []),
+                ...incoming.journal.grades,
+              ]
+                .filter((g) => loadedColumns.has(g.columnId))
+                .sort(
+                  (a, b) =>
+                    a.revision - b.revision ||
+                    Date.parse(a.publishedAt) - Date.parse(b.publishedAt) ||
+                    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+                )
+                .map((grade) => [grade.columnId, grade] as const),
+            ).values(),
+          ];
+          const incomingIds = new Set(incoming.results.map((r) => r.assignment_id));
+          const results = request.results
+            ? latestProfileResults([
+                ...(previous?.results ?? []),
+                // A stale focus page cannot roll back a newer loaded projection.
+                // Retain only IDs seen on the explicitly refreshed result pages.
+                ...(currentData.current?.results.filter((r) => incomingIds.has(r.assignment_id)) ??
+                  []),
+                ...incoming.results,
+              ])
+            : previous!.results;
+          if (results === null) {
+            currentData.current = null;
+            setData(null);
+            historyGeneration.current++;
+            setHistory(null);
+            setResultHistory(null);
+            setHistoryLoading(false);
+            failedPage.current = { offset: 0, resultOffset: 0, stream: 'refresh' };
+            paging.current = false;
+            setLoading(false);
+            setLoadedIdentity(identity);
+            setError('Не удалось определить актуальный результат. Повторите загрузку оценок.');
+            return;
+          }
+          merged = {
+            journal: {
+              ...(request.journal ? incoming.journal : previous!.journal),
+              columns: journalColumns,
+              // Immutable IDs identify revisions; columnId identifies the one
+              // current grade, including null. Companions cannot add columns.
+              grades: journalGrades,
+            },
+            resultOffset: request.results ? incoming.resultOffset : previous!.resultOffset,
+            nextResultOffset: request.results
+              ? incoming.nextResultOffset
+              : previous!.nextResultOffset,
+            results,
+          };
+        }
+        if (stream === 'journal')
+          pages.current.journal = [...new Set([...pages.current.journal, offset])];
+        if (stream === 'results')
+          pages.current.results = [...new Set([...pages.current.results, resultOffset])];
+        failedPage.current = null;
+        currentData.current = merged;
+        setData(merged);
+        setLoadedIdentity(identity);
+        paging.current = false;
+        setLoading(false);
+        return;
+      }
       const result = seatSession
         ? await participantsApi.seatGrades(offset, resultOffset)
         : await participantsApi.grades(classroomId, seatId, offset, resultOffset);
@@ -774,9 +1310,14 @@ export function ParticipantGradeHistory({
         setError(result.error.message);
       }
     },
-    [classroomId, seatId, seatSession, identity],
+    [classroomId, seatId, seatSession, identity, teacherProfile],
   );
   useEffect(() => {
+    pages.current = { journal: [0], results: [0] };
+    currentData.current = null;
+    paging.current = false;
+    loggedOut.current = false;
+    failedPage.current = null;
     setData(null);
     setHistory(null);
     setResultHistory(null);
@@ -787,6 +1328,9 @@ export function ParticipantGradeHistory({
     };
     window.addEventListener('focus', refresh);
     const unsubscribe = onSessionLoggedOut(() => {
+      loggedOut.current = true;
+      paging.current = false;
+      currentData.current = null;
       generation.current++;
       gradeGeneration.current++;
       historyGeneration.current++;
@@ -807,26 +1351,180 @@ export function ParticipantGradeHistory({
   }, [load]);
   if (loadedIdentity !== identity) return <p role="status">Загружаем оценки…</p>;
   const dates = new Map(data?.journal.columns.map((column) => [column.id, column.date]) ?? []);
-  const displayedGrades = compact
-    ? [...(data?.journal.grades ?? [])]
-        .sort(
-          (left, right) =>
-            (dates.get(right.columnId) ?? '').localeCompare(dates.get(left.columnId) ?? '') ||
-            right.publishedAt.localeCompare(left.publishedAt) ||
-            left.id.localeCompare(right.id),
-        )
-        .slice(0, 3)
-    : (data?.journal.grades ?? []);
+  const sortedGrades = [...(data?.journal.grades ?? [])].sort(
+    (left, right) =>
+      (dates.get(right.columnId) ?? '').localeCompare(dates.get(left.columnId) ?? '') ||
+      Date.parse(right.publishedAt) - Date.parse(left.publishedAt) ||
+      left.id.localeCompare(right.id),
+  );
+  const displayedGrades = teacherProfile
+    ? sortedGrades
+    : compact
+      ? [...(data?.journal.grades ?? [])]
+          .sort(
+            (left, right) =>
+              (dates.get(right.columnId) ?? '').localeCompare(dates.get(left.columnId) ?? '') ||
+              right.publishedAt.localeCompare(left.publishedAt) ||
+              left.id.localeCompare(right.id),
+          )
+          .slice(0, 3)
+      : (data?.journal.grades ?? []);
+  if (teacherProfile && compact) {
+    // Presentation only: keep both independently paged streams and their current
+    // server-selected revisions. No additional reads or inferred total count.
+    const tokens = [
+      ...displayedGrades.map((grade) => {
+        const column = data?.journal.columns.find((entry) => entry.id === grade.columnId);
+        return {
+          key: `journal:${grade.id}`,
+          source: 'journal',
+          date: column?.date ?? grade.publishedAt,
+          dateLabel: column?.date ? lessonDateLabel(column.date) : momentLabel(grade.publishedAt),
+          title: column?.category ?? 'Ручная оценка',
+          value: journalRevisionLabel(column?.preset, grade.value),
+          detail: grade.authorName,
+        };
+      }),
+      ...(data?.results ?? []).map((result) => ({
+        key: `result:${result.assignment_id}`,
+        source: 'results',
+        date: result.published_at,
+        dateLabel: momentLabel(result.published_at),
+        title: result.assignment_title,
+        value:
+          result.display_grade ??
+          (result.raw_points === null
+            ? 'Без балла'
+            : `${result.raw_points} / ${result.max_points}`),
+        detail: result.feedback,
+      })),
+    ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date) || a.key.localeCompare(b.key));
+    const move = (direction: number) => {
+      const rail = gradeRail.current;
+      rail?.scrollBy({ left: direction * rail.clientWidth, behavior: 'smooth' });
+    };
+    return (
+      <section
+        className="participant-grades teacher-profile-grades"
+        aria-label="Оценки этого класса"
+      >
+        <h2>Оценки этого класса</h2>
+        {error ? (
+          <p role="alert">
+            {error}{' '}
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                const failed = failedPage.current;
+                void load(
+                  failed?.offset ?? 0,
+                  failed?.resultOffset ?? 0,
+                  failed?.stream ?? 'refresh',
+                );
+              }}
+            >
+              Повторить
+            </button>
+          </p>
+        ) : null}
+        {loading ? <p role="status">Загружаем оценки…</p> : null}
+        {tokens.length > 0 ? (
+          <div className="teacher-profile-grade-strip">
+            <button type="button" aria-label="Предыдущие оценки" onClick={() => move(-1)}>
+              ←
+            </button>
+            <ul
+              ref={gradeRail}
+              className="participant-grade-list"
+              aria-label="Оценки текущего класса"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                const rail = event.currentTarget;
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                rail.scrollTo({
+                  left:
+                    event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? rail.scrollWidth
+                        : rail.scrollLeft +
+                          (event.key === 'ArrowRight' ? 1 : -1) * rail.clientWidth,
+                });
+              }}
+            >
+              {tokens.map((token) => (
+                <li
+                  key={token.key}
+                  className="participant-grade-row"
+                  data-grade-source={token.source}
+                  title={`${token.source === 'journal' ? 'Ручная оценка' : 'Задание'} · ${token.title} · ${token.dateLabel} · ${token.value}${token.detail ? ` · ${token.detail}` : ''}`}
+                >
+                  <div className="participant-grade-context">
+                    <span>{token.title}</span>
+                    <time dateTime={token.date}>{token.dateLabel}</time>
+                  </div>
+                  <strong className="participant-grade-value">{token.value}</strong>
+                </li>
+              ))}
+            </ul>
+            <button type="button" aria-label="Следующие оценки" onClick={() => move(1)}>
+              →
+            </button>
+          </div>
+        ) : data ? (
+          <p>Оценок пока нет.</p>
+        ) : null}
+        {data?.journal.nextOffset != null || data?.nextResultOffset != null ? (
+          <div className="teacher-profile-grade-paging">
+            {data.journal.nextOffset != null ? (
+              <button
+                type="button"
+                disabled={loading}
+                aria-label="Ещё ручные оценки"
+                onClick={() => void load(data.journal.nextOffset!, data.resultOffset, 'journal')}
+              >
+                Ещё ручные
+              </button>
+            ) : null}
+            {data.nextResultOffset != null ? (
+              <button
+                type="button"
+                disabled={loading}
+                aria-label="Ещё результаты"
+                onClick={() => void load(data.journal.offset, data.nextResultOffset!, 'results')}
+              >
+                Ещё задания
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    );
+  }
   return (
     <section
       className={`participant-grades${compact ? ' participant-grade-summary' : ''}`}
-      aria-label={compact ? 'Последние оценки' : 'Оценки и история'}
+      aria-label={teacherProfile ? 'Оценки' : compact ? 'Последние оценки' : 'Оценки и история'}
     >
-      <h2>{compact ? 'Последние оценки' : 'Оценки и история'}</h2>
+      <h2>{teacherProfile ? 'Оценки' : compact ? 'Последние оценки' : 'Оценки и история'}</h2>
       {error ? (
         <p role="alert">
           {error}
-          <button type="button" className="btn-secondary" onClick={() => void load()}>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={teacherProfile && loading}
+            onClick={() => {
+              const failed = teacherProfile ? failedPage.current : null;
+              void load(
+                failed?.offset ?? 0,
+                failed?.resultOffset ?? 0,
+                failed?.stream ?? 'refresh',
+              );
+            }}
+          >
             Повторить
           </button>
         </p>
@@ -834,12 +1532,19 @@ export function ParticipantGradeHistory({
       {loading ? <p role="status">Загружаем оценки…</p> : null}
       {data ? (
         <>
-          <ul className="participant-grade-list">
+          <ul
+            className="participant-grade-list"
+            aria-label={teacherProfile ? 'Ручные оценки' : undefined}
+          >
             {displayedGrades.map((grade) => {
               const column = data.journal.columns.find((c) => c.id === grade.columnId);
               const value = journalRevisionLabel(column?.preset, grade.value);
               return (
-                <li key={grade.id} className="participant-grade-row">
+                <li
+                  key={grade.id}
+                  className="participant-grade-row"
+                  data-grade-source={teacherProfile ? 'journal' : undefined}
+                >
                   <div className="participant-grade-context">
                     {column?.date ? (
                       <time dateTime={column.date}>{lessonDateLabel(column.date)}</time>
@@ -848,7 +1553,7 @@ export function ParticipantGradeHistory({
                   </div>
                   <strong className="participant-grade-value">{value}</strong>
                   <small className="participant-grade-author">{grade.authorName}</small>
-                  {!compact ? (
+                  {!teacherProfile && !compact ? (
                     <button
                       type="button"
                       className="btn-secondary"
@@ -862,9 +1567,25 @@ export function ParticipantGradeHistory({
               );
             })}
           </ul>
-          <ul className="participant-grade-list">
-            {(compact ? data.results.slice(0, 3) : data.results).map((result) => (
-              <li key={result.assignment_id} className="participant-grade-row">
+          <ul
+            className="participant-grade-list"
+            aria-label={teacherProfile ? 'Результаты заданий' : undefined}
+          >
+            {(teacherProfile
+              ? [...data.results].sort(
+                  (a, b) =>
+                    Date.parse(b.published_at) - Date.parse(a.published_at) ||
+                    a.assignment_id.localeCompare(b.assignment_id),
+                )
+              : compact
+                ? data.results.slice(0, 3)
+                : data.results
+            ).map((result) => (
+              <li
+                key={result.assignment_id}
+                className="participant-grade-row"
+                data-grade-source={teacherProfile ? 'results' : undefined}
+              >
                 <div className="participant-grade-context">
                   <time dateTime={result.published_at}>{momentLabel(result.published_at)}</time>
                   <span>{result.assignment_title}</span>
@@ -875,10 +1596,10 @@ export function ParticipantGradeHistory({
                       ? 'Без балла'
                       : `${result.raw_points} / ${result.max_points}`)}
                 </strong>
-                {result.feedback ? (
+                {result.feedback && (!teacherProfile || !compact) ? (
                   <p className="participant-grade-feedback">{result.feedback}</p>
                 ) : null}
-                {!compact ? (
+                {!teacherProfile && !compact ? (
                   <button
                     type="button"
                     className="btn-secondary"
@@ -894,27 +1615,27 @@ export function ParticipantGradeHistory({
           {data.journal.grades.length + data.results.length === 0 ? <p>Оценок пока нет.</p> : null}
         </>
       ) : null}
-      {!compact && data?.journal.nextOffset != null ? (
+      {(!compact || teacherProfile) && data?.journal.nextOffset != null ? (
         <button
           type="button"
           className="btn-secondary"
           disabled={loading || historyLoading}
-          onClick={() => void load(data.journal.nextOffset!, data.resultOffset)}
+          onClick={() => void load(data.journal.nextOffset!, data.resultOffset, 'journal')}
         >
           Ещё ручные оценки
         </button>
       ) : null}
-      {!compact && data?.nextResultOffset != null ? (
+      {(!compact || teacherProfile) && data?.nextResultOffset != null ? (
         <button
           type="button"
           className="btn-secondary"
           disabled={loading || historyLoading}
-          onClick={() => void load(data.journal.offset, data.nextResultOffset!)}
+          onClick={() => void load(data.journal.offset, data.nextResultOffset!, 'results')}
         >
           Ещё результаты
         </button>
       ) : null}
-      {history ? (
+      {!teacherProfile && history ? (
         <div className="participant-history">
           <h3>История ручной оценки</h3>
           <ol>
@@ -934,7 +1655,7 @@ export function ParticipantGradeHistory({
                   <span>{grade.authorName}</span>
                   <time dateTime={grade.publishedAt}>{momentLabel(grade.publishedAt)}</time>
                 </div>
-                {grade.reason ? <p>{grade.reason}</p> : null}
+                {grade.reason ? <ParticipantHistoryNote text={grade.reason} /> : null}
               </li>
             ))}
           </ol>
@@ -961,8 +1682,8 @@ export function ParticipantGradeHistory({
           </button>
         </div>
       ) : null}
-      {historyLoading ? <p role="status">Загружаем историю…</p> : null}
-      {resultHistory ? (
+      {!teacherProfile && historyLoading ? <p role="status">Загружаем историю…</p> : null}
+      {!teacherProfile && resultHistory ? (
         <div className="participant-history">
           <h3>История результата</h3>
           <ol>
@@ -980,8 +1701,8 @@ export function ParticipantGradeHistory({
                   <span>{r.author}</span>
                   <time dateTime={r.published_at}>{momentLabel(r.published_at)}</time>
                 </div>
-                {r.reason ? <p>{r.reason}</p> : null}
-                {r.feedback ? <p>{r.feedback}</p> : null}
+                {r.reason ? <ParticipantHistoryNote text={r.reason} /> : null}
+                {r.feedback ? <ParticipantHistoryNote text={r.feedback} /> : null}
               </li>
             ))}
           </ol>

@@ -178,6 +178,31 @@ button.portal-account-identity:hover:not(:disabled) {
   background: #f1f7fa;
 }
 
+/* A true external link that retains the account-menu action geometry. */
+.portal-account-menu a.portal-account-vk {
+  text-decoration: none;
+}
+
+.portal-account-vk .portal-vk-glyph {
+  width: 28px;
+  height: 28px;
+}
+
+.portal-account-vk-external {
+  justify-self: end;
+  color: #647b8b;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.portal-account-vk:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid #0877b3;
+  outline-offset: -4px;
+  border-radius: 6px;
+}
+
 .portal-account-item-icon {
   display: grid;
   place-items: center;

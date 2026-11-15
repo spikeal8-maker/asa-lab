@@ -1,4 +1,7 @@
 import { fetchWithSessionRefresh } from '../session-fetch';
+import { authRequest, authRequestFailure } from '../auth-request';
+import { notifyAccountVerificationRequired } from '../auth-verification';
+import type { AuthProviderAvailabilityReason, SocialAuthProvider } from '../api';
 
 export type AdminPermission =
   | 'administration.open'
@@ -69,7 +72,7 @@ export interface AdminListCursor {
 export interface AdminAccount {
   readonly accountId: string;
   readonly principalId: string;
-  readonly email: string;
+  readonly email: string | null;
   readonly displayName: string;
   readonly username: string;
   readonly status: string;
@@ -85,6 +88,155 @@ export interface AdminAccount {
   readonly lastNetworkKind: AdminNetworkKind | null;
   readonly lastDevice: string | null;
   readonly recentActivityCount: number;
+}
+
+export interface AdminCatalogUser {
+  readonly kind: 'account' | 'student';
+  readonly id: string;
+  readonly actorKey: string;
+  readonly principalId: string | null;
+  readonly displayName: string;
+  readonly login: string | null;
+  readonly email: string | null;
+  readonly status: string;
+  readonly normalizedStatus: 'active' | 'inactive';
+  readonly createdAt: string;
+  readonly lastSeenAt: string | null;
+  readonly lastActivityAt: string | null;
+  readonly recentActivityCount: number;
+  readonly lastIpAddress: string | null;
+  readonly lastNetworkKind: string | null;
+  readonly lastDevice: string | null;
+  readonly browser: string | null;
+  readonly operatingSystem: string | null;
+  readonly deviceCategory: string | null;
+  readonly classId: string | null;
+  readonly classTitle: string | null;
+  readonly classStatus: string | null;
+  birthDate?: string | null;
+  age?: number | null;
+  country?: string | null;
+  roles?: readonly string[];
+  classIds?: readonly string[];
+  linkedRecordCount?: number | null;
+  emailVerificationState?: string | null;
+  firstObservedReferrer?: string | null;
+  firstObservedAt?: string | null;
+  acquisitionLatest?: {
+    source: string | null;
+    medium: string | null;
+    campaign: string | null;
+    observedAt: string;
+  } | null;
+  aiRequests?: number | null;
+  aiLegacyRequests?: number | null;
+  aiTokenCovered?: number | null;
+  aiInputTokens?: string | null;
+  aiOutputTokens?: string | null;
+  aiPeriodDays?: number;
+  readonly account: AdminAccount | null;
+}
+export interface AdminCatalogPage {
+  readonly items: readonly AdminCatalogUser[];
+  readonly next: string | null;
+  readonly asOf: string;
+  readonly matchedCount?: number;
+  readonly analytics?: {
+    accounts: number;
+    students: number;
+    linkedRecords: number | null;
+    ageUnknown: number;
+    emailAbsent: number;
+    sourceUnknown: number;
+    activeObserved: number;
+    aiCoverage?: 'all_authorized' | 'students_only_accounts_unavailable';
+    aiLegacyRequests?: number | null;
+    aiRequests: number | null;
+    aiTokenCovered: number | null;
+    periodDays: number;
+    roles: Record<string, number>;
+    referrers: Record<string, number>;
+    aiInputTokens?: string | null;
+    aiOutputTokens?: string | null;
+    activityEvents?: number;
+    registrationMethods?: Record<string, number>;
+    loginMethods?: Record<string, number>;
+    tools?: Record<string, number>;
+    devices?: Record<string, number>;
+    ageGroups?: Record<string, number>;
+    acquisition?: {
+      retentionDays: 90;
+      status: 'collecting_current_document';
+      observedRecords: number;
+      unknownRecords: number;
+      observations: number;
+      sources: Record<string, number>;
+      mediums: Record<string, number>;
+      campaigns: Record<string, number>;
+    };
+    daily?: { date: string; registrations: number; events: number }[];
+  };
+  readonly studentCoverage: {
+    readonly state: 'complete' | 'unavailable';
+    readonly reason?: 'organization_class_mapping_unavailable';
+  };
+}
+export type AdminHistoryCategory = 'projects' | 'publications' | 'ai';
+export interface AdminHistoryItem {
+  key: string;
+  type: 'project' | 'version' | 'publication' | 'legacy_publication' | 'ai';
+  id: string;
+  occurredAt: string;
+  title?: string | null;
+  projectId?: string | null;
+  module?: string | null;
+  status?: string | null;
+  revision?: number | null;
+  provider?: string | null;
+  model?: string | null;
+  requestedModel?: string | null;
+  inputTokens?: string | null;
+  outputTokens?: string | null;
+  errorCode?: string | null;
+  durationMs?: string | null;
+}
+export interface AdminHistoryPage {
+  items: AdminHistoryItem[];
+  next: string | null;
+  asOf: string;
+  coverage: 'retained' | 'unavailable_scope';
+}
+export type CatalogFilters = Partial<
+  Record<
+    | 'role'
+    | 'classId'
+    | 'organizationId'
+    | 'age'
+    | 'ageMin'
+    | 'ageMax'
+    | 'email'
+    | 'activity'
+    | 'registeredAfter'
+    | 'registeredBefore'
+    | 'source'
+    | 'days',
+    string
+  >
+>;
+export interface ClassBindings {
+  classes: { id: string; title: string; workspaceId: string | null }[];
+  organizations: { id: string; title: string }[];
+}
+export interface AdminCatalogInput {
+  readonly filters?: CatalogFilters;
+  readonly scope: Pick<AdminScope, 'kind' | 'id'>;
+  readonly search: string;
+  readonly kind: 'all' | 'accounts' | 'students';
+  readonly status: 'all' | 'active' | 'inactive';
+  readonly sort: 'name' | 'last_activity' | 'activity' | 'created';
+  readonly direction: 'asc' | 'desc';
+  readonly limit: number;
+  readonly cursor: string | null;
 }
 
 export type AdminIpLabelKind = 'school' | 'home' | 'mobile' | 'organization' | 'other';
@@ -159,6 +311,24 @@ export interface AdminMaxIdentity {
   readonly lastRevokedAt: string | null;
 }
 
+export interface AdminProviderDiagnostic {
+  readonly state: 'not_checked' | 'ok' | 'failed';
+  readonly reason:
+    | 'disabled'
+    | 'not_configured'
+    | 'invalid_token'
+    | 'bot_mismatch'
+    | 'subscription_missing'
+    | 'subscription_mismatch'
+    | 'ingress_invalid_url'
+    | 'ingress_dns_unavailable'
+    | 'ingress_network_unavailable'
+    | 'ingress_invalid_response'
+    | 'unavailable'
+    | null;
+  readonly checkedAt: string | null;
+}
+
 export interface AdminMaxConfiguration {
   readonly enabled: boolean;
   readonly featureEnabled: boolean;
@@ -176,6 +346,35 @@ export interface AdminMaxConfiguration {
   readonly webhookUrl: string | null;
   readonly webhookVerifiedAt: string | null;
   readonly webhookLastError: string | null;
+  readonly available?: boolean;
+  readonly availabilityReason?: AuthProviderAvailabilityReason;
+  readonly healthCheckedAt?: string | null;
+  readonly enforcementEligible?: boolean;
+  readonly enforcementReason?: AuthProviderAvailabilityReason | 'delivery_unverified';
+  readonly diagnostics?: {
+    readonly token: AdminProviderDiagnostic;
+    readonly subscription: AdminProviderDiagnostic;
+    readonly ingress: AdminProviderDiagnostic;
+    readonly nativeConfirmation: {
+      readonly current: boolean;
+      readonly configurationVersion: number | null;
+      readonly verifiedAt: string | null;
+    };
+  };
+}
+
+export interface AdminVerificationPolicy {
+  readonly enabled: boolean;
+  readonly activatedAt: string | null;
+  readonly graceHours: 24;
+}
+
+export interface AdminAuthProviderInput {
+  readonly enabled: boolean;
+  readonly botUsername: string;
+  readonly miniAppUrl: string;
+  readonly botToken?: string;
+  readonly clearToken?: boolean;
 }
 
 export interface AdminOrganization {
@@ -271,11 +470,12 @@ export interface AdminDashboardPoint {
   readonly rejectedAuthAttempts: number;
   readonly newStudents: number;
   readonly activeStudents: number;
+  readonly studentLogins?: number;
 }
 
 export interface AdminModulePoint {
   readonly at: string;
-  readonly moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
+  readonly moduleKey: 'electronics' | 'robotics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
   readonly activePeople: number;
   readonly launches: number;
   readonly activeSeconds: number;
@@ -283,7 +483,7 @@ export interface AdminModulePoint {
 
 export interface AdminLoginMethodPoint {
   readonly at: string;
-  readonly method: 'password' | 'organization' | 'max' | 'class_code' | 'registration';
+  readonly method: 'password' | 'organization' | 'max' | 'telegram' | 'class_code' | 'registration';
   readonly successfulLogins: number;
 }
 
@@ -302,6 +502,14 @@ export interface AdminProductDashboard {
   readonly to: string;
   readonly bucketSeconds: number;
   readonly range: AdminDashboardRange;
+  readonly todayMsk?: {
+    readonly from: string;
+    readonly to: string;
+    readonly activeAccounts: number;
+    readonly activeStudents: number;
+    readonly studentLogins: number;
+    readonly newStudents: number;
+  };
   readonly summary: {
     readonly newAccounts: number;
     readonly activeAccounts: number;
@@ -312,6 +520,7 @@ export interface AdminProductDashboard {
     readonly rejectedAuthAttempts: number;
     readonly newStudents: number;
     readonly activeStudents: number;
+    readonly studentLogins?: number;
     readonly distinctIpAddresses: number;
     readonly accountsWithMultipleIps: number;
     readonly localNetworkAccounts: number;
@@ -321,6 +530,31 @@ export interface AdminProductDashboard {
   readonly modules: readonly AdminModulePoint[];
   readonly loginMethods: readonly AdminLoginMethodPoint[];
   readonly actions: readonly AdminActionPoint[];
+  readonly overview?: {
+    readonly points: readonly {
+      readonly at: string;
+      readonly from: string;
+      readonly to: string;
+      readonly activeAccounts: number;
+      readonly activeStudents: number;
+      readonly accountSeconds: number | null;
+      readonly studentSeconds: number | null;
+      readonly accountLogins: number;
+      readonly studentLogins: number;
+      readonly newStudents: number;
+    }[];
+    readonly modules: readonly Omit<AdminModulePoint, 'activePeople'>[];
+    readonly loginMethods: readonly AdminLoginMethodPoint[];
+    readonly actions: readonly Omit<AdminActionPoint, 'passwordRecoveryAvailable'>[];
+    readonly recentAccounts: number;
+    readonly recentStudents: number;
+    readonly network: {
+      readonly addresses: number;
+      readonly resolvedEvents: number;
+      readonly unresolvedEvents: number;
+      readonly peopleWithMultipleAddresses: number;
+    };
+  };
   readonly max: {
     readonly configured: boolean;
     readonly featureEnabled: boolean;
@@ -338,6 +572,16 @@ export interface AdminProductDashboard {
     readonly linkedAccounts: number;
     readonly promptDueAccounts: number;
   };
+}
+
+export interface AdminErrorTrend {
+  readonly coverage: 'available' | 'partial' | 'unavailable';
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly points: readonly {
+    readonly at: string;
+    readonly counts: Readonly<Record<string, number>>;
+  }[];
 }
 
 export interface AdminIpActivity {
@@ -359,37 +603,44 @@ export type AdminApiResult<T> =
   | { readonly ok: false; readonly status: number; readonly error: AdminApiError };
 
 export async function call<T>(path: string, init: RequestInit = {}): Promise<AdminApiResult<T>> {
-  let response: Response;
   try {
-    response = await fetchWithSessionRefresh(path, {
-      ...init,
-      method: init.method ?? 'GET',
-      headers: {
-        accept: 'application/json',
-        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
-        ...init.headers,
-      },
+    return await authRequest(path, init, async (request): Promise<AdminApiResult<T>> => {
+      const response = await fetchWithSessionRefresh(path, {
+        ...request,
+        method: request.method ?? 'GET',
+        headers: {
+          accept: 'application/json',
+          ...(request.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...request.headers,
+        },
+      });
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        // A malformed response is handled below as a stable server error.
+      }
+      request.signal?.throwIfAborted();
+      if (response.ok) return { ok: true, status: response.status, data: body as T };
+      const error = (body as { error?: AdminApiError } | null)?.error ?? {
+        code: 'server_error',
+        message: 'Не удалось выполнить административный запрос.',
+      };
+      if (response.status === 403 && error.code === 'account_verification_required') {
+        notifyAccountVerificationRequired();
+      }
+      return { ok: false, status: response.status, error };
     });
-  } catch {
+  } catch (error) {
     return {
       ok: false,
       status: 0,
-      error: { code: 'network', message: 'Сервер администрирования недоступен.' },
+      error: authRequestFailure(error) ?? {
+        code: 'network',
+        message: 'Сервер администрирования недоступен.',
+      },
     };
   }
-
-  let body: unknown = null;
-  try {
-    body = await response.json();
-  } catch {
-    // A malformed response is handled below as a stable server error.
-  }
-  if (response.ok) return { ok: true, status: response.status, data: body as T };
-  const error = (body as { error?: AdminApiError } | null)?.error ?? {
-    code: 'server_error',
-    message: 'Не удалось выполнить административный запрос.',
-  };
-  return { ok: false, status: response.status, error };
 }
 
 interface AdminListInput {
@@ -415,6 +666,53 @@ function list<T>(path: string, input: AdminListInput): Promise<AdminApiResult<Ad
 }
 
 export const adminApi = {
+  userHistory: (input: {
+    scope: Pick<AdminScope, 'kind' | 'id'>;
+    kind: 'account' | 'student';
+    targetId: string;
+    category: AdminHistoryCategory;
+    cursor: string | null;
+  }) => {
+    const query = new URLSearchParams({
+      scopeKind: input.scope.kind,
+      category: input.category,
+      limit: '25',
+    });
+    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
+    if (input.cursor !== null) query.set('cursor', input.cursor);
+    return call<AdminHistoryPage>(
+      `/api/admin/v1/users/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.targetId)}/history?${query}`,
+    );
+  },
+  verificationPolicy: (signal?: AbortSignal) =>
+    call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy', {
+      ...(signal ? { signal } : {}),
+    }),
+  updateVerificationPolicy: (enabled: boolean, signal?: AbortSignal) =>
+    call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+      ...(signal ? { signal } : {}),
+    }),
+  authProviderConfiguration: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}`, {
+      ...(signal ? { signal } : {}),
+    }),
+  checkAuthProviderConfiguration: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}/check`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    }),
+  updateAuthProviderConfiguration: (
+    provider: SocialAuthProvider,
+    input: AdminAuthProviderInput,
+    signal?: AbortSignal,
+  ) =>
+    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
+    }),
   me: () => call<AdminProfile>('/api/admin/v1/me'),
   dashboard: (input: {
     readonly scope: Pick<AdminScope, 'kind' | 'id'>;
@@ -423,6 +721,14 @@ export const adminApi = {
     const query = new URLSearchParams({ scopeKind: input.scope.kind, range: input.range });
     if (input.scope.id !== null) query.set('scopeId', input.scope.id);
     return call<AdminProductDashboard>(`/api/admin/v1/dashboard?${query.toString()}`);
+  },
+  errorTrend: (input: { from: string; to: string; bucketSeconds: number }, signal: AbortSignal) => {
+    const query = new URLSearchParams({
+      from: input.from,
+      to: input.to,
+      bucketSeconds: String(input.bucketSeconds),
+    });
+    return call<AdminErrorTrend>(`/api/admin/v1/logs/trend?${query.toString()}`, { signal });
   },
   ipActivity: (input: {
     readonly scope: Pick<AdminScope, 'kind' | 'id'>;
@@ -454,6 +760,61 @@ export const adminApi = {
       body: JSON.stringify(input),
     }),
   accounts: (input: AdminListInput) => list<AdminAccount>('/api/admin/v1/accounts', input),
+  users: (input: AdminCatalogInput) => {
+    const query = new URLSearchParams({
+      scopeKind: input.scope.kind,
+      search: input.search,
+      kind: input.kind,
+      status: input.status,
+      sort: input.sort,
+      direction: input.direction,
+      limit: String(input.limit),
+    });
+    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
+    if (input.cursor !== null) query.set('cursor', input.cursor);
+    for (const [key, value] of Object.entries(input.filters ?? {}))
+      if (value) query.set(key, value);
+    return call<AdminCatalogPage>(`/api/admin/v1/users?${query.toString()}`);
+  },
+  exportUsers: (input: AdminCatalogInput, signal?: AbortSignal) => {
+    const query = new URLSearchParams({
+      scopeKind: input.scope.kind,
+      search: input.search,
+      kind: input.kind,
+      status: input.status,
+      sort: input.sort,
+      direction: input.direction,
+    });
+    if (input.scope.id) query.set('scopeId', input.scope.id);
+    for (const [key, value] of Object.entries(input.filters ?? {}))
+      if (value) query.set(key, value);
+    return call<{ csv: string; count: number }>(
+      `/api/admin/v1/users-export?${query}`,
+      signal ? { signal } : {},
+    );
+  },
+  catalogFilterOptions: (scope: Pick<AdminScope, 'kind' | 'id'>, search: string) => {
+    const query = new URLSearchParams({ scopeKind: scope.kind, search });
+    if (scope.id) query.set('scopeId', scope.id);
+    return call<{
+      classes: { id: string; title: string }[];
+      organizations: { id: string; title: string }[];
+    }>(`/api/admin/v1/users-filter-options?${query}`);
+  },
+  classBindings: (search: string) =>
+    call<ClassBindings>(
+      `/api/admin/v1/organization-class-bindings?${new URLSearchParams({ search })}`,
+    ),
+  bindClass: (input: {
+    classId: string;
+    workspaceId: string | null;
+    expectedWorkspaceId: string | null;
+    reason: string;
+  }) =>
+    call<{ ok: true }>('/api/admin/v1/organization-class-bindings', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   accountCrm: (
     accountId: string,
     scope: Pick<AdminScope, 'kind' | 'id'>,

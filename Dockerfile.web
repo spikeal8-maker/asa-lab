@@ -23,7 +23,11 @@ ARG ASA_BLOCKS_RUNTIME_ORIGIN=
 ENV VITE_ASA_BUILD_REVISION="${ASA_BUILD_REVISION}"
 ENV VITE_ASA_BLOCKS_PREVIEW="${ASA_BLOCKS_PREVIEW}"
 ENV VITE_ASA_BLOCKS_RUNTIME_ORIGIN="${ASA_BLOCKS_RUNTIME_ORIGIN}"
-RUN pnpm nx run web:build
+RUN NX_SKIP_NX_CACHE=true pnpm nx run web:build --skip-nx-cache
+
+# Export encrypted symbols from the identical build used by runtime below.
+FROM scratch AS web-symbols
+COPY --from=build /workspace/apps/web/private-symbols /
 
 FROM ${CADDY_IMAGE} AS runtime
 
@@ -38,6 +42,7 @@ RUN setcap -r /usr/bin/caddy
 COPY docker/web/Caddyfile /etc/caddy/Caddyfile
 COPY --chmod=0555 docker/web/start.sh /usr/local/bin/asa-web-start
 COPY --from=build /workspace/apps/web/dist /srv
+COPY --from=build /workspace/apps/web/private-symbols /usr/share/asa-web-symbols
 
 USER 65534:65534
 ENTRYPOINT ["/usr/local/bin/asa-web-start"]

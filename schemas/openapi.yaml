@@ -7,10 +7,1696 @@ info:
     capability-aware workspace context, scoped administrative control plane
     and classroom create/list. Tenant, capability, active workspace and
     administrative grants are derived exclusively from the server-side session.
+    Protected Account APIs can return account_verification_required after the
+    configured one-time confirmation deadline. Public APIs and StudentSeat
+    authentication keep their existing access rules. A server-observed outage
+    of all confirmation providers removes only this additional confirmation gate.
 servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/progress/summary:
+    get:
+      operationId: accountPersonalProgressSummaryV1
+      summary: Read own Account publication history and bounded own learning groups
+      description: >-
+        Resolves the existing modern or verified legacy asa_session. Revalidates the exact
+        actor and session in one consistent read snapshot. Does not accept an owner,
+        principal, group selector or period override. Group cursor never grants access.
+        Archived authorized publication history is independent of active group pagination.
+        No personal score, peers, avatar, permissions or client polling are introduced.
+      parameters:
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string, maxLength: 256 }
+          description: Opaque continuation from this actor and scope; at most 20 own groups per response.
+      responses:
+        '200':
+          description: Authorized own progress; coverage is independent of source availability.
+          headers:
+            Cache-Control: { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonalProgressSummaryV1' }
+        '400': { description: Invalid cursor, wrong cursor scope or unsupported query field }
+        '401': { description: Missing, expired, revoked or invalid Account session }
+        '403': { description: Existing Account verification policy requires confirmation }
+        '409':
+          { description: Existing session_conflict when both nonempty session cookies are present }
+        '503':
+          { description: database_unavailable or progress_unavailable; never a successful zero }
+  /api/class-join/progress/summary:
+    get:
+      operationId: seatPersonalProgressSummaryV1
+      summary: Read only the current StudentSeat's publication history and own group result
+      description: >-
+        Resolves only asa_student_session with resolveExistingState. Never creates a
+        principal or Account and never expands the Seat to linked Account history or
+        other groups. Existing credential version, idle expiry and revocation apply.
+        A valid session without a usable existing owner returns progress_owner_unavailable,
+        distinct from invalid_session; there is no Account fallback.
+      parameters:
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string, maxLength: 256 }
+          description: Opaque continuation, bound to this exact Seat and classroom.
+      responses:
+        '200':
+          description: Authorized current Seat scope; no linked Account or peer data.
+          headers:
+            Cache-Control: { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonalProgressSummaryV1' }
+        '400': { description: Invalid cursor, wrong cursor scope or unsupported query field }
+        '401': { description: Missing, expired, revoked or invalid Seat session }
+        '403': { description: progress_owner_unavailable; no materialization or Account refresh }
+        '409':
+          { description: Existing session_conflict when both nonempty session cookies are present }
+        '503': { description: database_unavailable before resolver or progress_unavailable }
+  /api/learning/questions:
+    get:
+      operationId: listCanonicalQuestionContent
+      summary: list authorized Question content using existing immutable bank and version authority
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+    post:
+      operationId: createCanonicalQuestionContent
+      summary: create authorized Question content using existing immutable bank and version authority
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/{rootId}:
+    get:
+      operationId: readCanonicalQuestionContent
+      summary: read authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/{rootId}/draft:
+    put:
+      operationId: saveCanonicalQuestionContent
+      summary: save authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/{rootId}/publish:
+    post:
+      operationId: publishCanonicalQuestionContent
+      summary: publish authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/questions/versions/{versionId}:
+    get:
+      operationId: readVersionCanonicalQuestionContent
+      summary: readVersion authorized Question content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: versionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes:
+    get:
+      operationId: listCanonicalQuizContent
+      summary: list authorized Quiz content using existing immutable bank and version authority
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+    post:
+      operationId: createCanonicalQuizContent
+      summary: create authorized Quiz content using existing immutable bank and version authority
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}:
+    get:
+      operationId: readCanonicalQuizContent
+      summary: read authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}/draft:
+    put:
+      operationId: saveCanonicalQuizContent
+      summary: save authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}/publish:
+    post:
+      operationId: publishCanonicalQuizContent
+      summary: publish authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningContentCommand' }
+      responses:
+        '201': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quizzes/{rootId}/versions/{versionId}:
+    get:
+      operationId: readExactAuthoredQuizVersion
+      summary: Read an owned immutable QuizVersion bound to this exact Quiz root
+      parameters:
+        - in: path
+          name: rootId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: versionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          { description: Exact owned immutable Quiz content, with key-free question definitions }
+        '400': { description: Invalid root or version identifier }
+        '401': { description: No Account session }
+        '404': { description: Unavailable root, version or mismatched binding }
+  /api/learning/quizzes/versions/{versionId}:
+    get:
+      operationId: readVersionCanonicalQuizContent
+      summary: readVersion authorized Quiz content using existing immutable bank and version authority
+      parameters:
+        - in: path
+          name: versionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Authorized draft, immutable version or command receipt }
+        '400': { description: Invalid or excessive payload }
+        '401': { description: No Account session }
+        '403': { description: Author capability unavailable }
+        '404': { description: Content not owned or unavailable }
+        '409': { description: Revision, head, replay or publish validation conflict }
+  /api/learning/quiz/runs/{activityRunId}:
+    get:
+      operationId: readCanonicalCourseQuiz
+      summary: Read current authorized Quiz participation and its latest persisted Attempt
+      parameters:
+        - in: path
+          name: activityRunId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          {
+            description: Participation and last confirmed Attempt; scheduled content stays redacted,
+          }
+        '401': { description: No active Seat or Account }
+        '404': { description: Exact current actor scope unavailable }
+  /api/learning/attempts/{attemptId}/submit:
+    post:
+      operationId: submitCanonicalQuizAttempt
+      summary: Freeze confirmed answers of this exact existing Attempt; never allocate another Attempt
+      description: Same request and expected answer revision replay once. Server expiry uses frozen expirationPolicy and last saved answers. Mixed manual questions remain provisional and produce no final journal grade until teacher review.
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId, expectedVersion]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+                expectedVersion: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200': { description: Same persisted Attempt with terminal or provisional state }
+        '400': { description: Invalid request; client answers are forbidden here }
+        '401': { description: No active Seat or Account }
+        '404': { description: Attempt unavailable to current actor }
+        '409': { description: Answer revision, request or terminal state conflict }
+  /api/learning/activity-participations/{participationId}/attempts:
+    post:
+      operationId: startCanonicalQuizAttempt
+      summary: Start or resume the exact Quiz participation with a server-owned timer
+      description: Seat-first authenticated persistence only; does not submit or grade. Tenant, learner and content are derived from the participation. A request receipt preserves the same Attempt after a lost response.
+      parameters:
+        - in: path
+          name: participationId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+      responses:
+        '200':
+          description: Frozen learner-safe Attempt and replay indicator
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt, reused]
+                properties:
+                  attempt: { $ref: '#/components/schemas/QuizAttemptState' }
+                  reused: { type: boolean }
+        '400': { description: Invalid request }
+        '401': { description: No active session }
+        '404': { description: Participation unavailable to the actor }
+        '409': { description: Admission, window, budget or policy conflict }
+        '503': { description: Database unavailable }
+  /api/learning/attempts/{attemptId}:
+    get:
+      operationId: readCanonicalQuizAttempt
+      summary: Restore frozen questions, confirmed answers and revision without restarting the timer
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Owned learner-safe history; no answer keys or grading evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt]
+                properties:
+                  attempt: { $ref: '#/components/schemas/QuizAttemptState' }
+        '400': { description: Invalid attempt identifier }
+        '401': { description: No active session }
+        '404': { description: Attempt absent or unavailable to current actor }
+        '503': { description: Database unavailable }
+  /api/learning/attempts/{attemptId}/quiz-answers:
+    patch:
+      operationId: saveCanonicalQuizAnswers
+      summary: Save a complete confirmed answer map using optimistic revision
+      description: A competing revision returns 409 quiz_attempt_conflict; reload before retry. Server expiry and effective closing windows reject writes. Save creates no Submission, Evaluation, Result or journal entry.
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion, answers]
+              properties:
+                expectedVersion: { type: integer, minimum: 1, maximum: 2147483646 }
+                answers:
+                  type: object
+                  description: Frozen question-version UUID keys. Multiple choice and ordering use stable ID values arrays; matching uses stable leftId:rightId pairs; scalar and long_text_manual use value. Missing questions are unanswered. JSON map is limited to 262144 UTF-8 bytes.
+                  additionalProperties:
+                    type: object
+                    additionalProperties: false
+                    minProperties: 1
+                    maxProperties: 1
+                    oneOf:
+                      - required: [value]
+                      - required: [values]
+                    properties:
+                      value: { type: [string, number, boolean, 'null'] }
+                      values: { type: [array, 'null'], uniqueItems: true, items: { type: string } }
+      responses:
+        '200':
+          description: Confirmed answer revision and server timestamps
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [version, savedAt, expiresAt]
+                properties:
+                  version: { type: integer, minimum: 2, maximum: 2147483647 }
+                  savedAt: { type: string, format: date-time }
+                  expiresAt: { type: [string, 'null'], format: date-time }
+        '400': { description: Invalid body or frozen question response }
+        '401': { description: No active session }
+        '404': { description: Attempt absent or unavailable to current actor }
+        '409': { description: quiz_attempt_conflict or quiz_attempt_closed }
+        '503': { description: Database unavailable }
+  /api/admin/v1/users:
+    get:
+      operationId: getFilteredCrmUsers
+      summary: Read typed authorized filtered catalog and full-base factual aggregates
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: kind
+          required: false
+          schema: { type: string, enum: [all, accounts, students] }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, active, inactive] }
+        - in: query
+          name: sort
+          required: false
+          schema: { type: string, enum: [name, last_activity, activity, created] }
+        - in: query
+          name: direction
+          required: false
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string, maxLength: 4096 }
+        - in: query
+          name: role
+          required: false
+          schema:
+            {
+              type: string,
+              enum:
+                [
+                  all,
+                  learner,
+                  creator,
+                  educator,
+                  registered_student,
+                  guardian,
+                  platform_admin,
+                  owner,
+                  school_admin,
+                  member,
+                ],
+            }
+        - in: query
+          name: classId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: organizationId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: age
+          required: false
+          schema: { type: string, enum: [all, known, unknown] }
+        - in: query
+          name: ageMin
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: ageMax
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: email
+          required: false
+          schema: { type: string, enum: [all, present, absent, verified, unverified] }
+        - in: query
+          name: activity
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: registeredAfter
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: registeredBefore
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: source
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, enum: [7, 30, 90] }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryPage' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/users-export:
+    get:
+      operationId: prepareFilteredCrmCsv
+      summary: Prepare all authorized filtered rows as BOM semicolon CSV in JSON; reject oversize exports
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: kind
+          required: false
+          schema: { type: string, enum: [all, accounts, students] }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, active, inactive] }
+        - in: query
+          name: sort
+          required: false
+          schema: { type: string, enum: [name, last_activity, activity, created] }
+        - in: query
+          name: direction
+          required: false
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: role
+          required: false
+          schema:
+            {
+              type: string,
+              enum:
+                [
+                  all,
+                  learner,
+                  creator,
+                  educator,
+                  registered_student,
+                  guardian,
+                  platform_admin,
+                  owner,
+                  school_admin,
+                  member,
+                ],
+            }
+        - in: query
+          name: classId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: organizationId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: age
+          required: false
+          schema: { type: string, enum: [all, known, unknown] }
+        - in: query
+          name: ageMin
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: ageMax
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: email
+          required: false
+          schema: { type: string, enum: [all, present, absent, verified, unverified] }
+        - in: query
+          name: activity
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: registeredAfter
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: registeredBefore
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: source
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, enum: [7, 30, 90] }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryCsv' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/users-filter-options:
+    get:
+      operationId: getCrmFilterOptions
+      summary: Search current authorized class and organization filter values (up to 100 each)
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryOptions' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/organization-class-bindings:
+    get:
+      operationId: searchExplicitOrganizationClassBindings
+      summary: Platform-only search of classes and organizations (100 matches each)
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Authorized candidates and current explicit bindings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryOptions' }
+        '403':
+          description: Platform administrator required
+    put:
+      operationId: setExplicitOrganizationClassBinding
+      summary: Platform-only audited compare-and-set of one class organization; no ownership transfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [classId, workspaceId, expectedWorkspaceId, reason]
+              properties:
+                classId: { type: string, format: uuid }
+                workspaceId: { type: [string, 'null'], format: uuid }
+                expectedWorkspaceId: { type: [string, 'null'], format: uuid }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200':
+          description: Binding saved and audited; next reads use current mapping
+        '400':
+          description: Invalid class, organization or reason
+        '403':
+          description: Platform administrator required
+        '409':
+          description: Current binding differs from expected; submitted UI input is retained
+  /api/admin/v1/auth/email:
+    get:
+      operationId: getAdminEmailConfig
+      summary: Read redacted platform SMTP settings
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmtpStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+    put:
+      operationId: putAdminEmailConfig
+      summary: Save encrypted platform SMTP settings with optimistic version
+      description: >-
+        Platform administrator only. Password is write-only, encrypted under the existing installation settings key and never returned or audited. Site origin is an explicit validated external choice, never derived from Host headers. Saving resets readiness and invalidates previous links by configuration version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmtpUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmtpStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/admin/v1/auth/email/test:
+    post:
+      operationId: postAdminEmailTest
+      summary: Test SMTP connection or send one explicit test message
+      description: >-
+        Platform administrator only. A successful connection/authentication check does not prove inbox delivery. Test acceptance does not enable global confirmation policy or enforcement eligibility.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmtpTest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmtpStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email:
+    get:
+      operationId: getOwnEmailStatus
+      summary: Read current Account email and pending proof status
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email/request:
+    post:
+      operationId: postOwnEmailProof
+      summary: Send proof of the current Account email
+      description: >-
+        Requires current authenticated Account and expected Account ID. Does not change email or revoke sessions. Request UUID deduplicates lost-response retries; one minute cooldown and five Account requests per hour apply.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OwnEmailRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email/cancel:
+    post:
+      operationId: cancelOwnEmailProof
+      summary: Cancel own pending email proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailCancel'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email/confirm:
+    post:
+      operationId: consumeEmailProof
+      summary: Atomically consume one short-lived email proof
+      description: >-
+        Public proof endpoint with JSON and same-origin mutation protection and bounded attempts. Raw proof arrives only in the body, is hashed immediately, and is never returned or logged. Browser removes the fragment before diagnostics. Expired, reused, cancelled, superseded, configuration-stale or inactive Account proof is rejected. Change revokes old sessions and refresh credentials; own verification preserves sessions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailConsume'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofResult'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/crm/v1/users/account/{target}/email:
+    parameters:
+      - in: path
+        name: target
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getCrmEmailStatus
+      summary: Read exact Account pending email status
+      description: >-
+        Platform administrator only; StudentSeat and classroom teachers do not gain Account email write authority. Existing login and verification state remain effective until proof. No raw token is returned to the administrator.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+    post:
+      operationId: requestCrmEmailChange
+      summary: Request proven email change on the exact existing Account
+      description: >-
+        Platform administrator only; StudentSeat and classroom teachers do not gain Account email write authority. Existing login and verification state remain effective until proof. No raw token is returned to the administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrmEmailRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/crm/v1/users/account/{target}/email/cancel:
+    parameters:
+      - in: path
+        name: target
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: cancelCrmEmailChange
+      summary: Cancel exact Account pending email change
+      description: >-
+        Platform administrator only; StudentSeat and classroom teachers do not gain Account email write authority. Existing login and verification state remain effective until proof. No raw token is returned to the administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailCancel'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/providers:
+    get:
+      operationId: getAuthProviders
+      summary: Public server-observed confirmation provider availability
+      description: >-
+        No credentials are returned. Buttons use available=true and reason=ready. Browser flags and invalid login attempts do not alter server health.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthProvidersEnvelope'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/verification:
+    get:
+      operationId: getAccountVerification
+      summary: Current Account confirmation state
+      description: >-
+        Available to the authenticated restricted Account. Confirmation belongs to this same Account; no Account identifier is accepted from the browser.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountVerificationState'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/refresh:
+    post:
+      operationId: postAuthRefresh
+      summary: Rotate a valid Account refresh family
+      description: >-
+        A rotated access cookie remains subject to current verification policy on every protected Account API. A suspended Account or revoked refresh family cannot recover access through provider outage.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRefreshResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+  /api/admin/v1/auth/verification-policy:
+    get:
+      operationId: getAdminVerificationPolicy
+      summary: Read the persistent Account confirmation switch
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountVerificationPolicy'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+    post:
+      operationId: postAdminVerificationPolicy
+      summary: Update the persistent Account confirmation switch
+      description: >-
+        Platform administrator only, with existing origin checks and audit. The switch defaults to false. First activation is retained across disable/enable cycles; the grace interval is fixed at 24 hours. Restricted platform administrators may recover this setting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountVerificationPolicyUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountVerificationPolicy'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+  /api/auth/max/pairing/start:
+    post:
+      operationId: postMaxPairingStart
+      summary: Create a browser-bound Max bot confirmation request
+      description: >-
+        Purpose link requires the current Account session. A separate HttpOnly cookie binds this browser and challenge; the nonce is never included in JSON. The bot asks for explicit confirmation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingStartRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingStartResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/pairing/complete:
+    post:
+      operationId: postMaxPairingComplete
+      summary: Complete or poll a browser-bound Max confirmation
+      description: >-
+        Requires the matching browser cookie. Link completion additionally requires the same current Account session used at start. Unknown provider profiles require real registration data and a backup password before an Account is created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingTokenRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingCompleteResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/pairing/register:
+    post:
+      operationId: postMaxPairingRegister
+      summary: Create a native MAX external-only Account with a real adult profile
+      description: >-
+        Requires approved, fresh MAX proof and its browser-bound cookie, a real birth date (18+) and country. Creates an Account with absent email/password credentials and a normal Personal Workspace. Does not link by name or create an Account for a link-purpose pairing. Returns the session directly without an authenticated wrapper. Raw Mini App registration and Telegram keep their separate strict credential contracts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxExternalPairingRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/register:
+    post:
+      operationId: postMaxAuthRegister
+      summary: Register an Account using validated Max Mini App proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/status:
+    get:
+      operationId: getMaxAccountStatus
+      summary: Read the current Account Max link status
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAccountStatus'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/unlink:
+    post:
+      operationId: postMaxAccountUnlink
+      summary: Unlink the current Account Max identity
+      description: >-
+        The final usable sign-in method cannot be removed. A pending Account confirmation requirement cannot be bypassed by unlinking a provider.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderUnlinkResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+  /api/auth/max/webhook:
+    post:
+      operationId: postMaxWebhook
+      summary: Receive authenticated Max bot updates
+      description: The configured secret authenticates provider updates. A registered one-use ingress challenge uses a separate HMAC in the same header; it cannot approve any Account or pairing.
+      parameters:
+        - in: header
+          name: x-max-bot-api-secret
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Authenticated update handled
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOkResponse'
+                  - $ref: '#/components/schemas/ProviderIngressProbeResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+  /api/admin/v1/integrations/max/check:
+    post:
+      operationId: checkAdminMaxConfiguration
+      summary: Refresh redacted provider readiness diagnostics
+      description: Platform administrator only. Bounded network checks do not rotate settings, set a webhook, or record native Account confirmation.
+      responses:
+        '200':
+          description: Current readiness, including failures and unverified native delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/admin/v1/integrations/max:
+    get:
+      operationId: getAdminMaxConfiguration
+      summary: Read redacted Max authentication configuration and health
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+    put:
+      operationId: putAdminMaxConfiguration
+      summary: Validate and update Max authentication configuration
+      description: >-
+        Platform administrator only. Credentials are encrypted and never returned. Enabling requires a valid matching bot and delivery configuration. Provider availability is distinct from the required-confirmation switch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderAdminConfigUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthValidationError'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/pairing/start:
+    post:
+      operationId: postTelegramPairingStart
+      summary: Create a browser-bound Telegram bot confirmation request
+      description: >-
+        Purpose link requires the current Account session. A separate HttpOnly cookie binds this browser and challenge; the nonce is never included in JSON. The bot asks for explicit confirmation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingStartRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingStartResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/pairing/complete:
+    post:
+      operationId: postTelegramPairingComplete
+      summary: Complete or poll a browser-bound Telegram confirmation
+      description: >-
+        Requires the matching browser cookie. Link completion additionally requires the same current Account session used at start. Unknown provider profiles require real registration data and a backup password before an Account is created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingTokenRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingCompleteResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/pairing/register:
+    post:
+      operationId: postTelegramPairingRegister
+      summary: Finish Telegram registration with a real profile and backup password
+      description: >-
+        Requires approved, fresh provider proof and its browser-bound cookie. A username or email belonging to an existing Account is a conflict; Accounts are never merged from an unverified email. Returns the session directly without an authenticated wrapper.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/register:
+    post:
+      operationId: postTelegramAuthRegister
+      summary: Register an Account using validated Telegram Mini App proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/status:
+    get:
+      operationId: getTelegramAccountStatus
+      summary: Read the current Account Telegram link status
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAccountStatus'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/unlink:
+    post:
+      operationId: postTelegramAccountUnlink
+      summary: Unlink the current Account Telegram identity
+      description: >-
+        The final usable sign-in method cannot be removed. A pending Account confirmation requirement cannot be bypassed by unlinking a provider.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderUnlinkResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+  /api/auth/telegram/webhook:
+    post:
+      operationId: postTelegramWebhook
+      summary: Receive authenticated Telegram bot updates
+      description: The configured secret authenticates provider updates. A registered one-use ingress challenge uses a separate HMAC in the same header; it cannot approve any Account or pairing.
+      parameters:
+        - in: header
+          name: x-telegram-bot-api-secret-token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Authenticated update handled
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOkResponse'
+                  - $ref: '#/components/schemas/ProviderIngressProbeResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+  /api/admin/v1/integrations/telegram/check:
+    post:
+      operationId: checkAdminTelegramConfiguration
+      summary: Refresh redacted provider readiness diagnostics
+      description: Platform administrator only. Bounded network checks do not rotate settings, set a webhook, or record native Account confirmation.
+      responses:
+        '200':
+          description: Current readiness, including failures and unverified native delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/admin/v1/integrations/telegram:
+    get:
+      operationId: getAdminTelegramConfiguration
+      summary: Read redacted Telegram authentication configuration and health
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+    put:
+      operationId: putAdminTelegramConfiguration
+      summary: Validate and update Telegram authentication configuration
+      description: >-
+        Platform administrator only. Credentials are encrypted and never returned. Enabling requires a valid matching bot and delivery configuration. Provider availability is distinct from the required-confirmation switch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderAdminConfigUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthValidationError'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/config:
+    get:
+      operationId: getTelegramAuthConfig
+      summary: Public Telegram launch configuration without credentials
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaxAuthConfig'
+  /api/auth/telegram/session:
+    post:
+      operationId: postTelegramAuthSession
+      summary: Establish a session from fresh server-validated Telegram Mini App data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxInitDataRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/link:
+    post:
+      operationId: postTelegramAuthLink
+      summary: Link validated Telegram proof to the current Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxInitDataRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaxLinkResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
   /api/classrooms/observation/prepare:
     post:
       operationId: prepareClassroomObservation
@@ -303,6 +1989,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/analytics/v2/acquisition:
+    post:
+      operationId: observeOptionalCampaignClaim
+      description: Independent optional authenticated current-document UTM slugs. Browser claims are not proven registration sources. No raw URLs, anonymous stitching or canonical visit changes. Observations visible for 90 days; digest-only receipts retained separately for 97 days. Per subject/context daily limit 32, bounded cleanup 100 rows per intake.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './acquisition-observation.schema.json' }
+      responses:
+        '200':
+          {
+            description: Exact persisted acquisition receipt,
+            including eventId,
+            receiptId,
+            operation and timestamps,
+          }
+        '400': { description: Invalid slug/envelope or subject daily limit }
+        '401': { description: No current authenticated actor }
+        '403': { description: Current canonical context denied }
+        '409': { description: Actor context or immutable receipt binding conflict }
+        '429': { description: Bounded delivery capacity exhausted }
+        '503': { description: Optional persistence unavailable }
   /api/analytics/v2/events:
     post:
       operationId: observeProductVisit
@@ -2342,8 +4051,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },
@@ -2394,8 +4107,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },
@@ -2456,6 +4173,100 @@ paths:
             },
         },
     }
+  /api/courses/{courseId}/usage:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getAuthorCourseUsage
+      summary: Existing course deliveries in classes currently accessible to the author
+      description: >-
+        Requires current author capability and ownership of the course. Content ownership
+        does not grant class access. Only current class owner/co-teacher memberships are
+        used, including archived classes. Returns pinned version and delivery metadata,
+        never roster, learner answers, progress or counts for inaccessible classes.
+        Author-only users without class access receive an empty items array.
+      responses:
+        '200':
+          description: Authorized delivery metadata; no academic writes
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        [
+                          id,
+                          classroomId,
+                          classroomTitle,
+                          classroomStatus,
+                          courseVersionId,
+                          versionNumber,
+                          title,
+                          status,
+                          audienceType,
+                        ]
+                      properties:
+                        id: { type: string, format: uuid }
+                        classroomId: { type: string, format: uuid }
+                        classroomTitle: { type: string }
+                        classroomStatus: { type: string, enum: [active, archived] }
+                        courseVersionId: { type: string, format: uuid }
+                        versionNumber: { type: integer, minimum: 1 }
+                        title: { type: string }
+                        status: { type: string, enum: [open, closed] }
+                        audienceType:
+                          {
+                            type: string,
+                            nullable: true,
+                            enum: [whole_class, named_learners, null],
+                          }
+        '400': { description: Invalid course identifier }
+        '401': { description: Current session required }
+        '403': { description: Current author capability required }
+        '404': { description: Course unavailable }
+        '503': { description: Database unavailable }
+  /api/courses/{courseId}/versions:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getAuthorCourseVersions
+      summary: Exact published course history and immutable pinned practice conditions
+      description: >-
+        Requires the course owner with current author capability and access to the course tenant.
+        An unavailable or unauthorized course returns an empty collection. Archived owned history
+        remains readable. Pinned activities are resolved only from each exact immutable outline;
+        unavailable pins disclose only their outline pointer, expected kind and availability.
+        Current drafts, assignment defaults, runtime policy overrides and module availability
+        never replace historical conditions. This read creates no learning or runtime state.
+      responses:
+        '200':
+          description: Owner-scoped immutable history ordered by descending version number
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/PublishedAuthorCourseVersion' }
+        '400': { description: Invalid course identifier }
+        '401': { description: Current session required }
+        '403': { description: Current author capability required }
   '/api/courses/{courseId}/publish':
     {
       'parameters':
@@ -2523,7 +4334,14 @@ paths:
               '403': { 'description': 'Capability or workspace denied' },
               '404': { 'description': 'Resource unavailable' },
               '409':
-                { 'description': 'Version, state or request conflict; no partial publication' },
+                {
+                  'description': 'Version, state or request conflict; prepublication errors identify the exact saved draft and editor location; no partial publication',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/CoursePublicationError' } },
+                    },
+                },
             },
         },
     }
@@ -2615,8 +4433,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },
@@ -2673,8 +4495,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },
@@ -3841,16 +5667,16 @@ paths:
   /health/ready:
     get:
       operationId: getHealthReady
-      summary: Readiness probe (PostgreSQL SELECT 1)
+      summary: Database, schema and global credential configuration readiness
       responses:
         '200':
-          description: Database is reachable
+          description: Runtime dependencies and global credential configuration are ready
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
         '503':
-          description: Database is not reachable
+          description: Database, schema or global credential configuration is unavailable
           content:
             application/json:
               schema:
@@ -4730,6 +6556,290 @@ paths:
         '404': { description: Project origin is absent or inaccessible }
         '409': { description: Stale revision, duplicate request conflict or unavailable Attempt }
         '503': { description: Learning write dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: readEssayLearningAttempt
+      summary: Read the authorized learner's exact written-response Course activity and confirmed draft
+      description: Stable LearnerIdentity and current Seat or Account links are resolved before reading any answer. A Seat remains independent of a linked Account's status.
+      responses:
+        '200':
+          description: Confirmed text, exact attempt and current action availability
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid run ID }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/media/{role}/{contentHash}:
+    parameters:
+      - { name: activityRunId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: role, in: path, required: true, schema: { type: string, enum: [image, file] } }
+      - {
+          name: contentHash,
+          in: path,
+          required: true,
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' },
+        }
+    get:
+      operationId: readEssayInstructionMedia
+      summary: Read exact pinned instruction image or PDF after current learner and opening checks
+      description: This route reads teacher instruction assets only. It does not implement student file responses. Closed or repeated command receipts cannot bypass current access or scheduled content visibility.
+      responses:
+        '200':
+          description: Private immutable instruction bytes with no-store and nosniff headers
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '400': { description: Invalid Run, role or content hash }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Unavailable scope, unopened instructions or unmatched pinned asset }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/start:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: startEssayLearningAttempt
+      summary: Start or resume one project-free written-response attempt
+      description: Returns for revision create a new linked attempt and copy the previous text without changing frozen evidence. Retry authority is revalidated before reading a receipt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+      responses:
+        '200':
+          description: Exact attempt started or resumed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid run or request ID }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '409': { description: Closed activity, attempt limit or request conflict }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/draft:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: saveEssayLearningDraft
+      summary: Save bounded plain text with optimistic revision and idempotency
+      description: A stale revision never overwrites confirmed text. The browser retains its local answer when a save conflicts or fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningEssaySaveRequest' }
+      responses:
+        '200':
+          description: Confirmed text and incremented revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid attempt, revision, request ID or oversized text }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '409': { description: draft_revision_conflict, idempotency_conflict or unavailable attempt }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/submit:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: submitEssayLearningAttempt
+      summary: Freeze the exact confirmed text revision into an immutable submission
+      description: The client cannot supply frozen text, grade or digest. Submission records the saved UTF-8 text and its server SHA-256; repeated requests preserve the same evidence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningEssaySubmitRequest' }
+      responses:
+        '200':
+          description: Submitted attempt with immutable text digest
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid attempt, revision or request ID }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '409':
+          {
+            description: Empty response,
+            revision conflict,
+            request conflict or unavailable attempt,
+          }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/file/runs/{activityRunId}:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+    get:
+      operationId: readLearningFileAttempt
+      summary: Read the authorized exact file response and available actions
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/start:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+    post:
+      operationId: startLearningFileAttempt
+      summary: Start or resume a file response attempt with an empty slot on rework
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '409': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/draft/{attemptId}/{expectedRevision}/{requestId}:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+      - { name: attemptId, in: path, required: true, schema: { type: string, format: uuid } }
+      - name: expectedRevision
+        in: path
+        required: true
+        schema: { type: integer, minimum: 0, maximum: 2147483645 }
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+    put:
+      operationId: uploadLearningFileDraft
+      summary: Validate and replace the file slot for one exact draft revision
+      description: One validated immutable file per revision. PDF is limited to 25000000 bytes, PNG/JPEG/WebP to 20000000 bytes and other enabled formats to 50000000 bytes.
+      parameters:
+        - name: X-Asa-File-Name
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 3060 }
+          description: Percent-encoded UTF-8 basename
+        - name: Content-Length
+          in: header
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 50000000 }
+      requestBody:
+        required: true
+        content:
+          application/vnd.asa.learning-file: { schema: { type: string, format: binary } }
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '409': { $ref: '#/components/responses/LearningFileError' }
+        '411': { $ref: '#/components/responses/LearningFileError' }
+        '413': { $ref: '#/components/responses/LearningFileError' }
+        '415': { $ref: '#/components/responses/LearningFileError' }
+        '429': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/submit:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+    post:
+      operationId: submitLearningFileAttempt
+      summary: Submit the exact saved file version, without sending any new bytes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningEssaySubmitRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileAttempt' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '409': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/files/{fileId}:
+    parameters:
+      - { $ref: '#/components/parameters/LearningFileRunId' }
+      - { $ref: '#/components/parameters/LearningFileId' }
+    get:
+      operationId: downloadLearnerLearningFile
+      summary: Download a file in the learner's authorized current draft or immutable submission
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileDownload' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '429': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/classes/{classroomId}/attempts/{attemptId}/files/{fileId}:
+    parameters:
+      - { name: classroomId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: attemptId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { $ref: '#/components/parameters/LearningFileId' }
+    get:
+      operationId: downloadTeacherLearningFile
+      summary: Download the exact immutable submitted file as an authorized classroom educator
+      responses:
+        '200': { $ref: '#/components/responses/LearningFileDownload' }
+        '400': { $ref: '#/components/responses/LearningFileError' }
+        '401': { $ref: '#/components/responses/LearningFileError' }
+        '403': { $ref: '#/components/responses/LearningFileError' }
+        '404': { $ref: '#/components/responses/LearningFileError' }
+        '429': { $ref: '#/components/responses/LearningFileError' }
+        '503': { $ref: '#/components/responses/LearningFileError' }
+  /api/learning/file/runs/{activityRunId}/media/{role}/{contentHash}:
+    parameters:
+      - { name: activityRunId, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: role, in: path, required: true, schema: { type: string, enum: [image, file] } }
+      - {
+          name: contentHash,
+          in: path,
+          required: true,
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' },
+        }
+    get:
+      operationId: readFileInstructionMedia
+      summary: Read exact pinned instruction image or PDF after current learner and opening checks
+      description: Serves the authorized teacher instruction image or PDF pinned to this run.
+      responses:
+        '200':
+          description: Private immutable instruction bytes with no-store and nosniff headers
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '400': { description: Invalid Run, role or content hash }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Unavailable scope, unopened instructions or unmatched pinned asset }
+        '503': { description: Learning dependency unavailable }
   /api/learning/activities:
     get:
       operationId: listLearningActivities
@@ -5285,7 +7395,7 @@ paths:
     post:
       operationId: assignCanonicalCourse
       summary: Assign an immutable published course version through the existing Learning runtime
-      description: New authoring clients use the canonical request below. Legacy requests without requestId use the retained legacy adapter and do not create canonical content.
+      description: New authoring clients use the canonical request below. Current classroom and course authorization precedes exact completed request replay, which remains valid after course archive. New assignments serialize with archive and reject archived courses. Legacy requests without requestId use the retained legacy adapter and do not create canonical content.
       requestBody:
         required: true
         content:
@@ -5311,9 +7421,9 @@ paths:
         '403':
           description: Teaching capability or classroom access denied
         '404':
-          description: Classroom unavailable
+          description: Classroom or owned course unavailable
         '409':
-          description: Publication, audience or request conflict; no partial assignment
+          description: Course archived, publication, audience or request conflict; no partial assignment
     get:
       operationId: getClassroomCanonicalCourseRuns
       summary: List assigned courses with canonical lesson-state aggregates
@@ -6129,8 +8239,253 @@ paths:
             minimum: 0
             maximum: 100000
             default: 0
+  /api/crm/v1/users/{kind}/{target}/dashboard:
+    parameters:
+      - { in: path, name: kind, required: true, schema: { type: string, enum: [account, student] } }
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+      - { in: query, name: classroomId, schema: { type: string, format: uuid } }
+    get:
+      operationId: getCrmUserDashboard
+      summary: Read bounded authorized Account or exact-class StudentSeat dashboard
+      description: >-
+        Current server-side session and fresh CRM subject authorization required.
+        StudentSeat reads require the exact classroom scope; linked personal Account
+        history is never merged. Successful reads are audited. Activity has exactly
+        30 densely filled UTC days; latestActions contains at most five retained
+        actions. Project and publication totals cover retained history, including
+        withdrawn publications, rather than only currently public work. Token totals
+        are decimal strings or null when unknown; coverage describes incomplete
+        retained telemetry. Classroom rating uses its own configured period; a common
+        Account rating is not configured. Reading never awards bonuses.
+      responses:
+        '200':
+          description: Retained dashboard projection with explicit telemetry coverage
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    generatedAt,
+                    period,
+                    lastSeenAt,
+                    lastActionAt,
+                    totals,
+                    activity,
+                    latestActions,
+                    rating,
+                    coverage,
+                  ]
+                properties:
+                  generatedAt: { type: string, format: date-time }
+                  period: { type: object, required: [days, timeZone, from, to] }
+                  lastSeenAt: { type: [string, 'null'], format: date-time }
+                  lastActionAt: { type: [string, 'null'], format: date-time }
+                  totals:
+                    {
+                      type: object,
+                      required:
+                        [
+                          projects,
+                          publications,
+                          events,
+                          aiRequests,
+                          aiErrors,
+                          inputTokens,
+                          outputTokens,
+                        ],
+                    }
+                  activity:
+                    type: array
+                    minItems: 30
+                    maxItems: 30
+                    items: { type: object, required: [date, events, aiRequests] }
+                  latestActions:
+                    type: array
+                    maxItems: 5
+                    items: { type: object, required: [occurredAt, eventType, module] }
+                  rating: { type: object, required: [kind, value, rank, label, periodDays] }
+                  coverage:
+                    {
+                      type: object,
+                      required: [activityFrom, limited, aiDetailedRequests, tokenRequests],
+                    }
+        '400': { description: Invalid typed identity or classroom scope }
+        '401': { description: Current session required }
+        '403': { description: Fresh CRM subject or exact Seat/class scope denied }
+  /api/crm/v1/users/student/{target}/detail:
+    parameters:
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+      - { in: query, name: classroomId, required: true, schema: { type: string, format: uuid } }
+      - {
+          in: query,
+          name: category,
+          required: true,
+          schema: { type: string, enum: [notes, projects, publications, ai] },
+        }
+      - { in: query, name: cursor, schema: { type: string } }
+    get:
+      operationId: getCrmSeatRetainedDetail
+      summary: Read exact-class authorized retained Seat notes and history
+      description: Fresh CRM subject authorization; bounded cursor pages; linked Account content never included. Successful reads audited.
+      responses:
+        '200': { description: Retained items and opaque continuation cursor }
+        '400': { description: Invalid or expired continuation }
+        '401': { description: Current session required }
+        '403': { description: Exact Seat/class scope denied }
+  /api/crm/v1/users/student/{target}/notes:
+    parameters:
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: appendCrmSeatEducationalNote
+      summary: Append immutable educational note with reason and expected list version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [classroomId, version, text, reason]
+              properties:
+                classroomId: { type: string, format: uuid }
+                version: { type: string, minLength: 64, maxLength: 64 }
+                text: { type: string, minLength: 1, maxLength: 2000 }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Current first note page }
+        '400': { description: Invalid note }
+        '401': { description: Current session required }
+        '403': { description: Exact Seat/class scope denied }
+        '409': { description: Note list changed; nothing appended }
+  /api/crm/v1/responsibilities/{kind}/{scope}/{target}:
+    parameters:
+      - {
+          in: path,
+          name: kind,
+          required: true,
+          schema: { type: string, enum: [organization, classroom] },
+        }
+      - { in: path, name: scope, required: true, schema: { type: string, format: uuid } }
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getCrmScopedResponsibility
+      summary: Read scoped responsibility and server-authorized role ceiling
+      responses:
+        '200':
+          {
+            description: Exact membership with version and allowed roles; no private Account content,
+          }
+        '401': { description: Current session required }
+        '403': { description: Scope denied }
+    put:
+      operationId: updateCrmScopedResponsibility
+      summary: Apply versioned audited organization membership or exact-class co-teacher command
+      description: Server role ceiling; legacy student memberships read-only; primary class owner preserved; last active organization owner and administrator protected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, role, state, reason]
+              properties:
+                version: { type: string, minLength: 64, maxLength: 64 }
+                role:
+                  {
+                    type: string,
+                    enum:
+                      [owner, school_admin, member, educator, billing_admin, moderator, co_teacher],
+                  }
+                state: { type: string, enum: [active, suspended, revoked] }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Current scoped responsibility }
+        '400': { description: Invalid command or protected responsibility }
+        '401': { description: Current session required }
+        '403': { description: Current actor scope denied }
+        '409': { description: Membership changed; nothing overwritten }
 components:
+  responses:
+    LearningFileAttempt:
+      description: Authorized file-response activity, exact attempt and confirmed file metadata
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/LearningFileResponse' }
+    LearningFileDownload:
+      description: Verified immutable bytes as a private attachment
+      headers:
+        Content-Disposition: { schema: { type: string } }
+        Content-Security-Policy: { schema: { type: string } }
+        Cache-Control: { schema: { type: string } }
+        X-Content-Type-Options: { schema: { type: string } }
+      content:
+        application/octet-stream: { schema: { type: string, format: binary } }
+    LearningFileError:
+      description: File operation unavailable, denied, invalid, conflicting or temporarily limited
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    AuthValidationError:
+      description: Invalid request fields
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthUnauthorized:
+      description: No valid session, incorrect password, invalid proof, or expired/revoked credential
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthForbidden:
+      description: The current actor, origin, or Account state does not permit this operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthConflict:
+      description: Identity conflict, replay, or removal of the final sign-in method
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthPairingGone:
+      description: Pairing request expired or was already consumed; start again
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthRegistrationRouted:
+      description: Registration age policy routes the user to an appropriate flow
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthProviderUnavailable:
+      description: The provider is disabled, misconfigured, or temporarily unavailable; valid password authentication remains independent
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AccountVerificationRequired:
+      description: The authenticated Account must confirm one available provider after its grace interval
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AccountVerificationRequiredResponse'
   parameters:
+    LearningFileRunId:
+      name: activityRunId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LearningFileId:
+      name: fileId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     ProjectId:
       name: projectId
       in: path
@@ -6169,6 +8524,1127 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    ProgressScopeV1:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, accountId]
+          properties:
+            kind: { type: string, const: account }
+            accountId: { type: string, format: uuid }
+        - type: object
+          additionalProperties: false
+          required: [kind, seatId, classroomId]
+          properties:
+            kind: { type: string, const: seat }
+            seatId: { type: string, format: uuid }
+            classroomId: { type: string, format: uuid }
+    ProgressCounterV1:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [availability, value]
+          properties:
+            availability: { type: string, const: available }
+            value: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        - type: object
+          additionalProperties: false
+          required: [availability, value, reason]
+          properties:
+            availability: { type: string, const: unavailable }
+            value: { type: 'null' }
+            reason: { type: string, const: source_unavailable }
+    ProgressCoverageV1:
+      type: object
+      additionalProperties: false
+      required: [basis, completeness, knownSince, limitations]
+      description: >-
+        Completeness is relative to the stated canonical basis, not all time since
+        registration. unknown historical coverage does not make a successful read
+        unavailable. knownSince is null unless a trustworthy boundary is proved;
+        the earliest surviving row is not such proof.
+      properties:
+        basis:
+          type: string
+          enum:
+            [
+              confirmed_publication_revisions,
+              current_publication_likes,
+              durable_publication_copy_receipts,
+              current_catalog_visibility,
+            ]
+        completeness: { type: string, enum: [complete, partial, unknown] }
+        knownSince: { type: [string, 'null'], format: date-time }
+        limitations:
+          type: array
+          maxItems: 2
+          items:
+            type: string
+            enum: [history_before_canonical_records_unknown, copies_not_supported_by_all_modules]
+    OwnGroupResultV1:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [availability, score, rank]
+          description: Canonical null score/rank remains available; zero and fractional scores are preserved.
+          properties:
+            availability: { type: string, const: available }
+            score: { type: [number, 'null'], minimum: 0, maximum: 100 }
+            rank: { type: [integer, 'null'], minimum: 1 }
+        - type: object
+          additionalProperties: false
+          required: [availability, score, rank, reason]
+          properties:
+            availability: { type: string, const: unavailable }
+            score: { type: 'null' }
+            rank: { type: 'null' }
+            reason: { type: string, enum: [ambiguous_self_participant, source_unavailable] }
+    OwnProgressGroupV1:
+      type: object
+      additionalProperties: false
+      required: [groupId, title, periodDays, own]
+      properties:
+        groupId: { type: string, format: uuid }
+        title: { type: string, maxLength: 255 }
+        periodDays: { type: integer, enum: [7, 30, 90] }
+        own: { $ref: '#/components/schemas/OwnGroupResultV1' }
+    PersonalProgressSummaryV1:
+      type: object
+      additionalProperties: false
+      required: [scope, asOf, availability, metrics, coverage, personalRating, groups]
+      properties:
+        scope: { $ref: '#/components/schemas/ProgressScopeV1' }
+        asOf: { type: [string, 'null'], format: date-time }
+        availability: { type: string, enum: [available, partial, unavailable] }
+        metrics:
+          type: object
+          additionalProperties: false
+          required: [everPublishedWorks, currentLikes, createdCopies, activePublicWorks]
+          properties:
+            everPublishedWorks:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Unique stable publications with a confirmed immutable published revision; revisions, withdrawal and hiding do not reset history.
+            currentLikes:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Current canonical reactions over authorized own publication history; decreases on removal, not unique physical people.
+            createdCopies:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Durable successful copy-creation receipts; survives destination deletion, not downloads, unique recipients or rating points.
+            activePublicWorks:
+              allOf: [{ $ref: '#/components/schemas/ProgressCounterV1' }]
+              description: Detail-only count using current actual public catalogue eligibility.
+        coverage:
+          type: object
+          additionalProperties: false
+          required: [everPublishedWorks, currentLikes, createdCopies, activePublicWorks]
+          properties:
+            everPublishedWorks: { $ref: '#/components/schemas/ProgressCoverageV1' }
+            currentLikes: { $ref: '#/components/schemas/ProgressCoverageV1' }
+            createdCopies: { $ref: '#/components/schemas/ProgressCoverageV1' }
+            activePublicWorks: { $ref: '#/components/schemas/ProgressCoverageV1' }
+        personalRating:
+          type: object
+          additionalProperties: false
+          required: [availability, value]
+          description: Not enabled in SP02; does not by itself make the summary partial.
+          properties:
+            availability: { type: string, const: not_enabled }
+            value: { type: 'null' }
+        groups:
+          type: object
+          additionalProperties: false
+          required: [availability, items, hasMore, nextCursor]
+          description: Own groups only, stable ID order, no member counts or peers; ambiguous own Seats make the result partial without choosing a score.
+          properties:
+            availability: { type: string, enum: [available, partial, unavailable] }
+            items:
+              type: [array, 'null']
+              maxItems: 20
+              items: { $ref: '#/components/schemas/OwnProgressGroupV1' }
+            hasMore: { type: [boolean, 'null'] }
+            nextCursor: { type: [string, 'null'], maxLength: 256 }
+    LearningContentCommand:
+      type: object
+      additionalProperties: false
+      required: [requestId]
+      properties:
+        requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+        expectedRevision: { type: [integer, 'null'], minimum: 0, maximum: 2147483647 }
+        expectedHeadId: { type: [string, 'null'], format: uuid }
+        payload:
+          type: [object, 'null']
+          description: Bounded incomplete Question or Quiz author draft; publication validates all eight types and exact immutable references. No runtime attempt/time/pass policy belongs in Quiz content.
+    QuizAttemptState:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          attemptId,
+          participationId,
+          activityRunId,
+          activityVersionId,
+          attemptNumber,
+          state,
+          startedAt,
+          expiresAt,
+          serverNow,
+          version,
+          answers,
+          questions,
+          questionOrder,
+          optionOrder,
+          lastSavedAt,
+        ]
+      properties:
+        attemptId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        activityRunId: { type: string, format: uuid }
+        activityVersionId: { type: string, format: uuid }
+        attemptNumber:
+          {
+            type: integer,
+            minimum: 1,
+            description: Frozen ordinal within the exact ActivityParticipation; legacy handout/Seat numbering stays internal,
+          }
+        state:
+          { type: string, enum: [in_progress, submitted, evaluating, closed, invalidated, expired] }
+        startedAt: { type: string, format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        serverNow: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        answers: { type: object, additionalProperties: { type: object } }
+        questions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, type, promptBlocks, maxPoints, options]
+            properties:
+              id: { type: string, format: uuid }
+              type:
+                {
+                  type: string,
+                  enum:
+                    [
+                      single_choice,
+                      multiple_choice,
+                      boolean,
+                      numeric,
+                      short_text,
+                      matching,
+                      ordering,
+                      long_text_manual,
+                    ],
+                }
+              promptBlocks: { type: array, items: { type: object } }
+              responseSchema:
+                {
+                  type: object,
+                  description: Key-free stable options/left/right labels for matching and ordering,
+                }
+              maxPoints: { type: integer, minimum: 1 }
+              options:
+                type: [array, 'null']
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, label]
+                  properties:
+                    id: { type: string }
+                    label: { type: string }
+        questionOrder: { type: array, items: { type: string, format: uuid } }
+        optionOrder:
+          { type: object, additionalProperties: { type: array, items: { type: string } } }
+        lastSavedAt: { type: [string, 'null'], format: date-time }
+        submittedAt: { type: [string, 'null'], format: date-time }
+        feedback:
+          type: array
+          description: Frozen per-question correctness/points, only after immediate or permitted after_close release; never answer keys. Absent in score_only.
+          items: { type: object }
+        result:
+          type: [object, 'null']
+          additionalProperties: false
+          properties:
+            points: { type: [integer, 'null'] }
+            maxPoints: { type: [integer, 'null'] }
+            outcome: { type: string }
+            provisional: { type: boolean }
+
+    LearningEssaySubmitRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, attemptId, expectedRevision]
+      properties:
+        requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+        attemptId: { type: string, format: uuid }
+        expectedRevision: { type: integer, minimum: 0, maximum: 2147483646 }
+    LearningEssaySaveRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, attemptId, expectedRevision, text]
+      properties:
+        requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+        attemptId: { type: string, format: uuid }
+        expectedRevision: { type: integer, minimum: 0, maximum: 2147483646 }
+        text: { type: string, maxLength: 40000 }
+    LearningEssayResponse:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          activityRunId,
+          participationId,
+          activityVersionId,
+          title,
+          instructions,
+          goal,
+          blocks,
+          resultMode,
+          maxPoints,
+          canStart,
+          canEdit,
+          attempt,
+        ]
+      properties:
+        activityRunId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        activityVersionId: { type: string, format: uuid }
+        title: { type: string }
+        instructions: { type: [string, 'null'] }
+        goal: { type: [string, 'null'] }
+        blocks: { type: [array, 'null'], items: { type: object } }
+        resultMode: { type: string, enum: [ungraded, completion, graded] }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        canStart: { type: boolean }
+        canEdit: { type: boolean }
+        attempt:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required:
+                [
+                  id,
+                  number,
+                  state,
+                  revisionOfAttemptId,
+                  revision,
+                  text,
+                  savedAt,
+                  submittedAt,
+                  submissionId,
+                  digest,
+                  reviewDecision,
+                  feedback,
+                ]
+              properties:
+                id: { type: string, format: uuid }
+                number: { type: integer, minimum: 1 }
+                state:
+                  {
+                    type: string,
+                    enum: [in_progress, submitted, evaluating, closed, invalidated, expired],
+                  }
+                revisionOfAttemptId: { type: [string, 'null'], format: uuid }
+                revision: { type: integer, minimum: 0 }
+                text: { type: string, maxLength: 40000 }
+                savedAt: { type: string, format: date-time }
+                submittedAt: { type: [string, 'null'], format: date-time }
+                submissionId: { type: [string, 'null'], format: uuid }
+                digest: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$' }
+                reviewDecision:
+                  {
+                    type: [string, 'null'],
+                    enum: [accepted, changes_requested, incomplete, excused, null],
+                  }
+                feedback: { type: [string, 'null'] }
+    LearningFileResponse:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          activityRunId,
+          participationId,
+          activityVersionId,
+          title,
+          instructions,
+          goal,
+          blocks,
+          resultMode,
+          maxPoints,
+          canStart,
+          canEdit,
+          attempt,
+        ]
+      properties:
+        activityRunId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        activityVersionId: { type: string, format: uuid }
+        title: { type: string }
+        instructions: { type: [string, 'null'] }
+        goal: { type: [string, 'null'] }
+        blocks: { type: [array, 'null'], items: { type: object } }
+        resultMode: { type: string, enum: [ungraded, completion, graded] }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        canStart: { type: boolean }
+        canEdit: { type: boolean }
+        attempt:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required:
+                [
+                  id,
+                  number,
+                  state,
+                  revisionOfAttemptId,
+                  revision,
+                  file,
+                  savedAt,
+                  submittedAt,
+                  submissionId,
+                  digest,
+                  reviewDecision,
+                  feedback,
+                ]
+              properties:
+                id: { type: string, format: uuid }
+                number: { type: integer, minimum: 1 }
+                state:
+                  {
+                    type: string,
+                    enum: [in_progress, submitted, evaluating, closed, invalidated, expired],
+                  }
+                revisionOfAttemptId: { type: [string, 'null'], format: uuid }
+                revision: { type: integer, minimum: 0 }
+                file:
+                  oneOf:
+                    - type: 'null'
+                    - $ref: '#/components/schemas/LearningFileDescriptor'
+                savedAt: { type: string, format: date-time }
+                submittedAt: { type: [string, 'null'], format: date-time }
+                submissionId: { type: [string, 'null'], format: uuid }
+                digest: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$' }
+                reviewDecision:
+                  {
+                    type: [string, 'null'],
+                    enum: [accepted, changes_requested, incomplete, excused, null],
+                  }
+                feedback: { type: [string, 'null'] }
+    LearningFileDescriptor:
+      type: object
+      additionalProperties: false
+      required: [id, name, sizeBytes, contentType, sha256]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        sizeBytes: { type: integer, minimum: 1, maximum: 50000000 }
+        contentType: { type: string }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+    LearningFileFrozenSubmission:
+      type: object
+      additionalProperties: false
+      required: [kind, submissionId, digest, file, sourceRevision]
+      properties:
+        kind: { const: file }
+        submissionId: { type: string, format: uuid }
+        digest: { type: string, pattern: '^[a-f0-9]{64}$' }
+        file: { $ref: '#/components/schemas/LearningFileDescriptor' }
+        sourceRevision: { type: integer, minimum: 1 }
+    LearningEssayFrozenSubmission:
+      type: object
+      additionalProperties: false
+      required: [kind, submissionId, digest, text, sourceRevision]
+      properties:
+        kind: { const: essay }
+        submissionId: { type: string, format: uuid }
+        digest: { type: string, pattern: '^[a-f0-9]{64}$' }
+        text: { type: string, maxLength: 40000 }
+        sourceRevision: { type: integer, minimum: 0 }
+    CrmDirectoryPage:
+      type: object
+      required: [items, matchedCount, analytics, asOf, next, studentCoverage]
+      properties:
+        items: { type: array, maxItems: 100, items: { type: object } }
+        matchedCount: { type: integer, minimum: 0 }
+        asOf: { type: string, format: date-time }
+        next: { type: [string, 'null'] }
+        studentCoverage:
+          type: object
+          properties:
+            state: { type: string, enum: [complete, unavailable] }
+        analytics:
+          type: object
+          description: Full filtered base; Account and Seat are separate records, never asserted unique people. Registration source and IP geography unavailable. First retained referrer is client-declared. Org AI covers only authorized Seats; private Account AI is unavailable. Retained quota admissions are deduplicated with journal requests and have unknown tokens.
+          properties:
+            accounts: { type: integer, minimum: 0 }
+            students: { type: integer, minimum: 0 }
+            linkedRecords: { type: [integer, 'null'], minimum: 0 }
+            aiCoverage: { type: string, enum: [all_authorized, students_only_accounts_unavailable] }
+            aiRequests: { type: [integer, 'null'] }
+            aiLegacyRequests: { type: [integer, 'null'] }
+            aiTokenCovered: { type: [integer, 'null'] }
+            periodDays: { type: integer, enum: [7, 30, 90] }
+            daily:
+              type: array
+              maxItems: 90
+              items:
+                type: object
+                properties:
+                  date: { type: string, format: date }
+                  registrations: { type: integer, minimum: 0 }
+                  events: { type: integer, minimum: 0 }
+    CrmDirectoryCsv:
+      type: object
+      required: [csv, count]
+      description: Entire filtered table or explicit error; final exact-row mapping and role checks and fresh session check occur after buffering. Audit means prepared, not confirmed download. Secrets and credentials excluded; formula prefixes neutralized.
+      properties:
+        csv: { type: string }
+        count: { type: integer, minimum: 0, maximum: 10000 }
+    CrmDirectoryOptions:
+      type: object
+      required: [classes, organizations]
+      properties:
+        classes:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              workspaceId: { type: [string, 'null'], format: uuid }
+        organizations:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+    SmtpConfig:
+      type: object
+      additionalProperties: false
+      required: [enabled, host, port, sender, username, siteOrigin]
+      properties:
+        enabled: { type: boolean }
+        host: { type: string, maxLength: 253 }
+        port: { type: integer, enum: [465, 587] }
+        sender:
+          type: string
+          maxLength: 254
+          anyOf: [{ const: '' }, { format: email, minLength: 1 }]
+        username: { type: string, maxLength: 254 }
+        siteOrigin:
+          type: string
+          maxLength: 2048
+          anyOf: [{ const: '' }, { format: uri, minLength: 1 }]
+      allOf:
+        - if:
+            properties:
+              enabled: { const: true }
+          then:
+            properties:
+              host: { minLength: 1 }
+              sender: { minLength: 1 }
+              username: { minLength: 1 }
+              siteOrigin: { minLength: 1 }
+    SmtpStatus:
+      type: object
+      additionalProperties: false
+      required: [config, version, passwordConfigured, encryptionReady, testOk]
+      properties:
+        config: { type: object, description: Public SMTP fields, empty before first configuration }
+        version: { type: integer, minimum: 1 }
+        passwordConfigured: { type: boolean }
+        encryptionReady: { type: boolean }
+        testOk: { type: boolean }
+        testedVersion: { type: [integer, 'null'] }
+        deliveryVerifiedVersion: { type: [integer, 'null'] }
+        testedAt: { type: [string, 'null'], format: date-time }
+        testKind: { type: string, enum: [connection, message] }
+    SmtpUpdate:
+      type: object
+      additionalProperties: false
+      required: [version, config]
+      properties:
+        version: { type: integer, minimum: 1 }
+        config: { $ref: '#/components/schemas/SmtpConfig' }
+        password: { type: string, minLength: 1, maxLength: 1024, writeOnly: true }
+        clearPassword: { type: boolean }
+    SmtpTest:
+      type: object
+      additionalProperties: false
+      required: [version, to]
+      properties:
+        version: { type: integer, minimum: 1 }
+        to:
+          {
+            type: [string, 'null'],
+            format: email,
+            description: Null tests connection; one explicit address sends a test message,
+          }
+    EmailProofStatus:
+      type: object
+      additionalProperties: false
+      required: [accountId, email, verified, pending]
+      properties:
+        accountId: { type: string, format: uuid }
+        email: { type: [string, 'null'], format: email }
+        verified: { type: boolean }
+        pending:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+            purpose: { type: string, enum: [verify, change] }
+            state: { type: string, enum: [sending, sent, failed, cancelled, expired, consumed] }
+            createdAt: { type: string, format: date-time }
+            expiresAt: { type: string, format: date-time }
+    OwnEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, requestId]
+      properties:
+        accountId: { type: string, format: uuid }
+        requestId: { type: string, format: uuid }
+    CrmEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [email, version, reason, requestId]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        version: { type: string, pattern: '^[a-f0-9]{64}$' }
+        reason: { type: string, minLength: 3, maxLength: 500 }
+        requestId: { type: string, format: uuid }
+    EmailCancel:
+      type: object
+      additionalProperties: false
+      required: [intentId]
+      properties:
+        intentId: { type: string, format: uuid }
+    EmailConsume:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, pattern: '^[A-Za-z0-9_-]{43}$', writeOnly: true }
+    EmailProofResult:
+      type: object
+      additionalProperties: false
+      required: [confirmed]
+      properties:
+        confirmed: { type: boolean }
+        changed: { type: boolean }
+    CoursePrepublicationDiagnostic:
+      type: object
+      additionalProperties: false
+      required:
+        [courseId, draftRevision, sectionId, lessonId, blockId, field, reason, path, message]
+      properties:
+        courseId:
+          type: string
+          format: uuid
+        draftRevision:
+          type: integer
+          minimum: 1
+        sectionId:
+          type: [string, 'null']
+          format: uuid
+        lessonId:
+          type: [string, 'null']
+          format: uuid
+        blockId:
+          type: [string, 'null']
+          pattern: '^[A-Za-z0-9_-]{1,80}$'
+        field:
+          type: string
+          enum:
+            [
+              blocks,
+              learningActivityVersionId,
+              text,
+              url,
+              alt,
+              caption,
+              title,
+              label,
+              level,
+              tone,
+              language,
+              rows,
+              hidden,
+              archivedAt,
+              lessons,
+            ]
+        reason:
+          type: string
+          enum:
+            [
+              course_archived,
+              course_empty,
+              content_required,
+              legacy_assignment,
+              block_invalid,
+              duplicate_block_id,
+              pin_unavailable,
+              module_unavailable,
+              asset_invalid,
+            ]
+        path:
+          type: string
+          description: Human-readable location; clients navigate using the separate stable identifiers.
+        message:
+          type: string
+      allOf:
+        - if:
+            properties:
+              lessonId: { type: 'null' }
+          then:
+            properties:
+              sectionId: { type: 'null' }
+              blockId: { type: 'null' }
+          else:
+            properties:
+              sectionId: { type: string, format: uuid }
+    CoursePublicationError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            diagnostic:
+              $ref: '#/components/schemas/CoursePrepublicationDiagnostic'
+          allOf:
+            - if:
+                properties:
+                  code: { enum: [prepublish_invalid, course_empty] }
+              then:
+                required: [diagnostic]
+    AuthProviderAvailability:
+      type: object
+      additionalProperties: false
+      required: [id, available, reason, checkedAt, enforcementEligible, enforcementReason]
+      properties:
+        id:
+          type: string
+          enum: [max, telegram, email]
+        available:
+          type: boolean
+          description: Native pairing may start; this alone is not evidence for mandatory confirmation.
+        reason:
+          type: string
+          enum: [ready, disabled, not_configured, invalid_token, delivery_unavailable, unavailable]
+        checkedAt:
+          type: [string, 'null']
+          format: date-time
+        launchUrl:
+          type: [string, 'null']
+          format: uri
+        enforcementEligible:
+          type: boolean
+          description: Startable and a native callback completed in its initiating browser for this configuration version.
+        enforcementReason:
+          $ref: '#/components/schemas/ProviderEnforcementReason'
+    AuthProvidersEnvelope:
+      type: object
+      additionalProperties: false
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthProviderAvailability'
+    AccountVerificationPolicy:
+      type: object
+      additionalProperties: false
+      required: [enabled, activatedAt, graceHours]
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        activatedAt:
+          type: [string, 'null']
+          format: date-time
+          description: First activation only; toggling never resets an existing deadline.
+        graceHours:
+          type: integer
+          const: 24
+    AccountVerificationPolicyUpdate:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    AccountVerificationState:
+      type: object
+      additionalProperties: false
+      required: [policyEnabled, required, reason, dueAt, verifiedProvider, providers]
+      properties:
+        policyEnabled:
+          type: boolean
+        required:
+          type: boolean
+          description: When true, the session is restricted to identity confirmation and recovery.
+        reason:
+          type: string
+          enum:
+            [
+              disabled,
+              verified,
+              grace_period,
+              providers_unavailable,
+              providers_unverified,
+              verification_required,
+            ]
+        dueAt:
+          type: [string, 'null']
+          format: date-time
+          description: Twenty-four hours after the later of first Account authentication and initial policy activation.
+        verifiedProvider:
+          type: [string, 'null']
+          enum: [max, telegram, email, null]
+          description: An active verified proof belonging to this Account; registration email alone is not a proof.
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthProviderAvailability'
+    AccountVerificationRequiredResponse:
+      type: object
+      additionalProperties: false
+      required: [error, verification]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: account_verification_required
+            message:
+              type: string
+        verification:
+          $ref: '#/components/schemas/AccountVerificationState'
+    AuthPairingStartRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        purpose:
+          type: string
+          enum: [login, register, link]
+          default: login
+    AuthPairingStartResponse:
+      type: object
+      additionalProperties: false
+      required: [pairingToken, launchUrl, expiresAt]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+        launchUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    AuthPairingToken:
+      type: string
+      minLength: 32
+      maxLength: 128
+      pattern: '^[A-Za-z0-9_-]{32,128}$'
+    AuthPairingTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingToken]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+    AuthPairingCompleteResponse:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [status]
+          properties:
+            status: { type: string, const: pending }
+        - type: object
+          additionalProperties: false
+          required: [status, profile]
+          properties:
+            status: { type: string, const: registration_required }
+            profile:
+              type: object
+              additionalProperties: false
+              required: [displayName, username]
+              properties:
+                displayName: { type: [string, 'null'] }
+                username: { type: [string, 'null'] }
+        - type: object
+          additionalProperties: false
+          required: [status, linked]
+          properties:
+            status: { type: string, const: linked }
+            linked: { type: boolean, const: true }
+        - type: object
+          additionalProperties: false
+          required: [status, session]
+          properties:
+            status: { type: string, const: authenticated }
+            session:
+              $ref: '#/components/schemas/UserEnvelope'
+    ProviderAccountStatus:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          linked,
+          available,
+          verifiedAt,
+          firstAuthenticatedAt,
+          promptDue,
+          promptDismissedUntil,
+          canUnlink,
+        ]
+      properties:
+        linked: { type: boolean }
+        available: { type: boolean }
+        verifiedAt:
+          type: [string, 'null']
+          format: date-time
+        firstAuthenticatedAt:
+          type: [string, 'null']
+          format: date-time
+        promptDue: { type: boolean }
+        promptDismissedUntil:
+          type: [string, 'null']
+          format: date-time
+        canUnlink: { type: boolean }
+    ProviderUnlinkResponse:
+      type: object
+      additionalProperties: false
+      required: [unlinked]
+      properties:
+        unlinked: { type: boolean }
+    AuthRefreshResponse:
+      type: object
+      additionalProperties: false
+      required: [refreshed]
+      properties:
+        refreshed: { type: boolean, const: true }
+    AuthOkResponse:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: { type: boolean, const: true }
+    ProviderAdminConfigUpdate:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      description: Enabling requires botUsername and miniAppUrl. Disabling preserves existing settings and needs no external provider check.
+      properties:
+        enabled: { type: boolean }
+        botUsername: { type: string, maxLength: 64 }
+        miniAppUrl: { type: string, maxLength: 2048 }
+        botToken:
+          type: string
+          maxLength: 2048
+          writeOnly: true
+        clearToken: { type: boolean }
+      allOf:
+        - if:
+            properties:
+              enabled: { const: true }
+          then:
+            required: [botUsername, miniAppUrl]
+    MaxExternalPairingRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingToken, username, displayName, birthDate, country]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+        username:
+          $ref: '#/components/schemas/RegisterRequest/properties/username'
+        displayName:
+          $ref: '#/components/schemas/RegisterRequest/properties/displayName'
+        birthDate:
+          $ref: '#/components/schemas/RegisterRequest/properties/birthDate'
+        country:
+          $ref: '#/components/schemas/RegisterRequest/properties/country'
+    AuthPairingRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingToken, email, password, username, birthDate, country]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+        email:
+          $ref: '#/components/schemas/RegisterRequest/properties/email'
+        password:
+          $ref: '#/components/schemas/RegisterRequest/properties/password'
+        username:
+          $ref: '#/components/schemas/RegisterRequest/properties/username'
+        displayName:
+          $ref: '#/components/schemas/RegisterRequest/properties/displayName'
+        birthDate:
+          $ref: '#/components/schemas/RegisterRequest/properties/birthDate'
+        country:
+          $ref: '#/components/schemas/RegisterRequest/properties/country'
+    ProviderRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [initData, email, password, username, birthDate, country]
+      properties:
+        initData:
+          $ref: '#/components/schemas/MaxInitDataRequest/properties/initData'
+        email:
+          $ref: '#/components/schemas/RegisterRequest/properties/email'
+        password:
+          $ref: '#/components/schemas/RegisterRequest/properties/password'
+        username:
+          $ref: '#/components/schemas/RegisterRequest/properties/username'
+        displayName:
+          $ref: '#/components/schemas/RegisterRequest/properties/displayName'
+        birthDate:
+          $ref: '#/components/schemas/RegisterRequest/properties/birthDate'
+        country:
+          $ref: '#/components/schemas/RegisterRequest/properties/country'
+    ProviderAdminConfig:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          enabled,
+          featureEnabled,
+          available,
+          availabilityReason,
+          enforcementEligible,
+          enforcementReason,
+          diagnostics,
+          healthCheckedAt,
+          tokenConfigured,
+          botUsername,
+          launchUrl,
+          miniAppUrl,
+          encryptionReady,
+          tokenFingerprint,
+          verifiedBotId,
+          verifiedBotName,
+          tokenVerifiedAt,
+          configurationVersion,
+          updatedAt,
+          webhookUrl,
+          webhookVerifiedAt,
+          webhookLastError,
+        ]
+      properties:
+        enabled: { type: boolean }
+        featureEnabled: { type: boolean }
+        available: { type: boolean }
+        availabilityReason:
+          {
+            type: string,
+            enum:
+              [ready, disabled, not_configured, invalid_token, delivery_unavailable, unavailable],
+          }
+        healthCheckedAt: { type: [string, 'null'], format: date-time }
+        tokenConfigured: { type: boolean }
+        botUsername: { type: [string, 'null'] }
+        launchUrl: { type: [string, 'null'], format: uri }
+        miniAppUrl: { type: [string, 'null'], format: uri }
+        encryptionReady: { type: boolean }
+        tokenFingerprint: { type: [string, 'null'] }
+        verifiedBotId: { type: [string, 'null'] }
+        verifiedBotName: { type: [string, 'null'] }
+        tokenVerifiedAt: { type: [string, 'null'], format: date-time }
+        configurationVersion: { type: integer, minimum: 1 }
+        updatedAt: { type: [string, 'null'], format: date-time }
+        webhookUrl: { type: [string, 'null'], format: uri }
+        webhookVerifiedAt: { type: [string, 'null'], format: date-time }
+        webhookLastError: { type: [string, 'null'] }
+        enforcementEligible: { type: boolean }
+        enforcementReason:
+          $ref: '#/components/schemas/ProviderEnforcementReason'
+        diagnostics:
+          $ref: '#/components/schemas/ProviderReadinessDiagnostics'
+    ProviderEnforcementReason:
+      type: string
+      enum:
+        [
+          ready,
+          disabled,
+          not_configured,
+          invalid_token,
+          delivery_unavailable,
+          unavailable,
+          delivery_unverified,
+        ]
+    ProviderReadinessCheck:
+      type: object
+      additionalProperties: false
+      required: [state, reason, checkedAt]
+      properties:
+        state:
+          type: string
+          enum: [not_checked, ok, failed]
+        reason:
+          type: [string, 'null']
+          enum:
+            [
+              disabled,
+              not_configured,
+              invalid_token,
+              bot_mismatch,
+              subscription_missing,
+              subscription_mismatch,
+              ingress_invalid_url,
+              ingress_dns_unavailable,
+              ingress_network_unavailable,
+              ingress_invalid_response,
+              unavailable,
+              null,
+            ]
+        checkedAt: { type: [string, 'null'], format: date-time }
+    ProviderReadinessDiagnostics:
+      type: object
+      additionalProperties: false
+      required: [token, subscription, ingress, nativeConfirmation]
+      properties:
+        token: { $ref: '#/components/schemas/ProviderReadinessCheck' }
+        subscription: { $ref: '#/components/schemas/ProviderReadinessCheck' }
+        ingress: { $ref: '#/components/schemas/ProviderReadinessCheck' }
+        nativeConfirmation:
+          type: object
+          additionalProperties: false
+          required: [current, configurationVersion, verifiedAt]
+          properties:
+            current: { type: boolean }
+            configurationVersion: { type: [integer, 'null'], minimum: 1 }
+            verifiedAt: { type: [string, 'null'], format: date-time }
+    ProviderIngressProbeResponse:
+      type: object
+      additionalProperties: false
+      description: A one-use HMAC response for a challenge registered by this process. Not a provider callback or Account proof.
+      required: [type, protocol, instance, provider, configurationVersion, issuedAt, nonce, proof]
+      properties:
+        type: { type: string, const: asa_ingress_probe }
+        protocol: { type: integer, const: 1 }
+        instance: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+        provider: { type: string, enum: [max, telegram] }
+        configurationVersion: { type: integer, minimum: 1 }
+        issuedAt: { type: integer }
+        nonce: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+        proof: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
     ManualJournalRange:
       type: object
       additionalProperties: false
@@ -6976,6 +10452,118 @@ components:
           },
         'required': ['scheme', 'items'],
       }
+    PublishedAuthorCourseVersion:
+      type: object
+      additionalProperties: false
+      required: [id, versionNumber, outline, pinnedActivities, publishedAt]
+      properties:
+        id: { type: string, format: uuid }
+        versionNumber: { type: integer, minimum: 1 }
+        publishedAt: { type: string, format: date-time }
+        outline:
+          type: object
+          description: >-
+            The original immutable course_versions.outline, returned unchanged. Historical
+            course, section, lesson and block fields retain their original presence and values;
+            missing legacy fields are not filled from current content. Historical activity
+            conditions are returned separately in pinnedActivities, never written into outline.
+          additionalProperties: true
+        pinnedActivities:
+          type: array
+          items: { $ref: '#/components/schemas/PublishedAuthorCoursePin' }
+    PublishedAuthorCoursePin:
+      type: object
+      additionalProperties: false
+      required:
+        - pointer
+        - pinKind
+        - available
+        - activityId
+        - versionId
+        - versionNumber
+        - title
+        - instructions
+        - goal
+        - goalSnapshotPresent
+        - blocks
+        - blocksSnapshotPresent
+        - moduleKey
+        - resultMode
+        - maxPoints
+        - policySnapshot
+        - contentDigest
+      properties:
+        pointer:
+          type: string
+          pattern: '^/sections/[0-9]+/lessons/[0-9]+/(assignment|blocks/[0-9]+)$'
+          description: Zero-based location in this exact immutable outline; never a current draft location.
+        pinKind: { type: string, enum: [project, manual] }
+        available: { type: boolean }
+        activityId: { type: [string, 'null'], format: uuid }
+        versionId: { type: [string, 'null'], format: uuid }
+        versionNumber: { type: [integer, 'null'], minimum: 1 }
+        title: { type: [string, 'null'] }
+        instructions: { type: [string, 'null'] }
+        goal: { type: [string, 'null'] }
+        goalSnapshotPresent:
+          type: [boolean, 'null']
+          description: >-
+            False means this historical version predates the goal snapshot; goal is
+            unknown even when its stored value is null. True preserves an explicit null
+            as a saved empty goal. Null occurs only when the entire pin is unavailable.
+        blocks:
+          type: [array, 'null']
+          items: { type: object }
+        blocksSnapshotPresent:
+          type: [boolean, 'null']
+          description: >-
+            False means this historical version has no saved materials snapshot and
+            blocks is null, never a current projection. True means blocks is the exact
+            stored array, including an explicitly empty array. Null occurs only when
+            the entire pin is unavailable.
+        moduleKey: { type: [string, 'null'] }
+        resultMode: { type: [string, 'null'], enum: [ungraded, completion, graded, null] }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        policySnapshot:
+          oneOf:
+            - { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
+            - { type: 'null' }
+        contentDigest: { type: [string, 'null'] }
+      oneOf:
+        - properties:
+            available: { const: true }
+            activityId: { type: string }
+            versionId: { type: string }
+            versionNumber: { type: integer }
+            title: { type: string }
+            goalSnapshotPresent: { type: boolean }
+            blocksSnapshotPresent: { type: boolean }
+            resultMode: { type: string }
+            policySnapshot: { type: object }
+            contentDigest: { type: string }
+          oneOf:
+            - properties:
+                blocksSnapshotPresent: { const: true }
+                blocks: { type: array }
+            - properties:
+                blocksSnapshotPresent: { const: false }
+                blocks: { type: 'null' }
+        - properties:
+            available: { const: false }
+            activityId: { type: 'null' }
+            versionId: { type: 'null' }
+            versionNumber: { type: 'null' }
+            title: { type: 'null' }
+            instructions: { type: 'null' }
+            goal: { type: 'null' }
+            goalSnapshotPresent: { type: 'null' }
+            blocks: { type: 'null' }
+            blocksSnapshotPresent: { type: 'null' }
+            moduleKey: { type: 'null' }
+            resultMode: { type: 'null' }
+            maxPoints: { type: 'null' }
+            policySnapshot: { type: 'null' }
+            contentDigest: { type: 'null' }
     LearningActivityKind:
       type: string
       enum: [quiz, project, essay, file, manual]
@@ -7017,6 +10605,8 @@ components:
         policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
         moduleKey: { type: [string, 'null'], pattern: '^[a-z0-9-]{1,64}$' }
         quizVersionId: { type: [string, 'null'], format: uuid }
+        quizDraftId: { type: [string, 'null'], format: uuid }
+        quizDraftRevision: { type: [integer, 'null'], minimum: 1, maximum: 2147483647 }
         starterProjectVersionId: { type: [string, 'null'], format: uuid }
         sourceTeacherAssignmentId: { type: [string, 'null'], format: uuid }
         scope: { type: string, enum: [personal, school], default: personal }
@@ -7034,6 +10624,8 @@ components:
         policies: { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
         moduleKey: { type: [string, 'null'], pattern: '^[a-z0-9-]{1,64}$' }
         quizVersionId: { type: [string, 'null'], format: uuid }
+        quizDraftId: { type: [string, 'null'], format: uuid }
+        quizDraftRevision: { type: [integer, 'null'], minimum: 1, maximum: 2147483647 }
         starterProjectVersionId: { type: [string, 'null'], format: uuid }
     LearningActivityPublishRequest:
       type: object
@@ -7147,6 +10739,7 @@ components:
       additionalProperties: false
       required: [source, assignment, moduleKey, resultMode, maxPoints, policies, learnerRuntime]
       properties:
+        kind: { type: string, enum: [project, essay, manual, quiz, file] }
         source:
           type: object
           additionalProperties: false
@@ -7196,8 +10789,8 @@ components:
         versionId: { type: string, format: uuid }
         title: { type: string }
         instructions: { type: [string, 'null'] }
-        kind: { type: string, const: project }
-        moduleKey: { type: string }
+        kind: { type: string, enum: [project, quiz] }
+        moduleKey: { type: [string, 'null'] }
     LearningAssignableActivityCollection:
       type: object
       additionalProperties: false
@@ -7343,6 +10936,11 @@ components:
           },
       }
     LearningExactSubmission:
+      oneOf:
+        - $ref: '#/components/schemas/LearningProjectFrozenSubmission'
+        - $ref: '#/components/schemas/LearningEssayFrozenSubmission'
+        - $ref: '#/components/schemas/LearningFileFrozenSubmission'
+    LearningProjectFrozenSubmission:
       {
         'type': 'object',
         'additionalProperties': false,
@@ -7358,6 +10956,7 @@ components:
           ],
         'properties':
           {
+            'kind': { 'const': 'project' },
             'submissionId': { 'type': 'string', 'format': 'uuid' },
             'projectVersionId': { 'type': 'string', 'format': 'uuid' },
             'digest': { 'type': 'string' },
@@ -7928,7 +11527,7 @@ components:
     ReadyResponse:
       type: object
       additionalProperties: false
-      required: [status, dependencies]
+      required: [status, dependencies, deployment]
       properties:
         status:
           type: string
@@ -7936,16 +11535,44 @@ components:
         dependencies:
           type: object
           additionalProperties: false
-          required: [database]
+          required: [database, credentialConfiguration]
           properties:
             database:
               type: string
-              enum: [up, down]
+              enum: [up, busy, down]
+            credentialConfiguration:
+              type: string
+              enum: [valid, invalid]
+              description: Global configuration only; contains no secrets, key IDs or historical row diagnostics.
+        deployment:
+          type: object
+          additionalProperties: false
+          required:
+            [
+              revision,
+              builtAt,
+              schemaVersion,
+              expectedSchemaVersion,
+              synchronized,
+              artifactIntegrity,
+              artifactVerifiedAt,
+            ]
+          properties:
+            revision: { type: string }
+            builtAt: { type: [string, 'null'] }
+            schemaVersion: { type: [integer, 'null'] }
+            expectedSchemaVersion: { type: [integer, 'null'] }
+            synchronized: { type: [boolean, 'null'] }
+            artifactIntegrity: { type: string, enum: [verified, unknown] }
+            artifactVerifiedAt: { type: [string, 'null'] }
     ErrorResponse:
       type: object
       additionalProperties: false
       required: [error]
       properties:
+        verification:
+          description: Present when the central Account confirmation gate returns HTTP 403.
+          $ref: '#/components/schemas/AccountVerificationState'
         error:
           type: object
           additionalProperties: false
@@ -8206,6 +11833,7 @@ components:
           activeWorkspace,
           navigation,
           timeZone,
+          verification,
         ]
       properties:
         authenticated:
@@ -8237,6 +11865,8 @@ components:
             is rendered in it. Null until a browser has reported one.
           type: [string, 'null']
           maxLength: 64
+        verification:
+          $ref: '#/components/schemas/AccountVerificationState'
     SessionStatusEnvelope:
       oneOf:
         - $ref: '#/components/schemas/UserEnvelope'
@@ -8254,13 +11884,16 @@ components:
       additionalProperties: false
       required: [id, displayName, email]
       properties:
+        identityKind:
+          type: string
+          const: account
         id:
           type: string
           format: uuid
         displayName:
           type: string
         email:
-          type: string
+          type: [string, 'null']
           format: email
     Capability:
       type: object

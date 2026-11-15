@@ -1,0 +1,58 @@
+name: Browser Error Diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/src/client-*'
+      - 'apps/web/src/AppErrorBoundary*'
+      - 'apps/web/src/modules/EditorErrorBoundary.tsx'
+      - 'apps/api/src/client-*'
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/project.json'
+      - 'tools/*symbols*'
+      - 'tools/test-browser-error-mapping.mjs'
+      - 'tools/fixtures/browser-error/**'
+      - 'Dockerfile.web'
+      - '.dockerignore'
+      - 'package.json'
+      - '.github/workflows/browser-error-diagnostics.yml'
+      - '.github/workflows/portable-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:browser-errors
+      - run: pnpm exec nx build api --skip-nx-cache
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser-errors:browser
+      - name: Build web runtime and export identical encrypted symbols
+        run: |
+          docker build -f Dockerfile.web --target runtime --build-arg ASA_BUILD_REVISION="$GITHUB_SHA" -t asa-web-error-evidence .
+          docker build -f Dockerfile.web --target web-symbols --build-arg ASA_BUILD_REVISION="$GITHUB_SHA" --output type=local,dest=.asa/web-symbols .
+          symbolWebId=$(docker create asa-web-error-evidence)
+          docker cp "$symbolWebId:/srv" .asa/web-runtime
+          docker rm "$symbolWebId"
+          node tools/verify-web-symbols.mjs .asa/web-runtime ".asa/web-symbols/web-symbols-$GITHUB_SHA.manifest.json" "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-symbols-${{ github.sha }}
+          path: .asa/web-symbols/*.json
+          if-no-files-found: error
+          retention-days: 90

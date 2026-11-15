@@ -1,3 +1,4 @@
+import type { AccountVerificationService } from './account-verification.service.js';
 import { describe, expect, it, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -66,7 +67,9 @@ describe('BlocksRuntimeController', () => {
     const runtime = service({
       authorize: vi.fn().mockResolvedValue({ ok: false, code: 'unauthorized' }),
     });
-    const controller = new BlocksRuntimeController(runtime);
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
     const embedded = {
       method: 'GET',
       headers: {
@@ -88,7 +91,9 @@ describe('BlocksRuntimeController', () => {
   });
   it('saves through the shared draft path and returns only confirmed revision', async () => {
     const runtime = service();
-    const controller = new BlocksRuntimeController(runtime);
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
     const response = await controller.putDraft(request(), reply().value, PROJECT, {
       document: { schemaVersion: 1, format: 'scratch-3', projectJson: null, assets: [] },
       baseRevision: 3,
@@ -112,7 +117,9 @@ describe('BlocksRuntimeController', () => {
         message: 'Эта учебная работа сейчас доступна только для просмотра.',
       }),
     });
-    const controller = new BlocksRuntimeController(runtime);
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
     await expect(
       controller.putDraft(request(), reply().value, PROJECT, {
         document: {},
@@ -129,7 +136,9 @@ describe('BlocksRuntimeController', () => {
     const runtime = service({
       authorize: vi.fn().mockResolvedValue({ ok: false, code: 'permission_denied' }),
     } as never);
-    const controller = new BlocksRuntimeController(runtime);
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
     try {
       await controller.putDraft(request(), reply().value, PROJECT, {
         document: {},
@@ -147,7 +156,9 @@ describe('BlocksRuntimeController', () => {
     const runtime = service({
       consumeRequest: vi.fn().mockReturnValue({ allowed: false, retryAfterSeconds: 9 }),
     } as never);
-    const controller = new BlocksRuntimeController(runtime);
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
     const target = reply();
 
     await expect(
@@ -176,7 +187,9 @@ describe('BlocksRuntimeController', () => {
         },
       }),
     } as never);
-    const controller = new BlocksRuntimeController(runtime);
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
     const headers = new Map<string, unknown>();
     let sent: unknown;
     const value = {
@@ -207,7 +220,9 @@ describe('BlocksRuntimeController', () => {
         },
       }),
     } as never);
-    const controller = new BlocksRuntimeController(runtime);
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
 
     await expect(
       controller.getAsset(

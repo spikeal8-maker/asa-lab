@@ -29,3 +29,133 @@ No product/Header/CSS/controller/solver/cadence/physics/auth/sharedhelper/lock/p
 Root actual scope/evidence → NEW independent SOURCE reviewer → ONE genuine real built four-width existing pupil scenario on final test source, same auth/frozen build/isolated CI database/NX_SKIP_NX_CACHE=true/defaulttimeouts. Full raw Worker/UI/action joins/PNG/whole SaveCAS/cookies retained; yielded/incomplete neverready. Mobile390/320 existing hiddenclock is DOM-only, no new visibleclock claim. Final exact required focused/general/ordinary gates and NEW independent PRODUCT review before integration/Issue closure. The separate552 label repair stays separate. Red unrelated gate classified before separate repair; no hopeful unchanged reruns. STOP closes only this bounded executor; controller continues452.
 
 School/K0/T3/class/device/owner/deployment pending by owner; installation/server/liveDB/network/backups untouched. Preserve all current foreign lanes, accepted541 and held552/E06/525/537/538/544/546/547/549 refs/originals. NEXT_ALLOWED_TASK: STOP.
+
+## 23 October: reviewed PR695 integration only
+
+The owner's renewed finish/main/close programme now selects controlled integration of existing [PR695](https://github.com/spikeal8-maker/asa-lab/pull/695), not another observer implementation. Exact reviewed source: `02ed3ad0a5fa048a94bdefa09d0b41c438596741`; clock-file blob `3f824213be5a2d18fee4c0e9009235f4a2cafb7b`. Main's clock base remains `10cc5e1f8355dd67ab85601a013139437634cc69`. New independent source review APPROVE is retained in the [dated selection receipt](../evidence/clock-observer-557-pr695-integration-selection-20261023.md).
+
+One new integration author composes only this exact clock file onto fresh main, preserving all foreign source and accepted541. No observer rewrite or product physics/Worker/Header/CSS/cadence/auth/dependency/workflow changes. A new independent reviewer checks the final integration SHA. Existing four-width successes are history; final exact required focused/general/browser gates and actual four-width review remain mandatory before closure. External C/D failures are classified separately; cancelled is neither PASS nor product FAIL.
+
+To avoid duplicate 50-minute broad runs, a shared qualification candidate may carry two separately source-reviewed679/557 integration commits, with a new final composition review and one exact-SHA existing CI. This adds no gate or waiver, changes neither PR scope, and authorizes no premature merge. Preserve PR histories, real dirty-overlap STOP, owner acceptance pending and no deployment. This dated integration selection supersedes only the earlier instruction to create a new observer author; its original causes and accepted541 history remain immutable.
+
+
+## 23 October: actual harness repair and scoped technical qualification
+
+This selection supersedes the earlier integration-only/no-new-gate boundary for
+this bounded continuation. Product code is already integrated through PR694 and
+PR695; it is not selected for another implementation. Execution status remains
+exclusively in `docs/execution/current.yaml`.
+
+[The dated actual receipt](../evidence/ui679-557-actual-repair-scoped-qualification-20261023.md)
+selects one test-harness repair author for the two existing test files and a
+separate additive six-case qualification author. Preserve all native actions,
+assertions, complete independent documents, Save/CAS, cookies/storage checks,
+viewports, acquisition deadlines and finite case budgets. No product repair,
+forced input, skipped coverage, timeout/cap increase or repeated unchanged broad
+run is authorized.
+
+Technical acceptance of these two issues requires the exact six existing cases,
+all PASS, exact focused and raw-budget evidence, full General gates and a NEW
+independent actual review. The command `pnpm gate:electronics-ui-679-557:browser` runs locally, in CI and
+owner evidence. Freeze exact full test titles/paths from discovery; reject extra,
+missing, duplicate or skipped cases, including at execution. The full Electronics
+gate remains global verification and its cancelled result stays non-PASS. This
+prospective scoped technical criterion does not claim full Electronics PASS,
+physical owner acceptance, release or deployment, and clears no foreign blocker.
+
+The separate qualification author may add one small runner/manual workflow and
+necessary script/catalogue registration and exact transport workflow/browser
+identity allowlist with adversarial tests. Preserve existing guarded image
+identity, PostgreSQL/migrations, API/Web startup, source/build and artifact
+provenance; no spoofed workflow identity. Do not edit the foreign dirty existing
+Electronics workflow or clean another worktree. Check all actual target overlaps
+before writes. New independent source and final composition reviews precede one
+justified exact-SHA qualification. Source publication alone is not acceptance.
+
+Clock390 actual request501 trips the test's 500-request observer guard before
+Reflect.apply, interrupting real dispatch. Select lossless durable Node journaling
+and bounded active retention, not a larger arbitrary cap. Observation must not
+throw in the production dispatch path; explicit capture/retention/loss errors
+fail the test honestly after recording the primary error. Preserve request/frame
+identity, generation/project/protocol/horizon attribution, every readiness and
+integer-floor assertion, all four widths, Stop/Reset, Save/CAS/cookies and original
+deadlines. No Worker/product-clock change or request/frame dropping is selected.
+
+
+## 24 October: explicit targeted UI acceptance
+
+The owner explicitly decided: «API оставить отдельно; принять UI по целевым
+проверкам». This prospectively supersedes the prior all-six/full-General issue557
+closure dependency only. It does not change the six-case runner, any functional
+assertion or global release requirements. Execution status remains in current.yaml.
+
+The [dated actual closeout](../evidence/ui679-557-owner-targeted-acceptance-20261024.md)
+records exact07 source integrated in mainc29eabd4, NEW independent actual review
+with6424 checks, and all four clock widths complete in first, restart and
+cookies-only-reopen phases. All original attribution, readiness, integer display,
+native Stop/Reset, full document, Save/CAS and fresh cookies reopen requirements
+remain. Mobile hidden clock width0 does not establish visible-clock appearance;
+568px was not tested. Accepted541 physics/Worker/product code is unchanged.
+
+Issue557 may be technically closed independently of the remaining679 touch case.
+Programme completion still requires all six existing cases. General remains FAIL
+because two foreign telemetry API tests return503 after PostgreSQL42501; Governance
+and Code passed. API repair remains a separate programme. This owner exception
+removes only the UI technical-closure barrier, never relabels General or the
+five-of-six scoped workflow PASS, and clears no global API/release blocker.
+Physical owner acceptance, release, deployment and school actions remain pending.
+No repeated clock source rewrite or CI run is selected by this closeout.
+
+
+## 24 October: Committed-DOM attribution follow-up
+
+Select the same existing Header span public data-time-ms marker and strict independent binding by document/mount epoch, active worker/generation/session and horizon. Equivalent same-binding/horizon receipts retain all IDs; marker proves formatter input, not exact React frame. No text-derived receipt selection, ambiguity acceptance, wrong-text suppression or physics/core/hook change. Prior acceptance remains immutable history; new four-width actual evidence is required before reclosure.
+
+The [cause-based selection](../evidence/ui679-557-causal-repair-selection-20261024.md)
+supersedes earlier conflicting no-product/no-follow-up restrictions only for this
+bounded repair. Owner API-separate targeted acceptance continues; no global PASS,
+physical owner acceptance, release or deployment is implied.
+
+
+## Current-main integration selection — 24 October 2026
+
+The bounded historical candidate6dbab2cc7d181294e875e89895c231d0d86d61dc
+passed General40040123409 all four jobs and scoped40040123895 all three jobs,
+all six original native cases. Actual217998 RAW fit its218000 cap by2.
+NEW independent actual review APPROVE_TARGETED verified43 original hashes,
+4717 raw checks and20 PNGs, both complete F2 journeys with one Save/CAS/full
+fresh R3 document and all12 clock phases. Receipt SHA256
+`77f8474a3329dd535162acb34d1d97b2edc6bb7c6641493054523ec460792243`.
+This historical result does not accept a different current-main composition.
+
+See [current-main integration selection](../evidence/ui679-557-current-main-integration-selection-20261024.md)
+for the exact ten-path boundary. Preserve the foreign682 subscribed clock,
+optical renderer/runtime and separately owner-approved222000 cap. New composition
+source review, actual size, scoped/General execution and independent actual/visual
+review are still required. No new budget increase is selected; old218000 proof
+remains separate. Mobile label baseline is hidden/NOT_OBSERVED;568 is NOT_RUN.
+Source publication is separate from deployment, physical owner acceptance and
+release. Preserve681 CLOSED,552 blockers,682 pending qualification,548 and
+owner KEEP544/547OPEN; no foreign work or blocker is cleared.
+
+
+## Final targeted technical closeout — 24 October 2026
+
+[The final dated receipt](../evidence/ui679-557-final-technical-closeout-20261024.md)
+records qualified source `5b5f2cf549d94473e0365c8938093d8026ac67f4` integrated in main
+`380d35bc67d22d2eb6e96c92dbdbb75a4211928c`, NEW independent source/integration and
+APPROVE_TARGETED actual/visual reviews, all six original native cases complete,
+and actual221965 RAW against unchanged accepted222000 cap (35 bytes remaining).
+Both F2 whole-document one-Save/CAS2→3/cookies-only R3 journeys and all12 clock
+phases completed.679 closed2026-10-24T11:40:48Z;557 closed11:40:51Z.
+General40089881977 SUCCESS, all four jobs on exact qualified5b5f2cf5;
+no new main or documentation-SHA General result is claimed. Historical selections and prior
+NOT_RUN/failure records remain immutable history; current completion is recorded
+only in current.yaml and this receipt. No new documentation-SHA runtime claim.
+
+Owner API-separate targeted UI acceptance covers these technical closures only.
+Physical owner acceptance, release and deployment remain pending. Mobile hidden
+clock visibility NOT_OBSERVED;568px NOT_RUN. Preserve552 blocker byte-exact,
+682 partial/all-eight pending,548 and owner KEEP544/547OPEN,681 already closed
+and every foreign state. Historical6db218000-cap evidence is not new fit proof.
+Source publication is not deployment. NEXT_ALLOWED_TASK: STOP.

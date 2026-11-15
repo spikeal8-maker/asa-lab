@@ -54,12 +54,33 @@ describe('ASA Lab first-frame shell', () => {
     expect(html).not.toContain('seo-fallback');
   });
 
-  it('uses a known route module without asking Project Core to resolve it again', () => {
+  it('uses a known non-game route module without asking Project Core to resolve it again', () => {
     const host = readFileSync(resolve(root, 'apps/web/src/modules/ModuleEditorHost.tsx'), 'utf8');
-    const knownModuleBranch = host.indexOf('if (props.moduleKey)');
+    const knownModuleBranch = host.indexOf(
+      'if (props.moduleKey && !isGameModule(props.moduleKey))',
+    );
     const projectLookup = host.indexOf('api.openProject(props.projectId)');
 
     expect(knownModuleBranch).toBeGreaterThan(0);
     expect(projectLookup).toBeGreaterThan(knownModuleBranch);
   });
+
+  it.each(['chess', 'checkers'] as const)(
+    'keeps a known %s route on the loading shell before server admission and Project Core checks',
+    (moduleKey) => {
+      const html = renderToStaticMarkup(
+        createElement(ModuleEditorHost, {
+          projectId: 'saved-game',
+          moduleKey,
+          returnTo: { kind: 'games' },
+          user: { id: 'player', displayName: 'Игрок', email: 'player@example.test' },
+          onBack: () => undefined,
+        }),
+      );
+      expect(html).toContain('class="app-boot-shell"');
+      expect(html).toContain('role="status"');
+      expect(html).toContain('aria-label="Открываем игру"');
+      expect(html).not.toContain('aria-label="Открываем рабочую среду"');
+    },
+  );
 });

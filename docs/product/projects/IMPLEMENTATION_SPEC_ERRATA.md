@@ -4,6 +4,13 @@
 **Applies to:** `docs/product/ASA_PROJECTS_IMPLEMENTATION_SPEC.md`  
 **Evidence:** `docs/product/ASA_PROJECTS_CURRENT_ARCHITECTURE_AUDIT.md` + `PROJ-A0-DELTA-2026-09-14.md`.
 
+**Owner correction, 2026-10-18:** DEC-PROJ-114/115 и
+`tasks/PROJ-R7-VISIBLE-PUBLICATION.md` заменяют обязательную legacy convergence
+и задают первый сквозной cutover. Сохранение старых публичных записей не требуется;
+сохранение Project Core и учебных данных обязательно. R7-01A/B уже обеспечивают
+exact-version publication writer, но legacy work/copy/image/revoke/visibility
+ещё не составляют безопасный новый public boundary.
+
 ---
 
 # 1. Почему этот файл существует

@@ -1,0 +1,27 @@
+# Arduino 682 PRIVATE controller storage size feasibility, 2026-10-25
+
+Dated selection evidence only; current.yaml remains canonical. Fresh main8a7dfdc02bad59d48c690825d770c2c5a01d3826. Read-only preflight has CP PASS, zero execution blockers and74 worktrees with zero dirty overlap on the selected three docs. Retained own untracked Temp and the previously coordinated two disjoint foreign workflow changes are preserved; neither is permission to bypass a real overlap. No source changes, publication or CI were performed by this docs author.
+
+## Evidence and limits
+
+Private unpublished functional f1e5aa30f4b388638924e8b6813235a5a9a369c8 changes controller and its spec only. NEW independent source review APPROVE_FUNCTIONAL_PRIVATE_FEASIBILITY_ONLY, report OS Temp/arduino-682-ci/93531edc/independent-epoch-opportunity-source-review.json SHA256095a0fe0477efa699d3fbea5d5a9a75bb621d0f7cc5159d88e664848078a4272. Independently127 controller tests PASS; author368 focused PASS. Publication remained budget-blocked. The f1 isolated es2022 module RAW proxy is+1069 bytes, not full Editor size. Historical exact935 Editor is221965/222000, margin35; this does not prove current or candidate fit.
+
+One read-only audit candidate is recorded in OS Temp/arduino-682-ci/93531edc/controller-private-storage-size-feasibility-audit.json, SHA25696b4a07f8b6999325b4fe2d9b6f842e048fb6a9ed374f531fd615f22926c1006. Actual Vite6.4.3 default targets are es2020,edge88,firefox78,chrome87,safari14. RAW module proxy includes retained enum object overhead: baseline13023→11728(-1295), private e6d14008→12533(-1475), transformed e6d490 below original baseline. F1 and full Editor were not measured. No gzip inference or full-fit promise is allowed.
+
+Audit typed consumer graph278 files has no external accesses/reflection/spread of the selected private fields, no short-key collision and a clean small computed-private TypeScript probe. Source inverse and compiled-class equivalence modulo renamed storage keys/compiler temporaries passed on baseline/e6d; constructor order and public snapshot keys were preserved. These proofs must be repeated for exact f1. JavaScript reflection can observe changed TS-private property names; no universal reflection equivalence is claimed.
+
+## One bounded private size slice
+
+Fresh private branch inherits this published canonical selection. Transplant the reviewed f1 two-path diff only after verifying current controller/spec baseline is unchanged; conflict STOP. Relative to f1, ONLY apps/web/src/electronics/live-simulation-worker-controller.ts changes. The complete apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts remains byte-identical f1, with all127 tests. Final candidate compared with main contains the two functional f1 paths; size-specific delta compared with f1 is controller-only.
+
+Use one readable local const enum PrivateSlot and exactly seven mappings: latestTarget→a; lastInputEventAtMicroseconds→b; horizonOffsetMicroseconds→c; pendingInputEvents→d; continuationTarget→e; canonicalDocument→f; generationId→g. Replace only their TS-private declarations and this-field accesses. Preserve f1 logic, epoch and reentrancy guards, startup/input/yield/normal retained-read behavior, host-read counts, callback identity, constructor order, public methods/API and public snapshot keys. No arbitrary short-name cleanup, whole-class rewrite, JS-private-field variant, target/config/tool/dependency/cap change, numeric/physics/clock/pacer/hook/Worker/tolerance/timeout/cadence/asset change or test weakening.
+
+Require exact-f1 consumer ownership/collision verification, source inverse byte equivalence or AST plus compiled-class equivalence, unchanged constructor/public snapshot behavior and bounded enum overhead. Run focused127 controller+165LED+76classroom, lint/format and type checks where available; entire unit blob must remain exact. Measure RAW proxy with actual configured/default targets, not a full local build. It remains an estimate. Unsafe/type/inverse failure or an unproven meaningful size candidate means STOP, not another automatic variant or cap raise.
+
+## Publication and acceptance boundary
+
+Docs light CP/taskrefs/format/diff → NEW independent docs review → ordinary main publication → automatic EXISTING General Governance on that exact published HEAD must PASS BEFORE source edits. This CI is pending until actually observed. Do not duplicate the full local governance or manually dispatch another governance run.
+
+Author freezes PRIVATE UNPUBLISHED source/self-review/evidence, then NEW independent exact source review. Conditional controller may only compose a measurement branch from reviewed functional/storage code plus exact935 diagnostic ports and unchanged original ten oracle inputs; obtain NEW composition review and focused checks before ONE justified existing strict CI. Never publish an intentionally red unit to main. No product-main integration or closure until all eight actual timing journeys and complete mixed/buttonSerial/StopReset, full required gates, actual RAW Editor<=222000 and NEW independent actual review.
+
+Native acceptance remains3of8PASS5FAIL; request593 source attribution and full C++ correctness are unproven. No release/deployment/owner acceptance claim. Preserve old546/R27 and all phase/epoch receipts, owner pending, blockers and foreign549/Classroom/AI state. No local Docker/browser/heavy build/DB/deploy/install.

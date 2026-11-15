@@ -1,5 +1,8 @@
+import { ordinaryLedVisualState } from './component-result-presentation';
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -7,9 +10,26 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
-import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
+import { flushSync } from 'react-dom';
+import type {
+  ElectronicsArduinoSerialProjection,
+  ElectronicsHcSr04EnvironmentSample,
+} from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
-import type { ComponentResult, ProductionStateValue, SchematicComponent, Terminal } from '../api';
+import { useCanvasAnnotations } from './use-canvas-annotations';
+import { SimulationPacing } from './simulation-pacing';
+import {
+  annotationOnlyDocumentChange,
+  createAnnotationRuntimeDocumentSelector,
+} from './workbench-annotations';
+import type {
+  ComponentResult,
+  ProductionStateValue,
+  SchematicComponent,
+  SchematicDocument,
+  SolveResult,
+  Terminal,
+} from '../api';
 import {
   catalogEntry,
   componentPointPosition,
@@ -44,6 +64,17 @@ import {
   type WireVertexAssistTarget,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
+import {
+  LedTemporalPresentation,
+  classroomRequestedHorizon,
+  sameOpticalFrame,
+  type LedPresentationFrame,
+} from './led-temporal-presentation';
+import type { LedAssetPreparation, LedAssetReadiness } from './ProductionComponentVisual';
+import {
+  NativeOpticalPresentation,
+  type NativeOpticalObservation,
+} from './native-optical-presentation';
 import {
   addComponentToDocument,
   componentsBoundToBreadboard,
@@ -89,9 +120,15 @@ import {
   type VertexDrag,
 } from './workbench-model';
 import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
-import { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import type {
+  ElectronicsLiveSimulationWorkerController,
+  LiveSimulationInputBudget,
+} from './live-simulation-worker-controller';
+import { loadSimulationWorkerController } from './load-simulation-worker-controller';
+import { electronicsColdStartBudgetMs } from './simulation-startup-budget';
 import {
   circuitStateMessage,
+  SimulationFailure,
   simulationFailureMessage,
   type SimulationStatusMessage,
 } from './simulation-failure';
@@ -108,11 +145,7 @@ import {
   createVisualFrame,
   translatedDragDocument,
 } from './workbench-drag-preview';
-import {
-  isEditableShortcutTarget,
-  resolveWorkbenchShortcut,
-  targetConsumesSpace,
-} from './workbench-shortcuts';
+import { bindWorkbenchShortcuts, type WorkbenchShortcutActions } from './workbench-shortcuts';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
@@ -126,8 +159,6 @@ function compactWorkbench(): boolean {
 const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
 const WIRE_DRAG_THRESHOLD_PX = 5;
 const DESKTOP_INITIAL_ZOOM = 1.25;
-const KEYBOARD_NUDGE_STEP = 5;
-const KEYBOARD_NUDGE_LARGE_STEP = 20;
 
 function emptyInitialViewport(): Viewport {
   if (compactWorkbench()) return DEFAULT_VIEWPORT;
@@ -140,13 +171,86 @@ function emptyInitialViewport(): Viewport {
   };
 }
 
-function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
-  if (result?.junctionState === 'reverse_blocking') return 'reverse';
-  if (result?.presentationState === 'failed') return 'burned';
-  if (result?.presentationState === 'destructive') {
-    return result.stressState === 'burned' ? 'burned' : 'overcurrent';
-  }
-  return result?.lit ? 'lit' : 'off';
+function isArduinoUno(component: SchematicComponent): boolean {
+  return component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno';
+}
+
+type LiveOpticalObservation = NativeOpticalObservation;
+
+type WorkbenchSerialProjection = ElectronicsArduinoSerialProjection & {
+  readonly streamGeneration?: string;
+};
+
+interface PendingOpticalObservation {
+  readonly frame: LedPresentationFrame;
+  readonly result: SolveResult;
+  readonly assets: ReadonlyMap<string, string>;
+  readonly readiness: Map<string, LedAssetReadiness>;
+}
+
+function recordOpticalAssetReadiness(
+  pending: PendingOpticalObservation | null,
+  event: LedAssetReadiness,
+): boolean {
+  if (
+    !pending ||
+    event.token !== pending.frame.token ||
+    event.asset !== pending.assets.get(event.componentId)
+  )
+    return false;
+  if (event.status === 'ready' && event.isCurrent())
+    pending.readiness.set(event.componentId, event);
+  else pending.readiness.delete(event.componentId);
+  return true;
+}
+
+function opticalAssetLeasesReady(pending: PendingOpticalObservation, active = false): boolean {
+  return [...pending.assets].every(([componentId, asset]) => {
+    const lease = pending.readiness.get(componentId);
+    return (
+      lease?.status === 'ready' &&
+      lease.token === pending.frame.token &&
+      lease.componentId === componentId &&
+      lease.asset === asset &&
+      lease.isCurrent() &&
+      (!active || lease.isActive())
+    );
+  });
+}
+
+function restorableOpticalObservation(
+  previous: LiveOpticalObservation | null,
+): LiveOpticalObservation | null {
+  // A single stale native resource invalidates the whole joint rollback vector.
+  return previous &&
+    [...previous.ledAssets.values()].every((lease) => lease.status === 'ready' && lease.isCurrent())
+    ? previous
+    : null;
+}
+
+function matchingOpticalValues(
+  previous: LiveOpticalObservation,
+  frame: LedPresentationFrame,
+  assets: ReadonlyMap<string, string>,
+): boolean {
+  return (
+    sameOpticalFrame(frame, previous.frame) &&
+    matchingNativeAssets(previous.ledAssets, assets, true)
+  );
+}
+
+function matchingNativeAssets(
+  leases: ReadonlyMap<string, LedAssetReadiness>,
+  assets: ReadonlyMap<string, string>,
+  active = false,
+): boolean {
+  return (
+    leases.size === assets.size &&
+    [...assets].every(([id, asset]) => {
+      const lease = leases.get(id);
+      return lease?.asset === asset && lease.isCurrent() && (!active || lease.isActive());
+    })
+  );
 }
 
 export function readLocalElectronicsViewport(projectId: string): Viewport | null {
@@ -182,8 +286,63 @@ function writeLocalElectronicsViewport(projectId: string, viewport: Viewport): v
   }
 }
 
+export type ElectronicsWorkbenchProjectHost = Pick<
+  ReturnType<typeof useWorkbenchProjectState>,
+  | 'project'
+  | 'document'
+  | 'serverRevision'
+  | 'getCurrentDocument'
+  | 'result'
+  | 'versions'
+  | 'status'
+  | 'saveStatus'
+  | 'saveError'
+  | 'saveIssue'
+  | 'localCopySaved'
+  | 'exportEmergencyCopy'
+  | 'saveBeforeLeave'
+  | 'notice'
+  | 'setNotice'
+  | 'simulationRunning'
+  | 'simulationStatus'
+  | 'confirmSimulationStarted'
+  | 'busy'
+  | 'projectTitle'
+  | 'setProjectTitle'
+  | 'canUndo'
+  | 'canRedo'
+  | 'undo'
+  | 'redo'
+  | 'commitDocument'
+  | 'saveNow'
+  | 'toggleSimulation'
+  | 'resetSimulation'
+  | 'checkpoint'
+  | 'renameProject'
+>;
+
+export interface ElectronicsWorkbenchHostOptions {
+  readonly runtimeInputEventLimit?: number;
+  /** A local host has no diagnostics backend; ordinary editors keep reporting. */
+  readonly reportSimulationDiagnostics?: boolean;
+  /** Embedded editors may scope keyboard commands to their active editing page. */
+  readonly keyboardShortcutsEnabled?: boolean;
+}
+
 export function useElectronicsWorkbench(projectId: string, userId: string, seatLearner = false) {
   const projectState = useWorkbenchProjectState(projectId, userId, seatLearner);
+  return useElectronicsWorkbenchHost(projectId, projectState);
+}
+
+/** The editor/controller is shared; each host owns only its document and persistence. */
+export function useElectronicsWorkbenchHost(
+  projectId: string,
+  projectState: ElectronicsWorkbenchProjectHost,
+  options: ElectronicsWorkbenchHostOptions = {},
+) {
+  const runtimeInputEventLimit = options.runtimeInputEventLimit;
+  const reportSimulationDiagnostics = options.reportSimulationDiagnostics !== false;
+  const keyboardShortcutsEnabled = options.keyboardShortcutsEnabled !== false;
   const {
     project,
     document,
@@ -232,12 +391,22 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   };
 
   const undo = () => {
+    if (simulationRunning) {
+      if (projectUndo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectUndo();
   };
 
   const redo = () => {
+    if (simulationRunning) {
+      if (projectRedo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectRedo();
@@ -246,53 +415,265 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   const documentMutationEpoch = (): number => documentMutationEpochRef.current;
 
   const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
+  const [runtimeInputBudget, setRuntimeInputBudget] = useState<LiveSimulationInputBudget | null>(
+    null,
+  );
+  const runtimeInputBudgetRef = useRef<LiveSimulationInputBudget | null>(null);
+  const annotationRuntimeSelector = useRef<ReturnType<
+    typeof createAnnotationRuntimeDocumentSelector
+  > | null>(null);
+  if (!annotationRuntimeSelector.current)
+    annotationRuntimeSelector.current = createAnnotationRuntimeDocumentSelector();
+  const electricalDocument = annotationRuntimeSelector.current(document);
   const runtimeDocument = useMemo(
-    () => applyRuntimeComponentOverrides(document, simulationRunning, runtimeOverrides),
-    [document, runtimeOverrides, simulationRunning],
+    () => applyRuntimeComponentOverrides(electricalDocument, simulationRunning, runtimeOverrides),
+    [electricalDocument, runtimeOverrides, simulationRunning],
   );
 
   useEffect(() => {
     if (!simulationRunning) setRuntimeOverrides({});
   }, [simulationRunning]);
 
-  function setRuntimeComponentOverride(componentId: string, patch: RuntimeComponentOverride): void {
-    setRuntimeOverrides((current) => {
-      const previous = current[componentId];
-      return {
-        ...current,
-        [componentId]: {
-          ...previous,
-          ...patch,
-          ...(patch.stateProperties
-            ? {
-                stateProperties: {
-                  ...previous?.stateProperties,
-                  ...patch.stateProperties,
-                },
-              }
-            : {}),
-        },
-      };
-    });
-  }
+  const setRuntimeComponentOverride = useCallback(
+    (componentId: string, patch: RuntimeComponentOverride): void => {
+      setRuntimeOverrides((current) => {
+        const previous = current[componentId];
+        return {
+          ...current,
+          [componentId]: {
+            ...previous,
+            ...patch,
+            ...(patch.stateProperties
+              ? {
+                  stateProperties: {
+                    ...previous?.stateProperties,
+                    ...patch.stateProperties,
+                  },
+                }
+              : {}),
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const simulationStartedAtRef = useRef<number | null>(null);
-  const [requestedHorizonMicroseconds, setRequestedHorizonMicroseconds] = useState(0);
-  const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
+  const simulationHostOffsetMicrosecondsRef = useRef(0);
+  const normalHostClockRef = useRef(false);
+  // Host demand is not a new electrical frame. Keep the clock out of React
+  // state so a pending Worker does not redraw the whole editor every 10 ms.
+  const requestedHorizonMicrosecondsRef = useRef(0);
   const [generationPending, setGenerationPending] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
-  const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
+  // The presenter belongs to this mounted workbench. Do not construct a new,
+  // discarded history owner on every React render.
+  const [ledPresentation] = useState(() => new LedTemporalPresentation());
+  const [nativeOpticalPresentation] = useState(() => new NativeOpticalPresentation());
+  const [simulationPacing] = useState(() => new SimulationPacing());
+  const simulationPaceCommandRef = useRef<((rate: number) => void) | null>(null);
+  const settleSimulationPauseRef = useRef<(() => void) | null>(null);
+  function setSimulationRate(rate: number): void {
+    if (!simulationPacing.request(rate)) return;
+    if (simulationPaceCommandRef.current) simulationPaceCommandRef.current(rate);
+    else if (rate === 0) simulationPacing.settlePause();
+  }
+  const setCommittedHorizonMicroseconds = (value: number) =>
+    nativeOpticalPresentation.setClock(value);
+  const setLiveObservation = (value: LiveOpticalObservation | null) =>
+    nativeOpticalPresentation.setObservation(value);
+  const setLedAssetPreparation = (
+    value: ReturnType<NativeOpticalPresentation['getSnapshot']>['preparation'],
+  ) => nativeOpticalPresentation.setPreparation(value);
+  const setRollbackLedAssets = (value: ReadonlyMap<string, LedAssetReadiness> | null) =>
+    nativeOpticalPresentation.setRollback(value);
+  const ledAssetReadinessRef = useRef<((event: LedAssetReadiness) => void) | null>(null);
+  const opticalPublicationRef = useRef<{
+    readonly next: LiveOpticalObservation;
+    readonly previous: LiveOpticalObservation | null;
+    readonly pending: PendingOpticalObservation;
+    acknowledge: (wallMicroseconds: number) => boolean;
+    retry: (previous: LiveOpticalObservation | null) => void;
+  } | null>(null);
+  function finishNativeLayout(liveObservation: LiveOpticalObservation | null) {
+    const publication = opticalPublicationRef.current;
+    if (!publication || liveObservation !== publication.next) return;
+    // This is a DOM-commit ACK, not a claim that the browser has painted. The
+    // presenter permits another distinct vector on the next shared RAF, leaving
+    // this RAF's native commit a paint opportunity before the next publication.
+    if (
+      opticalAssetLeasesReady(publication.pending, true) &&
+      publication.acknowledge(Math.round(window.performance.now() * 1000))
+    ) {
+      opticalPublicationRef.current = null;
+      nativeOpticalPresentation.commit(publication.next);
+      settleSimulationPauseRef.current?.();
+      // This state change is deliberate: native owners must receive a render
+      // that retires the protected rollback lease even without another result.
+      setRollbackLedAssets(null);
+    } else {
+      // The previous lease remains protected until this parent decision. If it
+      // is itself invalid, clearing the entire LED/L vector is the safe fallback.
+      const previous = restorableOpticalObservation(publication.previous);
+      opticalPublicationRef.current = null;
+      setRollbackLedAssets(null);
+      publication.retry(previous);
+      setLiveObservation(previous);
+    }
+  }
+  useLayoutEffect(() => {
+    nativeOpticalPresentation.setBarrier((snapshot) => {
+      if (nativeOpticalPresentation.getSnapshot() === snapshot)
+        finishNativeLayout(snapshot.observation);
+    });
+    return () => nativeOpticalPresentation.setBarrier(null);
+  }, [nativeOpticalPresentation]);
+  const liveResult = nativeOpticalPresentation.getSnapshot().committed?.result ?? null;
   const [arduinoSerialByBoard, setArduinoSerialByBoard] = useState<
     Readonly<Record<string, ElectronicsArduinoSerialProjection>>
   >({});
   const simulationWorkerRef = useRef<ElectronicsLiveSimulationWorkerController | null>(null);
-  if (simulationWorkerRef.current === null) {
-    simulationWorkerRef.current = new ElectronicsLiveSimulationWorkerController();
-  }
+  const simulationCommandRef = useRef<
+    ((command: (controller: ElectronicsLiveSimulationWorkerController) => void) => void) | null
+  >(null);
   const runtimeDocumentRef = useRef(runtimeDocument);
-  runtimeDocumentRef.current = runtimeDocument;
   const resetSimulationRef = useRef(resetSimulation);
-  resetSimulationRef.current = resetSimulation;
+  const setRuntimeHcSr04EnvironmentSample = useCallback(
+    (componentId: string, sample: ElectronicsHcSr04EnvironmentSample): boolean => {
+      const session = committedHostSessionRef.current;
+      if (
+        !simulationRunning ||
+        !session?.active ||
+        session.projectId !== projectId ||
+        runtimeInputBudgetRef.current?.exhausted ||
+        !sample ||
+        (sample.kind !== 'echo' && sample.kind !== 'no-echo') ||
+        (sample.kind === 'echo' &&
+          (!Number.isFinite(sample.distanceMeters) ||
+            sample.distanceMeters < 0.02 ||
+            sample.distanceMeters > 4))
+      )
+        return false;
+      const component = runtimeDocumentRef.current?.components.find(
+        (item) => item.id === componentId,
+      );
+      const entry = component ? catalogEntry(component) : null;
+      if (
+        component?.componentTypeId !== 'ultrasonic-hc-sr04' ||
+        !entry?.enabled ||
+        !entry.simulationSupported ||
+        entry.key !== component.componentTypeId
+      )
+        return false;
+      const properties: Readonly<Record<string, ProductionStateValue>> =
+        sample.kind === 'echo'
+          ? { distanceMeters: sample.distanceMeters, echoAvailable: true }
+          : { echoAvailable: false };
+      setRuntimeOverrides((current) => {
+        const previous = current[componentId];
+        const echoAvailable =
+          previous?.stateProperties?.echoAvailable ??
+          component.stateProperties?.echoAvailable ??
+          true;
+        const distanceMeters =
+          previous?.stateProperties?.distanceMeters ?? component.stateProperties?.distanceMeters;
+        if (
+          echoAvailable === (sample.kind === 'echo') &&
+          (sample.kind === 'no-echo' || distanceMeters === sample.distanceMeters)
+        )
+          return current;
+        // One override produces one same-time canonical input batch. The
+        // scheduler observes its distance and availability together at Trig.
+        // Compare with queued overrides, so multiple samples in one React batch
+        // retain their call order instead of deduplicating against a stale render.
+        return {
+          ...current,
+          [componentId]: {
+            ...previous,
+            stateProperties: { ...previous?.stateProperties, ...properties },
+          },
+        };
+      });
+      return true;
+    },
+    [projectId, simulationRunning],
+  );
+  const setRuntimeSensorDistance = useCallback(
+    (componentId: string, distanceMeters: number): boolean => {
+      const session = committedHostSessionRef.current;
+      if (
+        !simulationRunning ||
+        !session?.active ||
+        session.projectId !== projectId ||
+        runtimeInputBudgetRef.current?.exhausted ||
+        !Number.isFinite(distanceMeters) ||
+        distanceMeters < 0.02 ||
+        distanceMeters > 4
+      )
+        return false;
+      const component = runtimeDocumentRef.current?.components.find(
+        (item) => item.id === componentId,
+      );
+      const entry = component ? catalogEntry(component) : null;
+      if (
+        !component ||
+        !entry?.enabled ||
+        !entry.simulationSupported ||
+        (component.componentTypeId !== 'ultrasonic-hc-sr04' &&
+          component.componentTypeId !== 'ultrasonic-sensor') ||
+        entry.key !== component.componentTypeId
+      )
+        return false;
+      if (component.componentTypeId === 'ultrasonic-hc-sr04')
+        return setRuntimeHcSr04EnvironmentSample(componentId, { kind: 'echo', distanceMeters });
+      if (component.stateProperties?.distanceMeters === distanceMeters) return true;
+      setRuntimeComponentOverride(componentId, { stateProperties: { distanceMeters } });
+      return true;
+    },
+    [projectId, setRuntimeComponentOverride, setRuntimeHcSr04EnvironmentSample, simulationRunning],
+  );
+  const nativePreparationSourceIdentity = useMemo(
+    () =>
+      JSON.stringify(
+        (runtimeDocument?.components ?? [])
+          .filter(isArduinoUno)
+          .map((component) => [component.id, component.stateProperties?.arduinoSource]),
+      ),
+    [runtimeDocument],
+  );
+  const nativePreparationSourceRef = useRef({
+    identity: nativePreparationSourceIdentity,
+  });
+  const cancelNativePreparationRef = useRef<(() => void) | null>(null);
+  const committedHostSessionRef = useRef<{
+    projectId: string;
+    running: boolean;
+    active: boolean;
+  } | null>(null);
+  useLayoutEffect(() => {
+    // A suspended render must not publish its document to the active timer.
+    runtimeDocumentRef.current = runtimeDocument;
+    resetSimulationRef.current = resetSimulation;
+    if (nativePreparationSourceRef.current.identity !== nativePreparationSourceIdentity) {
+      nativePreparationSourceRef.current = {
+        identity: nativePreparationSourceIdentity,
+      };
+      cancelNativePreparationRef.current?.();
+    }
+  });
+  useLayoutEffect(() => {
+    // Suspense can detach/reveal layout effects without restarting the passive
+    // interval. Keep the same logical run identity across that lifecycle.
+    let session = committedHostSessionRef.current;
+    if (!session || session.projectId !== projectId || session.running !== simulationRunning) {
+      session = { projectId, running: simulationRunning, active: false };
+      committedHostSessionRef.current = session;
+    }
+    session.active = simulationRunning;
+    return () => {
+      session.active = false;
+    };
+  }, [projectId, simulationRunning]);
 
   async function toggleSimulation(): Promise<void> {
     setSimulationMessage(null);
@@ -300,16 +681,57 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     await toggleProjectSimulation();
   }
 
+  function clearDisplayedObservation(): void {
+    setRollbackLedAssets(null);
+    setLiveObservation(null);
+  }
+
+  function resetHostClock(): void {
+    simulationStartedAtRef.current = null;
+    normalHostClockRef.current = false;
+    requestedHorizonMicrosecondsRef.current = 0;
+    simulationPacing.reset();
+  }
+
+  function readHostHorizonMicroseconds(): number | null {
+    const startedAt = simulationStartedAtRef.current;
+    if (startedAt === null) return null;
+    if (simulationPacing.explicit) {
+      const committed = simulationWorkerRef.current?.committedHorizonMicroseconds ?? 0;
+      const horizon = simulationPacing.horizon(
+        Math.round(window.performance.now() * 1000),
+        committed,
+      );
+      return horizon === null
+        ? null
+        : simulationHostOffsetMicrosecondsRef.current +
+            (normalHostClockRef.current
+              ? horizon
+              : Math.max(
+                  committed,
+                  Math.min(horizon, ledPresentation.presentedMicroseconds + 50_000),
+                ));
+    }
+    const elapsed = Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
+    return normalHostClockRef.current
+      ? simulationHostOffsetMicrosecondsRef.current + elapsed
+      : classroomRequestedHorizon(
+          simulationHostOffsetMicrosecondsRef.current,
+          elapsed,
+          ledPresentation.presentedMicroseconds,
+        );
+  }
+
   function stopSimulationForCatalogPlacement(): void {
     if (!simulationRunning) return;
     simulationWorkerRef.current?.stop();
     resetSimulation();
     setRuntimeOverrides({});
-    simulationStartedAtRef.current = null;
-    setRequestedHorizonMicroseconds(0);
+    resetHostClock();
     setCommittedHorizonMicroseconds(0);
     setSimulationMessage(null);
-    setLiveResult(null);
+    ledPresentation.reset();
+    clearDisplayedObservation();
     setArduinoSerialByBoard({});
   }
 
@@ -321,98 +743,658 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   useEffect(() => {
     if (!simulationRunning) {
-      simulationStartedAtRef.current = null;
-      setRequestedHorizonMicroseconds(0);
+      resetHostClock();
       setCommittedHorizonMicroseconds(0);
-      setLiveResult(null);
+      ledPresentation.reset();
+      clearDisplayedObservation();
       setArduinoSerialByBoard({});
       return;
     }
 
-    simulationStartedAtRef.current = window.performance.now();
-    setRequestedHorizonMicroseconds(0);
+    // Initialization does not advance model time. The first complete time-zero
+    // observation below starts this generation's host clock exactly once.
+    resetHostClock();
+    simulationHostOffsetMicrosecondsRef.current = 0;
+    const session = committedHostSessionRef.current;
+    let active = true;
     const interval = window.setInterval(() => {
-      const startedAt = simulationStartedAtRef.current;
-      if (startedAt !== null) {
-        setRequestedHorizonMicroseconds(
-          Math.max(0, Math.round((window.performance.now() - startedAt) * 1000)),
-        );
+      // Layout cleanup invalidates the old project/run before passive interval
+      // cleanup, including a Stop or route commit while another render waits.
+      if (!active || !session?.active || committedHostSessionRef.current !== session) return;
+      const horizon = readHostHorizonMicroseconds();
+      const currentDocument = runtimeDocumentRef.current;
+      if (horizon !== null && currentDocument) {
+        requestedHorizonMicrosecondsRef.current = horizon;
+        simulationWorkerRef.current?.update(currentDocument, horizon);
       }
-    }, 100);
-    return () => window.clearInterval(interval);
-  }, [simulationRunning]);
+    }, 10);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [projectId, simulationRunning]);
 
   useEffect(() => {
-    const controller = simulationWorkerRef.current;
-    if (!controller) return;
+    let controller = simulationWorkerRef.current;
     if (!simulationRunning) {
-      controller.stop();
+      controller?.stop();
       return;
     }
     const initialDocument = runtimeDocumentRef.current;
     if (!initialDocument) return;
-    setLiveResult(null);
+    ledPresentation.reset();
+    clearDisplayedObservation();
     setArduinoSerialByBoard({});
-    controller.start(projectId, initialDocument, {
-      onGenerationPending: () => {
-        setGenerationPending(true);
-        setCommittedHorizonMicroseconds(0);
-        setLiveResult(null);
-        setSimulationMessage(null);
-      },
-      onResult: (nextResult) => {
-        setGenerationPending(false);
-        setLiveResult(nextResult);
-        setSimulationMessage(circuitStateMessage(nextResult));
-        confirmSimulationStarted();
-      },
-      onCommittedHorizon: setCommittedHorizonMicroseconds,
-      onSerialProjection: (serial) => {
-        setArduinoSerialByBoard(
-          Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
-            Record<string, ElectronicsArduinoSerialProjection>
-          >,
+    const session = committedHostSessionRef.current;
+    let active = true;
+    const currentSession = () => active && committedHostSessionRef.current === session;
+    let latestResult: SolveResult | null = null;
+    let latestResultDocument: SchematicDocument | null = null;
+    let latestCommittedHorizon = 0;
+    let generationConfirmed = false;
+    // Time to the first accepted result includes lazy module loading and Worker startup.
+    // It is deliberately independent of the canonical Arduino clock and Run timing.
+    const startupBudgetMs = electronicsColdStartBudgetMs(
+      import.meta.env.VITE_ASA_ELECTRONICS_STARTUP_PROFILE,
+    );
+    let startupDeadline: number | null = null;
+    const clearStartupDeadline = () => {
+      if (startupDeadline !== null) window.clearTimeout(startupDeadline);
+      startupDeadline = null;
+    };
+    let previousSerial: readonly WorkbenchSerialProjection[] = [];
+    let lastCircuitMessage: SimulationStatusMessage | null = null;
+    let pending: PendingOpticalObservation | null = null;
+    let displayed: LiveOpticalObservation | null = null;
+    let publishing = false;
+    let animationFrame: number | null = null;
+    let recordedReanchors = ledPresentation.reanchorCount;
+    let queuedNativePreparation: { document: SchematicDocument } | null = null;
+    let nativePreparation: { generation: number; assets: ReadonlyMap<string, string> } | null =
+      null;
+    let nativePreparationSequence = 0;
+    let nativePreparationSource = nativePreparationSourceRef.current;
+    let hostTransitionPending = false;
+    let paceTransition = 0;
+    const settlePause = () => {
+      if (!pending && !publishing && displayed && generationConfirmed)
+        simulationPacing.settlePause();
+    };
+    settleSimulationPauseRef.current = settlePause;
+    const changePace = (rate: number) => {
+      if (!currentSession()) return;
+      const transition = ++paceTransition;
+      const wall = Math.round(window.performance.now() * 1000);
+      ledPresentation.setPlaybackRate(rate, wall);
+      if (rate === 0) {
+        controller?.setPaused(true);
+        cancelNativePreparation();
+        settlePause();
+      } else {
+        hostTransitionPending = controller?.hasPendingAdvance ?? false;
+        controller?.setPaused(false, (committed) => {
+          if (transition === paceTransition) simulationPacing.reanchor(committed, wall);
+        });
+        if (!controller) simulationPacing.reanchor(latestCommittedHorizon, wall);
+      }
+    };
+    simulationPaceCommandRef.current = changePace;
+    const cancelNativePreparation = () => {
+      queuedNativePreparation = null;
+      if (nativePreparation) {
+        nativePreparation = null;
+        // Retire only the speculative token. A real pending/display/rollback
+        // publication retains its existing ownership and cancellation path.
+        setLedAssetPreparation(null);
+      }
+    };
+    cancelNativePreparationRef.current = cancelNativePreparation;
+    const cancelOpticalPublication = () => {
+      pending = null;
+      displayed = null;
+      publishing = false;
+      latestResult = null;
+      latestResultDocument = null;
+      latestCommittedHorizon = 0;
+      queuedNativePreparation = null;
+      nativePreparation = null;
+      opticalPublicationRef.current = null;
+      setRollbackLedAssets(null);
+      setLedAssetPreparation(null);
+    };
+    const observeReanchor = () => {
+      const count = ledPresentation.reanchorCount;
+      if (count === recordedReanchors) return;
+      recordedReanchors = count;
+      const name = 'asa-electronics-led-playout-reanchor';
+      window.performance.clearMarks?.(name);
+      window.performance.mark?.(name, { detail: { count } });
+    };
+    let queuedReadiness: PendingOpticalObservation | null = null;
+    const acceptAssetReadiness = (event: LedAssetReadiness) => {
+      if (!currentSession()) return;
+      recordOpticalAssetReadiness(pending, event);
+      const candidate = pending;
+      if (!candidate || queuedReadiness === candidate) return;
+      queuedReadiness = candidate;
+      // Native readiness can arrive during child render/layout. Leave that
+      // stack before checking the same frame's leases and parent layout ACK.
+      queueMicrotask(() => {
+        if (queuedReadiness !== candidate) return;
+        queuedReadiness = null;
+        if (pending === candidate) publishReady(candidate);
+      });
+    };
+    ledAssetReadinessRef.current = acceptAssetReadiness;
+    const candidateAssets = (
+      frame: Pick<LedPresentationFrame, 'brightness'>,
+      solved: SolveResult,
+      document = runtimeDocumentRef.current,
+    ) => {
+      const assets = new Map<string, string>();
+      for (const component of document?.components ?? []) {
+        if (component.kind !== 'led') continue;
+        const entry = catalogEntry(component);
+        if (!entry || entry.key !== 'led-5mm') continue;
+        const electrical = solved.components.find((value) => value.componentId === component.id);
+        const brightness = Math.round(
+          clamp(frame.brightness.get(component.id) ?? electrical?.brightness ?? 0, 0, 100),
         );
-      },
-      onFailure: (failure) => {
+        const state = ordinaryLedVisualState(electrical);
+        const visualState =
+          state === 'off' || state === 'lit' ? (brightness > 0 ? 'lit' : 'off') : state;
+        assets.set(
+          component.id,
+          visualAsset(
+            entry,
+            {
+              ...component,
+              stateProperties: { ...component.stateProperties, ledBrightness: brightness },
+            },
+            visualState,
+          ),
+        );
+      }
+      return assets;
+    };
+    const queueNativePreparation = () => {
+      const document = latestResultDocument;
+      if (
+        !document ||
+        (simulationPacing.read().rate === 0 && displayed !== null) ||
+        pending ||
+        publishing ||
+        queuedNativePreparation?.document === document ||
+        nativePreparationSource !== nativePreparationSourceRef.current
+      )
+        return;
+      const ticket = { document };
+      queuedNativePreparation = ticket;
+      // Worker receipt can precede the visibility boundary by the whole
+      // lookahead window. Start the real mounted request now, not after the
+      // cursor reaches its edge. The microtask also leaves React layout/ACK
+      // before flushing, and is invalidated by cancellation or a new source.
+      queueMicrotask(() => {
+        if (queuedNativePreparation !== ticket) return;
+        queuedNativePreparation = null;
+        const current = () =>
+          currentSession() &&
+          (simulationPacing.read().rate !== 0 || displayed === null) &&
+          session?.active === true &&
+          runtimeDocumentRef.current === document &&
+          latestResultDocument === document &&
+          nativePreparationSource === nativePreparationSourceRef.current &&
+          !pending &&
+          !publishing &&
+          opticalPublicationRef.current === null &&
+          ledPresentation.preparedFrame === null;
+        if (!current() || !latestResult) return;
+        const initial = ledPresentation.prepareInitialFrame();
+        if (initial) {
+          // A resident dark H0 need not consume the first real display RAF.
+          // The same native leases and parent layout still own its sole ACK.
+          const assets = candidateAssets(initial, latestResult, document);
+          const candidate: PendingOpticalObservation = {
+            frame: initial,
+            result: latestResult,
+            assets,
+            readiness: new Map(),
+          };
+          pending = candidate;
+          nativePreparation = null;
+          flushSync(() => {
+            if (
+              currentSession() &&
+              session?.active &&
+              runtimeDocumentRef.current === document &&
+              nativePreparationSource === nativePreparationSourceRef.current &&
+              pending === candidate &&
+              ledPresentation.preparedFrame === initial
+            )
+              setLedAssetPreparation({ token: initial.token, assets });
+          });
+          publishReady(candidate);
+          return;
+        }
+        const frame = ledPresentation.nextNativeAssetFrameAt(
+          Math.round(window.performance.now() * 1000),
+        );
+        if (!frame) return;
+        const assets = candidateAssets(frame, latestResult, document);
+        if (assets.size === 0) return;
+        if (displayed && matchingNativeAssets(displayed.ledAssets, assets)) return;
+        if (
+          nativePreparation?.generation === frame.generation &&
+          assets.size === nativePreparation.assets.size &&
+          [...assets].every(([id, asset]) => nativePreparation!.assets.get(id) === asset)
+        )
+          return;
+        flushSync(() => {
+          if (!current()) return;
+          nativePreparation = { generation: frame.generation, assets };
+          setLedAssetPreparation({
+            token: `native:${frame.generation}:${++nativePreparationSequence}`,
+            assets,
+          });
+        });
+        // Native readiness for this token is intentionally not a display ACK.
+        // The real RAF later requests a fresh lease for the same mounted node.
+      });
+    };
+    const publish = (candidate: PendingOpticalObservation) => {
+      const next: LiveOpticalObservation = {
+        result: candidate.result,
+        frame: candidate.frame,
+        ledAssets: new Map(candidate.readiness),
+      };
+      publishing = true;
+      opticalPublicationRef.current = {
+        next,
+        previous: displayed,
+        pending: candidate,
+        acknowledge: (wallMicroseconds) => {
+          if (
+            !currentSession() ||
+            !session?.active ||
+            pending !== candidate ||
+            !ledPresentation.acknowledgeFrame(candidate.frame, wallMicroseconds, true)
+          )
+            return false;
+          displayed = next;
+          pending = null;
+          publishing = false;
+          queueNativePreparation();
+          return true;
+        },
+        retry: (previous) => {
+          displayed = previous;
+          publishing = false;
+        },
+      };
+      // Keep exactly the prior complete native vector alive until parent ACK.
+      setRollbackLedAssets(displayed?.ledAssets ?? null);
+      nativeOpticalPresentation.setObservation(next, true);
+    };
+    const publishReady = (candidate: PendingOpticalObservation) => {
+      const ready = () =>
+        currentSession() &&
+        session?.active === true &&
+        nativePreparationSource === nativePreparationSourceRef.current &&
+        !publishing &&
+        pending === candidate &&
+        ledPresentation.preparedFrame === candidate.frame &&
+        ledPresentation.canPublishDistinctFrame &&
+        opticalAssetLeasesReady(candidate);
+      if (!ready()) return;
+      // A flush may also commit a pending Stop/source change or Suspense work.
+      // Recheck the exact pending frame and native leases inside publication;
+      // the unchanged parent layout effect still owns ACK or whole-vector rollback.
+      flushSync(() => {
+        if (ready()) publish(candidate);
+      });
+    };
+    const presentLeds = () => {
+      if (!currentSession()) return;
+      animationFrame = window.requestAnimationFrame(presentLeds);
+      if (!session?.active) return;
+      try {
+        const wallMicroseconds = Math.round(window.performance.now() * 1000);
+        const frame = ledPresentation.prepareFrame(wallMicroseconds);
+        observeReanchor();
+        if (!frame && ledPresentation.displayedFrame === null) {
+          // Quality/nonfatal source loss or missing coverage can reset the
+          // presenter when no asset is pending. Never leave its old vector lit.
+          if (pending || displayed || publishing || nativePreparation || queuedNativePreparation) {
+            pending = null;
+            displayed = null;
+            publishing = false;
+            queuedNativePreparation = null;
+            nativePreparation = null;
+            opticalPublicationRef.current = null;
+            setLedAssetPreparation(null);
+            clearDisplayedObservation();
+          }
+          return;
+        }
+        if (publishing) return;
+        if (pending) {
+          if (frame !== pending.frame) {
+            // Invalid/generation-changing data cancels the old token, never promotes it.
+            pending = null;
+            queuedNativePreparation = null;
+            nativePreparation = null;
+            setLedAssetPreparation(null);
+            if (!frame) {
+              displayed = null;
+              clearDisplayedObservation();
+              return;
+            }
+          } else {
+            publishReady(pending);
+            return;
+          }
+        }
+        if (!frame || !latestResult) return;
+        const assets = candidateAssets(frame, latestResult);
+        if (displayed && matchingOpticalValues(displayed, frame, assets)) {
+          // No visible value/resource changes: the already committed native vector
+          // is a witness for this later time within the same solved held phase.
+          if (ledPresentation.acknowledgeFrame(frame, wallMicroseconds)) {
+            const changedResult = displayed.result !== latestResult;
+            displayed = {
+              ...displayed,
+              frame,
+              result: latestResult,
+            };
+            if (changedResult) setLiveObservation(displayed);
+            queueNativePreparation();
+          }
+          return;
+        }
+        const candidate: PendingOpticalObservation = {
+          frame,
+          result: latestResult,
+          assets,
+          readiness: new Map(),
+        };
+        pending = candidate;
+        nativePreparation = null;
+        if (assets.size === 0) {
+          setLedAssetPreparation({ token: frame.token, assets });
+          publish(candidate);
+          return;
+        }
+        // Resident native resources can issue their new lease in this layout.
+        // A genuinely unready resource keeps the same pending frame for a later RAF.
+        flushSync(() => {
+          if (
+            currentSession() &&
+            session?.active &&
+            pending === candidate &&
+            ledPresentation.preparedFrame === frame
+          )
+            setLedAssetPreparation({ token: frame.token, assets });
+        });
+        publishReady(candidate);
+      } finally {
+        // Optical commit never flushes a queued whole-Workbench metric update.
+        if (currentSession() && nativePreparationSource === nativePreparationSourceRef.current)
+          setCommittedHorizonMicroseconds(latestCommittedHorizon);
+      }
+    };
+    animationFrame = window.requestAnimationFrame(presentLeds);
+    // Only committed document updates and explicit user commands enter this
+    // queue. Host ticks remain idle until the complete initial ready frame.
+    const pendingCommands: Array<(worker: ElectronicsLiveSimulationWorkerController) => void> = [];
+    const dispatch = (command: (worker: ElectronicsLiveSimulationWorkerController) => void) => {
+      if (!currentSession()) return;
+      if (controller) command(controller);
+      else pendingCommands.push(command);
+    };
+    simulationCommandRef.current = dispatch;
+    const fail = (failure: SimulationFailure) => {
+      if (!currentSession()) return;
+      clearStartupDeadline();
+      active = false;
+      pendingCommands.length = 0;
+      if (reportSimulationDiagnostics)
         reportClientDiagnostic('simulation_failed', 'electronics', {
           phase: 'simulation',
           category: failure.category,
           failureCode: failure.code,
         });
-        setGenerationPending(false);
-        resetSimulationRef.current();
-        setLiveResult(null);
-        setArduinoSerialByBoard({});
-        setSimulationMessage(simulationFailureMessage(failure));
-      },
-    });
-    return () => controller.stop();
-  }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
+      setGenerationPending(false);
+      resetHostClock();
+      resetSimulationRef.current();
+      ledPresentation.reset();
+      cancelOpticalPublication();
+      setLiveObservation(null);
+      setArduinoSerialByBoard({});
+      setSimulationMessage(simulationFailureMessage(failure));
+    };
+    const armStartupDeadline = () => {
+      clearStartupDeadline();
+      startupDeadline = window.setTimeout(() => {
+        if (!currentSession() || generationConfirmed) return;
+        fail(
+          new SimulationFailure(
+            'technical',
+            'startup-timeout',
+            `Подготовка моделирования не завершилась за ${startupBudgetMs / 1000} секунд. Повторите запуск.`,
+          ),
+        );
+      }, startupBudgetMs);
+    };
+    const start = (worker: ElectronicsLiveSimulationWorkerController) => {
+      if (!currentSession()) return;
+      controller = worker;
+      simulationWorkerRef.current = worker;
+      runtimeInputBudgetRef.current = null;
+      setRuntimeInputBudget(null);
+      worker.start(projectId, initialDocument, {
+        ...(runtimeInputEventLimit === undefined
+          ? {}
+          : {
+              inputEventLimit: runtimeInputEventLimit,
+              onInputBudget: (budget: LiveSimulationInputBudget) => {
+                if (!currentSession()) return;
+                runtimeInputBudgetRef.current = budget;
+                setRuntimeInputBudget(budget);
+              },
+            }),
+        readHostHorizonMicroseconds: () => {
+          return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
+        },
+        onGenerationPending: () => {
+          if (!currentSession()) return;
+          // A real Reset starts a new generation and receives a new budget.
+          // The first generation keeps the deadline armed before module import.
+          if (generationConfirmed) armStartupDeadline();
+          simulationStartedAtRef.current = null;
+          normalHostClockRef.current = false;
+          generationConfirmed = false;
+          lastCircuitMessage = null;
+          setGenerationPending(true);
+          setCommittedHorizonMicroseconds(0);
+          ledPresentation.reset();
+          if (simulationPacing.explicit) {
+            const rate = simulationPacing.read().rate;
+            ledPresentation.setPlaybackRate(rate, Math.round(window.performance.now() * 1000));
+            if (rate === 0) {
+              simulationPacing.request(0);
+              worker.setPaused(true);
+            }
+          }
+          cancelOpticalPublication();
+          // Source-only edits intentionally keep the controller generation,
+          // and onResult does not identify the dispatch source. Until a real
+          // Reset/Start establishes ownership again, disable speculative warm
+          // work after any committed edit, including an A -> B -> A change.
+          // The ordinary RAF display path and Worker semantics are unchanged.
+          nativePreparationSource = nativePreparationSourceRef.current;
+          setLiveObservation(null);
+          setSimulationMessage(null);
+        },
+        onInitialReady: (hostOffsetMicroseconds) => {
+          if (!currentSession() || simulationStartedAtRef.current !== null) return;
+          simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
+          requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
+          simulationStartedAtRef.current = window.performance.now();
+          if (simulationPacing.explicit)
+            simulationPacing.reanchor(0, Math.round(simulationStartedAtRef.current * 1000));
+        },
+        onResult: (nextResult, ledTemporal, clockProfileId) => {
+          if (!currentSession()) return;
+          latestResult = nextResult;
+          latestResultDocument = runtimeDocumentRef.current;
+          if (ledTemporal) {
+            normalHostClockRef.current = false;
+            ledPresentation.accept(
+              nextResult,
+              ledTemporal,
+              Math.round(window.performance.now() * 1000),
+            );
+          } else {
+            if (
+              clockProfileId === 'electrothermal-events-v2' ||
+              (clockProfileId === undefined &&
+                runtimeDocumentRef.current?.components.some(isArduinoUno))
+            ) {
+              fail(
+                new SimulationFailure(
+                  'technical',
+                  'invalid-response',
+                  'Arduino observation omitted its accepted temporal history.',
+                ),
+              );
+              return;
+            }
+            // Accepted generic profiles retain their original host clock. The
+            // classroom pace/cap belongs to an event-history producer; an
+            // unknown capability remains bounded until explicitly supported.
+            normalHostClockRef.current =
+              clockProfileId === 'dc-inputs-v1' ||
+              clockProfileId === 'rc-inputs-v2' ||
+              clockProfileId === 'electrothermal-v1';
+            // Generic clock profiles (including mixed Arduino circuits) have
+            // real canonical endpoints without event histories. Publish those
+            // through the same RAF/native-asset barrier, without inventing samples.
+            ledPresentation.acceptSnapshot(nextResult, latestCommittedHorizon);
+          }
+          observeReanchor();
+          const message = circuitStateMessage(nextResult);
+          if (message !== lastCircuitMessage) {
+            lastCircuitMessage = message;
+            setSimulationMessage(message);
+          }
+          if (!generationConfirmed) {
+            generationConfirmed = true;
+            clearStartupDeadline();
+            setGenerationPending(false);
+            confirmSimulationStarted();
+          }
+          queueNativePreparation();
+        },
+        onCommittedHorizon: (horizon) => {
+          if (!currentSession()) return;
+          latestCommittedHorizon = horizon;
+          if (hostTransitionPending) {
+            hostTransitionPending = false;
+            simulationPacing.reanchor(horizon, Math.round(window.performance.now() * 1000));
+          }
+        },
+        onSerialProjection: (serial: readonly WorkbenchSerialProjection[]) => {
+          if (!currentSession() || (serial.length === 0 && previousSerial.length === 0)) return;
+          const [entry] = serial;
+          const [previous] = previousSerial;
+          if (
+            serial.length === 1 &&
+            previousSerial.length === 1 &&
+            entry &&
+            previous &&
+            entry.tx.length === 0 &&
+            previous.tx.length === 0 &&
+            entry.componentId === previous.componentId &&
+            entry.streamGeneration === previous.streamGeneration &&
+            entry.begun === previous.begun &&
+            entry.baudRate === previous.baudRate &&
+            entry.rxPendingBytes === previous.rxPendingBytes
+          )
+            return;
+
+          previousSerial = serial;
+          setArduinoSerialByBoard(
+            Object.fromEntries(serial.map((entry) => [entry.componentId, entry])),
+          );
+        },
+        onFailure: fail,
+      });
+      for (const command of pendingCommands) {
+        if (!currentSession()) break;
+        command(worker);
+      }
+      pendingCommands.length = 0;
+    };
+    // Arm before loading a lazy controller, not after the first Worker response.
+    armStartupDeadline();
+    setGenerationPending(true);
+    if (controller) start(controller);
+    else {
+      void loadSimulationWorkerController()
+        .then((Controller) => {
+          if (currentSession()) start(new Controller());
+        })
+        .catch(() =>
+          fail(
+            new SimulationFailure('technical', 'worker-start', 'Simulation module could not load.'),
+          ),
+        );
+    }
+    return () => {
+      active = false;
+      clearStartupDeadline();
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      pendingCommands.length = 0;
+      ledPresentation.reset();
+      cancelOpticalPublication();
+      if (ledAssetReadinessRef.current === acceptAssetReadiness)
+        ledAssetReadinessRef.current = null;
+      if (cancelNativePreparationRef.current === cancelNativePreparation)
+        cancelNativePreparationRef.current = null;
+      if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
+      if (simulationPaceCommandRef.current === changePace) simulationPaceCommandRef.current = null;
+      if (settleSimulationPauseRef.current === settlePause) settleSimulationPauseRef.current = null;
+      controller?.stop();
+    };
+  }, [
+    confirmSimulationStarted,
+    projectId,
+    reportSimulationDiagnostics,
+    runtimeInputEventLimit,
+    setNotice,
+    simulationRunning,
+  ]);
 
   useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
-    simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds);
-  }, [requestedHorizonMicroseconds, runtimeDocument, simulationRunning]);
+    const horizon = requestedHorizonMicrosecondsRef.current;
+    simulationCommandRef.current?.((worker) => worker.update(runtimeDocument, horizon));
+  }, [runtimeDocument, simulationRunning]);
 
   function sendArduinoSerialRx(boardId: string, text: string): void {
     if (!simulationRunning || !text) return;
-    simulationWorkerRef.current?.sendSerialRx(boardId, text, requestedHorizonMicroseconds);
+    const horizon = requestedHorizonMicrosecondsRef.current;
+    simulationCommandRef.current?.((worker) => worker.sendSerialRx(boardId, text, horizon));
   }
 
   const result = useMemo(
     () =>
       simulationRunning
         ? liveResult
-        : calculateLiveSimulation(
-            runtimeDocument,
-            persistedResult,
-            false,
-            requestedHorizonMicroseconds / 1000,
-          ),
-    [liveResult, persistedResult, requestedHorizonMicroseconds, runtimeDocument, simulationRunning],
+        : calculateLiveSimulation(runtimeDocument, persistedResult, false, 0),
+    [liveResult, persistedResult, runtimeDocument, simulationRunning],
   );
-  usePiezoAudio(runtimeDocument, result, simulationRunning);
+  usePiezoAudio(runtimeDocument, nativeOpticalPresentation, simulationRunning);
 
   useEffect(() => {
     if (!document || simulationRunning || status !== 'ready') return;
@@ -460,6 +1442,27 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   const [selection, setSelection] = useState<Selection>(null);
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
+  const annotations = useCanvasAnnotations({
+    document,
+    selection,
+    clipboard: clipboardSelection,
+    setSelection,
+    setClipboard: setClipboardSelection,
+    getCurrentDocument,
+    commit: commitDocument,
+    notice: setNotice,
+    nextId,
+    center: visibleCenter,
+    scale: () => {
+      const rect = stageRef.current?.getBoundingClientRect();
+      return rect && rect.width > 0 && rect.height > 0
+        ? Math.min(
+            STAGE_WIDTH / viewport.zoom / rect.width,
+            STAGE_HEIGHT / viewport.zoom / rect.height,
+          )
+        : 1;
+    },
+  });
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
@@ -583,24 +1586,29 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function componentDragDelta(drag: ComponentDrag, client: Point): Point {
-    if (Math.hypot(client.x - drag.startClient.x, client.y - drag.startClient.y) < 3)
-      return { x: 0, y: 0 };
     const stage = stageRef.current;
-    if (!stage) return { x: 0, y: 0 };
-    const world = clientToWorld(
-      client.x,
-      client.y,
-      stage.getBoundingClientRect(),
-      panViewportRef.current ?? viewport,
-      STAGE_WIDTH,
-      STAGE_HEIGHT,
-    );
-    const bounds = drag.bounds;
-    if (!bounds) return { x: 0, y: 0 };
-    return {
-      x: clamp(world.x - drag.offset.x - drag.startedAt.x, -980 - bounds.minX, 4980 - bounds.maxX),
-      y: clamp(world.y - drag.offset.y - drag.startedAt.y, -980 - bounds.minY, 3980 - bounds.maxY),
-    };
+    if (
+      stage &&
+      drag.bounds &&
+      !(Math.hypot(client.x - drag.startClient.x, client.y - drag.startClient.y) < 3)
+    ) {
+      const world = clientToWorld(
+        client.x,
+        client.y,
+        stage.getBoundingClientRect(),
+        panViewportRef.current ?? viewport,
+        STAGE_WIDTH,
+        STAGE_HEIGHT,
+      );
+      // The panned field can contain saved parts outside the original grid.
+      // Translate by the pointer motion without snapping them back into that grid.
+      const delta = {
+        x: world.x - drag.offset.x - drag.startedAt.x,
+        y: world.y - drag.offset.y - drag.startedAt.y,
+      };
+      if ([delta.x, delta.y].every(Number.isFinite)) return delta;
+    }
+    return { x: 0, y: 0 };
   }
 
   function previewWire(
@@ -907,14 +1915,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function duplicateSelected(): void {
+    if (annotations.duplicate()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || selection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
-    const duplicated = duplicateComponentInDocument(
-      currentDocument,
-      selection,
-      nextId(selection.id),
-    );
+    const duplicated = duplicateComponentInDocument(currentDocument, selection);
     if (!duplicated) return;
     commitDocument(duplicated.document, 'Создана копия элемента.');
     const duplicatedIds = duplicated.components.map((component) => component.id);
@@ -926,20 +1931,18 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function copySelected(): void {
+    if (annotations.copy()) return;
     if (selection?.kind !== 'component') return;
     setClipboardSelection({ ...selection, ids: [...selection.ids] });
     setNotice(selection.ids.length > 1 ? 'Компоненты скопированы.' : 'Компонент скопирован.');
   }
 
   function pasteCopied(): void {
+    if (annotations.paste()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || clipboardSelection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
-    const duplicated = duplicateComponentInDocument(
-      currentDocument,
-      clipboardSelection,
-      nextId(clipboardSelection.id),
-    );
+    const duplicated = duplicateComponentInDocument(currentDocument, clipboardSelection);
     if (!duplicated) {
       setClipboardSelection(null);
       return;
@@ -955,6 +1958,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function removeSelection(): void {
+    if (annotations.remove()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || !selection) return;
     if (!structuralEditAllowed()) return;
@@ -1348,10 +2352,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   function resetArduinoRuntime(componentId: string): void {
     const component = document?.components.find((item) => item.id === componentId);
-    if (
-      !component ||
-      (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
-    ) {
+    if (!component || !isArduinoUno(component)) {
       return;
     }
     if (!simulationRunning) {
@@ -1360,10 +2361,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     const currentRuntimeDocument = runtimeDocumentRef.current;
     if (!currentRuntimeDocument) return;
-    simulationStartedAtRef.current = window.performance.now();
-    setRequestedHorizonMicroseconds(0);
-    setLiveResult(null);
-    simulationWorkerRef.current?.restart(currentRuntimeDocument);
+    resetHostClock();
+    simulationHostOffsetMicrosecondsRef.current = 0;
+    ledPresentation.reset();
+    clearDisplayedObservation();
+    simulationCommandRef.current?.((worker) => worker.restart(currentRuntimeDocument));
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
 
@@ -1511,7 +2513,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function startWireTerminalPointer(
-    event: PointerEvent<SVGCircleElement>,
+    event: PointerEvent<SVGElement>,
     componentId: string,
     terminal: Terminal,
   ): void {
@@ -1925,6 +2927,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function beginStagePointer(event: PointerEvent<SVGSVGElement>): void {
+    if ((event.target as Element | null)?.closest?.('[data-canvas-annotation]')) return;
     if (event.pointerType === 'touch') {
       if (pinchRef.current && !pinchRef.current.ids.includes(event.pointerId)) {
         event.preventDefault();
@@ -1962,14 +2965,16 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     placeCatalogComponent(event);
   }
 
-  // Pointer capture and overlapping breadboard holes make DOM hit order
-  // unsuitable as electrical truth. Resolve against the actual rendered terminal
-  // circles, then choose the nearest eligible centre deterministically.
+  // Pointer capture hides native event targets. Check the actual SVG fill in
+  // local coordinates after fast screen-bounds rejection, then rank by centre.
   function terminalTargetAt(clientX: number, clientY: number): TerminalRef | null {
     const stage = stageRef.current;
     if (!stage) return null;
+    const pointer = stage.createSVGPoint();
+    pointer.x = clientX;
+    pointer.y = clientY;
     const candidates = [
-      ...stage.querySelectorAll<SVGGraphicsElement>(
+      ...stage.querySelectorAll<SVGGeometryElement>(
         '[data-terminal-component-id][data-terminal-id]',
       ),
     ]
@@ -1983,20 +2988,19 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         if (radiusX <= 0 || radiusY <= 0) return [];
         const dx = clientX - (rect.left + rect.right) / 2;
         const dy = clientY - (rect.top + rect.bottom) / 2;
-        const normalizedDistance = Math.hypot(dx / radiusX, dy / radiusY);
-        if (normalizedDistance > 1) return [];
+        if (Math.abs(dx) > radiusX || Math.abs(dy) > radiusY) return [];
+        const matrix = element.getScreenCTM();
+        if (!matrix || !element.isPointInFill(pointer.matrixTransform(matrix.inverse()))) return [];
         return [
           {
             componentId,
             terminal: terminal as Terminal,
-            normalizedDistance,
-            distance: Math.hypot(dx, dy),
+            distance: dx * dx + dy * dy,
           },
         ];
       })
       .sort(
         (a, b) =>
-          a.normalizedDistance - b.normalizedDistance ||
           a.distance - b.distance ||
           a.componentId.localeCompare(b.componentId) ||
           String(a.terminal).localeCompare(String(b.terminal)),
@@ -2528,29 +3532,40 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     });
   }
 
+  function fitSceneScaled(scale: number): void {
+    const fitted =
+      !document || (document.components.length === 0 && !document.annotations?.length)
+        ? emptyInitialViewport()
+        : (() => {
+            const bounds = sceneBounds(document, true);
+            const rect = stageRef.current?.getBoundingClientRect();
+            return bounds && rect
+              ? fitViewportToScreen(
+                  bounds,
+                  rect,
+                  STAGE_WIDTH,
+                  STAGE_HEIGHT,
+                  MIN_ZOOM,
+                  MAX_ZOOM,
+                  compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
+                )
+              : DEFAULT_VIEWPORT;
+          })();
+    const factor = Number.isFinite(scale) ? clamp(scale, 0.1, 1) : 1;
+    const zoom = clamp(fitted.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    // Preserve the fitted scene center while reducing apparent component size.
+    applyViewport({
+      zoom,
+      x: fitted.x + STAGE_WIDTH / (2 * fitted.zoom) - STAGE_WIDTH / (2 * zoom),
+      y: fitted.y + STAGE_HEIGHT / (2 * fitted.zoom) - STAGE_HEIGHT / (2 * zoom),
+    });
+  }
   function fitScene(): void {
-    if (!document || document.components.length === 0) {
-      applyViewport(emptyInitialViewport());
-      return;
-    }
-    const bounds = sceneBounds(document);
-    const rect = stageRef.current?.getBoundingClientRect();
-    applyViewport(
-      bounds && rect
-        ? fitViewportToScreen(
-            bounds,
-            rect,
-            STAGE_WIDTH,
-            STAGE_HEIGHT,
-            MIN_ZOOM,
-            MAX_ZOOM,
-            compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
-          )
-        : DEFAULT_VIEWPORT,
-    );
+    fitSceneScaled(1);
   }
 
   function nudgeSelection(dx: number, dy: number): void {
+    if (annotations.nudge(dx, dy)) return;
     const current = getCurrentDocument();
     if (!current || selection?.kind !== 'component') return;
     const selectedIds = selection.ids;
@@ -2587,33 +3602,26 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     commitDocument(next, 'Положение изменено с клавиатуры.');
   }
 
-  const shortcutActionsRef = useRef<{
-    readonly undo: () => unknown;
-    readonly redo: () => unknown;
-    readonly copy: () => void;
-    readonly paste: () => void;
-    readonly duplicate: () => void;
-    readonly remove: () => void;
-    readonly rotate: () => void;
-    readonly selectAll: () => void;
-    readonly nudge: (dx: number, dy: number) => void;
-    readonly cancel: () => void;
-  } | null>(null);
+  const shortcutActionsRef = useRef<WorkbenchShortcutActions | null>(null);
   shortcutActionsRef.current = {
     undo,
     redo,
     copy: copySelected,
     paste: pasteCopied,
     duplicate: duplicateSelected,
-    remove: removeSelection,
+    delete: removeSelection,
     rotate: rotateSelected,
-    selectAll: () => {
+    mirror: () => mirrorSelected('horizontal'),
+    simulate: () => {
+      if (!busy) void toggleSimulationWithAudio();
+    },
+    'select-all': () => {
       const current = getCurrentDocument();
       const ids = current?.components.map((component) => component.id) ?? [];
       setSelection(ids.length > 0 ? { kind: 'component', id: ids[0]!, ids } : null);
     },
     nudge: nudgeSelection,
-    cancel: () => {
+    escape: () => {
       cancelInteraction();
       setCatalogPlacementState(null);
       setPendingTerminal(null);
@@ -2626,45 +3634,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   };
 
   useEffect(() => {
-    function keyDown(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space' && !targetConsumesSpace(event.target)) {
-        spacePressedRef.current = true;
-      }
-      if (isEditableShortcutTarget(event.target)) return;
-
-      const command = resolveWorkbenchShortcut(event);
-      const actions = shortcutActionsRef.current;
-      if (!command || !actions) return;
-      if (command !== 'escape') event.preventDefault();
-
-      if (command === 'undo') actions.undo();
-      else if (command === 'redo') actions.redo();
-      else if (command === 'copy') actions.copy();
-      else if (command === 'paste') actions.paste();
-      else if (command === 'duplicate') actions.duplicate();
-      else if (command === 'delete') actions.remove();
-      else if (command === 'rotate') actions.rotate();
-      else if (command === 'select-all') actions.selectAll();
-      else if (command === 'nudge-up')
-        actions.nudge(0, -(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP));
-      else if (command === 'nudge-down')
-        actions.nudge(0, event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP);
-      else if (command === 'nudge-left')
-        actions.nudge(-(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP), 0);
-      else if (command === 'nudge-right')
-        actions.nudge(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP, 0);
-      else if (command === 'escape') actions.cancel();
-    }
-    function keyUp(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space') spacePressedRef.current = false;
-    }
-    window.addEventListener('keydown', keyDown);
-    window.addEventListener('keyup', keyUp);
+    spacePressedRef.current = false;
+    if (!keyboardShortcutsEnabled) return;
+    const unbind = bindWorkbenchShortcuts(shortcutActionsRef, spacePressedRef);
     return () => {
-      window.removeEventListener('keydown', keyDown);
-      window.removeEventListener('keyup', keyUp);
+      unbind();
+      spacePressedRef.current = false;
     };
-  }, []);
+  }, [keyboardShortcutsEnabled]);
 
   const filteredCatalog = useMemo(() => {
     const query = libraryQuery.trim().toLocaleLowerCase('ru');
@@ -2752,10 +3729,59 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       .join(', ');
   }
 
+  function preparedComponentLedAsset(
+    component: SchematicComponent,
+  ): LedAssetPreparation | undefined {
+    if (!simulationRunning || component.kind !== 'led') return undefined;
+    const ledAssetPreparation = nativeOpticalPresentation.getSnapshot().preparation;
+    const asset = ledAssetPreparation?.assets.get(component.id);
+    return asset && ledAssetPreparation ? { token: ledAssetPreparation.token, asset } : undefined;
+  }
+
+  function committedComponentLedAsset(
+    component: SchematicComponent,
+  ): LedAssetReadiness | undefined {
+    return simulationRunning
+      ? nativeOpticalPresentation.getSnapshot().committed?.ledAssets.get(component.id)
+      : undefined;
+  }
+
+  function rollbackComponentLedAsset(component: SchematicComponent): LedAssetReadiness | undefined {
+    const publication = opticalPublicationRef.current;
+    const { observation: liveObservation, rollback: rollbackLedAssets } =
+      nativeOpticalPresentation.getSnapshot();
+    if (
+      !simulationRunning ||
+      !publication ||
+      liveObservation !== publication.next ||
+      rollbackLedAssets !== publication.previous?.ledAssets
+    )
+      return undefined;
+    return rollbackLedAssets?.get(component.id);
+  }
+
+  function onLedAssetReadiness(event: LedAssetReadiness): void {
+    ledAssetReadinessRef.current?.(event);
+  }
+
+  function componentArduinoLActive(component: SchematicComponent): boolean | undefined {
+    if (!simulationRunning || !isArduinoUno(component)) return undefined;
+    return nativeOpticalPresentation
+      .getSnapshot()
+      .committed?.frame.arduinoLStates.get(component.id);
+  }
+
   function componentLedBrightness(component: SchematicComponent): number {
     if (component.kind !== 'led' || !simulationRunning) return 0;
+    const electrical = nativeOpticalPresentation.resultMap().get(component.id);
+    const liveObservation = nativeOpticalPresentation.getSnapshot().committed;
+    if (!electrical) return 0;
     return Math.round(
-      clamp(runtimePresentationResultByComponent.get(component.id)?.brightness ?? 0, 0, 100),
+      clamp(
+        liveObservation?.frame.brightness.get(component.id) ?? electrical.brightness ?? 0,
+        0,
+        100,
+      ),
     );
   }
 
@@ -2773,6 +3799,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }, [diagnosticsByComponent]);
 
   function componentVisualState(component: SchematicComponent): ComponentVisualState {
+    const runtimePresentationResultByComponent = nativeOpticalPresentation.resultMap();
+    const liveObservation = nativeOpticalPresentation.getSnapshot().committed;
     if (component.kind === 'switch') return component.state ? 'on' : 'default';
     if (component.kind === 'button') return component.state ? 'pressed' : 'default';
     if (component.kind === 'lamp' && simulationRunning) {
@@ -2791,7 +3819,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       }
       return runtimePresentationResultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
-    return ordinaryLedVisualState(componentResult);
+    const state = ordinaryLedVisualState(componentResult);
+    const optical = liveObservation?.frame.brightness.get(component.id);
+    return optical !== undefined && (state === 'off' || state === 'lit')
+      ? optical > 0
+        ? 'lit'
+        : 'off'
+      : state;
   }
 
   // While a pan is in flight the element carries a viewBox React did not write.
@@ -2814,7 +3848,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     project,
     document: runtimeDocument,
     serverRevision,
-    result,
+    get result() {
+      return simulationRunning
+        ? (nativeOpticalPresentation.getSnapshot().committed?.result ?? null)
+        : result;
+    },
+    nativeOpticalPresentation,
+    simulationPacing,
+    setSimulationRate,
     versions,
     status,
     saveStatus,
@@ -2835,10 +3876,17 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
+    runtimeInputBudget,
+    setRuntimeSensorDistance,
+    setRuntimeHcSr04EnvironmentSample,
     arduinoSerialByBoard,
     sendArduinoSerialRx,
-    simulationTimeMs: requestedHorizonMicroseconds / 1000,
-    committedSimulationTimeMs: committedHorizonMicroseconds / 1000,
+    get simulationTimeMs() {
+      return (nativeOpticalPresentation.getSnapshot().committed?.frame.atMicroseconds ?? 0) / 1000;
+    },
+    get committedSimulationTimeMs() {
+      return nativeOpticalPresentation.readClock() / 1000;
+    },
     simulationStatus: simulationRunning && generationPending ? 'starting' : simulationStatus,
     simulationMessage,
     libraryOpen,
@@ -2861,7 +3909,15 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     duplicateSelected,
     copySelected,
     pasteCopied,
-    hasClipboard: clipboardSelection?.kind === 'component',
+    hasClipboard:
+      clipboardSelection?.kind === 'component' || clipboardSelection?.kind === 'annotation',
+    annotations,
+    annotationWorldPoint: toWorld,
+    addCanvasText: () => {
+      cancelInteraction();
+      setPendingTerminal(null);
+      annotations.add();
+    },
     removeSelection,
     removeWireVertexAt,
     rotateSelected,
@@ -2904,6 +3960,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     handleWheel,
     zoomBy,
     fitScene,
+    fitSceneScaled,
     placeCatalogComponent,
     saveNow,
     toggleSimulation: toggleSimulationWithAudio,
@@ -2916,13 +3973,22 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     selectedEntry,
     selectedFamily,
     resultByComponent,
-    runtimePresentationResultByComponent,
+    get runtimePresentationResultByComponent() {
+      return simulationRunning
+        ? nativeOpticalPresentation.resultMap()
+        : runtimePresentationResultByComponent;
+    },
     terminalConnectionCount,
     terminalConnectionLabel,
     diagnosticsByComponent,
     errorDiagnosticComponentIds,
     componentVisualState,
     componentLedBrightness,
+    componentArduinoLActive,
+    preparedComponentLedAsset,
+    committedComponentLedAsset,
+    rollbackComponentLedAsset,
+    onLedAssetReadiness,
     viewBox,
     pendingStart,
     busy,

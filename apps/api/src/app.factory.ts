@@ -1,5 +1,8 @@
+import { emitApplicationLog } from './application-log-store.js';
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
+import { observeHttpTerminal, type HttpTerminalOutcome } from './http-observation.js';
+import { clientAddressDiagnostics } from './client-address.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { BlockList, isIP } from 'node:net';
 import { basename, join, resolve } from 'node:path';
@@ -13,9 +16,15 @@ import pg from 'pg';
 import { createRuntimeMetrics } from '@asa-lab/observability';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SeatContextUseCase } from './seat-context.js';
+import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
+import { AnalyticsDeliveryQueue } from './analytics-delivery-queue.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
+import {
+  runSessionDatabaseScope,
+  sessionDatabaseDiagnostics,
+} from './session-database-diagnostics.js';
 import { noteRequestReceipt } from './request-receipt.js';
 import { TOKENS } from './tokens.js';
 import { runtimeBuildMetadata } from './build-metadata.js';
@@ -23,6 +32,8 @@ import { logSubsystem, safeLogPath } from './log-subsystems.js';
 import {
   diagnosticContext,
   requestFailures,
+  requestAdmissionDiagnostics,
+  requestValidationReasons,
   recordServerFailure,
   ServerDiagnosticsFilter,
 } from './server-diagnostics.js';
@@ -33,7 +44,10 @@ import {
   resolveIsolatedTestWebOrigin,
   resolveLocalApiOrigin,
 } from './origin-policy.js';
-import { MutationAbuseProtection } from './abuse-protection.js';
+import { createMutationSessionResolver, MutationAbuseProtection } from './abuse-protection.js';
+import { requestMutationAdmission } from './mutation-session-proof.js';
+import { registerLearningFileTransport } from './learning-file-transport.js';
+import { registerAiAttachmentTransport } from './ai-attachments/transport.js';
 import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
   applyBlocksRuntimeCors,
@@ -78,7 +92,7 @@ const SECURITY_HEADERS = {
     "worker-src 'self' blob:",
     "manifest-src 'self'",
   ].join('; '),
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   'X-Content-Type-Options': 'nosniff',
@@ -121,7 +135,12 @@ export function cacheControlFor(fileName: string): string {
 
 export function shouldServeSpaDocument(path: string): boolean {
   return (
-    path === '/' || path === '/max-login' || path === '/max-login/' || path.startsWith('/projects/')
+    path === '/' ||
+    path === '/max-login' ||
+    path === '/max-login/' ||
+    path === '/telegram-login' ||
+    path === '/telegram-login/' ||
+    path.startsWith('/projects/')
   );
 }
 
@@ -142,10 +161,13 @@ function shouldLogRequests(explicit: boolean | undefined): boolean {
 }
 
 export interface ApiFactoryOptions {
+  readonly authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
   /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
   readonly pool?: pg.Pool | null;
   /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
   readonly analyticsPool?: pg.Pool | null;
+  /** Independent optional intake; injected compositions default disabled rather than sharing critical pools. */
+  readonly acquisitionPool?: pg.Pool | null;
   /** Directory with the built web SPA; defaults to apps/web/dist. */
   readonly webDist?: string | null;
   /** Canonical browser origin allowed to call mutation endpoints. */
@@ -161,8 +183,13 @@ export interface ApiFactoryOptions {
 function positiveInteger(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === '') return fallback;
-  const value = Number.parseInt(raw, 10);
-  if (!Number.isInteger(value) || value <= 0) {
+  const value = Number(raw);
+  if (
+    !/^[0-9]+$/.test(raw) ||
+    !Number.isSafeInteger(value) ||
+    value <= 0 ||
+    value > 2_147_483_647
+  ) {
     throw new Error(`${name} must be a positive integer, got: ${raw}`);
   }
   return value;
@@ -220,12 +247,18 @@ export async function createApiApp(
   let createdApp: NestFastifyApplication | undefined;
   let metrics: ReturnType<typeof createRuntimeMetrics> | undefined;
   let analytics: ProductAnalyticsService | undefined;
+  let acquisition: ProductAnalyticsService | undefined;
   let cleanupPromise: Promise<void> | undefined;
   const cleanup = (): Promise<void> =>
     (cleanupPromise ??= (async () => {
       const errors: unknown[] = [];
       try {
         if (analytics) await boundedClose(() => analytics!.shutdown(), 6000);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        if (acquisition) await boundedClose(() => acquisition!.shutdown(), 6000);
       } catch (error) {
         errors.push(error);
       }
@@ -256,10 +289,40 @@ export async function createApiApp(
               })
             : null;
     owned.track(analyticsPool, 'analytics');
+    const acquisitionPool =
+      options.acquisitionPool !== undefined
+        ? options.acquisitionPool
+        : options.pool !== undefined || options.analyticsPool === null
+          ? null
+          : process.env['APP_DATABASE_URL']
+            ? new pg.Pool({
+                connectionString: process.env['APP_DATABASE_URL'],
+                ...analyticsPoolSettings(),
+              })
+            : null;
+    owned.track(acquisitionPool, 'acquisition');
+    if (!pool && acquisitionPool) throw new Error('acquisition_requires_main_database');
     assertTrustedProxyConfiguration();
     if (!pool && analyticsPool) throw new Error('analytics_requires_main_database');
-    metrics = createRuntimeMetrics();
+    const logRevision = runtimeBuildMetadata().revision;
+    const alertRevision =
+      /^[a-f0-9]{7,40}$/i.test(logRevision) || logRevision === 'development'
+        ? logRevision
+        : 'unknown';
+    metrics = createRuntimeMetrics((event) => {
+      emitApplicationLog(
+        `${JSON.stringify({ time: new Date().toISOString(), revision: alertRevision, ...event })}\n`,
+      );
+    });
     analytics = new ProductAnalyticsService(analyticsPool);
+    acquisition = new ProductAnalyticsService(
+      acquisitionPool,
+      new AnalyticsDeliveryQueue(acquisitionPool !== null, Date.now, (value) => {
+        emitApplicationLog(
+          `${JSON.stringify({ ...value, pipeline: 'acquisition-observations' })}\n`,
+        );
+      }),
+    );
     const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
     const allowedLocalApiOrigin = resolveLocalApiOrigin(
       options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
@@ -276,7 +339,14 @@ export async function createApiApp(
     ];
     const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
     const app = await NestFactory.create<NestFastifyApplication>(
-      AppModule.forPool(pool, { productAnalytics: analytics, runtimeMetrics: metrics }),
+      AppModule.forPool(pool, {
+        productAnalytics: analytics,
+        acquisitionAnalytics: acquisition,
+        runtimeMetrics: metrics,
+        ...(options.authProviderOptions
+          ? { authProviderOptions: options.authProviderOptions }
+          : {}),
+      }),
       adapter,
       {
         logger: new SafeNestLogger(),
@@ -309,6 +379,8 @@ export async function createApiApp(
     fastify.addHook('onClose', cleanup);
     const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
     registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
+    registerAiAttachmentTransport(fastify);
+    registerLearningFileTransport(fastify);
     await fastify.register(fastifyCookie);
 
     fastify.addHook('onSend', async (request, reply, payload) => {
@@ -337,52 +409,98 @@ export async function createApiApp(
 
     const runtimeMetrics = metrics;
     const logRequests = shouldLogRequests(options.logRequests);
-    const logRevision = runtimeBuildMetadata().revision;
     app.useGlobalFilters(new ServerDiagnosticsFilter(app.getHttpAdapter(), logRevision, pool));
     fastify.addHook('onError', async (request, _reply, error) => {
       if (!requestFailures.has(request))
         recordServerFailure(error, request, error.statusCode ?? 500, logRevision, pool);
     });
-    const mutationAbuseProtection = new MutationAbuseProtection(async (kind, token) =>
-      kind === 'account'
-        ? (await app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token)) !== null
-        : (await app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token)) !== null,
+    const mutationAbuseProtection = new MutationAbuseProtection(
+      createMutationSessionResolver(
+        {
+          resolve: (token) =>
+            app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token),
+        },
+        {
+          resolve: (token) => app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token),
+          resolveExisting: (token) =>
+            app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolveExisting(token),
+        },
+      ),
     );
     const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
-    fastify.addHook('onRequest', async (request) => {
+    fastify.addHook('onRequest', (request, _reply, done) => runSessionDatabaseScope(request, done));
+    const terminals = new WeakMap<object, (outcome: HttpTerminalOutcome) => boolean>();
+    fastify.addHook('onRequest', async (request, reply) => {
       runtimeMetrics.requestStarted();
       const path = (request.raw.url ?? '/').split('?')[0]!;
-      if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client')
-        process.stdout.write(
-          `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), ...diagnosticContext(request) })}\n`,
-        );
-    });
-
-    fastify.addHook('onResponse', async (request, reply) => {
-      const durationMs = Math.round(reply.elapsedTime);
-      runtimeMetrics.requestFinished(reply.statusCode, durationMs);
-      if (logRequests) {
-        const path = (request.raw.url ?? '/').split('?')[0];
-        process.stdout.write(
-          `${JSON.stringify({
-            time: new Date().toISOString(),
-            kind: 'http_response',
-            requestId: request.id,
-            revision: logRevision,
-            method: request.method,
-            path: safeLogPath(path),
-            subsystem: logSubsystem('api', path),
-            status: reply.statusCode,
-            durationMs,
-            errorCode: requestFailures.get(request),
-            ...diagnosticContext(request),
-          })}\n`,
-        );
+      const addressResolution = clientAddressDiagnostics(request);
+      if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client') {
+        try {
+          emitApplicationLog(
+            `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), addressResolution, ...diagnosticContext(request) })}\n`,
+          );
+        } catch {
+          /* Logging failure must not turn a product request into an error. */
+        }
       }
+      terminals.set(
+        request,
+        observeHttpTerminal(request, reply, (outcome) => {
+          const durationMs = Math.round(reply.elapsedTime);
+          runtimeMetrics.requestFinished(
+            outcome === 'response' ? reply.statusCode : undefined,
+            durationMs,
+          );
+          if (logRequests) {
+            const path = (request.raw.url ?? '/').split('?')[0];
+            const sessionDatabase = sessionDatabaseDiagnostics(request);
+            const databaseTrouble =
+              sessionDatabase &&
+              (sessionDatabase.failures > 0 ||
+                sessionDatabase.poolAcquireMs >= 250 ||
+                sessionDatabase.queryRoundTripMs >= 250);
+            emitApplicationLog(
+              `${JSON.stringify({
+                time: new Date().toISOString(),
+                kind: outcome === 'response' ? 'http_response' : 'http_request_ended',
+                ...(outcome === 'response'
+                  ? {}
+                  : {
+                      level: 'warn',
+                      outcome,
+                      delivery: 'disconnected',
+                      mutationOutcome: 'unknown',
+                    }),
+                requestId: request.id,
+                revision: logRevision,
+                method: request.method,
+                path: safeLogPath(path),
+                subsystem: logSubsystem('api', path),
+                ...(outcome === 'response' ? { status: reply.statusCode } : {}),
+                durationMs,
+                errorCode: requestFailures.get(request),
+                reasonCode: requestValidationReasons.get(request),
+                sessionDatabase,
+                addressResolution,
+                admission: requestAdmissionDiagnostics.get(request),
+                mutationAdmission: requestMutationAdmission.get(request),
+                ...(databaseTrouble
+                  ? { eventLoopDelaySinceStartMs: runtimeMetrics.snapshot(null).eventLoopDelayMs }
+                  : {}),
+                ...diagnosticContext(request),
+              })}\n`,
+            );
+          }
+        }),
+      );
+    });
+    fastify.addHook('onResponse', async (request) => {
+      terminals.get(request)?.('response');
     });
 
     fastify.addHook('onRequest', async (request, reply) => {
+      mutationAbuseProtection.observe(request);
       noteRequestReceipt(request);
       void reply.header('x-request-id', request.id);
       const path = (request.raw.url ?? '/').split('?')[0];
@@ -431,7 +549,11 @@ export async function createApiApp(
       // Runtime mutations use short-lived bearer authority and their own bounded
       // capability/upload budgets. Do not collapse a whole classroom behind one
       // school-NAT IP into the generic browser mutation limiter.
-      if (!runtimePath && path !== '/api/auth/max/webhook') {
+      if (
+        !runtimePath &&
+        path !== '/api/auth/max/webhook' &&
+        path !== '/api/auth/telegram/webhook'
+      ) {
         const allowed = isAllowedMutationOrigin({
           origin: request.headers.origin,
           allowedWebOrigin,

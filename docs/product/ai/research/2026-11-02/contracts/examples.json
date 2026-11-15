@@ -1,0 +1,1056 @@
+{
+  "description": "Structural examples only; not provider/admission evidence. example.org is synthetic.",
+  "valid": [
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-web_search",
+      "name": "web_search",
+      "arguments": {
+        "query": "cat care"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-image_search",
+      "name": "image_search",
+      "arguments": {
+        "query": "cats photographs"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_page",
+      "name": "read_page",
+      "arguments": {
+        "sourceIds": [
+          1,
+          9
+        ]
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_page",
+      "name": "read_page",
+      "arguments": {
+        "url": "https://example.org/cats"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-weather",
+      "name": "weather",
+      "arguments": {
+        "city": "Moscow"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "arguments": {
+        "prompt": "Лес и деревня",
+        "size": 1280,
+        "model": "flux2-klein-4b-fp8-izo-v1",
+        "target": {
+          "name": "cats.html",
+          "expectedVersion": 1,
+          "placeholder": "ASA_GENERATED_IMAGE_PENDING"
+        }
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-create_working_file",
+      "name": "create_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "content": "<html><body>Cats</body></html>"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-create_working_file",
+      "name": "create_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "sourceMessageId": "00000000-0000-0000-0000-000000000001",
+        "blockIndex": 0
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "version": 1
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "expectedVersion": 1,
+        "edits": [
+          {
+            "oldText": "Cats",
+            "newText": "Happy cats"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "succeeded",
+      "data": {
+        "query": "cats",
+        "sources": [
+          {
+            "sourceId": 1,
+            "url": "https://example.org/cats",
+            "title": "Cats",
+            "snippet": "Cat care",
+            "publishedAt": null,
+            "retrievedAt": "2026-11-02T12:00:00Z"
+          }
+        ]
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-image_search",
+      "name": "image_search",
+      "state": "succeeded",
+      "data": {
+        "query": "cats",
+        "assets": [
+          {
+            "assetId": "asset-1",
+            "origin": "searched",
+            "width": 1280,
+            "height": 720,
+            "mime": "image/jpeg",
+            "byteLength": 120000,
+            "sourceUrl": "https://example.org/cat.jpg",
+            "license": null
+          }
+        ],
+        "selectionBasis": "metadata"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_page",
+      "name": "read_page",
+      "state": "partial",
+      "data": {
+        "pages": [
+          {
+            "sourceId": 1,
+            "finalUrl": "https://example.org/cats",
+            "title": "Cats",
+            "text": "Cats",
+            "retrievedAt": "2026-11-02T12:00:00Z",
+            "coverage": {
+              "complete": false,
+              "returnedCodeUnits": 4,
+              "omittedReason": "size_limit"
+            },
+            "imageAssetIds": [
+              "asset-1"
+            ]
+          }
+        ],
+        "requestedSourceIds": [
+          1
+        ],
+        "failures": []
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-weather",
+      "name": "weather",
+      "state": "succeeded",
+      "data": {
+        "place": "Moscow",
+        "timezone": "Europe/Moscow",
+        "updatedAt": "2026-11-02T12:00:00Z",
+        "sourceUrl": "https://api.met.no/",
+        "slots": [
+          {
+            "at": "2026-11-02T12:00:00Z",
+            "temperatureC": 5,
+            "windMps": 2,
+            "precipitationMm": 0,
+            "symbol": "cloudy"
+          }
+        ]
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "running",
+      "data": {
+        "jobId": "job-1",
+        "model": "flux2-klein-4b-fp8-izo-v1",
+        "prompt": "Forest",
+        "size": 1280
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "succeeded",
+      "data": {
+        "jobId": "job-1",
+        "asset": {
+          "assetId": "asset-1",
+          "origin": "generated",
+          "width": 1280,
+          "height": 720,
+          "mime": "image/jpeg",
+          "byteLength": 120000,
+          "sourceUrl": null,
+          "license": null
+        },
+        "model": "flux2-klein-4b-fp8-izo-v1",
+        "prompt": "Forest",
+        "size": 1280,
+        "targetUpdate": {
+          "state": "applied",
+          "file": {
+            "fileId": "file-1",
+            "name": "cats.html",
+            "version": 2,
+            "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+          }
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-create_working_file",
+      "name": "create_working_file",
+      "state": "succeeded",
+      "data": {
+        "fileId": "file-1",
+        "name": "cats.html",
+        "version": 1,
+        "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": 1,
+          "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": null
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "state": "succeeded",
+      "data": {
+        "fileId": "file-1",
+        "name": "cats.html",
+        "version": 2,
+        "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "empty",
+      "data": {
+        "reason": "SEARCH_EMPTY",
+        "retryAdvice": "rephrase"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "denied",
+      "data": {
+        "reason": "ACCESS_DENIED",
+        "retryAdvice": "none"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "invalid_arguments",
+      "data": {
+        "reason": "ARGUMENTS_INVALID",
+        "retryAdvice": "repair_arguments"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "unavailable",
+      "data": {
+        "reason": "DEPENDENCY_UNAVAILABLE",
+        "retryAdvice": "none"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "rate_limited",
+      "data": {
+        "reason": "LIMIT_REACHED",
+        "retryAdvice": "none"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "state": "conflict",
+      "data": {
+        "reason": "VERSION_CONFLICT",
+        "retryAdvice": "read_current_version"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "unknown_outcome",
+      "data": {
+        "reason": "OUTCOME_UNKNOWN",
+        "retryAdvice": "reconcile"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "cancelled",
+      "data": {
+        "reason": "CANCELLED",
+        "retryAdvice": "none"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "text.delta",
+      "data": {
+        "text": "Hello"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 2,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-image_search",
+        "name": "image_search",
+        "state": "running",
+        "stage": "searching"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 3,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "artifact.version.created",
+      "data": {
+        "fileId": "file-1",
+        "name": "cats.html",
+        "version": 1,
+        "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 4,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "image.ready",
+      "data": {
+        "jobId": "job-1",
+        "asset": {
+          "assetId": "asset-1",
+          "origin": "generated",
+          "width": 1280,
+          "height": 720,
+          "mime": "image/jpeg",
+          "byteLength": 120000,
+          "sourceUrl": null,
+          "license": null
+        }
+      },
+      "executionSource": "job_completion"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 5,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "operation.state.changed",
+      "data": {
+        "state": "cancel_requested"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-untrusted",
+      "name": "unknown_tool",
+      "state": "invalid_arguments",
+      "data": {
+        "reason": "UNKNOWN_TOOL",
+        "retryAdvice": "repair_arguments"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none",
+        "confirmation": {
+          "kind": "job_terminal_failure",
+          "jobId": "job-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-generate_image",
+        "name": "generate_image",
+        "state": "failed",
+        "stage": "finished",
+        "failureConfirmation": {
+          "kind": "job_terminal_failure",
+          "jobId": "job-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none",
+        "confirmation": {
+          "kind": "mutation_rolled_back",
+          "mutationId": "mutation-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-edit_working_file",
+        "name": "edit_working_file",
+        "state": "failed",
+        "stage": "finished",
+        "failureConfirmation": {
+          "kind": "mutation_rolled_back",
+          "mutationId": "mutation-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": 1,
+          "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": null
+        }
+      },
+      "executionSource": "unknown"
+    }
+  ],
+  "invalid": [
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-shell",
+      "name": "shell",
+      "arguments": {
+        "command": "whoami"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-web_search",
+      "name": "web_search",
+      "arguments": {
+        "query": "cats",
+        "owner": "other"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_page",
+      "name": "read_page",
+      "arguments": {
+        "url": "http://example.org",
+        "sourceIds": [
+          1
+        ]
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_page",
+      "name": "read_page",
+      "arguments": {
+        "sourceIds": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-weather",
+      "name": "weather",
+      "arguments": {
+        "city": ""
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "arguments": {
+        "prompt": "Forest",
+        "size": 512,
+        "model": "unknown"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "arguments": {
+        "prompt": "Forest",
+        "size": 1024,
+        "model": "flux",
+        "target": {
+          "name": "cats.html",
+          "expectedVersion": 1,
+          "placeholder": "anything"
+        }
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-create_working_file",
+      "name": "create_working_file",
+      "arguments": {
+        "name": "../cats.html",
+        "content": "x"
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-create_working_file",
+      "name": "create_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "content": "x",
+        "sourceMessageId": "00000000-0000-0000-0000-000000000001",
+        "blockIndex": 0
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "version": 0
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "expectedVersion": 1,
+        "edits": []
+      }
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-web_search",
+      "name": "web_search",
+      "state": "succeeded",
+      "data": {
+        "query": "cats",
+        "sources": []
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "unknown_outcome",
+      "data": {
+        "reason": "OUTCOME_UNKNOWN",
+        "retryAdvice": "rephrase"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-weather",
+      "name": "weather",
+      "state": "queued",
+      "data": {
+        "jobId": "j",
+        "model": "m",
+        "prompt": "p",
+        "size": 1024
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "fileId": "file-1",
+        "name": "cats.html",
+        "version": 1,
+        "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 0,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "text.delta",
+      "data": {
+        "text": "x"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "web_search",
+      "state": "unknown_outcome",
+      "data": {
+        "reason": "OUTCOME_UNKNOWN",
+        "retryAdvice": "reconcile"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "succeeded",
+      "data": {
+        "jobId": "job-1",
+        "asset": {
+          "assetId": "asset-1",
+          "origin": "searched",
+          "width": 1280,
+          "height": 720,
+          "mime": "image/jpeg",
+          "byteLength": 120000,
+          "sourceUrl": null,
+          "license": null
+        },
+        "model": "flux2-klein-4b-fp8-izo-v1",
+        "prompt": "Forest",
+        "size": 1280,
+        "targetUpdate": {
+          "state": "applied",
+          "file": {
+            "fileId": "file-1",
+            "name": "cats.html",
+            "version": 2,
+            "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+          }
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": 1,
+          "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": "size_limit"
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-02-30T12:00:00Z",
+      "type": "text.delta",
+      "data": {
+        "text": "x"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-spoof",
+      "name": "web_search",
+      "arguments": {
+        "query": "cats"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-generate_image",
+        "name": "generate_image",
+        "state": "failed",
+        "stage": "finished"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-edit_working_file",
+        "name": "edit_working_file",
+        "state": "failed",
+        "stage": "finished"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "web_search",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none",
+        "confirmation": {
+          "kind": "mutation_rolled_back",
+          "mutationId": "mutation-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": "unknown",
+          "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": null
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": 1,
+          "digest": "unknown"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": null
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "unknown",
+      "type": "text.delta",
+      "data": {
+        "text": "Hello"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "arguments": {
+        "fileId": "file-1",
+        "version": 1
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "expectedVersion": 1,
+        "edits": [
+          {
+            "oldText": "Cats",
+            "newText": "Happy cats"
+          }
+        ],
+        "digest": "abc"
+      }
+    }
+  ]
+}

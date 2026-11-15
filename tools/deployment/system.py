@@ -10,6 +10,7 @@ import time
 import urllib.request
 
 from .contracts import Blocked, atomic_json, attest_database_targets, attest_proxy_policy, read_env, require
+from .resources import pool_configuration
 
 
 def run(args, *, cwd=None, env=None, capture=False, output=None, input_data=None, input_file=None):
@@ -58,14 +59,20 @@ class Installation:
         self.root = Path(root).resolve()
         self.state = self.root / ".asa"
         self.env = read_env(self.root / ".env") if (self.root / ".env").exists() else {}
-        attest_proxy_policy(self.env)
+        pool_configuration(self.env)
         self.settings = json.loads((self.state / "installation.json").read_text(encoding="utf-8")) if (self.state / "installation.json").exists() else {}
         self.profile = profile or self.settings.get("profile", "production")
         require(self.profile in ("dev", "production", "staging", "base"), "PROFILE", "Unsupported profile.")
+        attest_proxy_policy(self.env, profile=self.profile)
         self.project = self.env.get("COMPOSE_PROJECT_NAME", "asa-lab-dev")
         import re
         require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*", self.project), "PROJECT", "Invalid project name.")
         self.files = ["compose.yaml"] + ([] if self.profile == "base" else [f"compose.{self.profile}.yaml"])
+        # An opt-in first-install subnet override lives in the private .asa
+        # directory, not a dirty Git checkout or Docker daemon configuration.
+        # Its presence is part of immutable Compose-file identity.
+        if (self.state / "docker-networks.yaml").is_file():
+            self.files.append(".asa/docker-networks.yaml")
         if (self.root / "compose.frp.yaml").exists():
             self.files.append("compose.frp.yaml")
         self.process_env = dict(os.environ)
@@ -106,15 +113,17 @@ class Installation:
         for record in records:
             labels = record["labels"] or {}
             service = labels.get("com.docker.compose.service")
-            if service not in ("postgres", "api", "web", "scratch", "minio"):
+            if service not in ("postgres", "api", "web", "scratch", "minio", "search"):
                 continue
             project = labels.get("com.docker.compose.project")
             root = labels.get("com.docker.compose.project.working_dir", "")
             same_root = bool(root) and os.path.normcase(str(Path(root).resolve())) == os.path.normcase(str(self.root))
             if project != self.project:
                 require(not same_root, "IDENTITY_PROJECT", "This directory already belongs to another Compose project.")
-                if not existing and (project or "").startswith("asa-lab"):
-                    raise Blocked("IDENTITY_EXISTING", "An ASA installation already exists.", "Use the canonical PostgreSQL directory; do not install a second stack.")
+                # A machine may host independent, explicitly named ASA projects.
+                # Fresh installs never adopt another project's containers/data.
+                # Collision checks of the *selected* project and its orphan
+                # volumes are handled before generating the fresh .env.
                 continue
             require(self.env, "IDENTITY_ENV", "Existing installation has no private .env.")
             require(same_root, "IDENTITY_ROOT", "Container belongs to another deployment directory.", "Run from the directory recorded on PostgreSQL.")
@@ -166,6 +175,11 @@ class Installation:
                 "HEALTH", "Schema versions differ.")
         scratch = self.compose("exec", "-T", "scratch", "wget", "-qO-", "http://127.0.0.1:8080/asa-commit.txt", capture=True)
         require(scratch == rev, "HEALTH", "Scratch revision differs.")
+        if self.process_env.get("ASA_SEARCH_IMAGE"):
+            search = self.compose("exec", "-T", "search", "cat", "/usr/local/share/asa-search/asa-commit.txt", capture=True)
+            require(search == rev, "HEALTH", "Search revision differs.")
+            self.compose("exec", "-T", "search", "/usr/local/searxng/.venv/bin/python", "-c",
+                         "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).read()", capture=True)
         scratch_port = int(self.env.get("ASA_BLOCKS_PORT", "4613"))
         with urllib.request.urlopen(f"http://127.0.0.1:{scratch_port}/healthz", timeout=5) as response:
             require(response.status == 200, "HEALTH", "Published Scratch port is unavailable.")
@@ -183,3 +197,5 @@ class Installation:
     def receipt(self, value):
         value = {"at": dt.datetime.now(dt.timezone.utc).isoformat(), **value}
         atomic_json(self.state / "last-operation.json", value)
+        from .operational import append_safely, from_manager_receipt
+        append_safely(self.root, from_manager_receipt(value))

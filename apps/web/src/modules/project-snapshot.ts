@@ -1,5 +1,6 @@
 import { api } from '../api';
 import { onSessionLoggedOut } from '../session-fetch';
+import { abortable } from '../auth-request';
 
 /**
  * The picture a project card shows, taken from the editor that drew it.
@@ -23,6 +24,10 @@ const SNAPSHOT_QUALITY = 0.72;
 const FIRST_CAPTURE_MS = 4_000;
 /** How often a capture is retried while the learner keeps working. */
 const REPEAT_CAPTURE_MS = 60_000;
+/** A stalled SVG/image loader must not occupy the project's only attempt forever. */
+const CAPTURE_TIMEOUT_MS = 10_000;
+/** Also bound the PUT and response body; snapshot requests are not auth requests. */
+const DELIVERY_TIMEOUT_MS = 15_000;
 
 /**
  * A body sent during page unload is only guaranteed while it stays small.
@@ -50,12 +55,52 @@ interface CapturedSnapshot {
 }
 
 const sources = new Map<string, RegisteredSnapshotSource>();
-const lastSent = new Map<string, string>();
+const lastSent = new Map<string, CapturedSnapshot>();
+const confirmedSources = new Map<string, RegisteredSnapshotSource>();
+const pending = new Map<string, Promise<boolean>>();
+const deniedWrites = new Set<string>();
+const activeDeliveries = new Map<string, AbortController>();
+
+/**
+ * Mirror the authenticated Learning Work context's edit permission.
+ * This only avoids forbidden background PUTs; server RLS remains authoritative.
+ * Reopening a correction with edit permission re-enables normal snapshots.
+ */
+export function setProjectSnapshotWriteAllowed(projectId: string, allowed: boolean): void {
+  if (allowed) {
+    deniedWrites.delete(projectId);
+    return;
+  }
+  deniedWrites.add(projectId);
+  confirmedSources.delete(projectId);
+  activeDeliveries.get(projectId)?.abort();
+}
 if (typeof window !== 'undefined')
   onSessionLoggedOut(() => {
+    for (const controller of activeDeliveries.values()) controller.abort();
     sources.clear();
     lastSent.clear();
+    confirmedSources.clear();
+    pending.clear();
+    deniedWrites.clear();
+    activeDeliveries.clear();
   });
+
+async function awaitCanvas(
+  produced: Promise<HTMLCanvasElement | null>,
+): Promise<HTMLCanvasElement | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      produced,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), CAPTURE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * Called by an editor while it is mounted. The returned function unregisters,
@@ -68,9 +113,34 @@ export function registerProjectSnapshotSource(
 ): () => void {
   const registration = { capture: source, revision };
   sources.set(projectId, registration);
+  confirmedSources.delete(projectId);
   return () => {
-    if (sources.get(projectId) === registration) sources.delete(projectId);
+    if (sources.get(projectId) === registration) {
+      sources.delete(projectId);
+      confirmedSources.delete(projectId);
+    }
   };
+}
+
+/**
+ * A successful send and a deduplicated capture both prove the current source's
+ * picture is stored. A replacement source must capture again before it can use
+ * the previous bytes' acknowledgement; revision numbers alone are insufficient.
+ */
+export function isProjectSnapshotConfirmed(projectId: string, sourceRevision: number): boolean {
+  const registered = sources.get(projectId);
+  if (
+    !registered ||
+    deniedWrites.has(projectId) ||
+    confirmedSources.get(projectId) !== registered ||
+    lastSent.get(projectId)?.sourceRevision !== sourceRevision
+  )
+    return false;
+  try {
+    return registered.revision() === sourceRevision;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -115,7 +185,12 @@ export async function captureProjectSnapshot(projectId: string): Promise<Capture
     // A synchronous source is encoded in this same turn: awaiting a plain value
     // would still yield, and a WebGL drawing buffer does not survive that.
     const produced = registered.capture();
-    const canvas = produced instanceof Promise ? await produced : produced;
+    const canvas = produced instanceof Promise ? await awaitCanvas(produced) : produced;
+    // SVG rasterisation yields while an edit, save, navigation or logout may
+    // replace the source. Never relabel that old image with a newer revision.
+    if (sources.get(projectId) !== registered || registered.revision() !== sourceRevision) {
+      return null;
+    }
     const image = canvas ? encodeSnapshot(canvas) : null;
     return image ? { image, sourceRevision } : null;
   } catch {
@@ -129,25 +204,74 @@ export async function captureProjectSnapshot(projectId: string): Promise<Capture
  * Sends the picture unless it is the one already stored. Editors capture on a
  * timer, and a learner reading the screen produces the same bytes every time.
  */
-export async function sendProjectSnapshot(
-  projectId: string,
-  options: { unloading?: boolean } = {},
-): Promise<boolean> {
+async function sendSnapshot(projectId: string, options: { unloading?: boolean }): Promise<boolean> {
+  const registered = sources.get(projectId);
+  if (!registered || deniedWrites.has(projectId)) return false;
+  // A failed fresh capture must not inherit an earlier confirmation merely
+  // because its provider still reports the same revision.
+  confirmedSources.delete(projectId);
   const captured = await captureProjectSnapshot(projectId);
-  if (!captured || lastSent.get(projectId) === captured.image) return false;
+  if (
+    !captured ||
+    deniedWrites.has(projectId) ||
+    sources.get(projectId) !== registered ||
+    registered.revision() !== captured.sourceRevision
+  )
+    return false;
+  const acknowledged = lastSent.get(projectId);
+  if (
+    acknowledged?.image === captured.image &&
+    acknowledged.sourceRevision === captured.sourceRevision
+  ) {
+    confirmedSources.set(projectId, registered);
+    return false;
+  }
   if (options.unloading === true && captured.image.length > KEEPALIVE_LIMIT_BYTES) return false;
-  const result = await api.saveProjectSnapshot(
-    projectId,
-    captured.image,
-    captured.sourceRevision,
-    options,
-  );
+  const controller = new AbortController();
+  activeDeliveries.set(projectId, controller);
+  const timeout = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
+  const result = await abortable(
+    () =>
+      api.saveProjectSnapshot(projectId, captured.image, captured.sourceRevision, {
+        ...options,
+        signal: controller.signal,
+      }),
+    controller.signal,
+  )
+    .catch(() => null)
+    .finally(() => {
+      clearTimeout(timeout);
+      if (activeDeliveries.get(projectId) === controller) activeDeliveries.delete(projectId);
+    });
   // Only a server-confirmed image is deduplicated. A timeout, an offline
   // browser or a revision conflict must leave the same bytes eligible for the
   // next scheduled attempt.
-  if (!result.ok) return false;
-  lastSent.set(projectId, captured.image);
+  if (!result?.ok) return false;
+  if (
+    deniedWrites.has(projectId) ||
+    sources.get(projectId) !== registered ||
+    registered.revision() !== captured.sourceRevision
+  )
+    return false;
+  lastSent.set(projectId, captured);
+  confirmedSources.set(projectId, registered);
   return true;
+}
+
+/** Paired visibility/pagehide/timer events share one attempt, not a write storm. */
+export function sendProjectSnapshot(
+  projectId: string,
+  options: { unloading?: boolean } = {},
+): Promise<boolean> {
+  if (deniedWrites.has(projectId)) return Promise.resolve(false);
+  const existing = pending.get(projectId);
+  if (existing) return existing;
+  const attempt = sendSnapshot(projectId, options).finally(() => {
+    // Logout may have cleared the old identity's request in the meantime.
+    if (pending.get(projectId) === attempt) pending.delete(projectId);
+  });
+  pending.set(projectId, attempt);
+  return attempt;
 }
 
 /**

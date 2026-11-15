@@ -34,7 +34,7 @@ function receipt(e: AnalyticsEnvelope, state = 'open') {
             sessionState: e.operation === 'close' ? 'closed' : state,
           },
         }
-      : { recordId: id(999) }),
+      : { recordId: 999 }),
   };
 }
 const workers: AnalyticsDelivery[] = [];
@@ -70,6 +70,7 @@ function deferNext(transport: ReturnType<typeof fixture>['transport']) {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
 });
 afterEach(() => {
@@ -77,8 +78,156 @@ afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it('restores and acknowledges a pending robotics start with its original module and event identity', async () => {
+    const f = fixture();
+    deferNext(f.transport);
+    void f.worker.open(id(10), id(11), 'robotics', id(12));
+    await pump();
+    const raw = f.storage.getItem('asa:analytics:v2')!;
+    const saved = JSON.parse(raw);
+    const original = saved.sessions[0].start;
+    f.worker.retire();
+    const recovered = disk();
+    recovered.setItem('asa:analytics:v2', raw);
+    const replay = fixture(undefined, recovered);
+    replay.worker.retryNow();
+    await pump();
+    const sent = replay.transport.mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+    expect(sent).toContainEqual(original);
+    expect(original.moduleKey).toBe('robotics');
+    expect(replay.quality.read().counters.invalidStored).toBe(0);
+  });
+  it('preserves Retry-After across repeated ready/online notifications and a real pause/resume', async () => {
+    const f = fixture();
+    // This unit owns event delivery; the runtime suite exercises the independent quality stream.
+    vi.spyOn(f.quality, 'start').mockImplementation(() => {});
+    f.transport.mockResolvedValueOnce(
+      new Response('{}', { status: 503, headers: { 'retry-after': '10' } }),
+    );
+    const result = f.worker.open(id(10), id(11), 'electronics', id(12));
+    await pump();
+    const original = f.transport.mock.calls[0]![1]!.body;
+    for (let n = 0; n < 100; n++) {
+      f.worker.pause(false);
+      f.worker.retryNow();
+    }
+    await vi.advanceTimersByTimeAsync(4000);
+    f.worker.pause(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    f.worker.pause(false);
+    for (let n = 0; n < 100; n++) f.worker.pause(false);
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(f.transport).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await result).toBe(true);
+    expect(f.transport).toHaveBeenCalledTimes(2);
+    expect(f.transport.mock.calls[1]![1]!.body).toBe(original);
+    expect(f.worker.canRecoverAuthentication()).toBe(false);
+    expect(f.quality.read().counters).toMatchObject({ retried: 1, acknowledged: 1 });
+  });
+  it.each([200, 401, 503])(
+    'keeps the ordinary envelope and waiter through pause, ignoring late HTTP%s from the old attempt',
+    async (status) => {
+      const f = fixture();
+      let release!: (value: unknown) => void;
+      const old = new Response('{}', { status });
+      if (status === 503) {
+        f.transport.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              release = () => resolve(old);
+            }),
+        );
+      } else {
+        vi.spyOn(old, 'json').mockReturnValue(
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+        );
+        f.transport.mockResolvedValueOnce(old);
+      }
+      const result = f.worker.open(id(10), id(11), 'blocks', id(12));
+      let settled = false;
+      void result.then(() => {
+        settled = true;
+      });
+      await pump();
+      const original = f.transport.mock.calls[0]![1]!.body;
+      const envelope = JSON.parse(original as string);
+      f.worker.pause(true);
+      expect(f.transport.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+      await pump();
+      expect(f.worker.inspect()).toEqual({ pending: 1, inFlight: 0, sessions: 1 });
+      expect(settled).toBe(false);
+      const finishRetry = deferNext(f.transport);
+      f.worker.pause(false);
+      expect(f.transport.mock.calls[1]![1]!.body).toBe(original);
+      release(receipt(envelope));
+      await pump();
+      expect(f.worker.inspect()).toEqual({ pending: 1, inFlight: 1, sessions: 1 });
+      expect(settled).toBe(false);
+      expect(f.quality.read().counters).toMatchObject({
+        acknowledged: 0,
+        retried: 0,
+        permanentRejected: 0,
+      });
+      finishRetry();
+      await pump();
+      expect(await result).toBe(true);
+      expect(f.worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 1 });
+      expect(f.quality.read().counters.acknowledged).toBe(1);
+    },
+  );
+  it('retires only the old queue and ignores its late transport after successor creation', async () => {
+    const f = fixture();
+    const release = deferNext(f.transport);
+    const result = f.worker.open(id(10), id(11), 'blocks', id(12));
+    const original = f.transport.mock.calls[0]![1]!.body;
+    f.worker.retire();
+    expect(f.transport.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+    expect(await result).toBe(false);
+    const successor = { kind: 'account' as const, accountId: id(1), workspaceId: id(9) };
+    fixture(f.transport, f.storage, successor);
+    const saved = new Map(f.storage.values);
+    release();
+    await pump();
+    expect(f.storage.values).toEqual(saved);
+    expect(f.transport).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(original as string).actorExpectation).toEqual(actor);
+    expect(f.quality.read()).toMatchObject({
+      counters: { permanentRejected: 1 },
+      coverage: { uncleanEnd: true, final: true },
+    });
+  });
+  it('removes an acknowledged numeric visit from memory and storage without retry or reload replay', async () => {
+    const f = fixture();
+    f.worker.visit(id(12), 'home', null);
+    expect(f.worker.inspect()).toEqual({ pending: 1, inFlight: 1, sessions: 0 });
+    expect(JSON.parse(f.storage.getItem('asa:analytics:v2')!).visits).toHaveLength(1);
+    await pump();
+    expect(f.transport).toHaveBeenCalledOnce();
+    expect(f.transport.mock.calls[0]![0]).toBe('/api/analytics/v2/events');
+    expect(f.worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+    expect(JSON.parse(f.storage.getItem('asa:analytics:v2')!)).toEqual({
+      schemaVersion: 2,
+      actor,
+      sessions: [],
+      visits: [],
+    });
+    expect(f.quality.read().counters).toMatchObject({ acknowledged: 1, retried: 0 });
+    f.worker.retryNow();
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(f.transport).toHaveBeenCalledOnce();
+    f.worker.retire();
+    const restored = fixture(f.transport, f.storage);
+    restored.worker.retryNow();
+    await pump();
+    expect(restored.worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+    expect(f.transport).toHaveBeenCalledOnce();
+  });
   it.each(['touch', 'close'] as const)(
     'acknowledges a server microsecond %s receipt and releases its queued operation',
     async (operation) => {

@@ -5,6 +5,7 @@ export type CreatorPortalSection =
   | 'home'
   | 'projects'
   | 'games'
+  | 'ai'
   | 'learning'
   | 'knowledge'
   | 'collections'
@@ -24,6 +25,31 @@ export type ProjectListView = {
   status?: 'active' | 'archived' | 'trashed';
   cursor?: string;
 };
+
+export type PublicProjectListView = {
+  kind: 'public-projects';
+  search?: string;
+  module?: string;
+  sort?: 'newest' | 'oldest' | 'likes' | 'copies';
+};
+
+export type PublicProjectView =
+  | PublicProjectListView
+  | { kind: 'public-project'; publicationId: string }
+  | { kind: 'gallery-work'; projectId: string };
+
+function publicProjectListView(query: string | undefined): PublicProjectListView {
+  const params = new URLSearchParams(query);
+  const search = params.get('q')?.trim().slice(0, 120);
+  const module = params.get('module');
+  const sort = params.get('sort');
+  return {
+    kind: 'public-projects',
+    ...(search ? { search } : {}),
+    ...(module && /^[a-z][a-z0-9-]{0,63}$/.test(module) ? { module } : {}),
+    ...(sort === 'oldest' || sort === 'likes' || sort === 'copies' ? { sort } : {}),
+  };
+}
 
 function projectListQuery(view: ProjectListView): string {
   const query = new URLSearchParams();
@@ -66,13 +92,13 @@ export type CreatorPortalView =
   | { kind: 'home' }
   | ProjectListView
   | { kind: 'games' }
+  | { kind: 'ai' }
   | { kind: 'learning' }
   | { kind: 'knowledge' }
   | { kind: 'knowledge-course'; courseId: string }
   | { kind: 'collections' }
   | { kind: 'attending' }
-  | { kind: 'gallery' }
-  | { kind: 'gallery-work'; projectId: string }
+  | PublicProjectView
   | { kind: 'challenges' }
   | { kind: 'classrooms' }
   /** `seatId` opens the class already showing one learner, which is where a
@@ -117,10 +143,11 @@ const PORTAL_ROUTES: ReadonlyArray<{
   { path: '/home', view: { kind: 'home' } },
   { path: '/projects', view: { kind: 'my-projects' } },
   { path: '/games', view: { kind: 'games' } },
+  { path: '/ai', view: { kind: 'ai' } },
   { path: '/learning', view: { kind: 'learning' } },
   { path: '/knowledge', view: { kind: 'knowledge' } },
   { path: '/collections', view: { kind: 'collections' } },
-  { path: '/gallery', view: { kind: 'gallery' } },
+  { path: '/explore', view: { kind: 'public-projects' } },
   { path: '/attending', view: { kind: 'attending' } },
   { path: '/challenges', view: { kind: 'challenges' } },
   { path: '/classrooms', view: { kind: 'classrooms' } },
@@ -151,7 +178,10 @@ export function portalNavigation(
     return [
       { section: 'home', label: 'Главная' },
       { section: 'learning', label: 'Моё обучение' },
-      { section: 'projects', label: 'Мои учебные работы' },
+      { section: 'projects', label: 'Мои проекты' },
+      { section: 'games', label: 'Игры' },
+      // Discoverability is not an access grant: App keeps the locked seat view.
+      { section: 'ai', label: 'ИИ' },
       { section: 'help', label: 'Помощь' },
       { section: 'account', label: 'Настройки учебного профиля' },
     ];
@@ -161,6 +191,7 @@ export function portalNavigation(
     ...(classes ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
     { section: 'projects', label: 'Мои проекты' },
     { section: 'games', label: 'Игры' },
+    { section: 'ai', label: 'ИИ' },
     { section: 'collections', label: 'Сохранённое' },
     // Learning is the place where a person studies. Course authoring lives in
     // the teacher-only destination below, so the two labels describe different
@@ -185,13 +216,14 @@ export function canUseClasses(
 export function sectionForView(view: CreatorPortalView, canTeach: boolean): CreatorPortalSection {
   void canTeach;
   if (view.kind === 'account') return 'account';
+  if (view.kind === 'ai') return 'ai';
   if (view.kind === 'home') return 'home';
   if (view.kind === 'games' || (view.kind === 'editor' && isGameModule(view.moduleKey)))
     return 'games';
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'knowledge' || view.kind === 'knowledge-course') return 'knowledge';
   if (view.kind === 'collections') return 'collections';
-  if (view.kind === 'gallery' || view.kind === 'gallery-work') return 'gallery';
+  if (isPublicProjectView(view)) return 'gallery';
   if (view.kind === 'attending') return 'learning';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
@@ -207,6 +239,16 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
 }
 
 export function creatorViewToHash(view: CreatorPortalView): string {
+  if (view.kind === 'public-projects') {
+    const query = new URLSearchParams();
+    if (view.search) query.set('q', view.search);
+    if (view.module) query.set('module', view.module);
+    if (view.sort && view.sort !== 'newest') query.set('sort', view.sort);
+    return `#/explore${query.size ? `?${query}` : ''}`;
+  }
+  if (view.kind === 'public-project') {
+    return `#/public-projects/${encodeURIComponent(view.publicationId)}`;
+  }
   if (view.kind === 'my-projects') {
     const query = projectListQuery(view);
     return `#/projects${query ? `?${query}` : ''}`;
@@ -315,6 +357,12 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   const requestedModule = new URLSearchParams(query ?? '').get('module');
   const moduleKey =
     requestedModule && /^[a-z0-9-]+$/.test(requestedModule) ? requestedModule : undefined;
+  if (path === '/explore' || path === '/gallery') return publicProjectListView(query);
+  const publication = /^\/public-projects\/([^/]+)$/.exec(path ?? '');
+  if (publication) {
+    const publicationId = decodeRouteParameter(publication[1] as string);
+    return publicationId ? { kind: 'public-project', publicationId } : { kind: 'public-projects' };
+  }
   const teacherInvite = /^\/teacher-invite\/([^/]+)$/.exec(path ?? '');
   const gameEditor = /^\/games\/(chess|checkers)\/([^/]+)$/.exec(path ?? '');
   if (gameEditor) {
@@ -332,8 +380,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     const token = decodeRouteParameter(teacherInvite[1] as string);
     return token ? { kind: 'teacher-invite', token } : { kind: 'home' };
   }
-  // One work in the gallery has its own address: a teacher shows a class a
-  // model by sending the link, and a page that cannot be linked to is not shown.
+  // An old project ID is a legacy unavailable route, never a publication/editor ID.
   const galleryWork = /^\/gallery\/([^/]+)$/.exec(path ?? '');
   const knowledgeCourse = /^\/knowledge\/([^/]+)$/.exec(path ?? '');
   if (knowledgeCourse) {
@@ -342,7 +389,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   }
   if (galleryWork) {
     const projectId = decodeRouteParameter(galleryWork[1] as string);
-    return projectId ? { kind: 'gallery-work', projectId } : { kind: 'gallery' };
+    return projectId ? { kind: 'gallery-work', projectId } : { kind: 'public-projects' };
   }
   const classEditor = /^\/classrooms\/([^/]+)\/projects\/([^/]+)$/.exec(path ?? '');
   if (classEditor) {
@@ -384,8 +431,18 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
       returnTo: threeDReturnView(query),
     };
   }
+  const independentCheckersPage =
+    /^\/checkers\/([^/]+)(?:\/(?:home|play|network|bots|bot-campaign|local|learning|review|class|teacher))?$/.exec(
+      path ?? '',
+    );
+  if (independentCheckersPage) {
+    const projectId = decodeRouteParameter(independentCheckersPage[1] as string);
+    return projectId
+      ? { kind: 'editor', projectId, moduleKey: 'checkers', returnTo: { kind: 'games' } }
+      : { kind: 'games' };
+  }
   const independentChessPage =
-    /^\/chess\/([^/]+)(?:\/(?:home|play(?:\/(?:game|analysis|versions))?|online|puzzles|learning|bots|review))?$/.exec(
+    /^\/chess\/([^/]+)(?:\/(?:home|play(?:\/(?:game|analysis|versions))?|online|network|puzzles|learning|local|bots|review))?$/.exec(
       path ?? '',
     );
   if (independentChessPage) {
@@ -432,6 +489,14 @@ export function creatorViewFromLocation(location: {
     };
   }
   return creatorViewFromHash(location.hash);
+}
+
+export function isPublicProjectView(view: CreatorPortalView): view is PublicProjectView {
+  return (
+    view.kind === 'public-projects' ||
+    view.kind === 'public-project' ||
+    view.kind === 'gallery-work'
+  );
 }
 
 export function recentProjects(projects: readonly Project[], limit = 4): readonly Project[] {

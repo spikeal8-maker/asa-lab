@@ -1,0 +1,59 @@
+name: Teacher Open Classroom Layout
+
+on:
+  push:
+    branches:
+      - assistant/teacher-open-class-density-20261017
+  pull_request:
+    paths:
+      - apps/web/src/pages/ClassroomPage.tsx
+      - apps/web/src/components/ClassroomGradebook.tsx
+      - apps/web/src/components/ManualClassroomJournal.tsx
+      - apps/web/src/modules/classroom-open-compact.css
+      - e2e/classroom-open-compact.spec.ts
+      - .github/workflows/teacher-open-classroom-layout.yml
+  workflow_dispatch:
+
+jobs:
+  teacher-open-classroom:
+    name: Open classroom — responsive roster, journal and navigation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Build exact production web application
+        run: pnpm exec nx run web:build --skip-nx-cache
+      - name: Compact teacher open-class viewport and profile navigation
+        env:
+          ASA_E2E_EXTERNAL: 'true'
+        run: >-
+          pnpm exec playwright test e2e/classroom-open-compact.spec.ts
+          --config playwright.config.ts --workers=1 --reporter=list
+      - name: Store open-classroom screenshots and browser reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teacher-open-class-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: |
+            e2e/artifacts/owner-preview/open-class-compact
+            reports/playwright
+            apps/web/dist/build-metadata.json
+          if-no-files-found: warn
+          retention-days: 14

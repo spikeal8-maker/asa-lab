@@ -129,24 +129,64 @@ function networkKindForAddress(address: string): ClientNetworkKind {
  * configured Docker/reverse-proxy networks and reads the chain from right to
  * left, ignoring attacker-controlled values farther left.
  */
-export function clientConnection(request: FastifyRequest): ClientConnectionInfo {
+function resolveConnection(request: FastifyRequest) {
   const socketAddress = normalizeIp(request.raw.socket.remoteAddress);
   if (!socketAddress) {
-    return { address: 'unknown', networkKind: 'unknown' };
+    return {
+      address: 'unknown',
+      networkKind: 'unknown' as const,
+      source: 'unresolved',
+      reason: 'missing_socket',
+    };
   }
   if (!trustedProxy(socketAddress)) {
-    return { address: socketAddress, networkKind: networkKindForAddress(socketAddress) };
+    return {
+      address: socketAddress,
+      networkKind: networkKindForAddress(socketAddress),
+      source: 'socket',
+      reason: request.headers['x-forwarded-for'] ? 'untrusted_forwarded_ignored' : 'direct_peer',
+    };
   }
 
   const chain = forwardedChain(request.headers['x-forwarded-for']);
   for (let index = chain.length - 1; index >= 0; index -= 1) {
     const candidate = chain[index] as string;
     if (!trustedProxy(candidate)) {
-      return { address: candidate, networkKind: networkKindForAddress(candidate) };
+      return {
+        address: candidate,
+        networkKind: networkKindForAddress(candidate),
+        source: 'forwarded',
+        reason: 'trusted_boundary',
+      };
     }
   }
   // A proxy/gateway is infrastructure, not evidence of the visitor's address.
-  return { address: 'unknown', networkKind: 'proxy' };
+  return {
+    address: 'unknown',
+    networkKind: 'proxy' as const,
+    source: 'unresolved',
+    reason: chain.length
+      ? 'trusted_hops_only'
+      : request.headers['x-forwarded-for'] === undefined
+        ? 'missing_forwarded'
+        : 'invalid_forwarded',
+  };
+}
+
+export function clientConnection(request: FastifyRequest): ClientConnectionInfo {
+  const result = resolveConnection(request);
+  return { address: result.address, networkKind: result.networkKind };
+}
+
+/** Safe explanation for logs; never includes addresses or raw proxy headers. */
+export function clientAddressDiagnostics(request: FastifyRequest) {
+  const result = resolveConnection(request);
+  return {
+    state: result.address === 'unknown' ? 'unresolved' : 'resolved',
+    source: result.source,
+    reason: result.reason,
+    networkKind: result.networkKind,
+  };
 }
 
 export function clientAddress(request: FastifyRequest): string {

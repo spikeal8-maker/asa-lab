@@ -136,6 +136,18 @@ test('root keeps one Scratch command and repository checks still compose governa
   );
 });
 
+test('public Scratch native browser CI uses the canonical served web origin', () => {
+  const native = workflow('scratch-focused').jobs['runtime-image'].steps.find(
+    (step) => step.name === 'Real public Scratch PostgreSQL, private assets and native player',
+  );
+  assert.equal(native.env.ASA_WEB_PORT, '4612');
+  assert.equal(native.env.ASA_WEB_ORIGIN, `http://127.0.0.1:${native.env.ASA_WEB_PORT}`);
+  assert.equal(native.env.ASA_BLOCKS_RUNTIME_ORIGIN, native.env.ASA_WEB_ORIGIN);
+  assert.equal(native.env.ASA_BLOCKS_UPSTREAM_ORIGIN, 'http://127.0.0.1:4613');
+  assert.ok(read('playwright.config.ts').includes("process.env['ASA_E2E_PORT'] ?? '4612'"));
+  assert.ok(read('e2e/server.mjs').includes("process.env.ASA_E2E_PORT ?? '4612'"));
+});
+
 test('non-root Scratch has bounded writable tmpfs in CI and preview', () => {
   const scratch = YAML.parse(read('compose.yaml')).services.scratch;
   assert.equal(scratch.user, '101:101');

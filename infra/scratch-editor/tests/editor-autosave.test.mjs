@@ -7,12 +7,18 @@ import vm from 'node:vm';
 const source = fs.readFileSync(new URL('../host/editor.js', import.meta.url), 'utf8');
 const projectId = '11111111-1111-4111-8111-111111111111';
 
-async function mountWithRandomByte(randomByte, mode = 'editor', activityCallback = () => {}) {
+async function mountWithRandomByte(
+  randomByte,
+  mode = 'editor',
+  activityCallback = () => {},
+  saveFailureCallback = () => {},
+) {
   const machine = new EventEmitter();
   machine.stopAll = () => {};
   machine.quit = () => {};
   let randomCalls = 0;
   let props;
+  let storageOptions;
   const context = vm.createContext({
     ...(randomByte === null
       ? {}
@@ -26,7 +32,10 @@ async function mountWithRandomByte(randomByte, mode = 'editor', activityCallback
           },
         }),
     AsaBlocksStorage: {
-      createReadOnlyStorage: () => ({ dispose() {} }),
+      createReadOnlyStorage: (_standalone, options) => {
+        storageOptions = options;
+        return { dispose() {} };
+      },
     },
   });
   vm.runInContext(source, context);
@@ -67,6 +76,7 @@ async function mountWithRandomByte(randomByte, mode = 'editor', activityCallback
     getRuntimeToken: () => 'token',
     onReady() {},
     onDirty: (generation) => dirtyGenerations.push(generation),
+    onSaveFailure: saveFailureCallback,
     onActivity: () => {
       activity.push('input');
       activityCallback();
@@ -84,9 +94,26 @@ async function mountWithRandomByte(randomByte, mode = 'editor', activityCallback
     activity,
     listeners,
     context,
+    storageOptions: () => storageOptions,
     randomCalls: () => randomCalls,
   };
 }
+
+test('editor wires storage save failure reporting and stops forwarding after disposal', async () => {
+  const failures = [];
+  const f = await mountWithRandomByte(
+    0,
+    'editor',
+    () => {},
+    (detail) => failures.push(detail),
+  );
+  const detail = { failureCode: 'scratch-save-asset', durationMs: 12 };
+  f.storageOptions().onSaveFailure(detail);
+  assert.deepEqual(failures, [detail]);
+  await f.editor.dispose();
+  f.storageOptions().onSaveFailure(detail);
+  assert.deepEqual(failures, [detail]);
+});
 
 test('activity adapter reports trusted visible input only, throttles and removes listeners', async () => {
   const f = await mountWithRandomByte(0);

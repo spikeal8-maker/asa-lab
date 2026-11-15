@@ -7,18 +7,34 @@ YAML uses the repository's existing frozen Node dependency, not a new Python pac
 """
 
 import argparse
+from copy import deepcopy
 import hashlib
 import json
 import os
 from pathlib import Path
 import platform
 import re
+import shlex
 import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RECEIPT = ROOT / "docs/product/electronics/evidence/ci-image-transport-545-receipt.json"
 OVERLAY = ".github/compose.registry-ci.yaml"
+GENERAL = ".github/workflows/spec-validation.yml"
+TRANSPORT = "docs/product/projects/evidence/ci-node-transport-429-receipt.json"
+ORIGINAL_RECEIPT_SHA256 = "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273"
+GENERAL_OVERLAY_NAME = "asa-general-postgres.yaml"
+GENERAL_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + GENERAL_OVERLAY_NAME + '"'
+FOCUSED = ".github/workflows/electronics-r4-m1-focused.yml"
+SCOPED_UI = ".github/workflows/electronics-ui-679-557.yml"
+ELECTRONICS_TRANSPORT = "docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json"
+ELECTRONICS_OVERLAY_NAME = "asa-electronics-postgres.yaml"
+ELECTRONICS_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + ELECTRONICS_OVERLAY_NAME + '"'
+ELECTRONICS_PREPARE = {"run": "python3 tools/test_ci_image_transport.py --prepare-electronics-postgres\n"
+    "python3 tools/test_ci_image_transport.py --electronics-compose-model-check\n"}
+ELECTRONICS_BUILD_PROOF = {"run": "python3 tools/test_ci_image_transport.py --electronics-built-images"}
+ELECTRONICS_POSTGRES_PROOF = {"run": "python3 tools/test_ci_image_transport.py --electronics-pulled-postgres"}
 
 
 def require(condition, message):
@@ -40,6 +56,387 @@ def build_args(receipt):
         for key, image in [("NODE_IMAGE", "node"), ("CADDY_IMAGE", "caddy"),
                            ("BUILDKIT_SYNTAX", "frontend")]
     )
+
+
+def general_node_receipt(receipt):
+    """Only the selected General Node/PostgreSQL references may change."""
+    override = json.loads(read(TRANSPORT))
+    require(hashlib.sha256(RECEIPT.read_bytes()).hexdigest() == ORIGINAL_RECEIPT_SHA256
+            and override["original_receipt_sha256"] == ORIGINAL_RECEIPT_SHA256,
+            "Original 545 receipt identity changed")
+    require(override["task"] == "TASK-PROJ-PUBLICATION-DATA-TRANSPORT-001"
+            and override["workflow"] == GENERAL and override["job"] == "postgres-tests"
+            and set(override["images"]) == {"node", "postgres"},
+            "Transport override must affect only General postgres-tests Node/PostgreSQL")
+    require(override["platform"] == receipt["platform"]
+            == {"os": "linux", "architecture": "amd64"}, "Transport platform mismatch")
+    require(override["evidence_source"]["commit"]
+            == "02ae08a82eb8ad65eda52a47c2100ef7830e45d5"
+            and override["evidence_source"]["path"]
+            == "docs/product/electronics/evidence/ci-image-transport-429-receipt.json"
+            and override["evidence_source"]["receipt_sha256"]
+            == "a03b90d5f94a801010c52067b5440e2bb3066ed2d16753c856f65306fa610bb3"
+            and override["host_probe"]["probe_receipt_sha256"]
+            == "c1264a738e5a0ed29de2b25626ce9642f1a4d561f3f86282f4a1ca9ebdddd989",
+            "Unreviewed host metadata provenance")
+    image = override["images"]["node"]
+    original = receipt["images"]["node"]
+    require(image["reference"] == "mirror.gcr.io/library/node@" + original["manifest_digest"],
+            "Unapproved Node transport reference")
+    for key in ["manifest_digest", "source_identity", "transport_identity", "config",
+                "layers", "rootfs_diff_ids"]:
+        require(image[key] == original[key], "Immutable Node identity changed: " + key)
+    captures = image["raw_provenance"]
+    require(set(captures) == {"source", "mirror"}, "Missing raw Node provenance")
+    for capture in captures.values():
+        require(capture["manifest_sha256"] == original["manifest_digest"].removeprefix("sha256:")
+                and capture["config_sha256"] == original["config"]["digest"].removeprefix("sha256:")
+                and capture["manifest_bytes"] > 0
+                and capture["config_bytes"] == original["config"]["size"],
+                "Raw provenance does not identify original Node manifest/config")
+    result = deepcopy(receipt)
+    result["images"]["node"]["reference"] = image["reference"]
+    postgres = override["images"]["postgres"]
+    original_postgres = receipt["images"]["postgres"]
+    require(postgres["reference"] == "mirror.gcr.io/library/postgres@"
+            + original_postgres["manifest_digest"], "Unapproved PostgreSQL transport reference")
+    require({key: value for key, value in postgres.items() if key != "reference"}
+            == {key: value for key, value in original_postgres.items() if key != "reference"},
+            "Immutable PostgreSQL identity/provenance changed")
+    transport = override["postgres_transport"]
+    require(transport["task"] == "TASK-ESSENTIAL-RELEASE-001"
+            and transport["workflow"] == GENERAL and transport["job"] == "postgres-tests"
+            and transport["original_receipt_sha256"] == ORIGINAL_RECEIPT_SHA256,
+            "PostgreSQL transport must affect only selected General data job")
+    probe = transport["probe"]
+    require(probe["reference"] == postgres["reference"]
+            and probe["manifest"] == {"http_status": 200, "bytes": 3640,
+                "sha256": original_postgres["manifest_digest"],
+                "docker_content_digest": original_postgres["manifest_digest"]}
+            and probe["config"] == {"http_status": 200, "bytes": original_postgres["config"]["size"],
+                "sha256": original_postgres["config"]["digest"]}
+            and probe["ordered_layer_count"] == probe["ordered_rootfs_count"] == 14,
+            "PostgreSQL mirror metadata does not prove original identity")
+    result["images"]["postgres"]["reference"] = postgres["reference"]
+    return result
+
+
+def general_node_contract(contract, original, effective):
+    contract = deepcopy(contract)
+    changed = 0
+    for step in contract["jobs"]["postgres-tests"]["required_steps"]:
+        if build_args(original) in step.get("run", ""):
+            step["run"] = step["run"].replace(build_args(original), build_args(effective))
+            changed += 1
+        if "docker compose" in step.get("run", ""):
+            step["run"] = step["run"].replace(" -f " + OVERLAY,
+                " -f " + OVERLAY + GENERAL_OVERLAY_ARGUMENT)
+        if "--compose-model-check" in step.get("run", ""):
+            step["run"] = "python3 tools/test_ci_image_transport.py --prepare-general-postgres\n" \
+                + step["run"].replace("--compose-model-check", "--general-compose-model-check")
+        if "--pulled-postgres" in step.get("run", ""):
+            step["run"] = step["run"].replace("--pulled-postgres", "--general-pulled-postgres")
+    require(changed == 1, "General transport must change exactly one required build")
+    # Ubuntu-latest began resolving to Ubuntu 26.04, which Playwright 1.55.1
+    # refuses before tests start. Change only this runner value; keep the
+    # immutable receipt, all required browser steps and security gates intact.
+    access_controls = contract["jobs"]["access-a-browser"]["controls"]
+    require(access_controls.get("runs-on") == "ubuntu-latest",
+            "Original Access A runner contract unexpectedly changed")
+    access_controls["runs-on"] = "ubuntu-24.04"
+    uploads = [step for step in contract["jobs"]["access-a-browser"]["required_steps"]
+               if step.get("uses") == "actions/upload-artifact@v4"]
+    require(len(uploads) == 1 and uploads[0]["with"]["path"] == (
+        "e2e/artifacts/owner-preview/access-a\nreports/playwright/access-a\n"
+        "reports/playwright/settings-ui\ne2e/artifacts/owner-preview/access-a-ui\n"),
+        "Original General Access artifact scope changed")
+    uploads[0]["with"]["path"] += (
+        "reports/playwright/portal-compact-shell-r2-20261008/\n"
+        "e2e/artifacts/owner-preview/classroom-profile-completion/\n")
+    return contract
+
+
+def general_d0_v1_contract(contract):
+    """Overlay the exact General event policy on the immutable transport contract."""
+    contract = deepcopy(contract)
+    contract["required_triggers"] = {"push": {"branches": ["main"]}, "pull_request": {}}
+    return contract
+
+
+def general_d1_v1_contract(contract):
+    """Add applicability after D0 without changing any full-job transport step."""
+    contract = deepcopy(contract)
+    contract["workflow_controls"]["env"].update({
+        "SOURCE_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+        "BASE_SHA": "${{ github.event.pull_request.base.sha || github.event.before }}",
+        "BASE_REF": "${{ github.event.pull_request.base.ref || github.ref_name }}",
+        "EVENT_NAME": "${{ github.event_name }}", "EVENT_REF": "${{ github.ref }}",
+        "MERGE_CANDIDATE_SHA": "${{ github.sha }}",
+    })
+    for job_id in ("code", "postgres-tests", "access-a-browser"):
+        contract["jobs"][job_id]["controls"].update(
+            needs=["governance" if job_id == "code" else "code", "selection"],
+            **{"if": "needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'"})
+    return contract
+
+
+def electronics_receipt(receipt, general):
+    """The selected classroom jobs reuse proven image identities, never new content."""
+    override = json.loads(read(ELECTRONICS_TRANSPORT))
+    require(hashlib.sha256(RECEIPT.read_bytes()).hexdigest() == ORIGINAL_RECEIPT_SHA256
+            and override["original_receipt_sha256"] == ORIGINAL_RECEIPT_SHA256,
+            "Original 545 receipt identity changed")
+    require(override["task"] == "TASK-ELECTRONICS-CLASSROOM-D13-001"
+            and override["workflow"] == FOCUSED
+            and override["build_jobs"] == ["browser", "review-images"]
+            and override["postgres_jobs"] == ["browser"]
+            and set(override["images"]) == {"node", "caddy", "postgres"},
+            "Classroom transport is restricted to the selected Electronics jobs")
+    require(override["platform"] == receipt["platform"]
+            == {"os": "linux", "architecture": "amd64"}, "Classroom platform mismatch")
+    require(override["evidence_source"] == {
+        "commit": "02ae08a82eb8ad65eda52a47c2100ef7830e45d5",
+        "path": "docs/product/electronics/evidence/ci-image-transport-429-receipt.json",
+        "receipt_sha256": "a03b90d5f94a801010c52067b5440e2bb3066ed2d16753c856f65306fa610bb3",
+        "probe_receipt_sha256": "c1264a738e5a0ed29de2b25626ce9642f1a4d561f3f86282f4a1ca9ebdddd989"},
+        "Unreviewed classroom Node/Caddy provenance")
+    require(override["postgres_evidence_source"] == {
+        "commit": "4c4bbed5c575122fdaa366a033e72f63ef0e96d6", "path": TRANSPORT,
+        "blob": "b75ff681e6f289fe38af352e19f4c219f05529c1",
+        "successful_run": 39242480216, "successful_job": 118028998663},
+        "Unreviewed classroom PostgreSQL provenance")
+    result = deepcopy(receipt)
+    for name in ["node", "caddy"]:
+        image, original = override["images"][name], receipt["images"][name]
+        require(image["reference"] == "mirror.gcr.io/library/" + name + "@"
+                + original["manifest_digest"], "Unapproved classroom reference: " + name)
+        for key in ["manifest_digest", "source_identity", "transport_identity", "config",
+                    "layers", "rootfs_diff_ids"]:
+            require(image[key] == original[key], "Immutable classroom identity changed: " + name + ":" + key)
+        captures = image["raw_provenance"]
+        require(set(captures) == {"source", "mirror"}, "Missing classroom raw provenance: " + name)
+        for capture in captures.values():
+            require(capture["manifest_sha256"] == original["manifest_digest"].removeprefix("sha256:")
+                    and capture["config_sha256"] == original["config"]["digest"].removeprefix("sha256:")
+                    and capture["manifest_bytes"] > 0
+                    and capture["config_bytes"] == original["config"]["size"],
+                    "Classroom provenance does not identify original manifest/config: " + name)
+        result["images"][name]["reference"] = image["reference"]
+    require(override["images"]["postgres"] == general["images"]["postgres"],
+            "Classroom PostgreSQL must reuse the complete proven General identity/provenance")
+    result["images"]["postgres"]["reference"] = general["images"]["postgres"]["reference"]
+    return result
+
+
+def electronics_contract(contract, original, effective):
+    """Project only exact transport and additive classroom source provenance."""
+    contract = deepcopy(contract)
+    browser_env = contract["jobs"]["browser"]["controls"]["env"]
+    browser_env["ASA_ELECTRONICS_EXPECTED_SHA"] = browser_env["ASA_BUILD_REVISION"]
+    counts = {"builds": 0, "browser_gate": 0, "postgres": 0}
+    for job_id in ["browser", "review-images"]:
+        steps = []
+        for step in contract["jobs"][job_id]["required_steps"]:
+            command = step.get("run", "")
+            is_build = build_args(original) in command
+            is_postgres = "up -d --wait --wait-timeout 120 postgres" in command
+            if is_build:
+                command = command.replace(build_args(original), build_args(effective))
+                counts["builds"] += 1
+                if job_id == "browser":
+                    steps.append(deepcopy(ELECTRONICS_PREPARE))
+            if job_id == "browser" and "docker compose" in command:
+                command = command.replace(" -f " + OVERLAY,
+                    " -f " + OVERLAY + ELECTRONICS_OVERLAY_ARGUMENT)
+                gate = "run --rm --no-deps test-runner pnpm gate:electronics-m1:browser"
+                if gate in command:
+                    command = command.replace(gate, "run --rm --no-deps -e NX_SKIP_NX_CACHE=true "
+                        "-e ASA_ELECTRONICS_EXPECTED_SHA test-runner pnpm gate:electronics-m1:browser")
+                    counts["browser_gate"] += 1
+            if "run" in step:
+                step["run"] = command
+            steps.append(step)
+            if is_build:
+                steps.append(deepcopy(ELECTRONICS_BUILD_PROOF))
+            if job_id == "browser" and is_postgres:
+                steps.append(deepcopy(ELECTRONICS_POSTGRES_PROOF))
+                counts["postgres"] += 1
+        contract["jobs"][job_id]["required_steps"] = steps
+    require(counts == {"builds": 2, "browser_gate": 1, "postgres": 1},
+            "Classroom projection must cover exactly the existing Electronics operations")
+    return contract
+
+
+QUALIFICATION_PROFILE = "${{ inputs.qualification_profile || 'strict-real-time' }}"
+QUALIFICATION_GATE = ("${{ inputs.qualification_profile == 'classroom-d13-v3' && "
+                      "'gate:electronics-classroom-d13-v3:browser' || "
+                      "inputs.qualification_profile == 'classroom-d13-v2' && "
+                      "'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}")
+QUALIFICATION_TEST = {"run": "pnpm exec vitest run tests/electronics/classroom-qualification.spec.ts --maxWorkers=1"}
+QUALIFICATION_INPUT = {"inputs": {"qualification_profile": {
+    "description": "Explicit browser qualification; strict real-time remains the default",
+    "required": False, "type": "choice", "default": "strict-real-time",
+    "options": ["strict-real-time", "classroom-d13-v2", "classroom-d13-v3", "arduino-editor-error"]}}}
+QUALIFICATION_RUNNER = "tools/run-electronics-classroom-browser.mjs"
+QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-interactions.spec.ts",
+    "e2e/electronics-simulation-time.spec.ts", "e2e/electronics-piezo-clock.spec.ts",
+    "e2e/electronics-native-wheel.spec.ts", "e2e/electronics-ready-cadence.spec.ts",
+    "e2e/electronics-classroom-timing.spec.ts"]
+
+
+def qualification_contract(contract):
+    """Keep the published four-profile declaration and strict/classroom gate bindings."""
+    contract = deepcopy(contract)
+    contract["required_triggers"]["workflow_dispatch"] = deepcopy(QUALIFICATION_INPUT)
+    contract["jobs"]["focused"]["controls"]["if"] = "${{ inputs.qualification_profile != 'arduino-editor-error' }}"
+    paths = contract["required_triggers"]["pull_request"]["paths"]
+    for path in [QUALIFICATION_RUNNER, "e2e/electronics-classroom-timing.spec.ts"]:
+        if path not in paths:
+            paths.append(path)
+    controls = contract["workflow_controls"]
+    controls["run-name"] = ("Electronics R4-M1 " + QUALIFICATION_PROFILE
+                            + " ${{ github.event.pull_request.head.sha || github.sha }}")
+    require(controls["concurrency"]["group"] ==
+            "electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}",
+            "Qualification must extend the original focused concurrency identity")
+    controls["concurrency"]["group"] += "-" + QUALIFICATION_PROFILE
+    contract["jobs"]["focused"]["required_steps"].append(deepcopy(QUALIFICATION_TEST))
+    browser = contract["jobs"]["browser"]
+    browser["controls"]["env"]["ASA_ELECTRONICS_QUALIFICATION_PROFILE"] = QUALIFICATION_PROFILE
+    browser["controls"]["env"]["ASA_ELECTRONICS_BROWSER_GATE"] = QUALIFICATION_GATE
+    old = ("run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA "
+           "test-runner pnpm gate:electronics-m1:browser")
+    new = ("run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA "
+           '-e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"')
+    replacements = 0
+    for step in browser["required_steps"]:
+        command = step.get("run", "")
+        if old in command:
+            require(command.count(old) == 1, "Duplicate browser gate in original step")
+            step["run"] = command.replace(old, new)
+            replacements += 1
+    require(replacements == 1, "Qualification must replace exactly the original browser gate")
+    return contract
+
+
+FAILURE_REPORT_FLAG = "ASA_ELECTRONICS_FAILURE_REPORT"
+FAILURE_REPORT_UPLOAD = {
+    "if": "always()",
+    "uses": "actions/upload-artifact@v4",
+    "with": {
+        "name": "electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "reports/electronics-failures.ndjson",
+        "if-no-files-found": "error",
+        "retention-days": 14,
+    },
+}
+
+
+def failure_evidence_contract(contract):
+    """Add only the exact bounded journal transport to the existing browser gate."""
+    contract = deepcopy(contract)
+    paths = contract["required_triggers"]["pull_request"]["paths"]
+    for path in ["tools/electronics-failure-reporter.mjs", "playwright.config.ts"]:
+        if path not in paths:
+            paths.append(path)
+    browser = contract["jobs"]["browser"]
+    require(FAILURE_REPORT_FLAG not in browser["controls"]["env"],
+            "Failure evidence must extend the original browser environment")
+    browser["controls"]["env"][FAILURE_REPORT_FLAG] = "true"
+    old = "-e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner"
+    new = "-e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e " + FAILURE_REPORT_FLAG + " test-runner"
+    steps = []
+    counts = {"gate": 0, "upload": 0}
+    for step in browser["required_steps"]:
+        command = step.get("run", "")
+        if old in command:
+            require(command.count(old) == 1, "Duplicate qualification forwarding in browser step")
+            step["run"] = command.replace(old, new)
+            counts["gate"] += 1
+        if (step.get("uses") == "actions/upload-artifact@v4"
+                and step.get("with", {}).get("name")
+                == "electronics-r4-m1-browser-${{ github.run_id }}"):
+            steps.append(deepcopy(FAILURE_REPORT_UPLOAD))
+            counts["upload"] += 1
+        steps.append(step)
+    require(counts == {"gate": 1, "upload": 1},
+            "Failure evidence must extend one existing gate and precede its original archive")
+    browser["required_steps"] = steps
+    return contract
+
+
+def d2_classroom_budget_contract(contract):
+    """D2 budget v1: extend only the complete suite's browser job to 50 minutes."""
+    contract = deepcopy(contract)
+    require(contract["jobs"]["browser"]["controls"]["timeout-minutes"] == 35
+            and contract["jobs"]["review-images"]["controls"]["timeout-minutes"] == 35,
+            "D2 browser budget must start from the original 35-minute jobs")
+    contract["jobs"]["browser"]["controls"]["timeout-minutes"] = 50
+    return contract
+
+
+QUALIFICATION_SHARD_MATRIX = """${{ fromJSON(
+    (inputs.qualification_profile == 'classroom-d13-v2' ||
+    inputs.qualification_profile == 'classroom-d13-v3' ||
+    inputs.qualification_profile == 'arduino-editor-error') &&
+    '[{"label":"whole","shard":""}]' ||
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+  ) }}"""
+
+QUALIFICATION_SHARD_CLI = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}'
+QUALIFICATION_SHARD_SUFFIX = "-${{ matrix.browser_case.label }}"
+BROWSER_REPORT_NAME = "electronics-r4-m1-browser-${{ github.run_id }}"
+SHARDED_FAILURE_REPORT_UPLOAD = deepcopy(FAILURE_REPORT_UPLOAD)
+SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"] += QUALIFICATION_SHARD_SUFFIX
+
+
+def strict_shard_contract(contract):
+    """Split only strict qualification, with both original evidence uploads per child."""
+    contract = deepcopy(contract)
+    browser = contract["jobs"]["browser"]
+    browser["controls"]["name"] = "Actual editor live simulation journey (${{ matrix.browser_case.label }})"
+    browser["controls"]["strategy"] = {
+        "fail-fast": False,
+        "matrix": {"browser_case": QUALIFICATION_SHARD_MATRIX},
+    }
+    env = browser["controls"]["env"]
+    env["ASA_ELECTRONICS_BROWSER_SHARD"] = "${{ matrix.browser_case.shard }}"
+    env["COMPOSE_PROJECT_NAME"] += QUALIFICATION_SHARD_SUFFIX
+    upload_names = {
+        FAILURE_REPORT_UPLOAD["with"]["name"]: SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"],
+        BROWSER_REPORT_NAME: BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX,
+    }
+    gate_count = 0
+    uploads = set()
+    for step in browser["required_steps"]:
+        if step.get("run", "").endswith('test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"'):
+            step["run"] += QUALIFICATION_SHARD_CLI
+            gate_count += 1
+        if step.get("uses") == "actions/upload-artifact@v4":
+            name = step.get("with", {}).get("name")
+            if name in upload_names:
+                require(name not in uploads, "Duplicate original browser evidence upload")
+                uploads.add(name)
+                step["with"]["name"] = upload_names[name]
+    require(gate_count == 1 and uploads == set(upload_names),
+            "Sharding must extend one browser gate and both evidence uploads")
+    return contract
+
+
+def check_qualification_package(package):
+    scripts = package.get("scripts", {})
+    for entrypoint in ["gate:electronics-classroom-d13:browser", "gate:electronics-classroom-d13-v3:browser"]:
+        require(scripts.get(entrypoint) == "node " + QUALIFICATION_RUNNER,
+                "Missing or changed named classroom browser gate: " + entrypoint)
+    # Preserve all existing cases and harmless additive test registration. A
+    # grep, retry, shell suffix or subset is never a complete qualification.
+    for name in ["e2e:electronics", "e2e:electronics-simulation"]:
+        words = shlex.split(scripts.get(name, ""))
+        require(words[:2] == ["playwright", "test"]
+                and all(path in words[2:] for path in QUALIFICATION_SUITE)
+                and all(re.fullmatch(r"e2e/[a-zA-Z0-9_./-]+\.spec\.ts", word)
+                        for word in words[2:]),
+                "Classroom and strict must retain the complete unfiltered suite: " + name)
 
 
 def check_identities(receipt):
@@ -111,15 +508,32 @@ def covers_required_triggers(actual, required):
     return True
 
 
-def check_workflow(path, contract, receipt):
+def check_workflow(path, contract, receipt, general_node, electronics):
     workflow = parse_yaml(read(path))
-    require(covers_required_triggers(workflow.get("on"), contract["required_triggers"]),
-            "Missing or narrowed mandatory workflow trigger: " + path)
+    require(FAILURE_REPORT_FLAG not in workflow.get("env", {}),
+            "Failure report flag must not be inherited by the entire workflow: " + path)
+    triggers = workflow.get("on")
+    if path == GENERAL:
+        from devex_ci_contract import check_wiring
+        check_wiring(workflow)
+        require(isinstance(triggers, dict)
+                and {event: {} if options is None else options for event, options in triggers.items()}
+                == contract["required_triggers"],
+                "DEVEX-D0 v1 General workflow triggers must be main push and unfiltered pull requests")
+    else:
+        require(covers_required_triggers(triggers, contract["required_triggers"]),
+                "Missing or narrowed mandatory workflow trigger: " + path)
     for key, expected in contract["workflow_controls"].items():
         require(workflow.get(key) == expected, "Workflow control drift: " + path + ":" + key)
     for job_id, expected in contract["jobs"].items():
         job = workflow.get("jobs", {}).get(job_id)
         require(isinstance(job, dict), "Missing required job: " + path + ":" + job_id)
+        if path == FOCUSED and job_id == "browser":
+            require("continue-on-error" not in job and "if" not in job,
+                    "Browser shards cannot be skipped or have failures ignored")
+            require(sum("ASA_ELECTRONICS_BROWSER_GATE" in step.get("run", "")
+                        for step in job.get("steps", [])) == 1,
+                    "Exactly one mandatory browser gate step is required per shard")
         for key, value in expected["controls"].items():
             require(job.get(key) == value, "Job control drift: " + job_id + ":" + key)
         # Required semantic steps must remain in order, with their actual gates,
@@ -135,13 +549,64 @@ def check_workflow(path, contract, receipt):
             cursor += 1
     # Check every Compose operation, including newly added ones. Parse folded
     # YAML commands first; checking just the first physical line misses flags.
-    arguments = build_args(receipt)
     for job_id, job in workflow.get("jobs", {}).items():
+        selected = path == GENERAL and job_id == "postgres-tests"
+        classroom_build = path == FOCUSED and job_id in ("browser", "review-images")
+        classroom_browser = path == FOCUSED and job_id == "browser"
+        effective = general_node if selected else electronics if classroom_build else receipt
+        arguments = build_args(effective)
+        if not classroom_browser:
+            require(FAILURE_REPORT_FLAG not in job.get("env", {}),
+                    "Failure report flag outside selected Electronics browser job: " + job_id)
+        if not classroom_browser:
+            require(not any(key in job.get("env", {}) for key in
+                    ["ASA_ELECTRONICS_QUALIFICATION_PROFILE", "ASA_ELECTRONICS_BROWSER_GATE"]),
+                    "Qualification profile outside selected Electronics browser job: " + job_id)
         for step in job.get("steps", []):
             command = step.get("run", "")
+            require(FAILURE_REPORT_FLAG not in step.get("env", {}),
+                    "Failure report flag must use the selected job environment: " + job_id)
+            if not classroom_browser:
+                require(FAILURE_REPORT_FLAG not in command,
+                        "Failure report command outside selected Electronics browser job: " + job_id)
+            if not classroom_browser:
+                require("ASA_ELECTRONICS_QUALIFICATION_PROFILE" not in command
+                        and "ASA_ELECTRONICS_BROWSER_GATE" not in command
+                        and "gate:electronics-classroom-d13:browser" not in command
+                        and "gate:electronics-classroom-d13-v3:browser" not in command,
+                        "Qualification command outside selected Electronics browser job: " + job_id)
+            if not selected:
+                require(GENERAL_OVERLAY_NAME not in command and "--general-" not in command
+                        and "--prepare-general-postgres" not in command,
+                        "General PostgreSQL transport outside selected job: " + job_id)
+            if not classroom_browser:
+                require(ELECTRONICS_OVERLAY_NAME not in command
+                        and "--prepare-electronics-postgres" not in command
+                        and "--electronics-compose-model-check" not in command
+                        and "--electronics-pulled-postgres" not in command,
+                        "Classroom PostgreSQL transport outside Electronics browser job: " + job_id)
+            if not classroom_build:
+                require("--electronics-built-images" not in command,
+                        "Classroom image proof outside selected Electronics build jobs: " + job_id)
             for operation in re.findall(r"docker compose[^\n]*", command):
                 require("-f " + OVERLAY in operation,
                         "Compose operation missing CI overlay: " + operation)
+                if selected:
+                    words = shlex.split(operation)
+                    files = [words[index + 1] for index, word in enumerate(words) if word == "-f"]
+                    require(files == ["compose.yaml", "compose.test.yaml", OVERLAY,
+                                      "$RUNNER_TEMP/" + GENERAL_OVERLAY_NAME]
+                            and all(word == "-f" for word in words
+                                    if word.startswith("-f") or word.startswith("--file")),
+                            "General Compose operation needs only the exact ordered overlays: " + operation)
+                if classroom_browser:
+                    words = shlex.split(operation)
+                    files = [words[index + 1] for index, word in enumerate(words) if word == "-f"]
+                    require(files == ["compose.yaml", "compose.test.yaml", OVERLAY,
+                                      "$RUNNER_TEMP/" + ELECTRONICS_OVERLAY_NAME]
+                            and all(word == "-f" for word in words
+                                    if word.startswith("-f") or word.startswith("--file")),
+                            "Classroom Compose operation requires only exact ordered overlays: " + operation)
                 if re.search(r"\bbuild\b", operation):
                     require(arguments in operation,
                             "Build missing exact immutable arguments: " + job_id)
@@ -165,8 +630,20 @@ def check_offline(receipt):
     for name, expected in contract["gate_scripts"].items():
         require(package.get("scripts", {}).get(name) == expected,
                 "Required gate definition changed: " + name)
+    check_qualification_package(package)
+    effective = general_node_receipt(receipt)
+    classroom = electronics_receipt(receipt, effective)
     for path, expected in contract["workflows"].items():
-        check_workflow(path, expected, receipt)
+        if path == GENERAL:
+            expected = general_d1_v1_contract(general_d0_v1_contract(
+                general_node_contract(expected, receipt, effective)))
+        elif path == FOCUSED:
+            expected = qualification_contract(electronics_contract(expected, receipt, classroom))
+            expected = failure_evidence_contract(expected)
+            expected = strict_shard_contract(d2_classroom_budget_contract(expected))
+        check_workflow(path, expected, receipt, effective, classroom)
+    from devex_ci_contract import check_bounded_wiring
+    check_bounded_wiring(parse_yaml(read(".github/workflows/devex-changed.yml")))
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
 
@@ -222,10 +699,98 @@ def require_ci_amd64():
             "Docker proof is restricted to existing disposable GitHub Linux amd64 runners")
 
 
-def check_models(receipt):
+def general_overlay_path():
+    require_ci_amd64()
+    require(os.environ.get("GITHUB_JOB") == "postgres-tests"
+            and ("/" + GENERAL + "@") in os.environ.get("GITHUB_WORKFLOW_REF", ""),
+            "PostgreSQL mirror overlay is restricted to the General data job")
+    runner_temp = Path(os.environ.get("RUNNER_TEMP", ""))
+    require(runner_temp.is_absolute(), "General overlay requires absolute RUNNER_TEMP")
+    return runner_temp / GENERAL_OVERLAY_NAME
+
+
+def general_overlay_text(receipt):
+    return "services:\n  postgres:\n    image: " + receipt["images"]["postgres"]["reference"] + "\n"
+
+
+def prepare_general_postgres(receipt):
+    path = general_overlay_path()
+    path.write_text(general_overlay_text(receipt), encoding="utf-8", newline="\n")
+    print("Prepared General disposable PostgreSQL image-only overlay: " + str(path))
+
+
+def check_general_overlay(receipt):
+    path = general_overlay_path()
+    require(path.read_text(encoding="utf-8") == general_overlay_text(receipt),
+            "General runner overlay must contain only the exact PostgreSQL image")
+    return path
+
+
+def require_electronics_job(browser_only=False):
+    require_ci_amd64()
+    jobs = ("browser",) if browser_only else ("browser", "review-images")
+    workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF", "")
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    scoped = (os.environ.get("GITHUB_JOB") == "browser"
+              and re.fullmatch(r"[^/\s@]+/[^/\s@]+", repository) is not None
+              and re.fullmatch(re.escape(repository + "/" + SCOPED_UI)
+                               + r"@refs/heads/[^\s@]+", workflow_ref) is not None)
+    require((os.environ.get("GITHUB_JOB") in jobs and ("/" + FOCUSED + "@") in workflow_ref)
+            or scoped,
+            "Docker proof is restricted to exact disposable Electronics workflow/job pairs")
+
+
+def electronics_overlay_path():
+    require_electronics_job(browser_only=True)
+    runner_temp = Path(os.environ.get("RUNNER_TEMP", ""))
+    require(runner_temp.is_absolute(), "Classroom overlay requires absolute RUNNER_TEMP")
+    return runner_temp / ELECTRONICS_OVERLAY_NAME
+
+
+def prepare_electronics_postgres(receipt):
+    path = electronics_overlay_path()
+    path.write_text(general_overlay_text(receipt), encoding="utf-8", newline="\n")
+    print("Prepared Electronics disposable PostgreSQL image-only overlay: " + str(path))
+
+
+def check_electronics_overlay(receipt):
+    path = electronics_overlay_path()
+    require(path.read_text(encoding="utf-8") == general_overlay_text(receipt),
+            "Classroom runner overlay must contain only the exact PostgreSQL image")
+    return path
+
+
+def check_electronics_built_images(receipt):
+    require_electronics_job()
+    revision, tag = os.environ.get("ASA_BUILD_REVISION", ""), os.environ.get("ASA_IMAGE_TAG", "")
+    require(re.fullmatch(r"[0-9a-f]{40}", revision) and revision == tag,
+            "Classroom build proof requires exact matching source SHA and image tag")
+    services = [("api", "node"), ("web", "caddy")]
+    if os.environ["GITHUB_JOB"] == "browser":
+        services.append(("test", "node"))
+    for service, base in services:
+        reference = "asa-lab-" + service + ":" + tag
+        image = inspect_image(reference)
+        layers = receipt["images"][base]["rootfs_diff_ids"]
+        require(image["RootFS"]["Layers"][:len(layers)] == layers,
+                "Built classroom image does not use the original base: " + reference)
+        if service != "test":
+            require(image["Config"].get("Labels", {}).get("org.opencontainers.image.revision") == revision,
+                    "Classroom image revision differs from source: " + reference)
+        print(json.dumps({"built_image": reference, "config_digest": image["Id"],
+                          "base": base, "base_diff_ids": layers, "source_revision": revision}))
+
+
+def check_models(receipt, general=False, electronics=False):
     base = ["compose", "-f", "compose.yaml", "-f", "compose.test.yaml"]
+    transport = ["-f", OVERLAY]
+    require(not (general and electronics), "Select only one CI transport scope")
+    if general:
+        transport += ["-f", str(check_general_overlay(receipt))]
+    if electronics:
+        transport += ["-f", str(check_electronics_overlay(receipt))]
     original = docker_json([*base, "--profile", "test", "config", "--format", "json"])
-    transported = docker_json([*base, "-f", OVERLAY, "--profile", "test", "config", "--format", "json"])
+    transported = docker_json([*base, *transport, "--profile", "test", "config", "--format", "json"])
     expected = receipt["images"]["postgres"]["reference"]
     require(original["services"]["postgres"]["image"] == "postgres:17.7-bookworm",
             "Original PostgreSQL default changed")
@@ -264,7 +829,14 @@ def check_built_images(receipt):
 def check_pulled_postgres(receipt):
     expected = receipt["images"]["postgres"]
     image = inspect_image(expected["reference"])
-    require(image["Id"] == expected["config"]["digest"], "Pulled PostgreSQL config differs")
+    # Docker's classic image store reports OCI config digest as image.Id.
+    # Docker 29/containerd image stores can report the pinned manifest digest
+    # instead. Both are content addressed, but accepting either is safe ONLY
+    # alongside the exact immutable repository digest and complete RootFS proof.
+    require(expected["reference"] in image.get("RepoDigests", []),
+            "Pulled PostgreSQL immutable repository digest differs")
+    require(image["Id"] in (expected["config"]["digest"], expected["manifest_digest"]),
+            "Pulled PostgreSQL config/manifest identity differs")
     require(image["RootFS"]["Layers"] == expected["rootfs_diff_ids"],
             "Pulled PostgreSQL rootfs differs")
     print(json.dumps({"pulled_image": expected["reference"], "config_digest": image["Id"],
@@ -275,11 +847,11 @@ def check_pulled_postgres(receipt):
 def check_challenges(receipt):
     """Exercise real checkers with in-memory inputs, without Docker or writes."""
     from contextlib import redirect_stdout
-    from copy import deepcopy
     from io import StringIO
     from unittest.mock import patch
 
-    source = {path: read(path) for path in [OVERLAY, "compose.yaml", "package.json",
+    source = {path: read(path) for path in [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+              ".github/workflows/devex-changed.yml",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
@@ -330,6 +902,7 @@ def check_challenges(receipt):
     trigger_challenge("General ignored required branch", general, "push", "branches-ignore", ["main"])
     trigger_challenge("General restricted pull request activity", general, "pull_request", "types", ["opened"])
     trigger_challenge("General new pull request path filter", general, "pull_request", "paths", ["docs/**"])
+    trigger_challenge("General restricted pull request base branch", general, "pull_request", "branches", ["main"])
     trigger_challenge("focused new pull request branch filter", focused, "pull_request", "branches", ["other"])
     trigger_challenge("focused new ignored paths", focused, "pull_request", "paths-ignore", ["apps/**"])
     trigger_challenge("focused required dispatch input", focused, "workflow_dispatch", "inputs",
@@ -337,11 +910,15 @@ def check_challenges(receipt):
     without_event = parse_yaml(source[general])
     del without_event["on"]["pull_request"]
     challenge("removed required pull request event", {general: json.dumps(without_event)}, False)
-    trigger_challenge("additive positive branch", general, "push", "branches",
-                      branches + ["feature/**"], True)
-    extra_event = parse_yaml(source[general])
-    extra_event["on"]["workflow_dispatch"] = None
-    challenge("additive independent event", {general: json.dumps(extra_event)}, True)
+    for branch in ("agent/**", "assistant/**", "codex/**"):
+        trigger_challenge("reintroduced General branch push: " + branch, general, "push", "branches",
+                          branches + [branch])
+    extra_general_event = parse_yaml(source[general])
+    extra_general_event["on"]["workflow_dispatch"] = None
+    challenge("additional General event", {general: json.dumps(extra_general_event)}, False)
+    extra_focused_event = parse_yaml(source[focused])
+    extra_focused_event["on"]["repository_dispatch"] = None
+    challenge("additive independent focused event", {focused: json.dumps(extra_focused_event)}, True)
     trigger_challenge("additive positive path", focused, "pull_request", "paths",
                       paths + ["e2e/electronics-simulation-time.spec.ts"], True)
     challenge("additive test step", {general: source[general].replace(
@@ -350,8 +927,9 @@ def check_challenges(receipt):
               receipt["images"]["postgres"]["manifest_digest"], "sha256:" + "0" * 64)}, False)
     challenge("extra overlay service property", {OVERLAY: source[OVERLAY]
               + "    privileged: true\n"}, False)
+    effective = general_node_receipt(receipt)
     challenge("missing Node build argument", {general: source[general].replace(
-              "--build-arg NODE_IMAGE=" + receipt["images"]["node"]["reference"] + " ", "")}, False)
+              "--build-arg NODE_IMAGE=" + effective["images"]["node"]["reference"] + " ", "")}, False)
     challenge("missing Compose overlay", {focused: source[focused].replace(
               " -f " + OVERLAY, "", 1)}, False)
     challenge("changed required gate", {general: source[general].replace(
@@ -371,6 +949,107 @@ def check_challenges(receipt):
     challenge("changed package gate definition", {"package.json": json.dumps(weakened_package)}, False)
     challenge("mutable production default", {"Dockerfile.web": source["Dockerfile.web"].replace(
               "ARG CADDY_IMAGE=caddy:2.10.2-alpine", "ARG CADDY_IMAGE=caddy:latest")}, False)
+    challenge("exact General data Node/PostgreSQL transport", {}, True)
+    challenge("General original registry is no longer selected", {general: source[general].replace(
+              build_args(effective), build_args(receipt))}, False)
+    challenge("Partial General transport cannot replace selected Electronics transport", {
+        focused: source[focused].replace(build_args(electronics_receipt(receipt, effective)),
+                                        build_args(effective))}, False)
+    other_job = parse_yaml(source[general])
+    other_job["jobs"]["code"]["steps"].append({"run": "docker compose -f compose.yaml -f "
+        + OVERLAY + " build " + build_args(effective) + " migration test-runner"})
+    challenge("General other job Node transport is outside scope", {general: json.dumps(other_job)}, False)
+    challenge("General Caddy transport is outside scope", {general: source[general].replace(
+              "public.ecr.aws/docker/library/caddy@", "mirror.gcr.io/library/caddy@")}, False)
+    challenge("General frontend transport is outside scope", {general: source[general].replace(
+              "mirror.gcr.io/docker/dockerfile@", "other.example/dockerfile@")}, False)
+    challenge("General unapproved Node registry", {general: source[general].replace(
+              "mirror.gcr.io/library/node@", "other.example/node@")}, False)
+    challenge("General mutable Node tag", {general: source[general].replace(
+              effective["images"]["node"]["reference"], "mirror.gcr.io/library/node:latest")}, False)
+    challenge("missing existing built image proof", {general: source[general].replace(
+              "          python3 tools/test_ci_image_transport.py --built-images\n", "")}, False)
+    challenge("missing existing PostgreSQL proof", {general: source[general].replace(
+              "          python3 tools/test_ci_image_transport.py --general-pulled-postgres\n", "")}, False)
+    challenge("missing General runner overlay", {general: source[general].replace(
+              GENERAL_OVERLAY_ARGUMENT, "", 1)}, False)
+    challenge("extra General Compose overlay", {general: source[general].replace(
+              GENERAL_OVERLAY_ARGUMENT, GENERAL_OVERLAY_ARGUMENT + " -f unexpected.yaml", 1)}, False)
+    challenge("missing General overlay preparation", {general: source[general].replace(
+              "          python3 tools/test_ci_image_transport.py --prepare-general-postgres\n", "")}, False)
+    challenge("original model proof cannot replace General model proof", {general: source[general].replace(
+              "--general-compose-model-check", "--compose-model-check")}, False)
+    challenge("original image proof cannot replace General mirror proof", {general: source[general].replace(
+              "--general-pulled-postgres", "--pulled-postgres")}, False)
+    challenge("Electronics runner overlay is outside scope", {focused: source[focused].replace(
+              " -f " + OVERLAY, " -f " + OVERLAY + GENERAL_OVERLAY_ARGUMENT, 1)}, False)
+    outside_proof = parse_yaml(source[general])
+    outside_proof["jobs"]["code"]["steps"].append(
+        {"run": "python3 tools/test_ci_image_transport.py --prepare-general-postgres"})
+    challenge("other job General PostgreSQL mode is outside scope", {general: json.dumps(outside_proof)}, False)
+    challenge("actual approved General Access artifact upload", {}, True)
+    access_workflow = parse_yaml(source[general])
+    access_steps = access_workflow["jobs"]["access-a-browser"]["steps"]
+    upload_index = next(index for index, step in enumerate(access_steps)
+                        if step.get("uses") == "actions/upload-artifact@v4")
+    for artifact_path in access_steps[upload_index]["with"]["path"].splitlines():
+        changed = deepcopy(access_workflow)
+        upload = changed["jobs"]["access-a-browser"]["steps"][upload_index]
+        upload["with"]["path"] = upload["with"]["path"].replace(artifact_path + "\n", "")
+        challenge("removed Access artifact path " + artifact_path, {general: json.dumps(changed)}, False)
+    for name, field, value in [
+        ("changed Access artifact retention", ["with", "retention-days"], 1),
+        ("changed Access artifact condition", ["if"], "failure()"),
+        ("changed Access artifact name", ["with", "name"], "other-artifacts"),
+        ("changed Access artifact action", ["uses"], "actions/upload-artifact@v3"),
+        ("unapproved Access artifact directory", ["with", "path"],
+            access_steps[upload_index]["with"]["path"] + "unapproved/directory/\n"),
+    ]:
+        changed = deepcopy(access_workflow)
+        parent = changed["jobs"]["access-a-browser"]["steps"][upload_index]
+        for key in field[:-1]:
+            parent = parent[key]
+        parent[field[-1]] = value
+        challenge(name, {general: json.dumps(changed)}, False)
+    override = json.loads(source[TRANSPORT])
+    for name, path, value in [
+        ("wrong transport workflow", ["workflow"], focused),
+        ("wrong transport job", ["job"], "code"),
+        ("wrong transport task", ["task"], "OTHER"),
+        ("wrong transport platform", ["platform", "architecture"], "arm64"),
+        ("mutable transport tag", ["images", "node", "reference"], "mirror.gcr.io/library/node:latest"),
+        ("unapproved registry", ["images", "node", "reference"], "other.example/node@" + override["images"]["node"]["manifest_digest"]),
+        ("wrong transport manifest", ["images", "node", "manifest_digest"], "sha256:" + "0" * 64),
+        ("wrong transport config", ["images", "node", "config", "digest"], "sha256:" + "0" * 64),
+        ("wrong ordered layers", ["images", "node", "layers"], list(reversed(override["images"]["node"]["layers"]))),
+        ("wrong ordered rootfs", ["images", "node", "rootfs_diff_ids"], list(reversed(override["images"]["node"]["rootfs_diff_ids"]))),
+        ("missing Node provenance", ["images", "node", "raw_provenance"], {}),
+        ("wrong provenance hash", ["images", "node", "raw_provenance", "mirror", "manifest_sha256"], "0" * 64),
+        ("unreviewed source evidence", ["evidence_source", "commit"], "0" * 40),
+        ("wrong source receipt hash", ["evidence_source", "receipt_sha256"], "0" * 64),
+        ("unreviewed host provenance", ["host_probe", "probe_receipt_sha256"], "0" * 64),
+        ("wrong original receipt", ["original_receipt_sha256"], "0" * 64),
+        ("extra image transport", ["images", "caddy"], receipt["images"]["caddy"]),
+        ("wrong PostgreSQL transport job", ["postgres_transport", "job"], "code"),
+        ("wrong PostgreSQL transport workflow", ["postgres_transport", "workflow"], focused),
+        ("wrong PostgreSQL original receipt", ["postgres_transport", "original_receipt_sha256"], "0" * 64),
+        ("mutable PostgreSQL transport", ["images", "postgres", "reference"], "mirror.gcr.io/library/postgres:latest"),
+        ("wrong PostgreSQL registry", ["images", "postgres", "reference"], "other.example/postgres@" + receipt["images"]["postgres"]["manifest_digest"]),
+        ("wrong PostgreSQL config", ["images", "postgres", "config", "digest"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL manifest", ["images", "postgres", "manifest_digest"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL ordered layers", ["images", "postgres", "layers"], list(reversed(receipt["images"]["postgres"]["layers"]))),
+        ("wrong PostgreSQL ordered rootfs", ["images", "postgres", "rootfs_diff_ids"], list(reversed(receipt["images"]["postgres"]["rootfs_diff_ids"]))),
+        ("lost PostgreSQL original provenance", ["images", "postgres", "raw_source_prefix"], "other"),
+        ("wrong PostgreSQL manifest probe", ["postgres_transport", "probe", "manifest", "sha256"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL config probe", ["postgres_transport", "probe", "config", "sha256"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL probe byte count", ["postgres_transport", "probe", "config", "bytes"], 1),
+    ]:
+        changed = deepcopy(override)
+        parent = changed
+        for key in path[:-1]:
+            parent = parent[key]
+        parent[path[-1]] = value
+        challenge(name, {TRANSPORT: json.dumps(changed)}, False)
     original = {"services": {"postgres": {"image": "postgres:17.7-bookworm"},
                              "test-runner": {"command": "pnpm gate:data"}}}
     for changed_service in (False, True):
@@ -388,7 +1067,471 @@ def check_challenges(receipt):
         require((error is not None) == changed_service, "Parsed model equivalence challenge failed")
         outcomes.append({"challenge": "effective model " + ("changed service" if changed_service else "image only"),
                          "result": "PASS", "rejection": error})
+    general_context = {"GITHUB_ACTIONS": "true", "GITHUB_JOB": "postgres-tests",
+        "GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/" + general + "@refs/heads/main",
+        "RUNNER_TEMP": str(ROOT)}
+
+    def runtime_challenge(name, check, passes, environment=None, system="Linux", architecture="x86_64",
+                          overlay=None, docker=None):
+        error = None
+        with patch.dict(os.environ, {**general_context, **(environment or {})}, clear=True), \
+                patch(__name__ + ".platform.system", return_value=system), \
+                patch(__name__ + ".platform.machine", return_value=architecture), \
+                patch.object(Path, "read_text", return_value=general_overlay_text(effective) if overlay is None else overlay), \
+                patch.object(Path, "write_text", autospec=True) as write_overlay, \
+                patch(__name__ + ".docker_json", side_effect=docker) as docker_call:
+            try:
+                with redirect_stdout(StringIO()):
+                    check()
+            except ValueError as failure:
+                error = str(failure)
+            require((error is None) == passes, "Runtime challenge failed: " + name + ":" + str(error))
+            if write_overlay.called:
+                require(passes and write_overlay.call_count == 1
+                        and write_overlay.call_args.args == (ROOT / GENERAL_OVERLAY_NAME, general_overlay_text(effective)),
+                        "Overlay writer escaped exact runner path/content")
+            if docker_call.called and "pulled" in name:
+                require(docker_call.call_args.args[0] == ["image", "inspect", effective["images"]["postgres"]["reference"]],
+                        "General proof inspected the wrong PostgreSQL registry")
+        outcomes.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    runtime_challenge("prepare exact General image-only overlay", lambda: prepare_general_postgres(effective), True)
+    for name, environment, system, architecture in [
+        ("non-Actions host", {"GITHUB_ACTIONS": "false"}, "Linux", "x86_64"),
+        ("wrong job", {"GITHUB_JOB": "code"}, "Linux", "x86_64"),
+        ("wrong workflow", {"GITHUB_WORKFLOW_REF": "repo/" + focused + "@refs/heads/main"}, "Linux", "x86_64"),
+        ("relative runner path", {"RUNNER_TEMP": "relative"}, "Linux", "x86_64"),
+        ("wrong runner OS", {}, "Windows", "x86_64"),
+        ("wrong runner architecture", {}, "Linux", "arm64"),
+    ]:
+        runtime_challenge(name, lambda: prepare_general_postgres(effective), False, environment, system, architecture)
+    runtime_challenge("extra runtime overlay property", lambda: check_general_overlay(effective), False,
+                      overlay=general_overlay_text(effective) + "    privileged: true\n")
+    runtime_challenge("wrong runtime overlay image", lambda: check_general_overlay(effective), False,
+                      overlay=general_overlay_text(receipt))
+    for changed_service in (False, True):
+        transported = deepcopy(original)
+        transported["services"]["postgres"]["image"] = effective["images"]["postgres"]["reference"]
+        if changed_service:
+            transported["services"]["test-runner"]["command"] = "true"
+        runtime_challenge("General model " + ("changed service" if changed_service else "image only"),
+            lambda: check_models(effective, general=True), not changed_service,
+            docker=[deepcopy(original), transported])
+    postgres_image = {"Architecture": "amd64", "Os": "linux",
+        "Id": effective["images"]["postgres"]["config"]["digest"],
+        "RepoDigests": [effective["images"]["postgres"]["reference"]],
+        "RootFS": {"Layers": effective["images"]["postgres"]["rootfs_diff_ids"]}}
+    for name, field, value, accepted in [
+        ("classic pulled PostgreSQL config/rootfs", None, None, True),
+        ("containerd pinned PostgreSQL manifest/rootfs", ["Id"], effective["images"]["postgres"]["manifest_digest"], True),
+        ("pulled PostgreSQL wrong config", ["Id"], "sha256:" + "0" * 64, False),
+        ("pulled PostgreSQL missing pinned repository digest", ["RepoDigests"], [], False),
+        ("pulled PostgreSQL wrong pinned repository digest", ["RepoDigests"], ["mirror.gcr.io/library/postgres@sha256:" + "0" * 64], False),
+        ("pulled PostgreSQL wrong layer order", ["RootFS", "Layers"], list(reversed(postgres_image["RootFS"]["Layers"])), False),
+        ("pulled PostgreSQL wrong architecture", ["Architecture"], "arm64", False),
+        ("pulled PostgreSQL wrong OS", ["Os"], "windows", False),
+    ]:
+        inspected = deepcopy(postgres_image)
+        if field:
+            parent = inspected
+            for key in field[:-1]:
+                parent = parent[key]
+            parent[field[-1]] = value
+        runtime_challenge(name, lambda: (check_general_overlay(effective), check_pulled_postgres(effective)),
+                          accepted, docker=[[inspected]])
     print(json.dumps({"semantic_challenges": outcomes}, indent=2))
+
+
+def check_electronics_challenges(receipt):
+    """Challenge the added exact scope without Docker, network, or host writes."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
+             *receipt["semantic_contract"]["dockerfile_defaults"],
+             *receipt["semantic_contract"]["workflows"]]
+    source = {path: read(path) for path in paths}
+    results = []
+
+    def challenge(name, replacements, passes=False):
+        error = None
+        with patch(__name__ + ".read", side_effect={**source, **replacements}.__getitem__):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require((error is None) == passes, "Classroom challenge failed: " + name + ":" + str(error))
+        results.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    classroom = json.loads(source[ELECTRONICS_TRANSPORT])
+    challenge("exact classroom transport and provenance", {}, True)
+    for name, path, value in [
+        ("wrong task", ["task"], "OTHER"),
+        ("wrong workflow", ["workflow"], GENERAL),
+        ("extra build job", ["build_jobs"], ["browser", "review-images", "focused"]),
+        ("wrong PostgreSQL job", ["postgres_jobs"], ["review-images"]),
+        ("wrong platform", ["platform", "architecture"], "arm64"),
+        ("unreviewed original", ["original_receipt_sha256"], "0" * 64),
+        ("wrong preserved source", ["evidence_source", "commit"], "0" * 40),
+        ("wrong General source", ["postgres_evidence_source", "blob"], "0" * 40),
+    ]:
+        changed = deepcopy(classroom)
+        target = changed
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = value
+        challenge(name, {ELECTRONICS_TRANSPORT: json.dumps(changed)})
+    for name in ["node", "caddy", "postgres"]:
+        for field, value in [
+            ("reference", "other.example/" + name + "@" + receipt["images"][name]["manifest_digest"]),
+            ("reference", "mirror.gcr.io/library/" + name + ":latest"),
+            ("manifest_digest", "sha256:" + "0" * 64),
+            ("config", {**receipt["images"][name]["config"], "digest": "sha256:" + "0" * 64}),
+            ("layers", list(reversed(receipt["images"][name]["layers"]))),
+            ("rootfs_diff_ids", list(reversed(receipt["images"][name]["rootfs_diff_ids"]))),
+        ]:
+            changed = deepcopy(classroom)
+            changed["images"][name][field] = value
+            challenge(name + " changed " + field, {ELECTRONICS_TRANSPORT: json.dumps(changed)})
+    for name in ["node", "caddy"]:
+        changed = deepcopy(classroom)
+        changed["images"][name]["raw_provenance"] = {}
+        challenge(name + " missing raw provenance", {ELECTRONICS_TRANSPORT: json.dumps(changed)})
+    workflow = parse_yaml(source[FOCUSED])
+    missing_env = deepcopy(workflow)
+    del missing_env["jobs"]["browser"]["env"]["ASA_ELECTRONICS_EXPECTED_SHA"]
+    challenge("missing browser source SHA", {FOCUSED: json.dumps(missing_env)})
+    challenge("missing test container source SHA", {FOCUSED: source[FOCUSED].replace(
+        " -e ASA_ELECTRONICS_EXPECTED_SHA", "")})
+    challenge("disabled literal NX cache bypass", {FOCUSED: source[FOCUSED].replace(
+        "-e NX_SKIP_NX_CACHE=true", "-e NX_SKIP_NX_CACHE=false")})
+    challenge("browser gate weakened", {FOCUSED: source[FOCUSED].replace(
+        'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true')})
+    challenge("missing classroom runner overlay", {FOCUSED: source[FOCUSED].replace(
+        ELECTRONICS_OVERLAY_ARGUMENT, "", 1)})
+    challenge("extra classroom runner overlay", {FOCUSED: source[FOCUSED].replace(
+        ELECTRONICS_OVERLAY_ARGUMENT, ELECTRONICS_OVERLAY_ARGUMENT + " -f unexpected.yaml", 1)})
+    for job, proof in [("browser", ELECTRONICS_PREPARE), ("browser", ELECTRONICS_BUILD_PROOF),
+                       ("review-images", ELECTRONICS_BUILD_PROOF), ("browser", ELECTRONICS_POSTGRES_PROOF)]:
+        changed = deepcopy(workflow)
+        changed["jobs"][job]["steps"] = [step for step in changed["jobs"][job]["steps"]
+            if semantic_step(step) != proof]
+        challenge(job + " removed " + proof["run"], {FOCUSED: json.dumps(changed)})
+    misplaced = parse_yaml(source[GENERAL])
+    misplaced["jobs"]["code"]["steps"].append(ELECTRONICS_BUILD_PROOF)
+    challenge("classroom proof outside Electronics", {GENERAL: json.dumps(misplaced)})
+
+    effective = electronics_receipt(receipt, general_node_receipt(receipt))
+    context = {"GITHUB_ACTIONS": "true", "GITHUB_JOB": "browser",
+        "GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/" + FOCUSED + "@refs/heads/candidate",
+        "RUNNER_TEMP": str(ROOT), "ASA_BUILD_REVISION": "1" * 40, "ASA_IMAGE_TAG": "1" * 40}
+
+    def runtime(name, check, passes=True, environment=None, system="Linux", architecture="x86_64",
+                overlay=None, docker=None):
+        error = None
+        with patch.dict(os.environ, {**context, **(environment or {})}, clear=True), \
+                patch(__name__ + ".platform.system", return_value=system), \
+                patch(__name__ + ".platform.machine", return_value=architecture), \
+                patch.object(Path, "read_text", return_value=general_overlay_text(effective) if overlay is None else overlay), \
+                patch.object(Path, "write_text", autospec=True) as writer, \
+                patch(__name__ + ".docker_json", side_effect=docker) as docker_call:
+            try:
+                with redirect_stdout(StringIO()):
+                    check()
+            except ValueError as failure:
+                error = str(failure)
+            require((error is None) == passes, "Classroom runtime challenge failed: " + name + ":" + str(error))
+            if writer.called:
+                require(passes and writer.call_count == 1
+                        and writer.call_args.args == (ROOT / ELECTRONICS_OVERLAY_NAME, general_overlay_text(effective)),
+                        "Classroom writer escaped the exact runner overlay")
+        results.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    runtime("exact classroom overlay preparation", lambda: prepare_electronics_postgres(effective))
+    scoped_context = {"GITHUB_REPOSITORY": "spikeal8-maker/asa-lab",
+        "GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/" + SCOPED_UI + "@refs/heads/main"}
+    runtime("exact scoped UI browser overlay", lambda: prepare_electronics_postgres(effective),
+            environment=scoped_context)
+    for name, changes in [
+        ("scoped wrong job", {"GITHUB_JOB": "review-images"}),
+        ("scoped unknown job", {"GITHUB_JOB": "focused"}),
+        ("scoped wrong repository", {"GITHUB_REPOSITORY": "other/repository"}),
+        ("scoped missing repository", {"GITHUB_REPOSITORY": ""}),
+        ("scoped spoof suffix", {"GITHUB_WORKFLOW_REF": scoped_context["GITHUB_WORKFLOW_REF"] + "@evil"}),
+        ("scoped spoof prefix", {"GITHUB_WORKFLOW_REF": "evil/" + scoped_context["GITHUB_WORKFLOW_REF"]}),
+        ("scoped unknown workflow", {"GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/.github/workflows/unknown.yml@refs/heads/main"}),
+    ]:
+        runtime(name, lambda: prepare_electronics_postgres(effective), False,
+                environment={**scoped_context, **changes})
+
+    for name, env, system, architecture in [
+        ("outside Actions", {"GITHUB_ACTIONS": "false"}, "Linux", "x86_64"),
+        ("General job", {"GITHUB_JOB": "postgres-tests"}, "Linux", "x86_64"),
+        ("review job cannot prepare database", {"GITHUB_JOB": "review-images"}, "Linux", "x86_64"),
+        ("other workflow", {"GITHUB_WORKFLOW_REF": "repo/" + GENERAL + "@main"}, "Linux", "x86_64"),
+        ("relative runner path", {"RUNNER_TEMP": "relative"}, "Linux", "x86_64"),
+        ("Windows host", {}, "Windows", "x86_64"),
+        ("ARM host", {}, "Linux", "arm64"),
+    ]:
+        runtime(name, lambda: prepare_electronics_postgres(effective), False, env, system, architecture)
+    runtime("extra overlay setting", lambda: check_electronics_overlay(effective), False,
+            overlay=general_overlay_text(effective) + "    privileged: true\n")
+    original_model = {"services": {"postgres": {"image": "postgres:17.7-bookworm"},
+        "test-runner": {"command": "pnpm gate:electronics-m1:browser"}}}
+    for drift in [False, True]:
+        model = deepcopy(original_model)
+        model["services"]["postgres"]["image"] = effective["images"]["postgres"]["reference"]
+        if drift:
+            model["services"]["test-runner"]["command"] = "true"
+        runtime("classroom model " + ("gate drift" if drift else "image only"),
+                lambda: check_models(effective, electronics=True), not drift,
+                docker=[deepcopy(original_model), model])
+
+    def built(base):
+        return {"Architecture": "amd64", "Os": "linux", "Id": "sha256:" + "2" * 64,
+            "RootFS": {"Layers": effective["images"][base]["rootfs_diff_ids"] + ["application"]},
+            "Config": {"Labels": {"org.opencontainers.image.revision": "1" * 40}}}
+    good = [built("node"), built("caddy"), built("node")]
+    runtime("browser exact Node Caddy and test bases", lambda: check_electronics_built_images(effective),
+            docker=[[image] for image in deepcopy(good)])
+    runtime("review job exact API and Web without absent test image", lambda: check_electronics_built_images(effective),
+            environment={"GITHUB_JOB": "review-images"}, docker=[[image] for image in deepcopy(good[:2])])
+    for index, service in enumerate(["api", "web", "test"]):
+        for field in ["rootfs", "architecture", "revision"]:
+            if field == "revision" and service == "test":
+                continue
+            changed = deepcopy(good)
+            if field == "rootfs":
+                changed[index]["RootFS"]["Layers"] = []
+            elif field == "architecture":
+                changed[index]["Architecture"] = "arm64"
+            else:
+                changed[index]["Config"]["Labels"]["org.opencontainers.image.revision"] = "3" * 40
+            runtime(service + " changed " + field, lambda: check_electronics_built_images(effective),
+                    False, docker=[[image] for image in changed])
+    print(json.dumps({"classroom_transport_challenges": results}, indent=2))
+
+
+def check_qualification_challenges(receipt):
+    """Keep all four exact profiles explicit and every mandatory gate binding."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
+             *receipt["semantic_contract"]["dockerfile_defaults"],
+             *receipt["semantic_contract"]["workflows"]]
+    source = {path: read(path) for path in paths}
+    workflow = parse_yaml(source[FOCUSED])
+    outcomes = []
+
+    def challenge(name, replacements, passes=False):
+        error = None
+        with patch(__name__ + ".read", side_effect={**source, **replacements}.__getitem__):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require((error is None) == passes, "Qualification challenge failed: " + name + ":" + str(error))
+        outcomes.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    challenge("exact explicit profiles and complete suite", {}, True)
+    for name, mutate in [
+        ("D2 browser budget cannot revert to 35 minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": 35})),
+        ("D2 browser budget cannot narrow to 49 minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": 49})),
+        ("D2 browser budget cannot widen to 51 minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": 51})),
+        ("D2 browser budget cannot affect review images", lambda w: w["jobs"]["review-images"].update({"timeout-minutes": 50})),
+        ("classroom cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v2"})),
+        ("unknown profile cannot be offered", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].append("unknown")),
+        ("focused cannot be disabled", lambda w: w["jobs"]["focused"].update({"if": False})),
+        ("focused cannot skip strict qualification", lambda w: w["jobs"]["focused"].update({"if": "${{ inputs.qualification_profile != 'strict-real-time' }}"})),
+        ("focused cannot use unknown profile condition", lambda w: w["jobs"]["focused"].update({"if": "${{ inputs.qualification_profile != 'unknown' }}"})),
+        ("strict remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("strict-real-time")),
+        ("published editor profile remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("arduino-editor-error")),
+        ("editor profile cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "arduino-editor-error"})),
+        ("unknown cannot replace published editor profile", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].__setitem__(3, "unknown")),
+        ("v3 cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v3"})),
+        ("historical v2 remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v2")),
+        ("v3 remains separately selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v3")),
+        ("v3 cannot select the historical v2 gate", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_GATE": QUALIFICATION_GATE.replace("gate:electronics-classroom-d13-v3:browser", "gate:electronics-classroom-d13:browser")})),
+        ("profile must be a choice", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"type": "string"})),
+        ("profile is optional with strict default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"required": True})),
+        ("profile must be named in evidence run", lambda w: w.pop("run-name")),
+        ("strict and classroom cannot cancel each other", lambda w: w["concurrency"].update({"group": "electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}"})),
+        ("browser profile cannot disappear", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_QUALIFICATION_PROFILE")),
+        ("browser profile cannot be silently classroom", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
+        ("gate cannot use arbitrary input", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_GATE": "${{ inputs.qualification_profile }}"})),
+        ("browser dependency remains focused", lambda w: w["jobs"]["browser"].update({"needs": []})),
+        ("review images require browser and benchmark", lambda w: w["jobs"]["review-images"].update({"needs": ["focused"]})),
+        ("mandatory qualification test cannot be omitted", lambda w: w["jobs"]["focused"].update({"steps": [step for step in w["jobs"]["focused"]["steps"] if semantic_step(step) != QUALIFICATION_TEST]})),
+        ("runner path must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(QUALIFICATION_RUNNER)),
+        ("D13 observer must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove("e2e/electronics-classroom-timing.spec.ts")),
+        ("profile cannot move to benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
+        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s2","shard":"2/4"}', "")})),
+        ("strict cannot omit s4 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s4","shard":"4/4"}', "")})),
+        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":"1/4"')})),
+        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":""')})),
+        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/4"')})),
+        ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
+        ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
+        ("matrix cannot be removed", lambda w: w["jobs"]["browser"].pop("strategy")),
+        ("matrix cannot add unexpected child", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"include": [{"label": "bypass", "shard": ""}]})),
+        ("matrix cannot fail fast", lambda w: w["jobs"]["browser"]["strategy"].update({"fail-fast": True})),
+        ("browser cannot skip a shard", lambda w: w["jobs"]["browser"].update({"if": False})),
+        ("browser cannot ignore failed job", lambda w: w["jobs"]["browser"].update({"continue-on-error": True})),
+        ("browser shard must reach runner env", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_BROWSER_SHARD")),
+        ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/4"})),
+        ("Compose project must isolate all children", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}"})),
+        ("Compose project cannot be static", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics"})),
+        ("large archive cannot share a name", lambda w: [step["with"].update({"name": BROWSER_REPORT_NAME})
+            for step in w["jobs"]["browser"]["steps"]
+            if step.get("with", {}).get("name") == BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX]),
+    ]:
+        changed = deepcopy(workflow)
+        mutate(changed)
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    for name, old, new in [
+        ("profile reaches real test container", " -e ASA_ELECTRONICS_QUALIFICATION_PROFILE", ""),
+        ("selected gate cannot ignore failure", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true'),
+        ("selected gate cannot become strict-only", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', "pnpm gate:electronics-m1:browser"),
+        ("shard CLI must reach Playwright", QUALIFICATION_SHARD_CLI, ""),
+        ("shard CLI cannot be fixed at s1", QUALIFICATION_SHARD_CLI, " --shard=1/4"),
+        ("strict shards cannot use default workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "")),
+        ("strict shards cannot run two workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace("--workers=1", "--workers=2")),
+        ("whole profiles cannot inherit a strict worker limit", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "") + " --workers=1"),
+        ("browser CLI cannot grep away cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep LED"),
+        ("browser CLI cannot skip cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep-invert E11"),
+        ("browser CLI cannot retry failed cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --retries=3"),
+        ("qualification tests cannot be conditional", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        if: false"),
+        ("qualification tests cannot ignore failure", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        continue-on-error: true"),
+    ]:
+        require(old in source[FOCUSED], "Challenge selector missing: " + name)
+        challenge(name, {FOCUSED: source[FOCUSED].replace(old, new)})
+    original_package = json.loads(source["package.json"])
+    for entrypoint in ["gate:electronics-classroom-d13:browser", "gate:electronics-classroom-d13-v3:browser"]:
+        for name, value in [
+            ("missing named classroom gate", None),
+            ("classroom gate cannot select subset", "playwright test e2e/electronics-classroom-timing.spec.ts"),
+            ("classroom gate cannot swallow failure", "node " + QUALIFICATION_RUNNER + " || true"),
+            ("classroom gate cannot add filters", "node " + QUALIFICATION_RUNNER + " --grep D13"),
+        ]:
+            changed = deepcopy(original_package)
+            if value is None:
+                changed["scripts"].pop(entrypoint)
+            else:
+                changed["scripts"][entrypoint] = value
+            challenge(entrypoint + ": " + name, {"package.json": json.dumps(changed)})
+    for alias in ["e2e:electronics", "e2e:electronics-simulation"]:
+        for case in QUALIFICATION_SUITE:
+            changed = deepcopy(original_package)
+            changed["scripts"][alias] = changed["scripts"][alias].replace(" " + case, "")
+            challenge(alias + " retains " + case, {"package.json": json.dumps(changed)})
+        for suffix in [" --grep D13", " --retries 3", " || true"]:
+            changed = deepcopy(original_package)
+            changed["scripts"][alias] += suffix
+            challenge(alias + " rejects " + suffix, {"package.json": json.dumps(changed)})
+    print(json.dumps({"classroom_qualification_challenges": outcomes}, indent=2))
+
+
+def check_failure_evidence_challenges(receipt):
+    """Challenge diagnostic delivery through the real guard without Docker or writes."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
+             *receipt["semantic_contract"]["dockerfile_defaults"],
+             *receipt["semantic_contract"]["workflows"]]
+    source = {path: read(path) for path in paths}
+    workflow = parse_yaml(source[FOCUSED])
+    outcomes = []
+
+    def challenge(name, replacements, passes=False):
+        error = None
+        with patch(__name__ + ".read", side_effect={**source, **replacements}.__getitem__):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require((error is None) == passes, "Failure evidence challenge failed: " + name + ":" + str(error))
+        outcomes.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    challenge("exact diagnostic flag, forwarding and small archive", {}, True)
+    for name, mutate in [
+        ("missing diagnostic flag", lambda w: w["jobs"]["browser"]["env"].pop(FAILURE_REPORT_FLAG)),
+        ("disabled diagnostic flag", lambda w: w["jobs"]["browser"]["env"].update({FAILURE_REPORT_FLAG: "false"})),
+        ("flag must remain a literal string", lambda w: w["jobs"]["browser"]["env"].update({FAILURE_REPORT_FLAG: True})),
+        ("missing reporter trigger", lambda w: w["on"]["pull_request"]["paths"].remove("tools/electronics-failure-reporter.mjs")),
+        ("missing reporter configuration trigger", lambda w: w["on"]["pull_request"]["paths"].remove("playwright.config.ts")),
+        ("workflow-wide diagnostic flag", lambda w: w.setdefault("env", {}).update({FAILURE_REPORT_FLAG: "true"})),
+        ("diagnostic flag in benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({FAILURE_REPORT_FLAG: "true"})),
+        ("diagnostic flag in an additive job", lambda w: w["jobs"].update({"extra": {
+            "runs-on": "ubuntu-24.04", "env": {FAILURE_REPORT_FLAG: "true"}, "steps": [{"run": "true"}]}})),
+        ("diagnostic command outside browser", lambda w: w["jobs"]["benchmark"]["steps"].append(
+            {"run": "env " + FAILURE_REPORT_FLAG + "=true node --version"})),
+        ("diagnostic step environment outside browser", lambda w: w["jobs"]["benchmark"]["steps"].append(
+            {"run": "true", "env": {FAILURE_REPORT_FLAG: "true"}})),
+        ("diagnostic browser step override", lambda w: w["jobs"]["browser"]["steps"].append(
+            {"run": "true", "env": {FAILURE_REPORT_FLAG: "false"}})),
+    ]:
+        changed = deepcopy(workflow)
+        mutate(changed)
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    forwarding = " -e " + FAILURE_REPORT_FLAG
+    require(source[FOCUSED].count(forwarding) == 1, "Expected exactly one diagnostic forwarding")
+    for name, replacement in [
+        ("missing container diagnostic forwarding", ""),
+        ("disabled container diagnostic forwarding", forwarding + "=false"),
+        ("duplicate container diagnostic forwarding", forwarding + forwarding),
+    ]:
+        challenge(name, {FOCUSED: source[FOCUSED].replace(forwarding, replacement)})
+    steps = workflow["jobs"]["browser"]["steps"]
+    uploads = [index for index, step in enumerate(steps)
+               if semantic_step(step) == SHARDED_FAILURE_REPORT_UPLOAD]
+    require(len(uploads) == 1, "Expected exactly one diagnostic artifact upload")
+    upload_index = uploads[0]
+    without_upload = deepcopy(workflow)
+    without_upload["jobs"]["browser"]["steps"].pop(upload_index)
+    challenge("missing diagnostic artifact upload", {FOCUSED: json.dumps(without_upload)})
+    for name, field, value in [
+        ("conditional diagnostic artifact", ["if"], "failure()"),
+        ("ignored diagnostic artifact error", ["continue-on-error"], True),
+        ("changed diagnostic artifact action", ["uses"], "actions/upload-artifact@v3"),
+        ("unbounded diagnostic artifact directory", ["with", "path"], "reports"),
+        ("missing diagnostic file ignored", ["with", "if-no-files-found"], "ignore"),
+        ("changed diagnostic retention", ["with", "retention-days"], 1),
+        ("diagnostic artifact loses attempt identity", ["with", "name"],
+            "electronics-r4-m1-failures-${{ github.run_id }}" + QUALIFICATION_SHARD_SUFFIX),
+        ("diagnostic artifact loses shard identity", ["with", "name"],
+            FAILURE_REPORT_UPLOAD["with"]["name"]),
+    ]:
+        changed = deepcopy(workflow)
+        target = changed["jobs"]["browser"]["steps"][upload_index]
+        for key in field[:-1]:
+            target = target[key]
+        target[field[-1]] = value
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    reordered = deepcopy(workflow)
+    reordered_steps = reordered["jobs"]["browser"]["steps"]
+    small_upload = reordered_steps.pop(upload_index)
+    large_index = next(index for index, step in enumerate(reordered_steps)
+        if step.get("with", {}).get("name") == BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX)
+    reordered_steps.insert(large_index + 1, small_upload)
+    challenge("small diagnostic artifact after large archive", {FOCUSED: json.dumps(reordered)})
+    general = parse_yaml(source[GENERAL])
+    general.setdefault("env", {})[FAILURE_REPORT_FLAG] = "true"
+    challenge("diagnostic flag in General workflow", {GENERAL: json.dumps(general)})
+    print(json.dumps({"failure_evidence_challenges": outcomes}, indent=2))
 
 
 def main():
@@ -399,11 +1542,48 @@ def main():
     parser.add_argument("--compose-model-check", action="store_true")
     parser.add_argument("--built-images", action="store_true")
     parser.add_argument("--pulled-postgres", action="store_true")
+    parser.add_argument("--prepare-general-postgres", action="store_true")
+    parser.add_argument("--general-compose-model-check", action="store_true")
+    parser.add_argument("--general-pulled-postgres", action="store_true")
+    parser.add_argument("--prepare-electronics-postgres", action="store_true")
+    parser.add_argument("--electronics-compose-model-check", action="store_true")
+    parser.add_argument("--electronics-pulled-postgres", action="store_true")
+    parser.add_argument("--electronics-built-images", action="store_true")
     options = parser.parse_args()
     receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
+    if (options.prepare_electronics_postgres or options.electronics_compose_model_check
+            or options.electronics_pulled_postgres or options.electronics_built_images):
+        require(sum(vars(options).values()) == 1, "Use one explicit classroom image proof mode")
+        require_electronics_job(browser_only=not options.electronics_built_images)
+        check_identities(receipt)
+        effective = electronics_receipt(receipt, general_node_receipt(receipt))
+        if options.prepare_electronics_postgres:
+            prepare_electronics_postgres(effective)
+        elif options.electronics_compose_model_check:
+            check_models(effective, electronics=True)
+        elif options.electronics_pulled_postgres:
+            check_electronics_overlay(effective)
+            check_pulled_postgres(effective)
+        else:
+            check_electronics_built_images(effective)
+        return
     check_offline(receipt)
+    if options.prepare_general_postgres or options.general_compose_model_check or options.general_pulled_postgres:
+        require(sum(vars(options).values()) == 1, "Use one explicit General PostgreSQL proof mode")
+        effective = general_node_receipt(receipt)
+        if options.prepare_general_postgres:
+            prepare_general_postgres(effective)
+        elif options.general_compose_model_check:
+            check_models(effective, general=True)
+        else:
+            check_general_overlay(effective)
+            check_pulled_postgres(effective)
+        return
     if options.self_test:
         check_challenges(receipt)
+        check_electronics_challenges(receipt)
+        check_qualification_challenges(receipt)
+        check_failure_evidence_challenges(receipt)
     if options.baseline_proof:
         check_original_baseline(receipt)
     if options.compose_model_check or options.built_images or options.pulled_postgres:

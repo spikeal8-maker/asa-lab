@@ -27,8 +27,11 @@ import {
 } from '@asa-lab/checkers';
 import { randomUUID } from 'node:crypto';
 import { withTenantContext } from '@asa-lab/database';
+import { CheckersNetworkService } from '@asa-lab/games';
+import { hashSessionToken } from '@asa-lab/identity';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape } from './validation.js';
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -126,6 +129,15 @@ export class CheckersClassroomController {
   private async requireContext(
     request: FastifyRequest,
   ): Promise<ActiveContext & { userId: string }> {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      throw new HttpException(
+        error(
+          'student_offline_only',
+          'В ученическом режиме доступны только игры без сетевых соперников.',
+        ),
+        403,
+      );
+    }
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     if (context.userId === null || context.workspaceKind !== 'organization') {
@@ -135,6 +147,25 @@ export class CheckersClassroomController {
       );
     }
     return { ...context, userId: context.userId };
+  }
+
+  private async requireNetworkContext(request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    if (
+      !(await new CheckersNetworkService(this.requirePool()).legacyAllowed({
+        kind: 'account',
+        sessionHash: hashSessionToken(request.cookies[SESSION_COOKIE]!),
+      }))
+    ) {
+      throw new HttpException(
+        error(
+          'pupil_network_required',
+          'Откройте сетевые шашки с главной страницы шашек: там действуют настройки учителя.',
+        ),
+        403,
+      );
+    }
+    return context;
   }
 
   private async membership(
@@ -494,7 +525,7 @@ export class CheckersClassroomController {
 
   @Get(':projectId/play')
   async classPlay(@Req() request: FastifyRequest, @Param('projectId') projectId: string) {
-    const context = await this.requireContext(request);
+    const context = await this.requireNetworkContext(request);
     const membership = await this.membership(context, projectId);
     const members = await this.classroomMembers(context, projectId);
     const memberByUser = new Map(members.map((member) => [member.member_user_id, member] as const));
@@ -588,7 +619,7 @@ export class CheckersClassroomController {
     @Param('projectId') projectId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireContext(request);
+    const context = await this.requireNetworkContext(request);
     const membership = await this.membership(context, projectId);
     if (membership.role !== 'student') {
       throw new HttpException(
@@ -671,7 +702,7 @@ export class CheckersClassroomController {
     @Param('projectId') projectId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireContext(request);
+    const context = await this.requireNetworkContext(request);
     const membership = await this.membership(context, projectId);
     if (membership.role !== 'owner') {
       throw new HttpException(
@@ -763,7 +794,7 @@ export class CheckersClassroomController {
     @Param('projectId') projectId: string,
     @Param('gameId') gameId: string,
   ) {
-    const context = await this.requireContext(request);
+    const context = await this.requireNetworkContext(request);
     await this.membership(context, projectId);
     return withTenantContext(this.requirePool(), context.tenantId, async (client) => {
       const updated = await client.query(
@@ -795,7 +826,7 @@ export class CheckersClassroomController {
     @Param('gameId') gameId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireContext(request);
+    const context = await this.requireNetworkContext(request);
     await this.membership(context, projectId);
     const shape = checkBodyShape(rawBody, ['expectedVersion', 'pieceId', 'path']);
     const expectedVersion = shape.ok ? shape.body['expectedVersion'] : null;
@@ -875,7 +906,7 @@ export class CheckersClassroomController {
     @Param('gameId') gameId: string,
     @Body() rawBody: unknown,
   ) {
-    const context = await this.requireContext(request);
+    const context = await this.requireNetworkContext(request);
     const membership = await this.membership(context, projectId);
     const shape = checkBodyShape(rawBody, ['reactionId']);
     const reactionId = shape.ok ? shape.body['reactionId'] : null;

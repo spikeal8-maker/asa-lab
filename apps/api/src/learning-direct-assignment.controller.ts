@@ -133,7 +133,7 @@ export class LearningDirectAssignmentController {
         title: String(row['title']),
         instructions: row['instructions'] ? String(row['instructions']) : null,
         kind: String(row['kind']),
-        moduleKey: String(row['module_key']),
+        moduleKey: row['module_key'] == null ? null : String(row['module_key']),
       })),
     };
   }

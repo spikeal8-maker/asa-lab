@@ -6,6 +6,8 @@ export type WorkbenchShortcut =
   | 'duplicate'
   | 'delete'
   | 'rotate'
+  | 'mirror'
+  | 'simulate'
   | 'select-all'
   | 'escape'
   | 'space'
@@ -21,7 +23,13 @@ export interface WorkbenchShortcutEvent {
   readonly ctrlKey?: boolean;
   readonly metaKey?: boolean;
   readonly shiftKey?: boolean;
+  readonly isComposing?: boolean;
 }
+
+export type WorkbenchShortcutActions = Record<
+  Exclude<WorkbenchShortcut, `nudge-${string}` | 'space' | null>,
+  () => unknown
+> & { nudge: (dx: number, dy: number) => void };
 
 const EDITABLE_SHORTCUT_SELECTOR = [
   'input',
@@ -61,23 +69,75 @@ export function targetConsumesSpace(target: EventTarget | null): boolean {
 }
 
 export function resolveWorkbenchShortcut(event: WorkbenchShortcutEvent): WorkbenchShortcut {
+  if (event.isComposing) return null;
   const modifier = Boolean(event.ctrlKey || event.metaKey);
-  if (modifier) {
-    if (event.code === 'KeyZ') return event.shiftKey ? 'redo' : 'undo';
-    if (event.code === 'KeyY') return 'redo';
-    if (event.code === 'KeyC') return 'copy';
-    if (event.code === 'KeyV') return 'paste';
-    if (event.code === 'KeyD') return 'duplicate';
-    if (event.code === 'KeyA') return 'select-all';
-    return null;
+  if (modifier && event.code === 'KeyZ') return event.shiftKey ? 'redo' : 'undo';
+  const command = (modifier ? MODIFIED_KEYS : PHYSICAL_KEYS)[event.code];
+  return typeof command === 'string' ? command : null;
+}
+
+const MODIFIED_KEYS: Readonly<Record<string, WorkbenchShortcut>> = {
+  KeyY: 'redo',
+  KeyC: 'copy',
+  KeyV: 'paste',
+  KeyD: 'duplicate',
+  KeyA: 'select-all',
+  Enter: 'simulate',
+};
+const PHYSICAL_KEYS: Readonly<Record<string, WorkbenchShortcut>> = {
+  Delete: 'delete',
+  Backspace: 'delete',
+  KeyR: 'rotate',
+  KeyM: 'mirror',
+  Escape: 'escape',
+  Space: 'space',
+  ArrowUp: 'nudge-up',
+  ArrowDown: 'nudge-down',
+  ArrowLeft: 'nudge-left',
+  ArrowRight: 'nudge-right',
+};
+const NUDGES: Readonly<Record<string, readonly [number, number]>> = {
+  'nudge-up': [0, -1],
+  'nudge-down': [0, 1],
+  'nudge-left': [-1, 0],
+  'nudge-right': [1, 0],
+};
+export const KEYBOARD_NUDGE_STEP = 5;
+export const KEYBOARD_NUDGE_LARGE_STEP = 20;
+
+/** One production listener for the toolbar's existing command callbacks. */
+export function bindWorkbenchShortcuts(
+  actions: { current: WorkbenchShortcutActions | null },
+  space: { current: boolean },
+): () => void {
+  function keyDown(event: KeyboardEvent): void {
+    if (event.isComposing || isEditableShortcutTarget(event.target)) return;
+    if (event.code === 'Space') {
+      if (targetConsumesSpace(event.target)) return;
+      space.current = true;
+    }
+    const command = resolveWorkbenchShortcut(event);
+    const current = actions.current;
+    if (!command || !current) return;
+    const toggle = command === 'mirror' || command === 'simulate';
+    if (toggle && event.altKey) return;
+    if (command !== 'escape') event.preventDefault();
+    if (command === 'space' || (toggle && event.repeat)) return;
+    const direction = NUDGES[command];
+    if (direction) {
+      const step = event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP;
+      current.nudge(direction[0] * step, direction[1] * step);
+    } else {
+      current[command as Exclude<WorkbenchShortcut, `nudge-${string}` | 'space' | null>]();
+    }
   }
-  if (event.code === 'Delete' || event.code === 'Backspace') return 'delete';
-  if (event.code === 'KeyR') return 'rotate';
-  if (event.code === 'Escape') return 'escape';
-  if (event.code === 'Space') return 'space';
-  if (event.code === 'ArrowUp') return 'nudge-up';
-  if (event.code === 'ArrowDown') return 'nudge-down';
-  if (event.code === 'ArrowLeft') return 'nudge-left';
-  if (event.code === 'ArrowRight') return 'nudge-right';
-  return null;
+  function keyUp(event: KeyboardEvent): void {
+    if (event.code === 'Space') space.current = false;
+  }
+  window.addEventListener('keydown', keyDown);
+  window.addEventListener('keyup', keyUp);
+  return () => {
+    window.removeEventListener('keydown', keyDown);
+    window.removeEventListener('keyup', keyUp);
+  };
 }

@@ -6,6 +6,7 @@ export interface ArduinoProgramState {
   readonly source: string;
   readonly serialOpen: boolean;
   readonly baudRate: number;
+  readonly inputPins: readonly string[];
 }
 
 export const DEFAULT_ARDUINO_SOURCE = `// C++ code
@@ -33,7 +34,7 @@ export function readArduinoProgramState(
   const workspace = properties?.['arduinoWorkspace'];
   // Imported/legacy sketches may have source without editor metadata. Opening
   // them as blocks would generate Blink and autosave it over the user's sketch.
-  const sourceOnly = typeof source === 'string' && source.trim() !== '' && !workspace;
+  const sourceOnly = typeof source === 'string' && workspace === undefined;
   return {
     mode:
       mode === 'blocks' || mode === 'blocks-text' || mode === 'text'
@@ -45,5 +46,8 @@ export function readArduinoProgramState(
     source: typeof source === 'string' ? source : DEFAULT_ARDUINO_SOURCE,
     serialOpen: properties?.['arduinoSerialOpen'] === true,
     baudRate: typeof baud === 'number' && Number.isFinite(baud) ? baud : 9600,
+    inputPins: Array.isArray(properties?.['arduinoInputPins'])
+      ? properties['arduinoInputPins'].filter((pin): pin is string => typeof pin === 'string')
+      : [],
   };
 }

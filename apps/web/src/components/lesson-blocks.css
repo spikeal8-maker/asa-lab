@@ -92,6 +92,36 @@
   width: 100%;
 }
 
+.lesson-media-error {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #d9dfe6;
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.lesson-media-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.lesson-media-error-actions button,
+.lesson-media-error-actions a {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.lesson-media-error-actions a {
+  color: inherit;
+  text-underline-offset: 0.2em;
+}
+
 .lesson-file-block {
   display: flex;
   align-items: center;

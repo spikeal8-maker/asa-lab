@@ -1,7 +1,17 @@
 export type TelemetryActor =
   | { kind: 'account'; accountId: string; workspaceId: string }
   | { kind: 'student'; seatId: string; classId: string };
-export type TelemetryModule = 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
+export const TELEMETRY_MODULES = [
+  'electronics',
+  'three-d',
+  'chess',
+  'checkers',
+  'blocks',
+  'robotics',
+] as const;
+export type TelemetryModule = (typeof TELEMETRY_MODULES)[number];
+export const isTelemetryModule = (value: unknown): value is TelemetryModule =>
+  typeof value === 'string' && TELEMETRY_MODULES.some((module) => module === value);
 export const COUNTERS = [
   'attempted',
   'enqueued',
@@ -29,6 +39,7 @@ export const ROUTES = [
   'editor.chess',
   'editor.checkers',
   'editor.blocks',
+  'editor.robotics',
   'games',
   'classes',
   'learning',
@@ -125,7 +136,7 @@ export function validEnvelope(value: unknown): value is AnalyticsEnvelope {
   return (
     keys(value, [...common, 'operation', 'sessionId', 'projectId', 'moduleKey']) &&
     uuid(value.projectId) &&
-    ['electronics', 'three-d', 'chess', 'checkers', 'blocks'].includes(value.moduleKey as string)
+    isTelemetryModule(value.moduleKey)
   );
 }
 /** PostgreSQL receipts retain up to six fractional digits; Date.parse alone loses microseconds. */
@@ -157,7 +168,12 @@ export function confirmedAnalytics(value: unknown, envelope: AnalyticsEnvelope):
     !time(value.persistedAt)
   )
     return false;
-  if (!envelope.operation) return uuid(value.recordId);
+  if (!envelope.operation)
+    return (
+      typeof value.recordId === 'number' &&
+      Number.isSafeInteger(value.recordId) &&
+      value.recordId > 0
+    );
   if (value.sessionId !== envelope.sessionId || !record(value.result)) return false;
   const r = value.result;
   if (
@@ -181,8 +197,22 @@ export function confirmedAnalytics(value: unknown, envelope: AnalyticsEnvelope):
 }
 export type Delivery =
   | { kind: 'acknowledged'; value: unknown }
-  | { kind: 'retry' }
+  | { kind: 'retry'; retryAfterMs?: number }
   | { kind: 'rejected'; context: boolean; authentication: boolean };
+/** Keep the existing exponential floor, spreading a classroom's retries over 1–60 seconds. */
+export function telemetryRetryDelay(failures: number, retryAfterMs = 0): number {
+  const base = Math.min(30_000, 1000 * 2 ** Math.min(5, Math.max(0, failures - 1)));
+  // Jitter is added after the server floor so an identical Retry-After cannot synchronize tabs.
+  return Math.max(base, retryAfterMs) + Math.floor(Math.random() * base);
+}
+function retryAfter(response: Response): { kind: 'retry'; retryAfterMs?: number } {
+  const raw = response.headers.get('retry-after')?.trim();
+  if (!raw) return { kind: 'retry' };
+  const delay = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
+  return Number.isFinite(delay) && delay > 0
+    ? { kind: 'retry', retryAfterMs: Math.min(5 * 60_000, delay) }
+    : { kind: 'retry' };
+}
 export interface TelemetryAcknowledgement {
   status: 200 | 202;
   confirmed: (value: unknown) => boolean;
@@ -193,8 +223,15 @@ export async function sendTelemetry(
   body: unknown,
   acknowledgement: TelemetryAcknowledgement,
   transport: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<Delivery> {
+  if (signal?.aborted) return { kind: 'retry' };
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  const cancelled = new Promise<null>((resolve) =>
+    controller.signal.addEventListener('abort', () => resolve(null), { once: true }),
+  );
+  signal?.addEventListener('abort', abort, { once: true });
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     // A deadline also bounds injected transports which ignore AbortSignal. Cancellation is not rollback.
@@ -203,21 +240,26 @@ export async function sendTelemetry(
         method: 'POST',
         credentials: 'same-origin',
         cache: 'no-store',
+        priority: 'low',
         keepalive: true,
         signal: controller.signal,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
-      new Promise<null>((resolve) =>
-        controller.signal.addEventListener('abort', () => resolve(null), { once: true }),
-      ),
+      cancelled,
     ]);
-    if (!response || [408, 429].includes(response.status) || response.status >= 500)
-      return { kind: 'retry' };
+    if (!response) return { kind: 'retry' };
+    if ([408, 429].includes(response.status) || response.status >= 500) return retryAfter(response);
     let value: unknown;
     try {
-      value = await response.json();
+      const decoded = await Promise.race([
+        response.json().then((value: unknown) => ({ value })),
+        cancelled,
+      ]);
+      if (!decoded || controller.signal.aborted) return { kind: 'retry' };
+      value = decoded.value;
     } catch {
+      if (controller.signal.aborted) return { kind: 'retry' };
       return response.ok
         ? { kind: 'retry' }
         : {
@@ -243,6 +285,7 @@ export async function sendTelemetry(
     return { kind: 'retry' };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
   }
 }
 export function sessionStoragePort(): StoragePort | undefined {

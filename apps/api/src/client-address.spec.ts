@@ -4,6 +4,7 @@ import {
   assertTrustedProxyConfiguration,
   clientAddress,
   clientConnection,
+  clientAddressDiagnostics,
 } from './client-address.js';
 
 function request(
@@ -17,6 +18,25 @@ function request(
 }
 
 describe('clientAddress', () => {
+  it('explains unresolved/trusted/direct addresses without exposing IP or forwarded input', () => {
+    process.env.ASA_TRUSTED_PROXY_CIDRS = '172.16.0.0/12';
+    expect(clientAddressDiagnostics(request('172.21.0.4'))).toMatchObject({
+      state: 'unresolved',
+      reason: 'missing_forwarded',
+    });
+    expect(
+      clientAddressDiagnostics(request('172.21.0.4', { 'x-forwarded-for': '172.21.0.1' })),
+    ).toMatchObject({ state: 'unresolved', reason: 'trusted_hops_only' });
+    const value = clientAddressDiagnostics(
+      request('198.51.100.7', { 'x-forwarded-for': '203.0.113.9' }),
+    );
+    expect(value).toMatchObject({
+      state: 'resolved',
+      source: 'socket',
+      reason: 'untrusted_forwarded_ignored',
+    });
+    expect(JSON.stringify(value)).not.toMatch(/198\.51|203\.0/);
+  });
   afterEach(() => {
     delete process.env.ASA_TRUSTED_PROXY_CIDRS;
   });

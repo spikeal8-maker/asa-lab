@@ -31,6 +31,15 @@ interface LogSource {
 }
 interface LogStatus {
   readonly state: 'ok' | 'stale' | 'unavailable' | 'error';
+  readonly applicationCollection?: 'embedded';
+  readonly hostCollection?: 'ok' | 'error' | 'stale' | 'unavailable' | 'invalid';
+  readonly coverageComplete?: boolean;
+  readonly requiredCoverage?: {
+    readonly version: number;
+    readonly policy: string;
+    readonly state: 'ok' | 'incomplete' | 'unknown';
+    readonly requiredSourceIds: readonly string[];
+  };
   readonly collectorHealth?: {
     readonly state: string;
     readonly lastSuccessAt: string | null;
@@ -51,6 +60,11 @@ interface LogPage {
   readonly partial: boolean;
   readonly scanCursor?: string | null;
   readonly scanned?: number;
+  readonly coverage?: {
+    readonly application: 'embedded' | 'host-collector';
+    readonly host: 'not_included' | 'included';
+    readonly complete: boolean;
+  };
 }
 interface ExportJob {
   readonly id: string;
@@ -90,6 +104,7 @@ const MODULE: Record<string, string> = {
   portal: 'Сайт',
   scratch: 'Scratch',
   electronics: 'Электроника',
+  robotics: 'Робототехника',
   'three-d': '3D',
   chess: 'Шахматы',
   checkers: 'Шашки',
@@ -116,6 +131,7 @@ const SUBSYSTEM: Record<string, string> = {
   database: 'База данных',
   scratch: 'Scratch',
   electronics: 'Электроника',
+  robotics: 'Робототехника',
   chess: 'Шахматы',
   checkers: 'Шашки',
   'three-d': '3D',
@@ -123,7 +139,7 @@ const SUBSYSTEM: Record<string, string> = {
   updates: 'Обновления',
   backup: 'Резервное копирование',
   network: 'Сетевой туннель',
-  host: 'Windows и Docker',
+  host: 'Операционная система и Docker',
   metrics: 'Нагрузка сервера',
 };
 const dateLabel = (value: string | null): string =>
@@ -446,6 +462,31 @@ export function AdminLogsPage({
       </form>
       {status ? (
         <div className="admin-logs-coverage">
+          <p role="status">
+            <strong>Обязательные подключённые источники:</strong>{' '}
+            {status.requiredCoverage?.version === 1 &&
+            status.requiredCoverage.policy === 'asa-connected-v1' &&
+            Array.isArray(status.requiredCoverage.requiredSourceIds) &&
+            status.requiredCoverage.requiredSourceIds.length > 0
+              ? status.requiredCoverage.state === 'ok'
+                ? `сбор исправен (${status.requiredCoverage.requiredSourceIds.length}).`
+                : status.requiredCoverage.state === 'incomplete'
+                  ? 'сбор неполон, требуется проверка.'
+                  : 'покрытие пока не подтверждено.'
+              : 'покрытие пока не подтверждено.'}{' '}
+            Полнота всей истории не подтверждена.
+          </p>
+          {status.applicationCollection === 'embedded' ? (
+            <p role="status">
+              <strong>Журналы приложения подключены автоматически.</strong>{' '}
+              {status.hostCollection === 'ok'
+                ? 'Сборщик журналов системы также доступен.'
+                : 'Журналы операционной системы и других контейнеров сейчас недоступны или неполны. Сбор событий самого приложения продолжается.'}
+              {status.coverageComplete === false || page?.coverage?.complete === false
+                ? ' Это не полная проверка всех системных источников.'
+                : ''}
+            </p>
+          ) : null}
           {failedSources.length ? (
             <div role="alert">
               <strong>Журналы собираются не полностью.</strong>
@@ -518,8 +559,8 @@ export function AdminLogsPage({
             </>
           )}
           <small>
-            Архив включает все источники за выбранные даты. Старые удалённые журналы и
-            неотправленные ошибки браузеров восстановить нельзя.
+            Архив включает доступные источники за выбранные даты. Отсутствующие системные журналы,
+            старые удалённые записи и неотправленные ошибки браузеров восстановить нельзя.
           </small>
         </div>
       ) : null}

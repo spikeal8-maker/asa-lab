@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { rename, writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
 import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
@@ -142,6 +142,7 @@ function fixture(scenario: Scenario) {
 
 function evidence(info: TestInfo, scenario: Scenario) {
   const path = info.outputPath(`piezo-${scenario}-originals.json`);
+  const temporaryPath = `${path}.tmp`;
   const raw = {
     fixture: fixture(scenario),
     lastCheckpoint: 'created',
@@ -157,6 +158,15 @@ function evidence(info: TestInfo, scenario: Scenario) {
   };
   // This separate journal cannot be overwritten by an older queued async snapshot.
   const primaryPath = info.outputPath(`piezo-${scenario}-primary-failure.json`);
+  const producers = new Set<Promise<unknown>>();
+  const track = <T>(operation: Promise<T>) => {
+    producers.add(operation);
+    void operation.then(
+      () => producers.delete(operation),
+      () => producers.delete(operation),
+    );
+    return operation;
+  };
   const flushPrimary = () => {
     try {
       writeFileSync(primaryPath, JSON.stringify(raw, null, 2));
@@ -190,27 +200,62 @@ function evidence(info: TestInfo, scenario: Scenario) {
       flushPrimary();
     };
     try {
-      void operation().then(() => {
-        raw.supplements[name] = { status: 'CAPTURED' };
-        flushPrimary();
-      }, failed);
+      track(
+        operation().then(() => {
+          raw.supplements[name] = { status: 'CAPTURED' };
+          flushPrimary();
+        }, failed),
+      );
     } catch (error) {
       failed(error);
     }
   };
-  let pending = Promise.resolve();
-  const persist = () =>
-    (pending = pending.then(async () => {
-      try {
-        await writeFile(path, JSON.stringify(raw, null, 2));
-      } catch (error) {
-        raw.errors.push(`raw write: ${String(error)}`);
-        console.error(error);
-      }
-    }));
+  let dirty = false;
+  let finished = false;
+  let scheduled: ReturnType<typeof setTimeout> | undefined;
+  let writing: Promise<void> | undefined;
+  let writeFailed = false;
+  let writeFailure: unknown;
+  const snapshot = async () => {
+    dirty = false;
+    try {
+      await writeFile(temporaryPath, JSON.stringify(raw, null, 2));
+      await rename(temporaryPath, path);
+    } catch (error) {
+      if (!writeFailed) writeFailure = error;
+      writeFailed = true;
+      raw.errors.push(`raw write: ${String(error)}`);
+      dirty = true;
+      console.error(error);
+    }
+  };
+  // Events retain their complete values immediately. At most one complete snapshot is
+  // in flight; a growing stream cannot queue a full rewrite for every event or block Stop.
+  const persist = () => {
+    dirty = true;
+    if (finished || scheduled || writing) return;
+    scheduled = setTimeout(() => {
+      scheduled = undefined;
+      writing = snapshot().finally(() => {
+        writing = undefined;
+        if (dirty) persist();
+      });
+    }, 250);
+  };
+  const finish = async () => {
+    finished = true;
+    if (scheduled) clearTimeout(scheduled);
+    scheduled = undefined;
+    // Called after both pages stop producing. Include response bodies and context-close
+    // records which were already in flight before closing the pages.
+    while (producers.size) await Promise.allSettled([...producers]);
+    await writing;
+    await snapshot();
+    if (writeFailed) throw writeFailure;
+  };
   const checkpoint = async (name: string) => {
     raw.lastCheckpoint = name;
-    await persist();
+    persist();
   };
   const guard = async (name: string, operation: () => Promise<unknown>) => {
     await checkpoint(`before:${name}`);
@@ -220,11 +265,13 @@ function evidence(info: TestInfo, scenario: Scenario) {
       raw.supplements[name] = { status: 'NOT_AVAILABLE', error: String(error) };
       raw.errors.push(`${name}: ${String(error)}`);
     }
-    await persist();
+    persist();
   };
   return {
     raw,
     persist,
+    finish,
+    track,
     checkpoint,
     guard,
     recordPrimary,
@@ -236,7 +283,7 @@ function evidence(info: TestInfo, scenario: Scenario) {
       if (entry.field === 'request') raw.requests.push({ ...(entry.value as RequestRecord), page });
       if (entry.field === 'response')
         raw.responses.push({ ...(entry.value as ResponseRecord), page });
-      await persist();
+      persist();
     },
   };
 }
@@ -254,20 +301,22 @@ async function observe(page: Page, original: Evidence, pageName: string) {
   page.on('response', (response) => {
     const path = new URL(response.url()).pathname;
     if (!path.startsWith('/api/projects')) return;
-    void response
-      .json()
-      .then((body) =>
-        original.receive(pageName, {
-          field: 'project-response',
-          value: { method: response.request().method(), path, status: response.status(), body },
-        }),
-      )
-      .catch((error) =>
-        original.receive(pageName, { field: 'capture-error', value: String(error) }),
-      );
+    original.track(
+      response
+        .json()
+        .then((body) =>
+          original.receive(pageName, {
+            field: 'project-response',
+            value: { method: response.request().method(), path, status: response.status(), body },
+          }),
+        )
+        .catch((error) =>
+          original.receive(pageName, { field: 'capture-error', value: String(error) }),
+        ),
+    );
   });
   await page.exposeBinding('__piezoRecord', (_source, entry: RecordEntry) =>
-    original.receive(pageName, entry),
+    original.track(original.receive(pageName, entry)),
   );
   await page.addInitScript(() => {
     const emit = (field: string, value: unknown) => {
@@ -814,12 +863,31 @@ for (const scenario of ['original-active', 'piezo-passive-buzzer', 'piezo-disc']
           page.screenshot({ path: info.outputPath('final.png'), fullPage: true }),
         );
         if (id) await original.guard('final-server-document', () => draft(page, id!));
-        await original.guard('raw-attachment', () =>
-          info.attach('piezo-originals', {
-            path: info.outputPath(`piezo-${scenario}-originals.json`),
-            contentType: 'application/json',
-          }),
-        );
+      }
+      try {
+        // All pupil actions and DOM/PNG/server captures have finished. Closing the
+        // initial fixture page stops its Worker/binding/HTTP producers before final I/O.
+        await page.close();
+      } catch (error) {
+        original.raw.errors.push(`page close: ${String(error)}`);
+        if (primary === undefined) primary = error;
+        original.recordPrimary(primary, 'finally:page-close-primary');
+      }
+      try {
+        await original.finish();
+        if (primary === undefined) {
+          await original.guard('raw-attachment', () =>
+            info.attach('piezo-originals', {
+              path: info.outputPath(`piezo-${scenario}-originals.json`),
+              contentType: 'application/json',
+            }),
+          );
+          await original.finish();
+        }
+      } catch (error) {
+        original.raw.errors.push(`final evidence: ${String(error)}`);
+        if (primary === undefined) primary = error;
+        original.recordPrimary(primary, 'finally:evidence-primary');
       }
     }
     if (primary !== undefined) throw primary;

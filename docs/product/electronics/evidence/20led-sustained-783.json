@@ -1,0 +1,3481 @@
+{
+  "sourceBaseline": "c5dc2da1ac0f3704a6c5bdb08feb66a2ab7520ed",
+  "fixtureSha256": "a1dd968a825d53bcb735588bf9bf3e71a1be6315048f14e49a611c7ac85b97af",
+  "boundary": "TEST ONLY production Worker + canonical 20x1kOhm/LED fixture; model time, no realtime/hardware/installed/SaveCAS claim",
+  "requestTimeoutMs": 30000,
+  "checkpoints": [
+    {
+      "horizon": 100000,
+      "wallMs": 195.10000002384186,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "c4636b1fad207d8db059a8e0f64fc72c6bac699281fb5fd1d8f2b1b860470ebe",
+      "resultSha256": "62fd4f28c677b33a23fad281faaea34ae9035ca4bb1c3c0acfc6b463c78fdcd9"
+    },
+    {
+      "horizon": 1000000,
+      "wallMs": 483.90000009536743,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "e6288e6355aa9522a12670425f6ab7faae4d3167b41c4541f254275b699efc37",
+      "resultSha256": "9d65fb03528b6a524b29fc7e71579dcb4485d832f6e90dd73f3bed6e784af9ef"
+    },
+    {
+      "horizon": 1125000,
+      "wallMs": 91,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "43fdfbb704c047c2fa34b32430af2d5be7a166369ef24b4872d0cf747de59521",
+      "resultSha256": "5aafdda1f866479b2ef8259de65da4464d968359f98946cea1b835ebcf0c4f20"
+    },
+    {
+      "horizon": 1375000,
+      "wallMs": 162.89999997615814,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "9f90a4adba58ae9750bd6d0b1b3c89c2dc0d394091e63e2eb8abf962271bc265",
+      "resultSha256": "9c6ba242dd5aee7933cefa0e434b61243cb2096c730f41a08438989a628a964c"
+    },
+    {
+      "horizon": 1625000,
+      "wallMs": 116.39999997615814,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "fc298f632c4bc2a829ec1c822745fb230d07ca7c869221076578443d31c50906",
+      "resultSha256": "ac8645e3a4837872bc5a0b4f03cf43064969046233b3d1b242868fbed11baea0"
+    },
+    {
+      "horizon": 1875000,
+      "wallMs": 141.70000004768372,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "a994f230b164ba84cbb1bda153764a32f5f23a152100fbfb0022066ab91f34c8",
+      "resultSha256": "a26f87ccc9b13e72caf812b6d315c7a2294de9a09ddb98a65a94fbead955a90e"
+    },
+    {
+      "horizon": 2125000,
+      "wallMs": 161.30000007152557,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "6252086b8f557d28ab1366ca5120c1d3ab57b784e672231b034e27b4b6878a2d",
+      "resultSha256": "3860a22b11fc2c41d22ece7b8af871a8bb9075d6544be369567a8c8754def9ed"
+    },
+    {
+      "horizon": 2375000,
+      "wallMs": 154,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "20a4a1f8572d88c1bdd430c4c65816440e07ff201eb7daf58f95c3276144de73",
+      "resultSha256": "52ba0c35df5f076b758ede968b9632da5c9fe45fda737304eb2578f901e8c4d5"
+    },
+    {
+      "horizon": 2625000,
+      "wallMs": 157.69999992847443,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "6e95402c0335529a4132a9ac4718842777dda4f0adea8ad960ccde359e9c9b9d",
+      "resultSha256": "3d5c8659a574e5ae99802c36470836b97b542360faa8350652372105827c98c3"
+    },
+    {
+      "horizon": 2875000,
+      "wallMs": 168.89999997615814,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "9d71953ca158800591e2b6b25a98ef4185b6b76c4c753d8b568ef57c27b9f26b",
+      "resultSha256": "a370d76c11eb82655e37724a7e5450857585bbd18bc2ee85fafc27a906dcb2f6"
+    },
+    {
+      "horizon": 3125000,
+      "wallMs": 153.89999997615814,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "ffb52bc9d92e15610a098887eb2ff8e57778a4337e62843f7e1b0d2fd6e29da8",
+      "resultSha256": "b25cc35f5acfecdb4d226e38802d14749edca3b12a507d7173e2c6b1837860b7"
+    },
+    {
+      "horizon": 3375000,
+      "wallMs": 128.70000004768372,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "e306cd9db9a91f8f97f31ff557427e1a5f2393de236e0606ebb154781c49d8e7",
+      "resultSha256": "9b625b06c27a461eda0ea09c4bb8f094cccb5bd5a78af87d63cfa3c4857f0653"
+    },
+    {
+      "horizon": 3625000,
+      "wallMs": 151,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "82e29c7899dc9caef82a27ec99c443a808fab72df3bdf11f20cfbdb4e748bcd2",
+      "resultSha256": "839d41a15f2a8dff84cac9037fdcadc0e934614fd77806db58de0ac66aaf3ac3"
+    },
+    {
+      "horizon": 3875000,
+      "wallMs": 142.39999997615814,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "54eb9f9de1aae1fc12b3af32280c9ed2ba86e4ecb3351a31eae854d62dbdfc79",
+      "resultSha256": "2ed5275ea2e875309d39cc352d7fe6e9084332a9d76fd0d60139c6529cb69fd0"
+    },
+    {
+      "horizon": 4125000,
+      "wallMs": 143.20000004768372,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "235bad9fcd05e903c9cb824c8bc7eb5213e253470d66254fcae33a6074fc17fa",
+      "resultSha256": "d96297e2565bad9f8096ec65b05bb22a167bb3b27103198b3fa727752d2987f3"
+    },
+    {
+      "horizon": 4375000,
+      "wallMs": 147.39999997615814,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "3f33f9fd0e4106c213ad6508755c7495ad9da78258cf4e08c57e660ac890ff0b",
+      "resultSha256": "17ed0259d9f963ae4f9398e9ab3bdcad2943af1f798a1e28660cd1fb96af4e16"
+    },
+    {
+      "horizon": 4625000,
+      "wallMs": 142.30000007152557,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "2b3b0a4760c667539897c2c08879dc1f05b8168931d414a54292ea09b9de72f2",
+      "resultSha256": "6390adedd09fe44163461584291c5e355cf8d32ce79333d4cb4705211959a68f"
+    },
+    {
+      "horizon": 4875000,
+      "wallMs": 125.89999997615814,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "284fb1896f97be6d9a5e29a62eb90aa9e13a949333b6ad9dcd2e178346ef413d",
+      "resultSha256": "ded958a882448bb3c621d81dd330093bf292cdf859c70c786ef7dfbf5a343b06"
+    },
+    {
+      "horizon": 5125000,
+      "wallMs": 124.19999992847443,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "921b9c92ff72b40e521c7eb054be5e630f03c9cbf9d97a9138650ba28a3020bd",
+      "resultSha256": "242575d1386e91965d5867cd48e10bc08666db6e84a157b35d94d126d83ea34e"
+    },
+    {
+      "horizon": 5375000,
+      "wallMs": 124,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "3d4a8baebca4a819baa5ceadeb4caff830c2874f580b644b110f0325c0e0f514",
+      "resultSha256": "1e0690c5beb3f2f0a9429f2e4d9dae4589315e9ae549c20dce3bd51b34806c92"
+    },
+    {
+      "horizon": 5625000,
+      "wallMs": 148.10000002384186,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "fff0a1d949b1e8b09731b6f98797a447a8841221a2f389fc98d54f7e1efdf709",
+      "resultSha256": "80234f86976c8e0d6905cd6be3a766690d3129550235cbd4c22f5a6a98fc4a75"
+    },
+    {
+      "horizon": 5875000,
+      "wallMs": 112.30000007152557,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "53f3cf27cdcf375bdb383bcefd94cc9e83c660dd75962fa668357161d5fb34ea",
+      "resultSha256": "5f280fbfacd104f075e563b4fed4f9195387bf0f47ea49237c97a8f5c90450ae"
+    },
+    {
+      "horizon": 6125000,
+      "wallMs": 134.19999992847443,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "3c1b4207fb4604d2478aa0dc23171325f5c0e1eff1ac1ef6138958d039ea31c5",
+      "resultSha256": "d7bd586a8de245764a64f3889b068ae0a48ee0e3f06700ec54e17df4d1d1e40a"
+    },
+    {
+      "horizon": 6375000,
+      "wallMs": 116.5,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "ccbbacf7db5be2b05075b22f9d1614e68457284b8881c4d2213fbb10ab22c0a6",
+      "resultSha256": "60257fb66313fc3ab6d2036d833edabbacbb62a43dbd82b07f7b104e13a1f8a5"
+    },
+    {
+      "horizon": 6625000,
+      "wallMs": 117.5,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "64c94a6ab315b8025d710f87567cc0263995c486172315bbd8f81c8818e9d816",
+      "resultSha256": "a3430519dc370e22e64da188d5deb5c41e8ced03548b6714e9613bc0d6511931"
+    },
+    {
+      "horizon": 6875000,
+      "wallMs": 92.70000004768372,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "25c8222a82d727c8a325d24589959f8bb196702e11abbebe55b985d100738624",
+      "resultSha256": "ffea489402c520eafb3667d982e17eadeb732dd4fde26b1199132c235afef6a7"
+    },
+    {
+      "horizon": 7125000,
+      "wallMs": 90.30000007152557,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "337d9ce10cc32c6d15a1237de4eb54de00699e05bcf490658caa6fe7262485c7",
+      "resultSha256": "8bdc10d20fe4cad32477e57d6b7c86004aedacf2830edc533d7a848dcc64f588"
+    },
+    {
+      "horizon": 7375000,
+      "wallMs": 94.5,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "bd780710b8062bff91bd9b5644394901757ce75b00aff5a5fbefb18eb3e615c2",
+      "resultSha256": "61480c45b8549aabd05e39e240bbb2af2f4433a42c240d7146c16800b2512459"
+    },
+    {
+      "horizon": 7625000,
+      "wallMs": 98.30000007152557,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "fb641198bbcf28aa0d9e9ef07945bd8818b233fde12a4d2a2201982f9e63a9f2",
+      "resultSha256": "15fa03e5aaf9b2f63ca7230af42aa9cb39145d434343f9b22a9f9a7dc936eda6"
+    },
+    {
+      "horizon": 7875000,
+      "wallMs": 86.10000002384186,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "201e3c140d2591be939dee67c3d2fb012f35634db89aa00b08145bf5fd2bfda9",
+      "resultSha256": "0171ea74a9961131396f16c4739fbe650134d33fed34633c50ac1ca145a43e98"
+    },
+    {
+      "horizon": 8125000,
+      "wallMs": 70.80000007152557,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "29413a5dcd1bf9f41606baa6d0c52d93c59437116fed082d71c6d098d3ecbc46",
+      "resultSha256": "a98028b447ab58de6b8d431886ed807b4213bb7b039b5ddfb1645960319727a6"
+    },
+    {
+      "horizon": 8375000,
+      "wallMs": 83.10000002384186,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "98e6cd15dcadc90e00d660d16732858107657a334bf0680025d599b0fa6fba18",
+      "resultSha256": "5cd753de73282a25fe59d1ef49575ead2d38f79b2a58a7e149c3afeef84f902a"
+    },
+    {
+      "horizon": 8625000,
+      "wallMs": 80.80000007152557,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "4bc8f5438464d399d3a0c2ac13695ba6c86a845b80e76f513ba49a8d9e8fd48f",
+      "resultSha256": "dbbc2a01208d283a1582828d49eeb75db89da8b15e202b1f29596ff31a94f4f5"
+    },
+    {
+      "horizon": 8875000,
+      "wallMs": 99.19999992847443,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "f9ad921e18e3c34344843132738a8f2e3dbeacdc98d4e86859d2274f6e97de6f",
+      "resultSha256": "ae7126eb832efedd293b97a5a1c1c588c31f75b53f076c3b02240f08c0013e20"
+    },
+    {
+      "horizon": 9125000,
+      "wallMs": 100.29999995231628,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "780ec6a41f3db0595b9d2d53be69c34227cdae04ace8e34354762362b0402f1d",
+      "resultSha256": "dbbc2a01208d283a1582828d49eeb75db89da8b15e202b1f29596ff31a94f4f5"
+    },
+    {
+      "horizon": 9375000,
+      "wallMs": 79.5,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "6e1103ad98e4ab9f4266bd5423c31b052d5c5288cee5f4a4555ac1cfc04e9b4f",
+      "resultSha256": "ae7126eb832efedd293b97a5a1c1c588c31f75b53f076c3b02240f08c0013e20"
+    },
+    {
+      "horizon": 9625000,
+      "wallMs": 81.10000002384186,
+      "phase": 0,
+      "currents": [
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "95a4da3448918fbbdcf8f34a521e6df0278aa2910c4d34bb9401b5e23d0b8f37",
+      "resultSha256": "be40c92c959fa04ee538d8847ba20a4f26d2b7f5ed873142193509a2c68b0cc2"
+    },
+    {
+      "horizon": 9875000,
+      "wallMs": 73.59999990463257,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "a8ed683d4ab57380764d342c127589597277c9bd748096c44380dea53acd2244",
+      "resultSha256": "201208c57de5f5fcf30a640b3676691ecda55093fcea3a5862669a0420653878"
+    },
+    {
+      "horizon": 10000000,
+      "wallMs": 34.200000047683716,
+      "phase": 1,
+      "currents": [
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867,
+        0,
+        0.00314893867
+      ],
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "stateSha256": "b42c9c728a1ab50cc082d9cbdeb5268371e73c4924d9815e39e053834dc6ce4f",
+      "resultSha256": "8e89aba55213b3a3450897cf92fb714818d0eea12b345acd1734ba196989d4ae"
+    }
+  ],
+  "status": "PASS",
+  "repeatedOneSecond": true,
+  "lifecycle": {
+    "resetResultSha256": "62fd4f28c677b33a23fad281faaea34ae9035ca4bb1c3c0acfc6b463c78fdcd9",
+    "pendingStopStable": true
+  },
+  "finalAdvance": {
+    "executionStatus": "ready",
+    "requestedHorizonMicroseconds": 10000000,
+    "committedHorizonMicroseconds": 10000000,
+    "state": {
+      "version": 1,
+      "lifecycle": "running",
+      "continuation": {
+        "version": 1,
+        "clockContractVersion": 1,
+        "engineContractVersion": 1,
+        "clockProfileId": "electrothermal-events-v2",
+        "documentDigest": "2d8a1d6e678d71a9a9d1850ee91b0640252a0067b5709a805caabcbb34fe868e",
+        "modelSetDigest": "sha256:fcb0f3241eef974a312c1fa1891b86aee92d5d3cd5a8e76475f53fcaa2b201d5",
+        "committedHorizonMicroseconds": 10000000,
+        "serializedState": "{\"version\":1,\"profile\":\"electrothermal-events-v2\",\"documentDigest\":\"2d8a1d6e678d71a9a9d1850ee91b0640252a0067b5709a805caabcbb34fe868e\",\"reachedMicroseconds\":10000000,\"inputs\":[],\"nextInputIndex\":0,\"physicalState\":{\"version\":2,\"simulationTimeMs\":10000,\"capacitors\":[],\"thermal\":[{\"componentId\":\"led0\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.322689243529865,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led1\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.440747918356852,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led10\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.322692397784074,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led11\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.44074178184655,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led12\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.32269302863495,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led13\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.44074055454302,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led14\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.322693659485857,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led15\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.440739327238994,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led16\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.322694290336766,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led17\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.440738099934478,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led18\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.322694921187697,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led19\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.440736872629476,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led2\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.322689874380682,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led3\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.44074669105577,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led4\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.32269050523151,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led5\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.440745463754205,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led6\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.322691136082344,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led7\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.440744236452144,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led8\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.32269176693321,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"led9\",\"profileKey\":\"generic-small-signal-junction-thermal@1|led-5mm|2||||||generic-red-led|1\",\"temperatureCelsius\":27.440743009149593,\"loadRatio\":0.1574,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r0\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.971073328532686,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r1\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.03319374458735,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r10\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.97107530813576,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r11\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.033190868818117,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r12\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.971075704056705,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r13\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.03319029366341,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r14\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.97107609997775,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r15\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.03318971850841,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r16\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.97107649589891,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r17\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.033189143353127,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r18\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.97107689182017,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r19\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.033188568197556,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r2\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.97107372445308,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r3\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.033193169434078,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r4\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.971074120373594,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r5\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.03319259428052,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r6\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.971074516294205,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r7\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.033192019126673,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r8\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":25.971074912214934,\"loadRatio\":0,\"accumulatedDamage\":0,\"failureMode\":\"none\"},{\"componentId\":\"r9\",\"profileKey\":\"generic-axial-resistor-thermal@1|resistor-axial|1000||||||axial-resistor|1\",\"temperatureCelsius\":26.03319144397254,\"loadRatio\":0.0397,\"accumulatedDamage\":0,\"failureMode\":\"none\"}],\"bjtRegions\":[],\"motors\":[],\"multimeterFuses\":[]},\"thermalEpochs\":[{\"componentId\":\"led0\",\"atMicroseconds\":9750917,\"temperatureCelsius\":27.441328286918385,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led1\",\"atMicroseconds\":9750918,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led10\",\"atMicroseconds\":9750927,\"temperatureCelsius\":27.44132671962825,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led11\",\"atMicroseconds\":9750928,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led12\",\"atMicroseconds\":9750929,\"temperatureCelsius\":27.441326406169843,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led13\",\"atMicroseconds\":9750930,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led14\",\"atMicroseconds\":9750931,\"temperatureCelsius\":27.44132609271132,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led15\",\"atMicroseconds\":9750932,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led16\",\"atMicroseconds\":9750933,\"temperatureCelsius\":27.441325779252665,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led17\",\"atMicroseconds\":9750934,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led18\",\"atMicroseconds\":9750935,\"temperatureCelsius\":27.441325465793895,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led19\",\"atMicroseconds\":9750936,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led2\",\"atMicroseconds\":9750919,\"temperatureCelsius\":27.441327973460613,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led3\",\"atMicroseconds\":9750920,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led4\",\"atMicroseconds\":9750921,\"temperatureCelsius\":27.44132766000271,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led5\",\"atMicroseconds\":9750922,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led6\",\"atMicroseconds\":9750923,\"temperatureCelsius\":27.441327346544675,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led7\",\"atMicroseconds\":9750924,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"led8\",\"atMicroseconds\":9750925,\"temperatureCelsius\":27.441327033086534,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"led9\",\"atMicroseconds\":9750926,\"temperatureCelsius\":27.284027429495495,\"accumulatedDamage\":0,\"loadRatio\":0.1574},{\"componentId\":\"r0\",\"atMicroseconds\":9750917,\"temperatureCelsius\":26.033465228363116,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r1\",\"atMicroseconds\":9750918,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r10\",\"atMicroseconds\":9750927,\"temperatureCelsius\":26.033464751491472,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r11\",\"atMicroseconds\":9750928,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r12\",\"atMicroseconds\":9750929,\"temperatureCelsius\":26.033464656117008,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r13\",\"atMicroseconds\":9750930,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r14\",\"atMicroseconds\":9750931,\"temperatureCelsius\":26.033464560742484,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r15\",\"atMicroseconds\":9750932,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r16\",\"atMicroseconds\":9750933,\"temperatureCelsius\":26.03346446536792,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r17\",\"atMicroseconds\":9750934,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r18\",\"atMicroseconds\":9750935,\"temperatureCelsius\":26.033464369993304,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r19\",\"atMicroseconds\":9750936,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r2\",\"atMicroseconds\":9750919,\"temperatureCelsius\":26.03346513298888,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r3\",\"atMicroseconds\":9750920,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r4\",\"atMicroseconds\":9750921,\"temperatureCelsius\":26.033465037614604,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r5\",\"atMicroseconds\":9750922,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r6\",\"atMicroseconds\":9750923,\"temperatureCelsius\":26.033464942240272,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r7\",\"atMicroseconds\":9750924,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397},{\"componentId\":\"r8\",\"atMicroseconds\":9750925,\"temperatureCelsius\":26.033464846865904,\"accumulatedDamage\":0,\"loadRatio\":0},{\"componentId\":\"r9\",\"atMicroseconds\":9750926,\"temperatureCelsius\":25.95928635432865,\"accumulatedDamage\":0,\"loadRatio\":0.0397}],\"boards\":[{\"componentId\":\"uno\",\"loadedSource\":\"int phase=0;void setup(){pinMode(0,OUTPUT);digitalWrite(0,HIGH);pinMode(1,OUTPUT);digitalWrite(1,LOW);pinMode(2,OUTPUT);digitalWrite(2,HIGH);pinMode(3,OUTPUT);digitalWrite(3,LOW);pinMode(4,OUTPUT);digitalWrite(4,HIGH);pinMode(5,OUTPUT);digitalWrite(5,LOW);pinMode(6,OUTPUT);digitalWrite(6,HIGH);pinMode(7,OUTPUT);digitalWrite(7,LOW);pinMode(8,OUTPUT);digitalWrite(8,HIGH);pinMode(9,OUTPUT);digitalWrite(9,LOW);pinMode(10,OUTPUT);digitalWrite(10,HIGH);pinMode(11,OUTPUT);digitalWrite(11,LOW);pinMode(12,OUTPUT);digitalWrite(12,HIGH);pinMode(13,OUTPUT);digitalWrite(13,LOW);pinMode(A0,OUTPUT);digitalWrite(A0,HIGH);pinMode(A1,OUTPUT);digitalWrite(A1,LOW);pinMode(A2,OUTPUT);digitalWrite(A2,HIGH);pinMode(A3,OUTPUT);digitalWrite(A3,LOW);pinMode(A4,OUTPUT);digitalWrite(A4,HIGH);pinMode(A5,OUTPUT);digitalWrite(A5,LOW);}void loop(){delay(250);phase=1-phase;digitalWrite(0,phase==0);digitalWrite(1,phase==1);digitalWrite(2,phase==0);digitalWrite(3,phase==1);digitalWrite(4,phase==0);digitalWrite(5,phase==1);digitalWrite(6,phase==0);digitalWrite(7,phase==1);digitalWrite(8,phase==0);digitalWrite(9,phase==1);digitalWrite(10,phase==0);digitalWrite(11,phase==1);digitalWrite(12,phase==0);digitalWrite(13,phase==1);digitalWrite(A0,phase==0);digitalWrite(A1,phase==1);digitalWrite(A2,phase==0);digitalWrite(A3,phase==1);digitalWrite(A4,phase==0);digitalWrite(A5,phase==1);}\",\"runtime\":{\"version\":7,\"clockProfile\":\"instruction-us-v1\",\"programFingerprint\":\"arduino-v1-1364-a8aa31f4-75744716\",\"virtualTimeMs\":10000,\"resumeAtMs\":10000.939,\"phase\":\"loop\",\"programCounter\":1,\"loopIterationActive\":true,\"loopStartedAtMs\":9750.938,\"loopIterations\":40,\"nextEventSequence\":830,\"eventQueue\":[{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":0,\"sequence\":574,\"atMicroseconds\":6750645},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":5,\"sequence\":575,\"atMicroseconds\":6750646},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":0,\"sequence\":576,\"atMicroseconds\":6750647},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":5,\"sequence\":577,\"atMicroseconds\":6750648},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":0,\"sequence\":578,\"atMicroseconds\":6750649},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":5,\"sequence\":579,\"atMicroseconds\":6750650},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":0,\"sequence\":580,\"atMicroseconds\":6750651},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":5,\"sequence\":581,\"atMicroseconds\":6750652},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":0,\"sequence\":582,\"atMicroseconds\":6750653},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":5,\"sequence\":583,\"atMicroseconds\":6750654},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":0,\"sequence\":584,\"atMicroseconds\":6750655},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":5,\"sequence\":585,\"atMicroseconds\":6750656},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":0,\"sequence\":586,\"atMicroseconds\":6750657},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":5,\"sequence\":587,\"atMicroseconds\":6750658},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":0,\"sequence\":588,\"atMicroseconds\":6750659},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":5,\"sequence\":589,\"atMicroseconds\":6750660},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":5,\"sequence\":590,\"atMicroseconds\":7000664},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":0,\"sequence\":591,\"atMicroseconds\":7000665},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":5,\"sequence\":592,\"atMicroseconds\":7000666},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":0,\"sequence\":593,\"atMicroseconds\":7000667},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":5,\"sequence\":594,\"atMicroseconds\":7000668},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":0,\"sequence\":595,\"atMicroseconds\":7000669},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":5,\"sequence\":596,\"atMicroseconds\":7000670},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":0,\"sequence\":597,\"atMicroseconds\":7000671},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":5,\"sequence\":598,\"atMicroseconds\":7000672},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":0,\"sequence\":599,\"atMicroseconds\":7000673},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":5,\"sequence\":600,\"atMicroseconds\":7000674},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":0,\"sequence\":601,\"atMicroseconds\":7000675},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":5,\"sequence\":602,\"atMicroseconds\":7000676},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":0,\"sequence\":603,\"atMicroseconds\":7000677},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":5,\"sequence\":604,\"atMicroseconds\":7000678},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":0,\"sequence\":605,\"atMicroseconds\":7000679},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":5,\"sequence\":606,\"atMicroseconds\":7000680},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":0,\"sequence\":607,\"atMicroseconds\":7000681},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":5,\"sequence\":608,\"atMicroseconds\":7000682},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":0,\"sequence\":609,\"atMicroseconds\":7000683},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":0,\"sequence\":610,\"atMicroseconds\":7250687},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":5,\"sequence\":611,\"atMicroseconds\":7250688},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":0,\"sequence\":612,\"atMicroseconds\":7250689},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":5,\"sequence\":613,\"atMicroseconds\":7250690},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":0,\"sequence\":614,\"atMicroseconds\":7250691},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":5,\"sequence\":615,\"atMicroseconds\":7250692},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":0,\"sequence\":616,\"atMicroseconds\":7250693},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":5,\"sequence\":617,\"atMicroseconds\":7250694},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":0,\"sequence\":618,\"atMicroseconds\":7250695},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":5,\"sequence\":619,\"atMicroseconds\":7250696},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":0,\"sequence\":620,\"atMicroseconds\":7250697},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":5,\"sequence\":621,\"atMicroseconds\":7250698},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":0,\"sequence\":622,\"atMicroseconds\":7250699},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":5,\"sequence\":623,\"atMicroseconds\":7250700},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":0,\"sequence\":624,\"atMicroseconds\":7250701},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":5,\"sequence\":625,\"atMicroseconds\":7250702},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":0,\"sequence\":626,\"atMicroseconds\":7250703},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":5,\"sequence\":627,\"atMicroseconds\":7250704},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":0,\"sequence\":628,\"atMicroseconds\":7250705},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":5,\"sequence\":629,\"atMicroseconds\":7250706},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":5,\"sequence\":630,\"atMicroseconds\":7500710},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":0,\"sequence\":631,\"atMicroseconds\":7500711},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":5,\"sequence\":632,\"atMicroseconds\":7500712},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":0,\"sequence\":633,\"atMicroseconds\":7500713},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":5,\"sequence\":634,\"atMicroseconds\":7500714},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":0,\"sequence\":635,\"atMicroseconds\":7500715},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":5,\"sequence\":636,\"atMicroseconds\":7500716},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":0,\"sequence\":637,\"atMicroseconds\":7500717},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":5,\"sequence\":638,\"atMicroseconds\":7500718},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":0,\"sequence\":639,\"atMicroseconds\":7500719},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":5,\"sequence\":640,\"atMicroseconds\":7500720},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":0,\"sequence\":641,\"atMicroseconds\":7500721},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":5,\"sequence\":642,\"atMicroseconds\":7500722},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":0,\"sequence\":643,\"atMicroseconds\":7500723},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":5,\"sequence\":644,\"atMicroseconds\":7500724},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":0,\"sequence\":645,\"atMicroseconds\":7500725},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":5,\"sequence\":646,\"atMicroseconds\":7500726},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":0,\"sequence\":647,\"atMicroseconds\":7500727},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":5,\"sequence\":648,\"atMicroseconds\":7500728},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":0,\"sequence\":649,\"atMicroseconds\":7500729},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":0,\"sequence\":650,\"atMicroseconds\":7750733},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":5,\"sequence\":651,\"atMicroseconds\":7750734},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":0,\"sequence\":652,\"atMicroseconds\":7750735},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":5,\"sequence\":653,\"atMicroseconds\":7750736},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":0,\"sequence\":654,\"atMicroseconds\":7750737},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":5,\"sequence\":655,\"atMicroseconds\":7750738},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":0,\"sequence\":656,\"atMicroseconds\":7750739},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":5,\"sequence\":657,\"atMicroseconds\":7750740},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":0,\"sequence\":658,\"atMicroseconds\":7750741},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":5,\"sequence\":659,\"atMicroseconds\":7750742},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":0,\"sequence\":660,\"atMicroseconds\":7750743},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":5,\"sequence\":661,\"atMicroseconds\":7750744},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":0,\"sequence\":662,\"atMicroseconds\":7750745},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":5,\"sequence\":663,\"atMicroseconds\":7750746},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":0,\"sequence\":664,\"atMicroseconds\":7750747},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":5,\"sequence\":665,\"atMicroseconds\":7750748},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":0,\"sequence\":666,\"atMicroseconds\":7750749},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":5,\"sequence\":667,\"atMicroseconds\":7750750},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":0,\"sequence\":668,\"atMicroseconds\":7750751},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":5,\"sequence\":669,\"atMicroseconds\":7750752},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":5,\"sequence\":670,\"atMicroseconds\":8000756},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":0,\"sequence\":671,\"atMicroseconds\":8000757},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":5,\"sequence\":672,\"atMicroseconds\":8000758},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":0,\"sequence\":673,\"atMicroseconds\":8000759},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":5,\"sequence\":674,\"atMicroseconds\":8000760},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":0,\"sequence\":675,\"atMicroseconds\":8000761},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":5,\"sequence\":676,\"atMicroseconds\":8000762},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":0,\"sequence\":677,\"atMicroseconds\":8000763},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":5,\"sequence\":678,\"atMicroseconds\":8000764},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":0,\"sequence\":679,\"atMicroseconds\":8000765},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":5,\"sequence\":680,\"atMicroseconds\":8000766},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":0,\"sequence\":681,\"atMicroseconds\":8000767},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":5,\"sequence\":682,\"atMicroseconds\":8000768},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":0,\"sequence\":683,\"atMicroseconds\":8000769},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":5,\"sequence\":684,\"atMicroseconds\":8000770},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":0,\"sequence\":685,\"atMicroseconds\":8000771},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":5,\"sequence\":686,\"atMicroseconds\":8000772},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":0,\"sequence\":687,\"atMicroseconds\":8000773},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":5,\"sequence\":688,\"atMicroseconds\":8000774},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":0,\"sequence\":689,\"atMicroseconds\":8000775},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":0,\"sequence\":690,\"atMicroseconds\":8250779},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":5,\"sequence\":691,\"atMicroseconds\":8250780},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":0,\"sequence\":692,\"atMicroseconds\":8250781},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":5,\"sequence\":693,\"atMicroseconds\":8250782},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":0,\"sequence\":694,\"atMicroseconds\":8250783},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":5,\"sequence\":695,\"atMicroseconds\":8250784},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":0,\"sequence\":696,\"atMicroseconds\":8250785},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":5,\"sequence\":697,\"atMicroseconds\":8250786},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":0,\"sequence\":698,\"atMicroseconds\":8250787},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":5,\"sequence\":699,\"atMicroseconds\":8250788},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":0,\"sequence\":700,\"atMicroseconds\":8250789},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":5,\"sequence\":701,\"atMicroseconds\":8250790},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":0,\"sequence\":702,\"atMicroseconds\":8250791},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":5,\"sequence\":703,\"atMicroseconds\":8250792},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":0,\"sequence\":704,\"atMicroseconds\":8250793},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":5,\"sequence\":705,\"atMicroseconds\":8250794},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":0,\"sequence\":706,\"atMicroseconds\":8250795},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":5,\"sequence\":707,\"atMicroseconds\":8250796},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":0,\"sequence\":708,\"atMicroseconds\":8250797},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":5,\"sequence\":709,\"atMicroseconds\":8250798},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":5,\"sequence\":710,\"atMicroseconds\":8500802},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":0,\"sequence\":711,\"atMicroseconds\":8500803},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":5,\"sequence\":712,\"atMicroseconds\":8500804},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":0,\"sequence\":713,\"atMicroseconds\":8500805},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":5,\"sequence\":714,\"atMicroseconds\":8500806},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":0,\"sequence\":715,\"atMicroseconds\":8500807},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":5,\"sequence\":716,\"atMicroseconds\":8500808},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":0,\"sequence\":717,\"atMicroseconds\":8500809},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":5,\"sequence\":718,\"atMicroseconds\":8500810},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":0,\"sequence\":719,\"atMicroseconds\":8500811},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":5,\"sequence\":720,\"atMicroseconds\":8500812},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":0,\"sequence\":721,\"atMicroseconds\":8500813},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":5,\"sequence\":722,\"atMicroseconds\":8500814},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":0,\"sequence\":723,\"atMicroseconds\":8500815},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":5,\"sequence\":724,\"atMicroseconds\":8500816},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":0,\"sequence\":725,\"atMicroseconds\":8500817},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":5,\"sequence\":726,\"atMicroseconds\":8500818},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":0,\"sequence\":727,\"atMicroseconds\":8500819},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":5,\"sequence\":728,\"atMicroseconds\":8500820},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":0,\"sequence\":729,\"atMicroseconds\":8500821},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":0,\"sequence\":730,\"atMicroseconds\":8750825},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":5,\"sequence\":731,\"atMicroseconds\":8750826},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":0,\"sequence\":732,\"atMicroseconds\":8750827},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":5,\"sequence\":733,\"atMicroseconds\":8750828},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":0,\"sequence\":734,\"atMicroseconds\":8750829},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":5,\"sequence\":735,\"atMicroseconds\":8750830},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":0,\"sequence\":736,\"atMicroseconds\":8750831},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":5,\"sequence\":737,\"atMicroseconds\":8750832},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":0,\"sequence\":738,\"atMicroseconds\":8750833},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":5,\"sequence\":739,\"atMicroseconds\":8750834},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":0,\"sequence\":740,\"atMicroseconds\":8750835},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":5,\"sequence\":741,\"atMicroseconds\":8750836},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":0,\"sequence\":742,\"atMicroseconds\":8750837},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":5,\"sequence\":743,\"atMicroseconds\":8750838},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":0,\"sequence\":744,\"atMicroseconds\":8750839},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":5,\"sequence\":745,\"atMicroseconds\":8750840},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":0,\"sequence\":746,\"atMicroseconds\":8750841},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":5,\"sequence\":747,\"atMicroseconds\":8750842},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":0,\"sequence\":748,\"atMicroseconds\":8750843},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":5,\"sequence\":749,\"atMicroseconds\":8750844},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":5,\"sequence\":750,\"atMicroseconds\":9000848},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":0,\"sequence\":751,\"atMicroseconds\":9000849},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":5,\"sequence\":752,\"atMicroseconds\":9000850},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":0,\"sequence\":753,\"atMicroseconds\":9000851},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":5,\"sequence\":754,\"atMicroseconds\":9000852},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":0,\"sequence\":755,\"atMicroseconds\":9000853},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":5,\"sequence\":756,\"atMicroseconds\":9000854},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":0,\"sequence\":757,\"atMicroseconds\":9000855},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":5,\"sequence\":758,\"atMicroseconds\":9000856},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":0,\"sequence\":759,\"atMicroseconds\":9000857},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":5,\"sequence\":760,\"atMicroseconds\":9000858},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":0,\"sequence\":761,\"atMicroseconds\":9000859},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":5,\"sequence\":762,\"atMicroseconds\":9000860},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":0,\"sequence\":763,\"atMicroseconds\":9000861},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":5,\"sequence\":764,\"atMicroseconds\":9000862},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":0,\"sequence\":765,\"atMicroseconds\":9000863},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":5,\"sequence\":766,\"atMicroseconds\":9000864},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":0,\"sequence\":767,\"atMicroseconds\":9000865},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":5,\"sequence\":768,\"atMicroseconds\":9000866},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":0,\"sequence\":769,\"atMicroseconds\":9000867},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":0,\"sequence\":770,\"atMicroseconds\":9250871},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":5,\"sequence\":771,\"atMicroseconds\":9250872},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":0,\"sequence\":772,\"atMicroseconds\":9250873},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":5,\"sequence\":773,\"atMicroseconds\":9250874},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":0,\"sequence\":774,\"atMicroseconds\":9250875},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":5,\"sequence\":775,\"atMicroseconds\":9250876},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":0,\"sequence\":776,\"atMicroseconds\":9250877},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":5,\"sequence\":777,\"atMicroseconds\":9250878},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":0,\"sequence\":778,\"atMicroseconds\":9250879},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":5,\"sequence\":779,\"atMicroseconds\":9250880},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":0,\"sequence\":780,\"atMicroseconds\":9250881},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":5,\"sequence\":781,\"atMicroseconds\":9250882},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":0,\"sequence\":782,\"atMicroseconds\":9250883},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":5,\"sequence\":783,\"atMicroseconds\":9250884},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":0,\"sequence\":784,\"atMicroseconds\":9250885},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":5,\"sequence\":785,\"atMicroseconds\":9250886},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":0,\"sequence\":786,\"atMicroseconds\":9250887},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":5,\"sequence\":787,\"atMicroseconds\":9250888},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":0,\"sequence\":788,\"atMicroseconds\":9250889},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":5,\"sequence\":789,\"atMicroseconds\":9250890},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":5,\"sequence\":790,\"atMicroseconds\":9500894},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":0,\"sequence\":791,\"atMicroseconds\":9500895},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":5,\"sequence\":792,\"atMicroseconds\":9500896},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":0,\"sequence\":793,\"atMicroseconds\":9500897},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":5,\"sequence\":794,\"atMicroseconds\":9500898},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":0,\"sequence\":795,\"atMicroseconds\":9500899},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":5,\"sequence\":796,\"atMicroseconds\":9500900},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":0,\"sequence\":797,\"atMicroseconds\":9500901},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":5,\"sequence\":798,\"atMicroseconds\":9500902},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":0,\"sequence\":799,\"atMicroseconds\":9500903},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":5,\"sequence\":800,\"atMicroseconds\":9500904},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":0,\"sequence\":801,\"atMicroseconds\":9500905},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":5,\"sequence\":802,\"atMicroseconds\":9500906},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":0,\"sequence\":803,\"atMicroseconds\":9500907},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":5,\"sequence\":804,\"atMicroseconds\":9500908},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":0,\"sequence\":805,\"atMicroseconds\":9500909},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":5,\"sequence\":806,\"atMicroseconds\":9500910},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":0,\"sequence\":807,\"atMicroseconds\":9500911},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":5,\"sequence\":808,\"atMicroseconds\":9500912},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":0,\"sequence\":809,\"atMicroseconds\":9500913},{\"kind\":\"output-change\",\"terminal\":\"d0\",\"voltage\":0,\"sequence\":810,\"atMicroseconds\":9750917},{\"kind\":\"output-change\",\"terminal\":\"d1\",\"voltage\":5,\"sequence\":811,\"atMicroseconds\":9750918},{\"kind\":\"output-change\",\"terminal\":\"d2\",\"voltage\":0,\"sequence\":812,\"atMicroseconds\":9750919},{\"kind\":\"output-change\",\"terminal\":\"d3\",\"voltage\":5,\"sequence\":813,\"atMicroseconds\":9750920},{\"kind\":\"output-change\",\"terminal\":\"d4\",\"voltage\":0,\"sequence\":814,\"atMicroseconds\":9750921},{\"kind\":\"output-change\",\"terminal\":\"d5\",\"voltage\":5,\"sequence\":815,\"atMicroseconds\":9750922},{\"kind\":\"output-change\",\"terminal\":\"d6\",\"voltage\":0,\"sequence\":816,\"atMicroseconds\":9750923},{\"kind\":\"output-change\",\"terminal\":\"d7\",\"voltage\":5,\"sequence\":817,\"atMicroseconds\":9750924},{\"kind\":\"output-change\",\"terminal\":\"d8\",\"voltage\":0,\"sequence\":818,\"atMicroseconds\":9750925},{\"kind\":\"output-change\",\"terminal\":\"d9\",\"voltage\":5,\"sequence\":819,\"atMicroseconds\":9750926},{\"kind\":\"output-change\",\"terminal\":\"d10\",\"voltage\":0,\"sequence\":820,\"atMicroseconds\":9750927},{\"kind\":\"output-change\",\"terminal\":\"d11\",\"voltage\":5,\"sequence\":821,\"atMicroseconds\":9750928},{\"kind\":\"output-change\",\"terminal\":\"d12\",\"voltage\":0,\"sequence\":822,\"atMicroseconds\":9750929},{\"kind\":\"output-change\",\"terminal\":\"d13\",\"voltage\":5,\"sequence\":823,\"atMicroseconds\":9750930},{\"kind\":\"output-change\",\"terminal\":\"a0\",\"voltage\":0,\"sequence\":824,\"atMicroseconds\":9750931},{\"kind\":\"output-change\",\"terminal\":\"a1\",\"voltage\":5,\"sequence\":825,\"atMicroseconds\":9750932},{\"kind\":\"output-change\",\"terminal\":\"a2\",\"voltage\":0,\"sequence\":826,\"atMicroseconds\":9750933},{\"kind\":\"output-change\",\"terminal\":\"a3\",\"voltage\":5,\"sequence\":827,\"atMicroseconds\":9750934},{\"kind\":\"output-change\",\"terminal\":\"a4\",\"voltage\":0,\"sequence\":828,\"atMicroseconds\":9750935},{\"kind\":\"output-change\",\"terminal\":\"a5\",\"voltage\":5,\"sequence\":829,\"atMicroseconds\":9750936}],\"variables\":{\"phase\":1},\"locals\":{},\"scopes\":[{\"phase\":{\"type\":\"int\",\"constant\":false,\"value\":1}},{}],\"faults\":[],\"pinModes\":{\"a0\":\"OUTPUT\",\"a1\":\"OUTPUT\",\"a2\":\"OUTPUT\",\"a3\":\"OUTPUT\",\"a4\":\"OUTPUT\",\"a5\":\"OUTPUT\",\"d0\":\"OUTPUT\",\"d1\":\"OUTPUT\",\"d10\":\"OUTPUT\",\"d11\":\"OUTPUT\",\"d12\":\"OUTPUT\",\"d13\":\"OUTPUT\",\"d2\":\"OUTPUT\",\"d3\":\"OUTPUT\",\"d4\":\"OUTPUT\",\"d5\":\"OUTPUT\",\"d6\":\"OUTPUT\",\"d7\":\"OUTPUT\",\"d8\":\"OUTPUT\",\"d9\":\"OUTPUT\"},\"outputVoltages\":{\"a0\":0,\"a1\":5,\"a2\":0,\"a3\":5,\"a4\":0,\"a5\":5,\"d0\":0,\"d1\":5,\"d10\":0,\"d11\":5,\"d12\":0,\"d13\":5,\"d2\":0,\"d3\":5,\"d4\":0,\"d5\":5,\"d6\":0,\"d7\":5,\"d8\":0,\"d9\":5},\"tones\":{}}}]}"
+      }
+    },
+    "result": {
+      "solved": true,
+      "status": "solved",
+      "current": 0.003148938677,
+      "components": [
+        {
+          "componentId": "led0",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led1",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led10",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led11",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led12",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led13",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led14",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led15",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led16",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led17",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led18",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led19",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led2",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led3",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led4",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led5",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led6",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led7",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led8",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false,
+          "temperatureCelsius": 27.3,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "led9",
+          "voltageDrop": 1.819571941419,
+          "current": 0.00314893867,
+          "terminalVoltages": {
+            "anode": 1.819571941419,
+            "cathode": 0
+          },
+          "power": 0.005729720449,
+          "brightness": 43.52,
+          "branchCurrents": {
+            "led": 0.00314893867
+          },
+          "branchBrightness": {
+            "led": 43.52
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 15.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true,
+          "temperatureCelsius": 27.4,
+          "thermalLoadPercent": 15.74,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r0",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r1",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r10",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r11",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r12",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r13",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r14",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r15",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r16",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r17",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r18",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r19",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r2",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r3",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r4",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r5",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r6",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r7",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r8",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 0,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "r9",
+          "voltageDrop": 3.148938671813,
+          "current": 0.003148938672,
+          "terminalVoltages": {
+            "lead-1": 4.968510613232,
+            "lead-2": 1.819571941419
+          },
+          "terminalCurrents": {
+            "lead-1": 0.003148938672,
+            "lead-2": -0.003148938672
+          },
+          "power": 0.009915814759,
+          "brightness": 0,
+          "powerUtilizationPercent": 3.97,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "temperatureCelsius": 26,
+          "thermalLoadPercent": 3.97,
+          "accumulatedDamagePercent": 0
+        },
+        {
+          "componentId": "uno",
+          "voltageDrop": 4.968510613232,
+          "current": 0.003148938677,
+          "terminalVoltages": {
+            "d0": 0,
+            "d1": 4.968510613232,
+            "d2": 0,
+            "d3": 4.968510613232,
+            "d4": 0,
+            "d5": 4.968510613232,
+            "d6": 0,
+            "d7": 4.968510613232,
+            "d8": 0,
+            "d9": 4.968510613232,
+            "d10": 0,
+            "d11": 4.968510613232,
+            "d12": 0,
+            "d13": 4.968510613232,
+            "a0": 0,
+            "a1": 4.968510613232,
+            "a2": 0,
+            "a3": 4.968510613232,
+            "a4": 0,
+            "a5": 4.968510613232,
+            "power-5v": 5,
+            "power-3v3": 3.299999999999,
+            "power-gnd-1": 0
+          },
+          "power": 0.156455352396,
+          "brightness": 0,
+          "branchCurrents": {
+            "power-5v": 0,
+            "power-3v3": 0,
+            "a0": 0,
+            "a1": 0.003148938677,
+            "a2": 0,
+            "a3": 0.003148938677,
+            "a4": 0,
+            "a5": 0.003148938677,
+            "d0": 0,
+            "d1": 0.003148938677,
+            "d10": 0,
+            "d11": 0.003148938677,
+            "d12": 0,
+            "d13": 0.003148938677,
+            "d2": 0,
+            "d3": 0.003148938677,
+            "d4": 0,
+            "d5": 0.003148938677,
+            "d6": 0,
+            "d7": 0.003148938677,
+            "d8": 0,
+            "d9": 0.003148938677
+          },
+          "energized": true
+        }
+      ],
+      "nodes": [
+        {
+          "id": "net-0",
+          "voltage": 0,
+          "terminals": [
+            "led0:anode",
+            "r0:lead-2"
+          ]
+        },
+        {
+          "id": "net-1",
+          "voltage": 0,
+          "terminals": [
+            "led0:cathode",
+            "led10:cathode",
+            "led11:cathode",
+            "led12:cathode",
+            "led13:cathode",
+            "led14:cathode",
+            "led15:cathode",
+            "led16:cathode",
+            "led17:cathode",
+            "led18:cathode",
+            "led19:cathode",
+            "led1:cathode",
+            "led2:cathode",
+            "led3:cathode",
+            "led4:cathode",
+            "led5:cathode",
+            "led6:cathode",
+            "led7:cathode",
+            "led8:cathode",
+            "led9:cathode",
+            "uno:power-gnd-1"
+          ]
+        },
+        {
+          "id": "net-2",
+          "voltage": 0,
+          "terminals": [
+            "led10:anode",
+            "r10:lead-2"
+          ]
+        },
+        {
+          "id": "net-3",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led11:anode",
+            "r11:lead-2"
+          ]
+        },
+        {
+          "id": "net-4",
+          "voltage": 0,
+          "terminals": [
+            "led12:anode",
+            "r12:lead-2"
+          ]
+        },
+        {
+          "id": "net-5",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led13:anode",
+            "r13:lead-2"
+          ]
+        },
+        {
+          "id": "net-6",
+          "voltage": 0,
+          "terminals": [
+            "led14:anode",
+            "r14:lead-2"
+          ]
+        },
+        {
+          "id": "net-7",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led15:anode",
+            "r15:lead-2"
+          ]
+        },
+        {
+          "id": "net-8",
+          "voltage": 0,
+          "terminals": [
+            "led16:anode",
+            "r16:lead-2"
+          ]
+        },
+        {
+          "id": "net-9",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led17:anode",
+            "r17:lead-2"
+          ]
+        },
+        {
+          "id": "net-10",
+          "voltage": 0,
+          "terminals": [
+            "led18:anode",
+            "r18:lead-2"
+          ]
+        },
+        {
+          "id": "net-11",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led19:anode",
+            "r19:lead-2"
+          ]
+        },
+        {
+          "id": "net-12",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led1:anode",
+            "r1:lead-2"
+          ]
+        },
+        {
+          "id": "net-13",
+          "voltage": 0,
+          "terminals": [
+            "led2:anode",
+            "r2:lead-2"
+          ]
+        },
+        {
+          "id": "net-14",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led3:anode",
+            "r3:lead-2"
+          ]
+        },
+        {
+          "id": "net-15",
+          "voltage": 0,
+          "terminals": [
+            "led4:anode",
+            "r4:lead-2"
+          ]
+        },
+        {
+          "id": "net-16",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led5:anode",
+            "r5:lead-2"
+          ]
+        },
+        {
+          "id": "net-17",
+          "voltage": 0,
+          "terminals": [
+            "led6:anode",
+            "r6:lead-2"
+          ]
+        },
+        {
+          "id": "net-18",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led7:anode",
+            "r7:lead-2"
+          ]
+        },
+        {
+          "id": "net-19",
+          "voltage": 0,
+          "terminals": [
+            "led8:anode",
+            "r8:lead-2"
+          ]
+        },
+        {
+          "id": "net-20",
+          "voltage": 1.819571941419,
+          "terminals": [
+            "led9:anode",
+            "r9:lead-2"
+          ]
+        },
+        {
+          "id": "net-21",
+          "voltage": 0,
+          "terminals": [
+            "r0:lead-1",
+            "uno:d0"
+          ]
+        },
+        {
+          "id": "net-22",
+          "voltage": 0,
+          "terminals": [
+            "r10:lead-1",
+            "uno:d10"
+          ]
+        },
+        {
+          "id": "net-23",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r11:lead-1",
+            "uno:d11"
+          ]
+        },
+        {
+          "id": "net-24",
+          "voltage": 0,
+          "terminals": [
+            "r12:lead-1",
+            "uno:d12"
+          ]
+        },
+        {
+          "id": "net-25",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r13:lead-1",
+            "uno:d13"
+          ]
+        },
+        {
+          "id": "net-26",
+          "voltage": 0,
+          "terminals": [
+            "r14:lead-1",
+            "uno:a0"
+          ]
+        },
+        {
+          "id": "net-27",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r15:lead-1",
+            "uno:a1"
+          ]
+        },
+        {
+          "id": "net-28",
+          "voltage": 0,
+          "terminals": [
+            "r16:lead-1",
+            "uno:a2"
+          ]
+        },
+        {
+          "id": "net-29",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r17:lead-1",
+            "uno:a3"
+          ]
+        },
+        {
+          "id": "net-30",
+          "voltage": 0,
+          "terminals": [
+            "r18:lead-1",
+            "uno:a4"
+          ]
+        },
+        {
+          "id": "net-31",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r19:lead-1",
+            "uno:a5"
+          ]
+        },
+        {
+          "id": "net-32",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r1:lead-1",
+            "uno:d1"
+          ]
+        },
+        {
+          "id": "net-33",
+          "voltage": 0,
+          "terminals": [
+            "r2:lead-1",
+            "uno:d2"
+          ]
+        },
+        {
+          "id": "net-34",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r3:lead-1",
+            "uno:d3"
+          ]
+        },
+        {
+          "id": "net-35",
+          "voltage": 0,
+          "terminals": [
+            "r4:lead-1",
+            "uno:d4"
+          ]
+        },
+        {
+          "id": "net-36",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r5:lead-1",
+            "uno:d5"
+          ]
+        },
+        {
+          "id": "net-37",
+          "voltage": 0,
+          "terminals": [
+            "r6:lead-1",
+            "uno:d6"
+          ]
+        },
+        {
+          "id": "net-38",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r7:lead-1",
+            "uno:d7"
+          ]
+        },
+        {
+          "id": "net-39",
+          "voltage": 0,
+          "terminals": [
+            "r8:lead-1",
+            "uno:d8"
+          ]
+        },
+        {
+          "id": "net-40",
+          "voltage": 4.968510613232,
+          "terminals": [
+            "r9:lead-1",
+            "uno:d9"
+          ]
+        },
+        {
+          "id": "net-41",
+          "voltage": 3.299999999999,
+          "terminals": [
+            "uno:power-3v3"
+          ]
+        },
+        {
+          "id": "net-42",
+          "voltage": 5,
+          "terminals": [
+            "uno:power-5v"
+          ]
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "circuit_ok",
+          "severity": "info",
+          "message": "DC-расчёт завершён. Ток источника 3.15 мА."
+        }
+      ],
+      "iterations": 3,
+      "numericalResidual": 0,
+      "numericalTolerance": 5.0000000000000004e-8,
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 7.3e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000062978773,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "topologySignature": "{\"components\":[\"led0\",\"led1\",\"led10\",\"led11\",\"led12\",\"led13\",\"led14\",\"led15\",\"led16\",\"led17\",\"led18\",\"led19\",\"led2\",\"led3\",\"led4\",\"led5\",\"led6\",\"led7\",\"led8\",\"led9\",\"r0\",\"r1\",\"r10\",\"r11\",\"r12\",\"r13\",\"r14\",\"r15\",\"r16\",\"r17\",\"r18\",\"r19\",\"r2\",\"r3\",\"r4\",\"r5\",\"r6\",\"r7\",\"r8\",\"r9\",\"uno\"],\"nets\":[[\"net-0\",[\"led0:anode\",\"r0:lead-2\"]],[\"net-1\",[\"led0:cathode\",\"led10:cathode\",\"led11:cathode\",\"led12:cathode\",\"led13:cathode\",\"led14:cathode\",\"led15:cathode\",\"led16:cathode\",\"led17:cathode\",\"led18:cathode\",\"led19:cathode\",\"led1:cathode\",\"led2:cathode\",\"led3:cathode\",\"led4:cathode\",\"led5:cathode\",\"led6:cathode\",\"led7:cathode\",\"led8:cathode\",\"led9:cathode\",\"uno:power-gnd-1\"]],[\"net-2\",[\"led10:anode\",\"r10:lead-2\"]],[\"net-3\",[\"led11:anode\",\"r11:lead-2\"]],[\"net-4\",[\"led12:anode\",\"r12:lead-2\"]],[\"net-5\",[\"led13:anode\",\"r13:lead-2\"]],[\"net-6\",[\"led14:anode\",\"r14:lead-2\"]],[\"net-7\",[\"led15:anode\",\"r15:lead-2\"]],[\"net-8\",[\"led16:anode\",\"r16:lead-2\"]],[\"net-9\",[\"led17:anode\",\"r17:lead-2\"]],[\"net-10\",[\"led18:anode\",\"r18:lead-2\"]],[\"net-11\",[\"led19:anode\",\"r19:lead-2\"]],[\"net-12\",[\"led1:anode\",\"r1:lead-2\"]],[\"net-13\",[\"led2:anode\",\"r2:lead-2\"]],[\"net-14\",[\"led3:anode\",\"r3:lead-2\"]],[\"net-15\",[\"led4:anode\",\"r4:lead-2\"]],[\"net-16\",[\"led5:anode\",\"r5:lead-2\"]],[\"net-17\",[\"led6:anode\",\"r6:lead-2\"]],[\"net-18\",[\"led7:anode\",\"r7:lead-2\"]],[\"net-19\",[\"led8:anode\",\"r8:lead-2\"]],[\"net-20\",[\"led9:anode\",\"r9:lead-2\"]],[\"net-21\",[\"r0:lead-1\",\"uno:d0\"]],[\"net-22\",[\"r10:lead-1\",\"uno:d10\"]],[\"net-23\",[\"r11:lead-1\",\"uno:d11\"]],[\"net-24\",[\"r12:lead-1\",\"uno:d12\"]],[\"net-25\",[\"r13:lead-1\",\"uno:d13\"]],[\"net-26\",[\"r14:lead-1\",\"uno:a0\"]],[\"net-27\",[\"r15:lead-1\",\"uno:a1\"]],[\"net-28\",[\"r16:lead-1\",\"uno:a2\"]],[\"net-29\",[\"r17:lead-1\",\"uno:a3\"]],[\"net-30\",[\"r18:lead-1\",\"uno:a4\"]],[\"net-31\",[\"r19:lead-1\",\"uno:a5\"]],[\"net-32\",[\"r1:lead-1\",\"uno:d1\"]],[\"net-33\",[\"r2:lead-1\",\"uno:d2\"]],[\"net-34\",[\"r3:lead-1\",\"uno:d3\"]],[\"net-35\",[\"r4:lead-1\",\"uno:d4\"]],[\"net-36\",[\"r5:lead-1\",\"uno:d5\"]],[\"net-37\",[\"r6:lead-1\",\"uno:d6\"]],[\"net-38\",[\"r7:lead-1\",\"uno:d7\"]],[\"net-39\",[\"r8:lead-1\",\"uno:d8\"]],[\"net-40\",[\"r9:lead-1\",\"uno:d9\"]],[\"net-41\",[\"uno:power-3v3\"]],[\"net-42\",[\"uno:power-5v\"]]]}",
+      "simulationInputDigest": "2d8a1d6e678d71a9a9d1850ee91b0640252a0067b5709a805caabcbb34fe868e",
+      "solverRevision": "asa-electronics-solver-v21",
+      "modelSetDigest": "sha256:fcb0f3241eef974a312c1fa1891b86aee92d5d3cd5a8e76475f53fcaa2b201d5",
+      "analysis": {
+        "electricalMode": "transient",
+        "controllerRuntime": "arduino"
+      }
+    },
+    "ledTemporal": {
+      "profile": "ordinary-led-held-v1",
+      "fromMicroseconds": 9875000,
+      "toMicroseconds": 10000000,
+      "arduinoIndicators": [
+        {
+          "componentId": "uno",
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "voltage": 4.968510613232
+            },
+            {
+              "atMicroseconds": 10000000,
+              "voltage": 4.968510613232
+            }
+          ],
+          "truncated": false
+        }
+      ],
+      "components": [
+        {
+          "componentId": "led0",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led1",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led2",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led3",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led4",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led5",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led6",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led7",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led8",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led9",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led10",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led11",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led12",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led13",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led14",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led15",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led16",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led17",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led18",
+          "brightnessIntegral": 0,
+          "litDurationMicroseconds": 0,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 0,
+              "current": 0
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 0,
+              "current": 0
+            }
+          ],
+          "truncated": false
+        },
+        {
+          "componentId": "led19",
+          "brightnessIntegral": 5440000,
+          "litDurationMicroseconds": 125000,
+          "transitionCount": 0,
+          "samples": [
+            {
+              "atMicroseconds": 9875000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            },
+            {
+              "atMicroseconds": 10000000,
+              "brightness": 43.52,
+              "current": 0.00314893867
+            }
+          ],
+          "truncated": false
+        }
+      ]
+    },
+    "serial": [],
+    "diagnostics": []
+  },
+  "probe": {
+    "requests": 40,
+    "responses": 52,
+    "errors": [],
+    "source": "int phase=0;void setup(){pinMode(0,OUTPUT);digitalWrite(0,HIGH);pinMode(1,OUTPUT);digitalWrite(1,LOW);pinMode(2,OUTPUT);digitalWrite(2,HIGH);pinMode(3,OUTPUT);digitalWrite(3,LOW);pinMode(4,OUTPUT);digitalWrite(4,HIGH);pinMode(5,OUTPUT);digitalWrite(5,LOW);pinMode(6,OUTPUT);digitalWrite(6,HIGH);pinMode(7,OUTPUT);digitalWrite(7,LOW);pinMode(8,OUTPUT);digitalWrite(8,HIGH);pinMode(9,OUTPUT);digitalWrite(9,LOW);pinMode(10,OUTPUT);digitalWrite(10,HIGH);pinMode(11,OUTPUT);digitalWrite(11,LOW);pinMode(12,OUTPUT);digitalWrite(12,HIGH);pinMode(13,OUTPUT);digitalWrite(13,LOW);pinMode(A0,OUTPUT);digitalWrite(A0,HIGH);pinMode(A1,OUTPUT);digitalWrite(A1,LOW);pinMode(A2,OUTPUT);digitalWrite(A2,HIGH);pinMode(A3,OUTPUT);digitalWrite(A3,LOW);pinMode(A4,OUTPUT);digitalWrite(A4,HIGH);pinMode(A5,OUTPUT);digitalWrite(A5,LOW);}void loop(){delay(250);phase=1-phase;digitalWrite(0,phase==0);digitalWrite(1,phase==1);digitalWrite(2,phase==0);digitalWrite(3,phase==1);digitalWrite(4,phase==0);digitalWrite(5,phase==1);digitalWrite(6,phase==0);digitalWrite(7,phase==1);digitalWrite(8,phase==0);digitalWrite(9,phase==1);digitalWrite(10,phase==0);digitalWrite(11,phase==1);digitalWrite(12,phase==0);digitalWrite(13,phase==1);digitalWrite(A0,phase==0);digitalWrite(A1,phase==1);digitalWrite(A2,phase==0);digitalWrite(A3,phase==1);digitalWrite(A4,phase==0);digitalWrite(A5,phase==1);}"
+  },
+  "pageErrors": []
+}

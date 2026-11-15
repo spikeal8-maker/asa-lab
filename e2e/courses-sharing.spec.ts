@@ -1,5 +1,6 @@
 import {
   addCourseBlock,
+  openCourseActions,
   selectCoursePractice,
   openNewAssignmentEditor,
   openExistingAssignmentEditor,
@@ -12,7 +13,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
-import { openAccountSettings } from './portal-navigation';
+import { openAccountSettings, switchWorkspace } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /**
@@ -347,6 +348,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await sidebar(matePage, 'Курсы и задания').click();
   await bankTab(matePage, 'Каталог').click();
   await expect(matePage.getByText(title, { exact: true })).toHaveCount(0);
+  await openCourseActions(authorPage);
   await editor.getByRole('button', { name: 'Доступ', exact: true }).click();
   const share = authorPage.getByRole('dialog', { name: 'Кому видно' });
   await share.getByRole('radio', { name: /Названным преподавателям/ }).click();
@@ -575,14 +577,10 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'owner')",
     [authorIdentity.account_id, authorWorkspace],
   );
-  expect(
-    (
-      await authorPage.request.post('/api/session/context', {
-        headers: { origin: new URL(authorPage.url()).origin },
-        data: { workspaceId: authorWorkspace },
-      })
-    ).ok(),
-  ).toBe(true);
+  // Load the new membership before changing the session, then use the UI handoff
+  // so the open page's telemetry actor follows the server's workspace selection.
+  await authorPage.reload();
+  await switchWorkspace(authorPage, 'Private Library author');
   const authorProjects = await authorPage.request.post('/api/projects', {
     headers: {
       origin: new URL(authorPage.url()).origin,
@@ -665,6 +663,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   }
   await matePage.setViewportSize({ width: 1440, height: 900 });
   await copiedCourseCard.click();
+  await openCourseActions(matePage);
   await ownEditor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   const assign = matePage.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assign.getByLabel('Класс для курса').selectOption({ label: 'Library class ' + suffix });
@@ -744,8 +743,181 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   ] as const) {
     const openCourse = async () => {
       await learner.goto('/#/learning');
-      // The same hash keeps the mounted player; refresh its lifecycle and server state.
-      await learner.reload();
+      type Request = import('@playwright/test').Request;
+      type Response = import('@playwright/test').Response;
+      type Read = {
+        response?: Response;
+        error?: Error;
+        parsing?: boolean;
+        parsed?: boolean;
+        body?: unknown;
+      };
+      const mainFrame = learner.mainFrame();
+      const documentUrl = new URL(learner.url());
+      documentUrl.hash = '';
+      const runsUrl = new URL(
+        learner === seatPage
+          ? '/api/class-join/me/course-runs'
+          : '/api/class-join/account/course-runs',
+        documentUrl,
+      ).href;
+      const reads = new Map<Request, Read>();
+      let documentRequest: Request | undefined;
+      let documentResponseSeen = false;
+      let committed = false;
+      let reloadConfirmed = false;
+      let latest: Request | undefined;
+      let pageError: Error | undefined;
+      let disposed = false;
+      let wake: (() => void) | undefined;
+      const changed = () => {
+        const pending = wake;
+        wake = undefined;
+        pending?.();
+      };
+      const clearReads = () => {
+        reads.clear();
+        latest = undefined;
+        changed();
+      };
+      const onRequest = (request: Request) => {
+        try {
+          if (request.frame() !== mainFrame) return;
+        } catch {
+          return;
+        }
+        if (request.isNavigationRequest() && request.resourceType() === 'document') {
+          if (reloadConfirmed || request.method() !== 'GET' || request.url() !== documentUrl.href) {
+            pageError = new Error('Unexpected learner document navigation during course readiness');
+          }
+          documentRequest = request;
+          documentResponseSeen = false;
+          committed = false;
+          clearReads();
+          return;
+        }
+        if (!committed || request.method() !== 'GET' || request.url() !== runsUrl) return;
+        reads.set(request, {});
+        latest = request;
+        changed();
+      };
+      const onResponse = (response: Response) => {
+        const request = response.request();
+        if (request === documentRequest) documentResponseSeen = true;
+        const read = reads.get(request);
+        if (read) {
+          read.response = response;
+          changed();
+        }
+      };
+      const onFrameNavigated = (frame: import('@playwright/test').Frame) => {
+        if (frame !== mainFrame || reloadConfirmed || !documentResponseSeen) return;
+        // Before reload confirms its Request, hash events cannot identify the document commit.
+        // Every such event discards the provisional cohort, possibly losing an early fresh read.
+        committed = true;
+        clearReads();
+      };
+      const onRequestFailed = (request: Request) => {
+        const error = new Error(`Learner UI read failed: ${request.failure()?.errorText}`);
+        if (request === documentRequest) pageError = error;
+        const read = reads.get(request);
+        if (read) read.error = error;
+        changed();
+      };
+      const onClose = () => {
+        pageError = new Error('Learner page closed during course readiness');
+        changed();
+      };
+      const onCrash = () => {
+        pageError = new Error('Learner page crashed during course readiness');
+        changed();
+      };
+      const cancelled = Symbol('course-read-cancelled');
+      let cancelBodies!: () => void;
+      const cancellation = new Promise<typeof cancelled>((resolve) => {
+        cancelBodies = () => resolve(cancelled);
+      });
+      const bodyTasks: Promise<void>[] = [];
+      // Observe before reload so fast startup responses are retained until after the Courses click.
+      learner.on('request', onRequest);
+      learner.on('response', onResponse);
+      learner.on('framenavigated', onFrameNavigated);
+      learner.on('requestfailed', onRequestFailed);
+      learner.on('close', onClose);
+      learner.on('crash', onCrash);
+      try {
+        // The same hash keeps the mounted player; refresh its lifecycle and server state.
+        const reloaded = await learner.reload();
+        expect(reloaded).not.toBeNull();
+        expect(reloaded!.request()).toBe(documentRequest);
+        expect(documentResponseSeen).toBe(true);
+        expect(committed).toBe(true);
+        reloadConfirmed = true;
+        await learner
+          .getByRole('navigation', { name: 'Разделы моего обучения' })
+          .getByRole('link', { name: 'Курсы', exact: true })
+          .click();
+        while (true) {
+          if (pageError) throw pageError;
+          // Reselect after every wake, including parsing: a newer UI Request supersedes this one.
+          const request = latest;
+          const read = request && reads.get(request);
+          if (read?.error) throw read.error;
+          if (request && read?.response) {
+            expect(read.response.status()).toBe(200);
+            if (read.parsed) {
+              expect(read.body).toEqual(expect.objectContaining({ items: expect.any(Array) }));
+              const { items } = read.body as {
+                items: Array<{ id: string; versionNumber: number }>;
+              };
+              const copied = items.filter((item) => item.id === copiedRun);
+              expect(copied).toHaveLength(1);
+              expect(copied[0]).toMatchObject({ id: copiedRun, versionNumber: 1 });
+              break;
+            }
+            if (!read.parsing) {
+              read.parsing = true;
+              const response = read.response;
+              const body = Promise.resolve()
+                .then(() => response.json())
+                .then(
+                  (value: unknown) => ({ value }),
+                  (error: unknown) => ({ error }),
+                );
+              bodyTasks.push(
+                Promise.race([body, cancellation]).then((result) => {
+                  if (disposed || result === cancelled || reads.get(request) !== read) return;
+                  if ('error' in result) {
+                    read.error =
+                      result.error instanceof Error
+                        ? result.error
+                        : new Error(String(result.error));
+                  } else {
+                    read.body = result.value;
+                    read.parsed = true;
+                  }
+                  changed();
+                }),
+              );
+            }
+          }
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+          });
+        }
+      } finally {
+        disposed = true;
+        learner.off('request', onRequest);
+        learner.off('response', onResponse);
+        learner.off('framenavigated', onFrameNavigated);
+        learner.off('requestfailed', onRequestFailed);
+        learner.off('close', onClose);
+        learner.off('crash', onCrash);
+        cancelBodies();
+        changed();
+        await Promise.all(bodyTasks);
+        clearReads();
+      }
       const list = learner.getByTestId('seat-courses');
       await expect(list).toBeVisible();
       const copiedCourse = list.getByRole('button').filter({ hasText: title });
@@ -928,6 +1100,29 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     await expect(
       player.locator('.lesson-activity-block').filter({ hasText: practice }),
     ).toContainText('Выполнено');
+    if (learner === seatPage) {
+      await learner.goto('/#/learning?view=completed&journalMonth=2026-10');
+      const completedWork = learner
+        .getByRole('region', { name: 'Завершённые задания', exact: true })
+        .getByRole('link', { name: practice, exact: true });
+      await expect(completedWork).toBeVisible();
+      await completedWork.click();
+      const sections = learner.getByRole('navigation', { name: 'Разделы моего обучения' });
+      await expect(sections.getByRole('link', { name: 'Курсы', exact: true })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      await expect(
+        learner
+          .getByTestId('seat-course-player')
+          .locator('.lesson-activity-block')
+          .filter({ hasText: practice }),
+      ).toContainText('Выполнено');
+      await learner.goBack();
+      await expect(completedWork).toBeVisible();
+      await learner.goForward();
+      await expect(learner.getByTestId('seat-course-player')).toContainText(practice);
+    }
     await learner.screenshot({ path: `${evidenceDir}/library-${module}-submitted.png` });
     await detail.screenshot({ path: `${evidenceDir}/library-${module}-accepted.png` });
   }

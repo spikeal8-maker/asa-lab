@@ -58,18 +58,44 @@ async function fixture() {
   }
   const classId = await createClass('Участники');
   async function seat(name: string, accountId: string | null = null, targetClass = classId) {
-    const id = (
-      await admin.query(`SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)`, [
-        account,
-        targetClass,
-        name,
-        randomUUID().replaceAll('-', '').slice(0, 8),
-      ])
-    ).rows[0].id as string;
-    await admin.query(
-      `UPDATE classroom_student_seats SET status='active',account_id=$2 WHERE id=$1`,
-      [id, accountId],
-    );
+    let id: string;
+    if (accountId) {
+      // Seed an already linked Account as the canonical Account materializer
+      // does: account_id is present at INSERT and the Seat has its own principal.
+      // Adding it later to an initialized StudentCode Seat is not a link command.
+      id = (
+        await admin.query(
+          `WITH inserted AS (
+             INSERT INTO classroom_student_seats(
+               tenant_id,classroom_id,display_label,login_handle,
+               normalized_login_handle,safe_mode,status,created_by,account_id)
+             SELECT access.tenant_id,$2,$3,$4,$4,true,'active',access.user_id,$5
+               FROM classroom_teacher_access($1,$2) access
+              WHERE access.user_id IS NOT NULL
+             RETURNING id
+           )
+           INSERT INTO principals(kind,seat_id)
+           SELECT 'student_seat',id FROM inserted RETURNING seat_id AS id`,
+          [
+            account,
+            targetClass,
+            name,
+            `acc:${accountId.replaceAll('-', '').slice(0, 20)}`,
+            accountId,
+          ],
+        )
+      ).rows[0].id as string;
+    } else {
+      id = (
+        await admin.query(`SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)`, [
+          account,
+          targetClass,
+          name,
+          randomUUID().replaceAll('-', '').slice(0, 8),
+        ])
+      ).rows[0].id as string;
+      await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [id]);
+    }
     await read('classroom_participant_prepare', [actor, [targetClass]]);
     const principal = (await admin.query(`SELECT id FROM principals WHERE seat_id=$1`, [id]))
       .rows[0].id as string;
@@ -1226,6 +1252,101 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     await f.write('avatar_grant', { seatId: seat.id, id: avatar.id, granted: false });
     expect((await own()).avatars).toEqual([]);
   });
+  it('edits custom merits, preserves issue/revoke history, enforces exact scope and idempotency', async () => {
+    const f = await fixture();
+    const seat = await f.seat('История наград');
+    const foreignClass = await f.createClass('Иной класс');
+    const foreignSeat = await f.seat('Посторонний ученик', null, foreignClass);
+    const merit = await f.write('merit', {
+      title: 'Начальное название',
+      description: 'Начальное описание',
+    });
+    const editRequestId = randomUUID();
+    const editPayload = {
+      requestId: editRequestId,
+      id: merit.id,
+      title: 'Обновлённая награда',
+      description: 'Новые условия получения',
+    };
+    const edit = (asActor: string, input: Record<string, unknown>) =>
+      read<Record<string, unknown>>('classroom_participant_merit_update', [
+        asActor,
+        f.classId,
+        JSON.stringify(input),
+      ]);
+    const firstEdit = await edit(f.actor, editPayload);
+    expect(firstEdit).toMatchObject({ saved: true, id: merit.id });
+    expect(await edit(f.actor, editPayload)).toEqual(firstEdit);
+    expect(
+      await edit(f.actor, { ...editPayload, title: 'Чужой повтор с прежним ключом' }),
+    ).toMatchObject({ error: 'idempotency_conflict' });
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::integer AS edits FROM audit_events
+             WHERE entity_id=$1 AND action='classroom.participant.merit_update'`,
+          [f.classId],
+        )
+      ).rows[0].edits,
+    ).toBe(1);
+    const updated = await read<{
+      merits: Array<{ id: string; title: string; description: string }>;
+    }>('classroom_participant_profile', [f.actor, f.classId, seat.id]);
+    expect(updated.merits).toContainEqual(
+      expect.objectContaining({
+        id: merit.id,
+        title: editPayload.title,
+        description: editPayload.description,
+      }),
+    );
+
+    const issuedId = randomUUID();
+    const granted = {
+      seatId: seat.id.toUpperCase(),
+      id: merit.id.toUpperCase(),
+      granted: true,
+    };
+    await f.write('merit_grant', granted, f.actor, issuedId);
+    await f.write('merit_grant', granted, f.actor, issuedId);
+    await f.write('merit_grant', { ...granted, granted: false });
+    const history = await read<{
+      items: Array<{ meritId: string; title: string; granted: boolean; at: string }>;
+      offset: number;
+      hasMore: boolean;
+    }>('classroom_participant_merit_history', [seat.principal, f.classId, seat.id, 0]);
+    expect(history).toMatchObject({ offset: 0, hasMore: false });
+    expect(history.items).toHaveLength(2);
+    expect(history.items.map((entry) => entry.granted)).toEqual([false, true]);
+    expect(history.items.every((entry) => entry.meritId === merit.id)).toBe(true);
+    expect(history.items.every((entry) => entry.title === editPayload.title)).toBe(true);
+    expect(history.items.every((entry) => Number.isFinite(Date.parse(entry.at)))).toBe(true);
+    expect(
+      await read('classroom_participant_merit_history', [f.actor, f.classId, foreignSeat.id, 0]),
+    ).toBeNull();
+
+    const stranger = await fixture();
+    expect(await edit(stranger.actor, { ...editPayload, requestId: randomUUID() })).toMatchObject({
+      error: 'forbidden',
+    });
+    expect(
+      await read('classroom_participant_merit_history', [stranger.actor, f.classId, seat.id, 0]),
+    ).toBeNull();
+    expect(await edit(seat.principal, { ...editPayload, requestId: randomUUID() })).toMatchObject({
+      error: 'forbidden',
+    });
+    expect(
+      await edit(f.actor, {
+        ...editPayload,
+        requestId: randomUUID(),
+        title: '<script>',
+      }),
+    ).toMatchObject({ error: 'invalid_merit' });
+    await admin.query("UPDATE classrooms SET status='archived' WHERE id=$1", [f.classId]);
+    expect(await edit(f.actor, { ...editPayload, requestId: randomUUID() })).toMatchObject({
+      error: 'classroom_archived',
+    });
+  });
+
   it('pages all dated manual grades and revision history without leaking another Seat', async () => {
     const f = await fixture();
     const seat = await f.seat('История');
@@ -1456,5 +1577,136 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     await expect(
       runtime.query(`SELECT * FROM classroom_participant_project_edits`),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('participant read function-local JIT settings', () => {
+  async function functionMetadata(client: pg.PoolClient) {
+    return (
+      await client.query<{
+        name: string;
+        definition: Record<string, unknown>;
+        settings: string[];
+        runtime_execute: boolean;
+        public_execute: boolean;
+      }>(`SELECT p.proname AS name, to_jsonb(p) - 'proconfig' AS definition,
+          COALESCE(p.proconfig, ARRAY[]::text[]) AS settings,
+          has_function_privilege('asalab_app', p.oid, 'EXECUTE') AS runtime_execute,
+          EXISTS (SELECT 1
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS permission
+            WHERE permission.grantee = 0 AND permission.privilege_type = 'EXECUTE') AS public_execute
+        FROM pg_catalog.pg_proc AS p
+        WHERE p.oid IN (
+          'public.classroom_participant_roster(uuid,uuid)'::regprocedure,
+          'public.classroom_participant_profile(uuid,uuid,uuid)'::regprocedure)
+        ORDER BY p.proname`)
+    ).rows;
+  }
+
+  it('adds only local JIT settings while preserving bodies, ownership, grants and security metadata', async () => {
+    const client = await admin.connect();
+    try {
+      await client.query('BEGIN');
+      const installed = await functionMetadata(client);
+      expect(installed.map((row) => row.name)).toEqual([
+        'classroom_participant_profile',
+        'classroom_participant_roster',
+      ]);
+      for (const row of installed) {
+        expect(row.settings.filter((setting) => setting.startsWith('jit='))).toEqual(['jit=off']);
+        expect(row.settings).toContain('search_path=pg_catalog, pg_temp');
+        expect(row.definition.prosecdef).toBe(true);
+        expect(row.definition.provolatile).toBe('s');
+        expect(row.runtime_execute).toBe(true);
+        expect(row.public_execute).toBe(false);
+      }
+
+      // Reconstruct only the pre-0233 local setting inside an uncommitted test transaction.
+      // ROLLBACK restores the installed functions even if an assertion fails.
+      await client.query(`
+        ALTER FUNCTION public.classroom_participant_roster(uuid, uuid) RESET jit;
+        ALTER FUNCTION public.classroom_participant_profile(uuid, uuid, uuid) RESET jit;
+      `);
+      const before = await functionMetadata(client);
+      const { readFile } = await import('node:fs/promises');
+      const migration = await readFile(
+        new URL('../../migrations/0233_classroom_participant_read_jit.sql', import.meta.url),
+        'utf8',
+      );
+      await client.query(migration);
+      const after = await functionMetadata(client);
+      expect(after).toEqual(installed);
+      expect(
+        after.map((row) => ({
+          ...row,
+          settings: row.settings.filter((setting) => !setting.startsWith('jit=')),
+        })),
+      ).toEqual(before);
+    } finally {
+      try {
+        await client.query('ROLLBACK');
+      } finally {
+        client.release();
+      }
+    }
+  });
+
+  it('keeps authorized and denied reads identical with caller JIT on or off and restores caller settings', async () => {
+    const f = await fixture();
+    const seat = await f.seat('Локальная настройка чтения');
+    const outsider = await f.learner();
+    await f.project(seat.principal);
+    const client = await runtime.connect();
+    try {
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const callerSettings = async () =>
+        (
+          await client.query(`SELECT current_user AS role,
+            current_setting('jit') AS jit,
+            current_setting('search_path') AS search_path,
+            current_setting('TimeZone') AS timezone,
+            current_setting('transaction_read_only') AS read_only`)
+        ).rows[0];
+      let reference: unknown;
+      for (const jit of ['on', 'off']) {
+        await client.query("SELECT set_config('jit', $1, true)", [jit]);
+        const caller = await callerSettings();
+        expect(caller).toMatchObject({ role: 'asalab_app', jit, read_only: 'on' });
+        const boundaryRead = async <T>(sql: string, args: unknown[]) => {
+          const result = await client.query<{ data: T }>(sql, args);
+          expect(await callerSettings()).toEqual(caller);
+          return result.rows[0]!.data;
+        };
+        const rosterSql = 'SELECT public.classroom_participant_roster($1,$2) AS data';
+        const profileSql = 'SELECT public.classroom_participant_profile($1,$2,$3) AS data';
+        const roster = await boundaryRead<{ items: Metric[] }>(rosterSql, [f.actor, f.classId]);
+        const profile = await boundaryRead<{ student: { id: string }; metrics: Metric }>(
+          profileSql,
+          [f.actor, f.classId, seat.id],
+        );
+        const selfProfile = await boundaryRead<{ student: { id: string }; metrics: Metric }>(
+          profileSql,
+          [seat.principal, f.classId, seat.id],
+        );
+        expect(roster.items).toHaveLength(1);
+        expect(roster.items[0]).toMatchObject({ seatId: seat.id, totalWorks: 1 });
+        expect(profile.student.id).toBe(seat.id);
+        expect(profile.metrics).toMatchObject({ seatId: seat.id, totalWorks: 1 });
+        expect(selfProfile.student.id).toBe(seat.id);
+        expect(selfProfile.metrics).toMatchObject({ seatId: seat.id, totalWorks: 1 });
+        expect(await boundaryRead(rosterSql, [outsider.principal, f.classId])).toBeNull();
+        expect(await boundaryRead(rosterSql, [seat.principal, f.classId])).toBeNull();
+        expect(await boundaryRead(profileSql, [outsider.principal, f.classId, seat.id])).toBeNull();
+        const result = { roster, profile, selfProfile };
+        if (reference !== undefined) expect(result).toEqual(reference);
+        reference = result;
+      }
+    } finally {
+      try {
+        await client.query('ROLLBACK');
+      } finally {
+        client.release();
+      }
+    }
   });
 });

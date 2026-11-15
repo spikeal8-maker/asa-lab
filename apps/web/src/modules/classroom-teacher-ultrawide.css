@@ -1,0 +1,83 @@
+/*
+ * Teacher class register: progressive large-window typography.
+ * Physical pixel resolution is not used; breakpoints resolve in CSS pixels
+ * after OS display scaling and browser zoom. No changes at <= 1920 CSS px.
+ * The common portal shell and other modules are intentionally untouched.
+ */
+@media (min-width: 1921px) {
+  .portal-shell > .portal-content.classroom-owner-list {
+    width: min(calc(100% - 300px), clamp(1180px, calc(360px + 42.708333vw), 2000px));
+  }
+
+  .portal-shell:has(.portal-sidebar.collapsed) > .portal-content.classroom-owner-list {
+    width: min(calc(100% - 132px), clamp(1340px, calc(560px + 40.625vw), 2120px));
+  }
+
+  .classroom-owner-list {
+    --teacher-wide-number: clamp(13px, calc(9px + 0.208333vw), 17px);
+    --teacher-wide-label: clamp(11px, calc(7px + 0.208333vw), 15px);
+    --teacher-wide-name: clamp(16px, calc(12px + 0.208333vw), 20px);
+    --teacher-wide-control: clamp(12px, calc(8px + 0.208333vw), 16px);
+    --teacher-wide-row: clamp(38px, calc(26px + 0.625vw), 50px);
+  }
+
+  .classroom-owner-list .classroom-title-row h1 {
+    font-size: clamp(28px, calc(22px + 0.3125vw), 34px);
+  }
+
+  .classroom-owner-list .classroom-attend-link,
+  .classroom-owner-list .classroom-role-tabs > button,
+  .classroom-owner-list .classroom-hub-toolbar > .portal-create-button,
+  .classroom-owner-list .classroom-hub-search input,
+  .classroom-owner-list .classroom-bulk-menu > summary,
+  .classroom-owner-list .classroom-sort-menu > summary {
+    font-size: var(--teacher-wide-control);
+  }
+
+  .classroom-owner-list .classroom-title-row .classroom-metrics strong {
+    font-size: clamp(15px, calc(11px + 0.208333vw), 19px);
+  }
+
+  .classroom-owner-list .classroom-title-row .classroom-metrics span > span {
+    font-size: var(--teacher-wide-label);
+  }
+
+  .classroom-owner-list .classroom-column-sort {
+    font-size: var(--teacher-wide-label);
+  }
+
+  .portal-shell > .portal-content.classroom-owner-list .classroom-list-head,
+  .portal-shell > .portal-content.classroom-owner-list .classroom-list-row {
+    min-height: var(--teacher-wide-row);
+    grid-template-rows: minmax(clamp(34px, calc(22px + 0.625vw), 46px), auto);
+  }
+
+  .classroom-owner-list .classroom-row-title {
+    min-height: clamp(32px, calc(20px + 0.625vw), 44px);
+    font-size: var(--teacher-wide-name);
+  }
+
+  .classroom-owner-list .classroom-row-index,
+  .classroom-owner-list .classroom-rating-help {
+    font-size: clamp(11px, calc(8px + 0.15625vw), 14px);
+  }
+
+  .classroom-owner-list .classroom-list-row .classroom-stat-number {
+    font-size: var(--teacher-wide-number);
+  }
+
+  .classroom-owner-list .classroom-list-row .classroom-row-date {
+    font-size: clamp(12px, calc(8px + 0.208333vw), 16px);
+  }
+
+  .classroom-owner-list .classroom-hub-search input,
+  .classroom-owner-list .classroom-bulk-menu > summary,
+  .classroom-owner-list .classroom-sort-menu > summary,
+  .classroom-owner-list .classroom-hub-toolbar > .portal-create-button {
+    min-height: clamp(38px, calc(26px + 0.625vw), 50px);
+  }
+
+  .classroom-owner-list .classroom-role-tabs > button {
+    min-height: clamp(36px, calc(24px + 0.625vw), 48px);
+  }
+}

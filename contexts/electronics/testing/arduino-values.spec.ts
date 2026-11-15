@@ -6,10 +6,84 @@ import {
   numericValue,
   parseNumericLiteral,
   unaryValue,
+  validScopes,
+  type ArduinoNumericType,
 } from '../domain/arduino-values.js';
 import { advanceArduinoRuntime } from '../domain/arduino-program-runtime.js';
 
 describe('Uno numeric profile', () => {
+  it('matches exact byte and 16-bit narrowing over the complete signed/unsigned 16-bit domain', () => {
+    for (let value = -32768; value <= 65535; value++) {
+      const source = { type: 'long' as const, value };
+      for (const [type, expected] of [
+        ['byte', Number(BigInt.asUintN(8, BigInt(value)))],
+        ['int', Number(BigInt.asIntN(16, BigInt(value)))],
+        ['unsigned int', Number(BigInt.asUintN(16, BigInt(value)))],
+      ] as const) {
+        const result = convertValue(source, type);
+        if (result.type !== type || !Object.is(result.value, expected))
+          throw new Error(`Exact conversion differs at ${value} to ${type}`);
+      }
+    }
+  });
+
+  it.each([
+    ['long', -2147483648, 'long', -2147483648],
+    ['unsigned long', 4294967295, 'unsigned long', 4294967295],
+    ['unsigned long', 4294967295, 'long', -1],
+    ['long', -2147483649, 'long', 2147483647],
+    ['long', 65535.9, 'int', -1],
+    ['float', 255.9, 'byte', 255],
+    ['double', -0, 'int', 0],
+    ['float', -1e-45, 'long', 0],
+    ['long', Number.POSITIVE_INFINITY, 'bool', 1],
+    ['long', Number.NaN, 'bool', 1],
+  ] as const)('preserves conversion %s(%s) to %s', (from, value, to, expected) => {
+    const result = convertValue({ type: from, value }, to);
+    expect(result).toEqual({ type: to, value: expected });
+    expect(Object.keys(result)).toEqual(['type', 'value']);
+    expect(Object.is(result.value, -0)).toBe(false);
+  });
+
+  it('preserves validation-only and left-before-right fault priority for arbitrary public values', () => {
+    const unreadable = {
+      type: 'long' as const,
+      get value(): number {
+        throw new Error('must not sample this operand');
+      },
+    };
+    expect(convertValue(unreadable, 'int', true)).toEqual({ type: 'int', value: 0 });
+    expect(binaryValue('/', unreadable, unreadable, true)).toEqual({ type: 'long', value: 0 });
+    expect(() => binaryValue('%', { type: 'float', value: Number.NaN }, unreadable, true)).toThrow(
+      'Остаток % требует целочисленных операндов.',
+    );
+    expect(() => binaryValue('<', { type: 'long', value: Number.NaN }, unreadable)).toThrow(
+      'Результат вычисления не является конечным числом.',
+    );
+    expect(() => convertValue({ type: 'double', value: 256 }, 'byte')).toThrow(
+      'Число вне диапазона byte при преобразовании из double.',
+    );
+    expect(() => convertValue({ type: 'long', value: Number.POSITIVE_INFINITY }, 'int')).toThrow(
+      'Результат вычисления не является конечным числом.',
+    );
+    expect(() => convertValue(unreadable, 'unsupported' as ArduinoNumericType)).toThrow(TypeError);
+  });
+
+  it('rejects the same out-of-range and unrepresentable externally supplied binding values', () => {
+    const scopes = (type: ArduinoNumericType, value: number) => [
+      { observed: { type, value, constant: false } },
+      {},
+    ];
+    expect(validScopes(scopes('byte', 255))).toBe(true);
+    expect(validScopes(scopes('byte', 256))).toBe(false);
+    expect(validScopes(scopes('int', 32768))).toBe(false);
+    expect(validScopes(scopes('unsigned long', 4294967296))).toBe(false);
+    expect(validScopes(scopes('int', 1.5))).toBe(false);
+    expect(validScopes(scopes('double', 0.1))).toBe(false);
+    expect(validScopes(scopes('float', Math.fround(0.1)))).toBe(true);
+    expect(validScopes(scopes('int', Number.NaN))).toBe(false);
+  });
+
   it.each([
     ['32767', 'int', 32767],
     ['32768', 'long', 32768],

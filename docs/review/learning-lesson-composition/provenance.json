@@ -1,5 +1,5 @@
 {
-  "status": "UNAPPROVED",
+  "status": "DESIGN_APPROVED",
   "purpose": "Draft design discussion: learner overview, mixed lesson and document editor",
   "requirementsSourceCommit": "5b36cff6ad7143d6f9e193dcfcb49fa1de6571b7",
   "source": "prototype-source.html",
@@ -27,9 +27,10 @@
     "productRuntimeEvidence": false
   },
   "productRuntimeVerification": "NOT_RUN",
-  "ownerDesignAcceptance": "pending",
+  "ownerDesignAcceptance": "accepted",
   "ownerProductAcceptance": "pending",
   "deployment": "NOT_RUN",
   "repositorySourceSha256": "a327bda41ba411480b152736d5a66a77cc2692ae59b799909b096dfb3f5ad476",
-  "exportAdjustment": "Removed three unused external library script tags from generated wrapper for a self-contained offline draft; source fragment unchanged apart from LF normalization."
+  "exportAdjustment": "Removed three unused external library script tags from generated wrapper for a self-contained offline draft; source fragment unchanged apart from LF normalization.",
+  "ownerDesignAcceptanceEvidence": "owner-design-approval-2026-10-20.json"
 }

@@ -16,7 +16,7 @@ describe('Arduino capability contract', () => {
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.for.status).toBe('limited');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-int'].status).toBe('supported');
     expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT['type-text'].status).toBe('unsupported');
-    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.switch.status).toBe('unsupported');
+    expect(ARDUINO_LANGUAGE_FEATURE_SUPPORT.switch.status).toBe('limited');
   });
 
   it('classifies representative blocks from the one shared registry', () => {
@@ -179,16 +179,14 @@ void loop(){foo.write(90);}`);
       expect.objectContaining({
         code: 'syntax-error',
         status: 'unsupported',
-        line: 3,
+        line: 4,
         message: expect.stringContaining('точкой с запятой'),
       }),
     );
   });
 
   it('fails closed for unsupported control syntax', () => {
-    const diagnostics = analyseArduinoSourceSupport(
-      'void loop() { switch (digitalRead(2)) { break; } }',
-    );
+    const diagnostics = analyseArduinoSourceSupport('void loop() { goto missing; }');
 
     expect(diagnostics).toEqual(
       expect.arrayContaining([
@@ -197,7 +195,7 @@ void loop(){foo.write(90);}`);
     );
   });
 
-  it('fails closed for unsupported text types and else-if chains', () => {
+  it('fails closed for unsupported text types', () => {
     const diagnostics = analyseArduinoSourceSupport(`
       String message = "ready";
       char marker = 'A';
@@ -207,7 +205,7 @@ void loop(){foo.write(90);}`);
       }
     `);
 
-    expect(diagnostics.filter((entry) => entry.code === 'unsupported-syntax')).toHaveLength(3);
+    expect(diagnostics.filter((entry) => entry.code === 'unsupported-syntax')).toHaveLength(2);
     expect(diagnostics.every((entry) => entry.status === 'unsupported')).toBe(true);
   });
 });

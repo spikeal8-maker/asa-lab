@@ -84,7 +84,10 @@ export {
 export { ActiveContextUseCase } from './application/active-context.usecase.js';
 export { effectiveAccountActions } from './application/effective-actions.js';
 export { PgAccountDirectory } from './infrastructure/pg-account.adapter.js';
-export { PgSessionV2Store } from './infrastructure/pg-session-v2.store.js';
+export {
+  PgSessionV2Store,
+  type SessionContextQuery,
+} from './infrastructure/pg-session-v2.store.js';
 
 export * from './application/presentation-preferences.js';
 export { PgPresentationPreferences } from './infrastructure/pg-presentation-preferences.js';

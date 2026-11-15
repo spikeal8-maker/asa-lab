@@ -1,21 +1,17 @@
+import { NativeOpticalProvider } from '../electronics/NativeOpticalComponentVisual';
 import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { PublicUser } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
 import { WorkbenchStage } from '../electronics/WorkbenchStage';
 import type { WorkbenchView } from '../electronics/workbench-model';
-import {
-  CloseIcon,
-  CodeIcon,
-  CommentIcon,
-  SaveIcon,
-  ShareIcon,
-} from '../electronics/workbench-icons';
+import { CloseIcon, CommentIcon, SaveIcon, ShareIcon } from '../electronics/workbench-icons';
 import {
   useElectronicsWorkbench,
   type ElectronicsWorkbenchController,
 } from '../electronics/use-electronics-workbench';
 import '../electronics/workbench.css';
+import '../electronics/workbench-mobile-properties.css';
 import {
   registerProjectSnapshotSource,
   startProjectSnapshots,
@@ -66,42 +62,34 @@ function initialArduinoDrawerWidth(): number {
   return clampArduinoDrawerWidth(preferred);
 }
 
-function SidePanel({
-  kind,
+function NotesPanel({
   title,
   onClose,
   notes,
   onNotesChange,
 }: {
-  kind: 'notes' | 'code';
   title: string;
   onClose: () => void;
   notes?: string;
   onNotesChange?: (value: string) => void;
 }): JSX.Element {
   return (
-    <aside className={`workbench-utility-panel ${kind}`} aria-label={title}>
+    <aside className="workbench-utility-panel notes" aria-label={title}>
       <header>
-        <span>{kind === 'notes' ? <CommentIcon /> : <CodeIcon />}</span>
+        <span>
+          <CommentIcon />
+        </span>
         <strong>{title}</strong>
         <button type="button" onClick={onClose} aria-label="Закрыть">
           <CloseIcon />
         </button>
       </header>
-      {kind === 'notes' ? (
-        <textarea
-          aria-label="Заметки проекта"
-          placeholder="Добавьте заметку к проекту…"
-          value={notes ?? ''}
-          onChange={(event) => onNotesChange?.(event.target.value)}
-        />
-      ) : (
-        <div className="workbench-code-empty">
-          <CodeIcon />
-          <strong>Нет программируемых компонентов</strong>
-          <p>Добавьте совместимую плату, чтобы открыть редактор кода.</p>
-        </div>
-      )}
+      <textarea
+        aria-label="Заметки проекта"
+        placeholder="Добавьте заметку к проекту…"
+        value={notes ?? ''}
+        onChange={(event) => onNotesChange?.(event.target.value)}
+      />
     </aside>
   );
 }
@@ -356,55 +344,56 @@ export function SchematicEditor({
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}
       />
-      <div className="workbench-main" data-project-save-status={controller.saveStatus}>
-        {view === 'breadboard' ? (
-          <WorkbenchStage controller={controller} showGrid={showGrid} />
-        ) : (
-          <Suspense fallback={null}>
-            {view === 'schematic' ? (
-              <SchematicView document={controller.document} controller={controller} />
-            ) : (
-              <BomView document={controller.document} />
-            )}
+      <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
+        <div className="workbench-main" data-project-save-status={controller.saveStatus}>
+          {view === 'breadboard' ? (
+            <WorkbenchStage controller={controller} showGrid={showGrid} />
+          ) : (
+            <Suspense fallback={null}>
+              {view === 'schematic' ? (
+                <SchematicView document={controller.document} controller={controller} />
+              ) : (
+                <BomView document={controller.document} />
+              )}
+            </Suspense>
+          )}
+          <Suspense fallback={<aside className="workbench-library" aria-hidden="true" />}>
+            <WorkbenchSidebars controller={controller} />
           </Suspense>
-        )}
-        <Suspense fallback={<aside className="workbench-library" aria-hidden="true" />}>
-          <WorkbenchSidebars controller={controller} />
-        </Suspense>
-        {notesOpen ? (
-          <SidePanel
-            kind="notes"
-            title="Заметки"
-            notes={notes}
-            onNotesChange={updateNotes}
-            onClose={() => setNotesOpen(false)}
-          />
-        ) : null}
-        {codePanelMounted ? (
-          <Suspense
-            fallback={
-              <section
-                className={`arduino-code-panel empty ${codeOpen ? 'open' : 'closed'}`}
-                aria-label="Редактор кода Arduino"
-              >
-                <div className="arduino-code-empty-state">
-                  <strong>Открываем редактор кода…</strong>
-                </div>
-              </section>
-            }
-          >
-            <ArduinoCodePanel
-              controller={controller}
-              open={codeOpen}
-              drawerWidth={codePanelWidth}
-              onDrawerWidthChange={updateCodePanelWidth}
-              mobileHeightPercent={codeHeightPercent}
-              onMobileHeightChange={setCodeHeightPercent}
-              onClose={() => setCodeOpen(false)}
+          {notesOpen ? (
+            <NotesPanel
+              title="Заметки"
+              notes={notes}
+              onNotesChange={updateNotes}
+              onClose={() => setNotesOpen(false)}
             />
-          </Suspense>
-        ) : null}
-      </div>
+          ) : null}
+          {codePanelMounted ? (
+            <Suspense
+              fallback={
+                <section
+                  className={`arduino-code-panel empty ${codeOpen ? 'open' : 'closed'}`}
+                  aria-label="Редактор кода Arduino"
+                >
+                  <div className="arduino-code-empty-state">
+                    <strong>Открываем редактор кода…</strong>
+                  </div>
+                </section>
+              }
+            >
+              <ArduinoCodePanel
+                controller={controller}
+                open={codeOpen}
+                drawerWidth={codePanelWidth}
+                onDrawerWidthChange={updateCodePanelWidth}
+                mobileHeightPercent={codeHeightPercent}
+                onMobileHeightChange={setCodeHeightPercent}
+                onClose={() => setCodeOpen(false)}
+              />
+            </Suspense>
+          ) : null}
+        </div>
+      </NativeOpticalProvider>
       {shareOpen ? (
         <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />
       ) : null}

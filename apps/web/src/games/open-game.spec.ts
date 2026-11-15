@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type Project } from '../api';
 import { isGameModule, projectEntries } from './game-catalog';
+import { gameAccessApi } from './game-access-api';
 import { latestGameSave, openGame } from './open-game';
 
 function save(id: string, moduleKey = 'chess', status: Project['status'] = 'active'): Project {
@@ -19,6 +20,13 @@ function save(id: string, moduleKey = 'chess', status: Project['status'] = 'acti
   };
 }
 
+beforeEach(() => {
+  vi.spyOn(gameAccessApi, 'read').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { granted: true, reason: 'allowed', threshold: null },
+  });
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe('Games entry', () => {
@@ -60,6 +68,7 @@ describe('Games entry', () => {
     expect(api.listProjects).toHaveBeenCalledWith({
       scope: 'personal',
       status: 'active',
+      module: 'chess',
       includeGames: true,
     });
     expect(create).not.toHaveBeenCalled();
@@ -80,6 +89,43 @@ describe('Games entry', () => {
       title: 'Шашки',
       idempotencyKey: 'games-entry-v1-checkers',
     });
+  });
+
+  it('does not list or create when a fresh server admission denies a formerly open game', async () => {
+    const list = vi.spyOn(api, 'listProjects');
+    const create = vi.spyOn(api, 'createProject');
+    vi.mocked(gameAccessApi.read).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { granted: false, reason: 'seat_disabled', threshold: null },
+    });
+    await expect(openGame('chess')).rejects.toThrow('Учитель отключил для вас игры');
+    expect(list).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the current admission cannot be verified', async () => {
+    const list = vi.spyOn(api, 'listProjects');
+    const create = vi.spyOn(api, 'createProject');
+    vi.mocked(gameAccessApi.read).mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: { code: 'admission_unavailable', message: 'unavailable' },
+    });
+    await expect(openGame('checkers')).rejects.toThrow('проверить доступ');
+    expect(list).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('honors a policy change between the admission receipt and listing without creating', async () => {
+    vi.spyOn(api, 'listProjects').mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: { code: 'games_access_denied', message: 'Учитель отключил игры для класса.' },
+    });
+    const create = vi.spyOn(api, 'createProject');
+    await expect(openGame('checkers')).rejects.toThrow('Учитель отключил игры для класса');
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('does not create a new game when reading saved games fails', async () => {

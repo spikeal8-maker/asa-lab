@@ -284,6 +284,26 @@ successful ASA_BLOCKS_FLUSH_RESULT:
 
 `project-dirty` is a memory-only UI correctness signal, not autosave or generic RPC. Parent may show `Сохранено` only when the successful `snapshotGeneration` is not older than the latest accepted dirty generation for the same bound iframe session.
 
+### Bounded save diagnostics
+
+Ordinary terminal storage-save failures reuse `ASA_BLOCKS_STATUS` with
+`status=save-failed`, a required `durationMs` integer in 0..600000 and one fixed
+`failureCode`: `scratch-save-asset`, `scratch-save-draft`, `scratch-save-prepare`.
+Optional fields are `httpStatus` (integer 100..599) and `relatedRequestId` (server
+request UUID). No other payload keys are accepted beyond the normal binding.
+Origin/source/project/nonce checks remain mandatory. No project contents, code,
+URLs, asset IDs, exception messages or credentials may enter this signal.
+
+This is advisory telemetry, never a dirty/durable state transition or a reason to
+refresh authority, logout, retry or stop the editor. Successful authority retries
+do not emit terminal save failures. Reporter exceptions must not affect saving.
+Parent maps it to existing `autosave_failed` / `scratch` / `phase=save` diagnostics;
+outbox and intake enforce the fixed vocabulary/context and existing quotas.
+Different failure stages remain observable; repeated same-stage reports and a
+following generic controlled-exit failure may coalesce under existing time bounds.
+Client reports remain explicitly untrusted. Delivery uses the existing durable
+diagnostic outbox; it does not create another log queue or claim guaranteed delivery.
+
 ### Bounded classroom activity
 
 `ASA_BLOCKS_USER_ACTIVITY` contains exactly `messageType`, `protocolVersion`, `projectId` and `sessionNonce`, with no additional payload. Only a trusted pointer/key/input event in the ready visible editor may emit it, at most once per second. The parent validates exact origin, current frame source and all binding fields. Synthetic events, pointer movement alone, VM dirty/run events, player mode and the existing health heartbeat are not user activity.

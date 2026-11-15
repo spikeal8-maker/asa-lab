@@ -13,6 +13,13 @@ surfaces:
   implementation:
     files:
     - apps/web/src/App.tsx
+    - apps/web/src/session-fetch.ts
+    - apps/web/src/session-fetch.spec.ts
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/auth.controller.spec.ts
+    - apps/api/src/session-database-diagnostics.ts
+    - contexts/identity/infrastructure/pg-session-v2.store.ts
+    - migrations/0216_session_context_nonblocking_heartbeat.sql
     - apps/web/src/components/PageDeliveryBoundary.tsx
     - apps/web/src/components/page-delivery.css
     - docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
@@ -350,13 +357,20 @@ surfaces:
     - TST-ASA-ACCESS-A-CORE-001
     - TST-ASA-ACCESS-A-E2E-001
   - id: CTRL-AUTH-MAX-PAIRING
-    label: Sign in through the supported MAX pairing flow
+    label: Sign in through an available MAX provider with browser-bound confirmation
     change_class: L3_CRITICAL
     files:
     - apps/web/src/pages/LoginPage.tsx
     - apps/web/src/api.ts
     - apps/api/src/auth.controller.ts
     - apps/api/src/max-auth.service.ts
+    - apps/api/src/bot-provider-auth.service.ts
+    - apps/api/src/bot-provider-runtime.ts
+    - apps/api/src/bot-provider-transport.ts
+    - apps/api/src/bot-provider-webhook.ts
+    - apps/api/src/provider-init-data.ts
+    - apps/web/src/auth-providers.tsx
+    - migrations/0218_auth_provider_lifecycle.sql
     commands:
     - max_pairing_start
     - max_pairing_complete
@@ -366,6 +380,156 @@ surfaces:
     tests:
     - TST-ASA-ACCESS-A-CORE-001
     - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+  - id: CTRL-AUTH-TELEGRAM-PAIRING
+    label: Sign in or register through available Telegram with explicit browser-bound confirmation
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/auth-providers.tsx
+    - apps/web/src/pages/LoginPage.tsx
+    - apps/web/src/pages/RegisterPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/telegram-auth.service.ts
+    - apps/api/src/bot-provider-auth.service.ts
+    - apps/api/src/bot-provider-runtime.ts
+    - apps/api/src/bot-provider-transport.ts
+    - apps/api/src/bot-provider-webhook.ts
+    - apps/api/src/provider-init-data.ts
+    - migrations/0218_auth_provider_lifecycle.sql
+    commands:
+    - telegram_pairing_start
+    - telegram_pairing_complete
+    - telegram_pairing_register
+    invariants:
+    - IDA-ACC-001
+    - IDA-AUTH-001
+    - IDA-SESSION-001
+    - IDA-REV-001
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+- id: SURF-ACCOUNT-CONFIRMATION
+  routes:
+  - /api/auth/providers
+  - /api/auth/verification
+  - /api/admin/v1/integrations/max/check
+  - /api/admin/v1/integrations/telegram/check
+  - '#/admin/confirmations'
+  implementation:
+    files:
+    - apps/web/src/App.tsx
+    - apps/web/src/auth-verification.ts
+    - apps/web/src/auth-verification.css
+    - apps/web/src/api-call.ts
+    - apps/web/src/auth-request.ts
+    - apps/web/src/session-fetch.ts
+    - apps/web/src/pages/AccountConfirmationPage.tsx
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/components/AccountSignInMethods.tsx
+    - apps/web/src/admin/VerificationPolicyControl.tsx
+    - apps/web/src/admin/AdminAuthProviderCard.tsx
+    - apps/web/src/admin/AdminDashboard.tsx
+    - apps/web/src/admin/admin-api.ts
+    - apps/api/src/account-verification.service.ts
+    - apps/api/src/account-verification.guard.ts
+    - apps/api/src/auth-provider-availability.ts
+    - apps/api/src/bot-provider-ingress.ts
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/admin.controller.ts
+    - apps/api/src/blocks-runtime.controller.ts
+    - apps/api/src/refresh-session.service.ts
+    - apps/api/src/app.factory.ts
+    - apps/api/src/app.module.ts
+    - apps/api/src/tokens.ts
+    - migrations/0219_account_verification_policy.sql
+    - migrations/0225_auth_provider_readiness.sql
+    - schemas/openapi.yaml
+    - compose.staging.yaml
+    - .env.example
+    - tools/asa-lab.sh
+    - tools/asa-lab.ps1
+    - tools/provision-settings-key.mjs
+  invariants:
+    [IDA-ACC-001, IDA-AUTH-001, IDA-CAP-001, IDA-SESSION-001, IDA-REV-001, IDA-SEAT-001]
+  tests:
+  - TST-ACCOUNT-CONFIRMATION-UNIT-001
+  - TST-ACCOUNT-CONFIRMATION-PG-001
+  - TST-ACCOUNT-CONFIRMATION-UI-001
+  - TST-ASA-ACCESS-A-REPOSITORY-001
+  - TST-ACCOUNT-CONFIRMATION-INSTALL-001
+  controls:
+  - id: CTRL-ACCOUNT-CONFIRMATION-POLICY
+    label: Persist the admin confirmation switch and enforce the 24-hour deadline with server-verified provider outage fallback
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/admin/VerificationPolicyControl.tsx
+    - apps/api/src/admin.controller.ts
+    - apps/api/src/account-verification.service.ts
+    - apps/api/src/account-verification.guard.ts
+    - apps/api/src/blocks-runtime.controller.ts
+    - migrations/0219_account_verification_policy.sql
+    commands:
+    - account_verification_policy_read
+    - account_verification_policy_write
+    - account_verification_state_read
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CAP-001
+    - IDA-SESSION-001
+    - IDA-SEAT-001
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+  - id: CTRL-ACCOUNT-CONFIRMATION-PROVIDERS
+    label: Configure MAX and Telegram, hide unavailable sign-in methods and protect the last usable credential
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/admin/AdminAuthProviderCard.tsx
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/components/AccountSignInMethods.tsx
+    - apps/web/src/auth-providers.tsx
+    - apps/api/src/admin.controller.ts
+    - apps/api/src/bot-provider-auth.service.ts
+    - apps/api/src/bot-provider-runtime.ts
+    - apps/api/src/bot-provider-ingress.ts
+    - apps/api/src/max-auth.service.ts
+    - apps/api/src/telegram-auth.service.ts
+    - migrations/0218_auth_provider_lifecycle.sql
+    - migrations/0225_auth_provider_readiness.sql
+    commands:
+    - auth_provider_configuration_read
+    - auth_provider_configuration_write
+    - auth_provider_configuration_check
+    - auth_provider_link
+    - auth_provider_unlink
+    invariants:
+    - IDA-AUTH-001
+    - IDA-SESSION-001
+    - IDA-REV-001
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+  - id: CTRL-ACCOUNT-CONFIRMATION-INSTALLATION
+    label: Preserve integration secrets and forward trusted public origins during installation
+    change_class: L3_CRITICAL
+    files:
+    - compose.staging.yaml
+    - .env.example
+    - tools/asa-lab.sh
+    - tools/asa-lab.ps1
+    - tools/provision-settings-key.mjs
+    commands:
+    - auth_installation_validate
+    invariants:
+      [IDA-AUTH-001, IDA-SESSION-001]
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-INSTALL-001
 - id: SURF-CLASSROOM-ROSTER
   routes:
   - '#/classrooms/:classroomId'
@@ -497,3 +661,100 @@ surfaces:
     tests:
     - TST-ASA-ACCESS-A-CORE-001
     - TST-ASA-ACCESS-A-E2E-001
+
+- id: SURF-ADMIN-OVERVIEW
+  routes: ['#/admin', '#/admin/users', '#/admin/history']
+  implementation:
+    files: [apps/web/src/App.tsx, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminDashboard.tsx, apps/web/src/admin/admin-session-access.ts, apps/web/src/admin/admin.css]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-REV-001]
+  tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-ADMIN-VERIFIED-SHELL
+    label: Preserve only the exact verified identity during background navigation revalidation and discard stale scope or range data
+    change_class: L3_CRITICAL
+    files: [apps/web/src/App.tsx, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/admin-session-access.ts, apps/web/src/admin/AdminDashboard.tsx]
+    invariants: [IDA-AUTH-001, IDA-CTX-001, IDA-REV-001]
+    tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
+  - id: CTRL-ADMIN-OVERVIEW-LAYOUT
+    label: Show Moscow-time attendance and the selected interval above the active users chart, with aligned time axes and compact chart controls
+    change_class: L1_UI_BEHAVIOR
+    files: [apps/web/src/admin/AdminDashboard.tsx, apps/web/src/admin/admin.css]
+    invariants: [IDA-SCOPE-001, IDA-CTX-001]
+    tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
+
+- id: SURF-ADMIN-USER-CATALOG
+  routes: [/api/admin/v1/users, /api/admin/v1/users-export, /api/admin/v1/users-filter-options, /api/admin/v1/organization-class-bindings, '#/admin/users']
+  implementation:
+    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/CatalogAnalytics.tsx, apps/web/src/admin/CatalogScopeFilters.tsx, apps/web/src/admin/OrganizationClassBindings.tsx, apps/web/src/admin/crm-directory.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/admin-api.ts, apps/web/src/admin/admin.css]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
+  tests: [TST-ADMIN-CATALOG-UNIT-001, TST-ADMIN-CATALOG-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-ADMIN-TYPED-CATALOG
+    label: Read distinct Account and Seat identities using server-scoped filters and query-bound keyset pages with full filtered CSV and explicit audited organization-class authority
+    change_class: L3_CRITICAL
+    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/CatalogAnalytics.tsx, apps/web/src/admin/CatalogScopeFilters.tsx, apps/web/src/admin/OrganizationClassBindings.tsx, apps/web/src/admin/crm-directory.css, apps/web/src/admin/AdminPage.tsx]
+    invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
+    tests: [TST-ADMIN-CATALOG-UNIT-001, TST-ADMIN-CATALOG-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+
+- id: SURF-ADMIN-USER-HISTORY
+  routes: ['/api/admin/v1/users/:kind/:targetId/history', '#/admin/users']
+  implementation:
+    files: [apps/api/src/admin-user-history.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0246_admin_user_history.sql, apps/web/src/admin/AdminUserHistory.tsx, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/admin-api.ts, apps/web/src/admin/admin.css]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
+  tests: [TST-ADMIN-HISTORY-UNIT-001, TST-ADMIN-HISTORY-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-ADMIN-USER-HISTORY
+    label: Read retained typed identity history with scoped server continuation and no private document or conversation content
+    change_class: L3_CRITICAL
+    files: [apps/api/src/admin-user-history.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0246_admin_user_history.sql, apps/web/src/admin/AdminUserHistory.tsx]
+    invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
+    tests: [TST-ADMIN-HISTORY-UNIT-001, TST-ADMIN-HISTORY-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+
+- id: SURF-CRM-FULL-USER-CARD
+  routes: ['/api/crm/v1/users/:kind/:target', '/api/crm/v1/responsibilities/:kind/:scope/:target', '#/admin/users', '#/classrooms/:classroomId/students/:seatId']
+  implementation:
+    files: [apps/api/src/crm-user.controller.ts, apps/api/src/app.module.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, migrations/0250_crm_retained_detail.sql, migrations/0251_crm_responsibilities.sql, apps/api/src/crm-responsibilities.controller.ts, apps/web/src/admin/CrmResponsibilities.tsx, apps/web/src/admin/CrmSeatDetail.tsx, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/admin/crm-user-api.ts, apps/web/src/admin/crm-user-card.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminUserHistory.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+  tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-CRM-EXACT-IDENTITY-CARD
+    label: Read full exact identity CRM, platform-only versioned profile mutations and exact-class teacher or explicitly bound organization educational content
+    change_class: L3_CRITICAL
+    files: [apps/api/src/crm-user.controller.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, migrations/0250_crm_retained_detail.sql, migrations/0251_crm_responsibilities.sql, apps/api/src/crm-responsibilities.controller.ts, apps/web/src/admin/CrmResponsibilities.tsx, apps/web/src/admin/CrmSeatDetail.tsx, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+    invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+    tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+
+- id: SURF-ACCOUNT-EMAIL-PROOF
+  routes: [/api/admin/v1/auth/email, /api/admin/v1/auth/email/test, /api/auth/email, /api/auth/email/request, /api/auth/email/cancel, /api/auth/email/confirm, '/api/crm/v1/users/account/:target/email', '/api/crm/v1/users/account/:target/email/cancel', /confirm-email, '#/admin/confirmations']
+  implementation:
+    files: [apps/web/index.html, apps/web/public/email-proof-bootstrap.js, apps/api/src/email.controller.ts, apps/api/src/email.service.ts, apps/api/src/account-verification.service.ts, apps/api/src/app.module.ts, migrations/0248_verified_email_smtp.sql, apps/web/src/email-api.ts, apps/web/src/main.tsx, apps/web/src/pages/EmailConfirmationPage.tsx, apps/web/src/components/EmailVerification.tsx, apps/web/src/pages/AccountConfirmationPage.tsx, apps/web/src/components/AccountSignInMethods.tsx, apps/web/src/admin/AdminEmailSettings.tsx, apps/web/src/admin/CrmEmailChange.tsx, apps/web/src/admin/email-settings.css, apps/web/src/admin/AdminDashboard.tsx, apps/web/src/admin/AdminAuthProviderCard.tsx, apps/web/src/admin/VerificationPolicyControl.tsx]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+  tests: [TST-EMAIL-PROOF-UNIT-001, TST-EMAIL-PROOF-PG-001, TST-ACCOUNT-CONFIRMATION-UI-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-ACCOUNT-VERIFIED-EMAIL
+    label: Encrypted platform mail settings, current Account verification and versioned proven exact Account email change without Seat conversion or secret readback
+    change_class: L3_CRITICAL
+    files: [apps/api/src/email.controller.ts, apps/api/src/email.service.ts, migrations/0248_verified_email_smtp.sql, apps/web/src/admin/AdminEmailSettings.tsx, apps/web/src/admin/CrmEmailChange.tsx, apps/web/src/components/EmailVerification.tsx, apps/web/src/pages/EmailConfirmationPage.tsx]
+    invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+    tests: [TST-EMAIL-PROOF-UNIT-001, TST-EMAIL-PROOF-PG-001, TST-ACCOUNT-CONFIRMATION-UI-001]
+
+- id: SURF-ACCESS-A-TEST-LAUNCHER
+  routes: ['runner:pnpm-e2e-access-a']
+  implementation:
+    files:
+    - tools/testing/ai-access-baseline.mjs
+    - tools/testing/ai-access-baseline.test.mjs
+    - playwright.access-a.config.ts
+  invariants: [IDA-AUTH-001, IDA-SEAT-001, IDA-SEAT-002, IDA-REV-001]
+  tests: [TST-ASA-ACCESS-A-E2E-001, TST-ASA-ACCESS-A-REPOSITORY-001]
+  controls:
+  - id: CTRL-ACCESS-A-EXACT-ONCE-TEST-BATCHES
+    label: Real API test-process isolation and fail-closed exact-once discovery aggregation preserve production authorization and admission guards
+    change_class: L3_CRITICAL
+    files:
+    - tools/testing/ai-access-baseline.mjs
+    - tools/testing/ai-access-baseline.test.mjs
+    - playwright.access-a.config.ts
+    commands: []
+    invariants: [IDA-AUTH-001, IDA-SEAT-001, IDA-SEAT-002, IDA-REV-001]
+    tests: [TST-ASA-ACCESS-A-E2E-001, TST-ASA-ACCESS-A-REPOSITORY-001]

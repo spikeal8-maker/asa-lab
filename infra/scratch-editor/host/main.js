@@ -156,6 +156,9 @@
           onDirty(generation) {
             reporter?.projectDirty(generation);
           },
+          onSaveFailure(detail) {
+            reporter?.saveFailed(detail);
+          },
           onActivity() {
             reporter?.userActivity();
           },

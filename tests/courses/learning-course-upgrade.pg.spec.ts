@@ -211,7 +211,23 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
     } finally {
       upgrade.release();
     }
-    expect(await snapshot()).toEqual(before);
+    // 0235 is additive and must not backfill historical Projects as copies.
+    // Compare every field in all eleven tables; only these four new columns
+    // extend the expected historical records, and each must remain NULL.
+    const expectedAfter = {
+      ...before,
+      projects: (before.projects as Array<{ record: Record<string, unknown> }>).map((row) => ({
+        ...row,
+        record: {
+          ...row.record,
+          copied_from_publication_id: null,
+          copied_from_revision_id: null,
+          copied_from_version_id: null,
+          copied_from_license: null,
+        },
+      })),
+    };
+    expect(await snapshot()).toEqual(expectedAfter);
     expect(await memberships()).toEqual(beforeMemberships);
     const afterSeats = (
       await isolated.query(

@@ -22,7 +22,9 @@ const record = (service, extra = {}) => ({
   Name: `primary-${service}`,
   ...extra,
 });
-const own = ['postgres', 'api', 'web', 'scratch', 'minio'].map((service) => record(service));
+const own = ['postgres', 'api', 'web', 'scratch', 'minio', 'search'].map((service) =>
+  record(service),
+);
 const cases = [
   {
     name: 'digest-tagged custom ASA installation',
@@ -192,8 +194,33 @@ test('startup guards precede environment mutation and both updaters recheck befo
       .readFileSync(path.join(root, `tools/docker-update.${extension}`), 'utf8')
       .replaceAll('\r\n', '\n');
     const guard = extension === 'ps1' ? 'Assert-StartupIdentity' : 'assert_startup_identity';
-    const prepare = extension === 'ps1' ? '    New-PrivateEnvironment' : '    create_environment';
-    assert.ok(startup.includes(`${guard}\n${prepare}`));
+    const upStart = extension === 'ps1' ? "  'up' {" : '  up)';
+    const up = startup.slice(startup.indexOf(upStart));
+    const preparation =
+      extension === 'ps1'
+        ? [
+            'New-PrivateEnvironment',
+            '& python tools/deployment/search_secret.py --create',
+            '& python tools/log_collector.py prepare --root $RepoRoot --profile $Profile',
+          ]
+        : [
+            'create_environment',
+            'python3 tools/deployment/search_secret.py --create',
+            'if [ "$profile" != test ]; then python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile"; fi',
+          ];
+    const lines = up.split('\n').map((line) => line.trim());
+    const guardIndex = lines.indexOf(guard);
+    assert.ok(guardIndex >= 0, `${extension}: startup identity guard exists`);
+    let previousIndex = guardIndex;
+    for (const command of preparation) {
+      const indices = lines.flatMap((line, index) => (line === command ? [index] : []));
+      assert.equal(indices.length, 1, `${extension}: exactly one ${command}`);
+      assert.ok(
+        indices[0] > previousIndex,
+        `${extension}: identity then ordered private preparation`,
+      );
+      previousIndex = indices[0];
+    }
     assert.ok(update.includes(`installation-identity.${extension}`));
     // Require consecutive complete commands, allowing indentation only. The
     // collector must succeed before the migration plan and service replacement.
