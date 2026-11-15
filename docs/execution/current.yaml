@@ -19032,8 +19032,8 @@ parallel_lanes:
     worktree_id: robotics-tt-rover-ramp-can-001
     owned_paths:
     - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-ROVER-RAMP-CAN-001.md
-    - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.fixture.json
-    - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.spec.ts
+    - tests/robotics/field-core-qualification/tt-reverse-native-damping.fixture.json
+    - tests/robotics/field-core-qualification/tt-reverse-native-damping.spec.ts
     task:
       id: TASK-ELECTRONICS-ROBOTICS-TT-ROVER-RAMP-CAN-001
       issue: 1181
@@ -19043,7 +19043,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: rover_r4_physical_pass_r5_lower_loss_selected
+      checkpoint: rover_r5_retained_r6_native_damper_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
@@ -19051,43 +19051,53 @@ parallel_lanes:
       owner_authorization: 'The owner directed the Robotics program to prove that an Arduino-driven robot
         climbs a ramp and physically tips a can. This selection records one bounded TEST_ONLY experiment
         under that program. Receipt: https://github.com/spikeal8-maker/asa-lab/issues/1181.'
-      activation_condition: Source preflight opens after protected R5 registration on main. Bind the
-        published R4 source and exact archived pair; replay both worlds offline and obtain independent
-        HIGH review of the two new source files before one fresh alternative powered/LOW pair.
+      activation_condition: Source preflight opens after the protected R6 docs merge. Use only the
+        two newly named hinge diagnostic paths, preserved exact R5 source/raw and pinned stock engine.
+        Run pure tests and independent HIGH review on exact source before one bounded native pair of
+        comparator matrices. R5 is replayed offline only.
       selected_experiment:
-        revision: R5
-        implementation_base: 3fd944d64707ba0a8da518e79c7e369a1f3cfeb7
-        hypothesis: In this fixed native scene, a physically passing climb and can release may be
-          possible without the legacy reciprocal 1/eta reverse gain after the first differing D5 edge.
-        controlled_prefix:
-          intervention_from_us: 250003
-          included_last_legacy_interval_us: [250000, 250003]
-          intervals: 503
-          sha256: dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16
-          requirement: Preserve byte-exact R4 native interval records and applied legacy effort in
-            both worlds through the measured state at t=250003. Both R4 worlds already have this
-            boundary. Replay it offline and prove all four prefixes match without a new clock split.
-          pre_intervention_diagnostics: Record signed legacy start-up leakage and coupling over the
-            common prefix separately and include it in the full energy ledger without energy credit.
-        unchanged_xml_sha256: acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0
-        transfer: Let G=N*(Kt*I-b*N*omega_PRE) be signed torque referred to the output shaft.
-          On intervals starting at or after 250003 us use the same eta*G for G*omega_PRE >= 0
-          and G for G*omega_PRE < 0. The latter omits reverse transmission losses while retaining
-          the modeled motor drag and electrical load.
-          Apply only this separate TEST_ONLY torque at the registered native axle. Keep original
-          MNA/winding, programs, time and measured shaft response through the existing session.
-        discrete_energy: Record canonical and applied torque/impulse separately. Use the measured
-          native delta-theta to verify reverse shaft work tau*delta-theta <= 0 and transmission
-          dissipation (G-tau)*delta-theta >= 0 on every accepted interval from 250003 us to the
-          full horizon. Permit only analytically derived binary64 error bounds. Rebuild held and
-          native energy ledgers independently over the whole 10s,
-          report the signed held-to-native coupling difference and retain the original unexplained
-          energy bound without credit from that difference. Any unproved sign or balance leaves a
-          causal gap with the native physical evidence retained.
-        invariant_scene: Preserve exact R4 XML, stock engine, Arduino programs, D5 traces and final
-          LOW, physical/energy/clock/contacts and resource limits, 5-degree climb, first impact
-          height and signed pitch, and the native 100000 us all-rover-unloaded side support after LOW.
-          Record later recontact and native out-of-bounds through the 10s horizon.
+        revision: R6
+        hypothesis: A real MuJoCo implicitfast joint damper can keep viscous work nonpositive
+          through sign reversal, unlike a held left-speed effort at the same mechanical seam.
+        engine: Same stock @mujoco/mujoco 4.0.0 pins and implicitfast profile. Fixed step 500 us.
+        mechanically_isolated:
+          hinge_axis: [0, 0, 1]
+          rotor_mass_kg: 0.1
+          rotor_radius_m: 0.1
+          rotor_length_m: 0.02
+          rotor_axial_inertia_kg_m2: 0.0005
+          exact_existing_armature_kg_m2: 0.0004608
+          total_axial_inertia_kg_m2: 0.0009608
+          damping_coefficient_n_m_s_per_rad: 0.0012512598781200318
+          damping_derivation: Use the accepted TT profile's b*N^2; no contact, motor-winding
+            playback, gravity torque, joint limit, spring, dry friction or extra inertia.
+        load_evidence:
+          preparation: Both alternatives start at rest with zero damping/actuation; use a genuine
+            native 500 us external load with magnitude 0.0019216 Nm to reach the specified +/-0.001
+            rad/s. No pose or velocity writes after construction. The zero-load case starts at rest.
+          test_loads_n_m:
+            positive_to_negative: -0.004
+            negative_to_positive: 0.004
+            balanced_stop_from_positive: -0.0019216
+            at_rest: 0
+          channels: Prescribe external torque through native axial qfrc_applied in both models.
+            In the legacy comparison use a distinct unit-gear native actuator for the held
+            viscous effort -D*omega_PRE, with native damping zero. In the native test set that
+            actuator to zero and set one native dof_damping value D before mj_step1.
+        oracle: Read actual inertia/armature, qfrc_applied, actuator output, PRE empty constraints,
+          qfrc_damper, qDeriv and the native effective scalar mass J+hD where applicable. Check
+          both actual endpoint states and clock against distinct implicit vs left-held equations.
+          Compute signed work independently from native angle change and require two opposite
+          crossings, negative native damping work and positive held-viscous work for each.
+          At rest require zero work and displacement; at balanced stop use only derived binary64
+          error with matching right-speed/angle and energy. Count native dissipation exactly once
+          with the independent backward-Euler kinetic identity and preserve every raw probe.
+        caps: Four fixed cases in both variants, at most two split steps per case/variant and
+          at most 16 mj_step1 and 16 mj_step2 calls total; one live model/data at a time, unique
+          external receipt, full cleanup.
+        interpretation: Isolated mechanical derivative proof only. It does not replay the R5
+          contact or establish coupled Arduino/MNA, a transmission calibration, rover PASS,
+          D01/D02 qualification, or product runtime.
       historical_native_results:
         r1:
           registration:
@@ -19308,47 +19318,133 @@ parallel_lanes:
               caps, original positive first and cumulative bumper moment with first impact at least 5mm
               above COM, actual 100000 us all-rover-unloaded side support after final LOW, and strict
               zero-gain causal meaning. No torque, sensor or scheduler change, solver tuning, or rerun.
+        r5:
+          registration:
+            merge: 672be6ead8e7ed222eeb8246849e225d6ce455a5
+            tested_head: 1b7400935e68816e24e046eb981a0db17a8561ea
+            required_success: https://github.com/spikeal8-maker/asa-lab/actions/runs/43716532354/job/132827807083
+          source_commit: cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42
+          source_tree: 7297037e1c40de8d404722b5bc1fcefb13c448e9
+          source_branch: codex/robotics-arduino-rover-lower-loss-r5-1181
+          spec_sha256: d4effe95f81ad99523cc1f434b7e595f8d4b04fe33f20f6779ca5a612c937413
+          fixture_sha256: 6a1b46d96489db96e927f24cdbc59d497a11b864b36572287adc05fa51dcf07d
+          xml_sha256: acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0
+          archive_directory: asa-robotics-arduino-rover-r5-proof-7aab771b054943b798d1c329ffcdf872
+          metadata: {file: arduino-rover-r1181.jsonl, bytes: 38434, sha256: f9c8b8b908eae5cb2b48f0f7faa4d7f95778c835d549237c019c841f81b5f407}
+          binary: {file: arduino-rover-r1181.bin, bytes: 163178768, sha256: 9bb72c3bed6d0c1c4c0c79e4ad91c582b226f1a392e64dba0b1c74799546cfd9}
+          runtime: COMPLETE
+          physical: PASS
+          causal: GAP_CAUSAL_ALT
+          control: PASS
+          intervals_per_world: 20090
+          total_intervals: 40180
+          common_through_edge_us: 250003
+          common_intervals: 503
+          common_sha256: dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16
+          measured_powered_us: {mixed: 1052500, ramp: 1498000, top: 3808500, bumper: 4257000, tip_cross: 4338500, final_low: 4340082}
+          rise_m: 0.06999020507717987
+          free_loaded_side_window_us: [4481500, 4581500]
+          side_signed_clearance_lower_bound_m: 0.008189421421721379
+          late_recontact_us: [4902500, 6010000]
+          late_recontact_loaded_intervals: 1199
+          late_recontact_loaded_duration_us: 598500
+          late_recontact_normal_impulse_n_s: 0.15101469691670716
+          field_departure: none
+          signed_prefix: After the differing edge and through finishing the first 100ms free side
+            window, both worlds had no reverse-power or gear-dissipation sign violation. The powered
+            prefix had 499 unity reverse intervals with -0.062308522586655354 J shaft work.
+            This is limited prefix evidence. R5's registered strict full-horizon criterion remains GAP.
+          sole_alternative_reverse_positive_work:
+            powered_interval_us: [6003000, 6003500]
+            omega_pre_rad_s: 0.0010151703492117445
+            omega_post_rad_s: -0.000060700427291404636
+            native_delta_rad: -3.035021478581257e-8
+            native_work_j: 3.855204076522804e-14
+            left_held_viscous_work_j: 3.855211532731628e-14
+            applied_electromagnetic_work_j: -7.456208823863147e-20
+            measured_gear_loss_j: 0
+            interpretation: A genuine left-held viscous torque kept its sign through a native reversal
+              during late recontact. No earlier observed excess work during the qualifying physical window.
+          registered_source_paths:
+          - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.fixture.json
+          - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.spec.ts
+          registered_causal_boundary: The R1–R4 exact common-prehistory and zero sum of absolute reciprocal
+            gain rule stays in the historical replay. In R5 independently verify the exact two R4 and
+            two R5 startup records through the native state at the first differing edge. CAUSAL_ALT_PASS
+            means this pair passes all physical, electrical, signed energy and ownership predicates
+            with the alternative law on intervals starting at or after that edge. An absent valid witness is
+            GAP_CAUSAL_ALT with the measured physical result retained. This establishes no hardware
+            calibration, general loss-envelope claim or D02 closure.
+          registered_experiment:
+            revision: R5
+            implementation_base: 3fd944d64707ba0a8da518e79c7e369a1f3cfeb7
+            hypothesis: In this fixed native scene, a physically passing climb and can release may be
+              possible without the legacy reciprocal 1/eta reverse gain after the first differing D5 edge.
+            controlled_prefix:
+              intervention_from_us: 250003
+              included_last_legacy_interval_us: [250000, 250003]
+              intervals: 503
+              sha256: dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16
+              requirement: Preserve byte-exact R4 native interval records and applied legacy effort in
+                both worlds through the measured state at t=250003. Both R4 worlds already have this
+                boundary. Replay it offline and prove all four prefixes match without a new clock split.
+              pre_intervention_diagnostics: Record signed legacy start-up leakage and coupling over the
+                common prefix separately and include it in the full energy ledger without energy credit.
+            unchanged_xml_sha256: acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0
+            transfer: Let G=N*(Kt*I-b*N*omega_PRE) be signed torque referred to the output shaft.
+              On intervals starting at or after 250003 us use the same eta*G for G*omega_PRE >= 0
+              and G for G*omega_PRE < 0. The latter omits reverse transmission losses while retaining
+              the modeled motor drag and electrical load.
+              Apply only this separate TEST_ONLY torque at the registered native axle. Keep original
+              MNA/winding, programs, time and measured shaft response through the existing session.
+            discrete_energy: Record canonical and applied torque/impulse separately. Use the measured
+              native delta-theta to verify reverse shaft work tau*delta-theta <= 0 and transmission
+              dissipation (G-tau)*delta-theta >= 0 on every accepted interval from 250003 us to the
+              full horizon. Permit only analytically derived binary64 error bounds. Rebuild held and
+              native energy ledgers independently over the whole 10s,
+              report the signed held-to-native coupling difference and retain the original unexplained
+              energy bound without credit from that difference. Any unproved sign or balance leaves a
+              causal gap with the native physical evidence retained.
+            invariant_scene: Preserve exact R4 XML, stock engine, Arduino programs, D5 traces and final
+              LOW, physical/energy/clock/contacts and resource limits, 5-degree climb, first impact
+              height and signed pitch, and the native 100000 us all-rover-unloaded side support after LOW.
+              Record later recontact and native out-of-bounds through the 10s horizon.
       accepted_source_dependencies:
         tt_native_drive:
           task_id: TASK-ELECTRONICS-ROBOTICS-TT-NATIVE-DRIVE-001
           receipt_ref: parallel_lanes.robotics-tt-native-drive.task.technical_acceptance
-      scope: one Uno and TT driving a rigid rear axle, a continuous native flat-to-5-degree climb and bumper-to-empty-can
-        tip in the same world, and a matched unpowered control. Use the accepted common-solver session and
-        stock engine. Source changes are limited to the diagnostic fixture and spec. Preserve E1, D01/D02
-        and MODE acceptance boundaries and historical native journals.
-      near_static_attribution: The R1–R4 exact common-prehistory and zero sum of absolute reciprocal
-        gain rule stays in the historical replay. In R5 independently verify the exact two R4 and
-        two R5 startup records through the native state at the first differing edge. CAUSAL_ALT_PASS
-        means this pair passes all physical, electrical, signed energy and ownership predicates
-        with the alternative law on intervals starting at or after that edge. An absent valid witness is
-        GAP_CAUSAL_ALT with the measured physical result retained. This establishes no hardware
-        calibration, general loss-envelope claim or D02 closure.
+      scope: One unconstrained native hinge and one declared external torque in the two ways of
+        applying viscous effort. Historical rover inputs, journals and physical/causal outcomes remain
+        archived. Source scope is only the isolated fixture and spec; all E1, D01/D02 and MODE boundaries
+        remain open outside this position-independent mechanical diagnostic.
+      near_static_attribution: The original R5 full-horizon outcome remains GAP_CAUSAL_ALT despite the
+        zero-violation measured prefix through qualifying native side support. R6 tests the mechanical
+        viscous term with the actual right state; no transfer into an integrated rover claim.
       planned_paths:
-      - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.fixture.json
-      - tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.spec.ts
+      - tests/robotics/field-core-qualification/tt-reverse-native-damping.fixture.json
+      - tests/robotics/field-core-qualification/tt-reverse-native-damping.spec.ts
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-ROVER-RAMP-CAN-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-NATIVE-DRIVE-001.md
       - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
       - docs/product/robotics/FIELD_CORE_SPEC.md
       - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
-      gate_boundary: Registration is docs-only. After protected registration require exact two-path
-        preflight, offline reconstruction of the full archived R4 pair and prior PASS/GAP, focused
-        tests and an independent HIGH exact source review before the single fresh R5 pair. Preserve
-        both complete standard raw journals, including any first FAIL or GAP. Before acceptance
-        require an independent exact repeat and applicable protected checks. No product runtime,
-        rollout or D01/D02 closure.
+      gate_boundary: Registration is docs-only. After protected acceptance require exact two-path
+        preflight and focused pure checks of inertia, external load and analytic balances, offline
+        replay of the R5 signed exception and independent HIGH exact review. Then one bounded live
+        native hinge diagnostic, with full raw/cleanup and no older or contacting world reacquisition.
+        No scheduler changes, calibration, shared D01/D02 closure, deployment or product claim.
       deployment: not_authorized
       database_actions: none
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1c26caa1190c858b545957ff8e81da031fc77ab7
+      convergence_baseline_sha: 672be6ead8e7ed222eeb8246849e225d6ce455a5
       head_sha: null
-      observed_at: '2026-11-15T12:32:43Z'
+      observed_at: '2026-11-15T13:49:14Z'
       main:
         branch: main
-        sha: 1c26caa1190c858b545957ff8e81da031fc77ab7
-      observation_note: Dated baseline before R5 lower-loss registration. Fetch main and reverify
+        sha: 672be6ead8e7ed222eeb8246849e225d6ce455a5
+      observation_note: Dated baseline before R6 native damper registration. Fetch main and reverify
         the live two-path plan, accepted dependency and applicable blockers before source work.
     gates:
       focused:
