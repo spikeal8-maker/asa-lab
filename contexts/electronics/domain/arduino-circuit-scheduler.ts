@@ -82,6 +82,7 @@ import {
 } from './models/capacitor-transient-model.js';
 import {
   advanceHcSr04Due,
+  hcSr04AcceptsTriggerFall,
   hcSr04DistanceMeters,
   hcSr04EchoAvailable,
   hcSr04InputLevels,
@@ -90,6 +91,7 @@ import {
   isHcSr04,
   isHcSr04RuntimeState,
   observeHcSr04Inputs,
+  type HcSr04EnvironmentSample,
   type HcSr04RuntimeState,
 } from './models/hc-sr04-runtime.js';
 import {
@@ -265,6 +267,19 @@ export interface ArduinoCircuitClockAdvance {
   readonly events: readonly (ArduinoRuntimeEvent & { readonly componentId: string })[];
   readonly diagnostics: readonly ArduinoCircuitClockDiagnostic[];
 }
+
+export interface ArduinoCircuitHcSr04Barrier {
+  readonly kind: 'query';
+  readonly componentId: string;
+  readonly atMicroseconds: number;
+  readonly triggerHighSinceMicroseconds: number;
+  readonly committedHorizonMicroseconds: number;
+  readonly phase: 'pre-mcu' | 'post-gpio';
+}
+
+type HcSr04ClockSuspension =
+  | ArduinoCircuitHcSr04Barrier
+  | { readonly kind: 'working'; readonly committedHorizonMicroseconds: number };
 
 function integerTime(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 0 && value <= MAX_TIME_US;
@@ -780,6 +795,54 @@ export function advanceArduinoCircuitClock(
   } = {},
   ownedPreparation?: ClockPreparation,
 ): ArduinoCircuitClockAdvance {
+  const clock = iterateArduinoCircuitClock(
+    document,
+    targetMicroseconds,
+    previous,
+    options,
+    ownedPreparation,
+  );
+  const final = clock.next();
+  if (final.done) return final.value;
+  clock.return(undefined as never);
+  throw new Error('Synchronous Arduino clock unexpectedly suspended.');
+}
+
+/** TEST_ONLY. Owns an uninterrupted fresh clock with one selected HC-SR04. */
+export function createArduinoCircuitHcSr04TestClock(
+  document: ElectronicsDocument,
+  targetMicroseconds: number,
+  options: {
+    readonly inputs: readonly ArduinoCircuitInputEvent[];
+    readonly maxClockEvents?: number;
+  },
+  queryComponentId: string,
+) {
+  return iterateArduinoCircuitClock(
+    document,
+    targetMicroseconds,
+    undefined,
+    options,
+    undefined,
+    queryComponentId,
+  );
+}
+
+function* iterateArduinoCircuitClock(
+  document: ElectronicsDocument,
+  targetMicroseconds: number,
+  previous: ArduinoCircuitClockState | undefined,
+  options: {
+    readonly inputs?: readonly ArduinoCircuitInputEvent[];
+    readonly maxClockEvents?: number;
+  },
+  ownedPreparation: ClockPreparation | undefined,
+  queryComponentId?: string,
+): Generator<
+  HcSr04ClockSuspension,
+  ArduinoCircuitClockAdvance,
+  HcSr04EnvironmentSample | undefined
+> {
   const ownership = ownedPreparation ? ownedClockRequests.get(ownedPreparation) : undefined;
   const fault = (code: string, message: string): ArduinoCircuitClockAdvance => ({
     executionStatus: 'fault',
@@ -865,6 +928,16 @@ export function advanceArduinoCircuitClock(
   const hcSr04Components = document.components
     .filter(isHcSr04)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  if (
+    queryComponentId !== undefined &&
+    (boards.length !== 1 ||
+      hcSr04Components.length !== 1 ||
+      hcSr04Components[0]?.id !== queryComponentId)
+  )
+    return fault(
+      'invalid_hc_sr04_query_scope',
+      'The test requires one Uno and the selected HC-SR04.',
+    );
   const pingUltrasonicComponents = document.components
     .filter(isPingUltrasonic)
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -1179,6 +1252,7 @@ export function advanceArduinoCircuitClock(
     }
   }
   let reachedMicroseconds = previous?.reachedMicroseconds ?? -1;
+  let closedHorizonMicroseconds = 0;
   let physicalState = previous?.physicalState;
   const thermalEpochs = new Map(
     (previous?.thermalEpochs ?? []).map((epoch) => [epoch.componentId, epoch]),
@@ -1339,6 +1413,7 @@ export function advanceArduinoCircuitClock(
   const observeSensors = (
     frame: NonNullable<ArduinoCircuitClockAdvance['result']>,
     time: number,
+    environment?: HcSr04EnvironmentSample,
   ): boolean => {
     let echoChanged = false;
     for (const component of hcSr04Components) {
@@ -1353,8 +1428,10 @@ export function advanceArduinoCircuitClock(
         time,
         levels.powered,
         levels.triggerHigh,
-        hcSr04DistanceMeters(activeComponent)!,
-        hcSr04EchoAvailable(activeComponent)!,
+        environment?.kind === 'echo'
+          ? environment.distanceMeters
+          : hcSr04DistanceMeters(activeComponent)!,
+        environment ? environment.kind === 'echo' : hcSr04EchoAvailable(activeComponent)!,
       );
       hcSr04States.set(component.id, step.state);
       echoChanged ||= step.echoChanged;
@@ -1393,6 +1470,39 @@ export function advanceArduinoCircuitClock(
     }
     return echoChanged;
   };
+  const selectedTriggerFall = (
+    frame: NonNullable<ArduinoCircuitClockAdvance['result']>,
+    time: number,
+  ): number | undefined => {
+    const selected =
+      queryComponentId === undefined ? undefined : hcSr04States.get(queryComponentId);
+    if (!selected) return undefined;
+    const voltages =
+      frame.components.find((entry) => entry.componentId === queryComponentId)?.terminalVoltages ??
+      {};
+    const { powered, triggerHigh } = hcSr04InputLevels(voltages);
+    return hcSr04AcceptsTriggerFall(selected, time, powered, triggerHigh)
+      ? selected.triggerHighSinceMicroseconds
+      : undefined;
+  };
+  function* observeSensorsWithQuery(
+    frame: NonNullable<ArduinoCircuitClockAdvance['result']>,
+    time: number,
+    phase: ArduinoCircuitHcSr04Barrier['phase'],
+  ): Generator<ArduinoCircuitHcSr04Barrier, boolean, HcSr04EnvironmentSample | undefined> {
+    const highSince = selectedTriggerFall(frame, time);
+    if (highSince === undefined) return observeSensors(frame, time);
+    const environment = yield {
+      kind: 'query',
+      componentId: queryComponentId!,
+      atMicroseconds: time,
+      triggerHighSinceMicroseconds: highSince,
+      committedHorizonMicroseconds: closedHorizonMicroseconds,
+      phase,
+    };
+    if (!environment) throw new Error('The HC-SR04 clock resumed without its query response.');
+    return observeSensors(frame, time, environment);
+  }
   const isNonFatalPassiveNoSource = (frame: SolveResult): boolean =>
     boards.length === 0 &&
     !hasPhysics &&
@@ -1534,8 +1644,21 @@ export function advanceArduinoCircuitClock(
   }
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
   let clockEvents = 0;
-  while (nextTime() <= targetMicroseconds && clockEvents < budget) {
+  while (
+    nextTime() <= targetMicroseconds &&
+    (queryComponentId !== undefined || clockEvents < budget)
+  ) {
     const time = nextTime();
+    if (queryComponentId !== undefined) {
+      // A due operation may leave other work scheduled at the very same timestamp.
+      // Only a timestamp strictly behind the next operation is externally committed.
+      if (reachedMicroseconds < time)
+        closedHorizonMicroseconds = Math.max(closedHorizonMicroseconds, reachedMicroseconds);
+      if (clockEvents >= budget) {
+        yield { kind: 'working', committedHorizonMicroseconds: closedHorizonMicroseconds };
+        clockEvents = 0;
+      }
+    }
     const onlyBoard = runnableBoards[0];
     const currentRuntime = onlyBoard ? states.get(onlyBoard.id) : undefined;
     const electricalBarrier = Math.min(
@@ -1717,7 +1840,22 @@ export function advanceArduinoCircuitClock(
       const observed = observe();
       if (observationFault) return observationFault;
       if (!eventPhysics) ownedPreparation?.observeRawDisplayState?.(time, observed.components);
-      sensorOutputChanged ||= observeSensors(observed, time);
+      if (!sensorOutputChanged) {
+        sensorOutputChanged =
+          queryComponentId === undefined
+            ? observeSensors(observed, time)
+            : yield* observeSensorsWithQuery(observed, time, 'pre-mcu');
+      } else if (
+        queryComponentId !== undefined &&
+        selectedTriggerFall(observed, time) !== undefined
+      ) {
+        // The v1 short-circuit above skips all pre-MCU sensors after a due output change.
+        // Opt-in cannot establish this edge's ordering without changing that rule.
+        return fault(
+          'ambiguous_hc_sr04_query_order',
+          'A due sensor output masked a selected Trig edge.',
+        );
+      }
     }
     const updates: [string, ArduinoRuntimeState, string][] = [];
     let electricalStateChanged = false;
@@ -1840,7 +1978,11 @@ export function advanceArduinoCircuitClock(
             'electrical_quality_failed',
             'Не выполнены проверки конечности, KCL или напряжения источников.',
           );
-        if (observeSensors(postCommitFrame, time)) {
+        const sensorChanged =
+          queryComponentId === undefined
+            ? observeSensors(postCommitFrame, time)
+            : yield* observeSensorsWithQuery(postCommitFrame, time, 'post-gpio');
+        if (sensorChanged) {
           cachedFrame = undefined;
           postCommitFrame = sample(time);
         }
