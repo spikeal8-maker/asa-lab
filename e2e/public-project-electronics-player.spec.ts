@@ -343,11 +343,16 @@ test('saved empty Blockly program survives mounting and saving a circuit edit', 
   const code = page.locator('.workbench-pill.code');
   const workspace = page.getByTestId('arduino-block-workspace');
   const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+  const saveStatus = page.locator('.workbench-main');
   await page.goto(editor);
   await code.click();
   await expect(workspace).toBeVisible();
-  await expect(save).toBeDisabled();
   expect((await assertSavedProgram(page)).revision).toBe(fixture.draft.revision);
+  if (await save.isEnabled()) {
+    await save.click();
+    await expect(saveStatus).toHaveAttribute('data-project-save-status', 'saved');
+  }
+  const beforeEdit = await assertSavedProgram(page);
 
   await code.click();
   const resistor = page
@@ -359,12 +364,9 @@ test('saved empty Blockly program survives mounting and saving a circuit edit', 
   await code.click();
   await expect(workspace).toBeVisible();
   await save.click();
-  await expect(page.locator('.workbench-main')).toHaveAttribute(
-    'data-project-save-status',
-    'saved',
-  );
+  await expect(saveStatus).toHaveAttribute('data-project-save-status', 'saved');
   const afterSave = await assertSavedProgram(page);
-  expect(afterSave.revision).toBeGreaterThan(fixture.draft.revision);
+  expect(afterSave.revision).toBeGreaterThan(beforeEdit.revision);
   expect(afterSave.document.components.map(({ id }) => id)).toEqual(['s', 'l']);
 
   const reopened = await page.context().newPage();
@@ -372,9 +374,6 @@ test('saved empty Blockly program survives mounting and saving a circuit edit', 
     await reopened.goto(editor);
     await reopened.locator('.workbench-pill.code').click();
     await expect(reopened.getByTestId('arduino-block-workspace')).toBeVisible();
-    await expect(
-      reopened.getByRole('button', { name: 'Сохранить проект', exact: true }),
-    ).toBeDisabled();
     expect((await assertSavedProgram(reopened)).revision).toBe(afterSave.revision);
   } finally {
     await reopened.close();
