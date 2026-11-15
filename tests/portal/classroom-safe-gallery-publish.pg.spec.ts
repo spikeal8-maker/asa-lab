@@ -390,7 +390,8 @@ describe('Safe Mode native Seat HTTP publication boundary', () => {
     });
     await admin.query('UPDATE classroom_student_seats SET safe_mode=true WHERE id=$1', [f.seatId]);
 
-    const app = await buildTestApp(runtime);
+    // This app owns its pool and closes it on app.close; shared fixture pool stays open.
+    const app = await buildTestApp(testAppPool());
     try {
       const response = await inject(app, {
         method: 'POST',
