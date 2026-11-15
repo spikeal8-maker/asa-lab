@@ -83,6 +83,45 @@ export interface BrushedMotorStepResult {
   readonly companion: BrushedMotorCompanion | null;
 }
 
+type BrushedMotorWindingState = Pick<
+  BrushedMotorTransientStateEntry,
+  'currentAmp' | 'temperatureCelsius' | 'accumulatedDamage' | 'failureMode'
+>;
+
+export interface BrushedMotorExternalShaftState extends BrushedMotorWindingState {
+  readonly componentId: string;
+  readonly profileId: string;
+  readonly profileVersion: number;
+  readonly atMicroseconds: number;
+}
+
+export interface BrushedMotorExternalShaftStep {
+  readonly componentId: string;
+  readonly profileId: string;
+  readonly profileVersion: number;
+  readonly fromMicroseconds: number;
+  readonly toMicroseconds: number;
+  /** Positive output speed induces positive back-EMF at the positive motor terminal. */
+  readonly axis: 'positive-output-shaft';
+  /** Speed at the right endpoint of this backward-Euler interval. */
+  readonly outputAngularVelocityRadPerSecond: number;
+  /** Winding terminal voltage for this accepted interval. */
+  readonly voltageVolt: number;
+  readonly ambientTemperatureCelsius?: number;
+}
+
+export interface BrushedMotorExternalShaftResult {
+  readonly state: BrushedMotorExternalShaftState;
+  readonly companion: BrushedMotorCompanion | null;
+  /** Right-end current of the interval solve, before any endpoint winding-open transition. */
+  readonly intervalCurrentAmp: number;
+  readonly electromagneticTorqueNewtonMeter: number;
+  readonly outputTorqueNewtonMeter: number;
+  readonly outputTorqueImpulseNewtonMeterSeconds: number;
+  readonly viscousLossWatt: number;
+  readonly transmissionLossWatt: number;
+}
+
 export type BrushedMotorInitialStateResult =
   | {
       readonly ok: true;
@@ -212,6 +251,23 @@ function validateState(
   }
 }
 
+function windingCompanion(
+  effectiveResistanceOhm: number,
+  inductiveHistoryVoltageVolt: number,
+  backEmfVolt: number,
+  loadTorque: number,
+  angularVelocityRadPerSecond: number,
+): BrushedMotorCompanion {
+  const conductanceSiemens = 1 / effectiveResistanceOhm;
+  return {
+    conductanceSiemens,
+    historyCurrentAmp: conductanceSiemens * (backEmfVolt - inductiveHistoryVoltageVolt),
+    effectiveResistanceOhm,
+    reflectedLoadTorqueNewtonMeter: loadTorque,
+    mechanicalHistoryAngularVelocityRadPerSecond: angularVelocityRadPerSecond,
+  };
+}
+
 export function createBrushedMotorTransientState(
   componentId: string,
   profile: BrushedMotorAssemblyProfile,
@@ -329,17 +385,13 @@ export function brushedMotorCompanion(
     resistanceOhm +
     inductanceHenry / stepSeconds +
     (backEmf * torqueConstant) / mechanicalDenominator;
-  const historyVoltageVolt =
-    backEmf * mechanicalHistoryAngularVelocityRadPerSecond -
-    (inductanceHenry / stepSeconds) * previousState.currentAmp;
-  const conductanceSiemens = 1 / effectiveResistanceOhm;
-  return {
-    conductanceSiemens,
-    historyCurrentAmp: conductanceSiemens * historyVoltageVolt,
+  return windingCompanion(
     effectiveResistanceOhm,
-    reflectedLoadTorqueNewtonMeter: loadTorque,
+    (inductanceHenry / stepSeconds) * previousState.currentAmp,
+    backEmf * mechanicalHistoryAngularVelocityRadPerSecond,
+    loadTorque,
     mechanicalHistoryAngularVelocityRadPerSecond,
-  };
+  );
 }
 
 function windingTemperature(
@@ -382,6 +434,46 @@ function accumulatedMotorDamage(
         stepSeconds) /
         BRUSHED_MOTOR_DAMAGE_EXPOSURE_SECONDS,
   );
+}
+
+function advanceWindingState(
+  profile: BrushedMotorAssemblyProfile,
+  previousState: BrushedMotorWindingState,
+  currentAmp: number,
+  voltageVolt: number,
+  ambientTemperatureCelsius: number,
+  stepSeconds: number,
+): BrushedMotorWindingState {
+  const copperLossWatt = currentAmp * currentAmp * profile.armatureResistanceOhm.value;
+  const temperatureCelsius = windingTemperature(
+    profile,
+    previousState.temperatureCelsius,
+    copperLossWatt,
+    ambientTemperatureCelsius,
+    stepSeconds,
+  );
+  const failed = previousState.failureMode === 'winding_open';
+  const accumulatedDamage = failed
+    ? previousState.accumulatedDamage
+    : accumulatedMotorDamage(
+        profile,
+        previousState.accumulatedDamage,
+        temperatureCelsius,
+        voltageVolt,
+        stepSeconds,
+      );
+  const failureMode =
+    failed ||
+    temperatureCelsius >= profile.failureTemperatureCelsius.value ||
+    accumulatedDamage >= 1
+      ? 'winding_open'
+      : 'none';
+  return {
+    currentAmp: failureMode === 'winding_open' ? 0 : currentAmp,
+    temperatureCelsius,
+    accumulatedDamage: failureMode === 'winding_open' ? 1 : accumulatedDamage,
+    failureMode,
+  };
 }
 
 function thermalStateFor(
@@ -527,38 +619,23 @@ export function advanceBrushedMotorTransientState(
       ((previousState.motorAngularVelocityRadPerSecond + motorAngularVelocityRadPerSecond) / 2) *
         stepSeconds,
   );
-  const copperLossWatt = currentAmp * currentAmp * profile.armatureResistanceOhm.value;
-  const temperatureCelsius = windingTemperature(
+  const winding = advanceWindingState(
     profile,
-    previousState.temperatureCelsius,
-    copperLossWatt,
+    previousState,
+    currentAmp,
+    voltageVolt,
     ambientTemperatureCelsius,
     stepSeconds,
   );
-  const accumulatedDamage = failed
-    ? previousState.accumulatedDamage
-    : accumulatedMotorDamage(
-        profile,
-        previousState.accumulatedDamage,
-        temperatureCelsius,
-        voltageVolt,
-        stepSeconds,
-      );
-  const failureMode: BrushedMotorFailureMode =
-    failed ||
-    temperatureCelsius >= profile.failureTemperatureCelsius.value ||
-    accumulatedDamage >= 1
-      ? 'winding_open'
-      : 'none';
   const state: BrushedMotorTransientStateEntry = {
     ...previousState,
     simulationTimeSeconds: previousState.simulationTimeSeconds + stepSeconds,
-    currentAmp: failureMode === 'winding_open' ? 0 : currentAmp,
+    currentAmp: winding.currentAmp,
     motorAngularVelocityRadPerSecond,
     motorAngularPhaseRadian,
-    temperatureCelsius,
-    accumulatedDamage: failureMode === 'winding_open' ? 1 : accumulatedDamage,
-    failureMode,
+    temperatureCelsius: winding.temperatureCelsius,
+    accumulatedDamage: winding.accumulatedDamage,
+    failureMode: winding.failureMode,
   };
   const observation = observeBrushedMotorTransientState(
     profile,
@@ -567,4 +644,140 @@ export function advanceBrushedMotorTransientState(
     normalizedInput,
   );
   return { state, observation, companion };
+}
+
+export function createBrushedMotorExternalShaftState(
+  componentId: string,
+  profile: BrushedMotorAssemblyProfile,
+  ambientTemperatureCelsius = BRUSHED_MOTOR_AMBIENT_TEMPERATURE_CELSIUS,
+): BrushedMotorExternalShaftState {
+  if (typeof componentId !== 'string' || componentId.length === 0) {
+    throw new TypeError('external motor shaft component ID is required');
+  }
+  return {
+    componentId,
+    profileId: profile.profileId,
+    profileVersion: profile.profileVersion,
+    atMicroseconds: 0,
+    currentAmp: 0,
+    temperatureCelsius: requireFinite('motor ambient temperature', ambientTemperatureCelsius),
+    accumulatedDamage: 0,
+    failureMode: 'none',
+  };
+}
+
+/** TEST_ONLY accepted winding step with externally owned shaft motion and inertia. */
+export function advanceBrushedMotorExternalShaft(
+  profile: BrushedMotorAssemblyProfile,
+  previousState: BrushedMotorExternalShaftState,
+  input: BrushedMotorExternalShaftStep,
+): BrushedMotorExternalShaftResult {
+  if (
+    typeof previousState.componentId !== 'string' ||
+    previousState.componentId.length === 0 ||
+    input.componentId !== previousState.componentId ||
+    input.profileId !== previousState.profileId ||
+    input.profileVersion !== previousState.profileVersion ||
+    previousState.profileId !== profile.profileId ||
+    previousState.profileVersion !== profile.profileVersion ||
+    input.axis !== 'positive-output-shaft'
+  ) {
+    throw new TypeError('external motor shaft identity, profile or axis mismatch');
+  }
+  if (
+    !Number.isSafeInteger(input.fromMicroseconds) ||
+    !Number.isSafeInteger(input.toMicroseconds) ||
+    input.fromMicroseconds < 0 ||
+    input.fromMicroseconds !== previousState.atMicroseconds ||
+    input.toMicroseconds <= input.fromMicroseconds
+  ) {
+    throw new RangeError('external motor shaft requires a contiguous microsecond interval');
+  }
+  requireFinite('motor previous current', previousState.currentAmp);
+  requireFinite('motor previous temperature', previousState.temperatureCelsius);
+  requireNonNegative('motor previous damage', previousState.accumulatedDamage);
+  const failed = previousState.failureMode === 'winding_open';
+  if (
+    failed
+      ? previousState.currentAmp !== 0 || previousState.accumulatedDamage !== 1
+      : previousState.failureMode !== 'none' || previousState.accumulatedDamage >= 1
+  ) {
+    throw new TypeError('external motor winding damage or failure mode is invalid');
+  }
+
+  const stepSeconds = (input.toMicroseconds - input.fromMicroseconds) / 1e6;
+  const voltageVolt = requireFinite('motor voltage', input.voltageVolt);
+  const ambientTemperatureCelsius =
+    input.ambientTemperatureCelsius === undefined
+      ? BRUSHED_MOTOR_AMBIENT_TEMPERATURE_CELSIUS
+      : requireFinite('motor ambient temperature', input.ambientTemperatureCelsius);
+  const outputAngularVelocity = requireFinite(
+    'external motor shaft velocity',
+    input.outputAngularVelocityRadPerSecond,
+  );
+  const transmissionRatio = ratio(profile);
+  const angularVelocity = requireFinite(
+    'motor velocity',
+    transmissionRatio * outputAngularVelocity,
+  );
+  const inductiveResistanceOhm = profile.armatureInductanceHenry.value / stepSeconds;
+  const companion = failed
+    ? null
+    : windingCompanion(
+        profile.armatureResistanceOhm.value + inductiveResistanceOhm,
+        inductiveResistanceOhm * previousState.currentAmp,
+        profile.backEmfVoltSecondPerRadian.value * angularVelocity,
+        0,
+        angularVelocity,
+      );
+  const intervalCurrentAmp = requireFinite(
+    'motor interval current',
+    companion ? companion.conductanceSiemens * voltageVolt - companion.historyCurrentAmp : 0,
+  );
+  const winding = advanceWindingState(
+    profile,
+    previousState,
+    intervalCurrentAmp,
+    voltageVolt,
+    ambientTemperatureCelsius,
+    stepSeconds,
+  );
+  requireFinite('motor next temperature', winding.temperatureCelsius);
+  requireFinite('motor next damage', winding.accumulatedDamage);
+
+  const electromagneticTorqueNewtonMeter =
+    profile.torqueNewtonMeterPerAmpere.value * intervalCurrentAmp;
+  const viscousTorque = profile.viscousFrictionNewtonMeterSecondPerRadian.value * angularVelocity;
+  const gearTorque = electromagneticTorqueNewtonMeter - viscousTorque;
+  const gearInputPower = requireFinite('motor gear input power', gearTorque * angularVelocity);
+  const efficiency = nominalTransmissionEfficiency(profile);
+  // The analytical fixture assumes the same efficiency in both power directions.
+  // Backdriving supplies gear losses from the shaft rather than from the winding.
+  const gearTransfer = gearInputPower < 0 ? 1 / efficiency : efficiency;
+  const outputTorqueNewtonMeter = requireFinite(
+    'motor output torque',
+    gearTorque * transmissionRatio * gearTransfer,
+  );
+  return {
+    state: {
+      componentId: previousState.componentId,
+      profileId: previousState.profileId,
+      profileVersion: previousState.profileVersion,
+      atMicroseconds: input.toMicroseconds,
+      ...winding,
+    },
+    companion,
+    intervalCurrentAmp,
+    electromagneticTorqueNewtonMeter,
+    outputTorqueNewtonMeter,
+    outputTorqueImpulseNewtonMeterSeconds: requireFinite(
+      'motor output torque impulse',
+      outputTorqueNewtonMeter * stepSeconds,
+    ),
+    viscousLossWatt: requireFinite('motor viscous loss', viscousTorque * angularVelocity),
+    transmissionLossWatt: requireFinite(
+      'motor transmission loss',
+      Math.abs(gearInputPower) * Math.abs(1 - gearTransfer),
+    ),
+  };
 }
