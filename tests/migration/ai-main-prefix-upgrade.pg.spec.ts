@@ -101,6 +101,8 @@ const expectedPending = [
   '0320', // Authorized own progress summary; no identity or score writes.
   '0321', // Qualified ordinary Account admission identity, preserving retained history.
   '0322', // Authorized learner-safe group rank and avatar pages, no scoring rewrite.
+  '0323', // Private Project duplicate lineage inheritance and acquisition receipt boundary.
+  '0324', // Additive classroom merit editing and audited grant/revoke history.
 ];
 
 interface Identity {

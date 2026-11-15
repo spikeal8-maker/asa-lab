@@ -855,11 +855,17 @@
 .classroom-student-picker-popup {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 4px);
+  top: calc(100% + 3px);
   left: 0;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
-  width: min(360px, 100%);
-  min-width: min(280px, 100%);
+  width: 100%;
+  min-width: 0;
+  max-width: calc(100dvw - 16px);
+  max-height: min(400px, 60dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 8px;
   border: 1px solid var(--student-line);
   border-radius: 10px;
@@ -881,6 +887,8 @@
   outline-offset: 2px;
 }
 .classroom-student-picker-popup ul {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: min(320px, 45dvh);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -891,6 +899,7 @@
 .classroom-student .classroom-student-picker-popup button {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   box-sizing: border-box;
   width: 100%;
@@ -910,7 +919,12 @@
   border-radius: 50%;
 }
 .classroom-student-picker-popup button > span {
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+.classroom-student-picker-popup button > span:first-of-type {
+  flex: 1 1 auto;
+  text-align: left;
 }
 .classroom-student .classroom-student-picker-popup button:hover,
 .classroom-student .classroom-student-picker-popup button[aria-current='page'] {
@@ -980,21 +994,26 @@
 .classroom-student .classroom-student-identity-rail .classroom-student-navigation {
   display: grid;
   grid-column: 2;
-  grid-template-columns: minmax(44px, 1fr) minmax(160px, 2fr) minmax(44px, 1fr);
+  grid-template-columns: 130px minmax(0, 1fr) 130px;
   align-items: center;
-  gap: 4px;
+  gap: 0;
   justify-self: start;
-  width: min(100%, 860px);
+  box-sizing: border-box;
+  width: min(100%, 522px);
   max-width: 100%;
   min-width: 0;
+  border: 1px solid var(--student-line);
+  border-radius: 8px;
+  background: #f4f8fa;
 }
 .classroom-student .classroom-student-identity-rail .classroom-student-navigation > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: 100%;
   min-width: 44px;
-  max-width: none;
+  max-width: 130px;
   height: 44px;
   min-height: 44px;
   margin: 0;
@@ -1104,8 +1123,8 @@
   }
   .classroom-student .classroom-student-identity-rail .classroom-student-navigation {
     grid-template-columns: 44px minmax(0, 1fr) 44px;
-    gap: 2px;
-    width: 100%;
+    gap: 0;
+    width: min(100%, 350px);
   }
   .classroom-student .classroom-student-identity-rail .classroom-student-navigation > button {
     width: 44px;
@@ -1127,10 +1146,10 @@
     line-height: 15px;
   }
   .classroom-student .classroom-student-identity-rail .classroom-student-picker-popup {
-    left: -92px;
-    width: min(360px, calc(100cqw - 18px));
-    min-width: 0;
-    max-width: none;
+    left: 0;
+    width: calc(100% + 44px);
+    min-width: 100%;
+    max-width: calc(100dvw - 16px);
   }
 }
 @container teacher-profile (max-width: 350px) {
