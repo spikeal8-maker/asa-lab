@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Робот и рампа · ASA Lab</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+        color: #e9f0f8;
+        background: #0b111a;
+        --panel: #111b28;
+        --line: #2c3b4f;
+        --muted: #a9b9cb;
+        --accent: #a7e8ff;
+        --focus: #ffe196;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 280px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      input,
+      button,
+      select {
+        font: inherit;
+      }
+
+      button,
+      select {
+        min-height: 44px;
+        border: 1px solid #42556c;
+        border-radius: 8px;
+        padding: 8px 13px;
+        color: #eef5fe;
+        background: #172638;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button:not(:disabled):hover,
+      select:not(:disabled):hover {
+        background: #233951;
+        border-color: #91adc8;
+      }
+
+      button:disabled,
+      select:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 3px;
+      }
+
+      button[aria-pressed='true'] {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: #19374c;
+      }
+
+      button.primary {
+        border-color: #abe9ff;
+        color: #0d1c2c;
+        background: #abe9ff;
+      }
+
+      button.primary:not(:disabled):hover {
+        background: #d6f5ff;
+      }
+
+      .shell {
+        width: min(100% - 40px, 1500px);
+        margin: 0 auto;
+        padding-block: 32px 28px;
+      }
+
+      .heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px 28px;
+        margin-bottom: 24px;
+      }
+
+      .eyebrow {
+        color: #b0cdde;
+        font-size: 0.78rem;
+        font-weight: 650;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin-top: 4px;
+        font-size: clamp(2rem, 4vw, 3.3rem);
+        font-weight: 680;
+        letter-spacing: -0.05em;
+        line-height: 1.06;
+      }
+
+      .lead {
+        max-width: 52ch;
+        margin-top: 11px;
+        color: var(--muted);
+      }
+
+      .run-controls,
+      .tool-group,
+      .viewport-toolbar,
+      .viewport-footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .run-controls {
+        align-items: end;
+      }
+
+      .run-controls label {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+
+      .run-controls select {
+        min-width: 148px;
+        font-size: 0.92rem;
+      }
+
+      .main-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(270px, 320px);
+        align-items: start;
+        gap: 16px;
+      }
+
+      .viewer,
+      .panel {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+      }
+
+      .viewport-toolbar,
+      .viewport-footer {
+        justify-content: space-between;
+        padding: 11px 13px;
+      }
+
+      .camera-tools {
+        justify-content: flex-end;
+      }
+
+      .camera-tools .zoom {
+        min-width: 44px;
+        padding-inline: 8px;
+        font-size: 1.12rem;
+      }
+
+      .viewport {
+        position: relative;
+        min-height: 350px;
+        height: clamp(400px, 63vh, 700px);
+        overflow: hidden;
+        isolation: isolate;
+        border-block: 1px solid var(--line);
+        background: #0b1421;
+      }
+
+      .viewport canvas {
+        display: block;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+
+      .viewport-message {
+        position: absolute;
+        inset: auto 14px 14px;
+        z-index: 1;
+        width: fit-content;
+        max-width: calc(100% - 28px);
+        border: 1px solid #3d5067;
+        border-radius: 8px;
+        padding: 7px 11px;
+        color: #d5e4f1;
+        background: #101b29;
+        pointer-events: none;
+      }
+
+      .viewport-footer {
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .clock {
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+        font-weight: 630;
+      }
+
+      .state[data-state='fault'] {
+        color: #ffbcae;
+      }
+
+      .state[data-state='running'] {
+        color: #9ee4bd;
+      }
+
+      .sidebar {
+        display: grid;
+        gap: 12px;
+      }
+
+      .panel {
+        padding: 15px;
+      }
+
+      .panel h2,
+      summary {
+        font-size: 1rem;
+        font-weight: 650;
+      }
+
+      .measurement-list {
+        margin: 8px 0 0;
+      }
+
+      .measurement-list div {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 9px;
+        border-top: 1px solid var(--line);
+        padding: 7px 0;
+      }
+
+      .measurement-list dt {
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .measurement-list dd {
+        margin: 0;
+        text-align: right;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .landmarks {
+        list-style: none;
+        margin: 9px 0 0;
+        padding: 0;
+      }
+
+      .landmarks li {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-top: 1px solid var(--line);
+        padding: 6px 0;
+        font-size: 0.86rem;
+      }
+
+      .landmarks time {
+        white-space: nowrap;
+        color: #c4d9ed;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .quiet {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      summary {
+        cursor: pointer;
+      }
+
+      .circuit {
+        display: grid;
+        gap: 10px;
+        margin-top: 9px;
+      }
+
+      .circuit ul {
+        margin: 0;
+        padding-left: 20px;
+        color: #d1deec;
+        font-size: 0.85rem;
+        overflow-wrap: anywhere;
+      }
+
+      pre {
+        max-width: 100%;
+        margin: 0;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        color: #cce9fa;
+        background: #0c1520;
+        font:
+          0.8rem/1.55 ui-monospace,
+          monospace;
+      }
+
+      .footer {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      @media (max-width: 870px) {
+        .main-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .sidebar {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .viewport {
+          height: clamp(340px, 54vh, 540px);
+          min-height: 0;
+        }
+      }
+
+      @media (max-width: 530px) {
+        .shell {
+          width: calc(100% - 24px);
+          padding-block: 23px;
+        }
+
+        .heading {
+          margin-bottom: 17px;
+        }
+
+        .run-controls,
+        .tool-group {
+          gap: 6px;
+        }
+
+        .run-controls label {
+          flex: 1 1 100%;
+        }
+
+        .run-controls select {
+          width: 100%;
+        }
+
+        .viewport-toolbar {
+          padding: 8px;
+        }
+
+        .camera-tools {
+          justify-content: flex-start;
+        }
+
+        .viewport {
+          height: min(48vh, 400px);
+          min-height: 285px;
+        }
+
+        .sidebar {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="r5-app" class="shell">
+      <header class="heading">
+        <div>
+          <p class="eyebrow">ASA Lab · Эксперимент R5</p>
+          <h1>Робот и рампа</h1>
+          <p class="lead">Живой прогон Arduino, электрической схемы и физики MuJoCo.</p>
+        </div>
+        <div class="run-controls" aria-label="Управление экспериментом">
+          <label>
+            Сценарий
+            <select id="r5-run-case" data-testid="r5-run-case" disabled>
+              <option value="powered">Робот с приводом</option>
+              <option value="control">Контроль с LOW</option>
+            </select>
+          </label>
+          <button id="r5-play" class="primary" data-testid="r5-play" type="button" disabled>
+            Пуск
+          </button>
+          <button id="r5-pause" data-testid="r5-pause" type="button" disabled>Пауза</button>
+          <button id="r5-reset" data-testid="r5-reset" type="button" disabled>Сброс</button>
+        </div>
+      </header>
+
+      <div class="main-grid">
+        <section class="viewer" aria-label="Сцена эксперимента">
+          <div class="viewport-toolbar">
+            <div class="tool-group" role="group" aria-label="Ракурс">
+              <button
+                id="r5-view-spatial"
+                data-testid="r5-view-spatial"
+                type="button"
+                aria-pressed="true"
+              >
+                3D
+              </button>
+              <button id="r5-view-top" data-testid="r5-view-top" type="button" aria-pressed="false">
+                Вид сверху
+              </button>
+            </div>
+            <div class="tool-group camera-tools" role="group" aria-label="Фокус и масштаб">
+              <button id="r5-fit" type="button" title="Показать всё поле">Всё поле</button>
+              <button id="r5-focus-rover" type="button" disabled>Робот</button>
+              <button id="r5-focus-can" type="button" disabled>Банка</button>
+              <button id="r5-zoom-out" class="zoom" type="button" aria-label="Уменьшить масштаб">
+                −
+              </button>
+              <button id="r5-zoom-in" class="zoom" type="button" aria-label="Увеличить масштаб">
+                +
+              </button>
+            </div>
+          </div>
+          <div id="r5-viewport" class="viewport" data-testid="r5-viewport" data-view="spatial">
+            <p id="r5-viewport-message" class="viewport-message">Подготовка сцены…</p>
+          </div>
+          <div class="viewport-footer">
+            <span
+              class="state"
+              id="r5-run-state"
+              data-testid="r5-run-state"
+              data-state="preparing"
+              role="status"
+            >
+              Подготовка симуляции
+            </span>
+            <span>Время модели <output class="clock" id="r5-clock">—</output></span>
+          </div>
+        </section>
+
+        <aside class="sidebar" aria-label="Измерения эксперимента">
+          <section class="panel" data-testid="r5-telemetry">
+            <h2>Измерения</h2>
+            <dl class="measurement-list">
+              <div>
+                <dt>Arduino D5</dt>
+                <dd id="r5-gpio">—</dd>
+              </div>
+              <div>
+                <dt>Напряжение обмотки</dt>
+                <dd id="r5-voltage">—</dd>
+              </div>
+              <div>
+                <dt>Ток обмотки</dt>
+                <dd id="r5-current">—</dd>
+              </div>
+              <div>
+                <dt>Скорость вала</dt>
+                <dd id="r5-speed">—</dd>
+              </div>
+              <div>
+                <dt>Момент на оси</dt>
+                <dd id="r5-torque">—</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="panel" data-testid="r5-landmarks">
+            <h2>События прогона</h2>
+            <p id="r5-no-landmarks" class="quiet">События появятся после запуска.</p>
+            <ol id="r5-landmarks" class="landmarks"></ol>
+            <p id="r5-verdict" class="quiet" hidden></p>
+          </section>
+
+          <details class="panel">
+            <summary>Схема и скетч Uno</summary>
+            <div class="circuit">
+              <ul id="r5-components" aria-label="Компоненты"></ul>
+              <ul id="r5-connections" aria-label="Соединения"></ul>
+              <pre id="r5-arduino-source" aria-label="Скетч Arduino Uno"></pre>
+            </div>
+          </details>
+        </aside>
+      </div>
+      <p class="footer">
+        Тестовая сцена. В архивном опыте R5 робот прошёл физические проверки. Проверка знака работы
+        передачи на всём горизонте осталась открытой.
+      </p>
+    </main>
+    <script type="module" src="./stand.ts"></script>
+  </body>
+</html>
