@@ -8,9 +8,11 @@ export {
 } from './timed-state.js';
 import {
   advanceArduinoCircuitClock,
+  createArduinoCircuitHcSr04TestClock,
   createOwnedArduinoCircuitClockRequest,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
+  type ArduinoCircuitHcSr04Barrier,
   type ArduinoCircuitInputEvent,
 } from './domain/arduino-circuit-scheduler.js';
 import {
@@ -27,7 +29,11 @@ import {
   type SimulationResult,
   type SimulationStatus,
 } from './domain/simulation.js';
-import { simulationInputDigest } from './domain/simulation-input-digest.js';
+import { sha256Hex, simulationInputDigest } from './domain/simulation-input-digest.js';
+import {
+  isHcSr04DistanceMeters,
+  type HcSr04EnvironmentSample,
+} from './domain/models/hc-sr04-runtime.js';
 import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
 import { type ElectronicsLedTemporalObservation } from './domain/led-temporal-observation.js';
 export type {
@@ -80,8 +86,7 @@ export interface ElectronicsTimedInputEvent {
 }
 
 /** Environment observed by the shared HC-SR04 model at the next accepted Trig pulse. */
-export type ElectronicsHcSr04EnvironmentSample =
-  { readonly kind: 'echo'; readonly distanceMeters: number } | { readonly kind: 'no-echo' };
+export type ElectronicsHcSr04EnvironmentSample = HcSr04EnvironmentSample;
 
 /**
  * Stable serializable continuation envelope. The serialized state is engine-owned and opaque to
@@ -408,6 +413,238 @@ export function createElectronicsAdvanceSession(
   return {
     step: () => (disposed ? undefined : iterator.next().value!),
     dispose,
+  };
+}
+
+interface HcSr04TestIdentity {
+  readonly componentId: string;
+  readonly atMicroseconds: number;
+  readonly runId: string;
+  readonly generation: number;
+  readonly sequence: number;
+  /** In-process ownership. Even matching labels cannot authorize another live query. */
+  readonly token: symbol;
+}
+
+export type ElectronicsHcSr04TestQuery = HcSr04TestIdentity & ArduinoCircuitHcSr04Barrier;
+export type ElectronicsHcSr04TestResponse = HcSr04TestIdentity & {
+  readonly geometryAtMicroseconds: number;
+  readonly sample: ElectronicsHcSr04EnvironmentSample;
+};
+
+type HcSr04TestRequest = Omit<ElectronicsTimedAdvanceRequest, 'state'> & {
+  readonly componentId: string;
+  readonly runId: string;
+  readonly generation: number;
+};
+
+type HcSr04TestStep =
+  | ElectronicsHcSr04TestQuery
+  | {
+      readonly kind: 'working' | 'paused';
+      readonly committedHorizonMicroseconds: number;
+    }
+  | {
+      readonly kind: 'fault';
+      readonly committedHorizonMicroseconds: number;
+      readonly diagnostics: readonly ElectronicsTimedDiagnostic[];
+    }
+  | {
+      readonly kind: 'complete';
+      readonly committedHorizonMicroseconds: number;
+      readonly clockState: ArduinoCircuitClockState;
+      readonly clockStateDigest: string;
+      readonly events: ArduinoCircuitClockAdvance['events'];
+      readonly observation: ElectronicsTimedObservation;
+    };
+
+function ownTestData(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return undefined;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const properties = Object.entries(descriptors);
+  if (
+    Object.getOwnPropertySymbols(descriptors).length > 0 ||
+    properties.some(([, property]) => !Object.hasOwn(property, 'value'))
+  )
+    return undefined;
+  return Object.fromEntries(properties.map(([key, property]) => [key, property.value]));
+}
+
+function acceptedHcSr04TestSample(
+  value: unknown,
+  query: ElectronicsHcSr04TestQuery,
+): ElectronicsHcSr04EnvironmentSample | undefined {
+  try {
+    const response = ownTestData(value);
+    if (
+      !response ||
+      response['token'] !== query.token ||
+      response['componentId'] !== query.componentId ||
+      response['runId'] !== query.runId ||
+      response['generation'] !== query.generation ||
+      response['sequence'] !== query.sequence ||
+      response['atMicroseconds'] !== query.atMicroseconds ||
+      response['geometryAtMicroseconds'] !== query.atMicroseconds
+    )
+      return undefined;
+    const sample = ownTestData(response['sample']);
+    if (!sample) return undefined;
+    if (sample['kind'] === 'no-echo' && Object.keys(sample).length === 1)
+      return { kind: 'no-echo' };
+    if (
+      sample['kind'] === 'echo' &&
+      Object.keys(sample).length === 2 &&
+      isHcSr04DistanceMeters(sample['distanceMeters'])
+    )
+      return { kind: 'echo', distanceMeters: sample['distanceMeters'] };
+  } catch {
+    // An unreadable input is a rejected reply, never a failed clock transaction.
+  }
+  return undefined;
+}
+
+function ownHcSr04TestRun(document: ElectronicsEngineDocument, request: HcSr04TestRequest) {
+  const ownedRequest = structuredClone(request);
+  if (
+    !ownedRequest.runId ||
+    !ownedRequest.componentId ||
+    !Number.isSafeInteger(ownedRequest.generation) ||
+    ownedRequest.generation < 1
+  )
+    throw new TypeError('The HC-SR04 test run needs valid identity labels.');
+
+  const inputs = (ownedRequest.inputEvents ?? []).map((event) => {
+    const input = schedulerInputEvent(event);
+    if (!input) throw new TypeError('Unsupported HC-SR04 test input operation.');
+    return input;
+  });
+  return {
+    document: structuredClone(document),
+    runId: ownedRequest.runId,
+    generation: ownedRequest.generation,
+    componentId: ownedRequest.componentId,
+    requestedHorizonMicroseconds: ownedRequest.requestedHorizonMicroseconds,
+    options: {
+      inputs,
+      ...(ownedRequest.maxEvents === undefined ? {} : { maxClockEvents: ownedRequest.maxEvents }),
+    },
+  };
+}
+
+/** TEST_ONLY in-memory seam. This session neither takes nor returns a v1 continuation. */
+export function createElectronicsHcSr04QueryTestSession(
+  document: ElectronicsEngineDocument,
+  request: HcSr04TestRequest,
+) {
+  type OwnedRun = ReturnType<typeof ownHcSr04TestRun>;
+  const openClock = (run: OwnedRun) =>
+    createArduinoCircuitHcSr04TestClock(
+      run.document,
+      run.requestedHorizonMicroseconds,
+      run.options,
+      run.componentId,
+    );
+  let ownedRun: OwnedRun | undefined = ownHcSr04TestRun(document, request);
+  let clock: ReturnType<typeof openClock> | undefined = openClock(ownedRun);
+  let generation = ownedRun.generation;
+  let sequence = 0;
+  let committedHorizonMicroseconds = 0;
+  let pending: ElectronicsHcSr04TestQuery | undefined;
+  let reply: ElectronicsHcSr04EnvironmentSample | undefined;
+  let paused = false;
+
+  function close() {
+    const active = clock;
+    clock = undefined;
+    pending = undefined;
+    reply = undefined;
+    paused = false;
+    active?.return(undefined as never);
+  }
+
+  return {
+    step(): HcSr04TestStep | undefined {
+      if (!clock || !ownedRun) return undefined;
+      if (paused) return { kind: 'paused', committedHorizonMicroseconds };
+      if (pending) return pending;
+      const sample = reply;
+      reply = undefined;
+      let next: ReturnType<typeof clock.next>;
+      try {
+        next = clock.next(sample);
+      } catch {
+        close();
+        return {
+          kind: 'fault',
+          committedHorizonMicroseconds,
+          diagnostics: [
+            { code: 'hc_sr04_test_clock_failed', message: 'The HC-SR04 test clock failed.' },
+          ],
+        };
+      }
+      if (!next.done) {
+        const suspension = next.value;
+        committedHorizonMicroseconds = suspension.committedHorizonMicroseconds;
+        if (suspension.kind === 'working') return suspension;
+        pending = Object.freeze({
+          ...suspension,
+          runId: ownedRun.runId,
+          generation,
+          sequence: ++sequence,
+          token: Symbol(),
+        });
+        return pending;
+      }
+
+      close();
+      const advance = next.value;
+      if (advance.executionStatus !== 'ready' || !advance.state || !advance.result)
+        return {
+          kind: 'fault',
+          committedHorizonMicroseconds,
+          diagnostics: advance.diagnostics,
+        };
+      return {
+        kind: 'complete',
+        committedHorizonMicroseconds: advance.state.reachedMicroseconds,
+        clockState: structuredClone(advance.state),
+        clockStateDigest: sha256Hex(JSON.stringify(advance.state)),
+        events: structuredClone(advance.events),
+        observation: timedObservation(advance.result),
+      };
+    },
+    respond(value: unknown): boolean {
+      const query = pending;
+      if (paused || !query) return false;
+      const sample = acceptedHcSr04TestSample(value, query);
+      if (!sample || pending !== query || paused) return false;
+      pending = undefined;
+      reply = sample;
+      return true;
+    },
+    pause() {
+      if (clock) paused = true;
+    },
+    resume() {
+      paused = false;
+    },
+    cancel: close,
+    reset(nextGeneration: number): boolean {
+      if (!ownedRun || !Number.isSafeInteger(nextGeneration) || nextGeneration <= generation)
+        return false;
+      close();
+      generation = nextGeneration;
+      sequence = 0;
+      committedHorizonMicroseconds = 0;
+      clock = openClock(ownedRun);
+      return true;
+    },
+    dispose() {
+      ownedRun = undefined;
+      close();
+    },
   };
 }
 
