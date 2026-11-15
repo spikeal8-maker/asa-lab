@@ -139,11 +139,12 @@ class PortableASACommandTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix" and os.geteuid() == 0, "Production launcher is installed by root")
     def test_production_launcher_survives_application_switch_and_rejects_writable_tools(self):
-        with tempfile.TemporaryDirectory(dir="/opt", prefix="asa-launcher-test-") as work:
+        with tempfile.TemporaryDirectory(dir="/", prefix="asa-launcher-test-") as work:
             Path(work).chmod(0o755)
             external = Path(work) / "tools-checkout"
             bindir = Path(work) / "bin"
-            bindir.mkdir()
+            bindir.mkdir(mode=0o755)
+            bindir.chmod(0o755)
             shutil.copytree(self.tools, external / "tools")
             def git(*args):
                 return subprocess.check_output(["git", "-C", str(external), *args], text=True, stderr=subprocess.PIPE)
