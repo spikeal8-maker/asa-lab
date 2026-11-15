@@ -17850,14 +17850,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_mujoco_finite_cap_fixed_tilt_32_temporal_refinement_selected
+      checkpoint: e1_mujoco_finite_cap_moving_top_stage01_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: D01-FIXED-TILT-32-TEMPORAL-REFINEMENT
+      slice: D01-MOVING-TOP-STAGE01
       planned_paths:
-      - tests/robotics/field-core-qualification/mujoco-finite-cap-tilt-refinement.fixture.json
-      - tests/robotics/field-core-qualification/mujoco-finite-cap-tilt-refinement.spec.ts
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-moving-top.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-moving-top.spec.ts
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -17935,6 +17935,69 @@ parallel_lanes:
             stock_first_failure_us: 275000
             first_failure: FIXED_CAN_CUMULATIVE_SLIP
           preservation_branch: codex/robotics-mujoco-finite-cap-fixed-tilt-1071
+        r3:
+          authored_source: 886d233da7b0448a188f0b96f0f477f4d648c9d9
+          source_tree: ccb0596fc8fb64986a9db81edd019388f966339a
+          preservation_branch: codex/robotics-mujoco-finite-cap-tilt-refinement-1071
+          raw_file: finite-cap-tilt-refinement.ndjson
+          raw_sha256: e8b2637a7478ae101dddcde1c163ff30fa509a1e88d0b034d7a85fd4987af033
+          raw_bytes: 75331682
+          runtime: COMPLETE
+          physical: FAIL
+          patch_contribution: INCONCLUSIVE
+          temporal_attribution: INCONCLUSIVE
+          intervals: 16000
+          first_failure: FIXED_CAN_CUMULATIVE_SLIP
+          candidate_first_failure_us: 266000
+          stock_first_failure_us: 281000
+          candidate_total_slip_m: 0.003963826240480061
+          stock_total_slip_m: 0.003791581338823233
+          registered_acquisition:
+            scope: TEST_ONLY
+            prior_position_admission: 6cdf7afc91de46f1f186e473da5d4562b7c445fc
+            prior_position_receipt_sha256: 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7
+            upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+            candidate_wasm_sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241
+            candidate_glue_sha256: 7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db
+            candidate_build_receipt_sha256: 59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca
+            stock_wasm_sha256: 51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
+            stock_glue_sha256: 85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2
+            order:
+            - candidate:32:250us
+            - stock:32:250us
+            model_250us_sha256: 444a391860ba914c6902c7a1a51e78224ec4d60e38c89050a2cd603a6ea43090
+            model_500us_sha256: f63222a55bfa10662b4514d19ee54a61c8e75786c521cf6d1541dcde44b618c4
+            model_delta: sole exact timestep replacement 500 us to 250 us; identical XML across both engines.
+            schedule:
+              horizon_us: 2000000
+              timestep_us: 250
+              intervals_per_world: 8000
+              total_intervals: 16000
+              window_us: 100000
+              intervals_per_window: 400
+              phase_calls_cap_each: 16000
+              contact_cap: 4
+              constraint_row_cap: 12
+              journal_byte_cap: 134217728
+            physical_gates: Same pinned observer, finite PRE-to-solved rows, outward loaded support and inherited
+              downhill rim. Preserve 0.001 m/s loaded point slip and 0.0001 m cumulative slip from first support,
+              downhill beta >= 2 degrees, signed omega >= 0.01 rad/s, uphill lift >= 0.001 m, growth >= 0.25 degrees.
+              Preserve the full horizon and first failure. Observation errors retain partial raw with unresolved
+              attribution. No threshold/geometry/profile change.
+            comparison: Compare to matching engine at 500 us from R2 saved raw only. Report first touch and seating
+              slip separately from first beta>=2 PRE and its 100 ms native support/slip/air-gap/force witness. Record
+              ideal pivot friction adequacy. Support timestep sensitivity only with recovered frozen early support
+              and slip gates. Separately report seat-only improvement, continued comparable early failure or inconclusive
+              missing/invalid comparison.
+            acquisition_admission: After protected docs merge, fresh exact two-path preflight, pure/default-skip
+              pins and one XML replacement, independent exact-source review, one controller-authorized paired acquisition,
+              independent raw recomputation, and applicable protected checks. Use exclusive external NDJSON and retained
+              inputs. No fresh acquisition after any native dispatch. A proven zero-dispatch startup error permits
+              a separately reviewed startup recovery with unchanged physical inputs and preserved prior receipt.
+            exclusions: No R2 rerun, 28-degree rerun, artifact rebuild, general convergence, PHY-06 gradual tilt,
+              PHY-14 or D01 closure, product, rollout or deployment.
+            source_starting_point: Read-only exact R2 authored fixture/spec as implementation reference for only
+              the two newly selected paths. Use the recorded R2 trial as saved control.
       selected_acquisition:
         scope: TEST_ONLY
         prior_position_admission: 6cdf7afc91de46f1f186e473da5d4562b7c445fc
@@ -17945,42 +18008,42 @@ parallel_lanes:
         candidate_build_receipt_sha256: 59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca
         stock_wasm_sha256: 51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
         stock_glue_sha256: 85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2
-        order:
-        - candidate:32:250us
-        - stock:32:250us
-        model_250us_sha256: 444a391860ba914c6902c7a1a51e78224ec4d60e38c89050a2cd603a6ea43090
-        model_500us_sha256: f63222a55bfa10662b4514d19ee54a61c8e75786c521cf6d1541dcde44b618c4
-        model_delta: sole exact timestep replacement 500 us to 250 us; identical XML across both engines.
+        mechanism: Archived 5 kg hinged deck and exact named finite cylinder-support pair.
+          Use the same native servo with archived bounds and actual ctrl, no post-build pose or velocity
+          writes. Preserve all other model parts and candidate versus stock nativeCCD profile (65536/32).
+        archive:
+          base: 9a51aff78065244910a82b0f948fe0862e1fdf68
+          fixture_sha256: fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5
+          original_harness_sha256: c3a21764baeff02acd030928a234c2cb58ffbb9811641cdfdfd83b3772c19be0
+          contact_observer_sha256: 77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987
+        order: [candidate, stock]
         schedule:
-          horizon_us: 2000000
-          timestep_us: 250
-          intervals_per_world: 8000
-          total_intervals: 16000
-          window_us: 100000
-          intervals_per_window: 400
-          phase_calls_cap_each: 16000
-          contact_cap: 4
-          constraint_row_cap: 12
-          journal_byte_cap: 134217728
-        physical_gates: Same pinned observer, finite PRE-to-solved rows, outward loaded support and inherited
-          downhill rim. Preserve 0.001 m/s loaded point slip and 0.0001 m cumulative slip from first support,
-          downhill beta >= 2 degrees, signed omega >= 0.01 rad/s, uphill lift >= 0.001 m, growth >= 0.25 degrees.
-          Preserve the full horizon and first failure. Observation errors retain partial raw with unresolved
-          attribution. No threshold/geometry/profile change.
-        comparison: Compare to matching engine at 500 us from R2 saved raw only. Report first touch and seating
-          slip separately from first beta>=2 PRE and its 100 ms native support/slip/air-gap/force witness. Record
-          ideal pivot friction adequacy. Support timestep sensitivity only with recovered frozen early support
-          and slip gates. Separately report seat-only improvement, continued comparable early failure or inconclusive
-          missing/invalid comparison.
-        acquisition_admission: After protected docs merge, fresh exact two-path preflight, pure/default-skip
-          pins and one XML replacement, independent exact-source review, one controller-authorized paired acquisition,
-          independent raw recomputation, and applicable protected checks. Use exclusive external NDJSON and retained
-          inputs. No fresh acquisition after any native dispatch. A proven zero-dispatch startup error permits
-          a separately reviewed startup recovery with unchanged physical inputs and preserved prior receipt.
-        exclusions: No R2 rerun, 28-degree rerun, artifact rebuild, general convergence, PHY-06 gradual tilt,
-          PHY-14 or D01 closure, product, rollout or deployment.
-        source_starting_point: Read-only exact R2 authored fixture/spec as implementation reference for only
-          the two newly selected paths. Use the recorded R2 trial as saved control.
+          timestep_us: 500
+          settle_us: 2000000
+          stage01_target_deg: 0.24
+          stage01_transition_us: 250000
+          stage01_hold_us: 1000000
+          horizon_us: 3250000
+          intervals_per_world: 6500
+          total_intervals: 13000
+          phase_calls_cap_each: 13000
+          settled_and_hold_window_intervals: 200
+          row_record_byte_cap: 16384
+          journal_byte_cap: 268435456
+          worst_case_receipt_bytes: 262932480
+        physical_gates: Preserve archived settle, continuously loaded outward support, 0.001 m/s
+          point-relative and 0.0001 m cumulative slip, finite top presence, and 32 N m servo force bound.
+          Record actual ctrl, servo force and signed work. Independently reconstruct PRE body point
+          velocities at the same world contact point, subtract moving deck from can, and verify solved
+          native row identities across dispatch. Report whether the finite-cap half-depth signature
+          is distinguishable during nonzero measured deck point motion separately from stage stability.
+          Missing actual moving-deck signature stays UNEXERCISED.
+        acquisition_admission: After protected docs merge, new exact two-path preflight, frozen engine,
+          source, XML and archive pins with pure default-skip checks, independent exact-source review and
+          one controller-authorized paired acquisition. Retain an exclusive external journal, raw
+          recomputation and applicable protected checks. Any new dispatched observation failure stays.
+        exclusions: No fixed-tilt, 28-degree or 32-degree rerun, full PHY-06 motion or threshold,
+          PHY-14, D01 or D02 closure, product, release or deployment. No binary rebuild or profile tuning.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
@@ -18660,7 +18723,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: tt_native_source_accepted_rover_registration_pending_main
+      checkpoint: rover_r1_preserved_r2_contact_work_correction_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
@@ -18668,9 +18731,46 @@ parallel_lanes:
       owner_authorization: 'The owner directed the Robotics program to prove that an Arduino-driven robot
         climbs a ramp and physically tips a can. This selection records one bounded TEST_ONLY experiment
         under that program. Receipt: https://github.com/spikeal8-maker/asa-lab/issues/1181.'
-      activation_condition: Verify the accepted TT source and its required exact-head outcome below. Source
-        preflight opens after the protected docs-only registration is accepted on main. Native admission
-        also needs the frozen two-path candidate, pure admission checks and independent HIGH review.
+      activation_condition: Source preflight opens after protected R2 registration on main. Freeze the
+        unchanged R1 fixture and corrected spec, reconstruct R1 raw offline and obtain independent exact
+        HIGH review before one fresh pair. A further selection is required after another dispatch error.
+      observer_refinement:
+        revision: R2
+        implementation_base: b9d556aeb9e359c61d277dc7d72707303bd4f7ee
+        unchanged_fixture_sha256: 32265449f4770dae67b9305f74df2144e3855c480d738dcbb2cde2b239e122b6
+        correction: Compare independent PRE material-point first variation with dense J_PRE delta_q.
+          Retain the finite POST rigid material-point chord and verify its difference from the tangent
+          with a per-body Taylor remainder bound plus floating-point allowance. Keep signed native row
+          work as the primary contact ledger, nonnegative net absorption and the existing guards.
+        offline_r1_replay: Reconstruct 2109 intervals and 25300 solved contacts without engine initialization.
+          Keep the original 1 microjoule or 1 percent work agreement allowance on the tangent comparison.
+      historical_native_results:
+        r1:
+          registration:
+            merge: c70ee71b449920fa9e549b48ac5ff36267de2e0f
+            tested_head: c834b1965bcc22125eb88b760f5213cc45201f31
+            required_success: https://github.com/spikeal8-maker/asa-lab/actions/runs/43690635257/job/132746161609
+          source_commit: b9d556aeb9e359c61d277dc7d72707303bd4f7ee
+          source_branch: codex/robotics-arduino-rover-ramp-can-1181
+          spec_sha256: 8a3e14be4a3acbb943e76329be3af5c06b95d0cf7379fe2c65c7a4ec66a01125
+          archive_directory: asa-robotics-arduino-rover-proof-f7ddee233347472e874f9fff4da3b9fb
+          metadata: {file: arduino-rover-r1181.jsonl, sha256: ff4ec77ce7cf4c7d99bb248f752d80f394eb3eb7c638c56bf205bfac58e76eda}
+          binary: {file: arduino-rover-r1181.bin, sha256: 3c48b23f8c7cae55769b7f2299520b985da54963d7b108ea80730a296f9b663b}
+          status: UNRESOLVED
+          stage: retained_interval_contact_work_comparison
+          powered_step1: 2110
+          powered_step2: 2109
+          control: NOT_RUN
+          full_pair: NOT_RUN
+          captured_and_canonical_us: 1052500
+          first_mixed_ramp_rows_us: [1052000, 1052500]
+          contacts_reconstructed: 25300
+          row_work_microjoule: -21.513218500838024
+          finite_chord_work_microjoule: -20.428087163008122
+          tangent_max_displacement_error_m: 4.829827760063868e-18
+          failing_row_curvature_m: 6.41443669708086e-7
+          failing_row_taylor_bound_m: 6.891811523744074e-7
+          physical_result: No completed climb, tip, side support or matched control verdict.
       accepted_source_dependencies:
         tt_native_drive:
           task_id: TASK-ELECTRONICS-ROBOTICS-TT-NATIVE-DRIVE-001
@@ -18693,22 +18793,22 @@ parallel_lanes:
       - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
       - docs/product/robotics/FIELD_CORE_SPEC.md
       - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
-      gate_boundary: Registration is docs-only and uses governance validation. On the selected source require
-        exact path preflight, the focused qualification spec and pure receipt replay, independent HIGH review
-        before native, paired 10-second dynamics and an independent exact repeat, then applicable protected
-        CI. No product runtime, rollout or D01/D02 closure.
+      gate_boundary: Registration is docs-only and uses governance validation. Require exact two-path
+        source preflight, focused qualification, offline R1 replay and independent HIGH review before
+        one fresh 10-second pair. PASS requires independent exact repetition of a successful pair and
+        applicable protected CI. Preserve dispatch failures. No product runtime, rollout or D01/D02 closure.
       deployment: not_authorized
       database_actions: none
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9af20ffb14149b32b13e3551be5ec1bdd4f8e58a
+      convergence_baseline_sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
       head_sha: null
-      observed_at: '2026-11-15T07:24:31Z'
+      observed_at: '2026-11-15T08:37:06Z'
       main:
         branch: main
-        sha: 9af20ffb14149b32b13e3551be5ec1bdd4f8e58a
-      observation_note: Dated registration baseline after protected TT source acceptance. Fetch main and
-        reverify the live two-path plan, dependency receipt and applicable blockers before source work.
+        sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
+      observation_note: Dated baseline before R2 observer registration. Fetch main and reverify
+        the live two-path plan, accepted dependency and applicable blockers before source work.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
