@@ -166,7 +166,7 @@ class PortableASACommandTests(unittest.TestCase):
             # A named service owner can validate a deliberately readable, root-controlled tools checkout.
             verify = subprocess.run([str(launcher), "--launcher-verify", str(self.root)], user="nobody",
                                     group="nogroup", extra_groups=(), capture_output=True, text=True, timeout=10,
-                                    env=self.env)
+                                    cwd="/root", env=self.env)
             self.assertEqual(verify.returncode, 0, verify.stderr)
             self.assertEqual(verify.stdout.strip(), "ASA_LAUNCHER_FORWARD_V1")
             for action in ("check", "update"):
