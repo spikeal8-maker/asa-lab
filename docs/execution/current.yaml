@@ -10943,19 +10943,27 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: blocked
-      checkpoint: new_exact_composition_blocked_by_independent_asset_548
+      status: in_progress
+      checkpoint: catalog_548_oracle_passed_current_main_legacy_wire_revalidation
       dependency_issue: 548
       owner_acceptance: pending
-      dependency_status: open_no_proven_cause
+      dependency_status: original_catalog_failure_not_reproduced_on_current_main
+      dependency_verification:
+        source_sha: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
+        browser_run_id: 43750295486
+        browser_job_id: 132922537771
+        conclusion: success
+        scope: Unchanged permanent AA2 image warning on both stage and mounted catalog in built Chromium.
+        diagnostic_api_mode: fixture
+        prior_merged_image_delivery_sha: 5d6866bdc
+        prior_merged_image_mount_sha: 09b4c8162a52fad4e5f54359eace4d18b6799f31
+        historical_failure_run_id: 38118290466
       selected_at: '2026-10-09T16:49:06Z'
       preserved_candidate_sha: 51991c0339009f3e358bf405fddb8c48743262ef
       independent_review: request_changes
       independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
       independent_review_original_sha256: 380eb745d1e84b5fe385ec66799e008cc3b7706f90c81fba97db1cb598e18eb7
-      repair_scope: No E07 product or fixture edits. Preserve exact1b; separate asset548 cause/repair owns
-        failing old case. Resume only after actual dependency result with required final exact gates and NEW
-        independent review.
+      repair_scope: Verify the preserved E07 moveWireSegment change and full native save/reopen on current main.
       preserved_candidate_tree: f68d6a4980a89b5c5c756396ccf73104e5657d06
       preserved_candidate_branch: codex/electronics-538-native-observer-r1
       preserved_review: approved_source_only_not_new_composition_acceptance
@@ -10964,8 +10972,7 @@ parallel_lanes:
       preserved_electronics_run: 37970573601
       preserved_all8: success
       controller_observed_at: '2026-10-11T06:59:21Z'
-      next_action: Wait for separately proved548 repair; no unchanged full CI rerun. Old391 APPROVE/all8 is
-        historical and does not accept1b. All original candidates and accepted code preserved.
+      next_action: Verify the exact current E07 composition and keep independent review and release acceptance separate.
       preserved_composition_sha: 6a0edfc99c185ebad02c5f81536d98b15f7c76ee
       preserved_composition_tree: 572ef954785dd6843e5f8949eb735a46685dc9ab
       preserved_composition_branch: codex/electronics-538-final-main-convergence
@@ -21628,23 +21635,6 @@ blocking:
       - focused_verification
     reason: E1 corrections remain open. The learning task selects the current bounded author-workspace slice; earlier visible-first assignments are historical evidence. Owner acceptance and release/deployment claims remain blocked until the required E1 corrections and evidence are complete.
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
-  - id: ELECTRONICS-538-ASSET-548
-    kind: acceptance_blocker
-    lane: electronics-wire
-    task_id: TASK-ELECTRONICS-LEGACY-WIRE-SEGMENT-001
-    blocks:
-    - technical_acceptance
-    - integration
-    - close_issue
-    - owner_acceptance
-    - release_claim
-    allows:
-    - bounded_diagnostic
-    - documentation_update
-    - focused_verification
-    reason: Exact1b required ordinary38118290466 browser114407851393 FAIL existing catalog image badge at2116;
-      images skipped. Separate548 causal repair required; E07 actual journeys pass and must be preserved.
-    evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
   - id: ELECTRONICS-552-PIEZO-CLOCK-553
     kind: acceptance_blocker
     lane: electronics-startup
