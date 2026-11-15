@@ -193,6 +193,13 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
       teacherPersonal,
     ]);
     expect(published.rows[0].ok).toBe(true);
+    expect(
+      (
+        await runtime.query('SELECT 1 FROM project_publications WHERE project_id=$1', [
+          teacherPersonal,
+        ])
+      ).rowCount,
+    ).toBe(1);
 
     const scoped = await f.project(f.teacherPrincipal, f.classroomId);
     await expect(
@@ -243,12 +250,17 @@ describe('Safe Mode retroactively blocks public reads and retains withdrawal aut
         revisionId,
       ]);
     const legacyImage = () => runtime.query('SELECT * FROM gallery_snapshot($1)', [projectId]);
+    const legacyRows = () =>
+      runtime.query('SELECT count(*)::int AS count FROM project_publications WHERE project_id=$1', [
+        projectId,
+      ]);
 
     expect((await visible()).rows[0].allowed).toBe(true);
     expect((await publicList()).rowCount).toBe(1);
     expect((await publicImage()).rowCount).toBe(1);
     expect((await publicArtifact()).rowCount).toBe(1);
     expect((await legacyImage()).rowCount).toBe(1);
+    expect((await legacyRows()).rows[0].count).toBe(1);
 
     @Module({})
     class PublicHttpTestModule {}
@@ -295,6 +307,7 @@ describe('Safe Mode retroactively blocks public reads and retains withdrawal aut
       expect((await publicImage()).rowCount).toBe(0);
       expect((await publicArtifact()).rowCount).toBe(0);
       expect((await legacyImage()).rowCount).toBe(0);
+      expect((await legacyRows()).rows[0].count).toBe(0);
       expect((await app.inject({ method: 'GET', url: route })).statusCode).toBe(404);
       expect(
         (await app.inject({ method: 'GET', url: route + '/image?revision=' + revisionId }))
@@ -336,6 +349,7 @@ describe('Safe Mode retroactively blocks public reads and retains withdrawal aut
         f.classroomId,
       ]);
       expect((await visible()).rows[0].allowed).toBe(false);
+      expect((await legacyRows()).rows[0].count).toBe(0);
       expect((await app.inject({ method: 'GET', url: route })).statusCode).toBe(404);
       await expect(
         admin.query("UPDATE project_publication_state SET state='public' WHERE id=$1", [publicId]),

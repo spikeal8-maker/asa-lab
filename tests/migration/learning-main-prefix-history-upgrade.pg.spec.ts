@@ -517,7 +517,7 @@ const upgradeArtifacts = [
   [
     '0328',
     '0328_classroom_gallery_publish_safe_mode.sql',
-    '9752ef264da813ed10893f71c4dcaf8bda9ecdf73d9671f9f94cd3ee7d97ec06',
+    '0ec353f75124343b99270e701ac47e3284aa8a012bb56f9b12bcbaab736e568a',
   ],
 ] as const;
 
