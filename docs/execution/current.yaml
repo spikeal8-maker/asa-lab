@@ -17915,14 +17915,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_mujoco_finite_cap_biased_sweep_selected
+      checkpoint: e1_mujoco_aot_worker_csp_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: D01-BIASED-SWEEP
+      slice: D01-AOT-WORKER-CSP
       planned_paths:
-      - tests/robotics/field-core-qualification/mujoco-finite-cap-biased-sweep.fixture.json
-      - tests/robotics/field-core-qualification/mujoco-finite-cap-biased-sweep.spec.ts
+      - tools/robotics-field-core/mujoco-aot-worker-csp.fixture.json
+      - tools/robotics-field-core/mujoco-aot-worker-csp.mjs
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -18140,7 +18140,7 @@ parallel_lanes:
           where s is the can base-center signed distance and reach is radius times relative-axis sine. In all 500
           ramp intervals per engine the entire cap is submerged in the contact layer (s <= -reach). Even the
           closest s + reach is approximately -0.603 micrometres. This supplies a direct fallback explanation.
-      selected_acquisition:
+      biased_sweep_registration:
         scope: TEST_ONLY
         prior_position_admission: 6cdf7afc91de46f1f186e473da5d4562b7c445fc
         prior_position_receipt_sha256: 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7
@@ -18235,6 +18235,135 @@ parallel_lanes:
           The deliverable is a single biased native servo sweep. Fixed-tilt repetitions, a full PHY-06
           sweep or bracket, PHY-14, D01 or D02 closure, artifact rebuild, numerical tuning, product,
           release and deployment are outside its scope.
+      biased_sweep_result:
+        selection_merge: 4db02ab6b43cafbc72623b38def2ba155e01faa2
+        authored_source: 5133da7fb97ca106d19abc80e87d6ff282884f08
+        source_tree: 4ee64c02fc0300d5ad1ebb1227a6e61ce6d50ae7
+        preservation_branch: codex/robotics-mujoco-finite-cap-biased-sweep-1071
+        protected_source_merge: fe37f932ff7d2a83ee697f955021b87f083a7265
+        protected_source_head: d46504f968bfc2f5de9ff4e59a9c072580aa44fb
+        protected_source_required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/43712834026/job/132815313061
+        source_sha256: 8df202316f38505e794a94feb161db1a09df3e3410f8fde1f44c9c6599bc1e95
+        fixture_sha256: 8e12e5580deffae69b0462063d2e9b5c08771ee8e4adc080f714b46ae9124a8e
+        shared_xml_sha256: b39f6f4b2e5cca9c81086faa1a29fb6f25e7f4d103e4900be0aef78fec019e39
+        raw_file: mujoco-finite-cap-biased-sweep.ndjson
+        raw_sha256: f3e700b3c8d8d97e26976dc8faf0d9b93fe1dc3be8a2189fd00f5a7a3fcb0110
+        raw_bytes: 153317114
+        runtime: COMPLETE
+        physical: FAIL
+        candidate_physical: PASS
+        stock_physical: FAIL
+        stock_first_gate_failures:
+          - [INDETERMINATE_INITIAL_SETTLE_NOT_STABLE, 4000]
+          - [INDETERMINATE_STAGE_END_NO_STABLE, 6500]
+        attribution: CANDIDATE_DISTINGUISHED
+        steps_per_world: 6500
+        intervals_replayed: 13000
+        first_shared_loaded_opportunity_tick: 4001
+        shared_loaded_eligible_ticks: 495
+        candidate_loaded_matching_ticks: 500
+        stock_loaded_matching_ticks: 0
+        disposition: The protected source and saved raw support the candidate result for the registered
+          28.00 to 28.24 degree native sweep. The paired physical verdict remains FAIL because the
+          stock control missed both stability windows. Keep the complete old receipt and all earlier
+          fixed-tilt, moving-top and temporal-refinement verdicts separately.
+      selected_acquisition:
+        scope: TEST_ONLY
+        purpose: >-
+          Verify that the admitted finite-cap engine can be relinked and executed as a same-origin
+          module Worker under a response-scoped WebAssembly permission and strict JavaScript CSP.
+          Keep PHY-06 gradual dynamics, D01 qualification and D02 coupling open.
+        artifact_inputs:
+          upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+          patch_sha256: d60b5145ebe52ce5b2ed70f1a5db30448164da0bcabd50e28adfdc4afa74dc67
+          build_receipt_sha256: 59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca
+          patched_collision_object_sha256: 018025bb9b4aa97263637d38660be5df98fbc3c12f62d45f1c9b1bf36005b5fd
+          libmujoco_archive_sha256: 75d00019baa48eff25c1ee189f9b1eb3494c1c2e2a395d31112532a5b1ab6b68
+          admitted_candidate_wasm_sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241
+          admitted_candidate_glue_sha256: 7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db
+          legacy_stock_wasm_sha256: 51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
+          legacy_stock_glue_sha256: 85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2
+          emscripten: 4.0.10-git b7dc6e5747465580df5984e723b9d1f10d8e804b
+          playwright: 1.55.1
+          chromium: 140.0.7339.186
+        relink: >-
+          Reuse the archived link recipe, target and exact patched object through the pinned MuJoCo
+          archive. Bind and verify the complete preexisting compiled inputs, dependencies, licenses,
+          compiler and tooling. Use a fresh external Temp link/cache/output location and only the
+          existing toolchain and dependencies. Keep original inputs, build tree and artifacts
+          read-only. The only setting changes are -sDYNAMIC_EXECUTION=0 and -sEMBIND_AOT=1.
+          Record the normalized original and candidate link commands, input and output digests,
+          build-time Embind registration and cleanup. Preserve single-threaded Release and all
+          solver, model and native ABI inputs. Stop if verified bytes or tooling are unavailable.
+        browser_isolation: >-
+          Use existing pinned Chromium with a fresh offline context and service workers disabled.
+          Fulfill only an exact synthetic HTTPS same-origin URL allowlist from pinned in-memory
+          bytes. Serve a named module Worker at its own URL. Mirror the pinned Fastify page CSP
+          without a WebAssembly allowance. On only the Worker response give script-src 'self'
+          'wasm-unsafe-eval' with default-src 'none', connect-src 'self' and worker-src 'none'.
+          Permit no JavaScript eval, blob Worker, redirects, network egress, server or stand change.
+          Verify request/response URLs, MIME including application/wasm, actual policy application,
+          byte hashes and Worker ownership before model creation. Close and record every Worker,
+          context, browser and native resource even on failure.
+        dynamic_replay:
+          source_commit: b9039f8713173faca93365977ecb2a43a68e949c
+          spec_sha256: 8673fb73ca32d96db22dbfb0877d9d4e1fb6727e7286297899c60e613a9482af
+          fixture_sha256: 08a2e75a4fdd72c6cedfcba56be832eda3e67d54065046d693749c30999f70ed
+          raw_file: native-shared-motion.json
+          raw_sha256: 18be2f71cef23db2160d18d6592e12f9c4f0e72691db8dc844258ffa302a5434
+          raw_bytes: 7963163
+          model_xml_sha256: 0bf3f6535cb100d3560e7bbe3606d685f7f770614eb63bc3d6935c54e02aac35
+          final_f64_sha256: 894c4d150f2f33ed02cb59be658c81706acf34be01e3c582985277834b7ecea8
+          prior_legacy_denied_receipt_sha256: f86da9f2ab8f65899188ea2da829250b00d6e2a4f8af7875293f0090a87fcf4b
+          prior_legacy_permissive_receipt_sha256: 420e3a1789408dcccaa76bc7d5758ba8cdf31b3afb01996412fb33c989afeea5
+          model_count: 1
+          intervals: 12000
+          phase_calls_cap_each: 12000
+          timestep_us: 500
+          horizon_us: 6000000
+          archival_samples: 600
+          terminal_f64_words: 37
+          comparison: >-
+            Preserve the archived factory, shared nativeCCD solver, 2 s motor settle, 0.035 N m
+            cap/25 rad/s measured-speed motor law and 5 ms can pulse at 5 s. No pose writes.
+            Require exact clock and complete archived canonical equivalence of all 600 ordered
+            samples and final 37 F64 words. Native geom names in this scene bypass the finite-cap
+            dispatch. Preserve any mismatch and report timing separately from equivalence.
+        positional_replay:
+          position_source_commit: 6cdf7afc91de46f1f186e473da5d4562b7c445fc
+          receipt_sha256: 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7
+          retained_401_prestates_sha256: 6c1002a30a20c238587d9b39cb3253d36fc295d91f069b1e3dc7743de075e54c
+          model_count: 1
+          positional_calls_cap: 2
+          dynamic_calls_cap: 0
+          witnesses:
+            - [pre-291475, 3, 11, 33]
+            - [immersed-side-crosses-edge, 1, 9, 27]
+          comparison: >-
+            Use the exact admitted position model and retained frame/holdout inputs. Rows give the
+            case ID, named pair count, total contacts and total constraints. Verify pair geometry,
+            signed witnesses, contact identities and resolved rows with the existing admission
+            oracle, preserving the named-pair dispatch versus stock fallback. Match the untouched
+            saved geometry. Do not infer compatibility from counts alone. No dynamics.
+        denial_controls: >-
+          In fresh isolated Worker contexts require legacy glue under the Wasm-only allowance
+          to fail at JavaScript evaluation, and AOT with the allowance removed to fail compiling
+          WebAssembly. Reject a tampered authorized asset before model creation. Within the strict
+          synthetic page and allowed Worker verify that string Function construction is denied.
+          All negative cases have zero model and physical dispatch calls. Treat error category,
+          stage and actual call counts as evidence.
+        acquisition_admission: >-
+          Protected docs merge and new exact two-path preflight precede implementation. Require
+          pure default inspection, same-object link manifest, exact glue/WASM/declaration digests,
+          local source/fixture pins and independent exact review before one controller-authorized
+          browser acquisition. Keep one exclusive external receipt with actual policy, request
+          allowlist, clocks, ordered samples, contacts, dispatches, cleanup and artifact digests.
+          A physical dispatch consumes the acquisition. Save any startup or runtime failure.
+          Independent raw recomputation and applicable focused checks follow.
+        exclusions: >-
+          No downloads, new dependencies, real server, application/CSP configuration, production
+          routing, school/offline delivery or performance claims, changed engine/physics oracle,
+          full PHY-06, D01/D02 closure, product rollout, deployment or data changes.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
