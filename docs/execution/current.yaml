@@ -17915,14 +17915,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_mujoco_finite_cap_moving_top_stage01_selected
+      checkpoint: e1_mujoco_finite_cap_biased_sweep_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: D01-MOVING-TOP-STAGE01
+      slice: D01-BIASED-SWEEP
       planned_paths:
-      - tests/robotics/field-core-qualification/mujoco-finite-cap-moving-top.fixture.json
-      - tests/robotics/field-core-qualification/mujoco-finite-cap-moving-top.spec.ts
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-biased-sweep.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-biased-sweep.spec.ts
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -18063,7 +18063,7 @@ parallel_lanes:
               PHY-14 or D01 closure, product, rollout or deployment.
             source_starting_point: Read-only exact R2 authored fixture/spec as implementation reference for only
               the two newly selected paths. Use the recorded R2 trial as saved control.
-      selected_acquisition:
+      moving_top_stage01_registration:
         scope: TEST_ONLY
         prior_position_admission: 6cdf7afc91de46f1f186e473da5d4562b7c445fc
         prior_position_receipt_sha256: 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7
@@ -18109,6 +18109,132 @@ parallel_lanes:
           recomputation and applicable protected checks. Any new dispatched observation failure stays.
         exclusions: No fixed-tilt, 28-degree or 32-degree rerun, full PHY-06 motion or threshold,
           PHY-14, D01 or D02 closure, product, release or deployment. No binary rebuild or profile tuning.
+      moving_top_stage01_result:
+        selection_merge: e815feba8741cffc33de2c2e8ffd3d1f32757038
+        selection_required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/43699722158/job/132774702793
+        source_commit: c656b538137b62015e34809c5cae7f71571e335e
+        source_tree: 3771cc1656cc2e4c69267a273993d7f686922d19
+        preservation_branch: codex/robotics-mujoco-finite-cap-moving-top-1071
+        source_sha256: 78c3ec937c850bb0c96d5c456c1f9a8b9617799a2b617c20e005f161487a0c6b
+        fixture_sha256: cc35029ce4209e6ec77447024af0681602f488d0f879138c1cd309fd22e7c1b0
+        shared_xml_sha256: e2b57602c90094dd79c2e04e871f7d442c4929590d618b70c85b59cc3094374f
+        raw_file: mujoco-finite-cap-moving-top.ndjson
+        raw_sha256: 613ff8a41985f0de988230dc2e3c042a3d3037220171097353379c2d754c95eb
+        raw_bytes: 165206855
+        runtime: COMPLETE
+        physical: PASS
+        candidate: PASS
+        stock: PASS
+        attribution: UNEXERCISED
+        focused_native_test: FAIL_ATTRIBUTION_ASSERTION
+        steps_per_world: 6500
+        intervals_replayed: 13000
+        positive_moving_loaded_ramp_intervals_per_world: 497
+        eligible_moving_intervals_per_world: 0
+        loaded_signature_intervals_per_world: 0
+        max_deck_point_speed_mps: 0.0010322763391912282
+        source_receipt: Read the immutable external NDJSON and hash the full bytes. For each engine count RAMP PRE
+          intervals with actual positive hinge angular speed and a positive solved normal force at a world point
+          of nonzero reconstructed deck velocity. Both models finish their settle and hold windows, and the
+          return-time persisted replay verifies every interval. The half-depth contract requires -reach < s < reach,
+          where s is the can base-center signed distance and reach is radius times relative-axis sine. In all 500
+          ramp intervals per engine the entire cap is submerged in the contact layer (s <= -reach). Even the
+          closest s + reach is approximately -0.603 micrometres. This supplies a direct fallback explanation.
+      selected_acquisition:
+        scope: TEST_ONLY
+        prior_position_admission: 6cdf7afc91de46f1f186e473da5d4562b7c445fc
+        prior_position_receipt_sha256: 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7
+        upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+        candidate_wasm_sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241
+        candidate_glue_sha256: 7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db
+        candidate_build_receipt_sha256: 59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca
+        stock_wasm_sha256: 51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
+        stock_glue_sha256: 85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2
+        moving_stage01_source: c656b538137b62015e34809c5cae7f71571e335e
+        archive:
+          base: 9a51aff78065244910a82b0f948fe0862e1fdf68
+          fixture_sha256: fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5
+          original_harness_sha256: c3a21764baeff02acd030928a234c2cb58ffbb9811641cdfdfd83b3772c19be0
+          contact_observer_sha256: 77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987
+        angle_selection:
+          fixed_r2_source: 4867477967902bafb706905733cf76d7380ab1d5
+          fixed_r2_28_xml_sha256: b4f415144f141786931ea88f456ab0033aa6e2456dab16971bfb260b5ddc51e2
+          fixed_r2_raw_sha256: 57cfa89c48129cb8ecdf18b56f93e38736fc3c1dd101b90fccfcc3a6c7520fbe
+          fixed_r2_raw_bytes: 82608502
+          shared_loaded_eligible_ticks: 3960
+          first_tick: 41
+          last_tick: 4000
+          first_pre_us: 20000
+          candidate_loaded_matching_ticks: 3960
+          stock_loaded_matching_ticks: 0
+          readback: Restrict fixed R2 native-intervals to the two 28-degree worlds and join by integer tick.
+            Each opportunity requires geometric eligibility and at least one positive solved normal force
+            in both worlds. Read the registered half-depth signature independently of this opportunity.
+            The fixed candidate physically passed and stock missed the steady window. The paired observation
+            chooses a single starting tilt and carries no verdict into the native servo sweep.
+        model: >-
+          Derive both worlds from the exact stage01 shared XML using a single 28-degree base rotation about
+          the existing world +Y hinge. Author the deck-body base orientation R_y(28 degrees) about the
+          existing hinge origin and the can starting orientation R_y(28 degrees) aligned with the deck.
+          Author the can starting COM as R_y(28 degrees) times [0, 0, half-height + original gap], using
+          the exact archived fixed R2 28-degree model for the gap and starting placement. Keep hinge
+          coordinate q=0 and all native velocities zero at factory readback, physical world gravity unchanged,
+          and the same named cylinder/finite top pair, dimensions, mass, inertia, materials, actuator, solver
+          and nativeCCD 65536/32. The native actuator controls incremental q from 0 to 0.24 degrees. Compose
+          the measured absolute deck frame and encoder angle as base plus native q; derive actual can
+          pose and contact-point velocities from native PRE. No pose, velocity, time, warm-start writes,
+          keyframe resets or trajectory forcing. Freeze the exact derivation, one shared XML SHA-256,
+          physical readbacks, and local-versus-world angle mapping with pure tests before dispatch.
+        order: [candidate, stock]
+        schedule:
+          timestep_us: 500
+          base_angle_deg: 28.0
+          target_angle_deg: 28.24
+          sweep_increment_deg: 0.24
+          settle_us: 2000000
+          transition_us: 250000
+          hold_us: 1000000
+          horizon_us: 3250000
+          intervals_per_world: 6500
+          total_intervals: 13000
+          phase_calls_cap_each: 13000
+          max_concurrent_worlds: 1
+          settled_and_hold_window_intervals: 200
+          contact_cap: 4
+          constraint_row_cap: 12
+          row_record_byte_cap: 16384
+          journal_byte_cap: 268435456
+          worst_case_receipt_bytes: 262932480
+        physical_gates: >-
+          Use the same left integer-timed quintic and stable-window oracle as the frozen stage01.
+          Apply the unchanged 100 ms windows at the end of settling and at the end of the full hold at absolute targets 28.00 and
+          28.24 degrees, respective to the mechanically authored baseline. Retain the entire horizon
+          and independently assess each world using continuously loaded outward support, finite top witnesses,
+          peak point-relative slip at most 0.001 m/s, from ramp start cumulative slip at most 0.0001 m,
+          and the original tracking, speed, span and 32 N m native and effective servo force bounds. Record
+          actual ctrl, signed work, both PRE body twists reconstructed at each common world contact point,
+          ordered PRE/solved row parity, endpoint state, and the first outcome per gate.
+        comparison: >-
+          Keep physical and signature outcomes separate. In commanded RAMP, compare candidate's loaded
+          exact half-depth signature to stock at the same integer tick, requiring each actual PRE geometry
+          to be eligible for the named pair and each world's moving deck point to carry observed positive
+          normal load. Preserve the first overlap, exact positions/normals/separations/row identities and
+          moving opportunities; prior or later HOLD points are diagnostic. An absent loaded moving candidate
+          signature is UNEXERCISED. No eligible or no same-tick loaded stock opportunity is INCONCLUSIVE.
+          A loaded stock signature blocks the distinct-candidate label. Shared timing is a measured comparison
+          of native trajectories. The reference does not assert identical PRE poses or counterfactual motion.
+        acquisition_admission: >-
+          Protected docs merge and fresh exact two-path preflight precede source implementation. Require
+          frozen source, artifact, XML and archive digests, pure/default-skip tests, and independent review
+          before a single controller-authorized paired acquisition. Open one exclusive external NDJSON,
+          bind all inputs, and replay the exact retained intervals from disk without advancing physics.
+          Retain any runtime error and partial trace. First dispatch of either phase consumes this acquisition;
+          no repeat or continuation after interruption. Independent raw recomputation and applicable checks
+          follow the bounded observation.
+        exclusions: >-
+          The deliverable is a single biased native servo sweep. Fixed-tilt repetitions, a full PHY-06
+          sweep or bracket, PHY-14, D01 or D02 closure, artifact rebuild, numerical tuning, product,
+          release and deployment are outside its scope.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
@@ -18788,7 +18914,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: rover_r1_preserved_r2_contact_work_correction_selected
+      checkpoint: rover_r2_retained_r3_boom_coast_release_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
@@ -18796,19 +18922,40 @@ parallel_lanes:
       owner_authorization: 'The owner directed the Robotics program to prove that an Arduino-driven robot
         climbs a ramp and physically tips a can. This selection records one bounded TEST_ONLY experiment
         under that program. Receipt: https://github.com/spikeal8-maker/asa-lab/issues/1181.'
-      activation_condition: Source preflight opens after protected R2 registration on main. Freeze the
-        unchanged R1 fixture and corrected spec, reconstruct R1 raw offline and obtain independent exact
-        HIGH review before one fresh pair. A further selection is required after another dispatch error.
-      observer_refinement:
-        revision: R2
-        implementation_base: b9d556aeb9e359c61d277dc7d72707303bd4f7ee
-        unchanged_fixture_sha256: 32265449f4770dae67b9305f74df2144e3855c480d738dcbb2cde2b239e122b6
-        correction: Compare independent PRE material-point first variation with dense J_PRE delta_q.
-          Retain the finite POST rigid material-point chord and verify its difference from the tangent
-          with a per-body Taylor remainder bound plus floating-point allowance. Keep signed native row
-          work as the primary contact ledger, nonnegative net absorption and the existing guards.
-        offline_r1_replay: Reconstruct 2109 intervals and 25300 solved contacts without engine initialization.
-          Keep the original 1 microjoule or 1 percent work agreement allowance on the tangent comparison.
+      activation_condition: Source preflight opens after protected R3 registration on main. Bind the R2
+        source and immutable raw, pass an independent offline replay and dimensional, inertia, capacity
+        and swept-clearance checks, then obtain an exact HIGH review before one fresh paired acquisition.
+      selected_experiment:
+        revision: R3
+        hypothesis: A rigid longer bumper and prospective power cut can leave the tipped can free of the rover.
+        implementation_base: e0d0a1c5b8f73f54088a78d88353669b79d795e0
+        geometry:
+          forward_extension_m: 0.150
+          bumper_tip_segment_center_x_m: {r2: 0.095, r3: 0.245}
+          can_start_x_m: {r2: 1.200, r3: 1.350}
+          body: One rigid lightweight supported boom with true collision envelope, explicit physical mass,
+            COM and positive inertia within the registered vehicle model. Retain the named bumper slot,
+            wheel and chassis collision bodies, and all applicable terrain and can pairs. Admit only
+            an actually mounted, collidable assembly with the original contact and raw capacity ceilings.
+        power_cut:
+          target_us: 4340000
+          rationale: Next 10 ms boundary after archived R2 first registered static tip angle crossing.
+            Seal the exact nearest compiled final LOW in the independent Uno trace before native.
+          design: Keep the exact prior GPIO prefix and change only the final delay of the powered
+            sketch. Seal both new pure Uno traces and sketch hashes. No native-event feedback or reverse.
+            Verify the accepted electrical LOW, diode current and unassisted coast with no reload.
+        geometry_preflight: Replay exact R2 raw without WASM and screen swept contact and terrain clearance
+          from saved poses. Check boom attachment, physical materials, dimensions, mass, COM, inertia, wheel
+          loads, finite deck and prospective stop clearance. This is a design screen on R2 trajectories.
+          The modeled coast estimate relies on uncertain gear/drag behavior and cannot certify R3 clearance.
+        separation_gate: Reapply original contact, tip, side angle, COM drop and 100000 us side-hold
+          predicates. The whole window begins at or after the actual accepted native final LOW and is
+          fully on unassisted coast. No loaded chassis, wheel, bumper or other boom-to-can contact may
+          occur in the window. Record actual signed clearance and any recontact.
+        preservation: Same one-direction Uno/FET/flyback/TT common solver, stock engine/profile,
+          can dimensions/mass/material, field, native clocks and limits, signed R2 contact work and
+          readbacks, energy budget, exact common prehistory, unpowered control and strict zero-gain
+          causal criterion. Nonzero or unavailable gain remains GAP_CAUSAL_TT independently of physics.
       historical_native_results:
         r1:
           registration:
@@ -18836,6 +18983,51 @@ parallel_lanes:
           failing_row_curvature_m: 6.41443669708086e-7
           failing_row_taylor_bound_m: 6.891811523744074e-7
           physical_result: No completed climb, tip, side support or matched control verdict.
+        r2:
+          registration:
+            merge: e815feba8741cffc33de2c2e8ffd3d1f32757038
+            tested_head: 4e47cb901ca29439271b84fdca06b08780cb02f7
+            required_success: https://github.com/spikeal8-maker/asa-lab/actions/runs/43699722158/job/132774702793
+          source_commit: e0d0a1c5b8f73f54088a78d88353669b79d795e0
+          source_tree: 1e8229fe9837d8d6987c29f725fce7191d7d3a9c
+          source_branch: codex/robotics-arduino-rover-contact-r2-1181
+          spec_sha256: 4a0d6fdd3cf2de9087ca18cf206edff25d20b5bdeb115fecb031e373f0b91aff
+          fixture_sha256: 32265449f4770dae67b9305f74df2144e3855c480d738dcbb2cde2b239e122b6
+          archive_directory: asa-robotics-arduino-rover-r2-proof-6d430041d89444db9cede41188e4cdd2
+          metadata: {file: arduino-rover-r1181.jsonl, bytes: 31448, sha256: d80d5366ed217e391a43197757481e63512aa6e1f4809c7541a976168748c198}
+          binary: {file: arduino-rover-r1181.bin, bytes: 156560624, sha256: 57db3c1d98b5cf656a6630922a3a99212a30f427b4aeef9e6d6f74e29647045b}
+          durable_release_copy_basenames: [arduino-tt-rover-ramp-can-r2.jsonl, arduino-tt-rover-ramp-can-r2.bin]
+          runtime: COMPLETE
+          physical: FAIL
+          causal: GAP_CAUSAL_TT
+          control: PASS
+          intervals_per_world: 20086
+          total_intervals: 40172
+          common_prefix_c_us: 250000
+          common_prefix_sha256: 4aff13498fa5d50fd4a9037e9ad2e90ee5f5cfdc3c1b3ab9a51285fde16864f4
+          measured_powered_us: {mixed: 1052500, ramp: 1498000, top: 3817000, bumper: 4266500, first_tip_angle_cross: 4334500}
+          rise_m: 0.06998978233719429
+          first_failure: MISSING_NATIVE_BUMPER_TIP_AND_SIDE_WINDOW
+          native_supported_pose_and_drop_us: [4538000, 10000000]
+          longest_unloaded_side_window_us: [4569500, 4572500]
+          last_continuous_chassis_load_from_us: 4824000
+          chassis_contact_intervals_after_cross: 11108
+          chassis_final_normal_force_n: 3.4069494185050244
+          reciprocal_through_first_tip_angle_cross:
+            intervals: 17
+            abs_extra_impulse_n_m_s: 0.00015962761802614293
+            positive_extra_work_j: 0
+            signed_extra_work_j: -0.0021573715366948808
+          registered_observer:
+            revision: R2
+            implementation_base: b9d556aeb9e359c61d277dc7d72707303bd4f7ee
+            unchanged_fixture_sha256: 32265449f4770dae67b9305f74df2144e3855c480d738dcbb2cde2b239e122b6
+            correction: Compare independent PRE material-point first variation with dense J_PRE delta_q.
+              Retain the finite POST rigid material-point chord and verify its difference from the tangent
+              with a per-body Taylor remainder bound plus floating-point allowance. Keep signed native row
+              work as the primary contact ledger, nonnegative net absorption and the existing guards.
+            offline_r1_replay: Reconstruct 2109 intervals and 25300 solved contacts without engine initialization.
+              Keep the original 1 microjoule or 1 percent work agreement allowance on the tangent comparison.
       accepted_source_dependencies:
         tt_native_drive:
           task_id: TASK-ELECTRONICS-ROBOTICS-TT-NATIVE-DRIVE-001
@@ -18858,21 +19050,22 @@ parallel_lanes:
       - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
       - docs/product/robotics/FIELD_CORE_SPEC.md
       - docs/product/robotics/FIELD_CORE_TRACEABILITY.json
-      gate_boundary: Registration is docs-only and uses governance validation. Require exact two-path
-        source preflight, focused qualification, offline R1 replay and independent HIGH review before
-        one fresh 10-second pair. PASS requires independent exact repetition of a successful pair and
-        applicable protected CI. Preserve dispatch failures. No product runtime, rollout or D01/D02 closure.
+      gate_boundary: Registration is docs-only and uses governance validation. Before R3 native require
+        exact two-path preflight, focused qualification, exact independent R2 raw replay, frozen assembly,
+        Uno and geometry checks, and independent HIGH review. Run one fresh ten-second powered/LOW pair;
+        preserve first dispatch result without tuning. PASS also needs an independent exact repeat and
+        protected checks. No product runtime, rollout or D01/D02 closure.
       deployment: not_authorized
       database_actions: none
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
+      convergence_baseline_sha: e815feba8741cffc33de2c2e8ffd3d1f32757038
       head_sha: null
-      observed_at: '2026-11-15T08:37:06Z'
+      observed_at: '2026-11-15T10:21:25Z'
       main:
         branch: main
-        sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
-      observation_note: Dated baseline before R2 observer registration. Fetch main and reverify
+        sha: e815feba8741cffc33de2c2e8ffd3d1f32757038
+      observation_note: Dated baseline before R3 boom and coast registration. Fetch main and reverify
         the live two-path plan, accepted dependency and applicable blockers before source work.
     gates:
       focused:
