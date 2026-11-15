@@ -4669,6 +4669,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   });
   await electronicsCell.click();
   const review = page.getByRole('region', { name: 'Проверка сдачи' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(review.getByLabel('Причина возврата или исправления')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `${evidenceDir}/nightlight-teacher-review-390.png` });
   const originalEvidenceId = await review.getByTestId('submission-version-id').innerText();
   await review
     .getByLabel('Причина возврата или исправления')
@@ -4679,6 +4683,8 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await threeDCell.click();
   await review.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
   await expect(threeDCell).toContainText('Выполнено');
+
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   const mixedStatus = await openCourse({ reloadAfterExternalChange: true });
   expect(occurrenceFromCourseRun(mixedStatus, electronicsTitle).canonicalState?.workflowState).toBe(
