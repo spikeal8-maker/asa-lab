@@ -67,7 +67,8 @@ def moscow_time(value):
     try:
         moment = dt.datetime.fromisoformat(value)
         if moment.utcoffset() is not None:
-            return moment.astimezone(_MOSCOW).strftime("%d.%m.%Y в %H:%M МСК")
+            local = moment.astimezone(_MOSCOW)
+            return f"{local:%d.%m.%Y} в {local:%H:%M} МСК"
     except (ValueError, OverflowError):
         pass
     return None
