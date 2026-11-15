@@ -470,6 +470,8 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         install.wait_ready(release["revision"], release["schema"])
         operation["phase"] = "verify_entry"
         atomic_json(install.state / "maintenance.json", operation)
+        if display:
+            display.stage('entry')
         verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
         install.identity()
         atomic_json(install.state / "installed-release.json", release)
@@ -730,7 +732,7 @@ def execute(args, argv, display=None):
                 "SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret) else "IO_OR_CONFIGURATION")
         action = exc.action if isinstance(exc, Blocked) else "Inspect the configuration and completed stages; do not discard data."
         if display:
-            display.failed(code)
+            display.failed(code, str(exc) if isinstance(exc, Blocked) else '')
         else:
             if args.operator:
                 print(operator_failure(code), file=sys.stderr)

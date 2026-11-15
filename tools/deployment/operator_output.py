@@ -21,7 +21,8 @@ _PHASES = {
     "migration": "проверка плана изменений базы",
     "backup": "создание резервной копии",
     "switch": "переключение и запуск новой версии",
-    "health": "проверка сайта и редактора Scratch",
+    "health": "локальная проверка сервисов",
+    "entry": "проверка адреса сайта",
     "logs": "проверка сбора журналов",
 }
 _PROGRESS = {
@@ -30,7 +31,8 @@ _PROGRESS = {
     "migration": "Проверяю план изменений базы.",
     "backup": "Создаю и проверяю резервную копию базы, файлов и настроек.",
     "switch": "Запускаю новую версию. Сайт может кратко прерваться.",
-    "health": "Проверяю доступность сайта и редактора Scratch.",
+    "health": "Проверяю сервисы и редактор Scratch на сервере.",
+    "entry": "Проверяю сайт и Scratch по настроенному адресу.",
     "logs": "Проверяю сбор журналов.",
 }
 _FAILURES = {
@@ -44,7 +46,10 @@ _FAILURES = {
     "DIRTY": "В каталоге приложения есть локальные изменения.",
     "ORIGIN": "Каталог установки связан с другим репозиторием.",
     "SPACE": "Недостаточно свободного места.",
-    "HEALTH": "Сайт и компоненты не прошли проверку готовности.",
+    "HEALTH": "Сервисы не прошли локальную проверку готовности.",
+    "EDITOR_ENTRY": "По настроенному адресу сайт или Scratch не подтвердил нужную версию.",
+    "EDITOR_ENTRY_HTTP": "Сайт или Scratch недоступен по настроенному адресу.",
+    "BACKUP_STORAGE_VERIFY": "Проверка показала расхождение файлов копии и исходного хранилища.",
     "TOOL": "Не запустился один из инструментов обслуживания.",
     "OPERATOR_INSTALLATION": "Постоянная команда должна быть привязана к действующей установке ASA Lab.",
     "INTERRUPTED": "Команда прервана оператором.",
@@ -86,15 +91,17 @@ def release_changes(install, previous, selected):
         history = install.git(
             "log", "--first-parent", "--no-show-signature", "--no-notes", "--max-count=12",
             "--format=%s%x1f%b%x1e", f"{previous}..{selected}", "--",
-            "apps", "packages", "tools", "infra", "compose.yaml", "compose.production.yaml",
+            "apps", "contexts", "migrations", "modules", "packages", "tools", "infra",
+            "compose.yaml", "compose.production.yaml", "Dockerfile.api", "Dockerfile.web",
         )
     except (Blocked, OSError, ValueError):
         return ()
     notes = []
     for entry in history.split("\x1e"):
-        subject, separator, body = entry.strip().partition("\x1f")
+        subject, separator, body = entry.partition("\x1f")
         if not separator:
             continue
+        subject = subject.strip()
         merge = re.fullmatch(r"Merge pull request #(\d+) from .+", subject)
         if merge:
             note = _NOTES.get(merge[1])
@@ -180,12 +187,20 @@ class OperatorOutput:
         if not isinstance(collection, dict) or collection.get("state") != "running":
             self.emit("Работу сборщика журналов подтвердить не удалось. Проверьте sudo asa report.")
 
-    def failed(self, code):
+    def failed(self, code, detail=''):
         if self.action == "check":
             self.emit("Устанавливать пока нельзя.")
         else:
             self.emit(f"Обновление остановлено. Этап — {_PHASES[self.phase]}.")
         reason = _FAILURES.get(code)
+        if code == "EDITOR_ENTRY_HTTP":
+            status = re.match(r"^HTTP ([1-5][0-9]{2}) at ", detail)
+            if status:
+                reason = f"Сайт или Scratch вернул HTTP {status[1]} по настроенному адресу."
+        elif code == "COMMAND":
+            failure = re.fullmatch(r"(docker|git) (compose|pull|run|fetch|switch|status|merge-base) failed \(exit ([0-9]{1,3})\)\.", detail)
+            if failure:
+                reason = f"Команда {failure[1]} {failure[2]} завершилась с кодом {failure[3]}."
         if not reason and code.startswith("CI_"):
             reason = "GitHub не подтвердил проверки выбранного выпуска."
         if not reason and code.startswith("BACKUP"):
@@ -193,8 +208,10 @@ class OperatorOutput:
         if not reason and self.phase == "migration":
             reason = "Не удалось подтвердить план изменений базы."
         if not reason:
-            reason = f"Не удалось завершить этап «{_PHASES[self.phase]}»."
+            reason = "Операция на этом этапе завершилась ошибкой."
         self.emit(reason)
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{0,47}", code):
+            self.emit(f"Код для диагностики — {code}.")
         if self.action == "update":
             if self.backup_done:
                 self.emit("Проверенная резервная копия создана.")
@@ -205,15 +222,15 @@ class OperatorOutput:
                 try:
                     observed = self.install.readiness()
                 except (Blocked, OSError, KeyError, TypeError, ValueError):
-                    self.emit("Подтвердить доступность сайта сейчас не удалось.")
+                    self.emit("Локальная проверка сервисов сейчас не прошла.")
                 else:
                     if all(observed.get(k) == self.previous[k] for k in ("revision", "schema")):
-                        self.emit("Сайт отвечает на прежней версии.")
+                        self.emit("Локальная проверка подтвердила прежнюю версию.")
                     elif all(observed.get(k) == self.selected[k] for k in ("revision", "schema")):
-                        self.emit("Сайт отвечает на новой версии. Проверьте состояние операции.")
+                        self.emit("Локальная проверка подтвердила новую версию.")
                     else:
-                        self.emit("Сайт отвечает. Его выпуск требует проверки.")
+                        self.emit("Сервисы отвечают локально. Их версию подтвердить не удалось.")
         if self.switch_started or code in ("MAINTENANCE", "FAILED_SWITCH", "ROLLBACK_PENDING"):
             self.emit("Проверьте состояние командой sudo asa repair-plan.")
-        elif code != "LOCKED":
-            self.emit("Технические подробности проверки доступны по команде sudo asa check --verbose.")
+        elif self.action == "check" and code != "LOCKED":
+            self.emit("Подробности проверки доступны по команде sudo asa check --verbose.")

@@ -201,7 +201,7 @@ def assert_ci(release):
     jobs = _successful_jobs(publication, ["gate", "contracts (ubuntu-latest)", "contracts (windows-latest)", "publish",
                                           *(builds[service] for service in release["images"])])
     assert_general_ci(revision)
-    return jobs["publish"]["completed_at"]
+    return jobs["publish"].get("completed_at")
 
 
 def fetch_images(release):
