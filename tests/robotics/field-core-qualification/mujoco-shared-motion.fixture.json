@@ -1,0 +1,69 @@
+{
+  "id": "E1-MUJOCO-SHARED-MOTION-01",
+  "scope": "TEST_ONLY",
+  "sourceBase": "73c4970badb7da3a7da7c8fe376f3dd92259dff4",
+  "engine": {
+    "version": "4.0.0",
+    "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+  },
+  "archives": {
+    "rollingJournal": {
+      "file": "journal/mujoco-rolling-chassis-a3-2026-11-12T023906497Z.asarollraw",
+      "bytes": 6076628,
+      "sha256": "f4adb0b0556c3d2f85dc7881c1e9f1264350cf6cfd8e5637deede85427349cb8"
+    },
+    "rollingInit": {
+      "file": "raw-initializations.json",
+      "bytes": 839526,
+      "sha256": "63cdcf1210e1d0078f353520d5c4a119435fd3eb026efbdd8e3f72ad2a1f3788"
+    },
+    "rollingSummary": {
+      "file": "main.final-receipt.json",
+      "bytes": 1360379,
+      "sha256": "f838ea34e14e95f6d9ab55a28db9190a142f210a5ec9de8e67e830203ea49c77"
+    },
+    "canReceipt": {
+      "bytes": 10232871,
+      "sha256": "18649e2fd69f7704f48d342655a2390ff81aa304f72c3c6766ee6fc0065b4050"
+    }
+  },
+  "rolling": {
+    "world": "ramp-positive-15-500-r1",
+    "initializationFrame": 104,
+    "initializationPayloadSha256": "4211b058d08056c675ec5ca929b984bfcc1db5a01398bc691550ae9642281d69",
+    "xmlSha256": "8349d687194348337fb142710d9eb6a7dfc4e51552c35746a2387aa8ec78b06a",
+    "controllerSourceSha256": "d9863472800e11c4fee8321617061c7b1622c60f42325c9a9ea45943cabbaa42",
+    "controllerFixtureSha256": "69e5baa432bcdbe581eeb12262801162240f314eb9d6627bdd4764daef4fd77b",
+    "motorSettleUs": 2000000,
+    "windowStartUs": 5000000,
+    "slopeDeg": 15,
+    "wedgeLengthM": 4,
+    "wedgeHalfWidthM": 0.5,
+    "interiorMarginM": 0.01,
+    "torqueCapNm": 0.035,
+    "torqueRoundoffNm": 4.973799150320702e-16,
+    "noLoadJointRadPS": 25,
+    "terminalSpeedMps": 0.2745671907269348,
+    "speedRelativeTolerance": 0.05,
+    "elevationToleranceM": 0.001
+  },
+  "can": {
+    "sourceSha256": "dbbb546a1e82a935bedc9227edf9c04ba1ddb8b37cf23ddb93ce9d2cfc7174f3",
+    "fixtureSha256": "a9e964b27a22012ac6309e3843511154455c71d83d6fc828d0789026af11d899",
+    "laneYM": 2,
+    "launchStartUs": 5000000
+  },
+  "time": {
+    "stepUs": 500,
+    "horizonUs": 6000000,
+    "ordinarySampleUs": 10000,
+    "denseCaptureUntilUs": 5500000
+  },
+  "limits": { "models": 1, "steps": 12000, "maxContacts": 37, "maxReceiptBytes": 33554432 },
+  "registration": {
+    "model": "One model and data instance. Archive the full R3 finite ramp/wheel XML unchanged. Append the independently measured R2 can and striker geometry at y=2m with only the can's explicit contact pairs. The compiled solver's full R3 global option vector must read back exactly.",
+    "time": "Preserve the R3 left-tick wheel torque law and 2s settling. The unchanged R2 high force pulse starts at 5s instead of 0.2s. Capture loaded can impact and 100ms side support within the same 5–6s native window as continuously loaded wheels climbing the finite mesh ramp.",
+    "witnesses": "Require unchanged actuator identities, signed can impulse through native bumper contact, native angle and COM movement, and real side support. Require four loaded wheel IDs on the ramp throughout the common window, positive uphill displacement/elevation and the original R3 terminal-speed band. Preserve signed measured quantities and source reference hashes.",
+    "boundary": "Two isolated mechanical interactions in one native world. The commanded instrument hits the can. This is not rover-to-can collision, Arduino, full R3/D01/D02 qualification, or product operation. No archived run is repeated or changed."
+  }
+}
