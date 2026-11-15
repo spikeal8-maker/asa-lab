@@ -314,6 +314,31 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
         await retroactive.query('ROLLBACK');
         retroactive.release();
       }
+      // Regression: updating title changes xmin, not the creation transaction.
+      // Both an upgraded 0322 row and a newer direct-SQL row must stay unknown.
+      for (const historicalProjectId of [rootId, directId]) {
+        const sameTransaction = await runtime.connect();
+        try {
+          await sameTransaction.query('BEGIN');
+          await sameTransaction.query("SELECT set_config('app.tenant_id',$1,true)", [
+            teacher.tenantId,
+          ]);
+          const touched = await sameTransaction.query(
+            'UPDATE projects SET title=title WHERE id=$1 RETURNING id',
+            [historicalProjectId],
+          );
+          expect(touched.rows).toHaveLength(1);
+          await expect(
+            sameTransaction.query(
+              'SELECT public.record_project_writer_evidence($1::uuid,$2::uuid,$3::varchar,$4::uuid)',
+              [actor.principalId, historicalProjectId, 'native', null],
+            ),
+          ).rejects.toMatchObject({ code: '42501' });
+        } finally {
+          await sameTransaction.query('ROLLBACK');
+          sameTransaction.release();
+        }
+      }
       const native = await repository.createWithDraft({
         tenantId: teacher.tenantId,
         scope: 'personal',
@@ -373,6 +398,9 @@ it('upgrades 0322 to 0323 without inventing historical origin or copy receipts',
       await expect(runtime.query('SELECT * FROM project_writer_evidence')).rejects.toMatchObject({
         code: '42501',
       });
+      await expect(
+        runtime.query('SELECT * FROM project_writer_insert_witness'),
+      ).rejects.toMatchObject({ code: '42501' });
       await expect(runtime.query('SELECT * FROM publication_copy_events')).rejects.toMatchObject({
         code: '42501',
       });

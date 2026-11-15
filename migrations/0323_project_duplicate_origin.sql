@@ -19,6 +19,29 @@ ALTER TABLE public.project_writer_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_writer_evidence FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON public.project_writer_evidence FROM PUBLIC,asalab_app;
 
+-- An UPDATE changes projects.xmin without creating a new Project. A private
+-- witness is emitted by the actual Project INSERT trigger, not by UPDATE.
+-- Existing historical Projects have no witness and cannot be backfilled.
+CREATE TABLE public.project_writer_insert_witness (
+    project_id uuid PRIMARY KEY REFERENCES public.projects(id) ON DELETE CASCADE,
+    inserting_xid bigint NOT NULL
+);
+ALTER TABLE public.project_writer_insert_witness ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_writer_insert_witness FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON public.project_writer_insert_witness FROM PUBLIC,asalab_app;
+
+CREATE FUNCTION public.record_project_insert_witness()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $
+BEGIN
+    INSERT INTO public.project_writer_insert_witness(project_id,inserting_xid)
+    VALUES(NEW.id,txid_current());
+    RETURN NEW;
+END;
+$;
+REVOKE ALL ON FUNCTION public.record_project_insert_witness() FROM PUBLIC,asalab_app;
+CREATE TRIGGER project_insert_witness AFTER INSERT ON public.projects
+    FOR EACH ROW EXECUTE FUNCTION public.record_project_insert_witness();
+
 -- No UPDATE or external DELETE can revise a previously issued writer marker.
 -- Cascading deletion of a private Project may remove its companion row; durable
 -- public acquisition receipts remain in the separate 0287 event table.
@@ -44,7 +67,7 @@ DECLARE
     v_source public.projects%ROWTYPE;
     v_coverage varchar(12);
     v_source_coverage varchar(12);
-    v_xmin text;
+    v_insert_xid bigint;
 BEGIN
     IF p_actor IS NULL OR p_destination IS NULL OR p_kind IS NULL OR p_kind NOT IN
          ('native','public_acquisition','ordinary_duplicate') THEN
@@ -56,11 +79,14 @@ BEGIN
     IF NOT FOUND THEN
        RAISE EXCEPTION 'project writer evidence forbidden' USING ERRCODE='42501';
     END IF;
-    SELECT project.xmin::text INTO v_xmin
-      FROM public.projects project WHERE project.id=p_destination;
+    -- An updated historical row may have current xmin, but never a witness
+    -- emitted by an INSERT in this same transaction.
+    SELECT witness.inserting_xid INTO v_insert_xid
+      FROM public.project_writer_insert_witness witness
+      WHERE witness.project_id=p_destination FOR UPDATE;
     IF v_project.owner_principal_id IS DISTINCT FROM p_actor
        OR current_setting('app.tenant_id',true) IS DISTINCT FROM v_project.tenant_id::text
-       OR v_xmin IS DISTINCT FROM ((txid_current() % 4294967296)::bigint)::text THEN
+       OR v_insert_xid IS DISTINCT FROM txid_current() THEN
        RAISE EXCEPTION 'project writer evidence forbidden' USING ERRCODE='42501';
     END IF;
 
@@ -112,6 +138,9 @@ BEGIN
     END IF;
     INSERT INTO public.project_writer_evidence(project_id,writer_lineage_coverage,writer_operation)
     VALUES(p_destination,v_coverage,p_kind);
+    -- One-time transactional witness: neither replay nor later UPDATE can
+    -- create or reuse native evidence for a previously persisted Project.
+    DELETE FROM public.project_writer_insert_witness WHERE project_id=p_destination;
     RETURN true;
 END;
 $$;
