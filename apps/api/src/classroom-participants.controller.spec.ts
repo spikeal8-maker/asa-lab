@@ -148,6 +148,38 @@ describe('participant credential routes', () => {
     });
     expect(f.account.resolve).not.toHaveBeenCalled();
   });
+  it('routes custom merit updates through the guarded SQL writer and reads award history in the correct identity', async () => {
+    const f = fixture();
+    f.query.mockResolvedValue({ rows: [{ data: { items: [], hasMore: false, offset: 0 } }] });
+    await f.controller.meritHistory(f.request, classId, seatId, '0');
+    expect(f.query.mock.calls.at(-1)?.[0]).toContain('classroom_participant_merit_history');
+    expect(f.query.mock.calls.at(-1)?.[1]).toEqual(['account-principal', classId, seatId, 0]);
+    await f.controller.seatMeritHistory(f.request, '50');
+    expect(f.query.mock.calls.at(-1)?.[1]).toEqual(['seat-principal', classId, seatId, 50]);
+    expect(f.seat.resolve).toHaveBeenCalledWith('seat-cookie');
+    f.query.mockClear();
+    f.query.mockResolvedValue({ rows: [{ data: { saved: true } }] });
+    const input = {
+      requestId: 'merit-update-12345678',
+      id: '33333333-3333-4333-8333-333333333333',
+      title: 'Название',
+      description: 'Описание',
+    };
+    await f.controller.mutate(f.request, classId, 'merit_update', input);
+    expect(f.query).toHaveBeenCalledTimes(1);
+    expect(f.query.mock.calls[0]?.[0]).toContain('classroom_participant_merit_update');
+    expect(f.query.mock.calls[0]?.[1]).toEqual([
+      'account-principal',
+      classId,
+      JSON.stringify(input),
+    ]);
+    f.seat.resolve.mockResolvedValue(null);
+    f.query.mockClear();
+    await expect(f.controller.seatMeritHistory(f.request, '0')).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(f.query).not.toHaveBeenCalled();
+  });
   it('a revoked Seat cannot fall back to a valid Account', async () => {
     const f = fixture();
     f.seat.resolve.mockResolvedValue(null);
