@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 @unittest.skipIf(os.name == "nt", "The portable POSIX operator command runs on Linux")
 class PortableASACommandTests(unittest.TestCase):
     def setUp(self):
+        self.addCleanup(os.umask, os.umask(0o022))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "school"
