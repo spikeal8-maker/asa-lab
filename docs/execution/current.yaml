@@ -17850,9 +17850,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e0_preserved_e1_qualification_ready
+      checkpoint: e1_mujoco_finite_cap_fixed_tilt_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      slice: D01-MUJOCO-FINITE-CAP-FIXED-TILT
+      planned_paths:
+        - tests/robotics/field-core-qualification/mujoco-finite-cap-fixed-tilt.fixture.json
+        - tests/robotics/field-core-qualification/mujoco-finite-cap-fixed-tilt.spec.ts
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -17894,6 +17899,109 @@ parallel_lanes:
           base commit/path in spec section 20.4. Preserve frozen fixtures/raw/hash manifests. A hardcoded
           canonical-path mismatch is specification-resolution compatibility, not physical FAIL; use a
           separate bounded adapter and do not restart the active experiment for this docs update.
+        - >-
+          Next selected slice for Issue 1071, within the owner's 2026-11-15
+          instruction to implement real 3D physics with Arduino, can tipping
+          and ramp ascent. Applies only after protected PR 1175 integrates
+          source 6cdf7afc91de46f1f186e473da5d4562b7c445fc at
+          7549f1048e4f092fbcd7e66643a0d09448448b56, with required exact-head checks in
+          https://github.com/spikeal8-maker/asa-lab/actions/runs/43676958771/job/132705820183, and this selection is accepted
+          on main. Existing readiness, parent E1 scope and acceptance blocker
+          remain in force. This slice admits only the two planned source paths.
+        - >-
+          Bind PR 1175 patch SHA-256
+          d60b5145ebe52ce5b2ed70f1a5db30448164da0bcabd50e28adfdc4afa74dc67,
+          positional fixture SHA-256
+          2f6c313dfc0240a4b9bfb2fb0aebae0bae15e92bdd2255c10b057ccfb0a78905,
+          positional test SHA-256
+          4c9e51f122b38c67bdb72cfcd0b44cbeaf0adf669408c538bba35c105658a7fa,
+          and original and independent exact PASS_POSITION_ONLY receipt
+          SHA-256 8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7,
+          with zero dynamic calls. Pin upstream MuJoCo 4.0.0
+          ac60eae30fa7e0d31315c38d9476752fb81be67e and candidate WASM SHA-256
+          d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241,
+          JS glue SHA-256
+          7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db,
+          declarations SHA-256
+          779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff
+          and build/license receipt SHA-256
+          59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca.
+          Match official stock 4.0.0 WASM SHA-256
+          51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
+          and JS glue SHA-256
+          85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2.
+        - >-
+          Read preserved source e3302222fd7dc3f234080cfae0588e9300503ae1,
+          fixed-tilt fixture SHA-256
+          accbcc23dea77616a5c3900fd7269a0c9928e15a803fb48803a5642d75523cda,
+          fixed-tilt test SHA-256
+          ed77d425771a4fbdcc8ba662272d12fbc0c99382e42f6a84ff07312e6ee84dca,
+          contact observer SHA-256
+          77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987,
+          inherited cylinder fixture SHA-256
+          fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5,
+          and legacy native-can.ndjson SHA-256
+          2e65994a646934db01b8d25e33afa2995a2245d0f90ac44c146fe4d165bb0b8b.
+          Use the legacy CCD archive only as the historical oracle and FAIL
+          receipt. Both new worlds per angle use native CCD. Reuse the verified
+          observer read-only without importing or executing the legacy runner.
+        - >-
+          Use one bounded acquisition in a fixed order: candidate 28 degrees,
+          candidate 32 degrees, official stock 28 degrees, official stock 32
+          degrees. Each of four fresh model/data worlds uses byte-identical
+          MJCF across engines for its angle, with explicit
+          asa1168_finite_cap_can and asa1168_finite_top pair. Inherit the can's
+          0.5 kg mass, inertia, 33 mm radius, 115 mm height, fixed 1 x 1 x 0.05 m
+          support, plane-normal factory pose with 0.1 mm clearance, zero
+          velocity, gravity, friction and solver settings. Use common
+          nativeCCD/MultiCCD, elliptic dim 3, no speculative collision, zero
+          margin/gap, disableflags 65536 and enableflags 32 for both engines.
+          No drive, artificial forces, pose writes or resets. Freeze both
+          model digests. Use 500 microsecond native intervals, 2 seconds and
+          at most 4000 intervals per world, at most 16000 in the acquisition.
+          Capture native PRE, contact identities and solved forces for the
+          same rows, POST, warnings and cleanup.
+        - >-
+          Keep the inherited 200 consecutive interval/100 ms windows and
+          physical gates for signed positive support, finite rim witnesses and
+          validated forces. Keep 0.001 m/s loaded point-slip and 0.0001 m
+          cumulative slip limits. Require the final stable window and no
+          earlier confirmed tip at 28 degrees. Require the qualified downhill
+          tip window, including inherited signed tilt/velocity, uphill rim
+          lift, beta growth and downhill rim at 32 degrees. The 32 degree
+          case is a stress point, 2.147924 degrees above the analytical
+          29.852076 degrees from atan(0.033 / 0.0575). The fixed-angle pair
+          establishes neither a PHY-06 gradual-onset bracket nor rate or
+          timestep convergence. Preserve the fixed horizon and first failure
+          when safe continuation is possible. D01 acceptance is outside this
+          experiment.
+        - >-
+          Separate source and fixture validation from runtime status, each
+          physical verdict, and attribution. Compare eligible PRE geometry
+          with distinct native row identities, signed rim witnesses and the
+          half-depth triple. Distinguish fallback, geometric support and
+          loaded decision-bearing contacts. A three-contact count alone does
+          not identify dispatch. Credit a physical improvement to the patch
+          only if the matched stock data and native decision-window evidence
+          distinguish it. A bounded candidate PASS requires both angles to
+          satisfy the frozen physical criteria. Preserve physical FAIL or
+          inconclusive attribution and immutable raw receipts even if all
+          source and focused checks pass.
+        - >-
+          Require fresh remote snapshot and exact-path preflight first,
+          recovery when applicable, pure/default-skip checks, frozen source and
+          input hashes, independent exact-source review before controller native
+          GO, independent raw recomputation and applicable exact-SHA protected
+          checks. Use bounded calls, memory, wrappers and an exclusive external
+          raw journal. After a startup failure, the controller may authorize a
+          fresh startup with unchanged inputs, fresh preflight and a new journal
+          only after archiving the failure and verifying terminal shutdown plus
+          zero native step dispatch, including step1/step2. Preserve all raw
+          outputs after any actual dispatch and classify the result before
+          considering a separately authorized attempt. This selection includes
+          no post-dispatch retry, artifact rebuild, product dependency, further
+          physics scene, D01 closure, release, deployment, server or database
+          change.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
@@ -18427,6 +18535,92 @@ parallel_lanes:
         commands:
           - pnpm gate:electronics-m1
           - pnpm test:robotics
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
+  - id: electronics-robotics-tt-hygiene
+    parent_lane: electronics
+    worktree_id: electronics-robotics-tt-hygiene-1177
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-HYGIENE-001.md
+      - docs/product/electronics/evidence/robotics-tt-hygiene-1177.md
+    task:
+      id: TASK-ELECTRONICS-ROBOTICS-TT-HYGIENE-001
+      issue: 1177
+      parent_issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: maintenance
+      checkpoint: tt_hygiene_source_review_selected_registration_pending_main
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      activation_condition: >-
+        Review and evidence become eligible after this registration is accepted
+        on main and the two-path preflight passes. The reference is actual
+        protected main. Attribute any movement of the reviewed blobs before
+        writing or renewing their entries.
+      scope: >-
+        Independently review the accepted Arduino scheduler and Electronics
+        solver responsibilities and exact tracked source growth. After review,
+        renew exactly their two decomposition-candidate baseline entries from
+        accepted source, and add one immutable evidence document. Preserve
+        production code, 50000/20-percent rules, classifications, all other
+        entries and the full-checkpoint policy.
+      planned_paths:
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+        - docs/product/electronics/evidence/robotics-tt-hygiene-1177.md
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-TT-HYGIENE-001.md
+        - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+        - docs/product/electronics/evidence/runtime-responsibility-20261026.md
+        - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+      failed_dependency_check:
+        issue: 1172
+        pull_request: 1176
+        head: 338bc4e26470d23278f11dbf4c39fd7171f80b09
+        job: https://github.com/spikeal8-maker/asa-lab/actions/runs/43679712129/job/132707954501
+        conclusion: failure
+        check: validate-electronics-agent-docs
+        classification: A
+        growth_bytes:
+          scheduler:
+            last_review: 71720
+            accepted_main: 82679
+            unaccepted_candidate: 89858
+          solver:
+            last_review: 179752
+            accepted_main: 215516
+            unaccepted_candidate: 220845
+      gate_boundary: >-
+        Run pnpm validate:electronics-agent-docs and applicable protected checks
+        on the exact two-path evidence candidate. Independent review binds the
+        accepted source blobs, responsibility classification, measured bytes,
+        scoped diff and validator. A later #1176 convergence and protected check
+        belong to its existing source task and preserve the prior failure receipt.
+      deployment: not_authorized
+      database_actions: none
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 7549f1048e4f092fbcd7e66643a0d09448448b56
+      head_sha: null
+      observed_at: '2026-11-15T05:21:14Z'
+      main:
+        branch: main
+        sha: 7549f1048e4f092fbcd7e66643a0d09448448b56
+      observation_note: >-
+        Dated main snapshot at registration. Fetch main and reconfirm the scheduler
+        and solver blobs and live source plan before the maintenance review.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
