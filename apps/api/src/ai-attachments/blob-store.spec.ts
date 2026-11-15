@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { ReadStream } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -180,13 +181,17 @@ describe('immutable private AI S3 adapter', () => {
       realSend = f.send.getMockImplementation()!;
     f.send.mockImplementation((command, options) => {
       if (command instanceof PutObjectCommand)
-        throw new Error('synthetic uncertain network outcome');
+        throw new DOMException('synthetic aborted transport', 'AbortError');
       return realSend(command, options);
     });
     await expect(f.store.putImmutable(f.input)).rejects.toMatchObject({ outcome: 'unknown' });
     expect(f.send.mock.calls.filter(([value]) => value instanceof PutObjectCommand)).toHaveLength(
       1,
     );
+    const [put] = f.send.mock.calls[0]!;
+    const body = (put as PutObjectCommand).input.Body as ReadStream;
+    expect(body.closed).toBe(true);
+    expect(body.listenerCount('error')).toBe(0);
     expect(f.objects.size).toBe(0);
   });
 
@@ -197,6 +202,11 @@ describe('immutable private AI S3 adapter', () => {
       f.send.mockRejectedValue({ $metadata: { httpStatusCode: status } });
       await expect(f.store.putImmutable(f.input)).rejects.toMatchObject({ outcome: 'not_written' });
       expect(f.send).toHaveBeenCalledTimes(1);
+      const [put] = f.send.mock.calls[0]!;
+      expect(put).toBeInstanceOf(PutObjectCommand);
+      const body = (put as PutObjectCommand).input.Body as ReadStream;
+      expect(body.closed).toBe(true);
+      expect(body.listenerCount('error')).toBe(0);
     },
   );
 

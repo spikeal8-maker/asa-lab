@@ -489,6 +489,11 @@ const upgradeArtifacts = [
     '0322_student_group_rating.sql',
     '429e0f332b86e9e134496f7a72c715aec2ad4cc70179bab2be0776331488a19a',
   ],
+  [
+    '0324',
+    '0324_ai_csv_attachments.sql',
+    '659f413626176bfcdc2e16202e1a71bfcf5ca77d4ec4d27b06c6d883d2fb3760',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
