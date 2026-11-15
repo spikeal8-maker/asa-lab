@@ -138,7 +138,8 @@ class PortableASACommandTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix" and os.geteuid() == 0, "Production launcher is installed by root")
     def test_production_launcher_survives_application_switch_and_rejects_writable_tools(self):
-        with tempfile.TemporaryDirectory(dir="/root", prefix="asa-launcher-test-") as work:
+        with tempfile.TemporaryDirectory(dir="/opt", prefix="asa-launcher-test-") as work:
+            Path(work).chmod(0o755)
             external = Path(work) / "tools-checkout"
             bindir = Path(work) / "bin"
             bindir.mkdir()
@@ -162,6 +163,12 @@ class PortableASACommandTests(unittest.TestCase):
                                       env={**self.env, "ASA_INSTALL_ROOT": "/invalid", "ASA_PROFILE": "dev"})
             self.assertEqual(launch("--launcher-verify", str(self.root)).stdout.strip(), "ASA_LAUNCHER_FORWARD_V1")
             self.assertEqual(launch("--launcher-verify", "/another-installation").returncode, 64)
+            # A named service owner can validate a deliberately readable, root-controlled tools checkout.
+            verify = subprocess.run([str(launcher), "--launcher-verify", str(self.root)], user="nobody",
+                                    group="nogroup", extra_groups=(), capture_output=True, text=True, timeout=10,
+                                    env=self.env)
+            self.assertEqual(verify.returncode, 0, verify.stderr)
+            self.assertEqual(verify.stdout.strip(), "ASA_LAUNCHER_FORWARD_V1")
             for action in ("check", "update"):
                 with self.subTest(action=action):
                     result = launch(action)

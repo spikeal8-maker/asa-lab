@@ -59,7 +59,8 @@ set -eu
 PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin
 export PATH
 fail() { printf 'ASA: %s\n' "$*" >&2; exit 64; }
-git_clean() { env -i PATH=/usr/bin:/bin LC_ALL=C GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$tools_root" "$@"; }
+# The directory and every executable input below must be root-controlled before Git reads it.
+git_clean() { env -i PATH=/usr/bin:/bin LC_ALL=C GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -c safe.directory="$tools_root" -C "$tools_root" "$@"; }
 path=$tools_root
 while :; do
   [ "$(find -P "$path" -maxdepth 0 -type d -uid 0 ! -perm /022 -print)" = "$path" ] || fail "Небезопасный каталог инструментов: $path"
