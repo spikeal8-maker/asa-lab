@@ -178,8 +178,8 @@ parallel_lanes:
       base_branch: main
       pr: 1147
       pr_draft: false
-      status: in_review
-      checkpoint: legacy_1147_head_72081f29_exact_ci_independent_review_pending
+      status: done
+      checkpoint: legacy_1147_merged_72a99a2c_governance_closeout
       owner_acceptance: pending
       owner_authorization: >-
         Direct owner instruction on 2026-11-11 authorizes a multi-slice classroom
@@ -189,7 +189,7 @@ parallel_lanes:
         do not enlarge or move it. No live data or deployment authorization.
       selected_slice:
         id: CLASSROOM-LEGACY-004
-        status: in_review
+        status: done
         change_class: L3_CRITICAL
         scope: >-
           Finish existing PR1147 awards and avatars, real PostgreSQL migration
