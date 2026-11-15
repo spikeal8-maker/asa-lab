@@ -166,9 +166,11 @@ class PortableASACommandTests(unittest.TestCase):
                 with self.subTest(action=action):
                     result = launch(action)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(json.loads(result.stdout), [
-                        action, "--root", str(self.root), "--profile", "production", "--operator",
-                    ])
+                    expected = [action, "--root", str(self.root), "--profile", "production", "--operator"]
+                    self.assertEqual(json.loads(result.stdout), [*expected, "--human"])
+                    verbose = launch(action, "--verbose")
+                    self.assertEqual(verbose.returncode, 0, verbose.stderr)
+                    self.assertEqual(json.loads(verbose.stdout), expected)
             manager = external / "tools" / "asa_manager.py"
             manager.chmod(0o666)
             result = launch("check")

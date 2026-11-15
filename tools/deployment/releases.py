@@ -146,6 +146,7 @@ def _successful_jobs(run, required):
     current = _ci_get(f"/{run['id']}")
     fields = ("id", "path", "head_sha", "head_branch", "run_attempt", "status", "conclusion", "display_title")
     require(all(current.get(field) == run.get(field) for field in fields), "CI_BLOCKED", "CI changed while verifying its jobs.")
+    return latest
 
 
 def _latest_general(revision):
@@ -197,9 +198,10 @@ def assert_ci(release):
     require(set(release["images"]) <= set(builds), "CI_BLOCKED", "Unknown release build requires an explicit CI contract.")
     # workflow_run head_sha identifies the workflow revision, not necessarily the
     # built release source. The immutable run ID and exact release title bind it.
-    _successful_jobs(publication, ["gate", "contracts (ubuntu-latest)", "contracts (windows-latest)", "publish",
-                                   *(builds[service] for service in release["images"])])
+    jobs = _successful_jobs(publication, ["gate", "contracts (ubuntu-latest)", "contracts (windows-latest)", "publish",
+                                          *(builds[service] for service in release["images"])])
     assert_general_ci(revision)
+    return jobs["publish"]["completed_at"]
 
 
 def fetch_images(release):
