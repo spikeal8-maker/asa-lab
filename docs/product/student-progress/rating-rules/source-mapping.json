@@ -7,12 +7,19 @@
       "source": "canonical_learning_completion",
       "weight": "configured",
       "authority": [
-        "migrations/0320_personal_progress_summary.sql",
-        "public.learner_identity_links",
-        "Learning canonical completion/result contract"
+        "migrations/0077_learning_assessment_foundation.sql",
+        "public.learning_attempts",
+        "public.assessment_results",
+        "public.gradebook_entries",
+        "migrations/0133_learning_attempt_lifecycle_convergence.sql",
+        "public.learning_selected_result_internal",
+        "migrations/0267_learning_mixed_course_completion.sql",
+        "public.learning_course_completion_internal",
+        "public.course_enrollments",
+        "public.learner_identity_links"
       ],
-      "key": "verified stable completion/obligation identifier",
-      "qualification": "confirmed canonical outcome and active verified Account/Seat identity; no group duplicate",
+      "key": "verified canonical person plus logical assignment/selected-result identity, or separately qualified course-enrollment completion with immutable basis IDs",
+      "qualification": "confirmed current canonical assessment/gradebook outcome or independently qualified course completion; active verified Account/Seat link; no duplicate across groups or read-receipt-only credit, no double credit of course and its contributing results",
       "withdrawal": "latest authoritative correction or revocation",
       "history": "only verifiable canonical results, not group scores"
     },
@@ -23,10 +30,12 @@
         "migrations/0283_publication_likes.sql",
         "public.project_reactions",
         "public.project_publication_state",
-        "public.publication_reaction_same_identity"
+        "public.publication_reaction_same_identity",
+        "migrations/0323_project_duplicate_origin.sql",
+        "public.project_writer_evidence"
       ],
-      "key": "publication_id plus verified responder identity",
-      "qualification": "current active verified external unique reactor, qualified independently authored native project only (writer_operation=native and coverage=v1), never inherited ordinary_duplicate/public_acquisition/unknown",
+      "key": "publication_id plus active verified external canonical person identity deduplicated across Account/Seat links",
+      "qualification": "active qualified publication, unique external verified reactor and native Project (writer_operation=native, writer_lineage_coverage=v1, all eight copied_from_* fields NULL); private writer evidence requires authorized future SP-06 source adapter; exclude ordinary_duplicate/public_acquisition/unknown, including inherited v1",
       "withdrawal": "remove means zero; readd counts only once",
       "history": "current reaction rows only; no inferred earlier intervals"
     },
