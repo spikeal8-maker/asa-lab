@@ -202,6 +202,25 @@ def assert_ci(release):
     assert_general_ci(revision)
 
 
+def assert_electronics_ci(revision, run_id):
+    code = 'ELECTRONICS_CHECK'
+    require(type(run_id) is int and run_id > 0, code,
+            'Полный браузерный прогон электроники для этого выпуска пока не подтверждён.')
+    result = _ci_get(f'/{run_id}')
+    title = f'Electronics R4-M1 strict-real-time {revision}'
+    repository = result.get('head_repository')
+    require(result.get('id') == run_id and result.get('head_sha') == revision
+            and result.get('path') == '.github/workflows/electronics-r4-m1-focused.yml'
+            and result.get('display_title') == title and result.get('event') in ('workflow_dispatch', 'pull_request')
+            and isinstance(repository, dict) and repository.get('full_name') == REPOSITORY,
+            code, 'В GitHub нет полного браузерного прогона электроники для выбранного выпуска.')
+    require(result.get('status') == 'completed', code,
+            'Браузерная проверка электроники ещё не завершена.')
+    require(result.get('conclusion') == 'success', code,
+            'Браузерная проверка электроники завершилась без успешного результата.')
+    _successful_jobs(result, ('Actual editor live simulation journey',))
+
+
 def fetch_images(release):
     for service in release["images"]:
         reference = release["images"][service]

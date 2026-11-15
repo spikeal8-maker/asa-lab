@@ -40,6 +40,32 @@ sudo asa configure-offsite --offsite-receipt /var/backups/asa-school-gfs/receipt
 Копия должна быть не старше 36 часов. Перед переключением менеджер отдельно
 создаёт и проверяет новую локальную копию. [Школьное подключение](https://github.com/spikeal8-maker/Server-setings/pull/105).
 
+### Готовность к установке в школе
+
+Администратор подключает подтверждение проверки выпуска один раз:
+
+```sh
+sudo asa configure-offsite \
+  --offsite-receipt /var/backups/asa-school-gfs/receipts/latest-full.json \
+  --qualification-receipt /srv/asa-lab/.asa/update-qualification.json
+```
+
+После успешного пробного обновления на изолированном стенде администратор
+сохраняет квитанцию `asa-update-qualification-v1` по указанному пути. Файл
+принадлежит root и имеет права `0600`. Квитанция содержит `base` и `target`
+с полями `revision` и `schema`, точный `deploymentDigest`, `status: passed`,
+`syntheticOnly: true`, `samePgSystemAndDatabase: true`,
+`samePostgresAndMinioVolumes: true`, число `backupFilesVerified` и числовой
+`electronicsRunId` полного браузерного прогона `strict-real-time` в GitHub.
+
+Кнопка «Проверить обновления» показывает **«Можно устанавливать»**, когда
+подтверждены предварительные проверки, полная облачная копия, пробное
+обновление именно этой пары выпусков и успешный браузерный прогон электроники.
+При блокировке она показывает **«Устанавливать пока нельзя»** и причину.
+Кнопка «Установить обновление» заново проверяет эти условия для выбранного
+выпуска перед переключением. Когда канал обновлений меняет выпуск, требуется
+подтверждение для нового OCI digest.
+
 ## Сервисные операции
 
 ```sh
