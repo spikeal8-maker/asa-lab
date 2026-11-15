@@ -1,5 +1,8 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -59,6 +62,15 @@ import {
 // Existing construction controls use this entry point too.
 export { RoboticsNumberField } from './RoboticsNumberField';
 
+const RobotFieldSpatialView = lazy(() => import('./RobotFieldSpatialView'));
+const FIELD_VIEWS = [
+  { id: 'top', label: 'Сверху' },
+  { id: 'orbit', label: 'Перспектива' },
+  { id: 'side', label: 'Сбоку' },
+] as const;
+type FieldView = (typeof FIELD_VIEWS)[number]['id'];
+const fieldLengthFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 });
+
 const TOOLS = [
   { id: 'select', label: 'Выбор', symbol: '↖', extended: false },
   { id: 'wall', label: 'Стена', symbol: '▰', extended: false },
@@ -74,6 +86,34 @@ const TOOLS = [
   { id: 'text', label: 'Текст', symbol: 'Т', extended: false },
 ] as const;
 type Tool = (typeof TOOLS)[number]['id'];
+type PlacementTool = Exclude<Tool, 'select' | 'line' | 'curve'>;
+const FIELD_TOOL_TRANSFER = 'application/x-asa-robotics-field-tool';
+
+function isPlacementTool(tool: Tool): tool is PlacementTool {
+  return tool !== 'select' && tool !== 'line' && tool !== 'curve';
+}
+
+function placementPoint(
+  world: RoboticsWorldDocument,
+  tool: Exclude<Tool, 'select'>,
+  point: RoboticsPoint,
+  snap: boolean,
+): RoboticsPoint | null {
+  if (
+    point.xMeters < 0 ||
+    point.xMeters > world.field.widthMeters ||
+    point.yMeters < 0 ||
+    point.yMeters > world.field.heightMeters
+  )
+    return null;
+  if (!snap || tool === 'stamp') return point;
+  const grid = world.field.gridMeters;
+  return {
+    xMeters: rounded(Math.round(point.xMeters / grid) * grid),
+    yMeters: rounded(Math.round(point.yMeters / grid) * grid),
+  };
+}
+
 const STAMPS: readonly { id: RoboticsTileStampKind; label: string }[] = [
   { id: 'straight', label: 'Прямая' },
   { id: 'turn', label: 'Поворот' },
@@ -204,22 +244,40 @@ function FieldToolArtwork({ kind }: { kind: Tool }) {
       ) : null}
       {kind === 'ball' ? (
         <>
-          <circle cx="28" cy="17" r="13" fill="#f6ac39" stroke="#bd7824" {...common} />
+          <ellipse cx="29" cy="31" rx="14" ry="2.5" fill="#3b4d58" opacity=".18" />
+          <circle cx="28" cy="17" r="13" fill="#eba23f" stroke="#b4692d" {...common} />
           <path
-            d="M22 11q6-5 13 2"
+            d="M20 27c2-10 8-16 20-16M15 14c12 1 19 7 23 14"
             fill="none"
-            stroke="#ffdf9f"
+            stroke="#a65829"
+            strokeWidth="1.2"
+          />
+          <path
+            d="M21 11q4-4 9-2"
+            fill="none"
+            stroke="#ffe4a3"
             strokeWidth="3"
             strokeLinecap="round"
           />
-          <ellipse cx="28" cy="32" rx="12" ry="2" fill="#e0e8ee" />
         </>
       ) : null}
       {kind === 'can' ? (
         <>
-          <path d="M15 10v16c0 7 26 7 26 0V10" fill="#bbd6e3" stroke="#5486a0" {...common} />
-          <ellipse cx="28" cy="10" rx="13" ry="5" fill="#e9f2f6" stroke="#5486a0" {...common} />
-          <ellipse cx="28" cy="26" rx="13" ry="4" fill="none" stroke="#79a6b8" strokeWidth="1.4" />
+          <ellipse cx="29" cy="32" rx="14" ry="2.5" fill="#3b4d58" opacity=".18" />
+          <path d="M16 8v18c0 7 24 7 24 0V8" fill="#a5b3bd" stroke="#627481" {...common} />
+          <path d="M17 11v13c5 4 17 4 22 0V11z" fill="#a8533d" />
+          <path d="M20 13v12M23 14v12" stroke="#f1a387" strokeOpacity=".68" strokeWidth="1.5" />
+          <ellipse
+            cx="28"
+            cy="8"
+            rx="12"
+            ry="4.8"
+            fill="#dae4ea"
+            stroke="#728390"
+            strokeWidth="1.3"
+          />
+          <ellipse cx="31" cy="8" rx="2.7" ry="1.3" fill="#637380" />
+          <path d="M24 8h4" stroke="#f7fbfd" strokeWidth="1.8" strokeLinecap="round" />
         </>
       ) : null}
       {kind === 'box' ? (
@@ -362,6 +420,13 @@ export function RobotFieldEditor({
   const [snap, setSnap] = useState(false);
   const [pan, setPan] = useState(false);
   const [dropHover, setDropHover] = useState(false);
+  const [placement, setPlacement] = useState<{
+    tool: PlacementTool;
+    position: RoboticsPoint;
+  } | null>(null);
+  const draggedTool = useRef<Tool | null>(null);
+  const [fieldView, setFieldView] = useState<FieldView>('top');
+  const [spatialView, setSpatialView] = useState<Exclude<FieldView, 'top'> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const suppressNextCanvasClick = useRef(false);
   // Upload decoding is async; reject stale completions rather than replacing
@@ -402,11 +467,13 @@ export function RobotFieldEditor({
     onStart: (keepPointerCapture) => {
       releaseDrag(!keepPointerCapture);
       pendingTouch.current = null;
+      setPlacement(null);
       suppressNextCanvasClick.current = true;
     },
     onCancel: () => {
       releaseDrag();
       pendingTouch.current = null;
+      setPlacement(null);
       setTracePoints([]);
       setTraceCursor(null);
       setTool('select');
@@ -420,6 +487,11 @@ export function RobotFieldEditor({
     : undefined;
   const fitScale = fitFieldCamera(fieldBounds, cameraControl.viewport).pixelsPerMeter;
   const zoom = (cameraControl.camera?.pixelsPerMeter ?? fitScale) / fitScale;
+  const topView = fieldView === 'top';
+  const pixelsPerMeter = cameraControl.camera?.pixelsPerMeter ?? fitScale;
+  const scaleMeters =
+    [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02].find((meters) => meters * pixelsPerMeter <= 84) ??
+    0.01;
   function stepZoom(direction: 1 | -1) {
     const level =
       direction === 1
@@ -450,9 +522,24 @@ export function RobotFieldEditor({
       resizing.svg.releasePointerCapture(resizing.pointerId);
     setDraft(null);
   }
+  function changeFieldView(next: FieldView) {
+    if (next === fieldView) return;
+    cameraControl.leave();
+    cameraControl.cancel();
+    pendingTouch.current = null;
+    releaseDrag();
+    clearTrace();
+    setDropHover(false);
+    setPlacement(null);
+    setTool('select');
+    setPan(false);
+    setFieldView(next);
+    if (next !== 'top') setSpatialView(next);
+  }
   useEffect(() => {
     releaseDrag();
     setError(null);
+    setPlacement(null);
   }, [world, running]);
   useEffect(
     () => () => {
@@ -492,6 +579,7 @@ export function RobotFieldEditor({
     setPropertiesOpen(true);
     setTool('select');
     setPan(false);
+    setPlacement(null);
   }
   const dynamicCount = world.field.balls.length + (world.field.bodies?.length ?? 0);
   function isMaxed(kind: Tool): boolean {
@@ -521,26 +609,11 @@ export function RobotFieldEditor({
       return;
     if (position) {
       try {
-        if (
-          position.xMeters < 0 ||
-          position.xMeters > world.field.widthMeters ||
-          position.yMeters < 0 ||
-          position.yMeters > world.field.heightMeters
-        ) {
+        const point = placementPoint(world, placingTool, position, snap);
+        if (!point) {
           setError('Перетащите предмет внутрь границ поля.');
           return;
         }
-        const point =
-          snap && placingTool !== 'stamp'
-            ? {
-                xMeters: rounded(
-                  Math.round(position.xMeters / world.field.gridMeters) * world.field.gridMeters,
-                ),
-                yMeters: rounded(
-                  Math.round(position.yMeters / world.field.gridMeters) * world.field.gridMeters,
-                ),
-              }
-            : position;
         const next = sceneAt(world, placingTool, point, stamp, turns);
         if (commit(next.world)) selectAdded(next.key);
       } catch (error) {
@@ -572,18 +645,22 @@ export function RobotFieldEditor({
   }
 
   function dragOverCanvas(event: DragEvent<HTMLDivElement>) {
-    if (running || !event.dataTransfer.types.includes('application/x-asa-robotics-field-tool'))
-      return;
+    if (running || !event.dataTransfer.types.includes(FIELD_TOOL_TRANSFER)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
     if (!dropHover) setDropHover(true);
+    const kind = draggedTool.current;
+    const position = pointAt(event.clientX, event.clientY);
+    if (kind && isPlacementTool(kind) && position) setPlacement({ tool: kind, position });
   }
   function dropOnCanvas(event: DragEvent<HTMLDivElement>) {
-    if (!event.dataTransfer.types.includes('application/x-asa-robotics-field-tool')) return;
+    if (!event.dataTransfer.types.includes(FIELD_TOOL_TRANSFER)) return;
     event.preventDefault();
     setDropHover(false);
+    setPlacement(null);
+    draggedTool.current = null;
     if (running) return;
-    const draggedKind = event.dataTransfer.getData('application/x-asa-robotics-field-tool');
+    const draggedKind = event.dataTransfer.getData(FIELD_TOOL_TRANSFER);
     const selected = TOOLS.find((item) => item.id === draggedKind);
     const svg = canvasRef.current?.querySelector<SVGSVGElement>('svg.robotics-field');
     if (!selected || !svg) return;
@@ -894,6 +971,11 @@ export function RobotFieldEditor({
       setTraceCursor(pointerPosition(event));
       return;
     }
+    if (!running && !pan && !cameraControl.spacePressed && isPlacementTool(tool)) {
+      const position = pointerPosition(event);
+      if (position) setPlacement({ tool, position });
+      return;
+    }
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId || running) return;
     const point = pointerPosition(event);
@@ -1058,7 +1140,22 @@ export function RobotFieldEditor({
     setPropertiesOpen(false);
     requestAnimationFrame(() => propertiesButton.current?.focus());
   }
-  const scene = draft ?? world;
+  const ghost = useMemo(() => {
+    if (!topView || running || !placement) return null;
+    const point = placementPoint(world, placement.tool, placement.position, snap);
+    if (!point) return null;
+    try {
+      const next = sceneAt(world, placement.tool, point, stamp, turns);
+      return {
+        world: next.world,
+        key: canonicalRoboticsObjectKey(next.world, next.key),
+        valid: parseRoboticsWorldDocument(next.world).ok,
+      };
+    } catch {
+      return null;
+    }
+  }, [placement, running, snap, stamp, topView, turns, world]);
+  const scene = draft ?? ghost?.world ?? world;
   const previewState = draft ? createRoboticsWorldState(draft) : state;
   const previewDistance = draft
     ? measureRoboticsDistance(draft, draft.initialPose, previewState.balls, previewState.bodies)
@@ -1143,7 +1240,7 @@ export function RobotFieldEditor({
               <input
                 type="checkbox"
                 checked={snap}
-                disabled={running}
+                disabled={running || !topView}
                 onChange={(event) => setSnap(event.target.checked)}
               />
               Привязка
@@ -1152,6 +1249,7 @@ export function RobotFieldEditor({
               type="button"
               aria-label="Перемещать вид поля"
               aria-pressed={pan}
+              disabled={!topView}
               onClick={() => {
                 releaseDrag();
                 setPan((value) => !value);
@@ -1190,7 +1288,9 @@ export function RobotFieldEditor({
               <button
                 type="button"
                 aria-label="Отдалить поле"
-                disabled={(cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE}
+                disabled={
+                  !topView || (cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE
+                }
                 onClick={() => stepZoom(-1)}
               >
                 −
@@ -1199,7 +1299,9 @@ export function RobotFieldEditor({
               <button
                 type="button"
                 aria-label="Приблизить поле"
-                disabled={(cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE}
+                disabled={
+                  !topView || (cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE
+                }
                 onClick={() => stepZoom(1)}
               >
                 +
@@ -1208,18 +1310,25 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="Показать поле целиком"
                 title="Показать всё (Home)"
+                disabled={!topView}
                 onClick={fit}
               >
                 Всё
               </button>
-              <button type="button" aria-label="К роботу" title="К роботу" onClick={focusRobot}>
+              <button
+                type="button"
+                aria-label="К роботу"
+                title="К роботу"
+                disabled={!topView}
+                onClick={focusRobot}
+              >
                 Робот
               </button>
               <button
                 type="button"
                 aria-label="К выделенному"
                 title="К выделенному"
-                disabled={!selection}
+                disabled={!topView || !selection}
                 onClick={focusSelection}
               >
                 Выбор
@@ -1235,109 +1344,193 @@ export function RobotFieldEditor({
         </p>
       ) : null}
       <div className="robotics-field-editor-body" data-properties-open={propertiesOpen}>
-        <div
-          ref={canvasRef}
-          className="robotics-field-canvas robotics-field-scroll"
-          tabIndex={0}
-          role="group"
-          aria-label="Полотно поля"
-          data-pan={pan || cameraControl.spacePressed}
-          data-camera-gesturing={cameraControl.gesturing}
-          onPointerEnter={cameraControl.enter}
-          onPointerLeave={cameraControl.leave}
-          data-drawing={tracePoints.length > 0}
-          data-drop-hover={dropHover}
-          onClick={(event) => {
-            if (suppressNextCanvasClick.current) {
-              suppressNextCanvasClick.current = false;
-              return;
-            }
-            if (running || pan || cameraControl.spacePressed || tool !== 'select') return;
-            const target = (event.target as Element).closest('[data-scene-key]');
-            const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
-            if (key) {
-              setSelection(canonicalRoboticsObjectKey(world, key));
-              openDockProperties();
-            }
-          }}
-          onDragOver={dragOverCanvas}
-          onDragLeave={() => setDropHover(false)}
-          onDrop={dropOnCanvas}
-          onKeyDown={(event) => {
-            if (event.target !== event.currentTarget) return;
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              event.stopPropagation();
-              cameraControl.cancel();
-              pendingTouch.current = null;
-              suppressNextCanvasClick.current = true;
-              clearTrace();
-              releaseDrag();
-              setTool('select');
-              setPan(false);
-            }
-            if (event.key === 'Enter' && tool === 'line') {
-              event.preventDefault();
-              finishTrace();
-              return;
-            }
-            if (event.key === 'Home') {
-              event.preventDefault();
-              fit();
-            }
-            if (event.key === '+' || event.key === '=') {
-              event.preventDefault();
-              stepZoom(1);
-            }
-            if (event.key === '-') {
-              event.preventDefault();
-              stepZoom(-1);
-            }
-            if (event.key === 'Delete' || event.key === 'Backspace') {
-              event.preventDefault();
-              remove();
-            }
-          }}
-        >
-          <div className="robotics-field-camera-surface">
-            <RobotField
-              world={scene}
-              projection={projection}
-              state={previewState}
-              distance={previewDistance}
-              showGrid={showGrid}
-              selection={selection}
-              editable={!running && !pan}
-              onPointerDown={pointerDown}
-              onPointerMove={pointerMove}
-              onPointerUp={pointerUp}
-              onPointerCancel={() => {
-                cameraControl.cancel();
-                pendingTouch.current = null;
-                releaseDrag();
-                clearTrace();
-                suppressNextCanvasClick.current = true;
+        <div className="robotics-field-stage" data-view={fieldView}>
+          <div className="robotics-field-stage-toolbar">
+            <div className="robotics-field-view-switch" role="group" aria-label="Камера поля">
+              {FIELD_VIEWS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={fieldView === id}
+                  onClick={() => changeFieldView(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="robotics-field-view-purpose">
+              {topView ? 'Редактор поля' : '3D-вид · движение 2D'}
+            </span>
+          </div>
+          <div className="robotics-field-viewport">
+            <div
+              ref={canvasRef}
+              className="robotics-field-canvas robotics-field-scroll"
+              hidden={!topView}
+              tabIndex={0}
+              role="group"
+              aria-label="Полотно поля"
+              data-pan={pan || cameraControl.spacePressed}
+              data-camera-gesturing={cameraControl.gesturing}
+              onPointerEnter={cameraControl.enter}
+              onPointerLeave={() => {
+                cameraControl.leave();
+                setPlacement(null);
               }}
-              onLostPointerCapture={(event) => {
-                cameraControl.lostPointerCapture(event);
+              data-drawing={tracePoints.length > 0}
+              data-drop-hover={dropHover}
+              onClick={(event) => {
+                if (suppressNextCanvasClick.current) {
+                  suppressNextCanvasClick.current = false;
+                  return;
+                }
+                if (running || pan || cameraControl.spacePressed || tool !== 'select') return;
+                const target = (event.target as Element).closest('[data-scene-key]');
+                const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
+                if (key) {
+                  setSelection(canonicalRoboticsObjectKey(world, key));
+                  openDockProperties();
+                }
+              }}
+              onDragOver={dragOverCanvas}
+              onDragLeave={(event) => {
                 if (
-                  drag.current?.pointerId === event.pointerId ||
-                  resizeDrag.current?.pointerId === event.pointerId
+                  event.relatedTarget instanceof Node &&
+                  event.currentTarget.contains(event.relatedTarget)
                 )
+                  return;
+                setDropHover(false);
+                setPlacement(null);
+              }}
+              onDrop={dropOnCanvas}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  cameraControl.cancel();
+                  pendingTouch.current = null;
+                  setPlacement(null);
+                  suppressNextCanvasClick.current = true;
+                  clearTrace();
                   releaseDrag();
+                  setTool('select');
+                  setPan(false);
+                }
+                if (event.key === 'Enter' && tool === 'line') {
+                  event.preventDefault();
+                  finishTrace();
+                  return;
+                }
+                if (event.key === 'Home') {
+                  event.preventDefault();
+                  fit();
+                }
+                if (event.key === '+' || event.key === '=') {
+                  event.preventDefault();
+                  stepZoom(1);
+                }
+                if (event.key === '-') {
+                  event.preventDefault();
+                  stepZoom(-1);
+                }
+                if (event.key === 'Delete' || event.key === 'Backspace') {
+                  event.preventDefault();
+                  remove();
+                }
               }}
-              onContextMenu={(event) => {
-                if (tool !== 'line' && tool !== 'curve') return;
-                event.preventDefault();
-                if (tool === 'line') finishTrace();
-                else clearTrace();
-              }}
-              draftStroke={
-                (tool === 'line' || tool === 'curve') && tracePoints.length
-                  ? { kind: tool, points: tracePoints, cursor: traceCursor }
-                  : null
-              }
-            />
+            >
+              <div className="robotics-field-camera-surface">
+                <RobotField
+                  world={scene}
+                  projection={projection}
+                  state={previewState}
+                  distance={previewDistance}
+                  showGrid={showGrid}
+                  selection={selection}
+                  ghost={ghost}
+                  editable={!running && !pan}
+                  onPointerDown={pointerDown}
+                  onPointerMove={pointerMove}
+                  onPointerUp={pointerUp}
+                  onPointerCancel={() => {
+                    cameraControl.cancel();
+                    pendingTouch.current = null;
+                    setPlacement(null);
+                    releaseDrag();
+                    clearTrace();
+                    suppressNextCanvasClick.current = true;
+                  }}
+                  onLostPointerCapture={(event) => {
+                    cameraControl.lostPointerCapture(event);
+                    if (
+                      drag.current?.pointerId === event.pointerId ||
+                      resizeDrag.current?.pointerId === event.pointerId
+                    )
+                      releaseDrag();
+                  }}
+                  onContextMenu={(event) => {
+                    if (tool !== 'line' && tool !== 'curve') return;
+                    event.preventDefault();
+                    if (tool === 'line') finishTrace();
+                    else clearTrace();
+                  }}
+                  draftStroke={
+                    (tool === 'line' || tool === 'curve') && tracePoints.length
+                      ? { kind: tool, points: tracePoints, cursor: traceCursor }
+                      : null
+                  }
+                />
+              </div>
+            </div>
+            {spatialView ? (
+              <div className="robotics-field-spatial-viewport" hidden={topView}>
+                <Suspense
+                  fallback={
+                    <p className="robotics-spatial-notice" role="status">
+                      Открываем 3D-вид…
+                    </p>
+                  }
+                >
+                  <RobotFieldSpatialView
+                    world={world}
+                    state={state}
+                    distance={distance}
+                    showGrid={showGrid}
+                    selection={selection}
+                    view={spatialView}
+                    active={!topView}
+                    onSelect={(key) => {
+                      setSelection(canonicalRoboticsObjectKey(world, key));
+                      openDockProperties();
+                    }}
+                  />
+                </Suspense>
+              </div>
+            ) : null}
+          </div>
+          <div className="robotics-field-stage-status">
+            <span>
+              {fieldLengthFormat.format(world.field.widthMeters)} ×{' '}
+              {fieldLengthFormat.format(world.field.heightMeters)} м
+            </span>
+            {topView ? (
+              <span className="robotics-field-stage-instruction">
+                {ghost?.valid === false
+                  ? 'Здесь нельзя разместить предмет'
+                  : tool !== 'select'
+                    ? selectedTool.label
+                    : 'Колесо — масштаб · пробел — панорама'}
+              </span>
+            ) : null}
+            {topView && cameraControl.camera ? (
+              <span className="robotics-field-scale">
+                <span style={{ inlineSize: scaleMeters * pixelsPerMeter }} aria-hidden="true" />
+                {scaleMeters < 1
+                  ? fieldLengthFormat.format(scaleMeters * 100) + ' см'
+                  : fieldLengthFormat.format(scaleMeters) + ' м'}
+              </span>
+            ) : null}
           </div>
         </div>
         <aside
@@ -1500,18 +1693,23 @@ export function RobotFieldEditor({
                               : 'Перетащите на поле или выберите и нажмите на место'
                           }
                           disabled={disabled}
-                          draggable={!disabled}
+                          draggable={!disabled && topView}
                           onDragStart={(event) => {
-                            event.dataTransfer.setData(
-                              'application/x-asa-robotics-field-tool',
-                              kind,
-                            );
+                            draggedTool.current = kind;
+                            event.dataTransfer.setData(FIELD_TOOL_TRANSFER, kind);
                             event.dataTransfer.setData('text/plain', kind);
                             event.dataTransfer.effectAllowed = 'copy';
+                          }}
+                          onDragEnd={() => {
+                            draggedTool.current = null;
+                            setDropHover(false);
+                            setPlacement(null);
                           }}
                           onClick={() => {
                             releaseDrag();
                             clearTrace();
+                            setPlacement(null);
+                            setFieldView('top');
                             setTool(kind);
                             setSelection(null);
                             // A selected object's floating inspector must not cover
