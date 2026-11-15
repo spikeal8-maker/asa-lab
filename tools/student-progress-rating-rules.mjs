@@ -322,9 +322,18 @@ function mapIdentity(fixture) {
 }
 function latest(target, key, revision, state, errorPrefix) {
   const prior = target.get(key);
-  if (!prior || revision > prior.revision) target.set(key, { revision, state });
-  else if (revision === prior.revision)
-    requireTrue(state === prior.state, errorPrefix + ': inconsistent same-version replay');
+  if (!prior) {
+    target.set(key, { revision, state, byRevision: new Map([[revision, state]]) });
+    return;
+  }
+  const observed = prior.byRevision.get(revision);
+  if (observed !== undefined)
+    requireTrue(state === observed, errorPrefix + ': inconsistent same-version replay');
+  else prior.byRevision.set(revision, state);
+  if (revision > prior.revision) {
+    prior.revision = revision;
+    prior.state = state;
+  }
 }
 function score(fixture, config) {
   const identities = mapIdentity(fixture);
@@ -358,6 +367,15 @@ function score(fixture, config) {
     (a, b) =>
       a.firstPublishOrder - b.firstPublishOrder || a.publicationId.localeCompare(b.publicationId),
   )) {
+    // Only a proven native publication can reserve a project's credit basis.
+    // A later withdrawal does not transfer an already qualified basis to a republication.
+    if (
+      identities.get(publication.authorPrincipal) !== personId ||
+      publication.origin !== 'covered_native' ||
+      publication.writerOperation !== 'native' ||
+      publication.proof !== 'server_verified'
+    )
+      continue;
     if (!byProject.has(publication.projectId)) byProject.set(publication.projectId, publication);
   }
   let socialPoints = 0;

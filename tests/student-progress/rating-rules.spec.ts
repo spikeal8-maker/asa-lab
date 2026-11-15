@@ -20,7 +20,13 @@ type RatingCandidate = {
 type RatingFixture = {
   id: string;
   identityLinks: Array<{ principal: string; personId: string; verified: boolean }>;
-  publications: Array<{ publicationId: string; projectId: string; writerOperation?: string }>;
+  publications: Array<{
+    publicationId: string;
+    projectId: string;
+    writerOperation?: string;
+    proof?: string;
+    state?: string;
+  }>;
   reactions: Array<{ state: string }>;
 };
 type RatingFiles = {
@@ -125,6 +131,39 @@ describe('SP-05 rating calibration: real CLI execution and fixed independent ora
     const executed = invoke();
     expect(executed.status, executed.stderr).toBe(0);
     expect(executed.stdout).toContain('SP05_CHECK_PASS ');
+  });
+  it('selects the first qualified publication after an earlier unverified publication', () => {
+    const result = invalidFixture((root) =>
+      updateJson(root, 'fixtures.json', (item) => {
+        const fixture = item.cases.find((row: { id: string }) => row.id === 'republication');
+        fixture.publications[0].proof = 'unverified';
+      }),
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('SP05_CHECK_PASS ');
+  });
+  it('does not transfer a withdrawn qualified basis to a later publication', () => {
+    const result = invalidFixture((root) =>
+      updateJson(root, 'fixtures.json', (item) => {
+        const fixture = item.cases.find((row: { id: string }) => row.id === 'republication');
+        fixture.publications[0].state = 'withdrawn';
+      }),
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('wrong total republication');
+  });
+  it('accepts a consistent replay of an older reaction after newer revisions', () => {
+    const result = invalidFixture((root) =>
+      updateJson(root, 'fixtures.json', (item) => {
+        const fixture = item.cases.find((row: { id: string }) => row.id === 'unlike_then_relike');
+        fixture.reactions.push({ ...fixture.reactions[0] });
+      }),
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('SP05_CHECK_PASS ');
   });
   it.each([
     [
@@ -237,6 +276,15 @@ describe('SP-05 rating calibration: real CLI execution and fixed independent ora
         updateJson(root, 'fixtures.json', (item) => {
           const fixture = item.cases.find((row: { id: string }) => row.id === 'replayed_reaction');
           fixture.reactions[1].state = 'removed';
+        }),
+      'inconsistent same-version replay',
+    ],
+    [
+      'conflicting old revision after a later valid revision',
+      (root: string) =>
+        updateJson(root, 'fixtures.json', (item) => {
+          const fixture = item.cases.find((row: { id: string }) => row.id === 'unlike_then_relike');
+          fixture.reactions.push({ ...fixture.reactions[0], state: 'removed' });
         }),
       'inconsistent same-version replay',
     ],
