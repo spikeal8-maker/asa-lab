@@ -142,34 +142,44 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
   - id: classroom-visual-20261111
-    worktree_id: classroom-visual-20261111
+    worktree_id: classroom-legacy-closeout-004
     owned_paths:
-      - apps/web/src/pages/DashboardPage.tsx
-      - apps/web/src/components/SystemToastViewport.tsx
-      - apps/web/src/components/system-feedback.ts
-      - apps/web/src/components/system-feedback.css
-      - apps/web/src/components/testing/system-feedback.spec.ts
+      - apps/api/src/abuse-protection.ts
+      - apps/api/src/classroom-participants.controller.spec.ts
+      - apps/api/src/classroom-participants.controller.ts
+      - apps/api/src/mutation-session-proof.ts
+      - apps/api/src/school-nat-replay.spec.ts
+      - apps/web/src/classroom-participants-api.ts
+      - e2e/classroom-participants.spec.ts
+      - migrations/0324_classroom_merit_history.sql
+      - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+      - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+      - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+      convergence_baseline_sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
       head_sha: null
-      observed_at: '2026-11-11T18:17:00Z'
+      observed_at: '2026-11-15T08:01:06Z'
       main:
         branch: main
-        sha: f767e1271e7128daf64f31c79d21fccf80e85ab4
+        sha: c70ee71b449920fa9e549b48ac5ff36267de2e0f
       observation_note: >-
-        Read-only baseline for owner-selected classroom visual programme. No
-        product implementation, CI approval, deployment or owner acceptance yet.
-        Fetch main before each selected slice; shared path ownership is advisory.
+        Read-only classroom integration snapshot: PR1147 HEAD
+        72081f298ab3871926f222d1f221212b35e93aaf contains UUID history
+        repair and one ordinary merge of main; 16 Legacy files remain PR-only.
+        Accepted UI and SystemTabs are in main via PR1160 c9284b936016d6bd969e63cfe9174c585213b3cf.
+        Exact-head CI and independent review are pending. No deployment,
+        owner acceptance or production database change. Fetch main before writes.
     task:
-      id: TASK-CLASSROOM-FEEDBACK-001
+      id: TASK-CLASSROOM-LEGACY-004
       issue: 1087
       programme_issue: 715
       branch: main
       base_branch: main
-      pr: null
-      status: ready
-      checkpoint: owner_selected_no_shift_notification_ribbon
+      pr: 1147
+      pr_draft: false
+      status: in_review
+      checkpoint: legacy_1147_head_72081f29_exact_ci_independent_review_pending
       owner_acceptance: pending
       owner_authorization: >-
         Direct owner instruction on 2026-11-11 authorizes a multi-slice classroom
@@ -178,20 +188,20 @@ parallel_lanes:
         PR577/605/712/818/827. Preserve the accepted My classes top toolbar/search;
         do not enlarge or move it. No live data or deployment authorization.
       selected_slice:
-        id: CLASSROOM-FEEDBACK-001
-        status: ready
-        change_class: L1_UI_BEHAVIOR
+        id: CLASSROOM-LEGACY-004
+        status: in_review
+        change_class: L3_CRITICAL
         scope: >-
-          Action notification ribbon directly below the actual global header on
-          desktop and mobile; outside document flow, no reserved gap or layout
-          shifts. Migrate classroom list/class/student action feedback without
-          duplicate local/global alerts, false success or student-code leakage.
-          Preserve field validation/retry UI and all existing business semantics.
+          Finish existing PR1147 awards and avatars, real PostgreSQL migration
+          0324, history, request-ID idempotency, Account and StudentSeat ACL,
+          and retain accepted FB-06 plus Student Codes without UI redesign.
+          Reconcile superseded historical PR818 and PR827 only after merge.
         acceptance: >-
-          Exact-source focused unit tests, independent review, browser before/
-          during/after geometry assertions and 1920/1440/1366/1024/390/320 evidence.
-          Success/error/repeated/long notifications must not move existing top
-          controls, rows or page content. Source tests do not equal visual approval.
+          Required exact-head GitHub workflows including real PostgreSQL/ACL,
+          original and uppercase UUID merit-history regression, browser
+          320/390 and desktop, independent read-only review, protected merge,
+          post-merge CI, historical supersession evidence and issue1087 matrix.
+          No Codex, forced history rewrite, bypass or production deployment.
       programme_sequence:
         - CLASSROOM-FEEDBACK-001
         - CLASSROOM-ROWS-002
@@ -199,7 +209,7 @@ parallel_lanes:
         - CLASSROOM-LEGACY-004
       exclusions:
         - No accepted My classes header, search, toolbar or tab redesign.
-        - No database, API, authorization, deployment, production or network changes.
+        - No production database, deployment, server or network changes.
         - No blanket PR closure, branch deletion, PR29 changes or force-push.
         - No unrelated module repairs or claims of owner visual acceptance.
       normative_refs:
