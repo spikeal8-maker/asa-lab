@@ -14,6 +14,7 @@ ASA Lab — команды школьного и других серверов
   asa logs [api|web|postgres|minio|scratch|search] [--tail N]
   asa doctor                       полная диагностика (без изменений)
   asa check                        проверить выпуск и возможность обновления
+  asa cancel-update --deployment-digest sha256:...
   asa update                       установить выпуск после штатных проверок
   asa backup
   asa verify-backup --backup /absolute/path

@@ -195,7 +195,7 @@ fingerprint проверенного манифеста атомарно сох�
 `.asa/release-selection.json` **до** Git switch. Selector-aware continuation без
 аргумента прочитает тот же digest и заново выполнит preflight/CI. Другой digest,
 изменившийся манифест или некорректный checkpoint дают STOP без замены записи.
-Pending выбор удаляется только после принятого update либо полностью проверенного
+При штатном завершении pending выбор удаляется после принятого update либо полностью проверенного
 NO_CHANGE; failed/check-only попытки его сохраняют. Не удаляйте/переписывайте
 checkpoint вручную для обхода отказа. Это continuation, не вечная настройка
 расписания: после завершения обычный scheduled update снова использует stable.

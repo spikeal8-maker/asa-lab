@@ -236,7 +236,6 @@ def cancel_update_before_switch(install, digest):
     require(install.git('rev-parse', 'HEAD') == installed['revision'], 'RELEASE_SOURCE',
             'Перед отменой выбора checkout должен совпадать с установленным выпуском.')
     install.readiness(installed['revision'], installed['schema'])
-    install.data_identity(install.identity())
     verify_running_release(install, installed)
     archived = install.state / ('cancelled-release-selection-' + uuid.uuid4().hex + '.json')
     source = install.state / 'release-selection.json'
@@ -578,7 +577,7 @@ def main(argv=None):
         if args.action in ('rollback-plan', 'rollback', 'configure-offsite', 'cancel-update') or args.require_application_rollback or args.operator:
             application_rollback.attest_private_state(install)
         if args.action in ('install', 'check', 'update'):
-            args.deployment_digest, _ = resolve_selection(install, args.deployment_digest)
+            resolve_selection(install, args.deployment_digest)
         with nullcontext() if args.action in ('doctor', 'check', 'repair-plan', 'rollback-plan') else operation_lock(install.root):
             if args.action in ('configure', 'configure-offsite', 'update'):
                 # A policy may have been enabled between initial discovery and lock acquisition.
