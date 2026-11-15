@@ -16,6 +16,7 @@ import { SystemToastViewport } from '../components/SystemToastViewport';
 import { ClassroomActionFeedbackProvider } from '../components/ClassroomActionFeedback';
 import { ClassroomStudentProjects } from '../components/ClassroomStudentProjects';
 import { ClassroomStudentHistory } from '../components/ClassroomStudentHistory';
+import { ClassroomAssignmentIssuer } from '../components/ClassroomAssignmentIssuer';
 import { ClassroomLearning } from '../components/ClassroomLearning';
 import { SystemTabs } from '../components/SystemTabs';
 import {
@@ -1000,6 +1001,7 @@ function ClassroomPageContent({
                   <span className="classroom-desktop-label">Карточки доступа</span>
                   <span className="classroom-mobile-label">Карточки</span>
                 </button>
+                <ClassroomAssignmentIssuer classroomId={classroomId} archived={archived} compact />
               </div>
               <button
                 type="button"

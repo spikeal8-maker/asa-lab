@@ -681,7 +681,7 @@ test('extreme browser zoom keeps roster action captions inside their buttons at 
   await page.goto(`/#/classrooms/${classId}`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator(rosterSelector)).toHaveCount(24);
   const actions = page.locator('.classroom-roster-actions > button');
-  await expect(actions).toHaveCount(3);
+  await expect(actions).toHaveCount(4);
   const geometry = await actions.evaluateAll((items) =>
     items.map((element) => {
       const button = element.getBoundingClientRect();
@@ -698,6 +698,7 @@ test('extreme browser zoom keeps roster action captions inside their buttons at 
     expect(entry.caption.right, entry.label ?? '').toBeLessThanOrEqual(entry.button.right + 0.5);
   }
   await hitVisible(page.getByRole('button', { name: 'Карточки доступа', exact: true }));
+  await hitVisible(page.getByRole('button', { name: 'Выдать задание', exact: true }));
   await hitVisible(page.getByRole('button', { name: 'Показать все коды учеников' }));
   await expect(page.locator('.classroom-mobile-sort select')).toBeVisible();
   await noOverflow(page, width);

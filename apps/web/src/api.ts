@@ -927,7 +927,7 @@ export interface LearningAssignableActivity {
   versionId: string;
   title: string;
   instructions: string | null;
-  kind: 'project' | 'quiz' | 'file';
+  kind: 'project' | 'quiz' | 'file' | 'essay';
   moduleKey: string | null;
 }
 
@@ -1114,6 +1114,7 @@ export interface LearnerResult {
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
+  activityVersionId?: string;
   activityKind?: 'project' | 'essay' | 'quiz' | 'file';
   id: string;
   /** Exact Direct or lesson-level Course ActivityRun for atomic Start. */
@@ -2417,6 +2418,30 @@ export const api = {
       {
         method: 'PUT',
         body: JSON.stringify({ expectedRevision, fileName, fileDataUrl }),
+      },
+    ),
+  uploadLargeAuthoredActivityTaskPdf: (id: string, expectedRevision: number, file: File) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-pdf/${expectedRevision}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(file.name),
+        },
+        body: file,
+      },
+    ),
+  uploadAuthoredActivityTaskAttachment: (id: string, expectedRevision: number, file: File) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-attachment/${expectedRevision}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(file.name),
+        },
+        body: file,
       },
     ),
   deleteAuthoredActivityDraftSample: (id: string, expectedRevision: number) =>

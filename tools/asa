@@ -27,6 +27,7 @@ ASA Lab — команды школьного и других серверов
 ASA_INSTALL_ROOT=/absolute/path переопределяет путь; ASA_PROFILE задаёт профиль,
 если установка ещё не настроена. Для production установите постоянную команду
 из проверенного checkout: tools/install-asa-command.sh --production.
+Для технического вывода проверки или установки добавьте --verbose.
 Можно явно выбрать выпуск с --deployment-digest sha256:... .
 HELP
 }
@@ -101,12 +102,17 @@ case "$profile" in
 esac
 
 # Plain production commands select the published release through the canonical manager.
-if [ "$profile" = production ] && [ "$#" -eq 0 ]; then
+if [ "$profile" = production ] && { [ "$#" -eq 0 ] || { [ "$#" -eq 1 ] && [ "$1" = --verbose ]; }; }; then
   case "$action" in
     check|update)
       [ "$tools_root" != "$root" ] || fail 'Установите постоянную команду ASA Lab из отдельного проверенного каталога инструментов'
       [ -f "$tools_root/tools/asa_manager.py" ] || fail 'Не найдены проверенные инструменты обновления'
-      exec "$python" -E -s -B "$tools_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" --operator
+      if [ "$#" -eq 1 ]; then
+        set --
+      else
+        set -- --human
+      fi
+      exec "$python" -E -s -B "$tools_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" --operator "$@"
       ;;
   esac
 fi
