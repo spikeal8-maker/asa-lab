@@ -5979,6 +5979,25 @@ parallel_lanes:
       exact_electronics_conclusion: failure
       exact_electronics_browser: 150 passed, 1 image recovery href retry0 failure; cross-tab save scenario passed
       independent_review: acceptance_blocked_required_gates_failed_no_product_findings_reported
+      current_main_diagnostic:
+        product_source_sha: 1775a9c3d0a430bf357d91f92f922ac450dfaeee
+        unchanged_persistence_at_main_sha: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
+        diagnostic_head_sha: b682052c56857f33006ec48d11c6b34975b568fe
+        run: 43744406876
+        run_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43744406876
+        conclusion: success
+        browser_result: 1 passed in Chromium with real API and PostgreSQL in isolated CI
+        verified_journey: >-
+          The API committed tab A's complete document while its response was held. Tab B edited its resistor
+          and Arduino sketch from the previous revision. A's acknowledgement and B's close preserved B's
+          exact local draft. A fresh tab recovered the complete B document in its own local slot and showed
+          the conflict and local copy. The server document and revision remained exactly A's.
+        focused_units: 87 passed across four recovery, storage, workbench state and autosave test files
+        artifact: 14173911012
+        evidence_boundary: The artifact retains build provenance and stack checks. The browser receipt and
+          reopened screenshot were absent from the uploaded archive.
+        acceptance_boundary: Directed current-product verification only. Full repository and Electronics
+          browser gates remain required for complete acceptance. The historical candidate and blocker are preserved.
       technical_acceptance: blocked
       deployment: not_run
       database_actions: none
@@ -17940,14 +17959,16 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_mujoco_aot_worker_csp_selected
+      checkpoint: e1_r5_browser_live_stand_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: D01-AOT-WORKER-CSP
+      slice: E1-BROWSER-R5-LIVE-STAND
       planned_paths:
-      - tools/robotics-field-core/mujoco-aot-worker-csp.fixture.json
-      - tools/robotics-field-core/mujoco-aot-worker-csp.mjs
+      - apps/web/src/robotics/testing/r5-live/index.html
+      - apps/web/src/robotics/testing/r5-live/stand.ts
+      - apps/web/src/robotics/testing/r5-live/r5.worker.ts
+      - apps/web/src/robotics/testing/r5-live/stand.browser.mjs
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -18292,7 +18313,7 @@ parallel_lanes:
           28.00 to 28.24 degree native sweep. The paired physical verdict remains FAIL because the
           stock control missed both stability windows. Keep the complete old receipt and all earlier
           fixed-tilt, moving-top and temporal-refinement verdicts separately.
-      selected_acquisition:
+      aot_worker_csp_registration:
         scope: TEST_ONLY
         purpose: >-
           Verify that the admitted finite-cap engine can be relinked and executed as a same-origin
@@ -18389,6 +18410,166 @@ parallel_lanes:
           No downloads, new dependencies, real server, application/CSP configuration, production
           routing, school/offline delivery or performance claims, changed engine/physics oracle,
           full PHY-06, D01/D02 closure, product rollout, deployment or data changes.
+      aot_worker_csp_result:
+        protected_source_pr: 1192
+        protected_source_merge: f69e710cb78dd161d6444eb9f37185cb3b78f080
+        protected_tested_head: a67a8607b66f088f9f22e7ec8eab00cced9248d6
+        required_success: https://github.com/spikeal8-maker/asa-lab/actions/runs/43737139541/job/132889942691
+        acquired_source: bd0435f8710990105e56edcd08800a7274a6fb19
+        acquired_source_sha256: 9f1a95c3f5f2599c72de89045b3663e0cc68aa19879390ff504587f4d293adf7
+        fixture_sha256: 8e7814838df2577c685434c1b02d3e2a9d0bbf28727cd12e655a4f2d10e48bb5
+        build_receipt: {file: build-receipt.json, bytes: 15869, sha256: c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9}
+        browser_receipt: {file: browser-receipt.json, bytes: 449526, sha256: 70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5}
+        artifacts:
+          - {file: mujoco.js, bytes: 331846, sha256: 9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8}
+          - {file: mujoco.wasm, bytes: 11229000, sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241}
+          - {file: mujoco.d.ts, bytes: 151568, sha256: 779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff}
+        recovered_startup_control:
+          source: 25019e411ef68c452d2df9737fb62a97c94aa3ab
+          build_receipt_sha256: 8a65fa0ff5344329eaa5c92a4fd9315dfdd00f3bb4231b6cbe9a6e937b7b77c0
+          browser_receipt_sha256: adcb662bc506d49ecc8f16855b734c3a2258f01ae4cc1b0848a4ca2dd3b2c7bb
+          outcome: DEVTOOLS_PAGE_PROBE_BYPASS
+          workers: 0
+          native_dispatches: 0
+        runtime: PASS_SYNTHETIC_STRICT_BROWSER_ONLY
+        chromium: 140.0.7339.186
+        accepted_cases: [page-function, worker-function, legacy, no-wasm, tamper, position, motion]
+        motion:
+          step1: 12000
+          step2: 12000
+          ordered_samples: 600
+          f64_words_per_sample: 37
+          mismatches: 0
+          samples_sha256: fbbaa4ecbeeded637bb88fda676d24a9c159ecbf21c17e83eec046805ceb57be
+          final_sha256: 894c4d150f2f33ed02cb59be658c81706acf34be01e3c582985277834b7ecea8
+        positions:
+          - [pre-291475, 3, 11, 33]
+          - [immersed-side-crosses-edge, 1, 9, 27]
+        interpretation: The repaired page launched the probes in its ordinary browser task. All controls,
+          both positional dispatches and the open-loop archive equivalence passed. WASM is byte-identical
+          to the admitted finite-cap native artifact. The receipt establishes synthetic response-scoped
+          CSP and the tested fixtures. It supplies no coupled R5, real stand, weak-host or product result.
+      selected_acquisition:
+        scope: TEST_ONLY
+        owner_request: Owner directed the multi-agent programme to continue to actual Arduino-driven 3D
+          physics on the existing 4630 development stand. This selection covers a fixed in-memory
+          examination of the R5 scene, with a separately checked additive test artifact mount.
+        r5_reference:
+          source_commit: cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42
+          source_tree: 7297037e1c40de8d404722b5bc1fcefb13c448e9
+          spec_id: tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.spec.ts
+          spec_sha256: d4effe95f81ad99523cc1f434b7e595f8d4b04fe33f20f6779ca5a612c937413
+          fixture_id: tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.fixture.json
+          fixture_sha256: 6a1b46d96489db96e927f24cdbc59d497a11b864b36572287adc05fa51dcf07d
+          xml_sha256: acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0
+          powered_circuit_sha256: ce2494ba0736c27b045096f38324174df2691eb241317aefdb6c53fc1cebd49e
+          control_circuit_sha256: 4a4b9d3d8cedec0cfdc25ffc91ca8b7fb0a5e411e8b8f65b0356dee0879fbf06
+          metadata_sha256: f9c8b8b908eae5cb2b48f0f7faa4d7f95778c835d549237c019c841f81b5f407
+          binary_sha256: 9bb72c3bed6d0c1c4c0c79e4ad91c582b226f1a392e64dba0b1c74799546cfd9
+          stock_engine_wasm_sha256: 51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de
+          preserved_result: {physical: PASS, control: PASS, causal: GAP_CAUSAL_ALT}
+          common_intervals: 503
+          common_through_d5_edge_us: 250003
+          common_sha256: dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16
+          archive_late_reverse_gap_us: [6003000, 6003500]
+        schedule:
+          order: [powered, control]
+          horizon_us_per_world: 10000000
+          max_native_interval_us: 500
+          max_clock_events: 256
+          max_session_calls_per_world: 24000
+          max_intervals_per_world: 22000
+          max_contacts_per_interval: 132
+          max_contacts_per_world: 450000
+          max_constraint_rows_per_interval: 396
+          existing_journal_byte_cap: 268435456
+          max_concurrent_worlds: 1
+        source_and_execution: >-
+          Build one isolated Vite test HTML entry with an ES module Worker, relative asset URLs and
+          no copied product public directory. Reuse immutable R5 fixture data, exact model XML,
+          actual powered and LOW Uno programs, and the canonical starter circuit projection. Keep
+          fixture acquisition and hash checks separate from the live adapter. Leave frozen Node/Vitest
+          source and its inputs intact. Stage the admitted raw AOT glue and WASM in a separate output
+          directory without rebundling either artifact. AOT WASM differs from the R5 stock reference.
+          Require fresh exact-source and artifact review, native model readback and actual physical
+          evidence before claiming the new browser observation. Do not infer equivalence from AOT's
+          other archived scene.
+        single_owner: >-
+          One Worker owns the fresh canonical AVR/MNA and TT shaft test session and one native
+          Model/Data world at a time. Use the accepted electronics engine with real Uno, battery,
+          FET, flyback and TT. Resume native at the electrical barrier's measured left endpoint.
+          Apply only the R5-specified axle effort once in the matching interval and return native angle
+          and angular velocity with the live generation and query token. Preserve the R5 canonical
+          impulse path up to the registered D5 edge. After it preserve the original unity reverse
+          branch only where the signed motor effort times motor speed is negative. All other
+          intervals retain the canonical winding impulse. No additional force, second clock,
+          pose assignment, replayed state or invented load.
+          Commit before publication, keeping query/response tokens inside the owner Worker.
+          Guard PRE-to-solved contact row identity and use native positions attached to the same
+          retained qpos/time. Native advances never depend on viewport or animation frame cadence.
+        physical_and_control: >-
+          Measure both fresh runs with identical authored mechanics and the frozen distinct Uno programs.
+          Reconstruct the comparable common PRE/accepted native and electrical prefix through the original
+          D5 edge, before the first differing actuation. Verify measured powered AVR and continuously LOW
+          control, true MNA output, winding and single shaft impulse, finite signed native time and bounded
+          contact ownership. The exact MJCF has two rigid rear-axle wheel geoms and two independent
+          front wheels. Preserve R5's four-wheel loaded finite-ramp window of at least 100 ms,
+          wheel-point slip at most 0.02 m/s, at least 0.06 m native rise, and the same actual top arrival.
+          Before the first impact require R5's continuous 50 ms upright loaded-top window, with
+          PRE and POST tilt at most 0.5 degrees and no rover-to-can contact. Require all four wheels
+          on the top before the first boom-to-can impact. Require an actual contact at least 0.005 m
+          above the can COM with positive signed pitch impulse. Require the first native tip crossing
+          from below to at least 0.44649426308766105 rad in R5's loaded-impulse causal order.
+          The qualifying free side window starts no earlier than that crossing and the actual final
+          native LOW boundary at 4340082 us. Require continuously LOW GPIO, uninterrupted loaded side
+          support for at least 100 ms, positive certified rover-to-can clearance and no rover contact.
+          Both endpoints of every interval must be within 10 degrees of horizontal, with the can COM
+          at least 0.75 times (0.0689311475409836 m minus 0.033 m) below its initial height.
+          Record actual late loaded recontact after the free side window, including its timing and
+          load, while observing the full 10-second horizon. Set neither an earlier stop nor a new
+          tolerance. Keep the frozen control travel, upright/no-impact and positive-shaft-work bounds.
+          Preserve the historical R5 causal GAP and report new runtime, physical and energy evidence
+          separately.
+        stand_experience: >-
+          Play starts a real fresh live experiment. Pause acknowledges the last jointly committed
+          tick and permits zero further native progression while paused. Resume continues the same
+          session. Reset discards pending input, closes old ownership and starts a fresh generation at
+          the factory state. Reject stale generations. Top and spatial views read one committed tick
+          and the exact R5 chassis, wheels, ramp and can geometry. Display the actual circuit and
+          measured electrical and physical witnesses. Keep the fixture in memory and identify this
+          clearly as an experimental result, with the historical energy gate still open.
+        acquisition_and_mount: >-
+          Protected registration and clean exact-path preflight precede source. Freeze source and
+          fixture pins and focused tests, then independent source, model, asset and package review
+          before exactly one controller-authorized paired physical browser acquisition on the exact
+          built assets. Use the admitted live 4630 mount first. Use an isolated browser context only
+          if live placement is unavailable and no physical advance has occurred. A physical advance
+          in either context consumes the single acquisition. Preserve partial failures, and after an
+          isolated acquisition do not dispatch a second controller qualification at a later live mount
+          without a separately selected registration. Preserve one exclusive external receipt with
+          inputs, ordered clocks, contact and force rows, signed shaft work, physical landmarks,
+          full-horizon outcome, requests and resource cleanup.
+          Under an admitted live preflight use only the new immutable manifest-named subtree
+          apps/web/public/__asa_robotics_test/<manifest-sha>/ on the existing 4630 loopback Vite.
+          Verify actual process/workspace ownership, live HEAD, clean index, PID and start identity.
+          Recompute the complete live snapshot, including the observed 156 dirty paths, immutable E0
+          149-file evidence and seven later field overlay paths. Confirm absence of the exact target
+          prefix and physical overlap. Use an ordinary new-only directory without symlinks or
+          junctions. Do not overwrite or stash live source. An ignored path, VERIFY_PLAN or this
+          registration cannot bypass an applicable blocker. If live placement is blocked, retain
+          the independently verified bundle and report the specific live blocker.
+          After placement verify unchanged HEAD, index, PID, existing bytes and headers, plus
+          GET/MIME and every manifest hash and exact same-origin requests. If acquisition is still
+          unconsumed, verify the actual live experiment there under the single acquisition above.
+          Ordinary Vite public serving does not establish the synthetic strict Worker CSP result.
+          Keep a verified successful address available to the owner until separately coordinated
+          cleanup. If placement fails, rollback only the new manifest-bound package after verifying
+          the exact path and contents. Any future owner-approved cleanup has that same boundary.
+          No process restart or reconfiguration, new listener, header change or product deployment.
+        exclusions: >-
+          No changes to field/electronics/editor product routes, current saved projects, schema,
+          APIs, databases, system tooling, host packages, deployment or published assets. No
+          re-run of archived Node R5, R6 changes, full PHY-06, D01/D02 closure or throughput claim.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md

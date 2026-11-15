@@ -229,6 +229,29 @@ def object_inventory(output):
     return items
 
 
+def verify_object_bytes(stage, source, target, original, copied):
+    require(set(original) == set(copied), "BACKUP_STORAGE_VERIFY", "Staged object inventory differs from the source.")
+    require(all(value[0] == copied[key][0] for key, value in original.items()),
+            "BACKUP_STORAGE_VERIFY", "Staged object sizes differ from the source.")
+
+    def digest(bucket, key):
+        output = run(["docker", "exec", stage, "sh", "-ec",
+                      'set -o pipefail; mc cat "$1" | sha256sum',
+                      "asa-backup", f"{bucket}/{key}"], capture=True)
+        value = output.split(maxsplit=1)[0] if output else ""
+        require(re.fullmatch(r"[0-9a-f]{64}", value), "BACKUP_STORAGE_VERIFY", "Invalid staged object checksum.")
+        return value
+
+    for key, (_, source_etag, _) in original.items():
+        # Matching plain MD5 ETags provide the cheap path. A copy can change
+        # multipart boundaries in either direction, so compare bytes whenever
+        # the ETags are not matching plain checksums.
+        if source_etag == copied[key][1] and re.fullmatch(r"[0-9a-fA-F]{32}", source_etag):
+            continue
+        require(digest(source, key) == digest(target, key),
+                "BACKUP_STORAGE_VERIFY", "A staged object differs from the source.")
+
+
 def verify_object_metadata(mc, source, target, keys):
     def metadata(bucket, batch):
         output = mc("stat", "--no-list", *(f"{bucket}/{key}" for key in batch))
@@ -317,20 +340,9 @@ def copy_online_objects(install, record, partial):
             after = object_inventory(mc("ls", "--recursive", source))
             staged = object_inventory(mc("ls", "--recursive", target))
             require(before == after, "BACKUP_STORAGE_DRIFT", "MinIO changed during export.")
-            require(set(before) == set(staged), "BACKUP_STORAGE_VERIFY", "Staged object inventory differs from the source.")
-            require(all(staged[key][0] == value[0] and ("-" in value[1] or staged[key][1] == value[1])
-                        for key, value in before.items()), "BACKUP_STORAGE_VERIFY", "Staged object bytes do not match the source inventory.")
+            verify_object_bytes(stage, source, target, before, staged)
             require(all(key in staged and staged[key][0] == size for key, size in references),
                     "BACKUP_STORAGE_REFERENCES", "The staged copy is missing an object referenced by the database snapshot.")
-            for key, (_, etag, _) in before.items():
-                if "-" in etag:
-                    # Multipart ETags depend on part boundaries, not only bytes.
-                    def digest(bucket):
-                        return run(["docker", "exec", stage, "sh", "-ec",
-                                    'set -o pipefail; mc cat "$1" | sha256sum',
-                                    "asa-backup", f"{bucket}/{key}"], capture=True).split()[0]
-                    require(digest(source) == digest(target), "BACKUP_STORAGE_VERIFY",
-                            "A staged multipart object differs from the source.")
             verify_object_metadata(mc, source, target,
                                    sorted(key for key in before if key.startswith("ai/private/v1/owners/")))
             require(before == object_inventory(mc("ls", "--recursive", source)),
