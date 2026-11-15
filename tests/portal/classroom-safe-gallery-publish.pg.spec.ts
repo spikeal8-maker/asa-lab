@@ -417,3 +417,55 @@ describe('Safe Mode native Seat HTTP publication boundary', () => {
     }
   });
 });
+
+describe('Safe Mode legacy-only rows without canonical publication', () => {
+  it('preserves historical SQL data without exposing it through asalab_app before, during or after protection', async () => {
+    const f = await prepare();
+    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [f.classroomId]);
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [f.seatId]);
+    const projectId = await f.project(f.seatPrincipal, null);
+    await admin.query(
+      `INSERT INTO project_publications
+        (project_id,tenant_id,owner_principal_id,published_by_principal_id,
+         title,module_key,author_label,snapshot_revision)
+       VALUES($1,$2,$3,$3,'Историческая работа','three-d','Ученик',1)`,
+      [projectId, f.teacher.tenantId, f.seatPrincipal],
+    );
+    const rawLegacy = async () =>
+      runtime.query('SELECT count(*)::int AS count FROM project_publications WHERE project_id=$1', [
+        projectId,
+      ]);
+    expect((await rawLegacy()).rows[0].count).toBe(0);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM project_publications WHERE project_id=$1',
+          [projectId],
+        )
+      ).rows[0].count,
+    ).toBe(1);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM project_publication_state WHERE project_id=$1',
+          [projectId],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+
+    await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [f.classroomId]);
+    expect((await rawLegacy()).rows[0].count).toBe(0);
+    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [f.classroomId]);
+    expect((await rawLegacy()).rows[0].count).toBe(0);
+    // The retained legacy row remains available to authorized administrative
+    // history, but its missing canonical state cannot grant public authority.
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM project_publications WHERE project_id=$1',
+          [projectId],
+        )
+      ).rows[0].count,
+    ).toBe(1);
+  });
+});

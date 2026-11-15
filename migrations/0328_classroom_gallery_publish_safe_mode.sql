@@ -52,14 +52,22 @@ CREATE TABLE public.classroom_gallery_safe_mode_revocations (
 ALTER TABLE public.classroom_gallery_safe_mode_revocations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.classroom_gallery_safe_mode_revocations FROM PUBLIC, asalab_app;
 
--- Historical project_publications had a permissive SELECT-true RLS policy.
--- Runtime-role direct SQL must obey Safe Mode just like every HTTP reader.
--- A restrictive policy composes with existing policies; it never grants a
--- new permission. The definer wrapper reads the private revocation ledger.
+-- The historical project_publications table had a permissive SELECT-true
+-- RLS policy. A legacy-only row without a canonical publication can never
+-- become publicly readable, including after Safe Mode is switched OFF:
+-- it has no canonical publication_id to record in the revocation ledger.
+-- Keep these rows for authorized administrative history, but require the
+-- exact canonical public predicate for every runtime SQL read.
+-- The restrictive policy below composes with existing permissive policies.
 CREATE FUNCTION public.classroom_gallery_legacy_safe_readable(p_project_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp AS $$
-  SELECT NOT public.classroom_gallery_project_safe_mode(p_project_id)
+  SELECT EXISTS (
+       SELECT 1 FROM public.project_publication_state state
+        WHERE state.project_id = p_project_id
+          AND public.project_publication_readable(state.id)
+     )
+     AND NOT public.classroom_gallery_project_safe_mode(p_project_id)
      AND NOT EXISTS (
        SELECT 1 FROM public.classroom_gallery_safe_mode_revocations revoked
         WHERE revoked.project_id = p_project_id
