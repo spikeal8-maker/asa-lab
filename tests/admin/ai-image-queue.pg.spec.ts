@@ -48,6 +48,7 @@ const schoolPendingFiles = [
   '0320_personal_progress_summary.sql',
   '0321_account_join_learner_identity.sql',
   '0322_student_group_rating.sql',
+  '0323_project_duplicate_origin.sql',
   '0324_classroom_merit_history.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
