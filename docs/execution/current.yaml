@@ -16684,11 +16684,43 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'yes'
-      checkpoint: owner_authorized_early_r22_serial_monitor_native_before_pending
+      checkpoint: serial_monitor_source_merged_pr1196_post_merge_general_pass
+      source_delivery:
+        pull_request: 1196
+        reviewed_head_sha: 732426044db71cdaf744823786fe0978bdfed118
+        merged_main_sha: 840528a247f28f37f94d3e7041af2024b6a0128a
+        merged_at: '2026-11-15T22:23:12Z'
+        independent_source_review: approve
+        focused:
+          run_id: 43766202810
+          solver_editor_build_job_id: 132971737290
+          conclusion: success
+        general:
+          run_id: 43766202942
+          required_job_id: 132980068099
+          conclusion: success
+        post_merge_general:
+          run_id: 43769009334
+          required_job_id: 132988353501
+          conclusion: success
+        strict_browser:
+          run_id: 43766202810
+          conclusion: failure
+          failed_shards: [s1, s2, s3]
+          passed_shards: [s4]
+        browser_evidence: >-
+          Native Chromium confirmed TX line layout and Clear mid-line at 1440,
+          1024, 390 and 320 px. The Serial sketch save and cookies-only reopen
+          case passed on the final PR SHA.
+        boundary: >-
+          Source delivery of the bounded Serial Monitor repair is complete.
+          Formal R10-R12, R22 and AC-04 acceptance, full Electronics browser
+          qualification and owner acceptance remain open. Issue 1180 remains
+          open during controller handoff. PR 1163 remains on HOLD.
       owner_acceptance: pending
       programme_issue: 452
       owner_authorization: >-
@@ -16705,18 +16737,18 @@ parallel_lanes:
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R22-001.md
         - docs/product/electronics/components/arduino-peripherals.yaml
-      next_action: Assign one author for native BEFORE. Require an independent review of the frozen candidate and applicable gates.
+      next_action: Hand the source integration and post-merge CI evidence to the programme controller.
       deployment: prohibited_by_owner
       database_actions: none_live
     revisions:
       kind: observed_snapshot
       main:
         branch: main
-        sha: f8d7642493b7e002b96a12e83fa87bde9a5a6648
-      convergence_baseline_sha: f8d7642493b7e002b96a12e83fa87bde9a5a6648
+        sha: 8d9e96bad55c196bcb963ce9bca9f10e8d380ea6
+      convergence_baseline_sha: 10df6f45ca160a3e164f065eb5a850006e0d9f51
       head_sha: null
-      observed_at: '2026-11-15T08:48:20Z'
-      observation_note: Fresh fetch main before writes. Source hypothesis only; native BEFORE and candidate gates are pending.
+      observed_at: '2026-11-16T12:51:30Z'
+      observation_note: Fresh fetch main before writes confirmed the merge ancestor and exact post-merge General PASS.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
