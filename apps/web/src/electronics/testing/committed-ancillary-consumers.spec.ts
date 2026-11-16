@@ -190,6 +190,7 @@ beforeEach(() => {
     setMultimeterMeasurementMode: vi.fn(),
     setRegulatedPowerSupplyControls: vi.fn(),
     setSelectedProperties: vi.fn(),
+    setSelectedL298nJumper: vi.fn(),
     setSignalGeneratorControls: vi.fn(),
     beginReconnect: vi.fn(),
     removeSelection: vi.fn(),
