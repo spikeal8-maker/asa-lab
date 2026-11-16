@@ -7,6 +7,7 @@ import {
 import { copyNumericalNode, numericalShuntPowerWatt } from './numerical-shunt-power.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
+import { l298nControlNetIndices, sampleL298nArduinoPwmVoltage } from './models/l298n-pwm-model.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
 import { TMP36_PROFILE } from './models/tmp36-dc-model.js';
 import { SOIL_MOISTURE_PROFILE } from './models/soil-moisture-model.js';
@@ -421,6 +422,7 @@ export function verifyCircuitQuality(
   }
 
   const componentResult = new Map(result.components.map((entry) => [entry.componentId, entry]));
+  const l298nInputNodes = l298nControlNetIndices(document, compiled.netlist.nodeOf);
   const residualByNode = new Map<number, number>();
   const addAtNode = (componentId: string, terminal: Terminal, currentLeaving: number): void => {
     const node = compiled.netlist.nodeOf.get(terminalKey(componentId, terminal));
@@ -470,7 +472,16 @@ export function verifyCircuitQuality(
       for (const branch of branches) {
         const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
         const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-        const currentLeaving = (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+        const net = compiled.netlist.nodeOf.get(terminalKey(component.id, branch.terminal));
+        const targetVoltage =
+          net !== undefined && l298nInputNodes.has(net)
+            ? sampleL298nArduinoPwmVoltage(
+                branch.terminal,
+                branch.targetVoltage,
+                options.simulationTimeMs ?? 0,
+              )
+            : branch.targetVoltage;
+        const currentLeaving = (positive - ground - targetVoltage) / branch.resistanceOhm;
         addBranch(component, branch.terminal, branch.ground, currentLeaving);
       }
       continue;
@@ -619,7 +630,8 @@ export function verifyCircuitQuality(
         component.componentTypeId === 'temperature-sensor' ||
         component.componentTypeId === 'soil-moisture-sensor' ||
         component.componentTypeId === 'multimeter' ||
-        component.componentTypeId === 'oscilloscope'),
+        component.componentTypeId === 'oscilloscope' ||
+        component.componentTypeId === 'l298n-motor-driver'),
   );
   const powerBalanceApplicable =
     powerBalanceComponents.length > 0 &&
@@ -807,6 +819,7 @@ export function createArduinoQualityTraversal(
 ) {
   // Neither these Maps nor the derived terminal layouts escape this closure.
   const nodeOf = new Map(compiled.netlist.nodeOf);
+  const l298nInputNodes = l298nControlNetIndices(document, nodeOf);
   const nodeCount = compiled.netlist.nodeCount;
   const componentResult = new Map<string, ComponentResult>();
   const residualByNode = new Map<number, number>();
@@ -909,8 +922,16 @@ export function createArduinoQualityTraversal(
           for (const branch of branches) {
             const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
             const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-            const currentLeaving =
-              (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+            const net = nodeOf.get(terminalKey(component.id, branch.terminal));
+            const targetVoltage =
+              net !== undefined && l298nInputNodes.has(net)
+                ? sampleL298nArduinoPwmVoltage(
+                    branch.terminal,
+                    branch.targetVoltage,
+                    options.simulationTimeMs ?? 0,
+                  )
+                : branch.targetVoltage;
+            const currentLeaving = (positive - ground - targetVoltage) / branch.resistanceOhm;
             addBranch(component, branch.terminal, branch.ground, currentLeaving);
           }
           continue;
@@ -1065,7 +1086,8 @@ export function createArduinoQualityTraversal(
             component.componentTypeId === 'temperature-sensor' ||
             component.componentTypeId === 'soil-moisture-sensor' ||
             component.componentTypeId === 'multimeter' ||
-            component.componentTypeId === 'oscilloscope'),
+            component.componentTypeId === 'oscilloscope' ||
+            component.componentTypeId === 'l298n-motor-driver'),
       );
       const powerBalanceApplicable =
         powerBalanceComponents.length > 0 &&
