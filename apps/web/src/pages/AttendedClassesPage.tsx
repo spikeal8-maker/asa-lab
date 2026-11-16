@@ -1,3 +1,4 @@
+import { EssayResponseEditor } from '../components/EssayResponseEditor';
 import { FileResponseEditor } from '../components/FileResponseEditor';
 import { QuizResponsePlayer } from '../components/QuizResponsePlayer';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
@@ -292,7 +293,11 @@ export function AttendedClassesPage({
                 className={openId === assignment.id ? 'is-open' : undefined}
                 onClick={(event) => {
                   const target = event.target as HTMLElement;
-                  if (target.closest('button, a, input, label, .file-response, .quiz-player'))
+                  if (
+                    target.closest(
+                      'button, a, input, label, textarea, .essay-response, .file-response, .quiz-player',
+                    )
+                  )
                     return;
                   openAssignment(openId === assignment.id ? null : assignment.id);
                 }}
@@ -361,6 +366,17 @@ export function AttendedClassesPage({
                           ) : null
                         }
                       />
+                      {assignment.activityKind === 'essay' &&
+                      assignment.activityRunId &&
+                      assignment.activityVersionId ? (
+                        <EssayResponseEditor
+                          key={assignment.activityRunId}
+                          activityRunId={assignment.activityRunId}
+                          activityVersionId={assignment.activityVersionId}
+                          onChanged={load}
+                          onRegisterLeaveGuard={registerFileGuard}
+                        />
+                      ) : null}
                       {assignment.activityKind === 'file' && assignment.activityRunId ? (
                         <FileResponseEditor
                           activityRunId={assignment.activityRunId}
@@ -435,14 +451,17 @@ export function AttendedClassesPage({
                         Открыть тест
                       </button>
                     ) : null
-                  ) : assignment.activityKind === 'file' && assignment.activityRunId ? (
+                  ) : (assignment.activityKind === 'file' || assignment.activityKind === 'essay') &&
+                    assignment.activityRunId ? (
                     openId !== assignment.id ? (
                       <button
                         type="button"
                         className="portal-create-button"
                         onClick={() => openAssignment(assignment.id)}
                       >
-                        Открыть файловый ответ
+                        {assignment.activityKind === 'essay'
+                          ? 'Открыть письменный ответ'
+                          : 'Открыть файловый ответ'}
                       </button>
                     ) : null
                   ) : assignment.activityRunId ? (
