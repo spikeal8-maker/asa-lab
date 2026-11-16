@@ -534,7 +534,11 @@
 }
 .personal-progress-group-body {
   --rating-peer-slot: 74px;
+  --rating-peer-gap: 5px;
   overflow: hidden;
+}
+.personal-progress-group-body .personal-progress-peers {
+  gap: var(--rating-peer-gap);
 }
 .personal-progress-group-body .personal-progress-peer {
   flex: 0 0 var(--rating-peer-slot);
@@ -543,6 +547,7 @@
 @container (max-width: 520px) {
   .personal-progress-group-body {
     --rating-peer-slot: 64px;
+    --rating-peer-gap: 4px;
   }
   .personal-progress-self-compact {
     flex-basis: 110px;
@@ -556,6 +561,7 @@
 @container (max-width: 380px) {
   .personal-progress-group-body {
     --rating-peer-slot: 60px;
+    --rating-peer-gap: 2px;
   }
   .personal-progress-self-compact {
     flex-basis: 100px;

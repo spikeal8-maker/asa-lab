@@ -18,7 +18,8 @@ import {
 } from '../api';
 import * as apiCall from '../api-call';
 import { setTelemetryContext } from '../telemetry-context';
-import { PersonalProgress, ProfileMetricStrip } from './PersonalProgress';
+import { PersonalProgress } from './PersonalProgress';
+import { ProfileMetricStrip } from '../components/PortalHeader';
 import {
   limitedGroupRead,
   groupRatingPreviewLimit,
@@ -1120,6 +1121,10 @@ describe('SP-04 actual custom-avatar image consumer', () => {
 });
 
 describe('SP-04 server-bounded responsive peer counts', () => {
+  it('fills every available desktop slot using the peer-row gap, not the body gap', () => {
+    expect(groupRatingPreviewLimit(1100, 116, 74, 16, 5)).toBe(12);
+    expect(groupRatingPreviewLimit(1100, 116, 74, 16, 8)).toBe(11);
+  });
   it.each([
     [160, 0],
     [320, 2],
@@ -1128,7 +1133,7 @@ describe('SP-04 server-bounded responsive peer counts', () => {
     [390, 3],
     [520, 4],
     [521, 4],
-    [1024, 10],
+    [1024, 11],
     [1440, 16],
   ] as const)('chooses a bounded preview for width %i', (width, expected) => {
     expect(groupRatingPreviewLimit(width)).toBe(expected);

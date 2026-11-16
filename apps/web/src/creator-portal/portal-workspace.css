@@ -516,7 +516,8 @@
   width: 100%;
 }
 .portal-sidebar-profile-top > .portal-sidebar-avatar {
-  flex: 0 0 80px;
+  /* Respect the 96px expanded and 44px compact/mobile avatar widths. */
+  flex: 0 0 auto;
 }
 .portal-sidebar-metrics {
   flex: 0 0 80px;
@@ -585,6 +586,10 @@
   box-shadow: 0 8px 28px rgb(0 0 0 / 15%);
   font-size: 12px;
   line-height: 1.45;
+}
+.portal-sidebar-metric-title {
+  display: block;
+  font-weight: 700;
 }
 .portal-sidebar-metric-details p {
   margin: 6px 0 0;

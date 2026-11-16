@@ -2562,14 +2562,12 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
     expect(empty.groups.items).toEqual([]);
     for (const name of ['everPublishedWorks', 'currentLikes', 'createdCopies'] as const) {
       expect(empty.metrics[name]).toEqual({ availability: 'available', value: 0 });
-      await expect(page.getByTestId(`progress-${name}`).locator('dd')).toHaveText('0');
+      await expect(page.getByTestId(`profile-full-${name}`).locator('span')).toHaveText('0');
     }
     await expect(page.getByTestId('own-progress-group')).toHaveCount(0);
     await expect(page.getByTestId('personal-progress')).toHaveCount(0);
     await expect(page.locator('.personal-progress-next')).toHaveCount(0);
-    await expect(
-      page.getByTestId('personal-progress').getByRole('link', { name: 'Все группы' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Все группы' })).toHaveCount(0);
     await sp03Directions(page);
     await page.setViewportSize({ width: 320, height: 900 });
     await page.screenshot({ path: `${EVIDENCE}/sp03-school-free-empty-320.png`, fullPage: true });
@@ -2667,15 +2665,15 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
       ['currentLikes', '1'],
       ['createdCopies', '1'],
     ] as const)
-      await expect(page.getByTestId(`progress-${metric}`).locator('dd')).toHaveText(value);
-    await expect(page.getByTestId('profile-full-createdCopies').locator('span')).toHaveAttribute(
+      await expect(page.getByTestId(`profile-full-${metric}`).locator('span')).toHaveText(value);
+    await expect(page.getByTestId('progress-createdCopies')).toHaveAttribute(
       'aria-label',
-      'Копии ваших работ: 1',
+      'Добавили к себе: 1',
     );
-    await expect(page.getByTestId('personal-progress')).not.toContainText(/скачиван/i);
-    await page.getByTestId('personal-progress').getByText('О показателях', { exact: true }).click();
-    await expect(page.getByTestId('personal-progress')).toContainText(
-      'Общий рейтинг ещё не рассчитывается.',
+    await page.getByTestId('profile-metric-strip').locator('summary').click();
+    await expect(page.locator('.portal-sidebar-metric-details')).toContainText('а не скачивания');
+    await expect(page.locator('.portal-sidebar-metric-details')).toContainText(
+      'Общий личный рейтинг пока не рассчитывается.',
     );
     await page.screenshot({
       path: `${EVIDENCE}/sp03-real-publication-metrics-320.png`,
@@ -2723,17 +2721,17 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
     await page.route('**/api/modules', fail);
     await page.route('**/api/projects?*', fail);
     await page.reload();
-    await expect(page.getByTestId('personal-progress')).toContainText(
-      'Не удалось загрузить прогресс.',
+    await expect(page.getByTestId('profile-metric-strip')).toContainText(
+      'Сейчас не удалось получить подтверждённые показатели.',
     );
     for (const metric of ['everPublishedWorks', 'currentLikes', 'createdCopies'])
-      await expect(page.getByTestId(`progress-${metric}`).locator('dd')).toHaveText('—');
+      await expect(page.getByTestId(`profile-full-${metric}`).locator('span')).toHaveText('—');
     await sp03Directions(page);
     await expect(page.locator('.creator-module-section .home-module-error')).toHaveCount(4);
     await expect(page.locator('.creator-module-section .home-create-button:disabled')).toHaveCount(
       4,
     );
-    const fallback = page.locator('.personal-progress-hero-avatar img');
+    const fallback = page.locator('.portal-sidebar-avatar img');
     await expect(fallback).toHaveAttribute('src', /^\/assets\/avatars\/default\/avatar-\d+\.webp$/);
     await expect
       .poll(() =>
@@ -3203,7 +3201,9 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
       '0',
     );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
-    await expect(page.locator('.personal-progress-person')).toHaveText('Второй личный автор SP03');
+    await expect(page.locator('.portal-sidebar-profile-copy strong')).toHaveText(
+      'Второй личный автор SP03',
+    );
     const freshSummary = await sp03Summary(page);
     expect(freshSummary.scope).toEqual({ kind: 'account', accountId: other.account!.accountId });
     expect(freshSummary.metrics.everPublishedWorks).toEqual({
@@ -3223,7 +3223,9 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
       '0',
     );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
-    await expect(page.locator('.personal-progress-person')).toHaveText('Второй личный автор SP03');
+    await expect(page.locator('.portal-sidebar-profile-copy strong')).toHaveText(
+      'Второй личный автор SP03',
+    );
     await test.info().attach('sp03-old-summary-retirement', {
       contentType: 'application/json',
       body: Buffer.from(
