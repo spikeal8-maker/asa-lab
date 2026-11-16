@@ -77,7 +77,7 @@ const browser = await chromium.launch({ headless: true });
 const receipts = [];
 let structures;
 try {
-  for (const width of [1440, 390])
+  for (const width of [1440, 1024, 390, 320])
     for (const [name, source] of Object.entries(cases)) {
       const page = await browser.newPage({
         viewport: { width, height: 900 },
@@ -283,7 +283,7 @@ try {
     );
   }
   console.log(
-    `PASS ${phase}: ${Object.keys(cases).length} real diagnostic cases × 1440/390; check/collapse/source navigation/edit/preservation, no server`,
+    `PASS ${phase}: ${Object.keys(cases).length} real diagnostic cases × 1440/1024/390/320; check/collapse/source navigation/edit/preservation, no server`,
   );
 } finally {
   await browser.close();

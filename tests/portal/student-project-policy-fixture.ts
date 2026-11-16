@@ -62,6 +62,11 @@ export async function studentProjectPolicyFixture(
   const principal = principals.rows[0]!['id'] as string;
   expect(typeof principal).toBe('string');
   await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [seatId]);
+  // These fixtures exercise independent publish/download distribution policy.
+  // Explicitly opt out of the separate, default-ON classroom/Seat Safe Mode.
+  // The Safe Mode security suite tests default-ON and retroactive revocation.
+  await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [classroomId]);
+  await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [seatId]);
   const token = randomUUID().replaceAll('-', '').repeat(2);
   const hash = hashSessionToken(token);
   await admin.query(

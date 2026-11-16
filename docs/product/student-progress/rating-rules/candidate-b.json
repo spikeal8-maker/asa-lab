@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "precision": {
+    "decimalPlaces": 0,
+    "rounding": "half_up_each_publication_then_total",
+    "scoreType": "nonnegative_safe_integer"
+  },
+  "weights": {
+    "canonicalLearningCompletion": 100,
+    "firstPublication": 0,
+    "publicCopy": 0,
+    "technicalDuplicate": 0,
+    "customMerit": 0,
+    "comment": 0,
+    "login": 0,
+    "timeOnSite": 0,
+    "click": 0,
+    "rawSave": 0
+  },
+  "credit": {
+    "learningKey": "canonical_completion_id",
+    "publicationKey": "first_eligible_publication_for_project",
+    "reactorKey": "verified_person_id_per_publication",
+    "identity": "verified_canonical_links_only",
+    "withdrawal": "current_qualified_state",
+    "correction": "latest_version_wins",
+    "history": "only_proven_evidence",
+    "calendarDecay": false
+  },
+  "id": "B",
+  "version": "SP05-B-1.0.0",
+  "social": {
+    "mode": "linear",
+    "pointsPerReaction": 8,
+    "perPublicationUniqueReactorLimit": 5,
+    "perPublicationMaxPoints": 40,
+    "aggregateCap": {
+      "mode": "learning_fraction_plus_base",
+      "numerator": 2,
+      "denominator": 5,
+      "base": 80
+    }
+  }
+}

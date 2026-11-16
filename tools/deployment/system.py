@@ -1,6 +1,7 @@
 """Local process execution, installation identity and exclusive operation locks."""
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 import datetime as dt
 import json
 import os
@@ -13,12 +14,25 @@ from .contracts import Blocked, atomic_json, attest_database_targets, attest_pro
 from .resources import pool_configuration
 
 
+_quiet_commands = ContextVar("quiet_commands", default=False)
+
+
+@contextmanager
+def quiet_commands():
+    token = _quiet_commands.set(True)
+    try:
+        yield
+    finally:
+        _quiet_commands.reset(token)
+
+
 def run(args, *, cwd=None, env=None, capture=False, output=None, input_data=None, input_file=None):
     started = time.monotonic()
+    console = subprocess.DEVNULL if _quiet_commands.get() else None
     try:
         result = subprocess.run([str(arg) for arg in args], cwd=cwd, env=env, input=input_data, stdin=input_file,
-                                stdout=output if output else subprocess.PIPE if capture else None,
-                                stderr=subprocess.PIPE if capture or output else None,
+                                stdout=output if output else subprocess.PIPE if capture else console,
+                                stderr=subprocess.PIPE if capture or output else console,
                                 text=not output, encoding="utf-8" if not output else None,
                                 errors="replace" if not output else None)
     except OSError as exc:

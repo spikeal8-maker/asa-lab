@@ -1,5 +1,13 @@
 import { AdminEmailSettings } from './AdminEmailSettings';
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   adminApi,
   type AdminDashboardRange,
@@ -127,7 +135,14 @@ function MultiLineChart({
   readonly emptyMessage?: string | undefined;
 }): JSX.Element {
   const canvas = useRef<HTMLDivElement>(null);
+  const header = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(600);
+  const [readoutSpace, setReadoutSpace] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const helpId = useId();
@@ -153,6 +168,46 @@ function MultiLineChart({
 
   const active = series.filter((item) => visible.has(item.group?.id ?? item.id));
   const legend = new Map(series.map((item) => [item.group?.id ?? item.id, item]));
+  useLayoutEffect(() => {
+    const rowHeader = header.current;
+    const card = rowHeader?.parentElement;
+    if (!rowHeader || !card) return;
+    const headerItems = [...rowHeader.children].filter(
+      (node) => !node.classList.contains('admin-chart-readout'),
+    );
+    const measure = () => {
+      const cardBox = card.getBoundingClientRect();
+      const headerBox = rowHeader.getBoundingClientRect();
+      const gap = Number.parseFloat(getComputedStyle(rowHeader).columnGap) || 0;
+      const boxes = headerItems
+        .map((node) => node.getBoundingClientRect())
+        .filter((box) => box.width > 0 && box.height > 0);
+      let space = { top: 0, left: 0, width: 0, height: 0 };
+      for (const box of boxes) {
+        const row = boxes.filter((other) => other.top < box.bottom && other.bottom > box.top);
+        const top = Math.min(...row.map((other) => other.top));
+        const bottom = Math.max(...row.map((other) => other.bottom));
+        const left = Math.max(...row.map((other) => other.right)) + gap;
+        const width = headerBox.right - left;
+        if (width > space.width) {
+          space = {
+            top: top - cardBox.top - card.clientTop,
+            left: left - cardBox.left - card.clientLeft,
+            width,
+            height: bottom - top,
+          };
+        }
+      }
+      setReadoutSpace(space);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(rowHeader);
+    headerItems.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [controls, legend.size]);
+
   const maxFor = (secondary: boolean) =>
     Math.max(
       0,
@@ -186,10 +241,26 @@ function MultiLineChart({
     Math.min(12, Math.floor(plotWidth / 56) + 1),
   );
   const cursor = selectedPoint !== null && selectedPoint < labels.length ? selectedPoint : null;
+  const readings =
+    cursor === null
+      ? []
+      : active.map((item) => {
+          const value = item.values[cursor];
+          return {
+            id: item.id,
+            text: `${item.label} ${value == null ? '—' : VALUE.format(value)}`,
+          };
+        });
 
   return (
-    <article className={`admin-chart-card ${className}`.trim()}>
-      <header>
+    <article
+      className={`admin-chart-card ${className}`.trim()}
+      onPointerLeave={() => setSelectedPoint(null)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setSelectedPoint(null);
+      }}
+    >
+      <header ref={header}>
         <div className="admin-chart-heading">
           <h3>{title}</h3>
           <div className="admin-chart-help" data-open={helpOpen}>
@@ -239,6 +310,26 @@ function MultiLineChart({
             })}
           </div>
         ) : null}
+        <div
+          className="admin-chart-readout"
+          style={readoutSpace ?? undefined}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {cursor !== null ? (
+            <div
+              className="admin-chart-readout-content"
+              title={[pointLabels[cursor], ...readings.map((reading) => reading.text)].join('\n')}
+            >
+              <strong>{pointLabels[cursor]}</strong>
+              <div className="admin-chart-readout-values">
+                {readings.map((reading) => (
+                  <span key={reading.id}>{reading.text}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </header>
       <div
         className="admin-chart-canvas"
@@ -257,8 +348,6 @@ function MultiLineChart({
             ),
           );
         }}
-        onPointerLeave={() => setSelectedPoint(null)}
-        onBlur={() => setSelectedPoint(null)}
         onKeyDown={(event) => {
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
           event.preventDefault();
@@ -384,21 +473,7 @@ function MultiLineChart({
             );
           })}
         </svg>
-        {cursor !== null ? (
-          <div className="admin-chart-readout" aria-live="polite">
-            <strong>{pointLabels[cursor]}</strong>
-            {active.map((item) => {
-              const value = item.values[cursor];
-              return (
-                <span key={item.id}>
-                  {item.label} {value == null ? '—' : VALUE.format(value)}
-                </span>
-              );
-            })}
-          </div>
-        ) : empty ? (
-          <p className="admin-chart-empty">{emptyMessage}</p>
-        ) : null}
+        {cursor === null && empty ? <p className="admin-chart-empty">{emptyMessage}</p> : null}
       </div>
     </article>
   );

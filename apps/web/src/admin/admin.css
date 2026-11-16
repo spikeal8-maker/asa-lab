@@ -1706,19 +1706,32 @@
 
 .admin-chart-readout {
   position: absolute;
-  top: 3px;
-  right: 5px;
-  z-index: 1;
+  width: 0;
+  overflow: hidden;
+}
+
+.admin-chart-readout-content {
   display: grid;
-  gap: 2px;
-  max-width: calc(100% - 10px);
-  padding: 5px 8px;
-  border: 1px solid var(--admin-line);
-  border-radius: 7px;
-  background: #fffffff5;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  align-content: center;
   color: var(--admin-ink);
   font-size: 11px;
-  pointer-events: none;
+  line-height: 1.1;
+}
+
+.admin-chart-readout-content strong,
+.admin-chart-readout-values {
+  display: flex;
+  justify-content: safe flex-end;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.admin-chart-readout-values span {
+  flex: none;
 }
 
 .admin-chart-axis {

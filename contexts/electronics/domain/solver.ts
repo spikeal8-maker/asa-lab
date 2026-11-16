@@ -161,6 +161,9 @@ import {
   brushedMotorTransientStateIsCompatible,
   createBrushedMotorTransientState,
   observeBrushedMotorTransientState,
+  prepareBrushedMotorExternalShaft,
+  type BrushedMotorExternalShaftResult,
+  type BrushedMotorExternalShaftState,
   type BrushedMotorObservation,
   type BrushedMotorStepInput,
   type BrushedMotorStepResult,
@@ -743,7 +746,23 @@ export interface ArduinoThermalEpoch {
   readonly loadRatio: number;
 }
 
+/** Bound of the first native TT coupling profile, shared with its canonical scheduler. */
+export const TT_NATIVE_DRIVE_MAX_INTERVAL_US = 500;
+
+type ExternalShaftInput = {
+  readonly winding: BrushedMotorExternalShaftState;
+  readonly toMicroseconds: number;
+  readonly angularVelocityRadPerSecond: number;
+};
+
+type ExternalShaftStep = {
+  readonly winding: BrushedMotorExternalShaftState;
+  readonly prepared: ReturnType<typeof prepareBrushedMotorExternalShaft> | undefined;
+  readonly record: (voltageVolt: number, transition: BrushedMotorExternalShaftResult) => void;
+};
+
 interface InternalSolveOptions extends SolveOptions {
+  readonly externalShaft?: ExternalShaftStep | undefined;
   readonly operatingPointReuse?: ArduinoOperatingPointReuse | undefined;
   readonly preparation?: CircuitSolvePreparation | undefined;
   readonly transientStepSeconds?: number;
@@ -1768,11 +1787,15 @@ function solveCircuitBase(
     document.components
       .filter(isElectrolyticCapacitor)
       .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  const orderedMotors =
+  const brushedMotors =
     preparation?.orderedMotors ??
     document.components
       .filter(isBrushedMotor)
       .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const externalShaft = options.externalShaft;
+  const orderedMotors = externalShaft
+    ? brushedMotors.filter((component) => component.id !== externalShaft.winding.componentId)
+    : brushedMotors;
   const orderedLamps =
     preparation?.orderedLamps ??
     document.components
@@ -1792,6 +1815,7 @@ function solveCircuitBase(
       .filter((component) => thermalProfileFor(component) !== null)
       .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const transientRequested =
+    externalShaft !== undefined ||
     orderedCapacitors.length > 0 ||
     orderedMotors.length > 0 ||
     orderedLamps.length > 0 ||
@@ -1844,6 +1868,13 @@ function solveCircuitBase(
   let arduinoRuntimeStateById = arduinoRuntimeStatesFromController(compatibleControllerState);
   const startTimeMs =
     compatibleState?.simulationTimeMs ?? compatibleControllerState?.simulationTimeMs ?? 0;
+  if (
+    externalShaft &&
+    (startTimeMs !== externalShaft.winding.atMicroseconds / 1000 ||
+      orderedCapacitors.length !== 0 ||
+      orderedMotors.length !== 0)
+  )
+    throw new Error('External TT requires compatible history in the selected circuit.');
   const elapsedTimeMs = Math.max(TRANSIENT_INITIAL_SAMPLE_MS, targetTimeMs - startTimeMs);
   const bjtCount = document.components.filter(
     (component) =>
@@ -1964,6 +1995,7 @@ function solveCircuitBase(
       ...peripheralRuntimeStates,
       holdCapacitorVoltages: true,
       holdMotorStates: true,
+      externalShaft,
       capacitorPreviousVoltageById: previousVoltageById,
       motorPreviousStateById: motorStateById,
       bjtPreviousRegionById: bjtRegionById,
@@ -1989,12 +2021,14 @@ function solveCircuitBase(
   let accumulatedIterations = 0;
   let finalResult: SolveResult | null = null;
   let currentTimeMs = startTimeMs;
-  let candidateStepMs = Math.min(
-    usesSwitchedBjtTransient || orderedMotors.length > 0
-      ? MOTOR_TRANSIENT_STEP_MS
-      : TRANSIENT_TARGET_STEP_MS,
-    elapsedTimeMs,
-  );
+  let candidateStepMs = externalShaft
+    ? targetTimeMs - startTimeMs
+    : Math.min(
+        usesSwitchedBjtTransient || orderedMotors.length > 0
+          ? MOTOR_TRANSIENT_STEP_MS
+          : TRANSIENT_TARGET_STEP_MS,
+        elapsedTimeMs,
+      );
   let acceptedSteps = 0;
   let rejectedSteps = 0;
   let minStepMs = Number.POSITIVE_INFINITY;
@@ -2045,6 +2079,7 @@ function solveCircuitBase(
       acceptedResult = solveCircuitStep(document, {
         preparation: options.preparation,
         operatingPointReuse: options.operatingPointReuse,
+        externalShaft,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -2314,6 +2349,21 @@ function solveCircuitBase(
     }
 
     if (failureOccurred) {
+      if (externalShaft) {
+        return {
+          ...acceptedResult,
+          solved: false,
+          status: 'nonconvergent',
+          diagnostics: [
+            ...acceptedResult.diagnostics,
+            {
+              code: 'numerical_instability',
+              severity: 'error',
+              message: 'A circuit component opened during a coupled TT interval.',
+            },
+          ],
+        };
+      }
       const postFailure = solveCircuitStep(document, {
         preparation: options.preparation,
         operatingPointReuse: options.operatingPointReuse,
@@ -2688,12 +2738,14 @@ export function solveRcCircuitWithHeldArduino(
   preparation?: CircuitSolvePreparation,
   operatingPointReuse?: ArduinoOperatingPointReuse,
   thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch>,
+  externalShaft?: ExternalShaftStep,
 ): SolveResult {
   return issueArduinoQualityReceipt(
     solveCircuitBase(document, {
       preparation,
-      operatingPointReuse,
+      operatingPointReuse: externalShaft ? undefined : operatingPointReuse,
       thermalEpochs,
+      externalShaft,
       simulationTimeMs,
       ...(transientState ? { transientState } : {}),
       heldArduinoSnapshots: snapshots,
@@ -2703,9 +2755,70 @@ export function solveRcCircuitWithHeldArduino(
       clockedRcTransient: true,
       suppressOscilloscopeTrace: true,
     }),
-    operatingPointReuse,
+    externalShaft ? undefined : operatingPointReuse,
     document,
   );
+}
+
+/** TEST_ONLY. One bounded external TT winding interval or a same-time observation. */
+export function solveRcCircuitWithHeldArduinoAndExternalShaft(
+  input: ExternalShaftInput,
+  document: ElectronicsDocument,
+  snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+  transientState: CapacitorTransientState | undefined,
+  hcSr04States: ReadonlyMap<string, HcSr04RuntimeState>,
+  pingUltrasonicStates: ReadonlyMap<string, PingUltrasonicRuntimeState>,
+  servoStates: ReadonlyMap<string, ServoMotorRuntimeState>,
+  preparation: CircuitSolvePreparation,
+) {
+  const { winding, toMicroseconds, angularVelocityRadPerSecond } = input;
+  const component = document.components.find((entry) => entry.id === winding.componentId);
+  const profile = component && brushedMotorProfile(component);
+  if (
+    !profile ||
+    profile.profileId !== winding.profileId ||
+    profile.profileVersion !== winding.profileVersion ||
+    !Number.isSafeInteger(toMicroseconds) ||
+    toMicroseconds < winding.atMicroseconds ||
+    toMicroseconds - winding.atMicroseconds > TT_NATIVE_DRIVE_MAX_INTERVAL_US ||
+    !Number.isFinite(angularVelocityRadPerSecond)
+  )
+    throw new Error('Invalid TT shaft electrical interval.');
+  const held = toMicroseconds === winding.atMicroseconds;
+  const prepared = held
+    ? undefined
+    : prepareBrushedMotorExternalShaft(profile, winding, {
+        componentId: winding.componentId,
+        profileId: winding.profileId,
+        profileVersion: winding.profileVersion,
+        axis: 'positive-output-shaft',
+        fromMicroseconds: winding.atMicroseconds,
+        toMicroseconds,
+        outputAngularVelocityRadPerSecond: angularVelocityRadPerSecond,
+      });
+  let accepted: { voltageVolt: number; transition: BrushedMotorExternalShaftResult } | undefined;
+  const frame = solveRcCircuitWithHeldArduino(
+    document,
+    toMicroseconds / 1000,
+    snapshots,
+    transientState,
+    hcSr04States,
+    pingUltrasonicStates,
+    servoStates,
+    preparation,
+    undefined,
+    undefined,
+    {
+      winding,
+      prepared,
+      record(voltageVolt, transition) {
+        if (accepted) throw new Error('The TT electrical interval was observed twice.');
+        accepted = { voltageVolt, transition };
+      },
+    },
+  );
+  if (frame.solved && !held && !accepted) throw new Error('Missing solved TT winding branch.');
+  return { frame, accepted };
 }
 
 function solveCircuitStep(
@@ -3436,6 +3549,17 @@ function solveCircuitStep(
           options.lampTemperatureById?.[component.id] ?? INCANDESCENT_LAMP_PROFILE.ambientCelsius;
         stampConductance(a, b, 1 / incandescentLampResistanceOhm(temperatureCelsius));
       } else if (isBrushedMotor(component)) {
+        const external = options.externalShaft;
+        if (external?.winding.componentId === component.id) {
+          const companion = external.prepared?.companion;
+          if (companion) {
+            stampConductance(a, b, companion.conductanceSiemens);
+            stampOffset(a, b, companion.historyCurrentAmp);
+          } else if (options.holdMotorStates) {
+            stampOffset(a, b, -external.winding.currentAmp);
+          }
+          continue;
+        }
         const profile = brushedMotorProfile(component);
         const previousState = options.motorPreviousStateById?.[component.id];
         if (!profile || !previousState) continue;
@@ -4034,33 +4158,45 @@ function solveCircuitStep(
           currentAmp: heldCapacitorCurrents.get(component.id) ?? 0,
         };
       }
-      const motorStep = isBrushedMotor(component)
-        ? (() => {
-            const profile = brushedMotorProfile(component);
-            const previousState = options.motorPreviousStateById?.[component.id];
-            if (!profile || !previousState) return undefined;
-            if (options.holdMotorStates)
-              return {
-                state: previousState,
-                companion: null,
-                observation: observeBrushedMotorTransientState(
-                  profile,
-                  previousState,
-                  previousState,
-                  brushedMotorStepInput(component, voltageDrop, 0),
+      const external =
+        options.externalShaft?.winding.componentId === component.id
+          ? options.externalShaft
+          : undefined;
+      let externalCurrent = external?.winding.currentAmp;
+      if (external?.prepared) {
+        const transition = external.prepared.accept(voltageDrop);
+        external.record(voltageDrop, transition);
+        externalCurrent = transition.intervalCurrentAmp;
+      }
+      const motorStep =
+        isBrushedMotor(component) && !external
+          ? (() => {
+              const profile = brushedMotorProfile(component);
+              const previousState = options.motorPreviousStateById?.[component.id];
+              if (!profile || !previousState) return undefined;
+              if (options.holdMotorStates)
+                return {
+                  state: previousState,
+                  companion: null,
+                  observation: observeBrushedMotorTransientState(
+                    profile,
+                    previousState,
+                    previousState,
+                    brushedMotorStepInput(component, voltageDrop, 0),
+                  ),
+                };
+              return advanceBrushedMotorTransientState(
+                profile,
+                previousState,
+                brushedMotorStepInput(
+                  component,
+                  voltageDrop,
+                  options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
                 ),
-              };
-            return advanceBrushedMotorTransientState(
-              profile,
-              previousState,
-              brushedMotorStepInput(
-                component,
-                voltageDrop,
-                options.transientStepSeconds ?? TRANSIENT_INITIAL_SAMPLE_MS / 1_000,
-              ),
-            );
-          })()
-        : undefined;
+              );
+            })()
+          : undefined;
+      const motorCurrent = externalCurrent ?? motorStep?.observation.currentAmp;
       const lampTemperatureCelsius =
         component.kind === 'lamp'
           ? (options.lampTemperatureById?.[component.id] ??
@@ -4138,7 +4274,7 @@ function solveCircuitStep(
           voltageDrop / (linkedLight?.resistanceOhm ?? photoresistorResistanceOhm(component));
       else if (component.kind === 'lamp') current = voltageDrop / (lampResistanceOhm as number);
       else if (component.kind === 'piezo') current = voltageDrop / piezoDcResistanceOhm(component);
-      else if (motorStep) current = motorStep.observation.currentAmp;
+      else if (motorCurrent !== undefined) current = motorCurrent;
       else if (capacitorObservation) current = capacitorObservation.currentAmp;
       else if (component.kind === 'switch')
         current = switchContactClosed(component) ? voltageDrop / CLOSED_RESISTANCE : 0;
@@ -4345,11 +4481,11 @@ function solveCircuitStep(
         voltageDrop: round(voltageDrop),
         current: roundCurrent(current),
         terminalVoltages,
-        ...(motorStep
+        ...(motorCurrent !== undefined
           ? {
               terminalCurrents: {
-                positive: roundCurrent(motorStep.observation.currentAmp),
-                negative: roundCurrent(-motorStep.observation.currentAmp),
+                positive: roundCurrent(motorCurrent),
+                negative: roundCurrent(-motorCurrent),
               },
             }
           : capacitorObservation
@@ -4624,7 +4760,7 @@ function solveCircuitStep(
               operatingVoltageMaxVolt: activePiezoObservation!.maximumVoltageVolt,
             }
           : {}),
-        ...(isBrushedMotor(component)
+        ...(isBrushedMotor(component) && !external
           ? motorStep
             ? motorComponentObservation(component, motorStep)
             : {
