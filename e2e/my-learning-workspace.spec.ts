@@ -1370,3 +1370,42 @@ test('P0 sidebar metrics refresh when Home is revisited after publishing elsewhe
   expect(reads).toBeGreaterThan(before);
   await expect(page.getByTestId('personal-progress')).toHaveCount(0);
 });
+
+for (const identity of ['account', 'seat'] as const) {
+  test(
+    'P0 mobile drawer avatar geometry and profile metric details (' + identity + ')',
+    async ({ page }) => {
+      await fixture(page, identity, 0);
+      await page.setViewportSize({ width: 320, height: 900 });
+      await page.goto('/#/learning');
+      await page.locator('.portal-menu-toggle').click();
+      const sidebar = page.locator('#portal-sidebar');
+      await expect(sidebar).toHaveClass(/mobile-open/);
+      const avatar = sidebar.locator('.portal-sidebar-avatar');
+      const bounds = await avatar.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return { width: box.width, height: box.height };
+      });
+      expect(bounds.width).toBeGreaterThanOrEqual(40);
+      expect(bounds.width).toBeLessThanOrEqual(100);
+      expect(Math.abs(bounds.width - bounds.height)).toBeLessThanOrEqual(1);
+      const metrics = sidebar.getByTestId('profile-metric-strip');
+      await expect(metrics).toBeAttached();
+      await metrics.locator('summary').click();
+      await expect(metrics.locator('.portal-sidebar-metric-details')).toBeVisible();
+      await expect(metrics.getByTestId('profile-full-everPublishedWorks')).toContainText('0');
+      const boundary = await sidebar.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return { left: box.left, right: box.right, viewport: innerWidth };
+      });
+      expect(boundary.left).toBeGreaterThanOrEqual(-1);
+      expect(boundary.right).toBeLessThanOrEqual(boundary.viewport + 1);
+      await page.screenshot({
+        path: evidence + '/p0-mobile-sidebar-' + identity + '-320.png',
+        fullPage: true,
+      });
+      await sidebar.locator('.portal-menu-close').click();
+      await expect(sidebar).not.toHaveClass(/mobile-open/);
+    },
+  );
+}
