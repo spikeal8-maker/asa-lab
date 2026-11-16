@@ -16892,7 +16892,9 @@ parallel_lanes:
       observed_at: '2026-11-16T19:31:28Z'
       observation_note: >-
         Controller selection from owner-requested Arduino UX programme after
-        PR1163 merge. This is an historical snapshot, not live release evidence.
+        PR1163 merge. Fetch main before any subsequent writes and inspect fresh
+        Git and CI state plus active worktrees. This dated snapshot does not
+        establish present integration, release or owner acceptance.
 
   - id: electronics-arduino-check-messages
     parent_lane: electronics
