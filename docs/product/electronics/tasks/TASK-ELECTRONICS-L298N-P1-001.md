@@ -33,6 +33,7 @@ review: independent
 - `contexts/electronics/domain/model-identity.ts`
 - `contexts/electronics/domain/model-registry.ts`
 - `contexts/electronics/domain/models/l298n-dc-model.ts`
+- `contexts/electronics/domain/models/l298n-driven-inputs.ts` — восстановить только отдельно проверенное определение активного входа/временно высокоимпедансного Arduino, сохранив точный provenance существующего P3 WIP.
 - `contexts/electronics/domain/solver.ts`
 - `contexts/electronics/testing/l298n-dc-model.spec.ts`
 - `contexts/electronics/testing/l298n-integrated-solver.spec.ts`
@@ -72,6 +73,13 @@ CI workflows, R4 фикстуры, базу, production, Docker, 3D или Robot
    не считается определённым LOW/HIGH просто потому, что к нему
    подсоединён чужой terminal. Реальный активный output Arduino,
    GND, +5 В и резистивная подтяжка распознаются корректно.
+   Во время выполнения `setup()` временно плавающие GPIO могут
+   оставаться безопасно неактивными, но не становятся фиктивным LOW.
+   До загрузки программы самый первый холодный runtime имеет
+   `phase=loop` при пустых pinModes: это исключение допустимо
+   только в начальном физическом кадре. После начала `setup()`
+   исключение ограничено именно `phase=setup`, а после перехода
+   к `loop` неизвестные входы вновь строго отвергаются.
    После `setup()/pinMode` digital output не теряется при
    переходе от preflight к фактическому clocked advance.
 5. Fail-closed при недопустимом напряжении, сверхтоке,

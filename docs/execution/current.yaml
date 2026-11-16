@@ -88,6 +88,7 @@ parallel_lanes:
       - contexts/electronics/domain/model-identity.ts
       - contexts/electronics/domain/model-registry.ts
       - contexts/electronics/domain/models/l298n-dc-model.ts
+      - contexts/electronics/domain/models/l298n-driven-inputs.ts
       - contexts/electronics/testing/l298n-dc-model.spec.ts
       - contexts/electronics/testing/l298n-integrated-solver.spec.ts
       - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
@@ -150,6 +151,7 @@ parallel_lanes:
         - contexts/electronics/domain/model-identity.ts
         - contexts/electronics/domain/model-registry.ts
         - contexts/electronics/domain/models/l298n-dc-model.ts
+        - contexts/electronics/domain/models/l298n-driven-inputs.ts
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/testing/l298n-dc-model.spec.ts
         - contexts/electronics/testing/l298n-integrated-solver.spec.ts
