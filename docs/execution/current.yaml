@@ -21657,20 +21657,9 @@ parallel_lanes:
     parent_lane: student-progress
     worktree_id: owner-ux-p0-d2r2-20261116
     owned_paths:
-      - apps/web/src/App.tsx
-      - apps/web/src/components/PortalHeader.tsx
-      - apps/web/src/creator-portal/portal-workspace.css
-      - apps/web/src/pages/CreatorHomePage.tsx
-      - apps/web/src/pages/LearningPage.tsx
       - apps/web/src/pages/my-learning-workspace.css
-      - apps/web/src/creator-portal/PersonalProgress.tsx
-      - apps/web/src/creator-portal/personal-progress.ts
-      - apps/web/src/creator-portal/personal-progress.css
       - apps/api/src/personal-progress.controller.ts
       - apps/api/src/personal-progress.controller.spec.ts
-      - tests/portal/personal-progress.http.pg.spec.ts
-      - tests/portal/personal-progress.pg.spec.ts
-      - apps/web/src/creator-portal/PersonalProgress.spec.ts
       - apps/web/src/pages/testing/CreatorHomePage.spec.ts
       - apps/web/src/pages/testing/LearningPage.spec.ts
       - e2e/my-learning-workspace.spec.ts
@@ -21681,7 +21670,8 @@ parallel_lanes:
       programme_issue: 1090
       program: ASA-STUDENT-PROGRESS-001
       selected_step: SP-UX-REVISION-P0
-      branch: owner/sp-ux-revision-p0-20261116
+      branch: main
+      candidate_branch: owner/sp-ux-revision-p0-20261116
       base_branch: main
       pr: null
       pr_draft: true
@@ -21695,7 +21685,7 @@ parallel_lanes:
         On 2026-11-16 the owner explicitly instructed OWNER-UX-P0-EXECUTE-TO-MAIN-001:
         protected acceptance of normative PR1212, isolated P0 implementation after
         canonical selection and SAFE_TO_START, exact tests and genuine independent
-        review before protected merge. Only these 18 checked paths are authorized
+        review before protected merge. These 18 exact planned paths are conditionally authorized
         conditionally, with optional paths removed from the final code diff.
         No production database, deployment, SP06, avatar P1 or platform rights v2.
       activation_condition: >-
@@ -21761,21 +21751,22 @@ parallel_lanes:
         - platform rating access v2
         - C3 and SP-05 scoring changes
         - production database and deployment
-      gates:
-        general:
-          workflow: ASA Lab Governance and Code Gates
-          commands:
-            - pnpm gate:repository
+    gates:
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: aef89f02a3425653109ce0d159367c8d9cc2f82b
       head_sha: null
+      observed_at: '2026-11-16T15:28:00Z'
       main:
         branch: main
         sha: aef89f02a3425653109ce0d159367c8d9cc2f82b
       observation_note: >-
         Owner UX normative PR1212 accepted; product P0 not authored.
-        Fresh preflight and main revalidation required before writing.
+        Fresh fetch main and scoped preflight required before any product writes.
 
 
 integration:
