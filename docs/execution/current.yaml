@@ -81,6 +81,66 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-l298n-p0
+    parent_lane: electronics
+    worktree_id: electronics-l298n-p0-1199
+    owned_paths:
+      - apps/web/public/assets/electronics/component-database/components/drivers/l298n/component.svg
+      - apps/web/public/assets/electronics/component-database/catalog.json
+      - apps/web/src/electronics/testing/l298n-owner-art.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0-001.md
+    task:
+      id: TASK-ELECTRONICS-L298N-P0-001
+      issue: 1199
+      programme_issue: 1199
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      kind: implementation
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: owner_selected_p0a_exact_zip_asset_intake_pending
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly authorized the independent L298N programme on 2026-11-15;
+        P0A is only exact owner SVG intake and disabled catalog metadata. No Codex,
+        no C3/SP05 modification, no concurrent editor or engine modifications.
+      scope: >-
+        Register only the exact SHA-verified owner L298N SVG and one disabled
+        catalog entry preserving all existing owner assets and model gates.
+        The archive is in the ChatGPT local runtime, not automatically on D2-R2.
+        No product writes before this canonical selection is accepted in main
+        and the exact archive bytes are available to the author.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      next_action: >-
+        After this selection is integrated and preflight passes, transfer the exact
+        owner archive; verify SHA256 display.svg then perform only P0A asset/catalog.
+        No top-wire source edit, solver, LED, P1 or deployment in this slice.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-L298N-P0-001
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 1775a9c3d0a430bf357d91f92f922ac450dfaeee
+      convergence_baseline_sha: 1775a9c3d0a430bf357d91f92f922ac450dfaeee
+      head_sha: null
+      observed_at: '2026-11-15T18:12:09Z'
+      observation_note: >-
+        Independent programme registration; this branch alone is not authoritative.
+        Require fresh fetch main, active-peer and exact ZIP preflight before writes.
   - id: electronics-recovery-hygiene
     parent_lane: electronics
     worktree_id: electronics-recovery-hygiene-1111
@@ -21652,6 +21712,122 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
         - pnpm gate:repository
+
+  - id: student-progress-owner-ux-p0
+    parent_lane: student-progress
+    worktree_id: owner-ux-p0-d2r2-20261116
+    owned_paths:
+      - apps/web/src/pages/my-learning-workspace.css
+      - apps/api/src/personal-progress.controller.ts
+      - apps/api/src/personal-progress.controller.spec.ts
+      - apps/web/src/pages/testing/CreatorHomePage.spec.ts
+      - apps/web/src/pages/testing/LearningPage.spec.ts
+      - e2e/my-learning-workspace.spec.ts
+      - e2e/public-projects.spec.ts
+    task:
+      id: TASK-OWNER-UX-REVISION-P0-001
+      issue: 1214
+      programme_issue: 1090
+      program: ASA-STUDENT-PROGRESS-001
+      selected_step: SP-UX-REVISION-P0
+      branch: main
+      candidate_branch: owner/sp-ux-revision-p0-20261116
+      base_branch: main
+      pr: null
+      pr_draft: true
+      status: in_progress
+      kind: product
+      risk: high
+      change_class: L1_UI_with_bounded_sensitive_read_API
+      checkpoint: controller_selected_awaiting_preflight
+      owner_acceptance: pending
+      owner_authorization: >-
+        On 2026-11-16 the owner explicitly instructed OWNER-UX-P0-EXECUTE-TO-MAIN-001:
+        protected acceptance of normative PR1212, isolated P0 implementation after
+        canonical selection and SAFE_TO_START, exact tests and genuine independent
+        review before protected merge. These 18 exact planned paths are conditionally authorized
+        conditionally, with optional paths removed from the final code diff.
+        No production database, deployment, SP06, avatar P1 or platform rights v2.
+      activation_condition: >-
+        This controller selection is effective only after this registration has
+        merged through required exact-source CI into accepted origin/main and
+        D2-R2 pnpm agent:preflight --scope student-progress-owner-ux-p0 --check
+        with every planned path reports SAFE_TO_START. A product branch must
+        inherit accepted main state; it cannot authorize itself.
+      source_normative_pr: 1212
+      source_normative_main_sha: aef89f02a3425653109ce0d159367c8d9cc2f82b
+      scope: >-
+        Remove duplicated Home progress hero/third avatar; show true publication,
+        likes and added-copy metrics beside existing left sidebar avatar; retain
+        top-right avatar. Conditional group summary and genuine next-action only.
+        Consolidate empty LearningOverview. Use measured responsive group peers,
+        bounded preview <= 20 with existing server paging and privacy semantics.
+      planned_paths:
+        - apps/web/src/App.tsx
+        - apps/web/src/components/PortalHeader.tsx
+        - apps/web/src/creator-portal/portal-workspace.css
+        - apps/web/src/pages/CreatorHomePage.tsx
+        - apps/web/src/pages/LearningPage.tsx
+        - apps/web/src/pages/my-learning-workspace.css
+        - apps/web/src/creator-portal/PersonalProgress.tsx
+        - apps/web/src/creator-portal/personal-progress.ts
+        - apps/web/src/creator-portal/personal-progress.css
+        - apps/api/src/personal-progress.controller.ts
+        - apps/api/src/personal-progress.controller.spec.ts
+        - tests/portal/personal-progress.http.pg.spec.ts
+        - tests/portal/personal-progress.pg.spec.ts
+        - apps/web/src/creator-portal/PersonalProgress.spec.ts
+        - apps/web/src/pages/testing/CreatorHomePage.spec.ts
+        - apps/web/src/pages/testing/LearningPage.spec.ts
+        - e2e/my-learning-workspace.spec.ts
+        - e2e/public-projects.spec.ts
+      shared_path_coordination:
+        status: awaiting_exact_preflight
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/asa-owner-ux-p0-20261116
+          branch: owner/sp-ux-revision-p0-20261116
+        paths:
+          - apps/web/src/App.tsx
+          - apps/web/src/components/PortalHeader.tsx
+          - apps/web/src/creator-portal/portal-workspace.css
+          - apps/web/src/pages/CreatorHomePage.tsx
+        qualification: >-
+          The projects lane also maps shared portal source paths. This is not
+          an unconditional peer-worktree override. A genuine preflight must
+          establish physically separate Git metadata and no dirty foreign
+          overlap, or require exact accepted-main peer path/SHA256 coordination
+          before any code write. Unknown is a write blocker.
+      acceptance:
+        required_viewports: [1440, 1024, 390, 320]
+        zoom_percent: 200
+        cases: [empty_account, populated_account, grouped_account, student_seat, empty_learning, group_over_five_peers, api_error, identity_handoff, long_content]
+        gates: exact_sha_ci_plus_negative_api_privacy_plus_real_browser_visual_plus_independent_review
+        merge: owner_authorization_after_review_only
+      excluded:
+        - SP-06 and SP-07 global scoring
+        - P1 avatar chooser
+        - platform rating access v2
+        - C3 and SP-05 scoring changes
+        - production database and deployment
+    gates:
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: aef89f02a3425653109ce0d159367c8d9cc2f82b
+      head_sha: null
+      observed_at: '2026-11-16T15:28:00Z'
+      main:
+        branch: main
+        sha: aef89f02a3425653109ce0d159367c8d9cc2f82b
+      observation_note: >-
+        Owner UX normative PR1212 accepted; product P0 not authored.
+        Fresh fetch main and scoped preflight required before any product writes.
+
 
 integration:
   owner_lane: visual-programming
