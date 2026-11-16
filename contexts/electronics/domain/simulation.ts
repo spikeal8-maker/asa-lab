@@ -7,7 +7,7 @@ import {
 import { copyNumericalNode, numericalShuntPowerWatt } from './numerical-shunt-power.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
-import { l298nControlNetIndices, sampleL298nArduinoPwmVoltage } from './models/l298n-pwm-model.js';
+import { l298nControlNetIndices, l298nQualityBranchVoltage } from './models/l298n-pwm-model.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
 import { TMP36_PROFILE } from './models/tmp36-dc-model.js';
 import { SOIL_MOISTURE_PROFILE } from './models/soil-moisture-model.js';
@@ -472,15 +472,13 @@ export function verifyCircuitQuality(
       for (const branch of branches) {
         const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
         const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-        const net = compiled.netlist.nodeOf.get(terminalKey(component.id, branch.terminal));
-        const targetVoltage =
-          net !== undefined && l298nInputNodes.has(net)
-            ? sampleL298nArduinoPwmVoltage(
-                branch.terminal,
-                branch.targetVoltage,
-                options.simulationTimeMs ?? 0,
-              )
-            : branch.targetVoltage;
+        const targetVoltage = l298nQualityBranchVoltage(
+          compiled.netlist.nodeOf,
+          l298nInputNodes,
+          component.id,
+          branch,
+          options.simulationTimeMs ?? 0,
+        );
         const currentLeaving = (positive - ground - targetVoltage) / branch.resistanceOhm;
         addBranch(component, branch.terminal, branch.ground, currentLeaving);
       }
@@ -922,15 +920,13 @@ export function createArduinoQualityTraversal(
           for (const branch of branches) {
             const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
             const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-            const net = nodeOf.get(terminalKey(component.id, branch.terminal));
-            const targetVoltage =
-              net !== undefined && l298nInputNodes.has(net)
-                ? sampleL298nArduinoPwmVoltage(
-                    branch.terminal,
-                    branch.targetVoltage,
-                    options.simulationTimeMs ?? 0,
-                  )
-                : branch.targetVoltage;
+            const targetVoltage = l298nQualityBranchVoltage(
+              nodeOf,
+              l298nInputNodes,
+              component.id,
+              branch,
+              options.simulationTimeMs ?? 0,
+            );
             const currentLeaving = (positive - ground - targetVoltage) / branch.resistanceOhm;
             addBranch(component, branch.terminal, branch.ground, currentLeaving);
           }

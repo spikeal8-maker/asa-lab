@@ -47,3 +47,17 @@ export function l298nControlNetIndices(
   }
   return nodes;
 }
+
+/** Exact PWM sampling shared with both canonical KCL verification paths. */
+export function l298nQualityBranchVoltage(
+  netNodes: ReadonlyMap<string, number>,
+  controlNodes: ReadonlySet<number>,
+  componentId: string,
+  branch: Readonly<{ terminal: string; targetVoltage: number }>,
+  simulationTimeMs: number,
+): number {
+  const node = netNodes.get(terminalKey(componentId, branch.terminal));
+  return node !== undefined && controlNodes.has(node)
+    ? sampleL298nArduinoPwmVoltage(branch.terminal, branch.targetVoltage, simulationTimeMs)
+    : branch.targetVoltage;
+}
