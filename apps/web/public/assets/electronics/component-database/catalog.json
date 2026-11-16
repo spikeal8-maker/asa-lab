@@ -30763,12 +30763,7 @@
       "status": "disabled_missing_model",
       "physicalWidthMm": 43,
       "physicalHeightMm": 43,
-      "viewBox": [
-        0,
-        0,
-        43,
-        43
-      ],
+      "viewBox": [0, 0, 43, 43],
       "assetFit": "meet",
       "pins": [
         {
@@ -30854,10 +30849,7 @@
       "stateAssets": [],
       "stateContract": {
         "type": "l298n_dual_hbridge_v1",
-        "enableJumpers": [
-          "ENA",
-          "ENB"
-        ],
+        "enableJumpers": ["ENA", "ENB"],
         "regulatorJumper": "5V_EN",
         "indicatorLed": "logic_5v",
         "motorChannels": 2,
@@ -30868,9 +30860,7 @@
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": [
-            "logic_power_led"
-          ]
+          "channels": ["logic_power_led"]
         }
       ],
       "simulationSupport": "not_implemented_in_domain_solver",
