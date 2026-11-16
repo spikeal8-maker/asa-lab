@@ -26,6 +26,7 @@ import { createPortal } from 'react-dom';
 import * as ScratchBlocks from 'scratch-blocks';
 import {
   analyseArduinoSourceSupport,
+  arduinoSourceHasUnsupportedFeatures,
   type ArduinoSourceSupportDiagnostic,
 } from '@asa-lab/electronics';
 import scratchSpritesUrl from '../../node_modules/scratch-blocks/media/sprites.png?url';
@@ -1164,7 +1165,7 @@ function ArduinoSourceEditor({
         </div>
       ) : null}
       <section
-        className={`arduino-code-check${diagnosticsOpen ? ' open' : ''}${unsupportedCount > 0 ? ' has-blockers' : limitedCount > 0 ? ' has-limitations' : ''}`}
+        className={`arduino-code-check${diagnosticsOpen ? ' open' : ''}${unsupportedCount > 0 ? ' has-blockers' : diagnosticsOpen && limitedCount > 0 ? ' has-limitations' : ''}`}
         id="arduino-source-diagnostics"
         aria-label="Проверка кода Arduino"
         aria-live="polite"
@@ -1177,23 +1178,19 @@ function ArduinoSourceEditor({
           onClick={() => onDiagnosticsOpenChange(!diagnosticsOpen)}
         >
           <span className="arduino-code-check-icon" aria-hidden="true">
-            {unsupportedCount > 0 ? '!' : limitedCount > 0 ? '◐' : '✓'}
+            {unsupportedCount > 0 ? '!' : '✓'}
           </span>
           <strong>Проверка кода</strong>
           <span className={`arduino-code-check-count${unsupportedCount > 0 ? ' active' : ''}`}>
-            Блокирующих: {unsupportedCount}
+            {unsupportedCount > 0 ? <>Блокирующих: {unsupportedCount}</> : 'Можно запускать'}
           </span>
-          <span className={`arduino-code-check-count limited${limitedCount > 0 ? ' active' : ''}`}>
-            Примечаний: {limitedCount}
-          </span>
+          <span className="arduino-code-check-count">Примечаний: {limitedCount}</span>
           <span className="arduino-code-check-summary" id="arduino-source-editor-status">
             {completion
               ? 'Enter — строка · Tab — вставить · Esc — закрыть'
               : unsupportedCount > 0
                 ? 'Моделирование заблокировано'
-                : limitedCount > 0
-                  ? 'Можно запускать · есть примечания'
-                  : 'Ошибок не найдено'}
+                : null}
           </span>
           <ChevronDown />
         </button>
@@ -1333,8 +1330,8 @@ export function ArduinoCodePanel({
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
   const [fontSize, setFontSize] = useState(initialArduinoFontSize);
   const [autocompleteEnabled, setAutocompleteEnabled] = useState(initialArduinoAutocomplete);
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(
-    () => analyseArduinoSourceSupport(program.source).length > 0,
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(() =>
+    arduinoSourceHasUnsupportedFeatures(program.source),
   );
   const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<ArduinoCodeMode | null>(null);
@@ -1354,7 +1351,7 @@ export function ArduinoCodePanel({
     setBoardId(board.id);
     setPendingMode(null);
     setInputSettings(null);
-    setDiagnosticsOpen(analyseArduinoSourceSupport(nextProgram.source).length > 0);
+    setDiagnosticsOpen(arduinoSourceHasUnsupportedFeatures(nextProgram.source));
   }, []);
 
   useEffect(() => {
@@ -1502,21 +1499,15 @@ export function ArduinoCodePanel({
 
   function checkProgram(): void {
     const diagnostics = analyseArduinoSourceSupport(program.source);
-    setDiagnosticsOpen(true);
     const unsupported = diagnostics.filter((diagnostic) => diagnostic.status === 'unsupported');
+    setDiagnosticsOpen(unsupported.length > 0);
     if (unsupported.length > 0) {
       c.setNotice(
         `Проверка Arduino: блокирующих ошибок — ${unsupported.length}. Исправьте их перед запуском.`,
       );
       return;
     }
-    if (diagnostics.length > 0) {
-      c.setNotice(
-        `Проверка Arduino: можно запускать. Примечаний — ${diagnostics.length}; подробности ниже.`,
-      );
-      return;
-    }
-    c.setNotice('Проверка Arduino: ошибок для симулятора не найдено.');
+    c.setNotice('Проверка Arduino: код можно запускать.');
   }
 
   function appendCommandSnippet(snippet: string): void {
