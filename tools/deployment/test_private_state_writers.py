@@ -62,7 +62,8 @@ class StatePermissions(unittest.TestCase):
                 install = SimpleNamespace(root=root, state=state)
                 previous = os.umask(mask)
                 try:
-                    with mock.patch("deployment.operational.append_safely") as append:
+                    with mock.patch("deployment.operational.append_safely") as append, \
+                            mock.patch("deployment.operational.from_manager_receipt", return_value={"validated": True}):
                         Installation.receipt(install, {"status": "success", "phase": "verify_entry"})
                         self.assertEqual(stat.S_IMODE(receipt.stat().st_mode), 0o600)
                         self.assertEqual(receipt.stat().st_uid, os.geteuid())
