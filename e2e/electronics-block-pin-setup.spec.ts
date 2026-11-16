@@ -121,7 +121,7 @@ async function settingsLayout(page: Page, dialog: Locator, info: TestInfo) {
     contentType: 'image/png',
   });
   // Restore the initial keyboard-trap position for the rest of the journey.
-  const close = dialog.getByRole('button', { name: 'Закрыть настройки Arduino' });
+  const close = dialog.getByRole('button', { name: 'Закрыть настройки блоков' });
   await close.focus();
   await expect(close).toBeFocused();
   await expect(close).toBeInViewport();
@@ -173,11 +173,14 @@ async function project(page: Page, document: SchematicDocument) {
 async function settings(page: Page) {
   const menu = page.locator('.arduino-mode-menu');
   if ((await menu.getAttribute('open')) === null) await activate(menu.locator('summary'));
-  await activate(page.getByRole('button', { name: 'Настройки Arduino', exact: true }));
-  const dialog = page.getByRole('dialog', { name: 'Настройки Arduino', exact: true });
+  await activate(page.getByRole('button', { name: 'Настройки блоков', exact: true }));
+  const dialog = page.getByRole('dialog', {
+    name: 'Настройки блоков — входные порты',
+    exact: true,
+  });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('checkbox')).toHaveCount(20);
-  await expect(dialog.getByRole('button', { name: 'Закрыть настройки Arduino' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Закрыть настройки блоков' })).toBeFocused();
   return dialog;
 }
 
@@ -400,7 +403,7 @@ async function boardIsolation(page: Page, info: TestInfo) {
       )
       .toBe(true);
   }
-  // Use the pupil's native viewport control, preserving saved block coordinates.
+  // Use the user's native viewport control, preserving saved block coordinates.
   await activate(blockWorkspace.locator('g.blocklyZoomReset'));
   await expect
     .poll(() =>
@@ -444,20 +447,32 @@ async function boardIsolation(page: Page, info: TestInfo) {
   await select.selectOption(b.id);
   const editor = page.getByRole('textbox', { name: 'Код Arduino C++', exact: true });
   await expect(editor).toHaveValue(text);
-  dialog = await settings(page);
+  // Text C++ must not expose inert block-only GPIO settings. Keep the
+  // pre-existing inputPins as stored data for the other editor modes.
+  const textModeMenu = page.locator('.arduino-mode-menu');
+  if ((await textModeMenu.getAttribute('open')) === null) {
+    await activate(textModeMenu.locator('summary'));
+  }
   await expect(
-    dialog.getByRole('checkbox', { name: 'Входной порт 13', exact: true }),
-  ).toBeChecked();
+    textModeMenu.getByRole('button', { name: 'Настройки блоков', exact: true }),
+  ).toHaveCount(0);
   await expect(
-    dialog.getByRole('checkbox', { name: 'Входной порт 12', exact: true }),
-  ).not.toBeChecked();
-  await expect(dialog.getByRole('checkbox', { name: 'Входной порт 2', exact: true })).toBeEnabled();
-  await checkInput(dialog.getByRole('checkbox', { name: 'Входной порт A0', exact: true }));
-  await activate(dialog.getByRole('button', { name: 'Применить', exact: true }));
-  const expected = structuredClone(native.persisted);
-  board(expected, b.id).stateProperties!['arduinoInputPins'] = ['13', 'A0'];
-  const saved = await save(page, id, expected);
+    page.getByRole('dialog', { name: 'Настройки блоков — входные порты', exact: true }),
+  ).toHaveCount(0);
+  await activate(textModeMenu.getByRole('button', { name: 'Блоки', exact: true }));
+  const confirmation = page.getByRole('dialog', { name: 'Продолжить?', exact: true });
+  await expect(confirmation).toContainText('Текст не преобразуется в блоки');
+  await activate(confirmation.getByRole('button', { name: 'Отмена', exact: true }));
   await expect(editor).toHaveValue(text);
+
+  const editedText = text.replace('delay(10)', 'delay(11)');
+  await editor.fill(editedText);
+  await expect(editor).toHaveValue(editedText);
+  const expected = structuredClone(native.persisted);
+  board(expected, b.id).stateProperties!['arduinoSource'] = editedText;
+  expect(board(expected, b.id).stateProperties!['arduinoInputPins']).toEqual(['13']);
+  const saved = await save(page, id, expected);
+  await expect(editor).toHaveValue(editedText);
   await select.selectOption(a.id);
   dialog = await settings(page);
   await expect(
@@ -471,7 +486,14 @@ async function boardIsolation(page: Page, info: TestInfo) {
   await expect(page.locator('.workbench-stage')).toBeVisible();
   await activate(page.getByRole('button', { name: 'Открыть редактор кода', exact: true }));
   await select.selectOption(b.id);
-  await expect(editor).toHaveValue(text);
+  await expect(editor).toHaveValue(editedText);
+  const reopenedMenu = page.locator('.arduino-mode-menu');
+  if ((await reopenedMenu.getAttribute('open')) === null) {
+    await activate(reopenedMenu.locator('summary'));
+  }
+  await expect(
+    reopenedMenu.getByRole('button', { name: 'Настройки блоков', exact: true }),
+  ).toHaveCount(0);
   expect(await serverDocument(page, id)).toEqual(expected);
   await receipt(info, 'native-edit-board-isolation-text-preservation', {
     baseline,
@@ -483,10 +505,12 @@ async function boardIsolation(page: Page, info: TestInfo) {
 }
 
 for (const viewport of [
-  { width: 1536, height: 864 },
+  { width: 1440, height: 900 },
+  { width: 1024, height: 768 },
   { width: 390, height: 844 },
+  { width: 320, height: 700 },
 ]) {
-  const mobile = viewport.width === 390;
+  const mobile = viewport.width <= 390;
   const run = test.extend({
     viewport,
     isMobile: mobile,
@@ -554,7 +578,7 @@ for (const viewport of [
                 !(element.parentElement instanceof HTMLLabelElement) ||
                 element.parentElement.control !== element ||
                 element.closest('[role="dialog"]')?.getAttribute('aria-label') !==
-                  'Настройки Arduino'
+                  'Настройки блоков — входные порты'
               )
                 return false;
               return (
@@ -593,13 +617,13 @@ for (const viewport of [
         await page.keyboard.press('Escape');
         await expect(dialog).toHaveCount(0);
         await expect(
-          page.getByRole('button', { name: 'Настройки Arduino', exact: true }),
+          page.getByRole('button', { name: 'Настройки блоков', exact: true }),
         ).toBeFocused();
         dialog = await settings(page);
         await expect(
           dialog.getByRole('checkbox', { name: 'Входной порт A0', exact: true }),
         ).not.toBeChecked();
-        const close = dialog.getByRole('button', { name: 'Закрыть настройки Arduino' });
+        const close = dialog.getByRole('button', { name: 'Закрыть настройки блоков' });
         await close.press('Shift+Tab');
         await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeFocused();
         await page.keyboard.press('Tab');
