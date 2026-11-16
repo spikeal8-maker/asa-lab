@@ -21653,28 +21653,6 @@ parallel_lanes:
         commands:
         - pnpm gate:repository
 
-integration:
-  owner_lane: visual-programming
-  shared_paths:
-    - docs/execution/current.yaml
-    - apps/web/src/electronics/workbench.css
-    - apps/web/src/electronics/testing/asset-recovery.spec.ts
-    - AGENTS.md
-    - START_HERE_FOR_AI.md
-    - package.json
-    - pnpm-lock.yaml
-    - apps/api/package.json
-    - apps/web/package.json
-    - tools/validate_control_plane.py
-    - tools/test_validate_control_plane.py
-    - .github/workflows/**
-    - apps/api/src/module-registry.ts
-    - apps/api/src/modules.controller.spec.ts
-    - apps/web/src/modules/ModuleEditorHost.tsx
-    - docs/delivery/**
-    - docs/project-map/**
-    - docs/testing/**
-
   - id: student-progress-owner-ux-p0
     parent_lane: student-progress
     worktree_id: owner-ux-p0-d2r2-20261116
@@ -21798,6 +21776,29 @@ integration:
       observation_note: >-
         Owner UX normative PR1212 accepted; product P0 not authored.
         Fresh preflight and main revalidation required before writing.
+
+
+integration:
+  owner_lane: visual-programming
+  shared_paths:
+    - docs/execution/current.yaml
+    - apps/web/src/electronics/workbench.css
+    - apps/web/src/electronics/testing/asset-recovery.spec.ts
+    - AGENTS.md
+    - START_HERE_FOR_AI.md
+    - package.json
+    - pnpm-lock.yaml
+    - apps/api/package.json
+    - apps/web/package.json
+    - tools/validate_control_plane.py
+    - tools/test_validate_control_plane.py
+    - .github/workflows/**
+    - apps/api/src/module-registry.ts
+    - apps/api/src/modules.controller.spec.ts
+    - apps/web/src/modules/ModuleEditorHost.tsx
+    - docs/delivery/**
+    - docs/project-map/**
+    - docs/testing/**
 
 blocking:
   - id: ELECTRONICS-836-COMMITTED-RESULT-QUALIFICATION
