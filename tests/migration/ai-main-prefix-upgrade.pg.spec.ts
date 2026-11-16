@@ -106,6 +106,7 @@ const expectedPending = [
   '0325', // Direct written assignments reuse the academic submission chain.
   '0326', // Allow large PDF task attachments.
   '0327', // Expand supported task attachment formats.
+  '0328', // Safe Mode blocks new publications and retroactive public reads.
 ];
 
 interface Identity {

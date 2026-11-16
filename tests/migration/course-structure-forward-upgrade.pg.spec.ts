@@ -197,6 +197,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0325', // Direct written assignments reuse the academic submission chain.
         '0326', // Allow large PDF task attachments.
         '0327', // Expand supported task attachment formats.
+        '0328', // Safe Mode blocks new publications and retroactive public reads.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -553,6 +554,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0325', // Direct written assignments reuse the academic submission chain.
           '0326', // Allow large PDF task attachments.
           '0327', // Expand supported task attachment formats.
+          '0328', // Safe Mode blocks new publications and retroactive public reads.
         ]);
         expect(
           await applyIsolatedTestPlan(
