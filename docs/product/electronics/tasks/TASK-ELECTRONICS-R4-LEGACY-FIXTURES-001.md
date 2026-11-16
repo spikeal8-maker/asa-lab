@@ -1,3 +1,14 @@
+---
+task_id: TASK-ELECTRONICS-R4-LEGACY-FIXTURES-001
+kind: repair
+risk: medium
+semantic_change: 'no'
+roadmap_slice: null
+prerequisites: []
+acceptance_boundary: slice
+review: independent
+---
+
 # TASK-ELECTRONICS-R4-LEGACY-FIXTURES-001
 
 **Issue:** https://github.com/spikeal8-maker/asa-lab/issues/1215
