@@ -16830,6 +16830,70 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: electronics-arduino-settings-ux
+    parent_lane: electronics
+    worktree_id: electronics-arduino-settings-ux-1220
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SETTINGS-UX-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-SETTINGS-UX-001
+      issue: 1220
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      kind: implementation
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: block_only_input_settings_selected_after_1163
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly requests the full multi-slice
+        ARDUINO-PROGRAMMING-UX-REWORK-001 on 2026-11-16 to be implemented and
+        integrated in main. The controller selects only the second UI slice
+        after merged PR1163. Preserve user-written C++, existing GPIO settings,
+        accepted generated output policy from Issue944 and all runtime/physics
+        semantics; no deployment, live data operations or Codex.
+      implementation_files:
+        - apps/web/src/electronics/ArduinoCodePanel.tsx
+        - e2e/electronics-block-pin-setup.spec.ts
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SETTINGS-UX-001.md
+      scope: >-
+        In text C++ mode hide block-only input-port settings. In blocks and
+        blocks-text modes use descriptive block settings labels, retain saved
+        inputPins, inferred and unresolved roles, exact source, native keyboard
+        interactions and Save/Reload; no generator or physical model change.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+      next_action: >-
+        After this governance registration is accepted in main, run fresh
+        scoped preflight for two implementation files, use one bounded author,
+        native browser/focused tests and independent exact-SHA review before
+        ordinary protected GitHub PR merge.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 1f94e19be91bbb5ecec78f7ea0e0b11f03a076f7
+      head_sha: null
+      main:
+        branch: main
+        sha: 1f94e19be91bbb5ecec78f7ea0e0b11f03a076f7
+      observed_at: '2026-11-16T19:31:28Z'
+      observation_note: >-
+        Controller selection from owner-requested Arduino UX programme after
+        PR1163 merge. This is an historical snapshot, not live release evidence.
+
   - id: electronics-arduino-check-messages
     parent_lane: electronics
     worktree_id: electronics-arduino-check-messages
