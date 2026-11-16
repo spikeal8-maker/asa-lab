@@ -1,6 +1,6 @@
 # ASA Lab — источники механических и электронных компонентов для конструктора роботов
 
-**ART-01 / Discovery inventory v1.1 — RESEARCH ONLY · NOT_SELECTED · NOT_ACCEPTED**  
+**ART-01 / Discovery inventory v1.2 — RESEARCH ONLY · NOT_SELECTED · NOT_ACCEPTED**  
 **Дата первичной квалификации:** 17.11.2026 (источники из производителя и read-only инвентаризация D2-R2).  
 **Программа:** [Issue #1225](https://github.com/spikeal8-maker/asa-lab/issues/1225). **Концепция:** [ROBOT_ASSEMBLY_WORKSPACE_VISION_v1.md](ROBOT_ASSEMBLY_WORKSPACE_VISION_v1.md), [FIELD_CORE_SPEC.md](FIELD_CORE_SPEC.md) §9/§17/§20.
 
@@ -41,6 +41,22 @@
 
 **Важно:** SHA в четвёртом столбце — *префиксы* для контроля при распаковке, не полные хеши и не замена SHA ZIP. Эти модели соответствуют **конкретным позициям Adafruit**; их нельзя автоматически считать посадочно идентичными generic TT, SG90, L298N или другим ревизиям.
 
+## 1.1. Уже существующие SVG ASA Lab — повторно использовать, а не рисовать заново
+
+Проверены **фактические SVG в `main`** по точным путям. Это 2D-ресурсы каталога «Электроника», а не автоматически допущенные 3D-корпуса, файлы резки либо разрешение редактировать защищённые owner-assets.
+
+| Компонент | Существующий файл в репозитории | Git blob SHA и оговорка |
+| --- | --- | --- |
+| L298N | `apps/web/public/assets/electronics/component-database/components/drivers/l298n/component.svg` | `dca06af2e651535e79938322511c17452c0ea323`; SVG содержит 43×43 мм, но физические PCB и крепления иных ревизий не квалифицированы |
+| Arduino Uno | `apps/web/public/assets/electronics/component-database/components/arduino-uno/arduino-uno/component.svg` | `e2ef1c5eb59632a6a031cfc67f160d42c94ee799`; также есть отдельный owner-approved `arduino-uno.svg` |
+| HC-SR04 | `apps/web/public/assets/electronics/component-database/components/sensors/ultrasonic-hc-sr04/component.svg` | `3cb980019de87278c5072ac346e20bfb86f7298f`; использовать этот SVG, не встраивать NC-оригинал Amperka |
+| TT gearmotor | `apps/web/public/assets/electronics/component-database/components/motors/gearmotor/component.svg` | `d36382b891fd93ba19eb39458cb63dbc9d4376af`; title — TT Motor Gearbox Front View, **не N20** |
+| Servo | `apps/web/public/assets/electronics/component-database/components/motors/servo-motor/component.svg` | `aff94d5144f37f5385c00a1f9aa6fb6a7d485388`; 2D-иллюстрация сервопривода |
+| Переключатель | `apps/web/public/assets/electronics/component-database/components/switch/animated.svg` | `d6bd5a02d9d3303b2d4822efe822d88407f49a14`; переключатель, не измеренное CAD крепление |
+| Держатель 4×AA | `apps/web/public/assets/electronics/component-database/components/battery-holders/aa-4.svg` | `ffe9c027573bda6a06b785f97e9eabbea585ff14`; 2D-объект, не 3D CAD |
+
+**Правило повторного использования:** единственный электрический component ID и его действующий SVG переиспользуются, а будущий 3D mechanical partId с anchors/provenance связывается с этим ID. Нельзя создавать второй электрический каталог или менять защищённые оригиналы. Размеры рисунка не равны доказанной посадке конкретного hardware SKU.
+
 ## 2. R01-A miniQ Ø127 — компоненты первого робота
 
 Обозначения статуса:
@@ -61,10 +77,10 @@
 | \`R01A-CASTER\` | Шаровая опора nominal Ø12 ×1 для рамы Amperka | [Amperka miniQ-base](https://amperka.ru/product/miniq-base) | **MISSING_EXACT_CAD**: нужен паспорт крепления, X/Y/Z и реальная высота под опорной нагрузкой; не заменять DFRobot FIT0007 (металлический шар Ø15, другая геометрия) |
 | \`R01A-FASTENERS\` | Винты, гайки, стойки, spacer | Конкретизация по механике мотора/рамы, [Pololu #1089](https://www.pololu.com/product/1089) | **MISSING_EXACT_CAD**: перечень BOM, тип/шаг резьбы/длина только после выбора mounts, не присваивать случайно M2/M3 |
 | \`R01A-CONTROLLER\` | Arduino UNO Rev3 или другой точно выбранный контроллер ×1 | [Arduino UNO Rev3](https://store.arduino.cc/products/arduino-uno-rev3), официальные EAGLE/DXF; существующий ASA Lab SVG: \`apps/web/public/assets/electronics/owner-approved/arduino-uno.svg\` | **DRAWING_ONLY/EXISTING_SVG:** контур 68.6×53.4 мм указан производителем; реальное отверстие, стойки и модель платы — проверить по official DXF и выбранной ревизии; owner-approved SVG **переиспользовать**, не перерисовывать |
-| \`R01A-MOTOR-DRIVER\` | Один проверенный двухканальный драйвер | В существующей электронике ASA Lab уже реализуется L298N; альтернативный исходник [Adafruit MotorShield V2 STEP](https://github.com/adafruit/Adafruit_CAD_Parts/tree/main/1438%20Adafruit%20MotorShield) | **LOCAL_3D только для Adafruit 1438**; MotorShield V2 НЕ является L298N; выбор конкретной платы/тока/пинов/питания — после REQ-KIT/D02; не создавать 3D «универсального L298N» по чужой фотографии |
+| \`R01A-MOTOR-DRIVER\` | Один проверенный двухканальный драйвер | В существующей электронике ASA Lab уже реализуется L298N; альтернативный исходник [Adafruit MotorShield V2 STEP](https://github.com/adafruit/Adafruit_CAD_Parts/tree/main/1438%20Adafruit%20MotorShield) | **EXISTING_SVG** для L298N, **LOCAL_3D только для Adafruit 1438**; MotorShield V2 НЕ является L298N; выбор конкретной платы/тока/пинов/питания — после REQ-KIT/D02; не создавать 3D «универсального L298N» по чужой фотографии |
 | \`R01A-BATTERY\` | Источник питания и держатель ×1 | В локальном Adafruit: \`3842 3xAA Battery.step\`, \`1321 Battery 9V.step\` | **LOCAL_3D** как геометрические кандидаты; электрически допустимое питание НЕ выбрано, батарейка «Крона» не считается доказанной силовой батареей для двух моторов |
 | \`R01A-POWER-SWITCH\` | Выключатель питания ×1 | Каталог электроники ASA Lab, механическая вариация зависит от шасси | **MISSING_EXACT_CAD**; отдельные крепление, корпус, полюса и оговорённая электрическая топология |
-| \`R01A-SENSOR-ULTRA\` | HC-SR04 или совместимый модуль ×0/1 | В локальном Amperka ZIP файл \`hc-sr04-ultrasonic-sensor-distance-module.svg\` | **LOCAL_SVG_REFERENCE** с CC BY-NC-SA, 3D/отверстия не подтверждены; реальный датчик выбирается и привязывается к Arduino/engine отдельно |
+| \`R01A-SENSOR-ULTRA\` | HC-SR04 или совместимый модуль ×0/1 | В локальном Amperka ZIP файл \`hc-sr04-ultrasonic-sensor-distance-module.svg\` | **EXISTING_SVG** в ASA Lab для HC-SR04, а Amperka — отдельно CC BY-NC-SA, 3D/отверстия не подтверждены; реальный датчик выбирается и привязывается к Arduino/engine отдельно |
 | \`R01A-SENSOR-LINE\` | Один/несколько датчиков линии ×0..N | Открытый выбор в каталоге электроники/Amperka SVG; отдельный паспорт платы | **MISSING_EXACT_CAD**, не задавать положение оптической оси и распиновку без выбранной модели |
 | \`R01A-WIRING\` | Провода, контакты, разъёмы | Фактический ASA Lab circuit и каталог терминалов | **Данные схемы**, а не самостоятельные декоративные провода: геометрия должна быть привязана к реальным terminals; без второго solver |
 | \`R01A-DECK\` | Второй ярус/стойки, опционально | [Amperka miniQ deck](https://amperka.ru/product/miniq-deck) | **MISSING_EXACT_CAD**: отдельный вариант и отверстия, не автоматически часть базовой рамы |
