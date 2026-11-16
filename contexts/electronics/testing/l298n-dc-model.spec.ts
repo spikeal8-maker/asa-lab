@@ -1,0 +1,211 @@
+import { describe, expect, it } from 'vitest';
+import type { SchematicComponent } from '../domain/document.js';
+import { solveLinear } from '../domain/linear-system.js';
+import { L298N_DC_MODEL, L298N_TERMINALS } from '../domain/models/l298n-dc-model.js';
+
+function board(state: Record<string, boolean> = {}): SchematicComponent {
+  return {
+    id: 'driver-1',
+    kind: 'visual',
+    componentTypeId: 'l298n-motor-driver',
+    value: 0,
+    position: { x: 0, y: 0 },
+    pinIds: [...L298N_TERMINALS, 'ENA', 'ENB'],
+    stateProperties: {
+      enaJumperInstalled: true,
+      enbJumperInstalled: true,
+      regulatorJumperInstalled: false,
+      ...state,
+    },
+  };
+}
+
+function step(
+  component: SchematicComponent,
+  inputs: Record<string, number>,
+  driven: ReadonlySet<string> = new Set(['IN1', 'IN2', 'IN3', 'IN4', 'ENA', 'ENB']),
+) {
+  const instance = L298N_DC_MODEL.normalize(component);
+  const point = {
+    terminalVoltages: {
+      '+12V': 9,
+      GND: 0,
+      '+5V': 5,
+      OUT1: 0,
+      OUT2: 0,
+      OUT3: 0,
+      OUT4: 0,
+      IN1: 5,
+      IN2: 0,
+      IN3: 0,
+      IN4: 5,
+      ENA: 5,
+      ENB: 5,
+      ...inputs,
+    },
+    drivenTerminals: driven,
+  };
+  const initial = L298N_DC_MODEL.initialIterationState(instance);
+  const first = L298N_DC_MODEL.evaluateIteration(instance, initial, point);
+  const second = L298N_DC_MODEL.evaluateIteration(instance, first.state, point);
+  expect(second.changed).toBe(false);
+  return { instance, point, state: second.state, changed: first.changed };
+}
+
+function solveMotors(
+  component: SchematicComponent,
+  input: Record<string, number>,
+  resistanceA = 10,
+  resistanceB = 20,
+) {
+  const { instance, point, state } = step(component, input);
+  const ids = [...L298N_TERMINALS, 'ENA', 'ENB'];
+  const nodeId = new Map(ids.map((x, i) => [x, i]));
+  const outputs = ['OUT1', 'OUT2', 'OUT3', 'OUT4'];
+  const variableByNode = new Map(outputs.map((out, i) => [nodeId.get(out)!, i]));
+  const fixedVoltage = new Map([
+    [nodeId.get('+12V')!, 9],
+    [nodeId.get('GND')!, 0],
+    [nodeId.get('+5V')!, 5],
+  ]);
+  const n = 4;
+  const matrix = Array.from({ length: n }, () => Array(n).fill(0));
+  const rhs = Array(n).fill(0);
+  function stamp(left: number, right: number, conductance: number) {
+    const li = variableByNode.get(left),
+      ri = variableByNode.get(right);
+    if (li !== undefined) {
+      matrix[li]![li] += conductance;
+      if (ri !== undefined) matrix[li]![ri] -= conductance;
+      else rhs[li] += conductance * (fixedVoltage.get(right) ?? 0);
+    }
+    if (ri !== undefined) {
+      matrix[ri]![ri] += conductance;
+      if (li !== undefined) matrix[ri]![li] -= conductance;
+      else rhs[ri] += conductance * (fixedVoltage.get(left) ?? 0);
+    }
+  }
+  stamp(nodeId.get('OUT1')!, nodeId.get('OUT2')!, 1 / resistanceA);
+  stamp(nodeId.get('OUT3')!, nodeId.get('OUT4')!, 1 / resistanceB);
+  L298N_DC_MODEL.stampDc(
+    {
+      node(_component, terminal) {
+        return nodeId.get(terminal)!;
+      },
+      stampConductance: stamp,
+      stampOffset() {
+        throw new Error('No independent hidden current sources allowed');
+      },
+      stampVccs() {
+        throw new Error('No independent hidden controlled current sources allowed');
+      },
+    },
+    instance,
+    state,
+  );
+  // Only the existing ASA Lab linear-system solver calculates the motor load.
+  const solution = solveLinear(matrix, rhs);
+  expect(solution).not.toBeNull();
+  const terminalVoltages = {
+    ...point.terminalVoltages,
+    ...Object.fromEntries(outputs.map((key, i) => [key, solution![i]])),
+  };
+  const observation = L298N_DC_MODEL.observe(instance, state, {
+    ...point,
+    terminalVoltages,
+  });
+  return { state, terminalVoltages, observation, matrix, rhs };
+}
+
+describe('L298N device model feeding the canonical ASA Lab MNA solver', () => {
+  it('requires exact owner terminals and models regulated logic only for valid VS', () => {
+    expect(L298N_DC_MODEL.validate(board())).toEqual([]);
+    const regulated = board({ regulatorJumperInstalled: true });
+    expect(L298N_DC_MODEL.validate(regulated)).toEqual([]);
+    expect(step(regulated, {}).state.regulatorOn).toBe(true);
+    expect(step(regulated, { '+12V': 6 }).state.regulatorOn).toBe(false);
+    expect(L298N_DC_MODEL.validate({ ...board(), pinIds: ['GND'] }).map((x) => x.code)).toContain(
+      'l298n_missing_pin',
+    );
+  });
+
+  it('allows externally wired PWM enables only when their shunts are removed', () => {
+    const missing = {
+      ...board({ enaJumperInstalled: false, enbJumperInstalled: false }),
+      pinIds: [...L298N_TERMINALS],
+    };
+    expect(L298N_DC_MODEL.validate(missing).map((x) => x.code)).toEqual(
+      expect.arrayContaining(['l298n_ena_missing', 'l298n_enb_missing']),
+    );
+    const component = board({ enaJumperInstalled: false, enbJumperInstalled: false });
+    expect(step(component, { ENA: 5, ENB: 0 }).state.channelA.mode).toBe('forward');
+    expect(step(component, { ENA: 5, ENB: 0 }).state.channelB.mode).toBe('coast');
+    expect(step(component, { ENA: 0, ENB: 5 }).state.channelA.mode).toBe('coast');
+    expect(step(component, { ENA: 0, ENB: 5 }).state.channelB.mode).toBe('reverse');
+  });
+
+  it('stamps two independent loaded H bridges, not two ideal voltage animations', () => {
+    const solved = solveMotors(board(), {});
+    expect(solved.state.channelA.mode).toBe('forward');
+    expect(solved.state.channelB.mode).toBe('reverse');
+    const voltageA = solved.terminalVoltages['OUT1']! - solved.terminalVoltages['OUT2']!;
+    const voltageB = solved.terminalVoltages['OUT3']! - solved.terminalVoltages['OUT4']!;
+    expect(voltageA).toBeCloseTo((9 * 10) / (10 + 2.4), 9);
+    expect(voltageB).toBeCloseTo((-9 * 20) / (20 + 2.4), 9);
+    expect(solved.observation.supplyCurrentAmp).toBeCloseTo(9 / (10 + 2.4) + 9 / (20 + 2.4), 9);
+    expect(solved.observation.powerWatt).toBeGreaterThan(0);
+    expect(solved.observation.overCurrent).toBe(false);
+    expect(
+      Object.values(solved.observation.terminalCurrents).reduce((a, b) => a + b, 0),
+    ).toBeCloseTo(0, 10);
+  });
+
+  it('models 00/11 brake and 01/10 direction separately on either channel', () => {
+    expect(solveMotors(board(), { IN1: 0, IN2: 0 }).state.channelA.mode).toBe('brake-low');
+    expect(solveMotors(board(), { IN1: 5, IN2: 5 }).state.channelA.mode).toBe('brake-high');
+    expect(solveMotors(board(), { IN1: 0, IN2: 5 }).state.channelA.mode).toBe('reverse');
+    expect(solveMotors(board(), { IN3: 5, IN4: 0 }).state.channelB.mode).toBe('forward');
+  });
+
+  it('has real logic-power LED truth; never lights from motor motion', () => {
+    const off = step(board(), { '+5V': 0 });
+    expect(off.state.logicPowered).toBe(false);
+    expect(off.state.channelA.mode).toBe('coast');
+    expect(L298N_DC_MODEL.observe(off.instance, off.state, off.point).ledOn).toBe(false);
+    const noMotor = step(board(), { '+12V': 0 });
+    expect(noMotor.state.motorPowered).toBe(false);
+    expect(noMotor.state.channelA.mode).toBe('coast');
+    expect(L298N_DC_MODEL.observe(noMotor.instance, noMotor.state, noMotor.point).ledOn).toBe(true);
+  });
+
+  it('does not interpret floating or indeterminate Arduino inputs as logic LOW', () => {
+    const undriven = step(board(), {}, new Set(['IN2', 'IN3', 'IN4']));
+    expect(undriven.state.channelA.mode).toBe('unknown');
+    expect(
+      L298N_DC_MODEL.observe(undriven.instance, undriven.state, undriven.point).unsupported,
+    ).toBe(true);
+    const invalid = step(board(), { IN1: 1.6 });
+    expect(invalid.state.channelA.mode).toBe('unknown');
+  });
+
+  it('fails closed on >2 A current and does not invent a motor output', () => {
+    const short = solveMotors(board(), {}, 0.3, 20);
+    expect(short.observation.overCurrent).toBe(true);
+    expect(short.observation.unsupported).toBe(true);
+    expect(short.observation.supplyCurrentAmp).toBeGreaterThan(2);
+  });
+
+  it('is deterministic across repeated solves and independently configured instances', () => {
+    const x = solveMotors(board(), {}, 8, 12);
+    const y = solveMotors(board(), {}, 8, 12);
+    expect(JSON.stringify(x)).toBe(JSON.stringify(y));
+    const second = solveMotors(
+      { ...board(), id: 'driver-2' },
+      { IN1: 0, IN2: 5, IN3: 5, IN4: 0 },
+      8,
+      12,
+    );
+    expect(second.state.channelA.mode).toBe('reverse');
+    expect(second.state.channelB.mode).toBe('forward');
+  });
+});
