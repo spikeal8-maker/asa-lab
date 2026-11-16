@@ -44,19 +44,19 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-function Portal({ actor }: { actor: string }) {
-  usePortalGameNotifications(actor);
+function Portal({ actor, background }: { actor: string; background?: boolean }) {
+  usePortalGameNotifications(actor, background);
   const state = useGameInvitations();
   return createElement('output', null, JSON.stringify(state));
 }
 
-async function renderPortal(actor: string) {
+async function renderPortal(actor: string, background = false) {
   if (!root) {
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
   }
-  await act(async () => root!.render(createElement(Portal, { actor })));
+  await act(async () => root!.render(createElement(Portal, { actor, background })));
 }
 
 async function advance(milliseconds: number) {
@@ -127,6 +127,21 @@ describe('game invitation delivery', () => {
 });
 
 describe('notification hook lifecycle', () => {
+  it('uses the existing 30s background cadence in an editor and restores 5s on exit', async () => {
+    await renderPortal('account:electronics', true);
+    await advance(0);
+    expect(request).toHaveBeenCalledTimes(2);
+    await advance(29_999);
+    expect(request).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(request).toHaveBeenCalledTimes(4);
+    await renderPortal('account:electronics');
+    await advance(4_999);
+    expect(request).toHaveBeenCalledTimes(4);
+    await advance(1);
+    expect(request).toHaveBeenCalledTimes(6);
+  });
+
   it('uses low-priority cancellable requests and keeps navigation on the same 5s cadence', async () => {
     await renderPortal('account:a');
     await advance(0);
