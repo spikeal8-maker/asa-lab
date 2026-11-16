@@ -1,6 +1,6 @@
 # ASA Lab — источники механических и электронных компонентов для конструктора роботов
 
-**ART-01 / Discovery inventory v1.0 — RESEARCH ONLY · NOT_SELECTED · NOT_ACCEPTED**  
+**ART-01 / Discovery inventory v1.1 — RESEARCH ONLY · NOT_SELECTED · NOT_ACCEPTED**  
 **Дата первичной квалификации:** 17.11.2026 (источники из производителя и read-only инвентаризация D2-R2).  
 **Программа:** [Issue #1225](https://github.com/spikeal8-maker/asa-lab/issues/1225). **Концепция:** [ROBOT_ASSEMBLY_WORKSPACE_VISION_v1.md](ROBOT_ASSEMBLY_WORKSPACE_VISION_v1.md), [FIELD_CORE_SPEC.md](FIELD_CORE_SPEC.md) §9/§17/§20.
 
@@ -14,6 +14,15 @@
 | --- | --- | --- | --- |
 | \`Adafruit_CAD_Parts_main.zip\` | \`9f2a89f3d5c3491886d58cb7fe83385417563cf4\` | 1 195 707 274 байта; ZIP SHA256 \`dbd3dd81febfea924ef23e908eb4e371ad8427db962800b3163fe00d294cd0e0\`; по локальному манифесту 489 STEP, 477 F3D, 340 STL | [Adafruit CAD Parts](https://github.com/adafruit/Adafruit_CAD_Parts), MIT; соблюдать notice и происхождение |
 | \`Amperka_hardware_drawings_master.zip\` | \`9f70cd626402c8cc18a84609e827691d6bbc0c56\` | 17 133 864 байта; ZIP SHA256 \`47ef8a40f29ae9c968461773de9ebfc2c918ba1f77c61188d28c315def31eb08\`; 519 SVG | [Amperka drawings](https://github.com/amperka/hardware-drawings), CC BY-NC-SA 4.0: **не переносить оригиналы/производные в коммерческий продукт без отдельной проверки прав** |
+
+Дополнительно **фактически скачаны и прочитаны как `ISO-10303-21` STEP**, в отдельной папке `Pololu_candidates` внутри этой же локальной библиотеки (в GitHub бинарники не перенесены):
+
+| Локальный кандидат | Прямая ссылка производителя | Размер и полный SHA256 |
+| --- | --- | --- |
+| `micro-metal-gearmotor-with-1089-extended-bracket.step` | [Pololu STEP: motor + bracket #1089](https://www.pololu.com/file/0J1711/micro-metal-gearmotor-with-1089-extended-bracket.step) | **1 119 707 байт**; `3234099385D88B456AB3F431FC7B03BAE11A528978F88B5453632A4AE94F45CA` |
+| `pololu-wheel-42x19mm.step` | [Pololu STEP: wheel #1090](https://www.pololu.com/file/0J1710/pololu-wheel-42x19mm.step) | **5 005 728 байт**; `B8E4EF94A5B3CC549AEFE0E076BB2314104B0FECDD77E564EE4690B34D3D4C3B` |
+
+**Проверено:** байтовая загрузка и заголовок ISO STEP. **Не проверено:** единицы/целостность solid-shell CAD в геометрическом ядре, реальный bounding box и крепёжные посадки, лицензия на перераспространение. Это именно **LOCAL_STEP_CANDIDATE**, а не готовый `robotAssembly`, `GLB` или manufacturing-file. Производитель Pololu — источник этих *двух* моделей; они **не доказывают** совпадения с деталями Amperka/DFRobot.
 
 В той же папке проверены \`README_ASA_LAB_Robotics_Libraries.md\`, \`Adafruit_CAD_Manifest.json\`, \`Amperka_SVG_Manifest.json\`, \`Amperka_SVG_Index.csv\`, \`ASA_LAB_Robots_Catalog_v2_2026-11-16.csv\`. *Не добавлять в Git исходный архив Adafruit на 1.2 ГБ, архив Amperka, owner ZIP или временные исходники.* Если исходные файлы позже публикуются, для каждого нужен лицензионный review, паспорт, минимизация/санитизация и неизменяемый hash.
 
@@ -38,6 +47,7 @@
 
 - **LOCAL_3D** — настоящий STEP/F3D/STL обнаружен внутри уже загруженного ZIP на D2-R2, но точная совместимость с R01-A не принята.
 - **SOURCE_3D** — производитель предлагает CAD-файл, но он **не скачан и не верифицирован внутри ASA Lab**.
+- **LOCAL_STEP_CANDIDATE** — файл STEP скачан и контрольная сумма проверена, однако mechanical BRep/единицы/точные крепления ещё не аттестованы.
 - **LOCAL_SVG_REFERENCE** — оригинальный SVG доступен локально, но **только как иллюстрация** и с лицензионным шлюзом.
 - **DRAWING_ONLY** — данные/чертежи производителя есть, готового достоверного 3D/laser файла пока нет.
 - **MISSING_EXACT_CAD** — нужно собственное CAD-моделирование/обмер либо найти проверенный источник.
@@ -45,9 +55,9 @@
 | ID | Деталь / количество | Источник / имеющийся исходник | Реальный статус, что проверить |
 | --- | --- | --- | --- |
 | \`R01A-CHASSIS\` | Рама Ø127 мм, 3 мм, ×1 | [Amperka miniQ-base](https://amperka.ru/product/miniq-base) | **DRAWING_ONLY:** Ø127 и t=3 заявлены; координаты отверстий/слотов и manufacturing CAD **не подтверждены**; отдельный бренд-нейтральный CAD-master после обмера |
-| \`R01A-MOTOR-L/R\` | Micro metal gearmotor N20 ×2 | [Pololu micro metal gearmotors STEP](https://www.pololu.com/product/3068/resources); [DFRobot FIT0094](https://www.dfrobot.com/index.php?filter_name=FIT0094&product_id=354&route=product%2Fproduct) | **SOURCE_3D:** STEP у Pololu доступен, но это семейство/кандидат, а не доказанно тот же N20; проверить длину редуктора, вал/посадку, передаточное число, ток, лицензирование |
-| \`R01A-BRACKET-L/R\` | Extended крепление N20 ×2 | [Pololu #1089 STEP](https://www.pololu.com/product/1089/resources), [DFRobot FIT0160](https://www.dfrobot.com/product-510.html) | **SOURCE_3D:** Pololu даёт STEP «мотор + крепление»; FIT0160 — другой товар; сверить крепёжные отверстия/сопряжение с рамой и колесом, не подменять геометрии |
-| \`R01A-WHEEL-L/R\` | Колесо 42×19 мм ×2 | [DFRobot FIT0085](https://www.dfrobot.com/product-353.html); [Pololu #1090 42×19 STEP](https://www.pololu.com/product/1090/resources) | **SOURCE_3D:** Pololu предоставляет 3D STEP похожего колеса; точная идентичность FIT0085 **не установлена**, проверить ступицу и D-вал 3 мм; Pololu #1090 «Not Recommended for New Design» |
+| \`R01A-MOTOR-L/R\` | Micro metal gearmotor N20 ×2 | [Pololu micro metal gearmotors STEP](https://www.pololu.com/product/3068/resources); [DFRobot FIT0094](https://www.dfrobot.com/index.php?filter_name=FIT0094&product_id=354&route=product%2Fproduct) | **LOCAL_STEP_CANDIDATE:** пример мотор+крепление #1089 скачан, каталог всех вариантов моторов — нет; это не доказанно тот же N20; проверить длину редуктора, вал/посадку, передаточное число, ток, лицензирование |
+| \`R01A-BRACKET-L/R\` | Extended крепление N20 ×2 | [Pololu #1089 STEP](https://www.pololu.com/product/1089/resources), [DFRobot FIT0160](https://www.dfrobot.com/product-510.html) | **LOCAL_STEP_CANDIDATE:** Pololu STEP «мотор + крепление» скачан; FIT0160 — другой товар; сверить крепёжные отверстия/сопряжение с рамой и колесом, не подменять геометрии |
+| \`R01A-WHEEL-L/R\` | Колесо 42×19 мм ×2 | [DFRobot FIT0085](https://www.dfrobot.com/product-353.html); [Pololu #1090 42×19 STEP](https://www.pololu.com/product/1090/resources) | **LOCAL_STEP_CANDIDATE:** STEP колеса Pololu скачан; точная идентичность FIT0085 **не установлена**, проверить ступицу и D-вал 3 мм; Pololu #1090 «Not Recommended for New Design» |
 | \`R01A-CASTER\` | Шаровая опора nominal Ø12 ×1 для рамы Amperka | [Amperka miniQ-base](https://amperka.ru/product/miniq-base) | **MISSING_EXACT_CAD**: нужен паспорт крепления, X/Y/Z и реальная высота под опорной нагрузкой; не заменять DFRobot FIT0007 (металлический шар Ø15, другая геометрия) |
 | \`R01A-FASTENERS\` | Винты, гайки, стойки, spacer | Конкретизация по механике мотора/рамы, [Pololu #1089](https://www.pololu.com/product/1089) | **MISSING_EXACT_CAD**: перечень BOM, тип/шаг резьбы/длина только после выбора mounts, не присваивать случайно M2/M3 |
 | \`R01A-CONTROLLER\` | Arduino UNO Rev3 или другой точно выбранный контроллер ×1 | [Arduino UNO Rev3](https://store.arduino.cc/products/arduino-uno-rev3), официальные EAGLE/DXF; существующий ASA Lab SVG: \`apps/web/public/assets/electronics/owner-approved/arduino-uno.svg\` | **DRAWING_ONLY/EXISTING_SVG:** контур 68.6×53.4 мм указан производителем; реальное отверстие, стойки и модель платы — проверить по official DXF и выбранной ревизии; owner-approved SVG **переиспользовать**, не перерисовывать |
@@ -110,4 +120,4 @@
 5. Заполнить \`partId, variantId, source URL, source revision, file SHA256, mm dimensions, orientation, anchors, collisions, material/mass source, electrical terminal IDs or unsupported, license, evidence, verification status\`.
 6. Опубликовать результаты только в выбранном узком ART-01 с предусмотренными focused/CI/review; без смены \`current.yaml\` самостоятельно, без интеграции 3D в рабочий редактор до отдельного UX/KIT-милестоуна.
 
-**Минимально полезный результат текущего discovery:** подтверждены локальные CAD-файлы TT, micro servo, батарей и MotorShield; SVG-референсы Arduino, DC motor, HC-SR04; найдены внешние источники STEP для N20/крепления/42×19 колеса; отмечены непреодолённые пока измерительные и лицензионные границы круглой рамы. **Ни один комплект не помечен готовым для изготовления или подтверждённой симуляции.**
+**Минимально полезный результат текущего discovery:** подтверждены локальные CAD-файлы TT, micro servo, батарей и MotorShield; SVG-референсы Arduino, DC motor, HC-SR04; скачаны два кандидата STEP для мотор+крепление N20 и колеса 42×19; отмечены непреодолённые пока измерительные и лицензионные границы круглой рамы. **Ни один комплект не помечен готовым для изготовления или подтверждённой симуляции.**
