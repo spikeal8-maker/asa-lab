@@ -38,10 +38,11 @@ Register the exact owner-provided L298N display artwork and metadata in the exis
 
 - apps/web/public/assets/electronics/component-database/components/drivers/l298n/component.svg (new, exact owner display bytes)
 - apps/web/public/assets/electronics/component-database/catalog.json (single disabled L298N entry)
-- apps/web/src/electronics/testing/l298n-owner-art.spec.ts (new dedicated focused catalog/asset test if needed)
+- apps/web/src/electronics/testing/l298n-owner-art.spec.ts (new dedicated focused catalog/asset test)
+- docs/product/electronics/generated/component-coverage.json (generated catalog coverage, required by `validate:electronics-component-information`)
 - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0-001.md (this card; factual evidence only)
 
-No new `owner-supplied/**` or `owner-audit/**` files are overwritten. No existing SVG is modified. The owner ZIP resides in the ChatGPT runtime at /mnt/data/ASA_LAB_L298N_INTEGRATION_v1_1_TOP_WIRES.zip, **not** automatically on the D2-R2 host; verify the exact binary is transferred before code work.
+No new `owner-supplied/**` or `owner-audit/**` files are overwritten. No existing SVG is modified. The original ZIP is available on D2-R2 at `C:\Users\spike\Downloads\ASA_LAB_L298N_INTEGRATION_v1_1_TOP_WIRES.zip`; SHA256 `37fefcadd1dd26d1003b60f676101494ea9ce94737c5fb95dfe8fabb8ec41edb` and SVG hash were independently verified before copy. The P0A implementation is a **feature-branch candidate**, not a canonical `main` acceptance or authorization for P0B/P1.
 
 ## Acceptance
 
