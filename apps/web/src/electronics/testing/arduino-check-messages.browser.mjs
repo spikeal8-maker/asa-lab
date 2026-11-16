@@ -148,6 +148,43 @@ try {
       await header.click();
       assert.equal(await header.getAttribute('aria-expanded'), 'false');
       assert.equal(await page.locator('.arduino-code-check-body').count(), 0);
+      if (phase === 'after' && name === 'loops') {
+        // A user-closed reference stays closed as additional ordinary notes appear.
+        const previousNotes = diagnostics.filter((item) => item.status === 'limited').length;
+        const withAnotherNote = source.replace('delay(1)', 'delay(millis())');
+        assert.notEqual(withAnotherNote, source, 'the fixture must add a new note');
+        await editor.fill(withAnotherNote);
+        await page.waitForFunction(
+          (count) =>
+            globalThis.document
+              .querySelector('.arduino-code-check-title')
+              ?.textContent?.includes(`Примечаний: ${count}`),
+          previousNotes + 1,
+        );
+        assert.equal(await header.getAttribute('aria-expanded'), 'false');
+        assert.equal(await page.locator('.arduino-code-check-body').count(), 0);
+        assert.ok(await header.getByText('Можно запускать', { exact: true }).isVisible());
+        await page.screenshot({ path: resolve(output, `closed-after-new-note-${width}.png`) });
+
+        // A newly introduced real blocker must still reveal the error after manual closing.
+        const withBlocker = withAnotherNote.replace(
+          'delay(millis())',
+          'shiftOut(2,3,MSBFIRST,5);delay(1)',
+        );
+        await editor.fill(withBlocker);
+        await page.waitForFunction(
+          () =>
+            globalThis.document
+              .querySelector('.arduino-code-check-title')
+              ?.getAttribute('aria-expanded') === 'true',
+        );
+        assert.ok((await header.innerText()).includes('Блокирующих:'));
+        await page.screenshot({ path: resolve(output, `new-blocker-after-close-${width}.png`) });
+        await editor.fill(source);
+        assert.equal(await editor.inputValue(), source, 'the original source must be restored');
+        if ((await header.getAttribute('aria-expanded')) === 'true') await header.click();
+        assert.equal(await header.getAttribute('aria-expanded'), 'false');
+      }
       await header.click();
       assert.equal(await editor.inputValue(), source);
       const box = await page.locator('.arduino-code-panel').boundingBox();
