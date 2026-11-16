@@ -90,6 +90,8 @@ parallel_lanes:
       - contexts/electronics/domain/models/l298n-dc-model.ts
       - contexts/electronics/testing/l298n-dc-model.spec.ts
       - contexts/electronics/testing/l298n-integrated-solver.spec.ts
+      - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+      - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
       - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
     accepted_slices:
       - task_id: TASK-ELECTRONICS-L298N-P0-001
@@ -103,9 +105,10 @@ parallel_lanes:
         issue: 1199
         candidate_sha: 0cd469a9530a94cca2e0434f1aa5ff277ba33356
         integrated_main_sha: df78069c44271609615707b6e38767f276188c4b
-        source_status: merged_postmerge_general_pending
+        source_status: merged_postmerge_general_success
         owner_acceptance: pending
         post_merge_general_run: 43928812420
+        post_merge_required_conclusion: success
         strict_r4_run: 43922911118
         strict_r4_conclusion: failure_existing_arduino_baseline_not_waived
     task:
@@ -120,7 +123,7 @@ parallel_lanes:
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: p1_activation_requires_p0b_postmerge_and_shared_solver_handoff
+      checkpoint: p1_activation_requires_selection_and_shared_solver_handoff
       owner_acceptance: pending
       owner_authorization: >-
         Owner directed complete, quality-gated L298N implementation through
@@ -150,6 +153,8 @@ parallel_lanes:
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/testing/l298n-dc-model.spec.ts
         - contexts/electronics/testing/l298n-integrated-solver.spec.ts
+        - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+        - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
         - docs/product/electronics/generated/component-coverage.json
         - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
       shared_path_coordination:
@@ -204,8 +209,8 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-11-16T18:39:59Z'
       observation_note: >-
-        Proposed P1 task handoff after source-only P0B merge, not proof of
-        P0B post-merge General success. Full P1 runtime/owner acceptance
+        Proposed P1 task handoff after source-only P0B merge; exact P0B
+        post-merge General 43928812420/ASA required SUCCESS. Full P1 runtime/owner acceptance
         remains pending; require fresh fetch main and exact remote heads,
         checked CI conclusions and peer worktree status before any writes.
   - id: electronics-recovery-hygiene

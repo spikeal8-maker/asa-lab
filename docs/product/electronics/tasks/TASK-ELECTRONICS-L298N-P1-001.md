@@ -36,6 +36,8 @@ review: independent
 - `contexts/electronics/domain/solver.ts`
 - `contexts/electronics/testing/l298n-dc-model.spec.ts`
 - `contexts/electronics/testing/l298n-integrated-solver.spec.ts`
+- `contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts` — только новый доказанный digest реестра с L298N и неизменные исходные контрольные данные.
+- `contexts/electronics/testing/model-set-golden-compatibility.spec.ts` — negative checks и точное сопоставление old/new digests без динамического разрешения.
 - `docs/product/electronics/generated/component-coverage.json` — только
   машинно-генерируемые P1 identity/DC-поля, не переписывать ручные данные.
 
