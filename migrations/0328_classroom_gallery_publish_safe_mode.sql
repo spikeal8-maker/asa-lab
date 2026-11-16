@@ -294,3 +294,60 @@ SET search_path = pg_catalog, pg_temp AS $$
 $$;
 REVOKE ALL ON FUNCTION public.project_publication_readable(uuid)
   FROM PUBLIC, asalab_app;
+-- P0 Safe Mode publication status projection: the UI may never offer a write
+-- that the canonical Safe Mode triggers will reject.
+CREATE OR REPLACE FUNCTION public.project_publication_status(p_principal_id uuid, p_project_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE v_reason text; v_publication jsonb; v_moderation_reason text;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.projects project
+        JOIN public.principals actor ON actor.id = project.owner_principal_id
+        LEFT JOIN public.accounts account ON account.id = actor.account_id
+        WHERE project.id = p_project_id AND actor.id = p_principal_id
+ AND ((actor.kind='account' AND account.status='active') OR public.project_publication_seat_active(actor.id,project.tenant_id,project.classroom_id))
+    ) THEN RETURN NULL; END IF;
+
+    v_reason := public.project_publication_policy_reason(p_project_id);
+    -- Report the same eligibility as the canonical publication write guard.
+    -- Existing revoked publications cannot be silently republished after OFF.
+    IF v_reason IS NULL AND (
+        public.classroom_gallery_project_safe_mode(p_project_id)
+        OR EXISTS (
+            SELECT 1 FROM public.classroom_gallery_safe_mode_revocations revoked
+            WHERE revoked.project_id = p_project_id
+        )
+    ) THEN v_reason := 'classroom_safe_mode'; END IF;
+    IF v_reason IS NULL AND NOT public.project_distribution_allowed(p_project_id,'publish') THEN v_reason:='publication_forbidden'; END IF;
+    IF v_reason IS NULL AND NOT EXISTS (
+        SELECT 1 FROM public.project_drafts draft
+        JOIN public.project_snapshots snapshot
+          ON snapshot.project_id = draft.project_id AND snapshot.tenant_id = draft.tenant_id
+         AND snapshot.source_revision = draft.revision
+        WHERE draft.project_id = p_project_id
+    ) THEN v_reason := 'preview_required'; END IF;
+
+    SELECT jsonb_build_object(
+        'publicationId', state.id, 'revisionId', revision.id,
+        'revisionNo', revision.revision_no, 'versionNo', version.version_no,
+        'state', state.state, 'publishedAt', revision.published_at,
+        'publicPath', CASE WHEN public.project_publication_readable(state.id)
+                          THEN '#/public-projects/' || state.id::text ELSE NULL END
+    ) INTO v_publication
+    FROM public.project_publication_state state
+    JOIN public.project_publication_revisions revision
+      ON revision.id = state.current_revision_id AND revision.publication_id = state.id
+    JOIN public.project_versions version ON version.id = revision.project_version_id
+    WHERE state.project_id = p_project_id AND state.owner_principal_id = p_principal_id
+      AND revision.schema_version = 2;
+
+    v_moderation_reason := public.project_publication_owner_moderation_reason(p_principal_id, p_project_id);
+    RETURN jsonb_build_object('publication', v_publication,
+                              'canPublish', v_reason IS NULL, 'reasonCode', v_reason)
+        || CASE WHEN v_publication IS NOT NULL THEN jsonb_build_object('acquisition', (SELECT jsonb_build_object('allowed',s.acquisition_allowed,'version',s.acquisition_version) FROM public.project_publication_state s WHERE s.project_id=p_project_id AND s.owner_principal_id=p_principal_id)) ELSE '{}'::jsonb END
+        || CASE WHEN v_moderation_reason IS NOT NULL
+                THEN jsonb_build_object('moderationReason', v_moderation_reason)
+                ELSE '{}'::jsonb END;
+END;
+$$;

@@ -86,7 +86,7 @@ const canonicalSqlDigests = {
   '0317': 'c7efd322f7acf5567b85f1035b2e55a27842134fa3d487ff20be2d06ad90b99e',
   '0318': 'e834b0e84327aaf2d53951bc54e2fb0a628abc31cc332af9926f2d0c966c3d5d',
   '0324': 'e74f1664543474be7613d3fb777caa3b3d1bfdcc4916040174a38d69b487fda4',
-  '0328': 'b4313e1d828175046b928d6eda1a0e8d255b908227ae01b42f42f71210fef9ee',
+  '0328': 'e3635eaf128e48385f771ce85710afc2d6e0e7340f0cc59427c603ddcd60681d',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {

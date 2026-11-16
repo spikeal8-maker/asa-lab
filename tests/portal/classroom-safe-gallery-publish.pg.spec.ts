@@ -108,6 +108,18 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
   it('blocks publication until both class and Seat protections are off', async () => {
     const f = await prepare();
     const projectId = await f.project(f.seatPrincipal, null);
+    // The real PublicationPanel must reflect the canonical Safe Mode gate.
+    const status = async () =>
+      (
+        await runtime.query('SELECT project_publication_status($1,$2) AS result', [
+          f.seatPrincipal,
+          projectId,
+        ])
+      ).rows[0].result as { canPublish: boolean; reasonCode: string | null };
+    expect(await status()).toMatchObject({
+      canPublish: false,
+      reasonCode: 'classroom_safe_mode',
+    });
 
     // Distribution is authorized, yet the Safe Mode persistence guard denies
     // the canonical writer while either protection layer is enabled.
@@ -132,6 +144,7 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
 
     // Individual protection cannot be overridden by disabling only the class default.
     await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [f.classroomId]);
+    expect(await status()).toMatchObject({ canPublish: false, reasonCode: 'classroom_safe_mode' });
     await expect(
       admin.query(
         "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS publication",
@@ -140,6 +153,7 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     ).rejects.toMatchObject({ code: 'P5S01' });
 
     await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [f.seatId]);
+    expect(await status()).toMatchObject({ canPublish: true, reasonCode: null });
     const published = await admin.query(
       "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS result",
       [f.seatPrincipal, projectId],
@@ -158,6 +172,7 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     // Taking an already published item down must remain possible after protection
     // is switched on. Old published links must already be shielded at the read boundary.
     await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [f.classroomId]);
+    expect(await status()).toMatchObject({ canPublish: false, reasonCode: 'classroom_safe_mode' });
     const removed = await runtime.query('SELECT gallery_unpublish($1,$2) AS ok', [
       f.seatPrincipal,
       projectId,
@@ -168,6 +183,8 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
       [projectId],
     );
     expect(afterRemove.rows[0].count).toBe(0);
+    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [f.classroomId]);
+    expect(await status()).toMatchObject({ canPublish: false, reasonCode: 'classroom_safe_mode' });
     await expect(
       admin.query(
         "SELECT public.project_publication_publish_admitted($1,$2,'{}'::jsonb) AS publication",
