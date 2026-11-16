@@ -7,7 +7,7 @@ import { sessionDatabaseDiagnostics } from './session-database-diagnostics.js';
 import { logSubsystem, safeLogPath } from './log-subsystems.js';
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth']);
+const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth', 'chess', 'checkers']);
 export const requestFailures = new WeakMap<object, string>();
 export const requestValidationReasons = new WeakMap<object, string>();
 export interface AdmissionDiagnostics {
