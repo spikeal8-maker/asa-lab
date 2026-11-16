@@ -346,6 +346,8 @@ function clockedComponent(component: SchematicComponent): boolean {
         'hc-sr04-distance-sensor',
         'ping-ultrasonic-distance-sensor',
         'servo-motor-signal',
+        'dc-motor',
+        'l298n-dual-hbridge',
         'resistor',
         'momentary-button',
         'spdt-switch',
@@ -983,6 +985,7 @@ function* iterateArduinoCircuitClock(
   const hasTimeDependentObservation = document.components.some(
     (component) =>
       component.componentTypeId === 'signal-generator' ||
+      component.componentTypeId === 'l298n-motor-driver' ||
       electricalModelFor(component).id === 'piezo-transducer',
   );
   const unsupported = document.components.find((component) => !clockedComponent(component));

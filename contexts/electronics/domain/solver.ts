@@ -27,6 +27,7 @@ import {
 } from './photoresistor-model.js';
 import { switchSelectedTerminal, switchContactClosed } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
+import { l298nControlNetIndices, sampleL298nArduinoPwmVoltage } from './models/l298n-pwm-model.js';
 import {
   isL298n,
   L298N_DC_MODEL,
@@ -2861,31 +2862,7 @@ function solveCircuitStep(
   // Only L298N logic/enable nets need actual 0/5 V switching: sample the
   // physical PWM phase using the existing canonical simulation timestamp.
   // Other Arduino consumers retain their established behavior.
-  const l298nInputNodes = new Set(
-    document.components
-      .filter(isL298n)
-      .flatMap((component) =>
-        ['ENA', 'ENB', 'IN1', 'IN2', 'IN3', 'IN4']
-          .map((terminal) => netlist.nodeOf.get(terminalKey(component.id, terminal)))
-          .filter((node): node is number => node !== undefined),
-      ),
-  );
-  const l298nPwmVolt = (pin: string, meanVoltage: number): number => {
-    const frequencyHz: Readonly<Record<string, number>> = {
-      d3: 490,
-      d5: 980,
-      d6: 980,
-      d9: 490,
-      d10: 490,
-      d11: 490,
-    };
-    const frequency = frequencyHz[pin];
-    if (!frequency || !Number.isFinite(meanVoltage) || meanVoltage <= 0 || meanVoltage >= 5)
-      return meanVoltage;
-    const periodMs = 1000 / frequency;
-    const phaseMs = ((simulationTimeMs % periodMs) + periodMs) % periodMs;
-    return phaseMs < (meanVoltage / 5) * periodMs ? 5 : 0;
-  };
+  const l298nInputNodes = l298nControlNetIndices(document, netlist.nodeOf);
   const branchesForSnapshots = (snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>) =>
     document.components.flatMap((component) =>
       failedComponentIds.has(component.id)
@@ -2900,7 +2877,13 @@ function solveCircuitStep(
                       component,
                       ...branch,
                       ...(node !== undefined && l298nInputNodes.has(node)
-                        ? { targetVoltage: l298nPwmVolt(branch.terminal, branch.targetVoltage) }
+                        ? {
+                            targetVoltage: sampleL298nArduinoPwmVoltage(
+                              branch.terminal,
+                              branch.targetVoltage,
+                              simulationTimeMs,
+                            ),
+                          }
                         : {}),
                     };
                   },
