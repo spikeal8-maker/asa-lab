@@ -6039,6 +6039,25 @@ parallel_lanes:
       exact_electronics_conclusion: failure
       exact_electronics_browser: 150 passed, 1 image recovery href retry0 failure; cross-tab save scenario passed
       independent_review: acceptance_blocked_required_gates_failed_no_product_findings_reported
+      current_main_diagnostic:
+        product_source_sha: 1775a9c3d0a430bf357d91f92f922ac450dfaeee
+        unchanged_persistence_at_main_sha: 739ebe6fd37606c183bc2d66ea621c20d5be2f07
+        diagnostic_head_sha: b682052c56857f33006ec48d11c6b34975b568fe
+        run: 43744406876
+        run_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/43744406876
+        conclusion: success
+        browser_result: 1 passed in Chromium with real API and PostgreSQL in isolated CI
+        verified_journey: >-
+          The API committed tab A's complete document while its response was held. Tab B edited its resistor
+          and Arduino sketch from the previous revision. A's acknowledgement and B's close preserved B's
+          exact local draft. A fresh tab recovered the complete B document in its own local slot and showed
+          the conflict and local copy. The server document and revision remained exactly A's.
+        focused_units: 87 passed across four recovery, storage, workbench state and autosave test files
+        artifact: 14173911012
+        evidence_boundary: The artifact retains build provenance and stack checks. The browser receipt and
+          reopened screenshot were absent from the uploaded archive.
+        acceptance_boundary: Directed current-product verification only. Full repository and Electronics
+          browser gates remain required for complete acceptance. The historical candidate and blocker are preserved.
       technical_acceptance: blocked
       deployment: not_run
       database_actions: none
@@ -16725,11 +16744,43 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'yes'
-      checkpoint: owner_authorized_early_r22_serial_monitor_native_before_pending
+      checkpoint: serial_monitor_source_merged_pr1196_post_merge_general_pass
+      source_delivery:
+        pull_request: 1196
+        reviewed_head_sha: 732426044db71cdaf744823786fe0978bdfed118
+        merged_main_sha: 840528a247f28f37f94d3e7041af2024b6a0128a
+        merged_at: '2026-11-15T22:23:12Z'
+        independent_source_review: approve
+        focused:
+          run_id: 43766202810
+          solver_editor_build_job_id: 132971737290
+          conclusion: success
+        general:
+          run_id: 43766202942
+          required_job_id: 132980068099
+          conclusion: success
+        post_merge_general:
+          run_id: 43769009334
+          required_job_id: 132988353501
+          conclusion: success
+        strict_browser:
+          run_id: 43766202810
+          conclusion: failure
+          failed_shards: [s1, s2, s3]
+          passed_shards: [s4]
+        browser_evidence: >-
+          Native Chromium confirmed TX line layout and Clear mid-line at 1440,
+          1024, 390 and 320 px. The Serial sketch save and cookies-only reopen
+          case passed on the final PR SHA.
+        boundary: >-
+          Source delivery of the bounded Serial Monitor repair is complete.
+          Formal R10-R12, R22 and AC-04 acceptance, full Electronics browser
+          qualification and owner acceptance remain open. Issue 1180 remains
+          open during controller handoff. PR 1163 remains on HOLD.
       owner_acceptance: pending
       programme_issue: 452
       owner_authorization: >-
@@ -16746,18 +16797,18 @@ parallel_lanes:
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-RECOVERY-R22-001.md
         - docs/product/electronics/components/arduino-peripherals.yaml
-      next_action: Assign one author for native BEFORE. Require an independent review of the frozen candidate and applicable gates.
+      next_action: Hand the source integration and post-merge CI evidence to the programme controller.
       deployment: prohibited_by_owner
       database_actions: none_live
     revisions:
       kind: observed_snapshot
       main:
         branch: main
-        sha: f8d7642493b7e002b96a12e83fa87bde9a5a6648
-      convergence_baseline_sha: f8d7642493b7e002b96a12e83fa87bde9a5a6648
+        sha: 8d9e96bad55c196bcb963ce9bca9f10e8d380ea6
+      convergence_baseline_sha: 10df6f45ca160a3e164f065eb5a850006e0d9f51
       head_sha: null
-      observed_at: '2026-11-15T08:48:20Z'
-      observation_note: Fresh fetch main before writes. Source hypothesis only; native BEFORE and candidate gates are pending.
+      observed_at: '2026-11-16T12:51:30Z'
+      observation_note: Fresh fetch main before writes confirmed the merge ancestor and exact post-merge General PASS.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -20750,14 +20801,30 @@ parallel_lanes:
       issue: 1127
       branch: main
       base_branch: main
-      pr: null
+      pr: 1152
       pr_draft: false
-      status: ready
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: c3_controller_reselected_20261114_after_c1c2_and_sp04_main
-      owner_acceptance: pending
+      checkpoint: c3_accepted_main_postmerge_ci_success_20261116
+      owner_acceptance: accepted
+      integration_closeout_2026_11_16:
+        previously_selected_checkpoint: c3_controller_reselected_20261114_after_c1c2_and_sp04_main
+        issue: 1127
+        pr: 1152
+        source_sha: c65d7941264ccc2508ed30da73c5b82a9972cf37
+        merge_sha: 494a9acb9958062a9b0f691008a73fc1fd0abce1
+        released_migration: migrations/0323_project_duplicate_origin.sql
+        premerge_general_run: 43734016623
+        postmerge_general_run: 43736745829
+        postmerge_postgresql_rls: success
+        postmerge_access_a: success
+        postmerge_asa_required: success
+        independent_security_review: automated_static_pass_not_human_approval
+        source_integration: accepted
+        production_deployment: not_performed
+        live_database_actions: not_performed
       program: ASA-STUDENT-PROGRESS-001
       selected_step: C3
       controller_selection_2026_11_14:
@@ -21384,14 +21451,39 @@ parallel_lanes:
       issue: 1128
       branch: main
       base_branch: main
-      pr: null
+      pr: 1150
       pr_draft: false
-      status: ready
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'yes'
-      checkpoint: sp05_controller_reselected_after_sp04_main_20261114_c3_acceptance_blocked
-      owner_acceptance: pending
+      checkpoint: sp05_accepted_main_postmerge_ci_success_20261116
+      owner_acceptance: accepted
+      integration_closeout_2026_11_16:
+        previously_selected_checkpoint: sp05_controller_reselected_after_sp04_main_20261114_c3_acceptance_blocked
+        issue: 1128
+        pr: 1150
+        source_sha: 89f4c1eb085d65714cd31a275f4ccb51328e5aea
+        merge_sha: 1ba0157a1fd64e6bf6eb58d594daad8182452e96
+        premerge_general_run: 43823272724
+        postmerge_general_run: 43826510002
+        postmerge_postgresql_rls: success
+        postmerge_access_a: success
+        postmerge_asa_required: success
+        selected_version: SP05-B-1.0.0
+        selected_checksum_sha256: 580cafabc35af618fceec96f32334bf6bfcda07f6a82c874b147109983d89335
+        calibration: synthetic_only
+        numeric_candidates: 3
+        synthetic_fixtures: 26
+        independently_recomputed_totals: 78
+        final_local_vitest_passed: 29
+        independent_review: automated_static_pass_not_human_approval
+        resolved_provenance_blocker: STUDENT-PROGRESS-RATING-RULES-1128-COPY-PROVENANCE-1127
+        scoring_adapter: not_implemented_sp06
+        real_user_points: not_activated
+        production_deployment: not_performed
+        live_database_actions: not_performed
+        next_eligible_step: SP-06_requires_explicit_controller_selection
       program: ASA-STUDENT-PROGRESS-001
       selected_step: SP-05
       controller_selection_2026_11_14:
@@ -22053,41 +22145,29 @@ blocking:
       image review plus integration authorization. Text changes or registration alone cannot close this blocker.
     evidence: https://github.com/spikeal8-maker/asa-lab/issues/1124
 
-  - id: STUDENT-PROGRESS-RATING-RULES-1128-COPY-PROVENANCE-1127
+  - id: STUDENT-PROGRESS-SP06-PUBLIC-ACTIVATION-NOT-SELECTED
     kind: acceptance_blocker
     lane: student-progress-rating-rules
     task_id: TASK-STUDENT-PROGRESS-RATING-RULES-001
     blocks:
-    - source_qualification_acceptance
-    - source_integration
-    - integration
-    - technical_acceptance
-    - owner_acceptance
     - sp06_readiness
+    - sp06_execution_without_selection
+    - live_scoring
     - public_activation
     - release_claim
-    - close_issue
+    - production_deployment
+    - production_database_actions
     allows:
-    - readonly_diagnostics
-    - selected_sp05_numeric_calibration
-    - selected_sp05_three_candidate_configs
-    - selected_sp05_synthetic_fixtures
-    - selected_sp05_source_mapping
-    - selected_sp05_invariant_tool
-    - focused_verification
+    - documentation_update
     - independent_source_review
-    - independent_numeric_review
-    - controller_dependency_coordination
-    reason: Independent source qualification found known copied-origin work can become eligible
-      after ordinary duplicateWithDraft drops provenance. Separate C3 Issue1127 tracks the backend
-      gap; numeric calibration and review may proceed, but this SP-05 lane cannot integrate/close
-      or authorize SP-06/public activation until the real source boundary is repaired. No C1/C2
-      scope extension or new migration is selected here.
-    unblock_requires: A separately controller-selected provenance-preservation repair accepted
-      on main with independent real PostgreSQL upgrade/copy-chain/replay/rollback/no-extra-receipt
-      evidence, followed by qualified SP-05 source mapping and independent review of one selected
-      numerical version and its fixed expected totals. Historical unknown lineage remains explicit.
-      Registration text or synthetic dry-run alone cannot close this blocker.
-    evidence: https://github.com/spikeal8-maker/asa-lab/issues/1127
+    - sp06_controller_selection_proposal
+    reason: SP-05 is accepted only as versioned synthetic calibration. Its source qualification
+      does not implement a live scoring adapter, real user-point ledger or public activation.
+      SP-06 has not been selected and cannot be activated by closing C3 or SP-05.
+    unblock_requires: Explicit separate owner/controller selection and acceptance of SP-06 on
+      main, an independent implementation and security review of real source reconciliation,
+      genuine restricted-role PostgreSQL and browser evidence, applicable required exact-SHA
+      CI and separately authorized deployment; never inherited from SP-05 acceptance.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/1128
 
 next_task: null
