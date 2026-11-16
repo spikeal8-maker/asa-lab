@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { SchematicComponent } from '../../api';
 import { terminalPosition } from '../component-catalog';
 import {
@@ -136,9 +136,10 @@ describe('L298N P0B top-wire route in the actual ASA Lab Workbench (#1199)', () 
             kind: 'visual',
             componentTypeId: L298N,
             position: { x: 300, y: 150 },
-            rotation,
+            value: 0,
+            rotation: rotation as 0 | 90 | 180 | 270,
             stateProperties: { mirrorX, mirrorY },
-          } as SchematicComponent;
+          } satisfies SchematicComponent;
           for (const pin of owner.pins) {
             const actual = terminalPosition(component, component.position, pin.id, rotation);
             const expected = expectedTerminal(pin.xMm, pin.yMm, rotation, mirrorX, mirrorY);
