@@ -203,6 +203,56 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
       state.signedIn = true;
       return json(route, state.studentSession);
     }
+    if (path === '/api/progress/summary' || path === '/api/class-join/progress/summary') {
+      const coverage = {
+        everPublishedWorks: {
+          basis: 'confirmed_publication_revisions',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        currentLikes: {
+          basis: 'current_publication_likes',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        createdCopies: {
+          basis: 'durable_publication_copy_receipts',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        activePublicWorks: {
+          basis: 'current_catalog_visibility',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+      };
+      const metrics = {
+        everPublishedWorks: { availability: 'available', value: 0 },
+        currentLikes: { availability: 'available', value: 0 },
+        createdCopies: { availability: 'available', value: 0 },
+        activePublicWorks: { availability: 'available', value: 0 },
+      };
+      return json(route, {
+        scope:
+          identity === 'account'
+            ? { kind: 'account', accountId: person.id }
+            : {
+                kind: 'seat',
+                seatId: state.studentSession.student.seatId,
+                classroomId: seat.classroom.id,
+              },
+        asOf: '2026-11-16T12:00:00Z',
+        availability: 'available',
+        metrics,
+        coverage,
+        personalRating: { availability: 'not_enabled', value: null },
+        groups: { availability: 'available', items: [], hasMore: false, nextCursor: null },
+      });
+    }
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
     if (path === '/api/account/presentation')
       return json(route, { revision: 0, motion: 'system', sidebar: 'expanded' });
@@ -559,14 +609,29 @@ for (const identity of ['seat', 'account'] as const) {
       mkdirSync(evidence, { recursive: true });
       await page.goto('/#/learning');
       const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
-      await expect(page.locator('.learning-overview-metrics strong')).toHaveText([
-        String(count),
-        String(count),
-        String(count),
-      ]);
-      await expect(page.locator('.learning-overview-panel').first().locator('li')).toHaveCount(
-        Math.min(count, 3),
-      );
+      if (count === 0) {
+        await expect(page.locator('.learning-overview-metrics')).toHaveCount(0);
+        await expect(page.locator('.learning-overview-panel')).toHaveCount(0);
+        await expect(page.locator('.learning-overview-empty')).toHaveCount(1);
+        if (identity === 'account') {
+          await expect(nav.locator('a')).toHaveCount(2);
+          await expect(page.locator('.learning-overview-empty a')).toHaveAttribute(
+            'href',
+            '#/knowledge',
+          );
+        } else {
+          await expect(page.locator('.learning-overview-empty a')).toHaveCount(0);
+        }
+      } else {
+        await expect(page.locator('.learning-overview-metrics strong')).toHaveText([
+          String(count),
+          String(count),
+          String(count),
+        ]);
+        await expect(page.locator('.learning-overview-panel').first().locator('li')).toHaveCount(
+          Math.min(count, 3),
+        );
+      }
       for (const width of [1440, 1024, 390, 320]) {
         await page.setViewportSize({ width, height: 960 });
         await layout(page);
@@ -592,7 +657,14 @@ for (const identity of ['seat', 'account'] as const) {
         ['completed', 'Завершённое'],
         ['self', 'Самостоятельно'],
       ] as const) {
-        await nav.getByRole('link', { name: label, exact: true }).click();
+        if (count === 0 && identity === 'account') {
+          await page.goto('/#/learning?view=' + view);
+        } else {
+          const target = nav.getByRole('link', { name: label, exact: true });
+          await target.scrollIntoViewIfNeeded();
+          await expect(target).toBeVisible();
+          await target.click();
+        }
         await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute(
           'aria-current',
           'page',
@@ -651,7 +723,7 @@ for (const identity of ['seat', 'account'] as const) {
     state.fail = true;
     state.hold = false;
     await expect(page.getByRole('alert').filter({ hasText: 'Часть обзора' })).toBeVisible();
-    await expect(page.locator('.learning-overview-metrics strong')).toHaveText(['—', '—', '—']);
+    await expect(page.locator('.learning-overview-metrics')).toHaveCount(0);
     state.fail = false;
     await page.getByRole('button', { name: 'Повторить', exact: true }).click();
     await expect(page.locator('.learning-overview-metrics strong')).toHaveText(['1', '1', '1']);

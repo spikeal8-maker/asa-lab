@@ -1069,14 +1069,7 @@ describe('Personal Learning overview', () => {
       );
       expect(container.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(3);
       expect(container.querySelector('[data-testid="own-progress-score"]')?.textContent).toBe('0');
-      expect(
-        container.querySelector('.learning-overview-metrics a[href*="view=results"] strong')
-          ?.textContent,
-      ).toBe('0');
-      expect(
-        container.querySelector('.learning-overview-metrics a[href*="view=assignments"] strong')
-          ?.textContent,
-      ).toBe('—');
+      expect(container.querySelectorAll('.learning-overview-metrics a')).toHaveLength(0);
       expect(container.textContent).toContain('Часть обзора недоступна');
       expect(container.textContent).not.toContain('Не удалось загрузить задания');
       expect(

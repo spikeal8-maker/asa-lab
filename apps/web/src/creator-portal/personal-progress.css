@@ -514,3 +514,56 @@
     flex-basis: 64px;
   }
 }
+
+/* The rank/score for "You" is text, not another large avatar. */
+.personal-progress-self-compact {
+  flex: 0 0 116px;
+  width: 116px;
+  box-sizing: border-box;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 3px;
+  padding: 5px 4px;
+  font-size: 12px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.personal-progress-self-compact strong {
+  color: #0877b3;
+}
+.personal-progress-group-body {
+  --rating-peer-slot: 74px;
+  overflow: hidden;
+}
+.personal-progress-group-body .personal-progress-peer {
+  flex: 0 0 var(--rating-peer-slot);
+  width: var(--rating-peer-slot);
+}
+@container (max-width: 520px) {
+  .personal-progress-group-body {
+    --rating-peer-slot: 64px;
+  }
+  .personal-progress-self-compact {
+    flex-basis: 110px;
+    width: 110px;
+  }
+  .personal-progress-peer-avatar {
+    width: 44px;
+    height: 44px;
+  }
+}
+@container (max-width: 380px) {
+  .personal-progress-group-body {
+    --rating-peer-slot: 60px;
+  }
+  .personal-progress-self-compact {
+    flex-basis: 100px;
+    width: 100px;
+    font-size: 11px;
+  }
+  .personal-progress-peer-avatar {
+    width: 42px;
+    height: 42px;
+  }
+}

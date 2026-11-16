@@ -18,7 +18,7 @@ import {
 } from '../api';
 import * as apiCall from '../api-call';
 import { setTelemetryContext } from '../telemetry-context';
-import { PersonalProgress } from './PersonalProgress';
+import { PersonalProgress, ProfileMetricStrip } from './PersonalProgress';
 import {
   limitedGroupRead,
   groupRatingPreviewLimit,
@@ -146,7 +146,17 @@ function Harness({
   useLayoutEffect(() => {
     frames.push(host.textContent ?? '');
   });
-  return createElement(PersonalProgress, { actor, progress, mode });
+  return createElement(
+    'div',
+    null,
+    createElement(ProfileMetricStrip, {
+      data: progress.summary.data,
+      loading: progress.summary.loading,
+      error: progress.summary.error !== null,
+      onRetry: progress.summary.reload,
+    }),
+    createElement(PersonalProgress, { actor, progress, mode }),
+  );
 }
 async function render(actor = account, mode: 'home' | 'learning' = 'home') {
   await act(async () => root.render(createElement(Harness, { actor, mode })));
@@ -179,12 +189,13 @@ describe('Own progress presentation', () => {
     const result = summary([group('A', 99.99, 101), group('B', 0, 2), group('C', 12.5, 2)]);
     const read = vi.spyOn(apiCall, 'call').mockResolvedValue(success(result));
     await render();
-    expect(host.querySelector('[data-testid="progress-everPublishedWorks"] dd')?.textContent).toBe(
-      '0',
-    );
+    expect(
+      host.querySelector('[data-testid="progress-everPublishedWorks"] .portal-sidebar-metric-value')
+        ?.textContent,
+    ).toBe('0');
     expect(
       host.querySelector('[data-testid="progress-createdCopies"]')?.getAttribute('title'),
-    ).toBe('Копии ваших работ');
+    ).toBe('Добавили к себе');
     expect(host.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(2);
     expect(
       [...host.querySelectorAll('[data-testid="own-progress-score"]')].map(
@@ -196,7 +207,7 @@ describe('Own progress presentation', () => {
       'Вы, 101-е место, рейтинг 99,99',
     );
     expect(host.textContent).not.toMatch(/из \d|\/100|99\+|1\s?240/);
-    expect(host.textContent).toContain('Общий рейтинг ещё не рассчитывается');
+    expect(host.textContent).toContain('Общий личный рейтинг пока не рассчитывается');
     expect(host.querySelector('a[href="/#/learning"]')?.textContent).toContain('Все группы');
     await render(account, 'learning');
     expect(host.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(3);
@@ -240,61 +251,83 @@ describe('Own progress presentation', () => {
       }),
     );
     await render();
-    expect(host.querySelector('[data-testid="progress-currentLikes"] dd')?.textContent).toBe('—');
-    expect(host.querySelector('[data-testid="progress-everPublishedWorks"] dd')?.textContent).toBe(
-      '0',
-    );
+    expect(
+      host.querySelector('[data-testid="progress-currentLikes"] .portal-sidebar-metric-value')
+        ?.textContent,
+    ).toBe('—');
+    expect(
+      host.querySelector('[data-testid="progress-everPublishedWorks"] .portal-sidebar-metric-value')
+        ?.textContent,
+    ).toBe('0');
     expect(host.textContent).toContain('Часть прогресса сейчас недоступна');
     await render(account, 'learning');
-    expect(host.querySelectorAll('[data-testid="own-progress-score"]')).toHaveLength(0);
-    expect(host.querySelectorAll('[data-testid="own-progress-rank"]')).toHaveLength(0);
+    expect(
+      [...host.querySelectorAll('[data-testid="own-progress-score"]')].map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['—', '—', '—']);
+    expect(
+      [...host.querySelectorAll('[data-testid="own-progress-rank"]')].map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['—', '—', '—']);
     expect(host.textContent).toContain('Рейтинг выключен');
     expect(host.textContent).toContain('Учебный профиль нужно уточнить у преподавателя');
     expect(host.textContent).toContain('Рейтинг сейчас недоступен');
   });
 
   it.each([403, 503])(
-    'offers a summary retry on %s without inventing empty or numeric results',
+    'offers a profile retry on %s without inventing a zero for unavailable metrics',
     async (status) => {
       vi.spyOn(apiCall, 'call')
         .mockResolvedValueOnce({ ...failure, status })
         .mockResolvedValueOnce(success(summary()));
       await render();
-      expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-        status === 403
-          ? 'Прогресс сейчас недоступен в этом контексте'
-          : 'Не удалось загрузить прогресс',
-      );
       expect(
-        host.querySelector('[data-testid="progress-everPublishedWorks"] dd')?.textContent,
+        host.querySelector(
+          '[data-testid="progress-everPublishedWorks"] .portal-sidebar-metric-value',
+        )?.textContent,
       ).toBe('—');
+      expect(host.textContent).toContain('Сейчас не удалось получить подтверждённые показатели');
       await click('Повторить загрузку прогресса');
-      expect(host.querySelector('[role="alert"]')).toBeNull();
       expect(
-        host.querySelector('[data-testid="progress-everPublishedWorks"] dd')?.textContent,
+        host.querySelector(
+          '[data-testid="progress-everPublishedWorks"] .portal-sidebar-metric-value',
+        )?.textContent,
       ).toBe('0');
     },
   );
 
   it('uses the Seat avatar with its raw ID and never requests the Account avatar', async () => {
     ready(seat);
-    vi.spyOn(apiCall, 'call').mockResolvedValue(success(summary([group('Seat')], seat)));
+    vi.spyOn(apiCall, 'call').mockResolvedValue(
+      success(summary([group('88888888-8888-4888-8888-888888888888')], seat)),
+    );
     await render(seat);
     expect(api.accountAvatar).not.toHaveBeenCalled();
-    for (const img of host.querySelectorAll('img'))
-      expect(img.getAttribute('src')).toBe(seatAvatar(seat.seatId, seat.avatarKey).src);
+    expect(host.querySelector('.personal-progress-group-avatar')).toBeNull();
+    await click('Все');
+    const image = host.querySelector<HTMLImageElement>('.personal-progress-rating-pinned img');
+    expect(image?.getAttribute('src')).toBe(seatAvatar(seat.seatId, seat.avatarKey).src);
   });
 
   it('keeps an avatar change over a late read and falls back after image failure', async () => {
     const avatar = deferred<Awaited<ReturnType<typeof api.accountAvatar>>>();
     vi.mocked(api.accountAvatar).mockReturnValue(avatar.promise);
-    vi.spyOn(apiCall, 'call').mockResolvedValue(success(summary()));
+    vi.spyOn(apiCall, 'call').mockResolvedValue(
+      success(summary([group('88888888-8888-4888-8888-888888888888')])),
+    );
     await render();
+    await click('Все');
     await act(async () => notifyProfileAvatarChanged('/avatar-new.webp'));
     await act(async () => avatar.resolve(success({ avatarDataUrl: '/avatar-old.webp' })));
-    expect(host.querySelector('img')?.getAttribute('src')).toBe('/avatar-new.webp');
-    await act(async () => host.querySelector('img')!.dispatchEvent(new Event('error')));
-    expect(host.querySelector('img')?.getAttribute('src')).toBe(
+    expect(host.querySelector('.personal-progress-rating-pinned img')?.getAttribute('src')).toBe(
+      '/avatar-new.webp',
+    );
+    await act(async () =>
+      host.querySelector('.personal-progress-rating-pinned img')!.dispatchEvent(new Event('error')),
+    );
+    expect(host.querySelector('.personal-progress-rating-pinned img')?.getAttribute('src')).toBe(
       defaultAvatarForAccount(account.accountId).src,
     );
   });
@@ -780,7 +813,7 @@ function sp04Page(
 }
 
 describe('SP-04 compact learner-safe group ratings', () => {
-  it('shows only five anonymous peers, keeps own place 101 and opens bounded full pages', async () => {
+  it('shows only bounded anonymous peers, preserves own place 101 and opens full pages', async () => {
     const first = Array.from({ length: 5 }, (_, i) => sp04Peer(i));
     const full = Array.from({ length: 20 }, (_, i) => sp04Peer(i));
     const last = Array.from({ length: 3 }, (_, i) => sp04Peer(i + 20));
@@ -1088,13 +1121,15 @@ describe('SP-04 actual custom-avatar image consumer', () => {
 
 describe('SP-04 server-bounded responsive peer counts', () => {
   it.each([
+    [160, 0],
     [320, 2],
-    [380, 2],
+    [380, 3],
     [381, 3],
     [390, 3],
-    [520, 3],
-    [521, 5],
-    [1024, 5],
+    [520, 4],
+    [521, 4],
+    [1024, 10],
+    [1440, 16],
   ] as const)('chooses a bounded preview for width %i', (width, expected) => {
     expect(groupRatingPreviewLimit(width)).toBe(expected);
   });

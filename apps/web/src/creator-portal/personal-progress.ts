@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { GROUP_RATING_PAGE_LIMIT } from '@asa-lab/contracts';
 import type {
   PersonalProgressSummaryV1,
   OwnProgressGroupV1,
@@ -322,10 +323,23 @@ export function limitedGroupRead<T>(signal: AbortSignal, read: () => Promise<T>)
   });
 }
 
-export function groupRatingPreviewLimit(width: number): number {
-  if (width <= 380) return 2;
-  if (width <= 520) return 3;
-  return 5;
+/** The number of real peer slots that fit after the measured own result.
+ * Zero deliberately means no peer fetch in extreme zoom/narrow layouts.
+ * The server cap is shared with the paginated rating API; there is no desktop
+ * constant of five and no hidden full-roster fetch. */
+export function groupRatingPreviewLimit(
+  width: number,
+  ownWidth = 116,
+  peerWidth = 74,
+  gap = 8,
+): number {
+  if (!Number.isFinite(width) || width <= 0) return 0;
+  const safeGap = Math.max(0, Number.isFinite(gap) ? gap : 8);
+  const own = Math.max(0, Number.isFinite(ownWidth) ? ownWidth : 116);
+  const peer = Math.max(44, Number.isFinite(peerWidth) ? peerWidth : 74);
+  const remaining = width - own - safeGap * 2 - 1;
+  if (remaining < peer) return 0;
+  return Math.min(GROUP_RATING_PAGE_LIMIT, Math.floor((remaining + safeGap) / (peer + safeGap)));
 }
 
 function groupRatingPath(actor: OwnProgressActor, groupId: string): string {
@@ -419,7 +433,7 @@ export function useGroupRatingPreview(
   groupId: string,
   limit: number,
 ) {
-  const valid = GROUP_ID.test(groupId);
+  const valid = GROUP_ID.test(groupId) && limit > 0 && limit <= GROUP_RATING_PAGE_LIMIT;
   const key = lifetime.key && valid ? lifetime.key + ':group:' + groupId : null;
   const current = useCallback(() => {
     const now = lifetime.current();

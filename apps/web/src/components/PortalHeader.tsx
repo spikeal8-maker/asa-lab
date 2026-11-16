@@ -3,7 +3,7 @@ import { GameInvitationBadge } from '../games/GameInvitationBadge';
 import { usePresentation } from './PresentationPreferences';
 import './portal-ai-navigation.css';
 import { hasSettingsDraft } from './settings-navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { requestSettingsNavigation } from './settings-navigation';
 import { api, type ClassroomStudentSession, type SessionPayload } from '../api';
 import { AvatarDialog } from './AvatarDialog';
@@ -19,6 +19,13 @@ import { portalNavigation, type CreatorPortalSection } from '../creator-portal/n
 import { QuickCreateMenu } from '../creator-portal/QuickProjectCreation';
 import { classAttention } from '../creator-portal/attention';
 import { PortalLink } from './PortalLink';
+import { ProfileMetricStrip } from '../creator-portal/PersonalProgress';
+import {
+  readPersonalProgress,
+  usePersonalRead,
+  useProgressLifetime,
+  type OwnProgressActor,
+} from '../creator-portal/personal-progress';
 import {
   ChevronIcon,
   CloseIcon,
@@ -128,6 +135,7 @@ function AvatarVisual({
 
 export function PortalHeader({
   session,
+  progressActor,
   active,
   canTeach,
   seatLearner = false,
@@ -144,6 +152,7 @@ export function PortalHeader({
   onLoggedOut,
 }: {
   session: SessionPayload;
+  progressActor?: OwnProgressActor;
   active: PortalSection;
   canTeach: boolean;
   /** The picture a class seat chose; an account has none and uploads instead. */
@@ -177,6 +186,24 @@ export function PortalHeader({
   onWorkspaceChanged?: () => void;
   onLoggedOut: () => void;
 }): JSX.Element {
+  // One scoped, abortable summary read for the permanent sidebar.
+  // The learning/group routes never grant Account data to a StudentSeat.
+  const actorRef = useRef(progressActor);
+  actorRef.current = progressActor;
+  const metricLifetime = useProgressLifetime(progressActor ?? null);
+  const metricKind = progressActor?.kind;
+  const metricId =
+    progressActor?.kind === 'account' ? progressActor.accountId : progressActor?.seatId;
+  const metricClass = progressActor?.kind === 'seat' ? progressActor.classroomId : undefined;
+  const readMetrics = useCallback(
+    (signal: AbortSignal) => {
+      const actor = actorRef.current;
+      if (!actor) return Promise.reject(new Error('Progress identity not ready'));
+      return readPersonalProgress(actor, signal);
+    },
+    [metricKind, metricId, metricClass],
+  );
+  const sidebarMetrics = usePersonalRead(metricLifetime, readMetrics);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
@@ -755,15 +782,25 @@ export function PortalHeader({
           Закрыть <span aria-hidden="true">×</span>
         </button>
         <div className="portal-sidebar-profile">
-          <button
-            type="button"
-            className="portal-sidebar-avatar"
-            aria-label="Выбрать аватар в меню"
-            title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
-            onClick={openAvatar}
-          >
-            <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
-          </button>
+          <div className="portal-sidebar-profile-top">
+            {progressActor ? (
+              <ProfileMetricStrip
+                data={sidebarMetrics.data}
+                loading={sidebarMetrics.loading}
+                error={sidebarMetrics.error !== null}
+                onRetry={sidebarMetrics.reload}
+              />
+            ) : null}
+            <button
+              type="button"
+              className="portal-sidebar-avatar"
+              aria-label="Выбрать аватар в меню"
+              title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
+              onClick={openAvatar}
+            >
+              <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
+            </button>
+          </div>
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
             <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>

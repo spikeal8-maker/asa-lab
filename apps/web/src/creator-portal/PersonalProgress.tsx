@@ -3,6 +3,7 @@ import type {
   OwnProgressGroupV1,
   ProgressMetricNameV1,
   GroupRatingPeerV1,
+  PersonalProgressSummaryV1,
 } from '@asa-lab/contracts';
 import { PortalLink } from '../components/PortalLink';
 import {
@@ -21,7 +22,7 @@ type Progress = ReturnType<typeof usePersonalProgress>;
 const metrics = [
   ['everPublishedWorks', 'Опубликованные работы'],
   ['currentLikes', 'Нравится'],
-  ['createdCopies', 'Копии ваших работ'],
+  ['createdCopies', 'Добавили к себе'],
 ] as const;
 
 function MetricIcon({ name }: { readonly name: ProgressMetricNameV1 }): JSX.Element {
@@ -51,6 +52,79 @@ function MetricIcon({ name }: { readonly name: ProgressMetricNameV1 }): JSX.Elem
         </>
       )}
     </svg>
+  );
+}
+
+/** These are server-sourced personal metrics. A class score is NOT a
+ * global user rating and is never inserted into this profile strip. */
+export function ProfileMetricStrip({
+  data,
+  loading,
+  error,
+  onRetry,
+}: {
+  readonly data: PersonalProgressSummaryV1 | null;
+  readonly loading: boolean;
+  readonly error: boolean;
+  readonly onRetry?: () => void;
+}): JSX.Element {
+  const values = metrics.map(([name, label]) => {
+    const metric = data?.metrics[name];
+    const available = metric?.availability === 'available';
+    const value = available ? progressNumber(metric.value) : loading ? '…' : '—';
+    return { name, label, value, available, zero: available && metric.value === 0 };
+  });
+  const allZero = Boolean(data) && values.every((entry) => entry.zero);
+  return (
+    <details className="portal-sidebar-metrics" data-testid="profile-metric-strip">
+      <summary title="О показателях моих работ">
+        <span className="sr-only">Показатели моих работ. </span>
+        {allZero ? (
+          <span className="portal-sidebar-metric-help" aria-label="Все три показателя равны нулю">
+            i
+          </span>
+        ) : (
+          <span className="portal-sidebar-metric-list">
+            {values.map(({ name, label, value }) => (
+              <span
+                className="portal-sidebar-metric-item"
+                key={name}
+                role="img"
+                aria-label={
+                  label + ': ' + (value === '—' ? 'недоступно' : value === '…' ? 'загрузка' : value)
+                }
+                data-testid={'progress-' + name}
+                title={label}
+              >
+                <MetricIcon name={name} />
+                <span className="portal-sidebar-metric-value">{value}</span>
+              </span>
+            ))}
+          </span>
+        )}
+      </summary>
+      <div className="portal-sidebar-metric-details" role="note">
+        <strong>Показатели моих работ</strong>
+        {values.map(({ name, label, value }) => (
+          <p key={name} data-testid={'profile-full-' + name}>
+            {label}: <span>{value}</span>
+          </p>
+        ))}
+        {error || data?.availability === 'unavailable' ? (
+          <p>Сейчас не удалось получить подтверждённые показатели.</p>
+        ) : data?.availability === 'partial' ? (
+          <p>Часть статистики недоступна. Неизвестные значения не равны нулю.</p>
+        ) : null}
+        <p>Публикации — уникальные опубликованные работы. Нравится — действующие отметки.</p>
+        <p>Добавили к себе — созданные копии публичных работ, а не скачивания.</p>
+        <p>Общий личный рейтинг пока не рассчитывается.</p>
+        {onRetry && (error || data?.availability === 'partial') ? (
+          <button type="button" className="btn-secondary" onClick={onRetry}>
+            Повторить загрузку прогресса
+          </button>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -258,14 +332,25 @@ function OwnGroup({
   readonly lifetime: ProgressLifetime;
 }): JSX.Element {
   const article = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
-  const [limit, setLimit] = useState(() =>
-    typeof window === 'undefined' ? 2 : groupRatingPreviewLimit(window.innerWidth),
-  );
+  const [limit, setLimit] = useState(0);
   useLayoutEffect(() => {
     const update = () => {
-      const width = article.current?.getBoundingClientRect().width || window.innerWidth;
-      setLimit(groupRatingPreviewLimit(width));
+      const body = bodyRef.current;
+      if (!body) return;
+      const styles = getComputedStyle(body);
+      const gap = Number.parseFloat(styles.columnGap) || 8;
+      const self = body.querySelector<HTMLElement>('.personal-progress-self');
+      const ownWidth = self?.getBoundingClientRect().width || 116;
+      const peerWidth = Number.parseFloat(styles.getPropertyValue('--rating-peer-slot')) || 74;
+      const capacity = groupRatingPreviewLimit(
+        body.getBoundingClientRect().width || window.innerWidth,
+        ownWidth,
+        peerWidth,
+        gap,
+      );
+      setLimit((current) => (current === capacity ? current : capacity));
     };
     update();
     if (typeof ResizeObserver === 'undefined') {
@@ -273,7 +358,7 @@ function OwnGroup({
       return () => window.removeEventListener('resize', update);
     }
     const observer = new ResizeObserver(update);
-    if (article.current) observer.observe(article.current);
+    if (bodyRef.current) observer.observe(bodyRef.current);
     return () => observer.disconnect();
   }, []);
   const preview = useGroupRatingPreview(actor, lifetime, group.groupId, limit);
@@ -327,31 +412,18 @@ function OwnGroup({
           Все
         </button>
       </header>
-      <div className="personal-progress-group-body">
-        <div className="personal-progress-self" role="img" aria-label={description}>
-          <div className="personal-progress-group-avatar">
-            <OwnAvatar {...avatar} />
-            {rank !== null ? (
-              <span
-                className="personal-progress-rank"
-                aria-hidden="true"
-                data-testid="own-progress-rank"
-              >
-                {rank}
-              </span>
-            ) : null}
-            {score !== null ? (
-              <span
-                className="personal-progress-score"
-                aria-hidden="true"
-                data-testid="own-progress-score"
-              >
-                {score}
-              </span>
-            ) : null}
-          </div>
-          <span className="personal-progress-you" aria-hidden="true">
-            Вы
+      <div className="personal-progress-group-body" ref={bodyRef}>
+        <div
+          className="personal-progress-self personal-progress-self-compact"
+          role="img"
+          aria-label={description}
+        >
+          <strong>Вы</strong>
+          <span>
+            Место <span data-testid="own-progress-rank">{rank ?? '—'}</span>
+          </span>
+          <span>
+            Балл <span data-testid="own-progress-score">{score ?? '—'}</span>
           </span>
         </div>
         {preview.rating.data && !unavailable ? (
@@ -407,11 +479,12 @@ export function PersonalProgress({
   readonly progress: Progress;
   readonly mode?: 'home' | 'learning';
   readonly onLearning?: () => void;
-}): JSX.Element {
+}): JSX.Element | null {
   const avatar = useOwnAvatar(actor, progress.lifetime);
   const { summary } = progress;
   const data = summary.data;
   const groups = mode === 'home' ? progress.groups.slice(0, 2) : progress.groups;
+  if (mode === 'home' && (!progress.lifetime.key || groups.length === 0)) return null;
   if (!progress.lifetime.key)
     return (
       <section
@@ -425,44 +498,9 @@ export function PersonalProgress({
   return (
     <section
       className="personal-progress"
-      aria-label={mode === 'home' ? 'Мой прогресс' : 'Прогресс в группах'}
+      aria-label={mode === 'home' ? 'Учебные группы' : 'Прогресс в группах'}
       data-testid="personal-progress"
     >
-      {mode === 'home' ? (
-        <div className="personal-progress-hero">
-          <div className="personal-progress-hero-avatar">
-            <OwnAvatar {...avatar} />
-          </div>
-          <div className="personal-progress-hero-copy">
-            <h1>Мой прогресс</h1>
-            <p className="personal-progress-person">{actor.displayName}</p>
-            <dl
-              className="personal-progress-metrics"
-              aria-label="Показатели ваших работ"
-              aria-busy={summary.loading}
-            >
-              {metrics.map(([name, label]) => {
-                const metric = data?.metrics[name];
-                const value =
-                  metric?.availability === 'available' ? progressNumber(metric.value) : '—';
-                return (
-                  <div key={name} title={label} data-testid={`progress-${name}`}>
-                    <dt>
-                      <MetricIcon name={name} />
-                      <span className="sr-only">{label}</span>
-                    </dt>
-                    <dd
-                      aria-label={`${label}: ${value === '—' ? (summary.loading ? 'загрузка' : 'недоступно') : value}`}
-                    >
-                      {value}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </div>
-        </div>
-      ) : null}
       {summary.loading ? (
         <p className="personal-progress-state" role="status">
           Загружаем прогресс…
@@ -487,32 +525,6 @@ export function PersonalProgress({
             Обновить прогресс
           </button>
         </div>
-      ) : null}
-      {mode === 'home' && data ? (
-        <details className="personal-progress-explanation">
-          <summary>О показателях</summary>
-          <p>
-            Работы учитываются по подтверждённым публикациям; новая версия не считается новой
-            работой. «Нравится» — текущие отметки. Копии — подтверждённые добавления ваших работ к
-            себе, включая уже удалённые копии.
-          </p>
-          <p>Общий рейтинг ещё не рассчитывается.</p>
-          {data.metrics.activePublicWorks.availability === 'available' ? (
-            <p>
-              Сейчас в открытом каталоге: {progressNumber(data.metrics.activePublicWorks.value)}.
-            </p>
-          ) : null}
-          {metrics.some(([name]) =>
-            data.coverage[name].limitations.includes('history_before_canonical_records_unknown'),
-          ) ? (
-            <p>История до первых подтверждённых записей может быть неполной.</p>
-          ) : null}
-          {data.coverage.createdCopies.limitations.includes(
-            'copies_not_supported_by_all_modules',
-          ) ? (
-            <p>Копирование поддерживают не все среды.</p>
-          ) : null}
-        </details>
       ) : null}
       {groups.length > 0 ? (
         <section className="personal-progress-groups" aria-label="Мои учебные группы">
@@ -562,11 +574,6 @@ export function PersonalProgress({
       ) : null}
       {data?.groups.availability === 'unavailable' && data.availability !== 'unavailable' ? (
         <p className="personal-progress-state">Учебные группы сейчас не загрузились.</p>
-      ) : null}
-      {mode === 'learning' && data?.groups.availability === 'available' && groups.length === 0 ? (
-        <p className="personal-progress-state">
-          Учебных групп пока нет. Можно присоединиться к группе в разделе «Классы».
-        </p>
       ) : null}
     </section>
   );
