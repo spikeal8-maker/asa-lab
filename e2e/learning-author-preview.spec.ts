@@ -791,9 +791,9 @@ test('first-class image block survives draft reload and pins exact published byt
   expect(v2Source).not.toBe(v1Source);
   const v2Bytes = await page.request.get(new URL(v2Source!, page.url()).toString());
   expect(Buffer.compare(await v2Bytes.body(), imageB)).toBe(0);
-  await page.route(new URL(v2Source!, page.url()).toString(), (route) =>
-    route.fulfill({ status: 404, body: 'unavailable' }),
-  );
+  const v2Preview = new URL(v2Source!, page.url());
+  v2Preview.searchParams.set('preview', '640');
+  await page.route(v2Preview.href, (route) => route.fulfill({ status: 404, body: 'unavailable' }));
   await page.reload();
   await openExistingAssignmentEditor(page, title);
   await previewAssignmentAs(page, 'published');

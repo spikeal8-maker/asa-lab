@@ -297,6 +297,7 @@ export function App(): JSX.Element {
       !(view.kind === 'editor' && view.moduleKey === 'robotics')
       ? portalScope
       : '',
+    view.kind === 'editor' && view.moduleKey === 'electronics',
   );
   const actor = telemetryActor(session);
   const actorIdentity =
