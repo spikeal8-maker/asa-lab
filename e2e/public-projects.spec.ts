@@ -2670,7 +2670,12 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
       'aria-label',
       'Добавили к себе: 1',
     );
+    // At 320px the sidebar is a closed drawer: expand it before interacting
+    // with the disclosure rather than waiting forever for an invisible summary.
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await expect(page.locator('#portal-sidebar')).toHaveClass(/mobile-open/);
     await page.getByTestId('profile-metric-strip').locator('summary').click();
+    await expect(page.locator('.portal-sidebar-metric-details')).toBeVisible();
     await expect(page.locator('.portal-sidebar-metric-details')).toContainText('а не скачивания');
     await expect(page.locator('.portal-sidebar-metric-details')).toContainText(
       'Общий личный рейтинг пока не рассчитывается.',
@@ -2679,6 +2684,8 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
       path: `${EVIDENCE}/sp03-real-publication-metrics-320.png`,
       fullPage: true,
     });
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#portal-sidebar')).not.toHaveClass(/mobile-open/);
     const privateCopy = await reader.page.request.get(`/api/projects/${copied.projectId}`);
     await ok(privateCopy);
     expect((await privateCopy.json()).project.copiedFrom).toMatchObject({
@@ -3143,8 +3150,9 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     pending = await sp03HoldPrivateResponses(page);
     await switchWorkspace(page, 'Рабочая группа SP03');
     await pending.ready();
+    // A pending new-scope request displays loading, never the previous actor's 1.
     await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
-      '—',
+      '…',
     );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
     await page.screenshot({
@@ -3168,8 +3176,9 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     expect(
       await page.evaluate(() => (window as Window & { sp03Document?: string }).sp03Document),
     ).toBe(stamp);
+    // The same account's new identity lifetime must not display cached data.
     await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
-      '—',
+      '…',
     );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
     await page.screenshot({
@@ -3434,7 +3443,8 @@ test('SP-03 next learning action follows real canonical project and quiz states 
     ).toBe('submitted');
     await page.reload();
     await expect(next.getByRole('link')).toHaveCount(0);
-    await expect(page.locator('.personal-progress-next')).not.toContainText(title);
+    // The compact Home removes the whole next-action section when no action exists.
+    await expect(next).toHaveCount(0);
     const reviewed = await teacher.page.request.post(
       `/api/classrooms/${group.id}/attempts/${submission.attemptId}/review`,
       {
