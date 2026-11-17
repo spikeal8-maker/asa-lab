@@ -3634,7 +3634,8 @@ test('SP-03 next learning action follows real canonical project and quiz states 
     });
     await expect(next.getByRole('status')).toHaveCount(0);
     await expect(next.getByRole('link')).toHaveCount(0);
-    await expect(page.locator('.personal-progress-next')).not.toContainText(quizTitle);
+    // The compact Home removes the entire next-action block after quiz completion.
+    await expect(next).toHaveCount(0);
     expect(await attempts(quizRun.assignmentId)).toBe(1);
     await page.screenshot({
       path: `${EVIDENCE}/sp03-completed-quiz-no-repeat-320.png`,
