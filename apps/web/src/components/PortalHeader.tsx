@@ -3,7 +3,7 @@ import { GameInvitationBadge } from '../games/GameInvitationBadge';
 import { usePresentation } from './PresentationPreferences';
 import './portal-ai-navigation.css';
 import { hasSettingsDraft } from './settings-navigation';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { requestSettingsNavigation } from './settings-navigation';
 import { api, type ClassroomStudentSession, type SessionPayload } from '../api';
 import { AvatarDialog } from './AvatarDialog';
@@ -19,6 +19,7 @@ import { portalNavigation, type CreatorPortalSection } from '../creator-portal/n
 import { QuickCreateMenu } from '../creator-portal/QuickProjectCreation';
 import { classAttention } from '../creator-portal/attention';
 import { PortalLink } from './PortalLink';
+import type { OwnProgressActor } from '../creator-portal/personal-progress-core';
 import {
   ChevronIcon,
   CloseIcon,
@@ -126,8 +127,15 @@ function AvatarVisual({
   return avatarDataUrl ? <img src={avatarDataUrl} alt="" /> : <span>{initials}</span>;
 }
 
+const SidebarProfileMetrics = lazy(() =>
+  import('../creator-portal/PersonalProgress').then((module) => ({
+    default: module.SidebarProfileMetrics,
+  })),
+);
+
 export function PortalHeader({
   session,
+  progressActor,
   active,
   canTeach,
   seatLearner = false,
@@ -144,6 +152,7 @@ export function PortalHeader({
   onLoggedOut,
 }: {
   session: SessionPayload;
+  progressActor?: OwnProgressActor;
   active: PortalSection;
   canTeach: boolean;
   /** The picture a class seat chose; an account has none and uploads instead. */
@@ -755,15 +764,28 @@ export function PortalHeader({
           Закрыть <span aria-hidden="true">×</span>
         </button>
         <div className="portal-sidebar-profile">
-          <button
-            type="button"
-            className="portal-sidebar-avatar"
-            aria-label="Выбрать аватар в меню"
-            title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
-            onClick={openAvatar}
-          >
-            <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
-          </button>
+          <div className="portal-sidebar-profile-top">
+            {progressActor ? (
+              <Suspense
+                fallback={
+                  <span className="portal-sidebar-metric-help" role="status">
+                    …
+                  </span>
+                }
+              >
+                <SidebarProfileMetrics actor={progressActor} active={active} />
+              </Suspense>
+            ) : null}
+            <button
+              type="button"
+              className="portal-sidebar-avatar"
+              aria-label="Выбрать аватар в меню"
+              title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
+              onClick={openAvatar}
+            >
+              <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
+            </button>
+          </div>
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
             <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>

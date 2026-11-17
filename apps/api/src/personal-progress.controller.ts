@@ -508,10 +508,10 @@ export class PersonalProgressController {
     if (
       view === 'preview' &&
       ((typeof query.limit !== 'undefined' &&
-        (typeof query.limit !== 'string' || !/^[1-5]$/.test(query.limit))) ||
+        (typeof query.limit !== 'string' || !/^[1-9]\d?$/.test(query.limit))) ||
         !Number.isSafeInteger(previewLimit) ||
         previewLimit < 1 ||
-        previewLimit > 5)
+        previewLimit > GROUP_RATING_PAGE_LIMIT)
     )
       throw failure('validation_error', 400, 'Недействительный размер рейтинга.');
     let afterScore: number | null = null;

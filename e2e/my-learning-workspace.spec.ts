@@ -203,6 +203,56 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
       state.signedIn = true;
       return json(route, state.studentSession);
     }
+    if (path === '/api/progress/summary' || path === '/api/class-join/progress/summary') {
+      const coverage = {
+        everPublishedWorks: {
+          basis: 'confirmed_publication_revisions',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        currentLikes: {
+          basis: 'current_publication_likes',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        createdCopies: {
+          basis: 'durable_publication_copy_receipts',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        activePublicWorks: {
+          basis: 'current_catalog_visibility',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+      };
+      const metrics = {
+        everPublishedWorks: { availability: 'available', value: 0 },
+        currentLikes: { availability: 'available', value: 0 },
+        createdCopies: { availability: 'available', value: 0 },
+        activePublicWorks: { availability: 'available', value: 0 },
+      };
+      return json(route, {
+        scope:
+          identity === 'account'
+            ? { kind: 'account', accountId: person.id }
+            : {
+                kind: 'seat',
+                seatId: state.studentSession.student.seatId,
+                classroomId: seat.classroom.id,
+              },
+        asOf: '2026-11-16T12:00:00Z',
+        availability: 'available',
+        metrics,
+        coverage,
+        personalRating: { availability: 'not_enabled', value: null },
+        groups: { availability: 'available', items: [], hasMore: false, nextCursor: null },
+      });
+    }
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
     if (path === '/api/account/presentation')
       return json(route, { revision: 0, motion: 'system', sidebar: 'expanded' });
@@ -559,14 +609,29 @@ for (const identity of ['seat', 'account'] as const) {
       mkdirSync(evidence, { recursive: true });
       await page.goto('/#/learning');
       const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
-      await expect(page.locator('.learning-overview-metrics strong')).toHaveText([
-        String(count),
-        String(count),
-        String(count),
-      ]);
-      await expect(page.locator('.learning-overview-panel').first().locator('li')).toHaveCount(
-        Math.min(count, 3),
-      );
+      if (count === 0) {
+        await expect(page.locator('.learning-overview-metrics')).toHaveCount(0);
+        await expect(page.locator('.learning-overview-panel')).toHaveCount(0);
+        await expect(page.locator('.learning-overview-empty')).toHaveCount(1);
+        if (identity === 'account') {
+          await expect(nav.locator('a')).toHaveText(['Обзор', 'Курсы', 'Классы', 'Самостоятельно']);
+          await expect(page.locator('.learning-overview-empty a')).toHaveAttribute(
+            'href',
+            '#/knowledge',
+          );
+        } else {
+          await expect(page.locator('.learning-overview-empty a')).toHaveCount(0);
+        }
+      } else {
+        await expect(page.locator('.learning-overview-metrics strong')).toHaveText([
+          String(count),
+          String(count),
+          String(count),
+        ]);
+        await expect(page.locator('.learning-overview-panel').first().locator('li')).toHaveCount(
+          Math.min(count, 3),
+        );
+      }
       for (const width of [1440, 1024, 390, 320]) {
         await page.setViewportSize({ width, height: 960 });
         await layout(page);
@@ -592,7 +657,18 @@ for (const identity of ['seat', 'account'] as const) {
         ['completed', 'Завершённое'],
         ['self', 'Самостоятельно'],
       ] as const) {
-        await nav.getByRole('link', { name: label, exact: true }).click();
+        if (
+          count === 0 &&
+          identity === 'account' &&
+          (view === 'assignments' || view === 'results' || view === 'completed')
+        ) {
+          await page.goto('/#/learning?view=' + view);
+        } else {
+          const target = nav.getByRole('link', { name: label, exact: true });
+          await target.scrollIntoViewIfNeeded();
+          await expect(target).toBeVisible();
+          await target.click();
+        }
         await expect(nav.getByRole('link', { name: label, exact: true })).toHaveAttribute(
           'aria-current',
           'page',
@@ -651,7 +727,7 @@ for (const identity of ['seat', 'account'] as const) {
     state.fail = true;
     state.hold = false;
     await expect(page.getByRole('alert').filter({ hasText: 'Часть обзора' })).toBeVisible();
-    await expect(page.locator('.learning-overview-metrics strong')).toHaveText(['—', '—', '—']);
+    await expect(page.locator('.learning-overview-metrics')).toHaveCount(0);
     state.fail = false;
     await page.getByRole('button', { name: 'Повторить', exact: true }).click();
     await expect(page.locator('.learning-overview-metrics strong')).toHaveText(['1', '1', '1']);
@@ -1016,3 +1092,324 @@ test('Account: class join and class-scoped awards stay embedded', async ({ page 
   }
   expect(state.errors).toEqual([]);
 });
+
+for (const identity of ['account', 'seat'] as const) {
+  test(
+    'P0 real Chromium: bounded responsive peers and private Account/Seat rating (' + identity + ')',
+    async ({ page }) => {
+      const state = await fixture(page, identity, 1);
+      const groupId = '88888888-8888-4888-8888-888888888888';
+      const groupTitle =
+        'Исследовательская учебная группа с достаточно длинным названием для проверки переносов текста';
+      const peers = Array.from({ length: 24 }, (_, index) => ({
+        peerKey: 'anonymous-' + index,
+        isSelf: false,
+        avatarSrc: '/assets/avatars/default/avatar-09.webp',
+        avatarTicket: null,
+        rank: index + 1,
+        score: 100 - index,
+      }));
+      const counter = { availability: 'available', value: 0 } as const;
+      const coverage = {
+        everPublishedWorks: {
+          basis: 'confirmed_publication_revisions',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        currentLikes: {
+          basis: 'current_publication_likes',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        createdCopies: {
+          basis: 'durable_publication_copy_receipts',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+        activePublicWorks: {
+          basis: 'current_catalog_visibility',
+          completeness: 'complete',
+          knownSince: null,
+          limitations: [],
+        },
+      };
+      const summary = {
+        scope:
+          identity === 'account'
+            ? { kind: 'account', accountId: person.id }
+            : { kind: 'seat', seatId: seat.student.seatId, classroomId: seat.classroom.id },
+        asOf: '2026-11-16T12:00:00Z',
+        availability: 'available',
+        metrics: {
+          everPublishedWorks: { availability: 'available', value: 7 },
+          currentLikes: { availability: 'available', value: 2 },
+          createdCopies: { availability: 'available', value: 5 },
+          activePublicWorks: counter,
+        },
+        coverage,
+        personalRating: { availability: 'not_enabled', value: null },
+        groups: {
+          availability: 'available',
+          hasMore: false,
+          nextCursor: null,
+          items: [
+            {
+              groupId,
+              title: groupTitle,
+              periodDays: 30,
+              own: { availability: 'available', rank: 101, score: 68.25 },
+            },
+          ],
+        },
+      };
+      const ratingReads: Array<{ view: string; limit: number; path: string }> = [];
+      await page.route('**/api/**', (route) => {
+        const url = new URL(route.request().url());
+        const path = url.pathname;
+        if (
+          path ===
+          (identity === 'account' ? '/api/progress/summary' : '/api/class-join/progress/summary')
+        ) {
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(summary),
+          });
+        }
+        const expected =
+          identity === 'account' ? '/api/progress/groups/' : '/api/class-join/progress/groups/';
+        if (path === expected + groupId + '/rating') {
+          const view = url.searchParams.get('view') ?? 'preview';
+          const limit = view === 'all' ? 20 : Number(url.searchParams.get('limit') ?? 5);
+          if (!(limit >= 1 && limit <= 20))
+            return route.fulfill({
+              status: 400,
+              contentType: 'application/json',
+              body: '{"error":{"code":"validation_error"}}',
+            });
+          const cursor = url.searchParams.get('cursor');
+          const selected =
+            view === 'all'
+              ? cursor
+                ? peers.slice(20)
+                : peers.slice(0, 20)
+              : peers.slice(0, limit);
+          ratingReads.push({ view, limit, path });
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              groupId,
+              periodDays: 30,
+              version: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              asOf: '2026-11-16T12:00:00Z',
+              own: { availability: 'available', score: 68.25, rank: 101, isSelf: true },
+              peers: selected,
+              hasMore: view === 'all' && cursor === null,
+              nextCursor: view === 'all' && cursor === null ? 'next-page' : null,
+            }),
+          });
+        }
+        return route.fallback();
+      });
+      for (const width of [1440, 1024, 390, 320]) {
+        await page.setViewportSize({ width, height: 960 });
+        await page.goto('/#/learning');
+        const group = page.getByTestId('own-progress-group');
+        await expect(group).toBeVisible();
+        await expect(group.getByTestId('own-progress-rank')).toHaveText('101');
+        await expect(group.getByTestId('own-progress-score')).toHaveText('68,25');
+        await expect(group.locator('.personal-progress-group-avatar')).toHaveCount(0);
+        await expect(page.locator('.personal-progress-hero')).toHaveCount(0);
+        const body = group.locator('.personal-progress-group-body');
+        const layout = await body.evaluate((node) => {
+          const style = getComputedStyle(node);
+          const own = node.querySelector<HTMLElement>('.personal-progress-self-compact')!;
+          const width = node.getBoundingClientRect().width;
+          const ownWidth = own.getBoundingClientRect().width;
+          const peerWidth = Number.parseFloat(style.getPropertyValue('--rating-peer-slot')) || 74;
+          const gap = Number.parseFloat(style.columnGap) || 8;
+          const peerGap = Number.parseFloat(style.getPropertyValue('--rating-peer-gap')) || 5;
+          const rem = width - ownWidth - gap * 2 - 1;
+          const expected =
+            rem < peerWidth ? 0 : Math.min(20, Math.floor((rem + peerGap) / (peerWidth + peerGap)));
+          return { width, ownWidth, peerWidth, gap, peerGap, expected };
+        });
+        await expect
+          .poll(async () => group.locator('.personal-progress-peer').count())
+          .toBe(layout.expected);
+        if (width === 1440) expect(layout.expected).toBeGreaterThan(5);
+        const dom = await group
+          .locator('.personal-progress-peers')
+          .evaluate((element) => element.outerHTML);
+        expect(dom).not.toMatch(
+          /seatId|displayName|studentCode|lastActiveAt|teacherRoster|privateEmail/i,
+        );
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+        ).toBe(true);
+        const strip = page.getByTestId('profile-metric-strip');
+        await expect(strip).toBeAttached();
+        await expect(
+          strip.locator('[data-testid="progress-everPublishedWorks"] .portal-sidebar-metric-value'),
+        ).toHaveText('7');
+        await page.screenshot({
+          path: evidence + '/p0-group-' + identity + '-' + width + '.png',
+          fullPage: true,
+        });
+      }
+      await page.setViewportSize({ width: 1440, height: 960 });
+      await page.goto('/#/learning');
+      const group = page.getByTestId('own-progress-group');
+      await expect(group).toBeVisible();
+      await group.getByRole('button', { name: 'Все', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: /Рейтинг группы/ });
+      await expect(dialog).toBeVisible();
+      await expect(
+        dialog.locator('.personal-progress-rating-items .personal-progress-peer'),
+      ).toHaveCount(20);
+      await dialog.getByRole('button', { name: 'Показать ещё' }).click();
+      await expect(
+        dialog.locator('.personal-progress-rating-items .personal-progress-peer'),
+      ).toHaveCount(24);
+      await dialog.getByRole('button', { name: 'Закрыть' }).click();
+      await expect(dialog).toHaveCount(0);
+      await page.evaluate(() => {
+        document.documentElement.style.zoom = '2';
+      });
+      await expect
+        .poll(async () =>
+          group.locator('.personal-progress-group-body').evaluate((node) => {
+            const area = node.getBoundingClientRect();
+            const peers = [...node.querySelectorAll<HTMLElement>('.personal-progress-peer')];
+            return peers.every((peer) => peer.getBoundingClientRect().right <= area.right + 1);
+          }),
+        )
+        .toBe(true);
+      await page.screenshot({
+        path: evidence + '/p0-group-' + identity + '-zoom-200.png',
+        fullPage: true,
+      });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+      ).toBe(true);
+      expect(ratingReads.some((read) => read.view === 'preview' && read.limit > 5)).toBe(true);
+      expect(ratingReads.every((read) => read.limit >= 1 && read.limit <= 20)).toBe(true);
+      expect(state.errors).toEqual([]);
+      if (identity === 'account') {
+        expect(
+          state.reads.some((path) => path.startsWith('/api/class-join/progress/groups/')),
+        ).toBe(false);
+      } else {
+        expect(state.reads.some((path) => path.startsWith('/api/progress/groups/'))).toBe(false);
+      }
+    },
+  );
+}
+
+test('P0 sidebar metrics refresh when Home is revisited after publishing elsewhere', async ({
+  page,
+}) => {
+  await fixture(page, 'account', 1);
+  let published = 0;
+  let reads = 0;
+  await page.route('**/api/progress/summary*', (route) => {
+    reads += 1;
+    const coverage = {
+      everPublishedWorks: {
+        basis: 'confirmed_publication_revisions',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+      currentLikes: {
+        basis: 'current_publication_likes',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+      createdCopies: {
+        basis: 'durable_publication_copy_receipts',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+      activePublicWorks: {
+        basis: 'current_catalog_visibility',
+        completeness: 'complete',
+        knownSince: null,
+        limitations: [],
+      },
+    };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        scope: { kind: 'account', accountId: person.id },
+        asOf: '2026-11-16T12:00:00Z',
+        availability: 'available',
+        metrics: {
+          everPublishedWorks: { availability: 'available', value: published },
+          currentLikes: { availability: 'available', value: 0 },
+          createdCopies: { availability: 'available', value: 0 },
+          activePublicWorks: { availability: 'available', value: published },
+        },
+        coverage,
+        personalRating: { availability: 'not_enabled', value: null },
+        groups: { availability: 'available', items: [], hasMore: false, nextCursor: null },
+      }),
+    });
+  });
+  await page.goto('/#/home');
+  const publicationCount = page.getByTestId('profile-full-everPublishedWorks').locator('span');
+  await expect(publicationCount).toHaveText('0');
+  const before = reads;
+  published = 2;
+  await openPortalSection(page, 'Мои проекты');
+  await openPortalSection(page, 'Главная');
+  await expect(publicationCount).toHaveText('2');
+  expect(reads).toBeGreaterThan(before);
+  await expect(page.getByTestId('personal-progress')).toHaveCount(0);
+});
+
+for (const identity of ['account', 'seat'] as const) {
+  test(
+    'P0 mobile drawer avatar geometry and profile metric details (' + identity + ')',
+    async ({ page }) => {
+      await fixture(page, identity, 0);
+      await page.setViewportSize({ width: 320, height: 900 });
+      await page.goto('/#/learning');
+      await page.locator('.portal-menu-toggle').click();
+      const sidebar = page.locator('#portal-sidebar');
+      await expect(sidebar).toHaveClass(/mobile-open/);
+      const avatar = sidebar.locator('.portal-sidebar-avatar');
+      const bounds = await avatar.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return { width: box.width, height: box.height };
+      });
+      expect(bounds.width).toBeGreaterThanOrEqual(40);
+      expect(bounds.width).toBeLessThanOrEqual(100);
+      expect(Math.abs(bounds.width - bounds.height)).toBeLessThanOrEqual(1);
+      const metrics = sidebar.getByTestId('profile-metric-strip');
+      await expect(metrics).toBeAttached();
+      await metrics.locator('summary').click();
+      await expect(metrics.locator('.portal-sidebar-metric-details')).toBeVisible();
+      await expect(metrics.getByTestId('profile-full-everPublishedWorks')).toContainText('0');
+      const boundary = await sidebar.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return { left: box.left, right: box.right, viewport: innerWidth };
+      });
+      expect(boundary.left).toBeGreaterThanOrEqual(-1);
+      expect(boundary.right).toBeLessThanOrEqual(boundary.viewport + 1);
+      await page.screenshot({
+        path: evidence + '/p0-mobile-sidebar-' + identity + '-320.png',
+        fullPage: true,
+      });
+      await sidebar.locator('.portal-menu-close').click();
+      await expect(sidebar).not.toHaveClass(/mobile-open/);
+    },
+  );
+}
