@@ -242,7 +242,7 @@ jobs:
         if: matrix.browser_case.label == 'arduino-gpio-4view'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
-          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA test-runner
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
           pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --workers=1
 
       - name: Show isolated stack state
