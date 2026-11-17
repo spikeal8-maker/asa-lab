@@ -65,7 +65,12 @@ test('repeated alternations must be prefix-free and syntactically literal', () =
     { pattern: '+(ab|ABAB)', options: { nocase: true }, input: 'ab'.repeat(36) + '!' },
     { pattern: '+(a|A)', options: { nocase: true }, input: 'a'.repeat(36) + '!' },
     { pattern: '+(ab|ABAB)', options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' }
+    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' },
+    { pattern: '+(ab|ABAB)', options: { nocase: 1 }, input: 'ab'.repeat(16) + '!' },
+    { pattern: '+(a|A)', options: { nocase: 'true' }, input: 'a'.repeat(16) + '!' },
+    { pattern: '+(a|A)', options: { flags: ['i'] }, input: 'a'.repeat(16) + '!' },
+    { pattern: String.raw`+(\w|a)`, input: 'a'.repeat(16) + '!' },
+    { pattern: String.raw`+(\x61|a)`, input: 'a'.repeat(16) + '!' }
   ]) {
     assert.equal(pm(pattern, options)(input), false, pattern);
     assert.equal(pm.makeRe(pattern, options).test(input), false, pattern);
@@ -103,7 +108,12 @@ test('dangerous repeated extglobs do not block the Node event loop', async () =>
     { pattern: '+(ab|ABAB)', options: { nocase: true }, input: 'ab'.repeat(36) + '!' },
     { pattern: '+(a|A)', options: { nocase: true }, input: 'a'.repeat(36) + '!' },
     { pattern: '+(ab|ABAB)', options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' }
+    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' },
+    { pattern: '+(ab|ABAB)', options: { nocase: 1 }, input: 'ab'.repeat(36) + '!' },
+    { pattern: '+(a|A)', options: { nocase: 'true' }, input: 'a'.repeat(36) + '!' },
+    { pattern: '+(a|A)', options: { flags: ['i'] }, input: 'a'.repeat(36) + '!' },
+    { pattern: String.raw`+(\w|a)`, options: {}, input: 'a'.repeat(36) + '!' },
+    { pattern: String.raw`+(\x61|a)`, options: {}, input: 'a'.repeat(36) + '!' }
   ];
   // The test invokes only bounded strings and uses an external kill timeout
   // so that a regression cannot hang CI indefinitely.

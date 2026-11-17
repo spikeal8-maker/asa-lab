@@ -347,6 +347,12 @@ const analyzeRepeatedExtglob = (body, options) => {
   // alternatives (Unicode letters/numbers and a few safe filename marks).
   // Safe nested-star character-class rewrites were handled above.
   if (branches.length > 1) {
+    // The upstream regex parser can preserve escapes such as \w and \x61;
+    // normalizing them to w / x61 would falsely prove prefix-free branches.
+    // Reject all escaped alternatives rather than guessing regex semantics.
+    if (branches.some(branch => branch.includes('\\'))) {
+      return { risky: true };
+    }
     const literals = branches.map(normalizeSimpleBranch);
     if (literals.some(value => typeof value !== 'string' ||
         !/^[\p{L}\p{N}._-]+$/u.test(value))) {
@@ -354,8 +360,15 @@ const analyzeRepeatedExtglob = (body, options) => {
     }
     // Regex /i folds alternative branches regardless of their spelling.
     // For non-ASCII names Unicode folding is too subtle to infer safely.
-    const ignoreCase = options.nocase === true ||
-      (typeof options.flags === 'string' && options.flags.includes('i'));
+    // Mirror picomatch.toRegex: it uses flags || (nocase ? 'i' : '').
+    // Truthy non-boolean nocase also enables /i. Unsupported flag objects
+    // (including ['i']) must not be treated as case-sensitive literals.
+    const effectiveFlags = options.flags || (options.nocase ? 'i' : '');
+    if (effectiveFlags && typeof effectiveFlags !== 'string') {
+      return { risky: true };
+    }
+    const ignoreCase = typeof effectiveFlags === 'string' &&
+      effectiveFlags.includes('i');
     if (ignoreCase && literals.some(value => /[^\x00-\x7F]/.test(value))) {
       return { risky: true };
     }
