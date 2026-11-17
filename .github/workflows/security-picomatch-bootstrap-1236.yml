@@ -1,0 +1,57 @@
+name: Security picomatch 1236 one-shot feature lockfile bootstrap
+"on":
+  push:
+    branches:
+      - security/picomatch-redos-1236-20261117
+
+permissions:
+  contents: write
+
+concurrency:
+  group: picomatch-1236-lockfile-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lockfile:
+    if: github.repository == 'spikeal8-maker/asa-lab'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Generate lockfile using canonical pnpm resolver
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.ref }}" = 'refs/heads/security/picomatch-redos-1236-20261117'
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile
+          grep -F 'picomatch: link:packages/picomatch-safe' pnpm-lock.yaml
+          if grep -Eq '^[[:space:]]{2}picomatch@4\\.0\\.[0-7]:' pnpm-lock.yaml; then
+            echo 'SECURITY STOP: registry picomatch still in lockfile'
+            exit 1
+          fi
+          git diff --check
+          git add -- pnpm-lock.yaml
+          test "$(git diff --cached --name-only)" = 'pnpm-lock.yaml'
+          git -c user.name='asa-security-lockfile-bot' -c user.email='asa-security-lockfile-bot@users.noreply.github.com' commit -m 'chore(security): regenerate pnpm lock with audited local picomatch replacement #1236'
+          git push origin HEAD:refs/heads/security/picomatch-redos-1236-20261117
+
+      - name: Verify frozen dependency resolution
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Test picomatch public API and bounded security regression
+        run: node --test packages/picomatch-safe/test.cjs
+
+      - name: Audit every installed transitive dependency without waivers
+        run: pnpm security:dependencies
