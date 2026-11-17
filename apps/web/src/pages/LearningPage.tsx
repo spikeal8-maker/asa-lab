@@ -202,7 +202,9 @@ function LearningWorkspace({
       }}
     >
       {(overviewEmpty && !seat && tab === 'overview'
-        ? sections.filter(([id]) => id === 'overview' || id === 'self')
+        ? sections.filter(
+            ([id]) => id === 'overview' || id === 'courses' || id === 'classes' || id === 'self',
+          )
         : sections
       ).map(([id, title]) => (
         <a key={id} href={sectionHref(id)} aria-current={tab === id ? 'page' : undefined}>
