@@ -1744,7 +1744,7 @@ test('owner UX real empty Account keeps project entry and shares controlled prog
     expect(
       publicationAttempts.filter((entry) => entry.path === '/api/account/avatar'),
     ).toHaveLength(1);
-    await publication.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await publication.locator('.project-properties-close').click();
     await page.screenshot({
       path: `${shellCaptureDir}/owner-ux-publication-metrics-refresh.png`,
       fullPage: true,
