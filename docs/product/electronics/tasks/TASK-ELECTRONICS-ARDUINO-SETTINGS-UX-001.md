@@ -27,6 +27,9 @@ This is a **presentation-only slice**. Do not change `generateArduinoCode`, `ard
 
 - `apps/web/src/electronics/ArduinoCodePanel.tsx`
 - `e2e/electronics-block-pin-setup.spec.ts`
+- `apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts` (existing unit regression tests only; adapt old settings-menu expectations and retain GPIO, Undo/Redo, source-text, and Save/Reload coverage)
+
+The third path is a bounded necessary test update for the existing UI expectations affected by this slice, not authorization to change the Arduino interpreter, generated code or runtime behavior. The implementation candidate already exists at `1ae0d5682cbae4d594e58c7c60586ffc90b94a7e`; preserve that commit and qualify it after the updated plan is accepted in `main`.
 
 Existing E2E settings helper, native dialog/hit tests, and source-only `text-board` fixture must reflect the new label. Add checks that the text-mode menu has no inert control while stored `arduinoInputPins` and hand-written C++ survive a round trip. Preserve existing strict generated-source, Blockly geometry, keyboard, Save/Reload, Undo/Redo and electrical test assertions.
 
