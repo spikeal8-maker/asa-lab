@@ -85,9 +85,15 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-l298n-p0-1199
     owned_paths:
-      - apps/web/src/electronics/WorkbenchStage.tsx
-      - apps/web/src/electronics/testing/l298n-top-wires.spec.ts
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0B-001.md
+      - contexts/electronics/domain/model-identity.ts
+      - contexts/electronics/domain/model-registry.ts
+      - contexts/electronics/domain/models/l298n-dc-model.ts
+      - contexts/electronics/domain/models/l298n-driven-inputs.ts
+      - contexts/electronics/testing/l298n-dc-model.spec.ts
+      - contexts/electronics/testing/l298n-integrated-solver.spec.ts
+      - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+      - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
     accepted_slices:
       - task_id: TASK-ELECTRONICS-L298N-P0-001
         issue: 1199
@@ -96,46 +102,102 @@ parallel_lanes:
         source_status: merged
         owner_acceptance: pending
         post_merge_general_run: 43907204634
+      - task_id: TASK-ELECTRONICS-L298N-P0B-001
+        issue: 1199
+        candidate_sha: 0cd469a9530a94cca2e0434f1aa5ff277ba33356
+        integrated_main_sha: df78069c44271609615707b6e38767f276188c4b
+        source_status: merged_postmerge_general_success
+        owner_acceptance: pending
+        post_merge_general_run: 43928812420
+        post_merge_required_conclusion: success
+        strict_r4_run: 43922911118
+        strict_r4_conclusion: failure_existing_arduino_baseline_not_waived
     task:
-      id: TASK-ELECTRONICS-L298N-P0B-001
+      id: TASK-ELECTRONICS-L298N-P1-001
       issue: 1199
       programme_issue: 1199
       branch: main
       base_branch: main
       pr: null
-      pr_draft: false
+      pr_draft: true
       status: in_progress
       kind: implementation
-      risk: medium
-      semantic_change: 'no'
-      checkpoint: p0a_main_source_merged_p0b_wiring_selection_pending
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: p1_activation_requires_selection_and_shared_solver_handoff
       owner_acceptance: pending
       owner_authorization: >-
-        Owner explicitly directed continuation of the existing L298N programme
-        on 2026-11-16. The selected P0B slice is limited to the existing
-        WorkbenchStage top-wire change and dedicated geometry/hit-target tests;
-        no P1/P2/P3 domain, UI activation or deployment is authorized here.
+        Owner directed complete, quality-gated L298N implementation through
+        existing branches to main on 2026-11-16, without bypassing checks,
+        independent review, source restrictions or deployment rules.
+        P1 is the bounded domain-model step; P2 UI and P3 acceptance remain
+        separate steps, not authorized for simultaneous product edits.
+      activation_condition: >-
+        This proposed P1 selection becomes executable only after this
+        current.yaml change is integrated into accepted main, P0B exact
+        post-merge General run 43928812420 is verified SUCCESS, and
+        renewed P1 scoped preflight and physical worktree overlap checks
+        prove a safe one-task handoff. The preparation branch cannot select
+        itself or approve simultaneous solver writers.
       scope: >-
-        Resume existing Draft PR #1206 only after P0A main CI has been checked.
-        Render the L298N body below wires, preserve terminal hit targets above
-        wires, and verify rotations, mirrors and unaffected component layers.
-        This is a change of active task in the same unique #1199 lane, not a
-        duplicate parallel lane. The completed electronics-field #679 lane
-        hands off only WorkbenchStage.tsx ownership; its history is preserved.
+        Resume the existing stacked PR #1209 rather than writing a second
+        solver. Integrate two deterministic H-bridges into the established
+        electrical matrix, with correct power domains, 78M05 approximation,
+        genuine Arduino logic and fail-closed floating inputs, current
+        limits, signed motor observations, and regression proofs.
+      existing_candidate_pr: 1209
+      existing_candidate_head_at_selection: d1327be437f22114b0053a00a8e398d564ed7b15
+      planned_paths:
+        - contexts/electronics/domain/model-identity.ts
+        - contexts/electronics/domain/model-registry.ts
+        - contexts/electronics/domain/models/l298n-dc-model.ts
+        - contexts/electronics/domain/models/l298n-driven-inputs.ts
+        - contexts/electronics/domain/solver.ts
+        - contexts/electronics/testing/l298n-dc-model.spec.ts
+        - contexts/electronics/testing/l298n-integrated-solver.spec.ts
+        - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+        - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
+        - docs/product/electronics/generated/component-coverage.json
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
+      shared_path_coordination:
+        status: blocked_pending_exact_handoff
+        paths:
+          - contexts/electronics/domain/solver.ts
+          - docs/product/electronics/generated/component-coverage.json
+        existing_owners:
+          - electronics-core-fet
+          - electronics-reverse-led-colour
+        additional_dirty_peer: feature/electronics-l298n-p3-qualification-1199
+        preservation: >-
+          Historical ownership and all peer worktree source remain untouched.
+          Do not overwrite, reset, stash, force-push or silently copy the
+          uncommitted P3 solver/high-Z changes. Use an independently reviewed
+          single-source composition and verify planned file hashes before edits.
+        unblocks_on: >-
+          Exact accepted-main file/path handoff and isolated preflight,
+          followed by a new independent HIGH-RISK source review and complete
+          applicable exact-head gates.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0B-001.md
-        - docs/product/electronics/components/ui-assets-persistence.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
       next_action: >-
-        Verify exact main post-merge General #43907204634 and P0B scoped
-        preflight, inspect the existing #1206 diff, run focused/source gates,
-        obtain required review and integrate only accepted P0B source.
-        P1/P2/P3 remain unselected Draft candidates.
+        After P0B post-merge SUCCESS and P1 task selection in main, validate
+        the two shared-path handoffs and no active dirty competing writer.
+        Then inspect/fix existing P1 domain source against the real
+        physical_advance_failed reproduction and high-Z negative cases,
+        independently review the final SHA and run scoped/General CI.
+        No P1 merge or P2/P3 activation before that evidence.
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Electronics R4-M1 Focused
         commands:
-          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-L298N-P0B-001
-          - pnpm gate:governance
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-L298N-P1-001
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -144,14 +206,15 @@ parallel_lanes:
       kind: observed_snapshot
       main:
         branch: main
-        sha: 8c23c86fb7df9ff0ddc5627ced2487c52f5a5346
-      convergence_baseline_sha: 8c23c86fb7df9ff0ddc5627ced2487c52f5a5346
+        sha: df78069c44271609615707b6e38767f276188c4b
+      convergence_baseline_sha: df78069c44271609615707b6e38767f276188c4b
       head_sha: null
-      observed_at: '2026-11-16T16:24:46Z'
+      observed_at: '2026-11-16T18:39:59Z'
       observation_note: >-
-        Owner-directed P0B continuation after source-only P0A merge.
-        Require fresh fetch main, verify exact main CI, single-lane scope
-        and active-peer worktrees before product writes or any acceptance.
+        Proposed P1 task handoff after source-only P0B merge; exact P0B
+        post-merge General 43928812420/ASA required SUCCESS. Full P1 runtime/owner acceptance
+        remains pending; require fresh fetch main and exact remote heads,
+        checked CI conclusions and peer worktree status before any writes.
   - id: electronics-recovery-hygiene
     parent_lane: electronics
     worktree_id: electronics-recovery-hygiene-1111
