@@ -88,7 +88,7 @@ parallel_lanes:
       - contexts/electronics/domain/model-identity.ts
       - contexts/electronics/domain/model-registry.ts
       - contexts/electronics/domain/models/l298n-dc-model.ts
-      - contexts/electronics/domain/models/l298n-driven-inputs.ts
+      - contexts/electronics/domain/models/l298n-input-network.ts
       - contexts/electronics/testing/l298n-dc-model.spec.ts
       - contexts/electronics/testing/l298n-integrated-solver.spec.ts
       - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
@@ -151,7 +151,7 @@ parallel_lanes:
         - contexts/electronics/domain/model-identity.ts
         - contexts/electronics/domain/model-registry.ts
         - contexts/electronics/domain/models/l298n-dc-model.ts
-        - contexts/electronics/domain/models/l298n-driven-inputs.ts
+        - contexts/electronics/domain/models/l298n-input-network.ts
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/testing/l298n-dc-model.spec.ts
         - contexts/electronics/testing/l298n-integrated-solver.spec.ts
@@ -166,9 +166,12 @@ parallel_lanes:
         approval_basis: >-
           Owner explicitly directed safe completion of the existing L298N
           programme on 2026-11-17, including exact coordination and preservation
-          of the P3 uncommitted source. This grants only two-file isolated P1
-          development at the exact recorded peer identity and SHA-256, not
-          modification of P3, release, owner acceptance or protected merge.
+          of the P3 uncommitted source. This coordinates the two existing
+          overlapping P1 files at the exact recorded peer identity and SHA-256.
+          The separately planned l298n-input-network.ts path is the single
+          canonical P1 input resolver; the P3 untracked helper remains read-only.
+          This does not grant modification of P3, release, owner acceptance
+          or protected merge.
         author:
           worktree: C:/Users/spike/asa-l298n-p1-20261116
           branch: feature/electronics-l298n-p1-domain-1199

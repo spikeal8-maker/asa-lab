@@ -33,7 +33,7 @@ review: independent
 - `contexts/electronics/domain/model-identity.ts`
 - `contexts/electronics/domain/model-registry.ts`
 - `contexts/electronics/domain/models/l298n-dc-model.ts`
-- `contexts/electronics/domain/models/l298n-driven-inputs.ts` — восстановить только отдельно проверенное определение активного входа/временно высокоимпедансного Arduino, сохранив точный provenance существующего P3 WIP.
+- `contexts/electronics/domain/models/l298n-input-network.ts` — единственный принимаемый P1 модуль определения активных входов и временно высокоимпедансного Arduino. Новый непересекающийся путь позволяет сохранить `l298n-driven-inputs.ts` из P3 побайтово и только для чтения. Использовать его проверенный алгоритм как явно указанный исходный материал, а не копировать незавершённый файл без анализа. После принятого P1 последующий срез P3 должен использовать этот канонический модуль, не поддерживать две реализации.
 - `contexts/electronics/domain/solver.ts`
 - `contexts/electronics/testing/l298n-dc-model.spec.ts`
 - `contexts/electronics/testing/l298n-integrated-solver.spec.ts`
