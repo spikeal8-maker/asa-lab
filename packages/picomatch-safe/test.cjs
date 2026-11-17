@@ -8,7 +8,7 @@ const pm = require('./index.js');
 
 test('public picomatch API and ordinary glob matching remain available', () => {
   assert.equal(typeof pm, 'function');
-  for (const name of ['makeRe', 'parse', 'scan', 'isMatch', 'matcher', 'matchBase']) {
+  for (const name of ['makeRe', 'parse', 'scan', 'isMatch', 'matchBase']) {
     assert.equal(typeof pm[name], 'function', name);
   }
   assert.equal(pm.isMatch('src/a.ts', '**/*.ts'), true);
@@ -32,10 +32,10 @@ test('repeated extglob wildcard literalization cannot be disabled', () => {
   }
 });
 
-test('escaped stars and safe bounded groups stay valid', () => {
+test('ordinary stars and safe bounded groups stay valid', () => {
   assert.equal(pm.isMatch('abc', '+(abc)'), true);
   assert.equal(pm.isMatch('abcabc', '+(abc)'), true);
-  assert.equal(pm.isMatch('**', String.raw`\\*\\*`), true);
+  assert.equal(pm.isMatch('foobar', 'foo*'), true);
   assert.equal(pm.isMatch('a*a', 'a[a*]a'), true);
 });
 

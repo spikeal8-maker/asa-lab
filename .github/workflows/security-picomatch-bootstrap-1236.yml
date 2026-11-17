@@ -36,16 +36,24 @@ jobs:
           test "${{ github.ref }}" = 'refs/heads/security/picomatch-redos-1236-20261117'
           test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           pnpm install --lockfile-only --ignore-scripts --no-frozen-lockfile
-          grep -F 'picomatch: link:packages/picomatch-safe' pnpm-lock.yaml
-          if grep -Eq '^[[:space:]]{2}picomatch@4\\.0\\.[0-7]:' pnpm-lock.yaml; then
+          grep -F 'picomatch: workspace:@asa-lab/picomatch-safe@*' pnpm-lock.yaml
+          if grep -Fq '/home/runner/' pnpm-lock.yaml; then
+            echo 'SECURITY STOP: nonportable absolute lockfile path'
+            exit 1
+          fi
+          if grep -Eq 'picomatch@4[.]0[.][0-7]:' pnpm-lock.yaml; then
             echo 'SECURITY STOP: registry picomatch still in lockfile'
             exit 1
           fi
           git diff --check
           git add -- pnpm-lock.yaml
-          test "$(git diff --cached --name-only)" = 'pnpm-lock.yaml'
-          git -c user.name='asa-security-lockfile-bot' -c user.email='asa-security-lockfile-bot@users.noreply.github.com' commit -m 'chore(security): regenerate pnpm lock with audited local picomatch replacement #1236'
-          git push origin HEAD:refs/heads/security/picomatch-redos-1236-20261117
+          if ! git diff --cached --quiet; then
+            test "$(git diff --cached --name-only)" = 'pnpm-lock.yaml'
+            git -c user.name='asa-security-lockfile-bot' -c user.email='asa-security-lockfile-bot@users.noreply.github.com' commit -m 'chore(security): regenerate pnpm lock with audited local picomatch replacement #1236'
+            git push origin HEAD:refs/heads/security/picomatch-redos-1236-20261117
+          else
+            echo 'Lockfile already canonical'
+          fi
 
       - name: Verify frozen dependency resolution
         run: pnpm install --frozen-lockfile --ignore-scripts
