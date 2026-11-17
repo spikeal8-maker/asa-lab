@@ -1649,27 +1649,94 @@ test('owner UX real empty Account keeps project entry and shares controlled prog
       );
       await zoom.page.goto('/#/home');
       await expect(zoom.page.locator('.home-module-empty:not([role])')).toHaveCount(4);
-      const before = await zoom.page.evaluate(() => innerWidth);
+      const geometry = () =>
+        zoom.page.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight,
+          outerWidth,
+          ratio: devicePixelRatio,
+          visualScale: visualViewport?.scale,
+          cssZoom: getComputedStyle(document.documentElement).zoom,
+          scrollWidth: document.documentElement.scrollWidth,
+        }));
+      const before = await geometry();
+      expect(before.width).toBe(1440);
       const applied = await zoom.setZoom(2);
-      expect(applied.factor).toBe(2);
-      await expect.poll(() => zoom.page.evaluate(() => innerWidth)).toBeLessThan(before);
+      expect(applied).toMatchObject({
+        factor: 2,
+        settings: { mode: 'automatic', scope: 'per-tab' },
+      });
+      await expect.poll(() => zoom.page.evaluate(() => innerWidth)).toBeLessThan(before.width);
+      const after = await geometry();
+      expect(before.width / after.width).toBeCloseTo(2, 1);
+      expect(after.ratio / before.ratio).toBe(2);
+      expect(after.outerWidth).toBe(before.outerWidth);
+      expect(after.cssZoom).toBe('1');
+      expect(after.visualScale).toBe(1);
       await expect(zoom.page.locator('.access-personal-start')).toHaveCount(0);
       await noOverflow(zoom.page);
-      const cdp = await zoom.page.context().newCDPSession(zoom.page);
-      const shot = await cdp.send('Page.captureScreenshot', {
-        format: 'png',
-        captureBeyondViewport: true,
+      const buttons = zoom.page.locator('.home-create-button');
+      await expect(buttons).toHaveCount(4);
+      const controls = [];
+      for (let index = 0; index < 4; index++) {
+        const button = buttons.nth(index);
+        await expect(button).toBeEnabled();
+        await button.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+        // Trial performs the real visibility, hit-target and enabled checks without creating a project.
+        await button.click({ trial: true });
+        const bounds = await button.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            module: element.closest('[data-module]')?.getAttribute('data-module'),
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            headerBottom:
+              document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0,
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+          };
+        });
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(bounds.viewportWidth + 1);
+        expect(bounds.y).toBeGreaterThanOrEqual(Math.max(0, bounds.headerBottom));
+        expect(bounds.y + bounds.height).toBeLessThanOrEqual(bounds.viewportHeight + 1);
+        controls.push(bounds);
+      }
+      await zoom.page.evaluate(async () => {
+        window.scrollTo(0, 0);
+        await document.fonts.ready;
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
       });
-      writeFileSync(
-        `${shellCaptureDir}/owner-ux-empty-home-native-200.png`,
-        Buffer.from(shot.data, 'base64'),
-      );
+      const cdp = await zoom.page.context().newCDPSession(zoom.page);
+      let png: Buffer;
+      try {
+        // CSS-sized full-page captures crop a natively zoomed window; capture its actual viewport.
+        const shot = await cdp.send('Page.captureScreenshot', {
+          format: 'png',
+          fromSurface: true,
+          captureBeyondViewport: false,
+        });
+        png = Buffer.from(shot.data, 'base64');
+      } finally {
+        await cdp.detach();
+      }
+      writeFileSync(`${shellCaptureDir}/owner-ux-empty-home-native-200.png`, png);
+      expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+      const pixels = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+      expect(pixels.width).toBe(1440);
+      expect(pixels.width).toBe(Math.round(after.width * after.ratio));
+      expect(Math.abs(pixels.height - after.height * after.ratio)).toBeLessThan(after.ratio);
       runs.push({
         scenario: 'native_browser_zoom',
         factor: applied.factor,
-        beforeWidth: before,
-        afterWidth: await zoom.page.evaluate(() => innerWidth),
-        cssZoom: await zoom.page.evaluate(() => getComputedStyle(document.documentElement).zoom),
+        before,
+        after,
+        pixels,
+        controls,
       });
       persist();
     } catch (error) {
