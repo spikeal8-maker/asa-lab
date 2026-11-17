@@ -160,23 +160,51 @@ parallel_lanes:
         - docs/product/electronics/generated/component-coverage.json
         - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
       shared_path_coordination:
-        status: blocked_pending_exact_handoff
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        approval_basis: >-
+          Owner explicitly directed safe completion of the existing L298N
+          programme on 2026-11-17, including exact coordination and preservation
+          of the P3 uncommitted source. This grants only two-file isolated P1
+          development at the exact recorded peer identity and SHA-256, not
+          modification of P3, release, owner acceptance or protected merge.
+        author:
+          worktree: C:/Users/spike/asa-l298n-p1-20261116
+          branch: feature/electronics-l298n-p1-domain-1199
+        peer:
+          worktree: C:/Users/spike/asa-l298n-p3-20261116
+          branch: feature/electronics-l298n-p3-qualification-1199
+          head: 6ae5b38c1c13b6eee40020c0bc67c14359dd1210
+          path_sha256:
+            contexts/electronics/domain/solver.ts: 0b93ddf846babcd896aa948f9ada1a093729880f5e0023b3f2deccd081d2023c
+            contexts/electronics/testing/l298n-integrated-solver.spec.ts: 42361a29af73ee2078f23157e122d2d311cbc5c35417c13978831667e86a37a1
         paths:
           - contexts/electronics/domain/solver.ts
-          - docs/product/electronics/generated/component-coverage.json
+          - contexts/electronics/testing/l298n-integrated-solver.spec.ts
         existing_owners:
           - electronics-core-fet
           - electronics-reverse-led-colour
+        historical_shared_path_advisory:
+          - docs/product/electronics/generated/component-coverage.json
         additional_dirty_peer: feature/electronics-l298n-p3-qualification-1199
+        unapproved_new_peer_path:
+          path: contexts/electronics/domain/models/l298n-driven-inputs.ts
+          sha256: 27cedf5e924ec1039fccc8d890844ff845b1885dd4442a1663bac7ad3b1ecc08
+          status: read_only_provenance_no_new_file_write
         preservation: >-
-          Historical ownership and all peer worktree source remain untouched.
-          Do not overwrite, reset, stash, force-push or silently copy the
-          uncommitted P3 solver/high-Z changes. Use an independently reviewed
-          single-source composition and verify planned file hashes before edits.
-        unblocks_on: >-
-          Exact accepted-main file/path handoff and isolated preflight,
-          followed by a new independent HIGH-RISK source review and complete
-          applicable exact-head gates.
+          The peer's four uncommitted files, including its browser fixture and
+          new high-Z helper, remain intact. Author may read them only.
+          No stash, reset, peer checkout modification, force push or automatic
+          cherry-pick. Revalidate peer HEAD/hash and physical isolation
+          before every P1 write; changed identity revokes this consent.
+        acceptance_boundary: >-
+          P1 must first converge non-destructively to accepted main, then
+          obtain scoped SAFE_TO_START for exact planned existing files.
+          Unknown/untracked helper cannot be created at the same repository
+          path under this consent. This approval is not merge evidence:
+          require numerical/golden regression, real Worker, independent
+          exact-SHA HIGH-RISK review and strict applicable GitHub checks.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
         - docs/product/electronics/components/engine-worker-clock.yaml
