@@ -407,6 +407,34 @@ async function boardIsolation(page: Page, info: TestInfo) {
   // Tapping outside the mode menu must dismiss its overlay on narrow screens.
   await activate(blockWorkspace.locator('g.blocklyZoomReset'));
   await expect(page.locator('.arduino-mode-menu')).not.toHaveAttribute('open', '');
+  if (page.viewportSize()?.width === 320) {
+    // The 320px workspace needs native zoom and pan: the fixed category bar
+    // can cover an editable field. Keep saved block coordinates exact.
+    for (let i = 0; i < 4; i++) {
+      await activate(blockWorkspace.locator('g.blocklyZoomOut'));
+    }
+    // A 320px viewport leaves a narrow canvas beside the fixed Blockly
+    // categories. Pan the native workspace, not the saved blocks, until the
+    // real editable field can receive a touch at its centre.
+    const host = await blockWorkspace.boundingBox();
+    if (!host) throw new Error('Blockly canvas is not visible');
+    const canHitField = () =>
+      edited.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return element.contains(
+          document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2),
+        );
+      });
+    for (let attempt = 0; attempt < 3 && !(await canHitField()); attempt++) {
+      const y = host.y + host.height - 42;
+      await page.mouse.move(host.x + host.width - 55, y);
+      await page.mouse.down();
+      await page.mouse.move(host.x + host.width - 8, y, { steps: 8 });
+      await page.mouse.up();
+    }
+    // The following hit-test and programGeometry assertion verify that this
+    // user gesture exposes the field without moving any stored block.
+  }
   await expect
     .poll(() =>
       edited.evaluate((element) => {
@@ -478,7 +506,10 @@ async function boardIsolation(page: Page, info: TestInfo) {
   ).toHaveCount(0);
   await activate(textModeMenu.getByRole('button', { name: 'Блоки', exact: true }));
   const confirmation = page.getByRole('dialog', { name: 'Продолжить?', exact: true });
-  await expect(confirmation).toContainText('Текст не преобразуется в блоки');
+  // An explicitly stored empty workspace is preserved (Issue #865); unlike
+  // an absent workspace, it must not trigger starter-block replacement.
+  await expect(confirmation).toContainText('Текущий текстовый код сохранится до изменения блоков.');
+  await expect(confirmation).not.toContainText('будет заменён стартовым примером');
   await activate(confirmation.getByRole('button', { name: 'Отмена', exact: true }));
   await expect(editor).toHaveValue(text);
 
