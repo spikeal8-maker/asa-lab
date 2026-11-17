@@ -200,11 +200,20 @@ const shellCaptureWidths = [1440, 1024, 390, 320] as const;
 type ShellActor = 'account' | 'seat';
 type ShellSurface = 'home' | 'learning';
 type ShellRead = { path: string; module: string | null; status: number | null; failed: boolean };
+type ShellAttempt = ShellRead & {
+  attempt: number;
+  requestedAtMs: number;
+  finishedAtMs: number | null;
+  completed: boolean;
+  failureText: string | null;
+};
 
 function observeShellReads(page: Page, origin: string) {
   const pending = new Set<Request>();
-  const entries = new Map<Request, ShellRead>();
+  const entries = new Map<Request, ShellAttempt>();
   let lastChange = Date.now();
+  let started = performance.now();
+  let attempt = 0;
   const requested = (request: Request) => {
     const url = new URL(request.url());
     if (
@@ -216,10 +225,15 @@ function observeShellReads(page: Page, origin: string) {
       return;
     pending.add(request);
     entries.set(request, {
+      attempt: ++attempt,
       path: url.pathname,
       module: url.searchParams.get('module'),
       status: null,
       failed: false,
+      requestedAtMs: performance.now() - started,
+      finishedAtMs: null,
+      completed: false,
+      failureText: null,
     });
     lastChange = Date.now();
   };
@@ -228,11 +242,19 @@ function observeShellReads(page: Page, origin: string) {
     if (entry) entry.status = response.status();
   };
   const finished = (request: Request) => {
+    const entry = entries.get(request);
+    if (entry) {
+      entry.completed = true;
+      entry.finishedAtMs = performance.now() - started;
+    }
     if (pending.delete(request)) lastChange = Date.now();
   };
   const failed = (request: Request) => {
     const entry = entries.get(request);
-    if (entry) entry.failed = true;
+    if (entry) {
+      entry.failed = true;
+      entry.failureText = request.failure()?.errorText ?? 'unknown request failure';
+    }
     finished(request);
   };
   page.on('request', requested);
@@ -244,9 +266,31 @@ function observeShellReads(page: Page, origin: string) {
       pending.clear();
       entries.clear();
       lastChange = Date.now();
+      started = performance.now();
+      attempt = 0;
     },
     settled: () => pending.size === 0 && Date.now() - lastChange >= 250,
-    snapshot: () => [...entries.values()].map((entry) => ({ ...entry })),
+    snapshot: () =>
+      [...entries.values()].map(({ path, module, status, failed }) => ({
+        path,
+        module,
+        status,
+        failed,
+      })),
+    attempts: () =>
+      [...entries.values()].map((entry) => ({
+        ...entry,
+        outcome:
+          entry.failed && /ABORT|CANCEL/i.test(entry.failureText ?? '')
+            ? 'cancelled'
+            : entry.failed || (entry.status !== null && entry.status >= 400)
+              ? 'error'
+              : !entry.completed
+                ? 'pending'
+                : entry.status !== null && entry.status >= 200 && entry.status < 300
+                  ? 'successful'
+                  : 'other',
+      })),
     dispose: () => {
       page.off('request', requested);
       page.off('response', responded);
@@ -753,4 +797,416 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
     for (const observer of observers) observer.dispose();
     for (const context of contexts.reverse()) await context.close();
   }
+});
+
+/** Diagnostic evidence only. The same test runs against unchanged and repaired
+ * production builds; strict regression assertions live in the shell test. */
+test('owner UX cold Home resource evidence: three fresh contexts with the real API', async ({
+  browser,
+  request,
+  baseURL,
+}) => {
+  test.setTimeout(120_000);
+  const target = new URL(baseURL!);
+  if (
+    ['4610', '4620'].includes(target.port) ||
+    !process.env['APP_TEST_DATABASE_URL'] ||
+    !new URL(process.env['APP_TEST_DATABASE_URL']!).pathname.endsWith('_test')
+  )
+    throw new Error('Isolated test runtime required');
+  const origin = target.origin;
+  const revision = process.env['ASA_BUILD_REVISION'];
+  expect(revision).toMatch(/^[0-9a-f]{40}$/);
+  const metadataBytes = readFileSync('apps/web/dist/build-metadata.json');
+  const metadata = JSON.parse(metadataBytes.toString('utf8')) as { revision: string };
+  expect(metadata.revision).toBe(revision);
+  const served = await request.get('/build-metadata.json');
+  expect(served.status()).toBe(200);
+  const servedBytes = await served.body();
+  const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+  expect(hash(servedBytes)).toBe(hash(metadataBytes));
+  const fixtureId = randomUUID().replaceAll('-', '');
+  const registered = await registerAccountSetup(
+    request,
+    {
+      headers: { origin },
+      data: {
+        email: `cold-${fixtureId}@admission.test`,
+        username: `cold_${fixtureId.slice(0, 20)}`,
+        displayName: 'Проверка начальной загрузки',
+        password: `Cold-${fixtureId}-Password`,
+        birthDate: '1990-04-12',
+        country: 'RU',
+      },
+    },
+    test.info(),
+  );
+  expect(registered.status(), await registered.text()).toBe(201);
+  // Make all three runs read-only; the first document must not be the one that
+  // sets an otherwise missing timezone and changes the next two runs' fixture.
+  const timezone = await request.put('/api/account/time-zone', {
+    headers: { origin },
+    data: { timeZone: 'Europe/Moscow', onlyIfUnset: true },
+  });
+  expect(timezone.status()).toBe(200);
+  const initial = await request.get('/api/progress/summary');
+  expect(initial.status()).toBe(200);
+  const initialSummary = await initial.json();
+  expect(initialSummary).toMatchObject({
+    availability: 'available',
+    groups: { items: [] },
+    metrics: {
+      everPublishedWorks: { availability: 'available', value: 0 },
+      currentLikes: { availability: 'available', value: 0 },
+      createdCopies: { availability: 'available', value: 0 },
+    },
+  });
+  for (const path of [
+    '/api/class-join/account/classes',
+    '/api/class-join/account/assignments',
+    '/api/class-join/account/quizzes',
+  ]) {
+    const response = await request.get(path);
+    expect(response.status(), path).toBe(200);
+    expect((await response.json()).items, path).toEqual([]);
+  }
+  for (const module of ['three-d', 'electronics', 'blocks', 'robotics']) {
+    const response = await request.get(`/api/projects?scope=personal&module=${module}&limit=10`);
+    expect(response.status()).toBe(200);
+    expect((await response.json()).items).toEqual([]);
+  }
+  const catalog = await request.get('/api/modules');
+  expect(catalog.status()).toBe(200);
+  const moduleItems = (await catalog.json()).items as Array<{
+    moduleKey: string;
+    availability: string;
+    creatable: boolean;
+  }>;
+  for (const moduleKey of ['three-d', 'electronics', 'blocks', 'robotics'])
+    expect(moduleItems.find((entry) => entry.moduleKey === moduleKey)).toMatchObject({
+      moduleKey,
+      availability: 'active',
+      creatable: true,
+    });
+  // Cookies stay in memory and are never written to the evidence artifact.
+  const storage = await request.storageState();
+  const runs: Array<Record<string, unknown>> = [];
+  const report = {
+    schemaVersion: 1,
+    kind: 'diagnostic_cold_load_not_a_regression_gate',
+    build: {
+      revision,
+      metadataSha256: hash(metadataBytes),
+      servedMetadataSha256: hash(servedBytes),
+      caseFileSha256: hash(readFileSync('e2e/student-project-policy.spec.ts')),
+    },
+    environment: {
+      browser: browser.version(),
+      node: process.version,
+      platform: process.platform,
+      architecture: process.arch,
+      viewport: { width: 1440, height: 900 },
+      locale: 'ru-RU',
+      timezoneId: 'Europe/Moscow',
+      deviceScaleFactor: 1,
+      cache: 'fresh context for every run; Network.setCacheDisabled=true',
+      serviceWorkers: 'blocked',
+      networkThrottling: 'none',
+      externalSdk: 'https://st.max.ru/js/max-web-app.js blocked in every run',
+      reactRenderer: 'read-only renderer metadata hook; production bundleType 0 required',
+    },
+    fixture: {
+      actor: 'ordinary_account',
+      projects: 0,
+      groups: 0,
+      assignments: 0,
+      quizzes: 0,
+      confirmedMetrics: [0, 0, 0],
+      timeZone: 'Europe/Moscow',
+      sameAccountForAllRuns: true,
+      confirmedCreatableModules: ['three-d', 'electronics', 'blocks', 'robotics'],
+    },
+    readiness: {
+      home: 'four module sections with enabled creation actions and confirmed empty project lists; no project or module errors',
+      metrics: 'all three sidebar metric values have settled to the fixture-confirmed zero',
+      initialResources:
+        'all JS/CSS requests started by max(homeReady, metricsReady), including dynamic imports',
+      timing:
+        'browser performance.now at the first animation frame satisfying each DOM predicate; no sleep or networkidle readiness',
+    },
+    complete: false,
+    runs,
+  };
+  mkdirSync(shellCaptureDir, { recursive: true });
+  const persist = () =>
+    writeFileSync(
+      `${shellCaptureDir}/owner-ux-cold-home.json`,
+      JSON.stringify(report, null, 2) + '\n',
+    );
+  persist();
+  for (let run = 1; run <= 3; run += 1) {
+    const context = await browser.newContext({
+      baseURL: origin,
+      locale: 'ru-RU',
+      timezoneId: 'Europe/Moscow',
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 1,
+      colorScheme: 'light',
+      serviceWorkers: 'block',
+    });
+    await context.addCookies(storage.cookies);
+    await context.route('https://st.max.ru/js/max-web-app.js', (route) =>
+      route.abort('blockedbyclient'),
+    );
+    const page = await context.newPage();
+    const reads = observeShellReads(page, origin);
+    const failures: string[] = [];
+    page.on('pageerror', (error) => failures.push(error.message));
+    const resources = new Map<
+      Request,
+      { done: Promise<void>; finish: () => void; failure: string | null }
+    >();
+    page.on('request', (entry) => {
+      const path = new URL(entry.url()).pathname;
+      if (!/\.(?:m?js|css)$/.test(path)) return;
+      let finish!: () => void;
+      const done = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      resources.set(entry, { done, finish, failure: null });
+    });
+    page.on('requestfinished', (entry) => resources.get(entry)?.finish());
+    page.on('requestfailed', (entry) => {
+      const resource = resources.get(entry);
+      if (!resource) return;
+      resource.failure = entry.failure()?.errorText ?? 'unknown request failure';
+      resource.finish();
+    });
+    try {
+      const cdp = await context.newCDPSession(page);
+      await cdp.send('Network.enable');
+      await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+      await page.addInitScript(() => {
+        const state = {
+          timeOrigin: performance.timeOrigin,
+          homeReady: null as number | null,
+          metricsReady: null as number | null,
+          ready: null as number | null,
+          renderers: [] as Array<{
+            bundleType: number;
+            version: string;
+            rendererPackageName: string;
+          }>,
+        };
+        // Capture only renderer metadata. No Fiber data, updates, profiling or
+        // scheduling callbacks are retained or installed by this observer.
+        Object.assign(window, {
+          __asaOwnerUxReadiness: state,
+          __REACT_DEVTOOLS_GLOBAL_HOOK__: {
+            supportsFiber: true,
+            inject(renderer: { bundleType: number; version: string; rendererPackageName: string }) {
+              state.renderers.push({
+                bundleType: renderer.bundleType,
+                version: renderer.version,
+                rendererPackageName: renderer.rendererPackageName,
+              });
+              return state.renderers.length;
+            },
+          },
+        });
+        const check = () => {
+          const main = document.querySelector<HTMLElement>('main.creator-home');
+          const sections = main?.querySelectorAll('.creator-module-section');
+          if (
+            state.homeReady === null &&
+            main &&
+            main.getBoundingClientRect().width > 0 &&
+            sections?.length === 4 &&
+            main.querySelectorAll('.home-create-button:not(:disabled)').length === 4 &&
+            main.querySelectorAll('.home-module-empty:not([role])').length === 4 &&
+            !main.querySelector('.home-module-error, .home-module-availability') &&
+            [...main.querySelectorAll('.home-module-empty')].every((entry) =>
+              /^Пока нет (?:моделей|схем|программ)$/.test(entry.textContent ?? ''),
+            )
+          )
+            state.homeReady = performance.now();
+          const values = document.querySelectorAll(
+            '[data-testid="profile-metric-strip"] .portal-sidebar-metric-details p[data-testid] > span',
+          );
+          if (
+            state.metricsReady === null &&
+            values.length === 3 &&
+            [...values].every((entry) => entry.textContent === '0')
+          )
+            state.metricsReady = performance.now();
+          if (state.homeReady !== null && state.metricsReady !== null)
+            state.ready = Math.max(state.homeReady, state.metricsReady);
+          else requestAnimationFrame(check);
+        };
+        requestAnimationFrame(check);
+      });
+      await page.goto('/#/home', { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(
+        () =>
+          (window as unknown as { __asaOwnerUxReadiness: { ready: number | null } })
+            .__asaOwnerUxReadiness.ready !== null,
+      );
+      const ready = await page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              __asaOwnerUxReadiness: {
+                timeOrigin: number;
+                homeReady: number;
+                metricsReady: number;
+                ready: number;
+                renderers: Array<{
+                  bundleType: number;
+                  version: string;
+                  rendererPackageName: string;
+                }>;
+              };
+            }
+          ).__asaOwnerUxReadiness,
+      );
+      const initialResources = [...resources].filter(
+        ([entry]) => entry.timing().startTime <= ready.timeOrigin + ready.ready,
+      );
+      await Promise.all(initialResources.map(([, entry]) => entry.done));
+      const resourceTimings = await page.evaluate(
+        (cutoff) =>
+          (performance.getEntriesByType('resource') as PerformanceResourceTiming[])
+            .filter(
+              (entry) =>
+                /\.(?:m?js|css)$/.test(new URL(entry.name).pathname) && entry.startTime <= cutoff,
+            )
+            .map((entry, index) => ({
+              id: index + 1,
+              name: entry.name,
+              initiatorType: entry.initiatorType,
+              startTime: entry.startTime,
+              responseEnd: entry.responseEnd,
+              transferSize: entry.transferSize,
+              encodedBodySize: entry.encodedBodySize,
+              decodedBodySize: entry.decodedBodySize,
+            })),
+        ready.ready,
+      );
+      const matchedTimings = new Set<number>();
+      // Correlate attempts by URL and request start, once each. Sums below use
+      // the original unique PerformanceResourceTiming entries, never a URL find.
+      const paired = initialResources.map(([entry, completion]) => {
+        const startedAtMs = entry.timing().startTime - ready.timeOrigin;
+        const timing = resourceTimings
+          .filter((item) => item.name === entry.url() && !matchedTimings.has(item.id))
+          .sort(
+            (left, right) =>
+              Math.abs(left.startTime - startedAtMs) - Math.abs(right.startTime - startedAtMs),
+          )[0];
+        // Chromium and Playwright expose the same request clock at millisecond
+        // precision. An unmatched attempt remains unknown instead of borrowing
+        // another occurrence of the same URL.
+        const matching = timing && Math.abs(timing.startTime - startedAtMs) <= 2 ? timing : null;
+        if (matching) matchedTimings.add(matching.id);
+        return { entry, completion, startedAtMs, matching };
+      });
+      const resourceRows = await Promise.all(
+        paired.map(async ({ entry, completion, startedAtMs, matching }) => {
+          const response = await entry.response();
+          const sizes = completion.failure ? null : await entry.sizes();
+          return {
+            url: entry.url(),
+            kind: new URL(entry.url()).pathname.endsWith('.css') ? 'css' : 'javascript',
+            resourceType: entry.resourceType(),
+            status: response?.status() ?? null,
+            failure: completion.failure,
+            startedAtMs,
+            resourceTimingId: matching?.id ?? null,
+            resourceTimingStartDifferenceMs: matching ? matching.startTime - startedAtMs : null,
+            wireResponseBodyBytes: sizes?.responseBodySize ?? null,
+            wireResponseHeaderBytes: sizes?.responseHeadersSize ?? null,
+          };
+        }),
+      );
+      // Network quiescence is used only to close the attempt ledger. It does
+      // not define or move the browser-side readiness timestamps above.
+      await expect.poll(reads.settled).toBe(true);
+      const network = reads.attempts();
+      const totals = (applicationOnly: boolean) => {
+        const selected = resourceRows.filter(
+          (entry) => !applicationOnly || new URL(entry.url).origin === origin,
+        );
+        const timings = resourceTimings.filter(
+          (entry) => !applicationOnly || new URL(entry.name).origin === origin,
+        );
+        const missing = selected.filter((entry) => entry.resourceTimingId === null).length;
+        const sum = (key: 'transferSize' | 'encodedBodySize' | 'decodedBodySize') =>
+          timings.reduce((value, entry) => value + entry[key], 0);
+        return {
+          resourceCount: selected.length,
+          javascriptCount: selected.filter((entry) => entry.kind === 'javascript').length,
+          cssCount: selected.filter((entry) => entry.kind === 'css').length,
+          resourceTimingCount: timings.length,
+          failedResourceCount: selected.filter((entry) => entry.failure !== null).length,
+          missingResourceTiming: missing,
+          transferBytes: missing === 0 ? sum('transferSize') : null,
+          encodedBodyBytes: missing === 0 ? sum('encodedBodySize') : null,
+          decodedBodyBytes: missing === 0 ? sum('decodedBodySize') : null,
+          knownTransferBytes: sum('transferSize'),
+          knownEncodedBodyBytes: sum('encodedBodySize'),
+          knownDecodedBodyBytes: sum('decodedBodySize'),
+        };
+      };
+      runs.push({
+        run,
+        timesMs: {
+          homeReady: ready.homeReady,
+          metricsReady: ready.metricsReady,
+          ready: ready.ready,
+        },
+        renderers: ready.renderers,
+        resources: resourceRows,
+        resourceTimings,
+        totals: totals(false),
+        applicationTotals: totals(true),
+        network,
+        presentation: {
+          topKnowledgeFallbackCount: await page.locator('.access-personal-start').count(),
+          horizontalOverflow: await page.evaluate(
+            () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          ),
+        },
+        pageErrors: failures,
+      });
+      persist();
+      await page.screenshot({
+        path: `${shellCaptureDir}/owner-ux-cold-home-${run}.png`,
+        fullPage: true,
+      });
+      expect(failures).toEqual([]);
+      expect(ready.renderers.some((renderer) => renderer.rendererPackageName === 'react-dom')).toBe(
+        true,
+      );
+      expect(ready.renderers.every((renderer) => renderer.bundleType === 0)).toBe(true);
+      for (const module of ['three-d', 'electronics', 'blocks', 'robotics'])
+        expect(
+          network.some(
+            (entry) =>
+              entry.path === '/api/projects' &&
+              entry.module === module &&
+              entry.status === 200 &&
+              entry.outcome === 'successful',
+          ),
+          `Confirmed initial project list: ${module}`,
+        ).toBe(true);
+      expect(
+        resourceRows.filter((entry) => entry.failure === null && entry.resourceTimingId === null),
+      ).toEqual([]);
+    } finally {
+      reads.dispose();
+      await context.close();
+    }
+  }
+  report.complete = true;
+  persist();
 });
