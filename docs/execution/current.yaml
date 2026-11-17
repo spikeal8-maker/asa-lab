@@ -16858,6 +16858,7 @@ parallel_lanes:
       implementation_files:
         - apps/web/src/electronics/ArduinoCodePanel.tsx
         - e2e/electronics-block-pin-setup.spec.ts
+        - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SETTINGS-UX-001.md
       scope: >-
@@ -21821,7 +21822,7 @@ parallel_lanes:
         On 2026-11-16 the owner explicitly instructed OWNER-UX-P0-EXECUTE-TO-MAIN-001:
         protected acceptance of normative PR1212, isolated P0 implementation after
         canonical selection and SAFE_TO_START, exact tests and genuine independent
-        review before protected merge. These 18 exact planned paths are conditionally authorized
+        review before protected merge. Original 18 and two additional planned paths are conditionally authorized
         conditionally, with optional paths removed from the final code diff.
         No production database, deployment, SP06, avatar P1 or platform rights v2.
       activation_condition: >-
@@ -21857,6 +21858,34 @@ parallel_lanes:
         - apps/web/src/pages/testing/LearningPage.spec.ts
         - e2e/my-learning-workspace.spec.ts
         - e2e/public-projects.spec.ts
+        - e2e/student-project-policy.spec.ts
+        - apps/web/src/creator-portal/personal-progress-core.ts
+      controller_scope_amendment_2026_11_16:
+        status: proposed_conditional_main_acceptance
+        origin_issue: 1214
+        origin_product_pr: 1224
+        current_main_at_proposal: df78069c44271609615707b6e38767f276188c4b
+        old_planned_paths: 18
+        proposed_planned_paths: 20
+        added_paths:
+          - e2e/student-project-policy.spec.ts
+          - apps/web/src/creator-portal/personal-progress-core.ts
+        justification: >-
+          Existing real Public Projects browser gate exercises zero-state learning
+          in e2e/student-project-policy.spec.ts and fails after the accepted
+          owner change removes three empty metrics cards. Preserve restricted-role
+          and actual PostgreSQL browser journey; update only obsolete assertion.
+          Shared header eager imports exceed the 600000-byte startup graph budget.
+          Extract existing lifetime and read-only summary helpers into a lightweight
+          module imported by Header and personal-progress. Do not loosen budgets,
+          duplicate authorization, widen Account/Seat DTO, change scoring, or
+          touch production database.
+        activation_condition: >-
+          Both added paths are forbidden before this separate docs-only proposal
+          passes exact-source CI and is accepted in canonical main. The product
+          branch must inherit main and rerun D2-R2 scoped preflight for 20 exact
+          files and verify-plan before writing the additional source or E2E test.
+        product_merge: blocked_pending_independent_review_and_owner_acceptance
       shared_path_coordination:
         status: awaiting_exact_preflight
         purpose: isolated_development_only
