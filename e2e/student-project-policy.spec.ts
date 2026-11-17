@@ -300,6 +300,25 @@ function observeShellReads(page: Page, origin: string) {
   };
 }
 
+function personalReadCounts(reads: ReturnType<ReturnType<typeof observeShellReads>['attempts']>) {
+  const count = (path: string) => {
+    const attempts = reads.filter((entry) => entry.path === path);
+    return {
+      attempted: attempts.length,
+      successful: attempts.filter((entry) => entry.outcome === 'successful').length,
+      cancelled: attempts.filter((entry) => entry.outcome === 'cancelled').length,
+      error: attempts.filter((entry) => entry.outcome === 'error').length,
+      pending: attempts.filter((entry) => entry.outcome === 'pending').length,
+      other: attempts.filter((entry) => entry.outcome === 'other').length,
+    };
+  };
+  return {
+    accountSummary: count('/api/progress/summary'),
+    seatSummary: count('/api/class-join/progress/summary'),
+    accountAvatar: count('/api/account/avatar'),
+  };
+}
+
 async function shellFrame(page: Page, focusSelector: string) {
   return page.evaluate((selector) => {
     const box = (element: Element | null) => {
@@ -517,6 +536,7 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
   const observers: Array<ReturnType<typeof observeShellReads>> = [];
   const pageErrors: string[] = [];
   const captures: Array<Record<string, unknown>> = [];
+  const networkChecks: Array<Record<string, unknown>> = [];
   const restoredMenus: Array<Record<string, unknown>> = [];
   mkdirSync(shellCaptureDir, { recursive: true });
   const metadataBytes = readFileSync('apps/web/dist/build-metadata.json');
@@ -542,6 +562,7 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
     fixture: { ordinaryAccount: false, approvedMembership: false, seatCodeLogin: false },
     captureComplete: false,
     captures,
+    networkChecks,
     restoredMenus,
   };
   const persist = () =>
@@ -706,6 +727,17 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
             );
           }
           await expect.poll(reads.settled).toBe(true);
+          const attempts = reads.attempts();
+          networkChecks.push({
+            actor,
+            surface,
+            width,
+            phase: 'initial_ready',
+            attempts,
+            counts: personalReadCounts(attempts),
+          });
+          // Preserve every attempt before checking the captured initial state.
+          persist();
           if (surface === 'learning') {
             await expect(page.locator('.learning-overview-metrics')).toHaveCount(0);
             await expect(page.locator('.learning-overview-panel')).toHaveCount(0);
@@ -757,7 +789,8 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
               menuState: open ? 'open' : 'closed',
               before,
               after,
-              reads: reads.snapshot(),
+              reads: reads.attempts(),
+              personalReadCounts: personalReadCounts(reads.attempts()),
               png: { filename, bytes: png.length, sha256: sha256(png), width, height: 900 },
             });
             persist();
@@ -785,6 +818,17 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
             restoredMenus.push({ actor, surface, width, frame: restored });
             persist();
           }
+          await expect.poll(reads.settled).toBe(true);
+          const finalAttempts = reads.attempts();
+          networkChecks.push({
+            actor,
+            surface,
+            width,
+            phase: 'after_captures',
+            attempts: finalAttempts,
+            counts: personalReadCounts(finalAttempts),
+          });
+          persist();
         }
       }
     }
@@ -892,7 +936,7 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
   const storage = await request.storageState();
   const runs: Array<Record<string, unknown>> = [];
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'diagnostic_cold_load_not_a_regression_gate',
     build: {
       revision,
@@ -930,7 +974,9 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
       home: 'four module sections with enabled creation actions and confirmed empty project lists; no project or module errors',
       metrics: 'all three sidebar metric values have settled to the fixture-confirmed zero',
       initialResources:
-        'all JS/CSS requests started by max(homeReady, metricsReady), including dynamic imports',
+        'all JS/CSS requests whose CDP requestWillBeSent wallTime is at or before max(homeReady, metricsReady), including dynamic imports',
+      resourceAccounting:
+        'independent CDP requestId and unique ResourceTiming ledgers; exact URL multiplicity coverage, with no cross-phase timestamp pairing; browser byte sums use each ResourceTiming entry once',
       timing:
         'browser performance.now at the first animation frame satisfying each DOM predicate; no sleep or networkidle readiness',
     },
@@ -962,28 +1008,102 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
     const reads = observeShellReads(page, origin);
     const failures: string[] = [];
     page.on('pageerror', (error) => failures.push(error.message));
-    const resources = new Map<
-      Request,
-      { done: Promise<void>; finish: () => void; failure: string | null }
-    >();
-    page.on('request', (entry) => {
-      const path = new URL(entry.url()).pathname;
-      if (!/\.(?:m?js|css)$/.test(path)) return;
-      let finish!: () => void;
-      const done = new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      resources.set(entry, { done, finish, failure: null });
-    });
-    page.on('requestfinished', (entry) => resources.get(entry)?.finish());
-    page.on('requestfailed', (entry) => {
-      const resource = resources.get(entry);
-      if (!resource) return;
-      resource.failure = entry.failure()?.errorText ?? 'unknown request failure';
-      resource.finish();
-    });
     try {
       const cdp = await context.newCDPSession(page);
+      const resources = new Map<
+        string,
+        {
+          requestId: string;
+          url: string;
+          kind: 'css' | 'javascript';
+          resourceType: string | null;
+          startTimestamp: number;
+          startWallTime: number;
+          networkStartTimestamp: number | null;
+          finishedTimestamp: number | null;
+          status: number | null;
+          failure: string | null;
+          cancelled: boolean | null;
+          blockedReason: string | null;
+          fromDiskCache: boolean | null;
+          fromServiceWorker: boolean | null;
+          wireTransferBytes: number | null;
+          redirects: Array<{ url: string; status: number; encodedDataLength: number }>;
+          dataChunks: Array<{ dataLength: number; encodedDataLength: number }>;
+          done: Promise<void>;
+          finish: () => void;
+        }
+      >();
+      cdp.on('Network.requestWillBeSent', (event) => {
+        const current = resources.get(event.requestId);
+        if (current && event.redirectResponse) {
+          current.redirects.push({
+            url: event.redirectResponse.url,
+            status: event.redirectResponse.status,
+            encodedDataLength: event.redirectResponse.encodedDataLength,
+          });
+          return;
+        }
+        const path = new URL(event.request.url).pathname;
+        if (!['Script', 'Stylesheet'].includes(event.type ?? '') && !/\.(?:m?js|css)$/.test(path))
+          return;
+        let finish!: () => void;
+        const done = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        resources.set(event.requestId, {
+          requestId: event.requestId,
+          url: event.request.url,
+          kind: event.type === 'Stylesheet' || path.endsWith('.css') ? 'css' : 'javascript',
+          resourceType: event.type ?? null,
+          startTimestamp: event.timestamp,
+          startWallTime: event.wallTime,
+          networkStartTimestamp: null,
+          finishedTimestamp: null,
+          status: null,
+          failure: null,
+          cancelled: null,
+          blockedReason: null,
+          fromDiskCache: null,
+          fromServiceWorker: null,
+          wireTransferBytes: null,
+          redirects: [],
+          dataChunks: [],
+          done,
+          finish,
+        });
+      });
+      cdp.on('Network.responseReceived', (event) => {
+        const entry = resources.get(event.requestId);
+        if (!entry) return;
+        entry.status = event.response.status;
+        entry.networkStartTimestamp = event.response.timing?.requestTime ?? null;
+        entry.fromDiskCache = event.response.fromDiskCache ?? false;
+        entry.fromServiceWorker = event.response.fromServiceWorker ?? false;
+      });
+      cdp.on('Network.dataReceived', (event) => {
+        resources.get(event.requestId)?.dataChunks.push({
+          dataLength: event.dataLength,
+          encodedDataLength: event.encodedDataLength,
+        });
+      });
+      cdp.on('Network.loadingFinished', (event) => {
+        const entry = resources.get(event.requestId);
+        if (!entry) return;
+        entry.finishedTimestamp = event.timestamp;
+        entry.wireTransferBytes = event.encodedDataLength;
+        entry.cancelled = false;
+        entry.finish();
+      });
+      cdp.on('Network.loadingFailed', (event) => {
+        const entry = resources.get(event.requestId);
+        if (!entry) return;
+        entry.finishedTimestamp = event.timestamp;
+        entry.failure = event.errorText;
+        entry.cancelled = event.canceled ?? false;
+        entry.blockedReason = event.blockedReason ?? null;
+        entry.finish();
+      });
       await cdp.send('Network.enable');
       await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
       await page.addInitScript(() => {
@@ -1069,16 +1189,22 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
             }
           ).__asaOwnerUxReadiness,
       );
-      const initialResources = [...resources].filter(
-        ([entry]) => entry.timing().startTime <= ready.timeOrigin + ready.ready,
+      const initialResources = [...resources.values()].filter(
+        (entry) => entry.startWallTime * 1000 <= ready.timeOrigin + ready.ready,
       );
-      await Promise.all(initialResources.map(([, entry]) => entry.done));
+      await Promise.all(initialResources.map((entry) => entry.done));
+      // Close the API attempt ledger after recording readiness. This wait neither
+      // defines the readiness timestamp nor changes the resource window.
+      await expect.poll(reads.settled).toBe(true);
+      const network = reads.attempts();
       const resourceTimings = await page.evaluate(
-        (cutoff) =>
+        ({ cutoff, resourceUrls }) =>
           (performance.getEntriesByType('resource') as PerformanceResourceTiming[])
             .filter(
               (entry) =>
-                /\.(?:m?js|css)$/.test(new URL(entry.name).pathname) && entry.startTime <= cutoff,
+                (/\.(?:m?js|css)$/.test(new URL(entry.name).pathname) ||
+                  resourceUrls.includes(entry.name)) &&
+                entry.startTime <= cutoff,
             )
             .map((entry, index) => ({
               id: index + 1,
@@ -1090,48 +1216,56 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
               encodedBodySize: entry.encodedBodySize,
               decodedBodySize: entry.decodedBodySize,
             })),
-        ready.ready,
+        { cutoff: ready.ready, resourceUrls: initialResources.map((entry) => entry.url) },
       );
-      const matchedTimings = new Set<number>();
-      // Correlate attempts by URL and request start, once each. Sums below use
-      // the original unique PerformanceResourceTiming entries, never a URL find.
-      const paired = initialResources.map(([entry, completion]) => {
-        const startedAtMs = entry.timing().startTime - ready.timeOrigin;
-        const timing = resourceTimings
-          .filter((item) => item.name === entry.url() && !matchedTimings.has(item.id))
-          .sort(
-            (left, right) =>
-              Math.abs(left.startTime - startedAtMs) - Math.abs(right.startTime - startedAtMs),
-          )[0];
-        // Chromium and Playwright expose the same request clock at millisecond
-        // precision. An unmatched attempt remains unknown instead of borrowing
-        // another occurrence of the same URL.
-        const matching = timing && Math.abs(timing.startTime - startedAtMs) <= 2 ? timing : null;
-        if (matching) matchedTimings.add(matching.id);
-        return { entry, completion, startedAtMs, matching };
+      const resourceRows = initialResources.map((entry) => ({
+        requestId: entry.requestId,
+        url: entry.url,
+        kind: entry.kind,
+        resourceType: entry.resourceType,
+        startTimestamp: entry.startTimestamp,
+        startWallTime: entry.startWallTime,
+        networkStartTimestamp: entry.networkStartTimestamp,
+        finishedTimestamp: entry.finishedTimestamp,
+        status: entry.status,
+        failure: entry.failure,
+        cancelled: entry.cancelled,
+        blockedReason: entry.blockedReason,
+        fromDiskCache: entry.fromDiskCache,
+        fromServiceWorker: entry.fromServiceWorker,
+        wireTransferBytes: entry.wireTransferBytes,
+        redirects: entry.redirects,
+        dataChunks: entry.dataChunks,
+        startedAtMs: entry.startWallTime * 1000 - ready.timeOrigin,
+        networkStartedAtMs:
+          entry.networkStartTimestamp === null
+            ? null
+            : (entry.networkStartTimestamp - entry.startTimestamp + entry.startWallTime) * 1000 -
+              ready.timeOrigin,
+      }));
+      // requestTime is the later network phase (and can be absent on failure),
+      // not ResourceTiming.startTime. Do not pair these clocks or guess which
+      // duplicate URL occurrence supplied a byte value. Each ledger keeps its
+      // own unique identity; exact per-URL multiplicity proves complete coverage.
+      const resourceCoverage = [
+        ...new Set([
+          ...resourceRows.map((entry) => entry.url),
+          ...resourceTimings.map((entry) => entry.name),
+        ]),
+      ].map((url) => {
+        const requestIds = resourceRows
+          .filter((entry) => entry.url === url)
+          .map((entry) => entry.requestId);
+        const resourceTimingIds = resourceTimings
+          .filter((entry) => entry.name === url)
+          .map((entry) => entry.id);
+        return {
+          url,
+          requestIds,
+          resourceTimingIds,
+          complete: requestIds.length === resourceTimingIds.length,
+        };
       });
-      const resourceRows = await Promise.all(
-        paired.map(async ({ entry, completion, startedAtMs, matching }) => {
-          const response = await entry.response();
-          const sizes = completion.failure ? null : await entry.sizes();
-          return {
-            url: entry.url(),
-            kind: new URL(entry.url()).pathname.endsWith('.css') ? 'css' : 'javascript',
-            resourceType: entry.resourceType(),
-            status: response?.status() ?? null,
-            failure: completion.failure,
-            startedAtMs,
-            resourceTimingId: matching?.id ?? null,
-            resourceTimingStartDifferenceMs: matching ? matching.startTime - startedAtMs : null,
-            wireResponseBodyBytes: sizes?.responseBodySize ?? null,
-            wireResponseHeaderBytes: sizes?.responseHeadersSize ?? null,
-          };
-        }),
-      );
-      // Network quiescence is used only to close the attempt ledger. It does
-      // not define or move the browser-side readiness timestamps above.
-      await expect.poll(reads.settled).toBe(true);
-      const network = reads.attempts();
       const totals = (applicationOnly: boolean) => {
         const selected = resourceRows.filter(
           (entry) => !applicationOnly || new URL(entry.url).origin === origin,
@@ -1139,7 +1273,10 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
         const timings = resourceTimings.filter(
           (entry) => !applicationOnly || new URL(entry.name).origin === origin,
         );
-        const missing = selected.filter((entry) => entry.resourceTimingId === null).length;
+        const coverage = resourceCoverage.filter(
+          (entry) => !applicationOnly || new URL(entry.url).origin === origin,
+        );
+        const complete = coverage.every((entry) => entry.complete);
         const sum = (key: 'transferSize' | 'encodedBodySize' | 'decodedBodySize') =>
           timings.reduce((value, entry) => value + entry[key], 0);
         return {
@@ -1148,10 +1285,13 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
           cssCount: selected.filter((entry) => entry.kind === 'css').length,
           resourceTimingCount: timings.length,
           failedResourceCount: selected.filter((entry) => entry.failure !== null).length,
-          missingResourceTiming: missing,
-          transferBytes: missing === 0 ? sum('transferSize') : null,
-          encodedBodyBytes: missing === 0 ? sum('encodedBodySize') : null,
-          decodedBodyBytes: missing === 0 ? sum('decodedBodySize') : null,
+          coverageComplete: complete,
+          incompleteResourceUrls: coverage
+            .filter((entry) => !entry.complete)
+            .map((entry) => entry.url),
+          transferBytes: complete ? sum('transferSize') : null,
+          encodedBodyBytes: complete ? sum('encodedBodySize') : null,
+          decodedBodyBytes: complete ? sum('decodedBodySize') : null,
           knownTransferBytes: sum('transferSize'),
           knownEncodedBodyBytes: sum('encodedBodySize'),
           knownDecodedBodyBytes: sum('decodedBodySize'),
@@ -1159,6 +1299,7 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
       };
       runs.push({
         run,
+        timeOrigin: ready.timeOrigin,
         timesMs: {
           homeReady: ready.homeReady,
           metricsReady: ready.metricsReady,
@@ -1167,9 +1308,11 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
         renderers: ready.renderers,
         resources: resourceRows,
         resourceTimings,
+        resourceCoverage,
         totals: totals(false),
         applicationTotals: totals(true),
         network,
+        personalReadCounts: personalReadCounts(network),
         presentation: {
           topKnowledgeFallbackCount: await page.locator('.access-personal-start').count(),
           horizontalOverflow: await page.evaluate(
@@ -1199,8 +1342,9 @@ test('owner UX cold Home resource evidence: three fresh contexts with the real A
           ),
           `Confirmed initial project list: ${module}`,
         ).toBe(true);
+      expect(resourceCoverage.filter((entry) => !entry.complete)).toEqual([]);
       expect(
-        resourceRows.filter((entry) => entry.failure === null && entry.resourceTimingId === null),
+        resourceRows.filter((entry) => entry.failure === null && entry.wireTransferBytes === null),
       ).toEqual([]);
     } finally {
       reads.dispose();
