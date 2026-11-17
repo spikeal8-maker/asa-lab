@@ -1556,6 +1556,12 @@ export function ArduinoCodePanel({
       aria-label="Редактор кода Arduino"
       aria-hidden={!open}
       style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
+      onPointerDownCapture={(event) => {
+        const menu = modeMenuRef.current;
+        if (menu?.open && !menu.contains(event.target as Node)) {
+          menu.removeAttribute('open');
+        }
+      }}
     >
       <HorizontalResizeHandle
         kind="drawer"

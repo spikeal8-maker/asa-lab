@@ -404,7 +404,9 @@ async function boardIsolation(page: Page, info: TestInfo) {
       .toBe(true);
   }
   // Use the user's native viewport control, preserving saved block coordinates.
+  // Tapping outside the mode menu must dismiss its overlay on narrow screens.
   await activate(blockWorkspace.locator('g.blocklyZoomReset'));
+  await expect(page.locator('.arduino-mode-menu')).not.toHaveAttribute('open', '');
   await expect
     .poll(() =>
       edited.evaluate((element) => {
@@ -441,7 +443,22 @@ async function boardIsolation(page: Page, info: TestInfo) {
   expect(source(native.sent, a.id)).toContain('// native settings edit committed');
   const expectedWorkspace = workspace(baseline.sent, a.id);
   expectedWorkspace.blocks.blocks[0].inputs.DO.block.fields.TEXT = 'native settings edit committed';
-  expect(workspace(native.sent, a.id)).toEqual(expectedWorkspace);
+  const nativeWorkspace = workspace(native.sent, a.id);
+  // Blockly's native field edit omits only the optional empty variable type.
+  // Assert that exact canonicalization; compare every other workspace field strictly.
+  const expectedReading = expectedWorkspace.variables?.find(
+    (variable) => variable.id === 'reading-variable',
+  );
+  const actualReading = nativeWorkspace.variables?.find(
+    (variable) => variable.id === 'reading-variable',
+  );
+  if (!expectedReading || !actualReading) {
+    throw new Error('Blockly lost the reading variable after native edit');
+  }
+  expect(expectedReading.type).toBe('');
+  expect(actualReading.type).toBeUndefined();
+  delete expectedReading.type;
+  expect(nativeWorkspace).toEqual(expectedWorkspace);
   expect(board(native.sent, b.id)).toEqual(board(baseline.sent, b.id));
   const select = page.getByRole('combobox', { name: 'Программируемая плата', exact: true });
   await select.selectOption(b.id);
@@ -554,11 +571,8 @@ for (const viewport of [
         expect(document.connections).toHaveLength(30);
         const id = await project(page, document);
         const originalBlocks = workspace(owner);
-        // Blockly 12 omits the legacy empty scalar type on serialization.
-        // Keep every other field, including saved block coordinates, exact.
-        for (const variable of originalBlocks.variables ?? []) {
-          if (variable.type === '') delete variable.type;
-        }
+        // Preserve the owner's complete Blockly variable metadata, including empty type.
+        // Native Save must retain all saved blocks and their coordinates exactly.
         let dialog = await settings(page);
         await settingsLayout(page, dialog, info);
         for (const pin of pins) {
