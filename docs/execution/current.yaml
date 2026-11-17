@@ -16858,6 +16858,7 @@ parallel_lanes:
       implementation_files:
         - apps/web/src/electronics/ArduinoCodePanel.tsx
         - e2e/electronics-block-pin-setup.spec.ts
+        - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SETTINGS-UX-001.md
       scope: >-
