@@ -28,6 +28,7 @@ GENERAL_OVERLAY_NAME = "asa-general-postgres.yaml"
 GENERAL_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + GENERAL_OVERLAY_NAME + '"'
 FOCUSED = ".github/workflows/electronics-r4-m1-focused.yml"
 SCOPED_UI = ".github/workflows/electronics-ui-679-557.yml"
+ARDUINO_GPIO_E2E = ".github/workflows/arduino-settings-native-e2e.yml"
 ELECTRONICS_TRANSPORT = "docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json"
 ELECTRONICS_OVERLAY_NAME = "asa-electronics-postgres.yaml"
 ELECTRONICS_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + ELECTRONICS_OVERLAY_NAME + '"'
@@ -735,8 +736,18 @@ def require_electronics_job(browser_only=False):
               and re.fullmatch(r"[^/\s@]+/[^/\s@]+", repository) is not None
               and re.fullmatch(re.escape(repository + "/" + SCOPED_UI)
                                + r"@refs/heads/[^\s@]+", workflow_ref) is not None)
+    # Restricted extra admission: a PR targeting the canonical main on the
+    # exact workflow path and job. It cannot authorize a local host, a non-PR
+    # dispatch, a foreign repo, or a different job.
+    arduino_native = (
+        os.environ.get("GITHUB_JOB") == "browser"
+        and repository == "spikeal8-maker/asa-lab"
+        and os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+        and os.environ.get("GITHUB_BASE_REF") == "main"
+        and workflow_ref.startswith(repository + "/" + ARDUINO_GPIO_E2E + "@refs/")
+    )
     require((os.environ.get("GITHUB_JOB") in jobs and ("/" + FOCUSED + "@") in workflow_ref)
-            or scoped,
+            or scoped or arduino_native,
             "Docker proof is restricted to exact disposable Electronics workflow/job pairs")
 
 
