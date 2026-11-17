@@ -111,28 +111,34 @@ parallel_lanes:
       kind: design-decision
       risk: high
       semantic_change: 'yes'
-      checkpoint: pending_accepted_spec_security_baseline_and_controller_activation
+      checkpoint: pending_accepted_spec_and_controller_selection
       owner_acceptance: pending
       owner_authorization: >-
-        Owner requested the next step of the ultrasonic programme after
-        preparation of specification PR1239. This entry prepares only bounded
-        U00 electrical decision and reproducible proof fixtures. Pending
-        prerequisite registration does not permit U00 execution or any product,
-        deployment or working database change.
+        Owner directed completion and correction of the ultrasonic specification
+        and staged execution plan. This change corrects only the pending U00
+        registration. It does not execute U00 or authorize product, deployment
+        or working database changes. The original programme request is preserved.
       activation_condition: >-
-        Specification PR1239 and the independently reviewed repair of shared
-        security blocker1236 must be accepted on main with applicable exact-source
-        and post-merge CI. A later controller change must record the actual
-        accepted source/evidence, remove only the matching typed U00 prerequisite
-        blocker and change this task from blocked to in_progress on accepted main.
-        The executor must then pass fresh scoped preflight, exact planned-path
-        verification and selected-task validation. Text in this field does not
-        override the typed execution blocker or permit a branch to select itself.
+        Specification PR1239 and the bounded U00 selection must be accepted on
+        main through the normal applicable gates and review. A controller change
+        records their actual accepted source/evidence, removes only the matching
+        U00 selection blocker and changes this task to in_progress on accepted
+        main. The executor then passes fresh scoped preflight, exact planned-path
+        verification and selected-task validation. A concrete dependency repair
+        is not a technical prerequisite of the electrical design decision; open
+        integration-CI restrictions are tracked by a separate acceptance blocker.
+        This field never overrides another blocker or permits self-selection.
       selection_authority: >-
         Programme controller preserves root Electronics R10, L298N P1, Robotics
-        and all other active tasks. U00 remains pending until prerequisites and
-        controller activation are accepted. U00 does not select U01 or reset the
-        global hygiene counter. The U00 executor cannot remove its own blocker.
+        and all other active tasks. U00 remains pending until the specification
+        and canonical selection are accepted. U00 does not select U01 or reset
+        the global hygiene counter. Its executor cannot remove its own blockers.
+      preparation_boundary: >-
+        Completion of the specification package and a bounded draft decision
+        may proceed only in a separately owner-directed documentation scope with
+        exact planned paths and successful normal preflight. Such preparation
+        is not selected U00 execution or acceptance and grants no product writes.
+        This pending registration does not authorize itself or override blockers.
       scope: >-
         After activation only, qualify the HC-SR04 and PING electrical output,
         supply/reference topology, canonical timestamp ordering and compatibility
@@ -153,14 +159,15 @@ parallel_lanes:
         - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
         - docs/product/electronics/evidence/ultrasonic-audit-20261117.md
       next_action: >-
-        Controller inspects prerequisite acceptance read-only and preserves this
-        blocked registration until actual accepted-main evidence is available.
-        After the separate accepted activation, assign a new author U00 only in
-        an isolated feature branch such as codex/electronics-ultrasonic-u00-1240,
-        with fresh branch/head evidence rather than an invented pre-created head.
-        Require complete analytical decisions and proof fixtures, declared checks
-        and independent HIGH semantic review of the final source. Executor stops
-        after U00; controller separately accepts the decision and selects U01.
+        Controller verifies specification acceptance and canonical task selection;
+        preparation and integration readiness are reported separately. Classify
+        unrelated required-CI failures under AGENTS section 2.1, retain their
+        integration restrictions and route their repair separately. Do not repeat
+        unchanged failed CI or make a particular repair PR a design prerequisite.
+        After accepted activation, assign U00 alone with actual branch/head and
+        exact documentation paths. Require complete analytical decisions and
+        diagnostic evidence, declared checks and independent HIGH semantic review.
+        Executor stops after U00; controller accepts its result before selecting U01.
       verification_note: >-
         The U00 task card retains the exact uncached Vitest fixture command and
         git diff check as mandatory verification. The gates map below lists only
@@ -22133,23 +22140,56 @@ blocking:
       - readonly_prerequisite_inspection
       - controller_dependency_coordination
     reason: >-
-      Draft registration does not establish accepted ultrasonic specification,
-      repaired shared security baseline or executable U00 selection. Even if this
-      pending proposal is merged early, the matching lane remains blocked and its
-      execution blocker prevents U00 writes. Future acceptance must be proved with
-      actual source hashes, required CI and independent review; a green historical
-      run or an activation_condition sentence is insufficient.
+      Draft registration does not establish an accepted ultrasonic specification
+      or canonical U00 selection. This blocker concerns selection only: pending
+      U00 cannot write or accept its own execution. It does not classify an
+      unrelated dependency defect as a technical prerequisite of design work.
+      Preparation of the specification package remains a separately directed
+      documentation scope subject to its own normal preflight and blockers.
     unblock_requires: >-
-      Controller verifies that accepted main includes specification PR1239 and
-      its concrete U00 card, and includes the independently accepted resolution
-      of blocker1236 through repair PR1237 or another separately accepted repair,
-      with required exact-source and post-merge CI. Controller then publishes a
-      separate reviewed current.yaml transition recording exact acceptance
-      evidence, removing only this blocker and changing only this task to
-      in_progress. The executor starts only after that transition is accepted on
-      main and fresh scoped preflight plus selected-task validation pass. No
-      waiver, self-activation, foreign blocker removal or hygiene-counter reset.
+      Controller verifies that accepted main contains the specification and U00
+      card, then publishes a reviewed canonical selection transition recording
+      their exact acceptance evidence. It removes only this selection blocker
+      and changes only this task to in_progress after normal applicable checks.
+      The executor starts only after the transition is accepted on main and fresh
+      scoped preflight plus selected-task validation pass. Open integration-CI
+      restrictions remain separate; this transition cannot waive them or remove
+      foreign blockers, authorize product writes or reset the hygiene counter.
     evidence: https://github.com/spikeal8-maker/asa-lab/issues/1238
+  - id: ELECTRONICS-ULTRASONIC-U00-INTEGRATION-CI
+    kind: acceptance_blocker
+    lane: electronics-ultrasonic-u00
+    task_id: TASK-ELECTRONICS-ULTRASONIC-U00-001
+    blocks:
+      - source_integration
+      - integration
+      - owner_acceptance
+      - close_issue
+      - release_claim
+      - production_update
+    allows:
+      - readonly_diagnostics
+      - selected_bounded_documentation
+      - selected_diagnostic_fixture_authoring
+      - focused_verification
+      - independent_source_review
+    reason: >-
+      Required CI of the observed specification and registration candidates fails
+      on existing shared baseline issue1236. This is an integration restriction,
+      not an electrical-design dependency. Separately selected bounded documents,
+      diagnostics and review remain possible only after applicable execution
+      blockers are cleared. Allows never overrides pending U00 selection or any
+      other execution blocker. This proposal neither fixes nor closes issue1236.
+    unblock_requires: >-
+      Controller records successful applicable required checks for the actual
+      final integration source after any necessary separately reviewed baseline
+      repair and normal convergence. Capture exact source, current main, CI URLs
+      and review evidence; historical green runs are insufficient. Then remove
+      only this acceptance blocker through a reviewed canonical transition. No
+      particular repair PR is mandatory, and no audit waiver, disabled check or
+      weakened threshold is accepted. Formal U00 acceptance and U01 selection
+      still require the documented U00 result and ordinary integration evidence.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/1236
   - id: ELECTRONICS-836-COMMITTED-RESULT-QUALIFICATION
     kind: deployment_blocker
     lane: electronics-committed-result-consumers
