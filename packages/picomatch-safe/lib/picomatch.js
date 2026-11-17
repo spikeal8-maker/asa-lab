@@ -262,6 +262,7 @@ picomatch.scan = (input, options) => scan(input, options);
  */
 
 picomatch.compileRe = (state, options, returnOutput = false, returnState = false) => {
+  state = parse.forCompilation(state, options);
   if (returnOutput === true) {
     return state.output;
   }
@@ -307,7 +308,7 @@ picomatch.makeRe = (input, options = {}, returnOutput = false, returnState = fal
     throw new TypeError('Expected a non-empty string');
   }
 
-  let parsed = { negated: false, fastpaths: true };
+  let parsed = { input, negated: false, fastpaths: true };
 
   if (options.fastpaths !== false && (input[0] === '.' || input[0] === '*')) {
     parsed.output = parse.fastpaths(input, options);

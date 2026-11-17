@@ -429,7 +429,68 @@ const analyzeRepeatedExtglob = (body, options) => {
  * @return {Object}
  */
 
-const parse = (input, options) => {
+// A per-extglob proof does not cover composition. Keep at most one root
+// unbounded extglob in a pattern and no wildcard outside it. Nested extglobs
+// remain subject to analyzeRepeatedExtglob, including its flat-class rewrite.
+// This deliberately applies inside negations/optional groups as well.
+const unsafeComposition = (input, options) => {
+  if (options.regex === true) return true;
+  if (options.unescape === true && input.includes('\\') && /[()]/.test(input)) return true;
+  const repeated = [];
+  const stars = [];
+  const groupStarts = [];
+  const opens = [];
+  const extglobEnabled = options.noext !== true && options.noextglob !== true;
+  let quoted = false;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '\\') { i++; continue; }
+    if (ch === '"') { quoted = !quoted; continue; }
+    if (quoted) continue;
+    if (ch === '[' && options.nobracket !== true) {
+      let end = i + 1;
+      if (input[end] === '^' || input[end] === '!') end++;
+      if (input[end] === ']') end++;
+      for (; end < input.length && input[end] !== ']'; end++) {
+        if (input[end] === '\\') end++;
+      }
+      if (end < input.length) {
+        if (input[end + 1] === '+' && options.regex !== false) return true;
+        i = end;
+        continue;
+      }
+    }
+    if (extglobEnabled && '?+*@!'.includes(ch) && input[i + 1] === '(') {
+      groupStarts.push(i);
+      opens.push(i + 1);
+      if (ch === '+' || ch === '*') {
+        const enclosing = repeated.some(span => i > span.start && i <= span.end);
+        if (!enclosing) {
+          const match = parseRepeatedExtglob(input.slice(i), false);
+          if (!match) return true;
+          repeated.push({ start: i, end: i + match.end });
+        }
+      }
+      i++;
+      continue;
+    }
+    // Raw regex groups, assertions and their quantifiers are not glob syntax.
+    // Literalize them instead of handing unchecked regex to RegExp.
+    if (ch === '(') return true;
+    if (ch === '+' && options.regex !== false &&
+        (opens.length > 0 || ')]}'.includes(input[i - 1] || '\u0000'))) return true;
+    if (ch === ')') {
+      if (opens.length === 0) return true;
+      opens.pop();
+    }
+    if (ch === '*') stars.push(i);
+  }
+  if (repeated.length > 1) return true;
+  return repeated.length === 1 && [...stars, ...groupStarts].some(index =>
+    index < repeated[0].start || index > repeated[0].end);
+};
+
+const parseGlob = (input, options) => {
   if (typeof input !== 'string') {
     throw new TypeError('Expected a string');
   }
@@ -505,6 +566,16 @@ const parse = (input, options) => {
 
   input = utils.removePrefix(input, state);
   len = input.length;
+
+  if (unsafeComposition(input, opts)) {
+    // Escape the whole expression, including leading negation. Partial
+    // literalization would leave an unsafe enclosing regex/assertion alive.
+    state.output = utils.escapeRegex(input);
+    state.consumed = input;
+    state.index = len - 1;
+    state.tokens.push({ type: 'text', value: input, output: state.output });
+    return state;
+  }
 
   const extglobs = [];
   const braces = [];
@@ -1404,6 +1475,32 @@ const parse = (input, options) => {
   }
 
   return state;
+};
+
+// Keep the original input/options privately; public state.output is mutable
+// and may be serialized. Compilation must repeat the proof under final flags,
+// not trust regex text or a proof made with different case-folding semantics.
+const origins = new WeakMap();
+const parse = (input, options) => {
+  const savedOptions = { ...options };
+  const state = parseGlob(input, savedOptions);
+  origins.set(state, { input, options: savedOptions });
+  return state;
+};
+
+parse.forCompilation = (state, options) => {
+  if (!state || typeof state !== 'object' || typeof state.input !== 'string') {
+    throw new TypeError('Expected a parse state with an original string input');
+  }
+  const origin = origins.get(state);
+  const opts = options || {};
+  return parse(origin ? origin.input : state.input, {
+    ...(origin ? origin.options : {}),
+    ...opts,
+    // Match toRegex exactly, including absent flags and truthy nocase.
+    flags: opts.flags,
+    nocase: opts.nocase
+  });
 };
 
 /**

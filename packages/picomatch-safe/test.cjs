@@ -6,9 +6,45 @@ const { fork } = require('node:child_process');
 const path = require('node:path');
 const pm = require('./index.js');
 
-test('public picomatch API and ordinary glob matching remain available', () => {
+// All adversarial expressions, including construction/parse/compile, stay in
+// a killable child. A regression must not block the parent Node test runner.
+const bounded = cases => new Promise((resolve, reject) => {
+  let expired = false;
+  let diagnostic = '';
+  const child = fork(path.join(__dirname, 'redos-child.cjs'), {
+    execArgv: ['--max-old-space-size=96'],
+    stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+    env: { ...process.env, NODE_ENV: 'test' }
+  });
+  child.stderr.on('data', data => {
+    diagnostic = (diagnostic + String(data)).slice(-4096);
+  });
+  const guard = setTimeout(() => {
+    expired = true;
+    child.kill('SIGKILL');
+  }, 2400);
+  child.once('error', error => {
+    clearTimeout(guard);
+    reject(error);
+  });
+  child.once('exit', (code, signal) => {
+    clearTimeout(guard);
+    if (!expired && code === 0 && !signal) resolve();
+    else reject(new Error('Security child failed: deadline=' + expired +
+      ' exit=' + code + ' signal=' + signal + ' ' + diagnostic));
+  });
+  child.send(cases, error => {
+    if (error) {
+      clearTimeout(guard);
+      child.kill('SIGKILL');
+      reject(error);
+    }
+  });
+});
+
+test('public API, ordinary glob patterns and positive alternatives stay compatible', () => {
   assert.equal(typeof pm, 'function');
-  for (const name of ['makeRe', 'parse', 'scan', 'isMatch', 'matchBase']) {
+  for (const name of ['makeRe', 'parse', 'scan', 'isMatch', 'matchBase', 'compileRe']) {
     assert.equal(typeof pm[name], 'function', name);
   }
   assert.equal(pm.isMatch('src/a.ts', '**/*.ts'), true);
@@ -16,121 +52,89 @@ test('public picomatch API and ordinary glob matching remain available', () => {
   assert.equal(pm.isMatch('src/foo.spec.ts', 'src/*.spec.ts'), true);
   assert.equal(pm.isMatch('app/index.css', '**/*.{js,css}'), true);
   assert.equal(pm.isMatch('ABC.js', '*.js', { nocase: true }), true);
-  assert.equal(pm.isMatch('Abc', '+(Abc)'), true);
   assert.equal(pm.isMatch('AbcAbc', '+(Abc)'), true);
   assert.equal(pm.isMatch('+(*a)', '+(*a)'), true);
-});
-
-test('repeated extglob wildcard literalization cannot be disabled', () => {
-  for (const expression of ['+(*)', '*(*a)', '+(*a)', '+(a*)', '+(*a|b)', '+(*?a)', '*(*?)']) {
-    for (const options of [{}, { maxExtglobRecursion: false }, { maxExtglobRecursion: 4 }]) {
-      const matcher = pm(expression, options);
-      assert.equal(matcher('a'.repeat(72) + '!'), false, expression);
-      const regex = pm.makeRe(expression, options);
-      assert.equal(regex.test('a'.repeat(72) + '!'), false, expression);
-    }
-  }
-});
-
-test('unmatched brackets and nobracket must not bypass the repeated-star guard', () => {
-  for (const { pattern, options, input } of [
-    { pattern: '+([*a)', options: {}, input: '[a'.repeat(36) + '!' },
-    { pattern: '+([*])', options: { nobracket: true }, input: '[]'.repeat(36) + '!' },
-    { pattern: '+([*])', options: {}, input: '[]'.repeat(36) + '!' }
-  ]) {
-    assert.equal(pm(pattern, options)(input), false, pattern);
-    assert.equal(pm.makeRe(pattern, options).test(input), false, pattern);
-  }
-});
-
-test('unescape and positive recursion options cannot re-enable exponential regexes', () => {
-  for (const { pattern, options, input } of [
-    { pattern: "+(a\\*)", options: { unescape: true }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(+(a))', options: { maxExtglobRecursion: 4 }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(a+(a))', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(a{a,aa})', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(a+)', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: "+(a\\+)", options: { unescape: true }, input: 'a'.repeat(36) + '!' }
-  ]) {
-    assert.equal(pm(pattern, options)(input), false, pattern);
-    assert.equal(pm.makeRe(pattern, options).test(input), false, pattern);
-  }
-});
-
-test('repeated alternations must be prefix-free and syntactically literal', () => {
-  for (const { pattern, options = {}, input } of [
-    { pattern: '+(ab|abab)', input: 'ab'.repeat(36) + '!' },
-    { pattern: '+([ab]|a)', input: 'a'.repeat(36) + '!' },
-    { pattern: '+([a|a)', input: '[a'.repeat(36) + '!' },
-    { pattern: '+(ab|ABAB)', options: { nocase: true }, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+(a|A)', options: { nocase: true }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(ab|ABAB)', options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' },
-    { pattern: '+(ab|ABAB)', options: { nocase: 1 }, input: 'ab'.repeat(16) + '!' },
-    { pattern: '+(a|A)', options: { nocase: 'true' }, input: 'a'.repeat(16) + '!' },
-    { pattern: '+(a|A)', options: { flags: ['i'] }, input: 'a'.repeat(16) + '!' },
-    { pattern: String.raw`+(\w|a)`, input: 'a'.repeat(16) + '!' },
-    { pattern: String.raw`+(\x61|a)`, input: 'a'.repeat(16) + '!' }
-  ]) {
-    assert.equal(pm(pattern, options)(input), false, pattern);
-    assert.equal(pm.makeRe(pattern, options).test(input), false, pattern);
-  }
   assert.equal(pm.isMatch('foobar', '+(foo|bar)'), true);
-  assert.equal(pm.isMatch('foofoo', '+(foo|bar)'), true);
   assert.equal(pm.isMatch('FOOBAR', '+(foo|bar)', { nocase: true }), true);
   assert.equal(pm.makeRe('+(foo|bar)', { flags: 'i' }).test('FOOBAR'), true);
-});
-
-test('ordinary stars and safe bounded groups stay valid', () => {
-  assert.equal(pm.isMatch('abc', '+(abc)'), true);
-  assert.equal(pm.isMatch('abcabc', '+(abc)'), true);
-  assert.equal(pm.isMatch('foobar', 'foo*'), true);
-  assert.equal(pm.isMatch('a*', "+(a\\*)"), true);
+  assert.equal(pm.isMatch('a*', '+(a\\*)'), true);
   assert.equal(pm.isMatch('a*a', 'a[a*]a'), true);
+  assert.equal(pm.isMatch('src/index.ts', '**/*.@(js|ts)'), true);
+  assert.equal(pm.isMatch('src/index.ts', '**/!(*.spec).ts'), true);
+  assert.equal(pm.isMatch('src/a.spec.ts', '**/!(*.spec).ts'), false);
+  assert.equal(pm.isMatch('aababb', '+(*(a)|*(b))'), true);
+  assert.equal(pm.compileRe(pm.parse('*.TS'), { nocase: true }).test('file.ts'), true);
+  assert.equal(pm(pm.parse('+(foo|bar)'), { flags: 'i' })('FOOBAR'), true);
 });
 
-test('dangerous repeated extglobs do not block the Node event loop', async () => {
-  const patterns = [
-    ...['+(*)', '+(*a)', '*(*a)', '+(*?a)', '+(a*)'].map(pattern => ({
-      pattern, options: { maxExtglobRecursion: false }, input: 'a'.repeat(160) + '!'
-    })),
-    { pattern: '+([*a)', options: {}, input: '[a'.repeat(36) + '!' },
-    { pattern: '+([*])', options: { nobracket: true }, input: '[]'.repeat(36) + '!' },
-    { pattern: "+(a\\*)", options: { unescape: true }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(+(a))', options: { maxExtglobRecursion: 4 }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(a+(a))', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(a{a,aa})', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(a+)', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: "+(a\\+)", options: { unescape: true }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(ab|abab)', options: {}, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+([ab]|a)', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: '+([a|a)', options: {}, input: '[a'.repeat(36) + '!' },
-    { pattern: '+(ab|ABAB)', options: { nocase: true }, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+(a|A)', options: { nocase: true }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(ab|ABAB)', options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' },
-    { pattern: '+(ab|ABAB)', options: { nocase: 1 }, input: 'ab'.repeat(36) + '!' },
-    { pattern: '+(a|A)', options: { nocase: 'true' }, input: 'a'.repeat(36) + '!' },
-    { pattern: '+(a|A)', options: { flags: ['i'] }, input: 'a'.repeat(36) + '!' },
-    { pattern: String.raw`+(\w|a)`, options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: String.raw`+(\x61|a)`, options: {}, input: 'a'.repeat(36) + '!' }
-  ];
-  // The test invokes only bounded strings and uses an external kill timeout
-  // so that a regression cannot hang CI indefinitely.
-  await new Promise((resolve, reject) => {
-    const child = fork(path.join(__dirname, 'redos-child.cjs'), {
-      stdio: 'ignore',
-      env: { NODE_ENV: 'test' }
-    });
-    const guard = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error('CVE-2026-112366: matcher blocked beyond bounded budget'));
-    }, 2400);
-    child.once('exit', (code, signal) => {
-      clearTimeout(guard);
-      if (code === 0 && !signal) resolve();
-      else reject(new Error('Security child failed: exit ' + code + ' signal ' + signal));
-    });
-    child.send(patterns);
-  });
+test('repeated wildcard denial cannot be disabled', () => bounded(
+  ['+(*)', '*(*a)', '+(*a)', '+(a*)', '+(*a|b)', '+(*?a)', '*(*?)']
+    .flatMap(pattern => [{}, { maxExtglobRecursion: false }, { maxExtglobRecursion: 4 }]
+      .map(options => ({ pattern, options, input: 'a'.repeat(72) + '!' })))
+));
+
+test('unmatched classes, escapes and recursion do not bypass the proof', () => bounded([
+  { pattern: '+([*a)', options: {}, input: '[a'.repeat(36) + '!' },
+  { pattern: '+([*])', options: { nobracket: true }, input: '[]'.repeat(36) + '!' },
+  { pattern: '+([*])', options: {}, input: '[]'.repeat(36) + '!' },
+  { pattern: '+(a\\*)', options: { unescape: true }, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(+(a))', options: { maxExtglobRecursion: 4 }, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(a+(a))', options: {}, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(a{a,aa})', options: {}, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(a+)', options: {}, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(a\\+)', options: { unescape: true }, input: 'a'.repeat(36) + '!' }
+]));
+
+test('alternation proof respects final matching flags and regex escapes', () => bounded([
+  { pattern: '+(ab|abab)', input: 'ab'.repeat(36) + '!' },
+  { pattern: '+([ab]|a)', input: 'a'.repeat(36) + '!' },
+  { pattern: '+([a|a)', input: '[a'.repeat(36) + '!' },
+  { pattern: '+(ab|ABAB)', options: { nocase: true }, input: 'ab'.repeat(36) + '!' },
+  { pattern: '+(a|A)', options: { nocase: true }, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(ab|ABAB)', options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
+  { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' },
+  { pattern: '+(ab|ABAB)', options: { nocase: 1 }, input: 'ab'.repeat(36) + '!' },
+  { pattern: '+(a|A)', options: { nocase: 'true' }, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(a|A)', options: { flags: ['i'] }, input: 'a'.repeat(36) + '!' },
+  { pattern: String.raw`+(\w|a)`, input: 'a'.repeat(36) + '!' },
+  { pattern: String.raw`+(\x61|a)`, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(a|A)', parseOptions: {}, options: { nocase: true }, input: 'a'.repeat(36) + '!' },
+  { pattern: '+(ab|ABAB)', parseOptions: {}, options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
+  { pattern: '+(k|K)', parseOptions: {}, options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' }
+]));
+
+test('composition is rejected in ordinary and assertion contexts', () => bounded([
+  ...['+(a)', '*(a)', '+(a|b)'].map(part => ({
+    pattern: part.repeat(8), input: 'a'.repeat(64) + '!'
+  })),
+  { pattern: '+(a)' + '*a'.repeat(8), input: 'a'.repeat(64) + '!' },
+  { pattern: '*a'.repeat(8) + '+(a)', input: 'a'.repeat(64) + '!' },
+  { pattern: '?(a)'.repeat(8) + '+(a)', input: 'a'.repeat(64) + '!' },
+  { pattern: '+(a)' + '@(a|aa)'.repeat(8), input: 'a'.repeat(64) + '!' },
+  { pattern: '(?=' + '+(a)'.repeat(8) + 'b)a*', input: 'a'.repeat(64) + '!' },
+  { pattern: '(?!' + '+(a)'.repeat(8) + 'b)a*', input: 'a'.repeat(64) + '!' },
+  { pattern: '!(' + '+(a)'.repeat(8) + ')', input: 'a'.repeat(64) + '!' }
+]));
+
+test('raw regex syntax and mutable state output cannot bypass the boundary', () => bounded([
+  { pattern: '(a+)+', input: 'a'.repeat(36) + '!' },
+  { pattern: '((a|aa))+', input: 'a'.repeat(36) + '!' },
+  { pattern: '@((a+)+)', input: 'a'.repeat(36) + '!' },
+  { pattern: '@(a|aa)+', input: 'a'.repeat(36) + '!' },
+  { pattern: '{a,aa}+', input: 'a'.repeat(36) + '!' },
+  { pattern: '[a]+'.repeat(8), input: 'a'.repeat(64) + '!' },
+  { pattern: '[a]+[a]+[a]+[a]+!', options: { regex: true }, input: 'a'.repeat(64) + '?' },
+  { pattern: 'safe-file', tamperOutput: '(a+)+', input: 'a'.repeat(36) + '!' }
+]));
+
+test('serialized states are re-parsed and rejected states match only their literal spelling', () => {
+  const state = pm.parse('*.ts');
+  const clone = JSON.parse(JSON.stringify(state));
+  assert.equal(pm.compileRe(clone).test('module.ts'), true);
+  assert.equal(pm.compileRe(clone).test('module.js'), false);
+  for (const expression of ['(a+)+', '+(a)+(a)', '+(a)*a']) {
+    assert.equal(pm.makeRe(expression).test(expression), true);
+    assert.equal(pm.compileRe(pm.parse(expression)).test(expression), true);
+  }
+  assert.throws(() => pm.compileRe({ output: '.*' }), /original string input/);
 });
