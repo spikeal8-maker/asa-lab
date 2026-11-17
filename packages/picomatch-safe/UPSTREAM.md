@@ -23,8 +23,11 @@ The only upstream runtime modification is `lib/parse.js`.
 - Repetition over overlapping alternatives (e.g. `ab|abab`) or complex
   character-class alternatives (e.g. `[ab]|a`) can backtrack exponentially.
   Only demonstrably prefix-free, simple literal alternative branches are
-  accepted; complex forms fail closed. The existing upstream safe nested-star
-  character-class rewrite is retained.
+  accepted; complex forms fail closed. When `nocase:true` or regex `i` flags
+  apply, ASCII branches are lowercased before the prefix test, and non-ASCII
+  alternatives fail closed because Unicode case folding may make distinct
+  literals overlap. The existing upstream safe nested-star character-class
+  rewrite is retained.
 - Backslash-escaped '*' remains a literal; **all non-escaped stars** in repeated
   extglob branches are rejected, even inside bracket-looking text. This is
   intentional fail-closed behavior: unmatched '[' and `nobracket:true` make

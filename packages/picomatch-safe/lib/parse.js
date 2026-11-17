@@ -352,10 +352,20 @@ const analyzeRepeatedExtglob = (body, options) => {
         !/^[\p{L}\p{N}._-]+$/u.test(value))) {
       return { risky: true };
     }
-    for (let i = 0; i < literals.length; i++) {
-      for (let j = i + 1; j < literals.length; j++) {
-        if (literals[i].startsWith(literals[j]) ||
-            literals[j].startsWith(literals[i])) {
+    // Regex /i folds alternative branches regardless of their spelling.
+    // For non-ASCII names Unicode folding is too subtle to infer safely.
+    const ignoreCase = options.nocase === true ||
+      (typeof options.flags === 'string' && options.flags.includes('i'));
+    if (ignoreCase && literals.some(value => /[^\x00-\x7F]/.test(value))) {
+      return { risky: true };
+    }
+    const comparable = ignoreCase
+      ? literals.map(value => value.toLowerCase())
+      : literals;
+    for (let i = 0; i < comparable.length; i++) {
+      for (let j = i + 1; j < comparable.length; j++) {
+        if (comparable[i].startsWith(comparable[j]) ||
+            comparable[j].startsWith(comparable[i])) {
           return { risky: true };
         }
       }

@@ -58,16 +58,22 @@ test('unescape and positive recursion options cannot re-enable exponential regex
 });
 
 test('repeated alternations must be prefix-free and syntactically literal', () => {
-  for (const { pattern, input } of [
+  for (const { pattern, options = {}, input } of [
     { pattern: '+(ab|abab)', input: 'ab'.repeat(36) + '!' },
     { pattern: '+([ab]|a)', input: 'a'.repeat(36) + '!' },
-    { pattern: '+([a|a)', input: '[a'.repeat(36) + '!' }
+    { pattern: '+([a|a)', input: '[a'.repeat(36) + '!' },
+    { pattern: '+(ab|ABAB)', options: { nocase: true }, input: 'ab'.repeat(36) + '!' },
+    { pattern: '+(a|A)', options: { nocase: true }, input: 'a'.repeat(36) + '!' },
+    { pattern: '+(ab|ABAB)', options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
+    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' }
   ]) {
-    assert.equal(pm(pattern)(input), false, pattern);
-    assert.equal(pm.makeRe(pattern).test(input), false, pattern);
+    assert.equal(pm(pattern, options)(input), false, pattern);
+    assert.equal(pm.makeRe(pattern, options).test(input), false, pattern);
   }
   assert.equal(pm.isMatch('foobar', '+(foo|bar)'), true);
   assert.equal(pm.isMatch('foofoo', '+(foo|bar)'), true);
+  assert.equal(pm.isMatch('FOOBAR', '+(foo|bar)', { nocase: true }), true);
+  assert.equal(pm.makeRe('+(foo|bar)', { flags: 'i' }).test('FOOBAR'), true);
 });
 
 test('ordinary stars and safe bounded groups stay valid', () => {
@@ -93,7 +99,11 @@ test('dangerous repeated extglobs do not block the Node event loop', async () =>
     { pattern: "+(a\\+)", options: { unescape: true }, input: 'a'.repeat(36) + '!' },
     { pattern: '+(ab|abab)', options: {}, input: 'ab'.repeat(36) + '!' },
     { pattern: '+([ab]|a)', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: '+([a|a)', options: {}, input: '[a'.repeat(36) + '!' }
+    { pattern: '+([a|a)', options: {}, input: '[a'.repeat(36) + '!' },
+    { pattern: '+(ab|ABAB)', options: { nocase: true }, input: 'ab'.repeat(36) + '!' },
+    { pattern: '+(a|A)', options: { nocase: true }, input: 'a'.repeat(36) + '!' },
+    { pattern: '+(ab|ABAB)', options: { flags: 'i' }, input: 'ab'.repeat(36) + '!' },
+    { pattern: '+(k|K)', options: { flags: 'iu' }, input: 'k'.repeat(36) + '!' }
   ];
   // The test invokes only bounded strings and uses an external kill timeout
   // so that a regression cannot hang CI indefinitely.
