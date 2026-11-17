@@ -13,6 +13,8 @@ do not preload that full specification or the Electronics source/test trees.
 
 > **История 23 пользовательских замечаний (23.10.2026):** [исполнительное ТЗ и очередь «от простого к сложному»](OWNER_23_EXECUTION_QUEUE.md) → [единый реестр #703](https://github.com/spikeal8-maker/asa-lab/issues/703) → конкретная активная task card. Этот порядок не меняет `docs/execution/current.yaml` и не разрешает трогать чужие lanes.
 
+> **Ультразвуковые дальномеры:** [исполнительное ТЗ v1.0](contracts/ULTRASONIC_EXECUTION_SPEC.md) и [программа #1238](https://github.com/spikeal8-maker/asa-lab/issues/1238) задают последовательные карточки U00–U09 для HC-SR04/PING, отдельной справки «?» и управления целью как в Tinkercad. [Аудит и проверка живого Tinkercad](evidence/ultrasonic-audit-20261117.md) — историческое evidence. Документы не выбирают product task; выбор остаётся в `current.yaml`.
+
 ## 1. Confirm the selected task
 
 Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: run
