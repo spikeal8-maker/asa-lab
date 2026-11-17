@@ -89,6 +89,10 @@ parallel_lanes:
       - contexts/electronics/domain/model-registry.ts
       - contexts/electronics/domain/models/l298n-dc-model.ts
       - contexts/electronics/domain/models/l298n-input-network.ts
+      - contexts/electronics/domain/models/l298n-pwm-model.ts
+      - contexts/electronics/testing/l298n-input-network.spec.ts
+      - contexts/electronics/testing/l298n-clock-integration.spec.ts
+      - apps/web/src/electronics/testing/l298n-domain-worker.browser.mjs
       - contexts/electronics/testing/l298n-dc-model.spec.ts
       - contexts/electronics/testing/l298n-integrated-solver.spec.ts
       - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
@@ -152,6 +156,12 @@ parallel_lanes:
         - contexts/electronics/domain/model-registry.ts
         - contexts/electronics/domain/models/l298n-dc-model.ts
         - contexts/electronics/domain/models/l298n-input-network.ts
+        - contexts/electronics/domain/models/l298n-pwm-model.ts
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/testing/l298n-input-network.spec.ts
+        - contexts/electronics/testing/l298n-clock-integration.spec.ts
+        - apps/web/src/electronics/testing/l298n-domain-worker.browser.mjs
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/testing/l298n-dc-model.spec.ts
         - contexts/electronics/testing/l298n-integrated-solver.spec.ts
@@ -188,8 +198,12 @@ parallel_lanes:
         existing_owners:
           - electronics-core-fet
           - electronics-reverse-led-colour
+          - electronics-arduino
+          - electronics-classroom
         historical_shared_path_advisory:
           - docs/product/electronics/generated/component-coverage.json
+          - contexts/electronics/domain/arduino-circuit-scheduler.ts
+          - contexts/electronics/domain/simulation.ts
         additional_dirty_peer: feature/electronics-l298n-p3-qualification-1199
         unapproved_new_peer_path:
           path: contexts/electronics/domain/models/l298n-driven-inputs.ts
