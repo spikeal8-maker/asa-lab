@@ -34,7 +34,6 @@ const liveReads = new Set<ReadFlight>();
 let readEpoch = 0;
 let sessionEpoch = 0;
 let sessionKey = '';
-const sessionListeners = new Set<() => void>();
 
 /** No completed-response cache: canonical identity reads always reach the server. */
 export function invalidatePortalReads(): void {
@@ -47,21 +46,8 @@ export function invalidatePortalSession(): void {
   sessionEpoch += 1;
   invalidatePortalReads();
   for (const flight of liveReads) flight.controller.abort(cancelled());
-  for (const listener of sessionListeners) {
-    try {
-      listener();
-    } catch {
-      // A view subscriber must not interrupt the session fence.
-    }
-  }
 }
 export const portalSessionEpoch = (): number => sessionEpoch;
-export function subscribePortalSession(listener: () => void): () => void {
-  sessionListeners.add(listener);
-  return () => {
-    sessionListeners.delete(listener);
-  };
-}
 
 let observedContext = telemetryContext();
 subscribeTelemetry((context) => {

@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type ClassroomStudentSession } from '../api';
 import { notifyProfileAvatarChanged } from '../creator-portal/default-avatars';
-import { portalSessionEpoch, subscribePortalSession } from '../portal-requests';
 import type { AvatarActor } from './avatar-chooser-events';
 
 export type AvatarSave =
   | { readonly kind: 'account'; readonly dataUrl: string | null }
   | { readonly kind: 'seat'; readonly avatarKey: string | null };
 
-/** A sent write belongs to the mounted shell actor and session, independently of its dialog. */
+/** A sent write belongs to the mounted shell actor, independently of its dialog. */
 export function useAvatarSave({
   actor,
   onAccountSaved,
@@ -18,12 +17,7 @@ export function useAvatarSave({
   readonly onAccountSaved: (url: string | null) => void;
   readonly onSeatSaved?: ((seat: ClassroomStudentSession) => void) | undefined;
 }) {
-  const epoch = useSyncExternalStore(
-    subscribePortalSession,
-    portalSessionEpoch,
-    portalSessionEpoch,
-  );
-  const key = `${actor.kind}:${actor.id}:${epoch}`;
+  const key = `${actor.kind}:${actor.id}`;
   const owner = useRef({ key, alive: false, locked: false });
   if (owner.current.key !== key) owner.current = { key, alive: owner.current.alive, locked: false };
   const [state, setState] = useState({ key, saving: false, error: null as string | null });
@@ -36,16 +30,15 @@ export function useAvatarSave({
 
   async function save(input: AvatarSave): Promise<boolean> {
     const requestOwner = owner.current;
-    const current = () =>
-      requestOwner.alive && owner.current === requestOwner && portalSessionEpoch() === epoch;
     if (
-      !current() ||
+      !requestOwner.alive ||
       requestOwner.key !== key ||
       requestOwner.locked ||
       input.kind !== actor.kind ||
       (input.kind === 'seat' && !onSeatSaved)
     )
       return false;
+    const current = () => requestOwner.alive && owner.current === requestOwner;
     requestOwner.locked = true;
     setState({ key, saving: true, error: null });
     try {

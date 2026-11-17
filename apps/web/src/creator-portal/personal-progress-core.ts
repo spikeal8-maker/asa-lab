@@ -1,10 +1,9 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
-import { api, type AccountAvatar, type ApiResult } from '../api';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import type { PersonalProgressSummaryV1 } from '@asa-lab/contracts';
+import type { ApiResult } from '../api';
+import { call } from '../api-call';
 import { abortable, lifecycleCancellation } from '../auth-request';
 import { subscribeTelemetry, telemetryContext, type TelemetryContext } from '../telemetry-context';
-import { actorKey } from '../telemetry-contract';
-import { portalSessionEpoch, subscribePortalSession } from '../portal-requests';
-import { PROFILE_AVATAR_CHANGED_EVENT } from './default-avatars';
 
 /** Own UI presentation, never an authentication payload or an access decision. */
 export type OwnProgressActor =
@@ -17,22 +16,20 @@ export type OwnProgressActor =
       readonly avatarKey: string | null;
     };
 
-function lifetimeKey(
-  actor: OwnProgressActor | null,
-  context: TelemetryContext,
-  sessionEpoch: number,
-): string | null {
+function lifetimeKey(actor: OwnProgressActor | null, context: TelemetryContext): string | null {
   const active = context.actor;
   if (!actor || !context.ready || !active) return null;
-  const matches =
+  const identity =
     actor.kind === 'account'
       ? active.kind === 'account' && active.accountId === actor.accountId.toLowerCase()
+        ? `account:${active.accountId}:${active.workspaceId}`
+        : null
       : active.kind === 'student' &&
-        active.seatId === actor.seatId.toLowerCase() &&
-        active.classId === actor.classroomId.toLowerCase();
-  return matches
-    ? `${actorKey(active)}:${context.generation}:${context.continuity}:${sessionEpoch}`
-    : null;
+          active.seatId === actor.seatId.toLowerCase() &&
+          active.classId === actor.classroomId.toLowerCase()
+        ? `seat:${active.seatId}:${active.classId}`
+        : null;
+  return identity ? `${identity}:${context.generation}:${context.continuity}` : null;
 }
 
 export interface ProgressLifetime {
@@ -42,186 +39,126 @@ export interface ProgressLifetime {
 
 export function useProgressLifetime(actor: OwnProgressActor | null): ProgressLifetime {
   const context = useSyncExternalStore(subscribeTelemetry, telemetryContext, telemetryContext);
-  const sessionEpoch = useSyncExternalStore(
-    subscribePortalSession,
-    portalSessionEpoch,
-    portalSessionEpoch,
-  );
   const kind = actor?.kind;
   const id = actor?.kind === 'account' ? actor.accountId : actor?.seatId;
   const classroom = actor?.kind === 'seat' ? actor.classroomId : undefined;
   // Names and avatar choices do not change the ownership of a response.
-  const current = useCallback(
-    () => lifetimeKey(actor, telemetryContext(), portalSessionEpoch()),
-    [kind, id, classroom],
-  );
-  const key = lifetimeKey(actor, context, sessionEpoch);
+  const current = useCallback(() => lifetimeKey(actor, telemetryContext()), [kind, id, classroom]);
+  const key = lifetimeKey(actor, context);
   return useMemo(() => ({ key, current }), [key, current]);
 }
 
-type SharedResource = 'summary' | 'avatar';
-interface SharedSnapshot<T> {
+type ReadFailure = { readonly status: number; readonly message: string };
+type ReadValue<T> = {
+  readonly key: string | null;
+  readonly revision: number;
   readonly data: T | null;
-  readonly error: { readonly status: number; readonly message: string } | null;
+  readonly error: ReadFailure | null;
   readonly settled: boolean;
-}
-interface SharedRead {
-  readonly lifetime: ProgressLifetime;
-  readonly listeners: Set<() => void>;
-  readonly read: (signal: AbortSignal) => Promise<ApiResult<unknown>>;
-  snapshot: SharedSnapshot<unknown>;
-  controller: AbortController | null;
-  version: number;
-  dispose: () => void;
-}
-const sharedReads = new Map<string, SharedRead>();
-const pendingSnapshot: SharedSnapshot<never> = { data: null, error: null, settled: false };
-const inactiveSnapshot: SharedSnapshot<never> = { ...pendingSnapshot, settled: true };
-// Entries are created only for a non-null lifetime; retirement never changes that key.
-const isCurrentRead = (entry: SharedRead): boolean =>
-  entry.lifetime.current() === entry.lifetime.key;
+};
 
-function publishRead(entry: SharedRead, snapshot: SharedSnapshot<unknown>): void {
-  entry.snapshot = snapshot;
-  for (const listener of entry.listeners) listener();
-}
-
-function retireTransport(entry: SharedRead): void {
-  entry.version += 1;
-  entry.controller?.abort(lifecycleCancellation());
-  entry.controller = null;
-}
-
-function startSharedRead(entry: SharedRead, invalidate = false): void {
-  if (!isCurrentRead(entry) || entry.listeners.size === 0) return;
-  // Repeated user retries join the current attempt. A real mutation supersedes it.
-  if (entry.controller && !invalidate) return;
-  retireTransport(entry);
-  const version = entry.version;
-  const controller = new AbortController();
-  entry.controller = controller;
-  publishRead(entry, pendingSnapshot);
-  const current = () =>
-    !controller.signal.aborted && entry.version === version && isCurrentRead(entry);
-  void abortable(() => entry.read(controller.signal), controller.signal)
-    .then((result) => {
-      if (!current()) return;
-      publishRead(entry, {
-        settled: true,
-        data: result.ok ? result.data : null,
-        error: result.ok ? null : { status: result.status, message: result.error.message },
-      });
-    })
-    .catch(() => {
-      if (current())
-        publishRead(entry, {
-          data: null,
-          settled: true,
-          error: { status: 0, message: 'Не удалось получить данные.' },
-        });
-    })
-    .finally(() => {
-      if (entry.controller === controller) entry.controller = null;
-    });
-}
-
-function replaceSharedRead(entry: SharedRead, data: unknown): void {
-  if (!isCurrentRead(entry)) return;
-  retireTransport(entry);
-  publishRead(entry, { data, error: null, settled: true });
-}
-
-/** Only the two own-profile resources share settled state, while consumers exist.
- * The key includes the proven actor, trusted workspace/class and session lifetime.
- * Generic section reads and cursor pages retain their independent read contract. */
-export function useSharedPersonalRead<T>(
+/** Each section settles independently; ownership is checked before rendering and committing. */
+export function usePersonalRead<T>(
   lifetime: ProgressLifetime,
-  resource: SharedResource,
   read: (signal: AbortSignal) => Promise<ApiResult<T>>,
-  observeChanges?: (invalidate: () => void) => () => void,
+  revision = 0,
 ) {
-  const key = lifetime.key ? `${lifetime.key}:${resource}` : null;
-  const subscribe = useCallback(
-    (listener: () => void) => {
-      if (!key || lifetime.current() !== lifetime.key) return () => undefined;
-      let entry = sharedReads.get(key);
-      if (!entry) {
-        const created: SharedRead = {
-          lifetime,
-          listeners: new Set(),
-          read,
-          snapshot: pendingSnapshot,
-          controller: null,
-          version: 0,
-          dispose: () => undefined,
-        };
-        sharedReads.set(key, created);
-        let route = telemetryContext().route;
-        const retireContext = () => {
-          if (isCurrentRead(created)) return false;
-          created.dispose();
-          publishRead(created, pendingSnapshot);
-          return true;
-        };
-        const stopContext = subscribeTelemetry((context) => {
-          if (!retireContext() && context.route !== route) {
-            route = context.route;
-            if (route === 'home' || route === 'learning') startSharedRead(created, true);
-          }
-        });
-        const stopMutation = observeChanges?.(() => startSharedRead(created, true));
-        const stopSession = subscribePortalSession(retireContext);
-        const avatarChanged = (event: Event) => {
-          replaceSharedRead(created, {
-            avatarDataUrl: (event as CustomEvent<string | null>).detail,
+  const [retry, setRetry] = useState(0);
+  const [value, setValue] = useState<ReadValue<T> | null>(null);
+  const sequence = useRef(0);
+  const reload = useCallback(() => setRetry((previous) => previous + 1), []);
+  useEffect(() => {
+    const key = lifetime.key;
+    const generation = ++sequence.current;
+    const controller = new AbortController();
+    const unsubscribe = subscribeTelemetry(() => {
+      if (lifetime.current() !== key) controller.abort(lifecycleCancellation());
+    });
+    if (key) {
+      setValue({ key, revision, data: null, error: null, settled: false });
+      void abortable(() => read(controller.signal), controller.signal)
+        .then((result) => {
+          if (
+            controller.signal.aborted ||
+            generation !== sequence.current ||
+            lifetime.current() !== key
+          )
+            return;
+          setValue({
+            key,
+            revision,
+            settled: true,
+            data: result.ok ? result.data : null,
+            error: result.ok ? null : { status: result.status, message: result.error.message },
           });
-        };
-        if (resource === 'avatar')
-          window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, avatarChanged);
-        created.dispose = () => {
-          retireTransport(created);
-          stopContext();
-          stopMutation?.();
-          stopSession();
-          if (resource === 'avatar')
-            window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, avatarChanged);
-          if (sharedReads.get(key) === created) sharedReads.delete(key);
-        };
-        entry = created;
-      }
-      const shared = entry;
-      shared.listeners.add(listener);
-      if (!shared.snapshot.settled && !shared.controller) startSharedRead(shared);
-      return () => {
-        shared.listeners.delete(listener);
-        if (shared.listeners.size === 0) shared.dispose();
-      };
-    },
-    [key, lifetime, resource, read, observeChanges],
-  );
-  const getSnapshot = useCallback(
-    () =>
-      key && lifetime.current() === lifetime.key
-        ? (sharedReads.get(key)?.snapshot ?? pendingSnapshot)
-        : inactiveSnapshot,
-    [key, lifetime],
-  );
-  const value = useSyncExternalStore(subscribe, getSnapshot, getSnapshot) as SharedSnapshot<T>;
-  const reload = useCallback(() => {
-    const entry = key ? sharedReads.get(key) : null;
-    if (entry) startSharedRead(entry);
-  }, [key]);
-  const replace = useCallback(
-    (data: T) => {
-      const entry = key ? sharedReads.get(key) : null;
-      if (entry) replaceSharedRead(entry, data);
-    },
-    [key],
-  );
-  return { ...value, loading: !value.settled, reload, replace };
+        })
+        .catch(() => {
+          if (
+            controller.signal.aborted ||
+            generation !== sequence.current ||
+            lifetime.current() !== key
+          )
+            return;
+          setValue({
+            key,
+            revision,
+            data: null,
+            settled: true,
+            error: { status: 0, message: 'Не удалось получить данные.' },
+          });
+        });
+    }
+    return () => {
+      sequence.current += 1;
+      unsubscribe();
+      controller.abort(lifecycleCancellation());
+    };
+  }, [lifetime, read, revision, retry]);
+  // Passive-effect cleanup alone would expose the previous person's data for one render.
+  const visible =
+    lifetime.key !== null &&
+    lifetime.current() === lifetime.key &&
+    value?.key === lifetime.key &&
+    value.revision === revision
+      ? value
+      : null;
+  return {
+    data: visible?.data ?? null,
+    error: visible?.error ?? null,
+    settled: lifetime.key === null || visible?.settled === true,
+    loading: lifetime.key !== null && visible?.settled !== true,
+    reload,
+  };
 }
 
-const readAccountAvatar = (signal: AbortSignal) => api.accountAvatar(signal);
-export function useAccountAvatar(lifetime: ProgressLifetime) {
-  return useSharedPersonalRead<AccountAvatar>(lifetime, 'avatar', readAccountAvatar);
+export async function readPersonalProgress(
+  actor: OwnProgressActor,
+  signal: AbortSignal,
+  cursor?: string,
+): Promise<ApiResult<PersonalProgressSummaryV1>> {
+  const path =
+    actor.kind === 'account' ? '/api/progress/summary' : '/api/class-join/progress/summary';
+  const result = await call<PersonalProgressSummaryV1>(
+    `${path}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+    { signal },
+  );
+  if (result.ok) {
+    const scope = result.data.scope;
+    const matching =
+      actor.kind === 'account'
+        ? scope.kind === 'account' && scope.accountId === actor.accountId.toLowerCase()
+        : scope.kind === 'seat' &&
+          scope.seatId === actor.seatId.toLowerCase() &&
+          scope.classroomId === actor.classroomId.toLowerCase();
+    if (!matching)
+      return {
+        ok: false,
+        status: 0,
+        error: { code: 'progress_scope_mismatch', message: 'Контекст прогресса изменился.' },
+      };
+  }
+  return result;
 }
+
+export const progressNumber = (value: number): string =>
+  new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value);

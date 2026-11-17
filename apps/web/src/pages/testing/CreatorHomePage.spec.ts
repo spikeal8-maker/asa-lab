@@ -17,14 +17,6 @@ import { CreatorHomePage } from '../CreatorHomePage';
 import { QuickProjectCreation, useProjectScroll } from '../../creator-portal/QuickProjectCreation';
 import { setTelemetryContext } from '../../telemetry-context';
 import type { OwnProgressActor } from '../../creator-portal/personal-progress';
-import { PortalHeader } from '../../components/PortalHeader';
-import * as avatarSave from '../../components/use-avatar-save';
-import { PresentationProvider } from '../../components/PresentationPreferences';
-import {
-  notifyProfileAvatarChanged,
-  PROFILE_AVATAR_CHANGED_EVENT,
-} from '../../creator-portal/default-avatars';
-import { setPortalSessionKey } from '../../portal-requests';
 
 vi.mock('../../creator-portal/HomePublicShelves', () => ({ HomePublicShelves: () => null }));
 vi.mock('../../creator-portal/QuickProjectCreation', async (original) => {
@@ -36,18 +28,7 @@ const actor = {
   accountId: 'home-account',
   displayName: 'Ученик',
 } satisfies OwnProgressActor;
-const session: SessionPayload = {
-  authenticated: true,
-  user: { id: actor.accountId, displayName: actor.displayName, email: null },
-  account: { id: actor.accountId, displayName: actor.displayName, email: null },
-  capabilities: [],
-  workspaces: [
-    { workspaceId: 'personal', kind: 'personal', title: 'Моё пространство', role: 'owner' },
-  ],
-  activeWorkspace: { workspaceId: 'personal', kind: 'personal' },
-  navigation: { classes: false, classroomManagement: false },
-  timeZone: 'Europe/Moscow',
-};
+const session = {} as SessionPayload;
 const success = <T>(data: T): ApiResult<T> => ({ ok: true, status: 200, data });
 const failure: ApiResult<never> = {
   ok: false,
@@ -150,41 +131,22 @@ const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRON
 function ready(workspaceId = 'personal') {
   setTelemetryContext({ kind: 'account', accountId: actor.accountId, workspaceId }, true, 'home');
 }
-function Harness({ shell = false }: { shell?: boolean }) {
+function Harness() {
   useLayoutEffect(() => {
     frames.push(host.textContent ?? '');
-  });
-  const page = createElement(CreatorHomePage, {
-    session,
-    actor,
-    onNavigate,
-    onOpenProject,
-    onAllProjects,
-    onOpenWork: vi.fn(),
-    onOpenCourse: vi.fn(),
   });
   return createElement(QuickProjectCreation, {
     contextKey: 'own-context',
     onCreated,
-    children: shell
-      ? createElement(PresentationProvider, {
-          actor: actor.accountId,
-          children: createElement(
-            'div',
-            { className: 'portal-shell' },
-            createElement(PortalHeader, {
-              session,
-              progressActor: actor,
-              active: 'home',
-              canTeach: false,
-              onNavigate,
-              onSessionChanged: vi.fn(),
-              onLoggedOut: vi.fn(),
-            }),
-            page,
-          ),
-        })
-      : page,
+    children: createElement(CreatorHomePage, {
+      session,
+      actor,
+      onNavigate,
+      onOpenProject,
+      onAllProjects,
+      onOpenWork: vi.fn(),
+      onOpenCourse: vi.fn(),
+    }),
   });
 }
 async function render() {
@@ -221,116 +183,6 @@ afterEach(async () => {
 });
 
 describe('Personal Home sections', () => {
-  it('starts the real shell and empty Home with one summary and one avatar read, preserving Knowledge navigation', async () => {
-    vi.mocked(apiCall.call).mockImplementation(async (path) =>
-      success(
-        path === '/api/account/presentation'
-          ? { motion: 'system', sidebar: 'expanded', revision: 0 }
-          : progressSummary(),
-      ),
-    );
-    await act(async () => root.render(createElement(Harness, { shell: true })));
-    expect(host.querySelector('.portal-header')).not.toBeNull();
-    expect(
-      host.querySelector('#portal-sidebar [data-testid="profile-metric-strip"]'),
-    ).not.toBeNull();
-    expect(
-      vi.mocked(apiCall.call).mock.calls.filter(([path]) => path === '/api/progress/summary'),
-    ).toHaveLength(1);
-    expect(api.accountAvatar).toHaveBeenCalledTimes(1);
-    expect(host.querySelector('main')?.firstElementChild?.className).toBe('creator-module-feed');
-    expect(host.querySelector('.access-personal-start')).toBeNull();
-    const knowledge = host.querySelector<HTMLAnchorElement>(
-      '.portal-header a[href="/#/knowledge"]',
-    );
-    expect(knowledge).not.toBeNull();
-    await act(async () => knowledge!.click());
-    expect(onNavigate).toHaveBeenCalledWith('knowledge');
-    await act(async () => notifyProfileAvatarChanged('/updated-own-avatar.webp'));
-    expect(
-      host.querySelectorAll(
-        '.portal-header img[src="/updated-own-avatar.webp"], #portal-sidebar img[src="/updated-own-avatar.webp"]',
-      ).length,
-    ).toBeGreaterThanOrEqual(2);
-    expect(api.accountAvatar).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects a pending avatar save from previous grants while the same Account saves in its new session', async () => {
-    setPortalSessionKey('avatar-save-first-grants');
-    vi.mocked(apiCall.call).mockImplementation(async (path) =>
-      success(
-        path === '/api/account/presentation'
-          ? { motion: 'system', sidebar: 'expanded', revision: 0 }
-          : progressSummary(),
-      ),
-    );
-    vi.mocked(api.accountAvatar)
-      .mockResolvedValueOnce(success({ avatarDataUrl: '/initial-avatar.webp' }))
-      .mockResolvedValue(success({ avatarDataUrl: '/current-session-avatar.webp' }));
-    const previous = deferred<Awaited<ReturnType<typeof api.updateAccountAvatar>>>();
-    const current = deferred<Awaited<ReturnType<typeof api.updateAccountAvatar>>>();
-    const update = vi
-      .spyOn(api, 'updateAccountAvatar')
-      .mockReturnValueOnce(previous.promise)
-      .mockReturnValueOnce(current.promise);
-    const saved = vi.fn();
-    const dispatch = vi.spyOn(window, 'dispatchEvent');
-    let saving!: ReturnType<typeof avatarSave.useAvatarSave>;
-    const useAvatarSave = avatarSave.useAvatarSave;
-    // Observe the actual Header hook and callback without replacing its implementation.
-    vi.spyOn(avatarSave, 'useAvatarSave').mockImplementation((options) => {
-      saving = useAvatarSave({
-        ...options,
-        onAccountSaved: (url) => {
-          saved(url);
-          options.onAccountSaved(url);
-        },
-      });
-      return saving;
-    });
-    const imagesWith = (url: string) =>
-      host.querySelectorAll(`.portal-header img[src="${url}"], #portal-sidebar img[src="${url}"]`);
-    const avatarEvents = () =>
-      dispatch.mock.calls
-        .map(([event]) => event)
-        .filter((event) => event.type === PROFILE_AVATAR_CHANGED_EVENT);
-
-    await act(async () => root.render(createElement(Harness, { shell: true })));
-    expect(api.accountAvatar).toHaveBeenCalledTimes(1);
-    let previousSave!: Promise<boolean>;
-    await act(async () => {
-      previousSave = saving.save({ kind: 'account', dataUrl: '/previous-save.webp' });
-    });
-    expect(saving.saving).toBe(true);
-    await act(async () => setPortalSessionKey('avatar-save-new-grants'));
-    expect(api.accountAvatar).toHaveBeenCalledTimes(2);
-    expect(imagesWith('/current-session-avatar.webp').length).toBeGreaterThanOrEqual(2);
-    const savingAfterHandoff = saving.saving;
-    let currentSave!: Promise<boolean>;
-    await act(async () => {
-      currentSave = saving.save({ kind: 'account', dataUrl: '/new-save.webp' });
-    });
-
-    await act(async () => previous.resolve(success({ avatarDataUrl: '/previous-save.webp' })));
-    expect(saved).not.toHaveBeenCalled();
-    expect(avatarEvents()).toHaveLength(0);
-    expect(imagesWith('/previous-save.webp')).toHaveLength(0);
-    expect(imagesWith('/current-session-avatar.webp').length).toBeGreaterThanOrEqual(2);
-    expect(await previousSave).toBe(false);
-    expect(savingAfterHandoff).toBe(false);
-    expect(update).toHaveBeenCalledTimes(2);
-    expect(saving.saving).toBe(true);
-
-    await act(async () => current.resolve(success({ avatarDataUrl: '/new-save.webp' })));
-    expect(await currentSave).toBe(true);
-    expect(saved).toHaveBeenCalledExactlyOnceWith('/new-save.webp');
-    expect(avatarEvents()).toHaveLength(1);
-    expect(imagesWith('/new-save.webp').length).toBeGreaterThanOrEqual(2);
-    expect(saving.saving).toBe(false);
-    expect(saving.error).toBeNull();
-    expect(api.accountAvatar).toHaveBeenCalledTimes(2);
-  });
-
   it('renders completed module reads independently and keeps existing work when creation is unavailable', async () => {
     const pending = deferred<Awaited<ReturnType<typeof api.listProjects>>>();
     vi.mocked(api.listProjects).mockImplementation((options) =>
@@ -377,8 +229,7 @@ describe('Personal Home sections', () => {
       .mockResolvedValueOnce(success({ items: [module3d] }));
     await render();
     expect(host.querySelectorAll('.creator-module-section')).toHaveLength(4);
-    expect(host.querySelector('.access-personal-start')).toBeNull();
-    expect(host.textContent).not.toContain('Открыть знания');
+    expect(host.textContent).toContain('Открыть знания');
     expect(host.textContent).not.toContain('Открыть обучение');
     expect(host.textContent).not.toContain('Заданий для продолжения пока нет');
     for (const node of host.querySelectorAll('.home-module-availability'))

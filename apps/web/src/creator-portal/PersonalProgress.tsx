@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   OwnProgressGroupV1,
   GroupRatingPeerV1,
@@ -12,11 +12,15 @@ import {
   useGroupRatingPreview,
   useGroupRatingFull,
   useOwnAvatar,
-  usePersonalSummary,
   type OwnProgressActor,
   type ProgressLifetime,
   type usePersonalProgress,
 } from './personal-progress';
+import {
+  readPersonalProgress,
+  usePersonalRead,
+  useProgressLifetime,
+} from './personal-progress-core';
 import './personal-progress.css';
 
 const metrics = [
@@ -118,12 +122,8 @@ export function ProfileMetricStrip({
         <p>Публикации — уникальные опубликованные работы. Нравится — действующие отметки.</p>
         <p>Добавили к себе — созданные копии публичных работ, а не скачивания.</p>
         <p>Общий личный рейтинг пока не рассчитывается.</p>
-        {onRetry &&
-        (loading ||
-          error ||
-          data?.availability === 'partial' ||
-          data?.availability === 'unavailable') ? (
-          <button type="button" className="btn-secondary" onClick={onRetry} disabled={loading}>
+        {onRetry && (error || data?.availability === 'partial') ? (
+          <button type="button" className="btn-secondary" onClick={onRetry}>
             Повторить загрузку прогресса
           </button>
         ) : null}
@@ -135,11 +135,28 @@ export function ProfileMetricStrip({
 /** Keep the scoped Account/Seat summary read outside the eager application graph. */
 export function SidebarProfileMetrics({
   actor,
+  active,
 }: {
   readonly actor: OwnProgressActor;
   readonly active: string;
 }): JSX.Element {
-  const { summary: metrics } = usePersonalSummary(actor);
+  const actorRef = useRef(actor);
+  actorRef.current = actor;
+  const lifetime = useProgressLifetime(actor);
+  const metricId = actor.kind === 'account' ? actor.accountId : actor.seatId;
+  const metricClass = actor.kind === 'seat' ? actor.classroomId : undefined;
+  const readMetrics = useCallback(
+    (signal: AbortSignal) => readPersonalProgress(actorRef.current, signal),
+    [actor.kind, metricId, metricClass],
+  );
+  const lastActive = useRef(active);
+  const [homeRevision, setHomeRevision] = useState(0);
+  useEffect(() => {
+    if (active === 'home' && lastActive.current !== 'home')
+      setHomeRevision((revision) => revision + 1);
+    lastActive.current = active;
+  }, [active]);
+  const metrics = usePersonalRead(lifetime, readMetrics, homeRevision);
   return (
     <ProfileMetricStrip
       data={metrics.data}
