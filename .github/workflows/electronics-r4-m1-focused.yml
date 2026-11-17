@@ -17,6 +17,7 @@ on:
       - 'apps/web/vite.config.ts'
       - 'apps/web/tsconfig.json'
       - 'e2e/electronics-simulation.spec.ts'
+      - 'e2e/electronics-block-pin-setup.spec.ts'
       - 'e2e/electronics-simulation-time.spec.ts'
       - 'e2e/electronics-interactions.spec.ts'
       - 'e2e/electronics-piezo-clock.spec.ts'
@@ -165,7 +166,7 @@ jobs:
               inputs.qualification_profile == 'classroom-d13-v3' ||
               inputs.qualification_profile == 'arduino-editor-error') &&
               '[{"label":"whole","shard":""}]' ||
-              '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+              '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"},{"label":"arduino-gpio-4view","shard":""}]'
             ) }}
     env:
       CI: 'true'
@@ -227,10 +228,22 @@ jobs:
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
       - name: Selected Electronics browser qualification
+        if: matrix.browser_case.label != 'arduino-gpio-4view'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
           pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}
+
+      # This bounded, independently reported pre-merge gate reuses the exact
+      # isolated PostgreSQL/migrations/API/Web/browser stack of the R4 shards.
+      # One Playwright file itself contains all four native Chromium viewports,
+      # real API Save/Reload and byte-exact C++ / per-board GPIO regressions.
+      - name: Arduino GPIO settings native Chromium — four viewports
+        if: matrix.browser_case.label == 'arduino-gpio-4view'
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA test-runner
+          pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --workers=1
 
       - name: Show isolated stack state
         if: always()
