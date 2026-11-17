@@ -19,7 +19,7 @@ import {
 import * as apiCall from '../api-call';
 import { setTelemetryContext } from '../telemetry-context';
 import { PersonalProgress } from './PersonalProgress';
-import { ProfileMetricStrip } from '../components/PortalHeader';
+import { ProfileMetricStrip } from './PersonalProgress';
 import {
   limitedGroupRead,
   groupRatingPreviewLimit,

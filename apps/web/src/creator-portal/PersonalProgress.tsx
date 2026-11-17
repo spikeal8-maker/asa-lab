@@ -1,5 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { OwnProgressGroupV1, GroupRatingPeerV1 } from '@asa-lab/contracts';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type {
+  OwnProgressGroupV1,
+  GroupRatingPeerV1,
+  ProgressMetricNameV1,
+  PersonalProgressSummaryV1,
+} from '@asa-lab/contracts';
 import { PortalLink } from '../components/PortalLink';
 import {
   progressNumber,
@@ -11,7 +16,156 @@ import {
   type ProgressLifetime,
   type usePersonalProgress,
 } from './personal-progress';
+import {
+  readPersonalProgress,
+  usePersonalRead,
+  useProgressLifetime,
+} from './personal-progress-core';
 import './personal-progress.css';
+
+const metrics = [
+  ['everPublishedWorks', 'Опубликованные работы'],
+  ['currentLikes', 'Нравится'],
+  ['createdCopies', 'Добавили к себе'],
+] as const;
+
+function MetricIcon({ name }: { readonly name: ProgressMetricNameV1 }): JSX.Element {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {name === 'currentLikes' ? (
+        <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" />
+      ) : name === 'createdCopies' ? (
+        <>
+          <rect x="8" y="8" width="12" height="12" rx="2" />
+          <path d="M16 8V4H4v12h4" />
+        </>
+      ) : (
+        <>
+          <path d="m12 3 8 5v9l-8 4-8-4V8Z" />
+          <path d="m4 8 8 5 8-5M12 13v8" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** These are server-sourced personal metrics. A class score is NOT a
+ * global user rating and is never inserted into this profile strip. */
+export function ProfileMetricStrip({
+  data,
+  loading,
+  error,
+  onRetry,
+}: {
+  readonly data: PersonalProgressSummaryV1 | null;
+  readonly loading: boolean;
+  readonly error: boolean;
+  readonly onRetry?: () => void;
+}): JSX.Element {
+  const values = metrics.map(([name, label]) => {
+    const metric = data?.metrics[name];
+    const available = metric?.availability === 'available';
+    const value = available ? progressNumber(metric.value) : loading ? '…' : '—';
+    return { name, label, value, available, zero: available && metric.value === 0 };
+  });
+  const allZero = Boolean(data) && values.every((entry) => entry.zero);
+  return (
+    <details className="portal-sidebar-metrics" data-testid="profile-metric-strip">
+      <summary title="О показателях моих работ">
+        <span className="sr-only">Показатели моих работ. </span>
+        {allZero ? (
+          <span className="portal-sidebar-metric-help" aria-label="Все три показателя равны нулю">
+            i
+          </span>
+        ) : (
+          <span className="portal-sidebar-metric-list">
+            {values.map(({ name, label, value }) => (
+              <span
+                className="portal-sidebar-metric-item"
+                key={name}
+                role="img"
+                aria-label={
+                  label + ': ' + (value === '—' ? 'недоступно' : value === '…' ? 'загрузка' : value)
+                }
+                data-testid={'progress-' + name}
+                title={label}
+              >
+                <MetricIcon name={name} />
+                <span className="portal-sidebar-metric-value">{value}</span>
+              </span>
+            ))}
+          </span>
+        )}
+      </summary>
+      <div className="portal-sidebar-metric-details" role="note">
+        <span className="portal-sidebar-metric-title">Показатели моих работ</span>
+        {values.map(({ name, label, value }) => (
+          <p key={name} data-testid={'profile-full-' + name}>
+            {label}: <span>{value}</span>
+          </p>
+        ))}
+        {error || data?.availability === 'unavailable' ? (
+          <p>Сейчас не удалось получить подтверждённые показатели.</p>
+        ) : data?.availability === 'partial' ? (
+          <p>Часть статистики недоступна. Неизвестные значения не равны нулю.</p>
+        ) : null}
+        <p>Публикации — уникальные опубликованные работы. Нравится — действующие отметки.</p>
+        <p>Добавили к себе — созданные копии публичных работ, а не скачивания.</p>
+        <p>Общий личный рейтинг пока не рассчитывается.</p>
+        {onRetry && (error || data?.availability === 'partial') ? (
+          <button type="button" className="btn-secondary" onClick={onRetry}>
+            Повторить загрузку прогресса
+          </button>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+/** Keep the scoped Account/Seat summary read outside the eager application graph. */
+export function SidebarProfileMetrics({
+  actor,
+  active,
+}: {
+  readonly actor: OwnProgressActor;
+  readonly active: string;
+}): JSX.Element {
+  const actorRef = useRef(actor);
+  actorRef.current = actor;
+  const lifetime = useProgressLifetime(actor);
+  const metricId = actor.kind === 'account' ? actor.accountId : actor.seatId;
+  const metricClass = actor.kind === 'seat' ? actor.classroomId : undefined;
+  const readMetrics = useCallback(
+    (signal: AbortSignal) => readPersonalProgress(actorRef.current, signal),
+    [actor.kind, metricId, metricClass],
+  );
+  const lastActive = useRef(active);
+  const [homeRevision, setHomeRevision] = useState(0);
+  useEffect(() => {
+    if (active === 'home' && lastActive.current !== 'home')
+      setHomeRevision((revision) => revision + 1);
+    lastActive.current = active;
+  }, [active]);
+  const metrics = usePersonalRead(lifetime, readMetrics, homeRevision);
+  return (
+    <ProfileMetricStrip
+      data={metrics.data}
+      loading={metrics.loading}
+      error={metrics.error !== null}
+      onRetry={metrics.reload}
+    />
+  );
+}
 
 type Progress = ReturnType<typeof usePersonalProgress>;
 function OwnAvatar({
