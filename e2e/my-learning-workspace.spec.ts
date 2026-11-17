@@ -614,7 +614,7 @@ for (const identity of ['seat', 'account'] as const) {
         await expect(page.locator('.learning-overview-panel')).toHaveCount(0);
         await expect(page.locator('.learning-overview-empty')).toHaveCount(1);
         if (identity === 'account') {
-          await expect(nav.locator('a')).toHaveCount(2);
+          await expect(nav.locator('a')).toHaveText(['Обзор', 'Курсы', 'Классы', 'Самостоятельно']);
           await expect(page.locator('.learning-overview-empty a')).toHaveAttribute(
             'href',
             '#/knowledge',
@@ -657,7 +657,11 @@ for (const identity of ['seat', 'account'] as const) {
         ['completed', 'Завершённое'],
         ['self', 'Самостоятельно'],
       ] as const) {
-        if (count === 0 && identity === 'account') {
+        if (
+          count === 0 &&
+          identity === 'account' &&
+          (view === 'assignments' || view === 'results' || view === 'completed')
+        ) {
           await page.goto('/#/learning?view=' + view);
         } else {
           const target = nav.getByRole('link', { name: label, exact: true });
