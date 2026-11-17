@@ -394,8 +394,14 @@ describe('SP-04 learner-only group rating API', () => {
     const f = fixture({ ...page(), peers: [page().peers[0]] });
     await f.controller.accountRating(REQUEST, CLASS, { limit: '1', view: 'preview' });
     expect(f.query.mock.calls[0]?.[1]?.at(-1)).toBe(1);
+    await f.controller.accountRating(REQUEST, CLASS, { limit: '12', view: 'preview' });
+    expect(f.query.mock.calls[1]?.[1]?.at(-1)).toBe(12);
+    await f.controller.accountRating(REQUEST, CLASS, { limit: '20', view: 'preview' });
+    expect(f.query.mock.calls[2]?.[1]?.at(-1)).toBe(20);
     for (const query of [
       { limit: '200' },
+      { limit: '21' },
+      { limit: '00' },
       { limit: '0' },
       { limit: ['1'] },
       { view: 'all', limit: '5' },
@@ -406,7 +412,7 @@ describe('SP-04 learner-only group rating API', () => {
         status: 400,
       });
     }
-    expect(f.query).toHaveBeenCalledTimes(1);
+    expect(f.query).toHaveBeenCalledTimes(3);
   });
 
   it('binds pagination to the exact session and rejects a changed calculation version', async () => {

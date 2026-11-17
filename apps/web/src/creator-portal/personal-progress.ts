@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GROUP_RATING_PAGE_LIMIT } from '@asa-lab/contracts';
 import type {
   PersonalProgressSummaryV1,
   OwnProgressGroupV1,
@@ -9,167 +10,27 @@ import type {
 import { api, type ApiResult, type LearnerQuiz, type SeatAssignment } from '../api';
 import { call } from '../api-call';
 import { abortable, lifecycleCancellation } from '../auth-request';
-import { subscribeTelemetry, telemetryContext, type TelemetryContext } from '../telemetry-context';
+import { subscribeTelemetry } from '../telemetry-context';
 import {
   defaultAvatarForAccount,
   PROFILE_AVATAR_CHANGED_EVENT,
   seatAvatar,
 } from './default-avatars';
 
-/** Own UI presentation, never an authentication payload or an access decision. */
-export type OwnProgressActor =
-  | { readonly kind: 'account'; readonly accountId: string; readonly displayName: string }
-  | {
-      readonly kind: 'seat';
-      readonly seatId: string;
-      readonly classroomId: string;
-      readonly displayName: string;
-      readonly avatarKey: string | null;
-    };
-
-function lifetimeKey(actor: OwnProgressActor | null, context: TelemetryContext): string | null {
-  const active = context.actor;
-  if (!actor || !context.ready || !active) return null;
-  const identity =
-    actor.kind === 'account'
-      ? active.kind === 'account' && active.accountId === actor.accountId.toLowerCase()
-        ? `account:${active.accountId}:${active.workspaceId}`
-        : null
-      : active.kind === 'student' &&
-          active.seatId === actor.seatId.toLowerCase() &&
-          active.classId === actor.classroomId.toLowerCase()
-        ? `seat:${active.seatId}:${active.classId}`
-        : null;
-  return identity ? `${identity}:${context.generation}:${context.continuity}` : null;
-}
-
-export interface ProgressLifetime {
-  readonly key: string | null;
-  readonly current: () => string | null;
-}
-
-export function useProgressLifetime(actor: OwnProgressActor | null): ProgressLifetime {
-  const context = useSyncExternalStore(subscribeTelemetry, telemetryContext, telemetryContext);
-  const kind = actor?.kind;
-  const id = actor?.kind === 'account' ? actor.accountId : actor?.seatId;
-  const classroom = actor?.kind === 'seat' ? actor.classroomId : undefined;
-  // Names and avatar choices do not change the ownership of a response.
-  const current = useCallback(() => lifetimeKey(actor, telemetryContext()), [kind, id, classroom]);
-  const key = lifetimeKey(actor, context);
-  return useMemo(() => ({ key, current }), [key, current]);
-}
-
-type ReadFailure = { readonly status: number; readonly message: string };
-type ReadValue<T> = {
-  readonly key: string | null;
-  readonly revision: number;
-  readonly data: T | null;
-  readonly error: ReadFailure | null;
-  readonly settled: boolean;
-};
-
-/** Each section settles independently; ownership is checked before rendering and committing. */
-export function usePersonalRead<T>(
-  lifetime: ProgressLifetime,
-  read: (signal: AbortSignal) => Promise<ApiResult<T>>,
-  revision = 0,
-) {
-  const [retry, setRetry] = useState(0);
-  const [value, setValue] = useState<ReadValue<T> | null>(null);
-  const sequence = useRef(0);
-  const reload = useCallback(() => setRetry((previous) => previous + 1), []);
-  useEffect(() => {
-    const key = lifetime.key;
-    const generation = ++sequence.current;
-    const controller = new AbortController();
-    const unsubscribe = subscribeTelemetry(() => {
-      if (lifetime.current() !== key) controller.abort(lifecycleCancellation());
-    });
-    if (key) {
-      setValue({ key, revision, data: null, error: null, settled: false });
-      void abortable(() => read(controller.signal), controller.signal)
-        .then((result) => {
-          if (
-            controller.signal.aborted ||
-            generation !== sequence.current ||
-            lifetime.current() !== key
-          )
-            return;
-          setValue({
-            key,
-            revision,
-            settled: true,
-            data: result.ok ? result.data : null,
-            error: result.ok ? null : { status: result.status, message: result.error.message },
-          });
-        })
-        .catch(() => {
-          if (
-            controller.signal.aborted ||
-            generation !== sequence.current ||
-            lifetime.current() !== key
-          )
-            return;
-          setValue({
-            key,
-            revision,
-            data: null,
-            settled: true,
-            error: { status: 0, message: 'Не удалось получить данные.' },
-          });
-        });
-    }
-    return () => {
-      sequence.current += 1;
-      unsubscribe();
-      controller.abort(lifecycleCancellation());
-    };
-  }, [lifetime, read, revision, retry]);
-  // Passive-effect cleanup alone would expose the previous person's data for one render.
-  const visible =
-    lifetime.key !== null &&
-    lifetime.current() === lifetime.key &&
-    value?.key === lifetime.key &&
-    value.revision === revision
-      ? value
-      : null;
-  return {
-    data: visible?.data ?? null,
-    error: visible?.error ?? null,
-    settled: lifetime.key === null || visible?.settled === true,
-    loading: lifetime.key !== null && visible?.settled !== true,
-    reload,
-  };
-}
-
-export async function readPersonalProgress(
-  actor: OwnProgressActor,
-  signal: AbortSignal,
-  cursor?: string,
-): Promise<ApiResult<PersonalProgressSummaryV1>> {
-  const path =
-    actor.kind === 'account' ? '/api/progress/summary' : '/api/class-join/progress/summary';
-  const result = await call<PersonalProgressSummaryV1>(
-    `${path}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
-    { signal },
-  );
-  if (result.ok) {
-    const scope = result.data.scope;
-    const matching =
-      actor.kind === 'account'
-        ? scope.kind === 'account' && scope.accountId === actor.accountId.toLowerCase()
-        : scope.kind === 'seat' &&
-          scope.seatId === actor.seatId.toLowerCase() &&
-          scope.classroomId === actor.classroomId.toLowerCase();
-    if (!matching)
-      return {
-        ok: false,
-        status: 0,
-        error: { code: 'progress_scope_mismatch', message: 'Контекст прогресса изменился.' },
-      };
-  }
-  return result;
-}
+import {
+  readPersonalProgress,
+  usePersonalRead,
+  useProgressLifetime,
+  type OwnProgressActor,
+  type ProgressLifetime,
+} from './personal-progress-core';
+export {
+  progressNumber,
+  readPersonalProgress,
+  usePersonalRead,
+  useProgressLifetime,
+} from './personal-progress-core';
+export type { OwnProgressActor, ProgressLifetime } from './personal-progress-core';
 
 interface GroupPage {
   readonly key: string;
@@ -322,10 +183,29 @@ export function limitedGroupRead<T>(signal: AbortSignal, read: () => Promise<T>)
   });
 }
 
-export function groupRatingPreviewLimit(width: number): number {
-  if (width <= 380) return 2;
-  if (width <= 520) return 3;
-  return 5;
+/** The number of real peer slots that fit after the measured own result.
+ * Zero deliberately means no peer fetch in extreme zoom/narrow layouts.
+ * The server cap is shared with the paginated rating API; there is no desktop
+ * constant of five and no hidden full-roster fetch. */
+export function groupRatingPreviewLimit(
+  width: number,
+  ownWidth = 116,
+  peerWidth = 74,
+  gap = 8,
+  peerGap = 5,
+): number {
+  if (!Number.isFinite(width) || width <= 0) return 0;
+  const safeGap = Math.max(0, Number.isFinite(gap) ? gap : 8);
+  const betweenPeers = Math.max(0, Number.isFinite(peerGap) ? peerGap : 5);
+  const own = Math.max(0, Number.isFinite(ownWidth) ? ownWidth : 116);
+  const peer = Math.max(44, Number.isFinite(peerWidth) ? peerWidth : 74);
+  const remaining = width - own - safeGap * 2 - 1;
+  if (remaining < peer) return 0;
+  // The body has two outer gaps; the anonymous peer row has its own smaller gap.
+  return Math.min(
+    GROUP_RATING_PAGE_LIMIT,
+    Math.floor((remaining + betweenPeers) / (peer + betweenPeers)),
+  );
 }
 
 function groupRatingPath(actor: OwnProgressActor, groupId: string): string {
@@ -419,7 +299,7 @@ export function useGroupRatingPreview(
   groupId: string,
   limit: number,
 ) {
-  const valid = GROUP_ID.test(groupId);
+  const valid = GROUP_ID.test(groupId) && limit > 0 && limit <= GROUP_RATING_PAGE_LIMIT;
   const key = lifetime.key && valid ? lifetime.key + ':group:' + groupId : null;
   const current = useCallback(() => {
     const now = lifetime.current();
@@ -802,6 +682,3 @@ export function useNextLearningAction(actor: OwnProgressActor, lifetime: Progres
     },
   };
 }
-
-export const progressNumber = (value: number): string =>
-  new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value);

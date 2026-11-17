@@ -1143,6 +1143,7 @@ export function App(): JSX.Element {
   const renderPortalHeader = (active: CreatorPortalSection): JSX.Element => (
     <PortalHeader
       session={portalSession}
+      progressActor={progressActor}
       active={active}
       seatLearner={isSeatLearner}
       classroomBadge={canManageClasses ? awaitingReview : undefined}
