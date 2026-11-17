@@ -239,6 +239,7 @@ jobs:
       # One Playwright file itself contains all four native Chromium viewports,
       # real API Save/Reload and byte-exact C++ / per-board GPIO regressions.
       - name: Arduino GPIO settings native Chromium — four viewports
+        id: gpio_gate
         if: matrix.browser_case.label == 'arduino-gpio-4view'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -250,10 +251,12 @@ jobs:
           if [ "$EVENT_NAME" = "pull_request" ]; then
             git diff --name-only "$BASE_SHA" HEAD > "$RUNNER_TEMP/arduino-gpio-changed-paths.txt"
             if ! grep -Eq '^(apps/web/src/electronics/ArduinoCodePanel.tsx|e2e/electronics-block-pin-setup.spec.ts)$' "$RUNNER_TEMP/arduino-gpio-changed-paths.txt"; then
+              echo "applicable=false" >> "$GITHUB_OUTPUT"
               echo "ARDUINO_GPIO_4VIEW: NOT_APPLICABLE"
               exit 0
             fi
           fi
+          echo "applicable=true" >> "$GITHUB_OUTPUT"
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test \
             run --rm --no-deps -e NX_SKIP_NX_CACHE=true test-runner \
             pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --list \
@@ -274,7 +277,7 @@ jobs:
       # The journal is flushed after each test, including before a job cancellation.
       # Keep it separately readable when retained traces make the full archive large.
       - name: Upload incremental browser failure evidence
-        if: always()
+        if: ${{ always() && (matrix.browser_case.label != 'arduino-gpio-4view' || steps.gpio_gate.outputs.applicable == 'true') }}
         uses: actions/upload-artifact@v4
         with:
           name: electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}
@@ -283,7 +286,7 @@ jobs:
           retention-days: 14
 
       - name: Upload browser evidence
-        if: always()
+        if: ${{ always() && (matrix.browser_case.label != 'arduino-gpio-4view' || steps.gpio_gate.outputs.applicable == 'true') }}
         uses: actions/upload-artifact@v4
         with:
           name: electronics-r4-m1-browser-${{ github.run_id }}-${{ matrix.browser_case.label }}
