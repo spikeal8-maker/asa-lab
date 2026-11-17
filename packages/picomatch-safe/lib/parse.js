@@ -347,23 +347,18 @@ const analyzeRepeatedExtglob = (body, options) => {
   // with one branch. An unescaped '*' inside a repeated extglob is itself
   // unbounded, so combining it with '+' or '*' can produce exponential regex
   // backtracking. Keep upstream's proven safe char-class rewrites above.
+  // Security P1 fix: a bracket cannot reliably suppress a wildcard here:
+  // malformed '[' and nobracket:true are literal to the parser. Conservatively
+  // reject every non-escaped '*' in a repeated extglob body. Bracket classes
+  // containing a literal '*' can also become literal; that is intentional.
   const containsUnboundedWildcard = branch => {
-    let bracket = false;
     for (let i = 0; i < branch.length; i++) {
       const char = branch[i];
       if (char === '\\') {
         i++;
         continue;
       }
-      if (char === '[') {
-        bracket = true;
-        continue;
-      }
-      if (char === ']' && bracket) {
-        bracket = false;
-        continue;
-      }
-      if (char === '*' && !bracket) return true;
+      if (char === '*') return true;
     }
     return false;
   };

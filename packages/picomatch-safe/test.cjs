@@ -32,6 +32,17 @@ test('repeated extglob wildcard literalization cannot be disabled', () => {
   }
 });
 
+test('unmatched brackets and nobracket must not bypass the repeated-star guard', () => {
+  for (const { pattern, options, input } of [
+    { pattern: '+([*a)', options: {}, input: '[a'.repeat(36) + '!' },
+    { pattern: '+([*])', options: { nobracket: true }, input: '[]'.repeat(36) + '!' },
+    { pattern: '+([*])', options: {}, input: '[]'.repeat(36) + '!' }
+  ]) {
+    assert.equal(pm(pattern, options)(input), false, pattern);
+    assert.equal(pm.makeRe(pattern, options).test(input), false, pattern);
+  }
+});
+
 test('ordinary stars and safe bounded groups stay valid', () => {
   assert.equal(pm.isMatch('abc', '+(abc)'), true);
   assert.equal(pm.isMatch('abcabc', '+(abc)'), true);
@@ -40,7 +51,13 @@ test('ordinary stars and safe bounded groups stay valid', () => {
 });
 
 test('dangerous repeated extglobs do not block the Node event loop', async () => {
-  const patterns = ['+(*)', '+(*a)', '*(*a)', '+(*?a)', '+(a*)'];
+  const patterns = [
+    ...['+(*)', '+(*a)', '*(*a)', '+(*?a)', '+(a*)'].map(pattern => ({
+      pattern, options: { maxExtglobRecursion: false }, input: 'a'.repeat(160) + '!'
+    })),
+    { pattern: '+([*a)', options: {}, input: '[a'.repeat(36) + '!' },
+    { pattern: '+([*])', options: { nobracket: true }, input: '[]'.repeat(36) + '!' }
+  ];
   // The test invokes only bounded strings and uses an external kill timeout
   // so that a regression cannot hang CI indefinitely.
   await new Promise((resolve, reject) => {

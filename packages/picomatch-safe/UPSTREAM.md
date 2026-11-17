@@ -12,8 +12,12 @@ The only upstream runtime modification is `lib/parse.js`.
   for proven safe nested star sequences.
 - Treat unsupported risky repeated extglobs as *literal*, using the existing
   upstream fail-closed `extglobClose` path.
-- Backslash-escaped '*' and '*' inside bracket classes are not classified as
-  unbounded wildcard.
+- Backslash-escaped '*' remains a literal; **all non-escaped stars** in repeated
+  extglob branches are rejected, even inside bracket-looking text. This is
+  intentional fail-closed behavior: unmatched '[' and `nobracket:true` make
+  brackets literal to upstream's parser, so exempting these stars would leave
+  CVE-2026-112366 exploitable. Rare valid character-class stars inside a
+  repeated extglob may now be literalized instead of matched.
 
 The package name/version `@asa-lab/picomatch-safe@1.0.0` identifies a real
 local workspace package; **it is not presented as an upstream picomatch release**.

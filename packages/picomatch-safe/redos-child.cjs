@@ -1,10 +1,12 @@
 'use strict';
 const pm = require('./index.js');
-process.once('message', patterns => {
+process.once('message', cases => {
   try {
-    for (const pattern of patterns) {
-      const match = pm(pattern, { maxExtglobRecursion: false });
-      if (match('a'.repeat(160) + '!')) throw new Error('dangerous match');
+    for (const { pattern, options, input } of cases) {
+      const match = pm(pattern, options);
+      if (match(input) || pm.makeRe(pattern, options).test(input)) {
+        throw new Error('dangerous matcher generated for ' + pattern);
+      }
     }
     process.exit(0);
   } catch (error) {
