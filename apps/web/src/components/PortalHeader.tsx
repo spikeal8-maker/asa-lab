@@ -11,15 +11,16 @@ import { useAvatarSave } from './use-avatar-save';
 import { OPEN_AVATAR_CHOOSER_EVENT, type AvatarActor } from './avatar-chooser-events';
 import type { AdminNavigationItem, AdminSection } from '../admin/admin-navigation';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
-import {
-  defaultAvatarForAccount,
-  PROFILE_AVATAR_CHANGED_EVENT,
-} from '../creator-portal/default-avatars';
+import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
 import { QuickCreateMenu } from '../creator-portal/QuickProjectCreation';
 import { classAttention } from '../creator-portal/attention';
 import { PortalLink } from './PortalLink';
-import type { OwnProgressActor } from '../creator-portal/personal-progress-core';
+import {
+  useAccountAvatar,
+  useProgressLifetime,
+  type OwnProgressActor,
+} from '../creator-portal/personal-progress-core';
 import {
   ChevronIcon,
   CloseIcon,
@@ -188,12 +189,21 @@ export function PortalHeader({
 }): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
-  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const avatarLifetime = useProgressLifetime(
+    seatLearner || progressActor?.kind === 'seat'
+      ? null
+      : (progressActor ?? {
+          kind: 'account',
+          accountId: session.user.id,
+          displayName: session.user.displayName,
+        }),
+  );
+  const avatar = useAccountAvatar(avatarLifetime);
+  const avatarDataUrl = avatar.data?.avatarDataUrl ?? null;
+  const avatarLoaded = avatar.data !== null;
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarOpenRef = useRef(false);
   const avatarReturnFocus = useRef<HTMLElement | null>(null);
-  const avatarVersion = useRef(0);
   const avatarActor: AvatarActor = { kind: seatLearner ? 'seat' : 'account', id: session.user.id };
   const avatarActorKey = `${avatarActor.kind}:${avatarActor.id}`;
   const gameInvitations = useGameInvitations();
@@ -203,9 +213,7 @@ export function PortalHeader({
   const avatarSave = useAvatarSave({
     actor: avatarActor,
     onAccountSaved: (url) => {
-      avatarVersion.current += 1;
-      setAvatarDataUrl(url);
-      setAvatarLoaded(true);
+      avatar.replace({ avatarDataUrl: url });
     },
     onSeatSaved: onSeatChanged,
   });
@@ -330,41 +338,6 @@ export function PortalHeader({
   useEffect(() => {
     setError(null);
   }, [session.activeWorkspace.workspaceId]);
-
-  useEffect(() => {
-    // A seat has no account and therefore no uploaded picture; asking for one
-    // is a guaranteed 401. The generated avatar below covers it.
-    if (seatLearner) return;
-    let cancelled = false;
-    const version = avatarVersion.current;
-    setAvatarLoaded(false);
-    void api
-      .accountAvatar()
-      .then((result) => {
-        if (!cancelled && version === avatarVersion.current && result.ok) {
-          setAvatarDataUrl(result.data.avatarDataUrl);
-          setAvatarLoaded(true);
-        }
-      })
-      .catch(() => {
-        /* The chooser offers an explicit retry. */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [seatLearner, session.user.id]);
-
-  useEffect(() => {
-    function updateAvatarFromPage(event: Event): void {
-      if (seatLearner) return;
-      avatarVersion.current += 1;
-      setAvatarDataUrl((event as CustomEvent<string | null>).detail);
-      setAvatarLoaded(true);
-    }
-
-    window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
-    return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
-  }, [seatLearner]);
 
   useEffect(() => {
     function openRequested(event: Event): void {
@@ -986,9 +959,7 @@ export function PortalHeader({
           onClearSaveError={avatarSave.clearError}
           isCurrent={() => avatarOpenRef.current && currentActorKey.current === avatarActorKey}
           onAccountLoaded={(url) => {
-            avatarVersion.current += 1;
-            setAvatarDataUrl(url);
-            setAvatarLoaded(true);
+            avatar.replace({ avatarDataUrl: url });
           }}
           onClose={closeAvatar}
           returnFocus={avatarReturnFocus.current}

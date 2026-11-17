@@ -2283,7 +2283,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
-  accountAvatar: () => call<AccountAvatar>('/api/account/avatar'),
+  accountAvatar: (signal?: AbortSignal) =>
+    call<AccountAvatar>('/api/account/avatar', signal ? { signal } : {}),
   updateAccountAvatar: (avatarDataUrl: string | null) =>
     call<AccountAvatar>('/api/account/avatar', {
       method: 'PATCH',
