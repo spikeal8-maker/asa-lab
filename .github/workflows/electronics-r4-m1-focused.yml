@@ -240,10 +240,174 @@ jobs:
       # real API Save/Reload and byte-exact C++ / per-board GPIO regressions.
       - name: Arduino GPIO settings native Chromium — four viewports
         if: matrix.browser_case.label == 'arduino-gpio-4view'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # This separate gate is applicable only when the Arduino settings UI
+          # or its native browser spec changes; infrastructure-only PRs are not
+          # evidence of four-viewport product acceptance.
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git diff --name-only "$BASE_SHA" HEAD > "$RUNNER_TEMP/arduino-gpio-changed-paths.txt"
+            if ! grep -Eq '^(apps/web/src/electronics/ArduinoCodePanel.tsx|e2e/electronics-block-pin-setup.spec.ts)
+      - name: Show isolated stack state
+        if: always()
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
+
+      # The journal is flushed after each test, including before a job cancellation.
+      # Keep it separately readable when retained traces make the full archive large.
+      - name: Upload incremental browser failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}
+          path: reports/electronics-failures.ndjson
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-browser-${{ github.run_id }}-${{ matrix.browser_case.label }}
+          path: |
+            e2e/artifacts/electronics-simulation
+            reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove isolated test stack
+        if: always()
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
-          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
-          pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --workers=1
+          down -v --remove-orphans
+
+  review-images:
+    name: Package exact-head review images
+    needs: [focused, benchmark, browser]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Build exact API and Web review images
+        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
+
+      - name: Verify original base layers for review images
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
+
+      - name: Verify exact revision labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-api:${ASA_IMAGE_TAG}")"
+          web_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-web:${ASA_IMAGE_TAG}")"
+          test "$api_revision" = "$ASA_BUILD_REVISION"
+          test "$web_revision" = "$ASA_BUILD_REVISION"
+
+      - name: Export ready-to-load review images
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p review-images
+          docker save "asa-lab-api:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-api-${ASA_IMAGE_TAG}.tar.gz"
+          docker save "asa-lab-web:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-web-${ASA_IMAGE_TAG}.tar.gz"
+          printf 'revision=%s\napi=%s\nweb=%s\n' \
+            "$ASA_BUILD_REVISION" \
+            "asa-lab-api:${ASA_IMAGE_TAG}" \
+            "asa-lab-web:${ASA_IMAGE_TAG}" > review-images/MANIFEST.txt
+          sha256sum review-images/*.tar.gz > review-images/SHA256SUMS
+
+      - name: Upload exact-head review images
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-review-images-${{ github.run_id }}
+          path: review-images
+          if-no-files-found: error
+          retention-days: 14
+
+  editor-messages:
+    if: ${{ inputs.qualification_profile == 'arduino-editor-error' }}
+    name: Actual vendor messages and built editor (API fixture)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      VITE_ASA_BUILD_REVISION: ${{ github.sha }}
+      ASA_E2E_EXTERNAL: 'true'
+      ASA_E2E_BASE_URL: http://127.0.0.1:4612
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build module-sdk
+      - name: Actual vendor regression and unchanged persistence
+        run: >-
+          pnpm exec vitest run
+          apps/web/src/electronics/testing/arduino-block-messages.spec.ts
+          apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
+          apps/web/src/electronics/testing/arduino-code-contract.spec.ts
+          --maxWorkers=1
+      - run: pnpm exec nx run web:typecheck
+      - run: pnpm exec nx run web:build
+      # The shared interactions file imports teacher seed helpers at discovery;
+      # this profile never calls them, but their compiled identity import exists.
+      - run: pnpm exec nx build identity
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Native workspace menus at four viewports
+        run: |
+          mkdir -p reports/interactions
+          pnpm exec vite preview -c apps/web/vite.config.ts --host 127.0.0.1 --port 4612 --strictPort > reports/arduino-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4612/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4612/ > /dev/null
+          pnpm exec playwright test e2e/electronics-interactions.spec.ts --grep 'Arduino workspace messages:' --workers=1
+      - name: Preserve exact-run browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arduino-editor-messages-${{ github.sha }}
+          path: reports
+          if-no-files-found: ignore
+          retention-days: 14
+ "$RUNNER_TEMP/arduino-gpio-changed-paths.txt"; then
+              echo "ARDUINO_GPIO_4VIEW: NOT_APPLICABLE (no settings/source-test change)"
+              exit 0
+            fi
+          fi
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test \
+            run --rm --no-deps -e NX_SKIP_NX_CACHE=true test-runner \
+            pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --list \
+            | tee "$RUNNER_TEMP/arduino-gpio-viewport-list.txt"
+          for viewport in 1440x900 1024x768 390x844 320x700; do
+            grep -F "944 owner setup and input settings $viewport" "$RUNNER_TEMP/arduino-gpio-viewport-list.txt"
+          done
+          test "$(grep -Ec '944 owner setup and input settings [0-9]+x[0-9]+' "$RUNNER_TEMP/arduino-gpio-viewport-list.txt")" -eq 4
+          echo "ARDUINO_GPIO_4VIEW: FOUR_VIEWPORTS_VERIFIED"
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test \
+            run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_FAILURE_REPORT test-runner \
+            pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --workers=1
 
       - name: Show isolated stack state
         if: always()
