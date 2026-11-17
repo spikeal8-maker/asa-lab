@@ -660,13 +660,15 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
             await expect(page.getByText('Загружаем обзор обучения…', { exact: true })).toHaveCount(
               0,
             );
-            await expect(page.locator('.learning-overview-metrics strong')).toHaveText([
-              '0',
-              '0',
-              '0',
-            ]);
           }
           await expect.poll(reads.settled).toBe(true);
+          if (surface === 'learning') {
+            await expect(page.locator('.learning-overview-metrics')).toHaveCount(0);
+            await expect(page.locator('.learning-overview-panel')).toHaveCount(0);
+            await expect(
+              page.locator('.learning-overview-empty, .learning-overview-note'),
+            ).toHaveCount(1);
+          }
           const actualReads = reads.snapshot();
           if (surface === 'home') {
             for (const module of ['three-d', 'electronics', 'blocks', 'robotics'])

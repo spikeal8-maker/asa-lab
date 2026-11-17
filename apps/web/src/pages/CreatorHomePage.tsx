@@ -90,28 +90,20 @@ function HomeContent({
       tabIndex={-1}
     >
       <PersonalProgress actor={actor} progress={progress} onLearning={openLearning} />
-      {lifetime.key ? (
-        <section className="personal-progress-next" aria-label="Продолжить обучение">
+      {lifetime.key && (next.action || next.error) ? (
+        <section className="personal-progress-next" aria-label="Доступное учебное действие">
           {next.action ? (
             <p>
               <a href={next.action.href} onClick={rememberScroll}>
                 {next.action.label}: {next.action.title}
               </a>
             </p>
-          ) : !next.settled ? (
-            <p role="status">Ищем доступные задания…</p>
-          ) : (
-            <p>
-              <PortalLink href="/#/learning" onNavigate={openLearning}>
-                Открыть обучение
-              </PortalLink>
-            </p>
-          )}
+          ) : null}
           {next.error ? (
             <>
-              <p role="alert">Часть заданий сейчас не загрузилась.</p>
+              <p role="alert">Не удалось проверить часть учебных заданий.</p>
               <button className="btn-secondary" type="button" onClick={next.reload}>
-                Повторить загрузку заданий
+                Повторить проверку заданий
               </button>
             </>
           ) : null}
