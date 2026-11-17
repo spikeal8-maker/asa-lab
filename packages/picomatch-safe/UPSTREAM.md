@@ -14,12 +14,17 @@ The only upstream runtime modification is `lib/parse.js`.
   upstream fail-closed `extglobClose` path.
 - Reject nested unescaped parentheses and braces in repeated extglob branches;
   these can hide nested quantifiers or ambiguous alternatives.
-- `unescape:true` removes the backslash from a nominally escaped star or
-  plus, potentially creating an unbounded regex quantifier. Those patterns
-  also fail closed.
+- `unescape:true` can turn any nominally escaped character into a regex
+  metacharacter. Repeated extglob branches with escapes now fail closed under
+  that option, preventing hidden regex operators.
 - In the default regex mode, an unescaped `+` inside a repeated extglob
   quantifies its preceding token and can create nested unbounded repetition.
   Such patterns fail closed. `regex:false` retains literal-plus semantics.
+- Repetition over overlapping alternatives (e.g. `ab|abab`) or complex
+  character-class alternatives (e.g. `[ab]|a`) can backtrack exponentially.
+  Only demonstrably prefix-free, simple literal alternative branches are
+  accepted; complex forms fail closed. The existing upstream safe nested-star
+  character-class rewrite is retained.
 - Backslash-escaped '*' remains a literal; **all non-escaped stars** in repeated
   extglob branches are rejected, even inside bracket-looking text. This is
   intentional fail-closed behavior: unmatched '[' and `nobracket:true` make

@@ -342,6 +342,26 @@ const analyzeRepeatedExtglob = (body, options) => {
       : { risky: true };
   }
 
+  // Unbounded repetition of ambiguous alternatives is exponential even if
+  // neither branch contains '*'. Only allow prefix-free, simple literal
+  // alternatives (Unicode letters/numbers and a few safe filename marks).
+  // Safe nested-star character-class rewrites were handled above.
+  if (branches.length > 1) {
+    const literals = branches.map(normalizeSimpleBranch);
+    if (literals.some(value => typeof value !== 'string' ||
+        !/^[\p{L}\p{N}._-]+$/u.test(value))) {
+      return { risky: true };
+    }
+    for (let i = 0; i < literals.length; i++) {
+      for (let j = i + 1; j < literals.length; j++) {
+        if (literals[i].startsWith(literals[j]) ||
+            literals[j].startsWith(literals[i])) {
+          return { risky: true };
+        }
+      }
+    }
+  }
+
   // CVE-2026-112366: the upstream multi-branch-only guard misses +( * )
   // with one branch. An unescaped '*' inside a repeated extglob is itself
   // unbounded, so combining it with '+' or '*' can produce exponential regex
@@ -356,10 +376,9 @@ const analyzeRepeatedExtglob = (body, options) => {
       if (char === '\\') {
         // With unescape:true, an escaped star becomes a quantifier in
         // the generated regex, including inside a repeated extglob.
-        if (options.unescape === true &&
-            (branch[i + 1] === '*' || (branch[i + 1] === '+' && options.regex !== false))) {
-          return true;
-        }
+        // The parser strips escapes under this option, potentially turning
+        // ANY escaped operator into an inner regex metacharacter. Fail closed.
+        if (options.unescape === true) return true;
         i++;
         continue;
       }
@@ -367,7 +386,7 @@ const analyzeRepeatedExtglob = (body, options) => {
       // Fail closed rather than trusting a shallow recursion count.
       // The default regex mode also interprets '+' as an unbounded
       // quantifier *inside* an extglob. It is safe only with regex:false.
-      if (char === '*' || char === '(' || char === '{' ||
+      if (char === '*' || char === '(' || char === '{' || char === '|' ||
           (char === '+' && options.regex !== false)) return true;
     }
     return false;

@@ -57,6 +57,19 @@ test('unescape and positive recursion options cannot re-enable exponential regex
   }
 });
 
+test('repeated alternations must be prefix-free and syntactically literal', () => {
+  for (const { pattern, input } of [
+    { pattern: '+(ab|abab)', input: 'ab'.repeat(36) + '!' },
+    { pattern: '+([ab]|a)', input: 'a'.repeat(36) + '!' },
+    { pattern: '+([a|a)', input: '[a'.repeat(36) + '!' }
+  ]) {
+    assert.equal(pm(pattern)(input), false, pattern);
+    assert.equal(pm.makeRe(pattern).test(input), false, pattern);
+  }
+  assert.equal(pm.isMatch('foobar', '+(foo|bar)'), true);
+  assert.equal(pm.isMatch('foofoo', '+(foo|bar)'), true);
+});
+
 test('ordinary stars and safe bounded groups stay valid', () => {
   assert.equal(pm.isMatch('abc', '+(abc)'), true);
   assert.equal(pm.isMatch('abcabc', '+(abc)'), true);
@@ -77,7 +90,10 @@ test('dangerous repeated extglobs do not block the Node event loop', async () =>
     { pattern: '+(a+(a))', options: {}, input: 'a'.repeat(36) + '!' },
     { pattern: '+(a{a,aa})', options: {}, input: 'a'.repeat(36) + '!' },
     { pattern: '+(a+)', options: {}, input: 'a'.repeat(36) + '!' },
-    { pattern: "+(a\\+)", options: { unescape: true }, input: 'a'.repeat(36) + '!' }
+    { pattern: "+(a\\+)", options: { unescape: true }, input: 'a'.repeat(36) + '!' },
+    { pattern: '+(ab|abab)', options: {}, input: 'ab'.repeat(36) + '!' },
+    { pattern: '+([ab]|a)', options: {}, input: 'a'.repeat(36) + '!' },
+    { pattern: '+([a|a)', options: {}, input: '[a'.repeat(36) + '!' }
   ];
   // The test invokes only bounded strings and uses an external kill timeout
   // so that a regression cannot hang CI indefinitely.
