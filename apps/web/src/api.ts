@@ -11,6 +11,7 @@ import {
 } from './modules/project-draft-mutation';
 import { saveProjectSnapshot } from './project-snapshot-client';
 import { notifySessionLoggedOut } from './session-fetch';
+import { pausePersonalReads } from './portal-requests';
 import {
   beginTelemetryIdentityObservation,
   beginTelemetryWorkspaceSwitch,
@@ -2008,6 +2009,23 @@ export interface LearningNotification {
   createdAt: string;
   readAt: string | null;
 }
+async function endSession(path: string, init: RequestInit) {
+  const hold = init.signal?.aborted ? null : pausePersonalReads();
+  try {
+    const result = await call<{ ok: true }>(path, init);
+    if (hold && !hold.current())
+      return {
+        ok: false as const,
+        status: 0,
+        error: { code: 'request_cancelled', message: 'Запрос отменён.' },
+      };
+    if (result.ok && !init.signal?.aborted) notifySessionLoggedOut();
+    return result;
+  } finally {
+    hold?.resume();
+  }
+}
+
 export const api = {
   authoredQuestionVersion: (id: string) =>
     call<{
@@ -2268,14 +2286,11 @@ export const api = {
     call<{ available: boolean }>(
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
-  logout: async (signal?: AbortSignal) => {
-    const result = await call<{ ok: true }>('/api/auth/logout', {
+  logout: (signal?: AbortSignal) =>
+    endSession('/api/auth/logout', {
       method: 'POST',
       ...(signal ? { signal } : {}),
-    });
-    if (result.ok && !signal?.aborted) notifySessionLoggedOut();
-    return result;
-  },
+    }),
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
   accountPasswordStatus: () => call<AccountPasswordStatus>('/api/account/password'),
   changeAccountPassword: (currentPassword: string, newPassword: string) =>
@@ -2283,7 +2298,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
-  accountAvatar: () => call<AccountAvatar>('/api/account/avatar'),
+  accountAvatar: (signal?: AbortSignal) =>
+    call<AccountAvatar>('/api/account/avatar', signal ? { signal } : {}),
   updateAccountAvatar: (avatarDataUrl: string | null) =>
     call<AccountAvatar>('/api/account/avatar', {
       method: 'PATCH',
@@ -3534,14 +3550,11 @@ export const api = {
     ),
   classroomStudentMe: () =>
     call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),
-  classroomStudentLogout: async () => {
-    const result = await call<{ ok: true }>('/api/class-join/logout', {
+  classroomStudentLogout: () =>
+    endSession('/api/class-join/logout', {
       method: 'POST',
       body: JSON.stringify({}),
-    });
-    if (result.ok) notifySessionLoggedOut();
-    return result;
-  },
+    }),
   listProjects: async (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);

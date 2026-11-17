@@ -17,9 +17,11 @@ import {
   type SeatAssignment,
 } from '../api';
 import * as apiCall from '../api-call';
-import { setTelemetryContext } from '../telemetry-context';
-import { PersonalProgress } from './PersonalProgress';
+import { setTelemetryContext, telemetryContext } from '../telemetry-context';
+import { notifySessionLoggedOut } from '../session-fetch';
+import { PersonalProgress, SidebarProfileMetrics } from './PersonalProgress';
 import { ProfileMetricStrip } from './PersonalProgress';
+import { portalMutationCompleted, setPortalSessionKey } from '../portal-requests';
 import {
   limitedGroupRead,
   groupRatingPreviewLimit,
@@ -159,6 +161,27 @@ function Harness({
     createElement(PersonalProgress, { actor, progress, mode }),
   );
 }
+
+/** The shell and page call their own real readers; no pre-read result is shared by the test. */
+function SharedConsumers({
+  actor = account,
+  sidebar = true,
+  page = true,
+}: {
+  actor?: OwnProgressActor;
+  sidebar?: boolean;
+  page?: boolean;
+}) {
+  return createElement(
+    'div',
+    null,
+    sidebar
+      ? createElement(SidebarProfileMetrics, { actor, active: 'learning', key: 'sidebar' })
+      : null,
+    page ? createElement(Harness, { actor, mode: 'learning', key: 'page' }) : null,
+  );
+}
+
 async function render(actor = account, mode: 'home' | 'learning' = 'home') {
   await act(async () => root.render(createElement(Harness, { actor, mode })));
 }
@@ -183,6 +206,472 @@ afterEach(async () => {
   setTelemetryContext(null, false, 'unknown');
   vi.restoreAllMocks();
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+});
+
+describe('Shared shell and page reads', () => {
+  const renderConsumers = async (props: Parameters<typeof SharedConsumers>[0] = {}) =>
+    act(async () => root.render(createElement(SharedConsumers, props)));
+  const allLikeValues = () =>
+    [...host.querySelectorAll('[data-testid="profile-full-currentLikes"] span')].map(
+      (node) => node.textContent,
+    );
+
+  it.each([account, seat])(
+    'shares one initial summary for independent $kind consumers',
+    async (actor) => {
+      ready(actor);
+      const pending = deferred<ApiResult<PersonalProgressSummaryV1>>();
+      const read = vi.spyOn(apiCall, 'call').mockReturnValue(pending.promise);
+      await renderConsumers({ actor });
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(allLikeValues()).toEqual(['…', '…']);
+      await act(async () => pending.resolve(success(summary([], actor))));
+      expect(allLikeValues()).toEqual(['84', '84']);
+      expect(api.accountAvatar).toHaveBeenCalledTimes(actor.kind === 'account' ? 1 : 0);
+    },
+  );
+
+  it('shares an already completed snapshot with a later mounted sidebar', async () => {
+    const read = vi.spyOn(apiCall, 'call').mockResolvedValue(success(summary()));
+    await renderConsumers({ sidebar: false });
+    await renderConsumers();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(allLikeValues()).toEqual(['84', '84']);
+  });
+
+  it('keeps the pending transport for the remaining consumer and releases the final owner', async () => {
+    const pending = deferred<ApiResult<PersonalProgressSummaryV1>>();
+    const read = vi.spyOn(apiCall, 'call').mockReturnValue(pending.promise);
+    await renderConsumers();
+    const signal = read.mock.calls[0]![1]!.signal!;
+    await renderConsumers({ sidebar: false });
+    expect(signal.aborted).toBe(false);
+    expect(read).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve(success(summary())));
+    expect(allLikeValues()).toEqual(['84']);
+    await act(async () => root.render(null));
+    read.mockResolvedValueOnce(success(summary()));
+    await renderConsumers();
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('aborts both transports when their last consumers unmount', async () => {
+    const summaryRead = deferred<ApiResult<PersonalProgressSummaryV1>>();
+    const avatarRead = deferred<Awaited<ReturnType<typeof api.accountAvatar>>>();
+    const read = vi.spyOn(apiCall, 'call').mockReturnValue(summaryRead.promise);
+    vi.mocked(api.accountAvatar).mockReturnValue(avatarRead.promise);
+    await renderConsumers();
+    const signal = read.mock.calls[0]![1]!.signal!;
+    const avatarSignal = vi.mocked(api.accountAvatar).mock.calls[0]![0]!;
+    await act(async () => root.render(null));
+    expect(signal.aborted).toBe(true);
+    expect(avatarSignal.aborted).toBe(true);
+  });
+
+  function realSessionReads(actor = account) {
+    vi.mocked(api.accountAvatar).mockRestore();
+    const transport = vi.spyOn(globalThis, 'fetch').mockImplementation(async (path) => {
+      if (String(path).endsWith('/progress/summary')) return Response.json(summary([], actor));
+      if (String(path) === '/api/account/avatar')
+        return Response.json({ avatarDataUrl: '/confirmed-avatar.webp' });
+      throw new Error(`Unexpected transport: ${String(path)}`);
+    });
+    const personalStarts = () =>
+      transport.mock.calls
+        .map(([path]) => String(path))
+        .filter((path) => /\/(?:progress\/summary|account\/avatar)$/.test(path));
+    return { transport, personalStarts };
+  }
+
+  it.each([account, seat])(
+    'admits no personal reads across the pending and completed $kind logout boundary',
+    async (actor) => {
+      ready(actor);
+      const { transport, personalStarts } = realSessionReads(actor);
+      const read = transport.getMockImplementation()!;
+      const response = deferred<Response>();
+      const returned = deferred<void>();
+      const resume = deferred<void>();
+      const path = actor.kind === 'account' ? '/api/auth/logout' : '/api/class-join/logout';
+      transport.mockImplementation((url, init) =>
+        String(url) === path ? response.promise : read(url, init),
+      );
+      const realCall = apiCall.call;
+      vi.spyOn(apiCall, 'call').mockImplementation(async (url, init) => {
+        const result = await realCall(url, init);
+        if (url === path) {
+          returned.resolve();
+          // Hold the observed gap after the transport's finishMutation, before the API wrapper
+          // can announce logout. This is a controlled scheduling fault, not a fake session.
+          await resume.promise;
+        }
+        return result;
+      });
+      await renderConsumers({ actor });
+      const initial = personalStarts();
+      expect(initial).toHaveLength(actor.kind === 'account' ? 2 : 1);
+      let logout!: ReturnType<typeof api.logout>;
+      try {
+        await act(async () => {
+          logout = actor.kind === 'account' ? api.logout() : api.classroomStudentLogout();
+        });
+        expect(personalStarts()).toEqual(initial);
+        await act(async () => {
+          response.resolve(Response.json({ ok: true }));
+          await returned.promise;
+        });
+        expect(personalStarts()).toEqual(initial);
+        await act(async () => {
+          resume.resolve();
+          expect((await logout).ok).toBe(true);
+        });
+        expect(telemetryContext().ready).toBe(false);
+        expect(personalStarts()).toEqual(initial);
+        await act(async () => ready(actor));
+        expect(personalStarts()).toEqual([...initial, ...initial]);
+        expect(allLikeValues()).toEqual(['84', '84']);
+      } finally {
+        response.resolve(Response.json({ ok: true }));
+        resume.resolve();
+        if (logout) await act(async () => void (await logout));
+      }
+    },
+  );
+
+  it.each([
+    { actor: account, firstStatus: 200 },
+    { actor: account, firstStatus: 503 },
+    { actor: seat, firstStatus: 503 },
+  ])(
+    'keeps overlapping $actor.kind logout admissions closed after the first response is $firstStatus',
+    async ({ actor, firstStatus }) => {
+      ready(actor);
+      const { transport, personalStarts } = realSessionReads(actor);
+      const read = transport.getMockImplementation()!;
+      const replies = [deferred<Response>(), deferred<Response>()];
+      let write = 0;
+      const path = actor.kind === 'account' ? '/api/auth/logout' : '/api/class-join/logout';
+      const logout = () => (actor.kind === 'account' ? api.logout() : api.classroomStudentLogout());
+      transport.mockImplementation((url, init) =>
+        String(url) === path ? replies[write++]!.promise : read(url, init),
+      );
+      await renderConsumers({ actor });
+      const initial = personalStarts();
+      expect(initial).toHaveLength(actor.kind === 'account' ? 2 : 1);
+      let first!: ReturnType<typeof api.logout>;
+      let second!: ReturnType<typeof api.logout>;
+      try {
+        await act(async () => {
+          first = logout();
+          second = logout();
+        });
+        expect(personalStarts()).toEqual(initial);
+        await act(async () => {
+          replies[0]!.resolve(Response.json({ ok: true }, { status: firstStatus }));
+          await first;
+        });
+        expect(personalStarts()).toEqual(initial);
+        await act(async () => {
+          replies[1]!.resolve(Response.json({ error: { message: 'Offline' } }, { status: 503 }));
+          expect((await second).ok).toBe(false);
+        });
+        expect(personalStarts()).toEqual(firstStatus === 200 ? initial : [...initial, ...initial]);
+        expect(telemetryContext().ready).toBe(firstStatus !== 200);
+        if (firstStatus !== 200) expect(allLikeValues()).toEqual(['84', '84']);
+      } finally {
+        for (const reply of replies) reply.resolve(Response.json({}, { status: 503 }));
+        await act(async () => void (await Promise.all([first, second])));
+      }
+    },
+  );
+
+  it.each(['before', 'during'] as const)(
+    'keeps the current session usable when logout is cancelled %s its transport',
+    async (when) => {
+      const { transport, personalStarts } = realSessionReads();
+      const read = transport.getMockImplementation()!;
+      transport.mockImplementation((url, init) =>
+        String(url) === '/api/auth/logout'
+          ? new Promise<Response>((_resolve, reject) =>
+              init?.signal?.addEventListener('abort', () => reject(init.signal!.reason), {
+                once: true,
+              }),
+            )
+          : read(url, init),
+      );
+      await renderConsumers();
+      const initial = personalStarts();
+      const controller = new AbortController();
+      if (when === 'before') controller.abort();
+      let logout!: ReturnType<typeof api.logout>;
+      try {
+        await act(async () => {
+          logout = api.logout(controller.signal);
+        });
+        expect(personalStarts()).toEqual(initial);
+        await act(async () => {
+          controller.abort();
+          expect((await logout).ok).toBe(false);
+        });
+        expect(telemetryContext().ready).toBe(true);
+        expect(personalStarts()).toEqual(when === 'before' ? initial : [...initial, ...initial]);
+        expect(allLikeValues()).toEqual(['84', '84']);
+      } finally {
+        controller.abort();
+        if (logout) await act(async () => void (await logout));
+      }
+    },
+  );
+
+  it('retires direct logout in its synchronous notification without starting a replacement read', async () => {
+    const { personalStarts } = realSessionReads();
+    await renderConsumers();
+    const initial = personalStarts();
+    await act(async () => notifySessionLoggedOut());
+    expect(personalStarts()).toEqual(initial);
+    expect(telemetryContext().ready).toBe(false);
+  });
+
+  it.each([200, 503])(
+    'admits a new Account while a previous Seat logout is pending and later returns %i',
+    async (status) => {
+      ready(seat);
+      const nextActor = { ...account, accountId: 'new-account' };
+      const next = summary([], nextActor);
+      const { transport, personalStarts } = realSessionReads(seat);
+      const read = transport.getMockImplementation()!;
+      const response = deferred<Response>();
+      transport.mockImplementation((url, init) => {
+        if (String(url) === '/api/class-join/logout') return response.promise;
+        if (String(url) === '/api/progress/summary')
+          return Promise.resolve(
+            Response.json({
+              ...next,
+              metrics: { ...next.metrics, currentLikes: { availability: 'available', value: 202 } },
+            }),
+          );
+        return read(url, init);
+      });
+      await renderConsumers({ actor: seat });
+      let logout!: ReturnType<typeof api.classroomStudentLogout>;
+      try {
+        await act(async () => {
+          logout = api.classroomStudentLogout();
+        });
+        await act(async () => {
+          notifySessionLoggedOut();
+          ready(nextActor);
+          root.render(createElement(SharedConsumers, { actor: nextActor }));
+        });
+        const started = [
+          '/api/class-join/progress/summary',
+          '/api/progress/summary',
+          '/api/account/avatar',
+        ];
+        expect(personalStarts()).toEqual(started);
+        expect(allLikeValues()).toEqual(['202', '202']);
+        await act(async () => {
+          response.resolve(Response.json({ ok: true }, { status }));
+          expect(await logout).toMatchObject({
+            ok: false,
+            error: { code: 'request_cancelled' },
+          });
+        });
+        expect(personalStarts()).toEqual(started);
+        expect(telemetryContext()).toMatchObject({
+          actor: { kind: 'account', accountId: nextActor.accountId },
+          ready: true,
+        });
+        expect(allLikeValues()).toEqual(['202', '202']);
+      } finally {
+        response.resolve(Response.json({}, { status: 503 }));
+        if (logout) await act(async () => void (await logout));
+      }
+    },
+  );
+
+  it('keeps a same-session automatic refresh available to both shared summary consumers', async () => {
+    const { transport } = realSessionReads();
+    const read = transport.getMockImplementation()!;
+    let summaries = 0;
+    transport.mockImplementation(async (url, init) => {
+      if (String(url) === '/api/auth/refresh') return Response.json({ ok: true });
+      if (String(url) === '/api/progress/summary' && summaries++ === 0)
+        return Response.json({ error: { code: 'session_expired' } }, { status: 401 });
+      return read(url, init);
+    });
+    await renderConsumers();
+    expect(summaries).toBe(2);
+    expect(
+      transport.mock.calls.filter(([url]) => String(url) === '/api/auth/refresh'),
+    ).toHaveLength(1);
+    expect(allLikeValues()).toEqual(['84', '84']);
+  });
+
+  it('retries HTTP 200 unavailable once for all consumers and settles to available', async () => {
+    const unknown = summary();
+    const unknownCounter = {
+      availability: 'unavailable',
+      value: null,
+      reason: 'source_unavailable',
+    } as const;
+    const unavailable: PersonalProgressSummaryV1 = {
+      ...unknown,
+      availability: 'unavailable',
+      metrics: {
+        everPublishedWorks: unknownCounter,
+        currentLikes: unknownCounter,
+        createdCopies: unknownCounter,
+        activePublicWorks: unknownCounter,
+      },
+    };
+    const pending = deferred<ApiResult<PersonalProgressSummaryV1>>();
+    const read = vi.spyOn(apiCall, 'call').mockResolvedValue(success(unavailable));
+    await renderConsumers();
+    expect(allLikeValues()).toEqual(['—', '—']);
+    const retryButtons = [...host.querySelectorAll<HTMLButtonElement>('button')].filter(
+      (button) => button.textContent === 'Повторить загрузку прогресса',
+    );
+    expect(retryButtons.length).toBeGreaterThanOrEqual(2);
+    read.mockReturnValue(pending.promise);
+    await act(async () => retryButtons.forEach((button) => button.click()));
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(allLikeValues()).toEqual(['…', '…']);
+    expect(host.textContent).not.toContain('Сейчас не удалось получить подтверждённые показатели');
+    expect(
+      host.querySelector<HTMLButtonElement>('.portal-sidebar-metric-details button')?.disabled,
+    ).toBe(true);
+    await act(async () => currentProgress.summary.reload());
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => pending.resolve(success(summary())));
+    expect(allLikeValues()).toEqual(['84', '84']);
+    expect(currentProgress.summary.loading).toBe(false);
+  });
+
+  it.each([
+    '/api/projects/project/publication',
+    '/api/public-projects/work/like',
+    '/api/public-projects/work/copy',
+  ])('refreshes all active consumers once after %s', async (path) => {
+    const initial = summary();
+    const updated: PersonalProgressSummaryV1 = {
+      ...initial,
+      metrics: { ...initial.metrics, currentLikes: { availability: 'available', value: 85 } },
+    };
+    const read = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary()))
+      .mockResolvedValueOnce(success(updated));
+    await renderConsumers();
+    await act(async () => portalMutationCompleted(path, { method: 'POST' }));
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(allLikeValues()).toEqual(['85', '85']);
+    await act(async () =>
+      portalMutationCompleted('/api/learning/notifications/read', { method: 'POST' }),
+    );
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects an older pending response when a successful mutation invalidates it', async () => {
+    const old = deferred<ApiResult<PersonalProgressSummaryV1>>();
+    const fresh = deferred<ApiResult<PersonalProgressSummaryV1>>();
+    const read = vi
+      .spyOn(apiCall, 'call')
+      .mockReturnValueOnce(old.promise)
+      .mockReturnValueOnce(fresh.promise);
+    await renderConsumers();
+    const oldSignal = read.mock.calls[0]![1]!.signal!;
+    await act(async () =>
+      portalMutationCompleted('/api/public-projects/work/like', { method: 'PUT' }),
+    );
+    expect(oldSignal.aborted).toBe(true);
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => old.resolve(success(summary([group('OLD MUTATION')]))));
+    expect(allLikeValues()).toEqual(['…', '…']);
+    expect(host.textContent).not.toContain('OLD MUTATION');
+    await act(async () => fresh.resolve(success(summary())));
+    expect(allLikeValues()).toEqual(['84', '84']);
+  });
+
+  it.each(['home', 'learning'] as const)(
+    'refreshes once on a later %s entry without polling',
+    async (route) => {
+      const read = vi.spyOn(apiCall, 'call').mockResolvedValue(success(summary()));
+      await renderConsumers();
+      const identity = {
+        kind: 'account',
+        accountId: account.accountId,
+        workspaceId: 'personal',
+      } as const;
+      await act(async () => setTelemetryContext(identity, true, 'public'));
+      expect(read).toHaveBeenCalledTimes(1);
+      await act(async () => setTelemetryContext(identity, true, route));
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(api.accountAvatar).toHaveBeenCalledTimes(2);
+      await act(async () => setTelemetryContext(identity, true, route));
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(api.accountAvatar).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('retires the snapshot when trusted grants change without changing actor or workspace IDs', async () => {
+    setPortalSessionKey('trusted-grants-first');
+    const pending = deferred<ApiResult<PersonalProgressSummaryV1>>();
+    const read = vi
+      .spyOn(apiCall, 'call')
+      .mockResolvedValueOnce(success(summary([group('PREVIOUS GRANT')])));
+    await renderConsumers();
+    expect(host.textContent).toContain('PREVIOUS GRANT');
+    read.mockReturnValueOnce(pending.promise);
+    frames.length = 0;
+    await act(async () => setPortalSessionKey('trusted-grants-revoked'));
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(host.textContent).not.toContain('PREVIOUS GRANT');
+    expect(frames.every((frame) => !frame.includes('PREVIOUS GRANT'))).toBe(true);
+    await act(async () => pending.resolve(success(summary())));
+    expect(allLikeValues()).toEqual(['84', '84']);
+  });
+
+  it.each(['same-account', 'other-account', 'seat'] as const)(
+    'fences both independent consumers and delayed avatar on %s session handoff',
+    async (kind) => {
+      const previous = deferred<ApiResult<PersonalProgressSummaryV1>>();
+      const previousAvatar = deferred<Awaited<ReturnType<typeof api.accountAvatar>>>();
+      const nextActor: OwnProgressActor =
+        kind === 'seat'
+          ? seat
+          : kind === 'other-account'
+            ? { ...account, accountId: 'account-b' }
+            : account;
+      const read = vi
+        .spyOn(apiCall, 'call')
+        .mockReturnValueOnce(previous.promise)
+        .mockResolvedValueOnce(success(summary([], nextActor)));
+      vi.mocked(api.accountAvatar)
+        .mockReturnValueOnce(previousAvatar.promise)
+        .mockResolvedValue(success({ avatarDataUrl: '/current-avatar.webp' }));
+      await renderConsumers();
+      const previousSignal = read.mock.calls[0]![1]!.signal!;
+      const previousAvatarSignal = vi.mocked(api.accountAvatar).mock.calls[0]![0]!;
+      await act(async () => setTelemetryContext(null, false, 'home'));
+      frames.length = 0;
+      await act(async () => {
+        ready(nextActor);
+        root.render(createElement(SharedConsumers, { actor: nextActor }));
+      });
+      expect(previousSignal.aborted).toBe(true);
+      expect(previousAvatarSignal.aborted).toBe(true);
+      await act(async () => {
+        previous.resolve(success(summary([group('OLD SESSION')])));
+        previousAvatar.resolve(success({ avatarDataUrl: '/old-private-avatar.webp' }));
+      });
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(allLikeValues()).toEqual(['84', '84']);
+      expect(frames.every((frame) => !frame.includes('OLD SESSION'))).toBe(true);
+      expect(host.querySelector('img[src="/old-private-avatar.webp"]')).toBeNull();
+      expect(api.accountAvatar).toHaveBeenCalledTimes(kind === 'seat' ? 1 : 2);
+    },
+  );
 });
 
 describe('Own progress presentation', () => {

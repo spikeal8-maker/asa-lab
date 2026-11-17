@@ -34,6 +34,28 @@ const liveReads = new Set<ReadFlight>();
 let readEpoch = 0;
 let sessionEpoch = 0;
 let sessionKey = '';
+const sessionListeners = new Set<() => void>();
+let sessionBinding = { holds: 0 };
+export const portalSessionBinding = (): object => sessionBinding;
+export const personalReadsPaused = (): boolean => sessionBinding.holds > 0;
+
+/** A logout spans transport settlement and the caller's session notification. */
+export function pausePersonalReads() {
+  const binding = sessionBinding;
+  const current = () => binding === sessionBinding;
+  binding.holds += 1;
+  invalidatePortalSession();
+  let active = true;
+  return {
+    current,
+    resume: () => {
+      if (!active) return;
+      active = false;
+      binding.holds -= 1;
+      if (current()) invalidatePortalSession();
+    },
+  };
+}
 
 /** No completed-response cache: canonical identity reads always reach the server. */
 export function invalidatePortalReads(): void {
@@ -46,11 +68,25 @@ export function invalidatePortalSession(): void {
   sessionEpoch += 1;
   invalidatePortalReads();
   for (const flight of liveReads) flight.controller.abort(cancelled());
+  for (const listener of sessionListeners) {
+    try {
+      listener();
+    } catch {
+      // A view subscriber must not interrupt the session fence.
+    }
+  }
 }
 export const portalSessionEpoch = (): number => sessionEpoch;
+export function subscribePortalSession(listener: () => void): () => void {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
 
 let observedContext = telemetryContext();
 subscribeTelemetry((context) => {
+  if (context.continuity !== observedContext.continuity) sessionBinding = { holds: 0 };
   if (
     context.continuity !== observedContext.continuity ||
     context.ready !== observedContext.ready
@@ -96,6 +132,7 @@ export function portalSessionKey(state: { kind: string; session?: unknown }): st
 export function setPortalSessionKey(key: string): void {
   if (sessionKey === key) return;
   sessionKey = key;
+  sessionBinding = { holds: 0 };
   invalidatePortalSession();
 }
 
@@ -201,9 +238,13 @@ function changesSession(path: string): boolean {
 /** Invalidate synchronously on both sides of a write; never coalesce a mutation. */
 export function beginPortalMutation(path: string, init: RequestInit): () => void {
   if (['GET', 'HEAD'].includes(methodOf(init)) || isTelemetryPath(path)) return () => undefined;
-  const invalidate = changesSession(path) ? invalidatePortalSession : invalidatePortalReads;
+  const session = changesSession(path);
+  const binding = sessionBinding;
+  const invalidate = session ? invalidatePortalSession : invalidatePortalReads;
   invalidate();
-  return invalidate;
+  return () => {
+    if (!session || binding === sessionBinding) invalidate();
+  };
 }
 
 const mutationListeners = new Set<(path: string) => void>();
