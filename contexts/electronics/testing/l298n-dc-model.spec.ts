@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { SchematicComponent } from '../domain/document.js';
 import { solveLinear } from '../domain/linear-system.js';
-import { L298N_DC_MODEL, L298N_TERMINALS } from '../domain/models/l298n-dc-model.js';
+import {
+  L298N_DC_MODEL,
+  L298N_FLYBACK_PROFILE,
+  L298N_TERMINALS,
+  type L298nOperatingPoint,
+} from '../domain/models/l298n-dc-model.js';
 
 function board(state: Record<string, boolean> = {}): SchematicComponent {
   return {
@@ -207,5 +212,168 @@ describe('L298N device model feeding the canonical ASA Lab MNA solver', () => {
     );
     expect(second.state.channelA.mode).toBe('reverse');
     expect(second.state.channelB.mode).toBe('forward');
+  });
+});
+
+/** A held winding current is an interval-boundary constraint, not a new runtime solver. */
+function solveHeldFlyback(pair: readonly [string, string], heldCurrentAmp: number, logicVolt = 5) {
+  const component = board({ enaJumperInstalled: false, enbJumperInstalled: false });
+  const prepared = step(component, { '+5V': logicVolt, ENA: 0, ENB: 0 });
+  const { instance, point } = prepared;
+  let state = prepared.state;
+  const ids: readonly string[] = [...L298N_TERMINALS, 'ENA', 'ENB'];
+  const nodeId = new Map(ids.map((name, index) => [name, index]));
+  const outputs = ['OUT1', 'OUT2', 'OUT3', 'OUT4'];
+  const variable = new Map(outputs.map((name, index) => [nodeId.get(name)!, index]));
+  const fixed = new Map([
+    [nodeId.get('+12V')!, 9],
+    [nodeId.get('GND')!, 0],
+    [nodeId.get('+5V')!, logicVolt],
+  ]);
+  for (let iteration = 0; iteration < 24; iteration++) {
+    const matrix = Array.from({ length: 4 }, () => Array<number>(4).fill(0));
+    const rhs = Array<number>(4).fill(0);
+    for (let i = 0; i < 4; i++) matrix[i]![i] = 1e-12;
+    const conductance = (left: number, right: number, g: number) => {
+      const li = variable.get(left),
+        ri = variable.get(right);
+      if (li !== undefined) {
+        matrix[li]![li] += g;
+        if (ri !== undefined) matrix[li]![ri] -= g;
+        else rhs[li] += g * (fixed.get(right) ?? 0);
+      }
+      if (ri !== undefined) {
+        matrix[ri]![ri] += g;
+        if (li !== undefined) matrix[ri]![li] -= g;
+        else rhs[ri] += g * (fixed.get(left) ?? 0);
+      }
+    };
+    const offset = (left: number, right: number, current: number) => {
+      const li = variable.get(left),
+        ri = variable.get(right);
+      if (li !== undefined) rhs[li] += current;
+      if (ri !== undefined) rhs[ri] -= current;
+    };
+    // Current through the winding leaves its first terminal, enters its second.
+    offset(nodeId.get(pair[0])!, nodeId.get(pair[1])!, -heldCurrentAmp);
+    L298N_DC_MODEL.stampDc(
+      {
+        node: (_component, terminal) => nodeId.get(terminal)!,
+        stampConductance: conductance,
+        stampOffset: offset,
+        stampVccs: () => {
+          throw new Error('Regulator is disabled in the flyback fixture');
+        },
+      },
+      instance,
+      state,
+    );
+    const solution = solveLinear(matrix, rhs);
+    if (!solution) throw new Error('The shared linear solver rejected the flyback matrix');
+    const currentPoint: L298nOperatingPoint = {
+      ...point,
+      terminalVoltages: {
+        ...point.terminalVoltages,
+        ...Object.fromEntries(outputs.map((name, index) => [name, solution[index]!])),
+      },
+    };
+    const evaluated = L298N_DC_MODEL.evaluateIteration(instance, state, currentPoint);
+    state = evaluated.state;
+    if (!evaluated.changed)
+      return {
+        instance,
+        state,
+        point: currentPoint,
+        iterations: iteration + 1,
+        observation: L298N_DC_MODEL.observe(instance, state, currentPoint),
+      };
+  }
+  throw new Error('Flyback active set did not converge within the unchanged iteration bound');
+}
+
+describe('L298N passive flyback in the shared MNA matrix', () => {
+  it.each([
+    ['OUT1', 'OUT2', 0.25],
+    ['OUT1', 'OUT2', -0.25],
+    ['OUT3', 'OUT4', 0.25],
+    ['OUT3', 'OUT4', -0.25],
+  ] as const)('preserves signed coast current from %s to %s at %s A', (a, b, current) => {
+    const result = solveHeldFlyback([a, b], current);
+    const { terminalCurrents: currents, powerWatt, supplyCurrentAmp } = result.observation;
+    const magnitude = Math.abs(current);
+    const knee = L298N_FLYBACK_PROFILE.forwardVoltageVolt;
+    const resistance = L298N_FLYBACK_PROFILE.dynamicResistanceOhm;
+    expect(result.iterations).toBeLessThan(24);
+    expect(result.state.channelA.mode).toBe('coast');
+    expect(result.state.channelB.mode).toBe('coast');
+    expect(currents[a]).toBeCloseTo(-current, 9);
+    expect(currents[b]).toBeCloseTo(current, 9);
+    expect(supplyCurrentAmp).toBeCloseTo(-magnitude, 9);
+    expect(Object.values(currents).reduce((sum, value) => sum + value, 0)).toBeCloseTo(0, 11);
+    const voltage = result.point.terminalVoltages[a] - result.point.terminalVoltages[b];
+    expect(voltage).toBeCloseTo(-Math.sign(current) * (9 + 2 * (knee + magnitude * resistance)), 9);
+    expect(powerWatt).toBeCloseTo(25 / 1250 + 2 * magnitude * (knee + magnitude * resistance), 9);
+    const terminalPower = Object.entries(currents).reduce(
+      (sum, [terminal, amperes]) => sum + result.point.terminalVoltages[terminal] * amperes,
+      0,
+    );
+    expect(terminalPower).toBeCloseTo(powerWatt, 9);
+    expect(result.observation.overCurrent).toBe(false);
+    expect(result.observation.unsupported).toBe(false);
+  });
+
+  it('keeps the passive current path when logic power is absent', () => {
+    const result = solveHeldFlyback(['OUT1', 'OUT2'], 0.25, 0);
+    expect(result.state.logicPowered).toBe(false);
+    expect(result.observation.ledOn).toBe(false);
+    expect(result.observation.terminalCurrents['OUT1']).toBeCloseTo(-0.25, 9);
+    expect(result.observation.supplyCurrentAmp).toBeCloseTo(-0.25, 9);
+    expect(result.observation.powerWatt).toBeCloseTo(2 * 0.25 * (0.7 + 0.25 * 0.1), 9);
+  });
+
+  it('returns reverse-biased clamps to the off active set without hidden loss', () => {
+    const result = solveHeldFlyback(['OUT1', 'OUT2'], 0.25);
+    const inactivePoint = {
+      ...result.point,
+      terminalVoltages: {
+        ...result.point.terminalVoltages,
+        OUT1: 4,
+        OUT2: 4,
+        OUT3: 4,
+        OUT4: 4,
+      },
+    };
+    const update = L298N_DC_MODEL.evaluateIteration(result.instance, result.state, inactivePoint);
+    expect(update.changed).toBe(true);
+    expect(update.state.flybackMask).toBe(0);
+    const observation = L298N_DC_MODEL.observe(result.instance, update.state, inactivePoint);
+    expect(observation.terminalCurrents['OUT1']).toBe(0);
+    expect(observation.terminalCurrents['OUT2']).toBe(0);
+    expect(observation.supplyCurrentAmp).toBe(0);
+    expect(observation.powerWatt).toBeCloseTo(25 / 1250, 12);
+  });
+
+  it.each([2.1, -2.1])('does not waive the 2 A limit on a clamp path at %s A', (current) => {
+    const result = solveHeldFlyback(['OUT3', 'OUT4'], current);
+    expect(result.observation.overCurrent).toBe(true);
+    expect(result.observation.unsupported).toBe(true);
+  });
+
+  it('is deterministic and does not mutate iteration state during stamping', () => {
+    const first = solveHeldFlyback(['OUT1', 'OUT2'], 0.25);
+    expect(JSON.stringify(solveHeldFlyback(['OUT1', 'OUT2'], 0.25))).toBe(JSON.stringify(first));
+    const frozen = Object.freeze({ ...first.state });
+    const before = JSON.stringify(frozen);
+    L298N_DC_MODEL.stampDc(
+      {
+        node: (_component, terminal) => [...L298N_TERMINALS, 'ENA', 'ENB'].indexOf(terminal),
+        stampConductance: () => {},
+        stampOffset: () => {},
+        stampVccs: () => {},
+      },
+      first.instance,
+      frozen,
+    );
+    expect(JSON.stringify(frozen)).toBe(before);
   });
 });

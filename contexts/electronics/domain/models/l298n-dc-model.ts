@@ -43,6 +43,8 @@ export interface L298nIterationState {
   readonly inputKnown: boolean;
   readonly regulatorOn: boolean;
   readonly regulatorConflict: boolean;
+  /** Active external flyback diodes; immutable within one MNA iteration. */
+  readonly flybackMask: number;
 }
 export interface L298nOperatingPoint {
   readonly terminalVoltages: Readonly<Record<Terminal, number>>;
@@ -80,12 +82,34 @@ const INITIAL: L298nIterationState = Object.freeze({
   inputKnown: true,
   regulatorOn: false,
   regulatorConflict: false,
+  flybackMask: 0,
 });
 const OUTPUT_ON_RESISTANCE_OHM = 1.2;
 const LOGIC_LOAD_RESISTANCE_OHM = 1250;
 const MAX_CHANNEL_CURRENT_AMP = 2;
 const REGULATOR_GAIN_SIEMENS = 10;
 const REGULATOR_MAX_CURRENT_AMP = 0.5;
+/**
+ * Generic-board educational diode assumptions, not an identified owner part.
+ * ST L298 DS0218 Rev 5, Figure 8/9, requires external fast flyback diodes for
+ * inductive/PWM loads. A piecewise-linear Vf + I*R branch remains in the SAME
+ * MNA matrix and observation ledger; it neither resets winding current nor
+ * supplies energy. At exactly Vf the zero-current diode is selected off.
+ */
+export const L298N_FLYBACK_PROFILE = Object.freeze({
+  forwardVoltageVolt: 0.7,
+  dynamicResistanceOhm: 0.1,
+});
+const FLYBACK_EDGES = [
+  ['OUT1', '+12V'],
+  ['OUT2', '+12V'],
+  ['OUT3', '+12V'],
+  ['OUT4', '+12V'],
+  ['GND', 'OUT1'],
+  ['GND', 'OUT2'],
+  ['GND', 'OUT3'],
+  ['GND', 'OUT4'],
+] as const;
 
 export function isL298n(component: SchematicComponent): boolean {
   return component.componentTypeId === L298N_TYPE;
@@ -207,6 +231,15 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       context.stampVccs(logic, motorSupply, logic, ground, REGULATOR_GAIN_SIEMENS);
       context.stampOffset(logic, motorSupply, REGULATOR_GAIN_SIEMENS * 5);
     }
+    // External protection is passive: EN/logic power cannot disconnect it.
+    for (const [index, [anode, cathode]] of FLYBACK_EDGES.entries()) {
+      if ((state.flybackMask & (1 << index)) === 0) continue;
+      const a = context.node(component, anode);
+      const c = context.node(component, cathode);
+      const conductance = 1 / L298N_FLYBACK_PROFILE.dynamicResistanceOhm;
+      context.stampConductance(a, c, conductance);
+      context.stampOffset(a, c, conductance * L298N_FLYBACK_PROFILE.forwardVoltageVolt);
+    }
     if (!state.motorPowered || !state.logicPowered) return;
     for (const [terminal, rail] of [
       ['OUT1', state.channelA.firstRail],
@@ -245,6 +278,13 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       logicPowered && motorPowered ? channelState(ena, input('IN1'), input('IN2')) : COAST;
     const channelB =
       logicPowered && motorPowered ? channelState(enb, input('IN3'), input('IN4')) : COAST;
+    const flybackMask = FLYBACK_EDGES.reduce(
+      (mask, [anode, cathode], index) =>
+        v(anode) - v(cathode) > L298N_FLYBACK_PROFILE.forwardVoltageVolt
+          ? mask | (1 << index)
+          : mask,
+      0,
+    );
     const next: L298nIterationState = {
       channelA,
       channelB,
@@ -253,6 +293,7 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       inputKnown: channelA.mode !== 'unknown' && channelB.mode !== 'unknown',
       regulatorOn,
       regulatorConflict,
+      flybackMask,
     };
     return {
       state: next,
@@ -263,7 +304,8 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
         next.motorPowered !== state.motorPowered ||
         next.inputKnown !== state.inputKnown ||
         next.regulatorOn !== state.regulatorOn ||
-        next.regulatorConflict !== state.regulatorConflict,
+        next.regulatorConflict !== state.regulatorConflict ||
+        next.flybackMask !== state.flybackMask,
     };
   },
   observe(instance, state, point) {
@@ -294,6 +336,18 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       currents[terminal] += current;
       currents[rail] -= current;
       powerWatt += current * current * instance.parameters.outputOnResistanceOhm;
+      if (Math.abs(current) > MAX_CHANNEL_CURRENT_AMP) overCurrent = true;
+    }
+    for (const [index, [anode, cathode]] of FLYBACK_EDGES.entries()) {
+      if ((state.flybackMask & (1 << index)) === 0) continue;
+      const dropVolt = v(anode) - v(cathode);
+      const current =
+        (dropVolt - L298N_FLYBACK_PROFILE.forwardVoltageVolt) /
+        L298N_FLYBACK_PROFILE.dynamicResistanceOhm;
+      // No clipping: the accepted active set must agree with the stamped branch.
+      currents[anode] += current;
+      currents[cathode] -= current;
+      powerWatt += current * dropVolt;
       if (Math.abs(current) > MAX_CHANNEL_CURRENT_AMP) overCurrent = true;
     }
     return {
