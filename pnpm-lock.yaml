@@ -20,7 +20,7 @@ overrides:
   browserslist@<=4.28.6: 4.28.7
   smol-toml@<=1.7.0: 1.8.0
   source-map-js@<1.2.2: 1.2.2
-  picomatch: link:packages/picomatch-safe
+  picomatch: workspace:@asa-lab/picomatch-safe@*
 
 importers:
 
@@ -2938,7 +2938,7 @@ packages:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
     engines: {node: '>=12.0.0'}
     peerDependencies:
-      picomatch: link:/home/runner/work/asa-lab/asa-lab/packages/picomatch-safe
+      picomatch: workspace:@asa-lab/picomatch-safe@*
     peerDependenciesMeta:
       picomatch:
         optional: true
