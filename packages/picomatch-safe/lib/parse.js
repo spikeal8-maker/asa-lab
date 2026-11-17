@@ -356,13 +356,19 @@ const analyzeRepeatedExtglob = (body, options) => {
       if (char === '\\') {
         // With unescape:true, an escaped star becomes a quantifier in
         // the generated regex, including inside a repeated extglob.
-        if (options.unescape === true && branch[i + 1] === '*') return true;
+        if (options.unescape === true &&
+            (branch[i + 1] === '*' || (branch[i + 1] === '+' && options.regex !== false))) {
+          return true;
+        }
         i++;
         continue;
       }
       // Nested groups and braces may hide ambiguous repetitions/alternations.
       // Fail closed rather than trusting a shallow recursion count.
-      if (char === '*' || char === '(' || char === '{') return true;
+      // The default regex mode also interprets '+' as an unbounded
+      // quantifier *inside* an extglob. It is safe only with regex:false.
+      if (char === '*' || char === '(' || char === '{' ||
+          (char === '+' && options.regex !== false)) return true;
     }
     return false;
   };
