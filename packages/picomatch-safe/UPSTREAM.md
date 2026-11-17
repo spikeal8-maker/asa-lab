@@ -6,12 +6,16 @@ Original copyright and MIT license are retained in `LICENSE`.
 
 ## Security change
 The only upstream runtime modification is `lib/parse.js`.
-- Remove `maxExtglobRecursion:false`'s ability to disable the ReDoS guard.
+- Disallow all caller-controlled `maxExtglobRecursion` relaxations, including false and positive numbers, for repeated extglobs; the default zero-depth safety bound is mandatory.
 - Detect unescaped '*' wildcard inside **every** repeated extglob branch, not
   only multi-branch alternatives; retain upstream safe character-class rewrite
   for proven safe nested star sequences.
 - Treat unsupported risky repeated extglobs as *literal*, using the existing
   upstream fail-closed `extglobClose` path.
+- Reject nested unescaped parentheses and braces in repeated extglob branches;
+  these can hide nested quantifiers or ambiguous alternatives.
+- `unescape:true` removes the backslash from a nominally escaped star,
+  making it a real regex quantifier. Those patterns also fail closed.
 - Backslash-escaped '*' remains a literal; **all non-escaped stars** in repeated
   extglob branches are rejected, even inside bracket-looking text. This is
   intentional fail-closed behavior: unmatched '[' and `nobracket:true` make

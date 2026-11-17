@@ -289,10 +289,9 @@ const analyzeRepeatedExtglob = (body, options) => {
   // single-branch repeated-extglob ReDoS (CVE-2026-112366).
   // The default bound remains authoritative even for the old false option.
 
-  const max =
-    typeof options.maxExtglobRecursion === 'number'
-      ? options.maxExtglobRecursion
-      : constants.DEFAULT_MAX_EXTGLOB_RECURSION;
+  // Security: numeric/boolean options may not relax nested repetition
+  // checking. The original safe default bound is zero.
+  const max = constants.DEFAULT_MAX_EXTGLOB_RECURSION;
 
   const branches = splitTopLevel(body).map(branch => branch.trim());
 
@@ -355,10 +354,15 @@ const analyzeRepeatedExtglob = (body, options) => {
     for (let i = 0; i < branch.length; i++) {
       const char = branch[i];
       if (char === '\\') {
+        // With unescape:true, an escaped star becomes a quantifier in
+        // the generated regex, including inside a repeated extglob.
+        if (options.unescape === true && branch[i + 1] === '*') return true;
         i++;
         continue;
       }
-      if (char === '*') return true;
+      // Nested groups and braces may hide ambiguous repetitions/alternations.
+      // Fail closed rather than trusting a shallow recursion count.
+      if (char === '*' || char === '(' || char === '{') return true;
     }
     return false;
   };
