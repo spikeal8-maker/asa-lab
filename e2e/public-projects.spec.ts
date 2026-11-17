@@ -2684,7 +2684,7 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
       path: `${EVIDENCE}/sp03-real-publication-metrics-320.png`,
       fullPage: true,
     });
-    await page.getByRole('button', { name: 'Закрыть меню', exact: true }).click();
+    await page.locator('#portal-sidebar .portal-menu-close').click();
     await expect(page.locator('#portal-sidebar')).not.toHaveClass(/mobile-open/);
     const privateCopy = await reader.page.request.get(`/api/projects/${copied.projectId}`);
     await ok(privateCopy);
@@ -2773,9 +2773,12 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
     await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
     await expect(page.locator('#portal-sidebar')).toHaveClass(/mobile-open/);
     await page.getByTestId('profile-metric-strip').locator('summary').click();
-    await page.getByRole('button', { name: 'Повторить загрузку прогресса', exact: true }).click();
+    await page
+      .getByTestId('profile-metric-strip')
+      .getByRole('button', { name: 'Повторить загрузку прогресса', exact: true })
+      .click();
     await expect(page.getByTestId('profile-full-createdCopies').locator('span')).toHaveText('1');
-    await page.getByRole('button', { name: 'Закрыть меню', exact: true }).click();
+    await page.locator('#portal-sidebar .portal-menu-close').click();
     await expect(page.locator('#portal-sidebar')).not.toHaveClass(/mobile-open/);
     await page
       .locator('.portal-create-notice')
