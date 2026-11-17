@@ -665,7 +665,36 @@ for (const width of [1440, 1024, 390, 320]) {
         .first()
         .evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
     ).toBeGreaterThanOrEqual(12);
-    await expect(page.getByRole('heading', { name: 'Ошибки по системам' })).toBeVisible();
+    const errors = page.locator('.admin-chart-card').filter({
+      has: page.getByRole('heading', { name: 'Ошибки по системам' }),
+    });
+    const errorPlot = errors.locator('.admin-chart-canvas');
+    await expect(errorPlot).toBeVisible();
+    const plotBefore = (await errorPlot.boundingBox())!;
+    const header = errors.locator('header');
+    const headerBefore = (await header.boundingBox())!;
+    const cardBefore = (await errors.boundingBox())!;
+    await errorPlot.hover({ position: { x: 48 + ((plotBefore.width - 96) * 10) / 23, y: 90 } });
+    const readout = header.locator('.admin-chart-readout-content');
+    await expect(readout).toContainText('13:00 — 25.10.2026, 14:00 МСК');
+    await expect(readout).toContainText('Ошибки 5');
+    await expect(readout).toContainText('Активные пользователи 27');
+    const plotAfter = (await errorPlot.boundingBox())!;
+    const headerAfter = (await header.boundingBox())!;
+    const readoutBox = (await readout.boundingBox())!;
+    expect(readoutBox.width).toBeGreaterThan(0);
+    expect(readoutBox.x + readoutBox.width).toBeCloseTo(headerAfter.x + headerAfter.width, 0);
+    expect(readoutBox.y + readoutBox.height).toBeLessThanOrEqual(plotAfter.y);
+    expect(Math.abs(plotAfter.height - 191)).toBeLessThanOrEqual(1);
+    expect(headerAfter.height).toBeCloseTo(headerBefore.height, 0);
+    expect((await errors.boundingBox())!.height).toBeCloseTo(cardBefore.height, 0);
+    const siblings = await header
+      .locator(':scope > :not(.admin-chart-readout)')
+      .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON()));
+    for (const box of siblings) {
+      if (box.top < readoutBox.y + readoutBox.height && box.bottom > readoutBox.y)
+        expect(box.right).toBeLessThanOrEqual(readoutBox.x);
+    }
     await expect(page.getByText('Доступная часть журнала:', { exact: false })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'IP-адреса пользователей' })).toBeVisible();
     await expect(

@@ -297,6 +297,7 @@ export function App(): JSX.Element {
       !(view.kind === 'editor' && view.moduleKey === 'robotics')
       ? portalScope
       : '',
+    view.kind === 'editor' && view.moduleKey === 'electronics',
   );
   const actor = telemetryActor(session);
   const actorIdentity =
@@ -1142,6 +1143,7 @@ export function App(): JSX.Element {
   const renderPortalHeader = (active: CreatorPortalSection): JSX.Element => (
     <PortalHeader
       session={portalSession}
+      progressActor={progressActor}
       active={active}
       seatLearner={isSeatLearner}
       classroomBadge={canManageClasses ? awaitingReview : undefined}

@@ -75,7 +75,9 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
   expect(educator.status(), await educator.text()).toBe(201);
   const classroom = await page.request.post('/api/classrooms', {
     headers: { origin, 'idempotency-key': randomKey() },
-    data: { title: 'Учебные игры', ageBand: 'mixed', topicKeys: [], safeModeDefault: true },
+    // This scenario isolates distribution permissions. Safe Mode is covered by a separate
+    // default-ON security suite; it must be OFF here for an authorized publish.
+    data: { title: 'Учебные игры', ageBand: 'mixed', topicKeys: [], safeModeDefault: false },
   });
   expect(classroom.status(), await classroom.text()).toBe(201);
   const classroomId = (await classroom.json()).classroom.id as string;
@@ -84,7 +86,7 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
   const classCode = (await details.json()).classroom.joinCode as string;
   const issued = await page.request.post(`/api/classrooms/${classroomId}/seats`, {
     headers: { origin },
-    data: { displayLabel: 'Ученик допуска', safeMode: true },
+    data: { displayLabel: 'Ученик допуска', safeMode: false },
   });
   expect(issued.status(), await issued.text()).toBe(201);
   const student = (await issued.json()).student as { id: string; studentCode: string };
@@ -658,13 +660,15 @@ test('real Account and StudentSeat capture Home and Learning shell at controlled
             await expect(page.getByText('Загружаем обзор обучения…', { exact: true })).toHaveCount(
               0,
             );
-            await expect(page.locator('.learning-overview-metrics strong')).toHaveText([
-              '0',
-              '0',
-              '0',
-            ]);
           }
           await expect.poll(reads.settled).toBe(true);
+          if (surface === 'learning') {
+            await expect(page.locator('.learning-overview-metrics')).toHaveCount(0);
+            await expect(page.locator('.learning-overview-panel')).toHaveCount(0);
+            await expect(
+              page.locator('.learning-overview-empty, .learning-overview-note'),
+            ).toHaveCount(1);
+          }
           const actualReads = reads.snapshot();
           if (surface === 'home') {
             for (const module of ['three-d', 'electronics', 'blocks', 'robotics'])

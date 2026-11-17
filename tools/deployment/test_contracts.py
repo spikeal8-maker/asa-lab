@@ -369,7 +369,8 @@ class ReleaseTests(unittest.TestCase):
             if legacy:
                 fixture["general_jobs"].pop()
             with self.subTest(legacy=legacy), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)):
-                assert_ci(release())
+                publish = next(job for job in fixture["publication_jobs"] if job["name"] == "publish")
+                self.assertEqual(assert_ci(release()), publish["completed_at"])
                 assert_general_ci("a" * 40)
 
     def test_every_required_job_must_be_present_and_successful(self):

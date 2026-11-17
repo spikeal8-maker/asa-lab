@@ -230,7 +230,7 @@ describe('Personal Home sections', () => {
     await render();
     expect(host.querySelectorAll('.creator-module-section')).toHaveLength(4);
     expect(host.textContent).toContain('Открыть знания');
-    expect(host.textContent).toContain('Открыть обучение');
+    expect(host.textContent).not.toContain('Открыть обучение');
     expect(host.textContent).not.toContain('Заданий для продолжения пока нет');
     for (const node of host.querySelectorAll('.home-module-availability'))
       expect(node.textContent).toBe('Не удалось проверить доступность среды.');
