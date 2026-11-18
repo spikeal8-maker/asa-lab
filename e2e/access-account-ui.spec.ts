@@ -2622,17 +2622,19 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
       '/#/explore',
     );
     await expect(page.getByTestId('public-projects-empty')).toBeVisible();
-    for (const hash of [
-      'home',
-      'projects',
-      'explore',
-      'knowledge',
-      'learning',
-      'help',
-      'account',
-    ]) {
+    for (const [hash, destination] of [
+      ['home', page.getByRole('main', { name: 'Главная', exact: true })],
+      ['projects', page.getByRole('heading', { name: 'Мои проекты', level: 1, exact: true })],
+      ['explore', page.getByTestId('public-project-catalog')],
+      ['knowledge', page.getByRole('heading', { name: 'Знания', level: 1, exact: true })],
+      ['learning', page.getByRole('heading', { name: 'Моё обучение', level: 1, exact: true })],
+      ['help', page.getByRole('heading', { name: 'Помощь', level: 1, exact: true })],
+      ['account', page.locator('main.account-settings-page')],
+    ] as const) {
       await page.goto(`/#/${hash}`);
       await expect(page.getByLabel('Разделы ASA Lab').getByRole('link')).toHaveCount(3);
+      // The persistent header can be ready while the destination's lazy chunk is pending.
+      await expect(destination).toBeVisible();
       await assertShellGeometry(page, width);
       const active = page.locator('.portal-global-nav [aria-current="page"]');
       await expect(active).toHaveCount(['explore', 'knowledge'].includes(hash) ? 1 : 0);
