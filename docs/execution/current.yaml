@@ -17185,13 +17185,89 @@ parallel_lanes:
       issue: 1220
       branch: main
       base_branch: main
-      pr: null
+      pr: 1232
       pr_draft: false
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: existing_pr_qualification_and_browser_artifact_repair
+      checkpoint: source_merged_pr1232_post_merge_required_pass_artifacts_verified
+      source_delivery:
+        pull_request: 1232
+        reviewed_head_sha: 093abc290e39e37cef03ac17a70f6ad23b1f804a
+        merged_main_sha: 4fc9ca348e0528401602226946d4f095334e61e0
+        merged_tree_sha: 64c36601370e60e570d65801be4b54eb3486035a
+        merged_at: '2026-11-18T12:48:47Z'
+        independent_technical_review: pass
+        independent_review_sha256: 07fc24d7d736fefcd4c9c794393928aef7465b6fcf62706fe78d36f13efb4702
+        post_r4_review_sha256: f50903c0aa64412da1028ba24b81610c55724a5f8889ed305f3613e0816c28d7
+        formal_github_review: historical_commented_no_current_approval
+        unresolved_review_threads: 0
+        qa_dependency:
+          pull_request: 1235
+          merged_main_sha: e52c6fc8d2dae17f5d3ae8535c3f3feaa38da8c2
+          post_merge_run_id: 44294409263
+          post_merge_required_job_id: 134785279030
+          post_merge_required_conclusion: success
+        focused:
+          local_persistence: pass_15_of_15
+          run_id: 44301893969
+          m1_job_id: 134793766227
+          m1_job_conclusion: success
+          nx_skip_nx_cache: true
+        preservation_865:
+          run_id: 44301893653
+          job_id: 134793453233
+          conclusion: success
+          oracle_records: 16
+          mounts: 6
+          genuine_edit_widths: [1440, 390]
+          source_overwrites: 0
+          workspace_overwrites: 0
+        code_budgets:
+          job_id: 134795675144
+          passed: 8
+          arduino_bytes: 92151
+          arduino_limit_bytes: 2000000
+          initial_js_css_bytes: 597315
+          initial_js_css_limit_bytes: 600000
+        general:
+          run_id: 44301893765
+          required_job_id: 134810695075
+          conclusion: success
+        post_merge_general:
+          run_id: 44307498058
+          required_job_id: 134830721173
+          conclusion: success
+        native_browser:
+          run_id: 44301893751
+          job_id: 134793454511
+          conclusion: success
+          original_cases_passed: 4
+          robotics_cases_passed: 4
+          viewports: [1440x900, 1024x768, 390x844, 320x700]
+          artifact_id: 14425993464
+          archive_bytes: 20819815
+          archive_sha256: 86658ab0e05fd74b71ed111b383a305f001c7bea62a6d0b1ea19a3c21e0a95a9
+          primary_files: 120
+          primary_png: 52
+          primary_json: 68
+          actual_png_visual_review: pass_52_of_52
+          gpio_row_geometry: pass_320_of_320
+        broad_r4:
+          run_id: 44301893969
+          workflow_conclusion: failure
+          passed_cases: 256
+          failed_cases: 14
+          failed_shards: [s1, s2, s3]
+          passed_shards: [s4]
+          fixture_issue: 1215
+          timing_optical_issue: 682
+        boundary: >-
+          Technical delivery of the selected UI slice only. Formal GitHub
+          approval and owner acceptance are separate. Whole R4, generator/GPIO
+          Issue944, runtime and timing acceptance are not established; no next
+          task, deployment or live database action is selected by this closeout.
       owner_acceptance: pending
       owner_authorization: >-
         Owner explicitly requests the full multi-slice
@@ -17214,12 +17290,10 @@ parallel_lanes:
       deployment: prohibited_by_owner
       database_actions: none_live
       next_action: >-
-        Continue existing QA PR1235 and product PR1232 after accepted security
-        PR1237. Preserve the three approved implementation files and original
-        product history. Repair file-backed browser attachments in the existing
-        E2E file, then inspect the actual four-viewport archive. Require fresh
-        scoped preflight, exact-source preservation and applicable gates,
-        independent review, protected merges and post-merge verification.
+        Technical delivery is complete with protected QA/product merges,
+        exact-source browser evidence and successful post-merge required checks.
+        Retain separate owner acceptance pending; no subsequent implementation
+        task is selected by this closeout.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -17236,13 +17310,13 @@ parallel_lanes:
       head_sha: null
       main:
         branch: main
-        sha: 1f94e19be91bbb5ecec78f7ea0e0b11f03a076f7
-      observed_at: '2026-11-16T19:31:28Z'
+        sha: 4fc9ca348e0528401602226946d4f095334e61e0
+      observed_at: '2026-11-18T13:24:52Z'
       observation_note: >-
-        Controller selection from owner-requested Arduino UX programme after
-        PR1163 merge. Fetch main before any subsequent writes and inspect fresh
-        Git and CI state plus active worktrees. This dated snapshot does not
-        establish present integration, release or owner acceptance.
+        Fresh fetch main before this bounded closeout confirmed product merge
+        4fc9ca34 and its exact post-merge General required SUCCESS. This is a
+        dated source-delivery observation; fetch main before subsequent writes.
+        Owner acceptance remains pending and no following task is selected.
 
   - id: electronics-arduino-check-messages
     parent_lane: electronics
