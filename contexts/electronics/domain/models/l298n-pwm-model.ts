@@ -3,6 +3,7 @@ import type { ArduinoRuntimeState } from '../arduino-program-runtime.js';
 import { isArduinoUno } from '../arduino-model.js';
 import { arduinoServoWaveforms } from '../arduino-servo-runtime.js';
 import { terminalKey } from '../netlist.js';
+import { isL298n } from './l298n-dc-model.js';
 import { l298nControlNetIndices } from './l298n-input-network.js';
 import {
   advanceArduinoTimedWaveform,
@@ -43,6 +44,29 @@ export function sampleL298nArduinoPwmVoltage(
   return arduinoWaveformLevelAt(signal, at) * 5;
 }
 
+type ArduinoCurrentSampler = (
+  componentId: string,
+  voltages: Readonly<Partial<Record<Terminal, number>>>,
+  branch: {
+    readonly id: string;
+    readonly terminal: Terminal;
+    readonly ground: Terminal;
+    readonly targetVoltage: number;
+    readonly resistanceOhm: number;
+  },
+  options: {
+    readonly simulationTimeMs?: number;
+    readonly l298nPwmSampleTimeMs?: number | undefined;
+  },
+  committedTimeMs?: number,
+) => number;
+
+const sampleArduinoCurrent: ArduinoCurrentSampler = (_componentId, voltages, branch) => {
+  const positive = voltages[branch.terminal] ?? 0;
+  const ground = voltages[branch.ground] ?? 0;
+  return (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+};
+
 /**
  * The direct and incremental quality audits must reconstruct the same source
  * voltage as the physical frame: held interval, committed state, then request.
@@ -51,24 +75,11 @@ export function sampleL298nArduinoPwmVoltage(
 export function createL298nArduinoCurrentSampler(
   document: ElectronicsDocument,
   nodes: ReadonlyMap<string, number>,
-) {
+): ArduinoCurrentSampler {
+  if (!document.components.some(isL298n)) return sampleArduinoCurrent;
   const controls = l298nControlNetIndices(document, nodes);
-  return (
-    componentId: string,
-    voltages: Readonly<Partial<Record<Terminal, number>>>,
-    branch: {
-      readonly id: string;
-      readonly terminal: Terminal;
-      readonly ground: Terminal;
-      readonly targetVoltage: number;
-      readonly resistanceOhm: number;
-    },
-    options: {
-      readonly simulationTimeMs?: number;
-      readonly l298nPwmSampleTimeMs?: number | undefined;
-    },
-    committedTimeMs?: number,
-  ): number => {
+  if (controls.size === 0) return sampleArduinoCurrent;
+  return (componentId, voltages, branch, options, committedTimeMs): number => {
     const target =
       !branch.id.startsWith('servo-') &&
       controls.has(nodes.get(terminalKey(componentId, branch.terminal)) ?? -1)

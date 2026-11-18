@@ -2888,35 +2888,40 @@ function solveCircuitStep(
   // Only L298N logic/enable nets need actual 0/5 V switching: sample the
   // physical PWM phase using the existing canonical simulation timestamp.
   // Other Arduino consumers retain their established behavior.
-  const l298nInputNodes = l298nControlNetIndices(document, netlist.nodeOf);
+  const hasL298n = document.components.some(isL298n);
+  const l298nInputNodes = hasL298n ? l298nControlNetIndices(document, netlist.nodeOf) : undefined;
   const branchesForSnapshots = (snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>) =>
     document.components.flatMap((component) =>
       failedComponentIds.has(component.id)
         ? []
         : (() => {
             const snapshot = snapshots.get(component.id);
-            return snapshot
-              ? arduinoOutputBranchesFromSnapshot(component, snapshot, simulationTimeMs).map(
-                  (branch) => {
-                    const node = netlist.nodeOf.get(terminalKey(component.id, branch.terminal));
-                    return {
-                      component,
-                      ...branch,
-                      ...(!branch.id.startsWith('servo-') &&
-                      node !== undefined &&
-                      l298nInputNodes.has(node)
-                        ? {
-                            targetVoltage: sampleL298nArduinoPwmVoltage(
-                              branch.terminal,
-                              branch.targetVoltage,
-                              options.l298nPwmSampleTimeMs ?? simulationTimeMs,
-                            ),
-                          }
-                        : {}),
-                    };
-                  },
-                )
-              : [];
+            if (!snapshot) return [];
+            const branches = arduinoOutputBranchesFromSnapshot(
+              component,
+              snapshot,
+              simulationTimeMs,
+            );
+            if (!l298nInputNodes || l298nInputNodes.size === 0)
+              return branches.map((branch) => ({ component, ...branch }));
+            return branches.map((branch) => {
+              const node = netlist.nodeOf.get(terminalKey(component.id, branch.terminal));
+              return {
+                component,
+                ...branch,
+                ...(!branch.id.startsWith('servo-') &&
+                node !== undefined &&
+                l298nInputNodes.has(node)
+                  ? {
+                      targetVoltage: sampleL298nArduinoPwmVoltage(
+                        branch.terminal,
+                        branch.targetVoltage,
+                        options.l298nPwmSampleTimeMs ?? simulationTimeMs,
+                      ),
+                    }
+                  : {}),
+              };
+            });
           })(),
     );
   const earlyBranches =
@@ -2943,9 +2948,11 @@ function solveCircuitStep(
     if (result) return result;
   }
   // L298N devices stamp their resistive H-bridge arms into this same KCL matrix.
-  const l298nDevices = document.components
-    .filter((component) => isL298n(component) && !failedComponentIds.has(component.id))
-    .map((component) => L298N_DC_MODEL.normalize(component));
+  const l298nDevices = hasL298n
+    ? document.components
+        .filter((component) => isL298n(component) && !failedComponentIds.has(component.id))
+        .map((component) => L298N_DC_MODEL.normalize(component))
+    : [];
   const linearDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
     const device = preparation?.linearDevices.has(component.id)

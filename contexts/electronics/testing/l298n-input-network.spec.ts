@@ -13,6 +13,7 @@ import {
 import { advanceClockedArduinoRuntime } from '../domain/arduino-program-runtime.js';
 import { buildNetlist, terminalKey } from '../domain/netlist.js';
 import { L298N_TERMINALS } from '../domain/models/l298n-dc-model.js';
+import { createL298nArduinoCurrentSampler } from '../domain/models/l298n-pwm-model.js';
 import {
   createL298nInputDriveResolver,
   l298nArduinoSetupHighImpedance,
@@ -435,6 +436,97 @@ describe('L298N input references on real netlists', () => {
       }
     },
   );
+});
+
+describe('L298N Arduino current projection without connected controls', () => {
+  it.each(['no L298N', 'rail-wired L298N'] as const)(
+    'preserves ordinary branch current for %s at both PWM phases',
+    (configuration) => {
+      const board = uno();
+      const fixture = circuit(
+        [board],
+        [
+          wire('in1-high', 'driver', 'IN1', 'driver', '+5V'),
+          wire('in2-low', 'driver', 'IN2', 'driver', 'GND'),
+          wire('in3-low', 'driver', 'IN3', 'driver', 'GND'),
+          wire('in4-high', 'driver', 'IN4', 'driver', '+5V'),
+          wire('uno-ground', 'uno', 'power-gnd-1', 'driver', 'GND'),
+        ],
+      );
+      const document: ElectronicsDocument =
+        configuration === 'no L298N'
+          ? { ...fixture, components: [board], connections: [] }
+          : {
+              ...fixture,
+              components: fixture.components.map((component) =>
+                component.id === 'driver'
+                  ? {
+                      ...component,
+                      pinIds: [...L298N_TERMINALS],
+                      stateProperties: {
+                        ...component.stateProperties,
+                        enaJumperInstalled: true,
+                        enbJumperInstalled: true,
+                      },
+                    }
+                  : component,
+              ),
+            };
+      const state = snapshot('void setup(){analogWrite(3,102);}void loop(){delay(1000);}', 1);
+      const branch = arduinoOutputBranchesFromSnapshot(board, state).find(
+        (candidate) => candidate.terminal === 'd3',
+      )!;
+      expect(branch.targetVoltage).toBe(2);
+      expect(branch.resistanceOhm).toBe(10);
+      const { nodeOf } = buildNetlist(document);
+      expect(l298nControlNetIndices(document, nodeOf).size).toBe(0);
+      const sample = createL298nArduinoCurrentSampler(document, nodeOf);
+      for (const simulationTimeMs of [0, 1.5]) {
+        const options = { simulationTimeMs };
+        // I = (Vpin - Vground - 2 V) / 10 ohm, independent of PWM phase.
+        expect(sample('uno', { d3: 4.75, 'power-gnd-1': 0.25 }, branch, options)).toBe(0.25);
+        expect(sample('uno', { d3: 4.75 }, branch, options)).toBe(0.275);
+        expect(sample('uno', { 'power-gnd-1': 0.25 }, branch, options)).toBe(-0.225);
+        expect(sample('uno', {}, branch, options)).toBe(-0.2);
+      }
+    },
+  );
+
+  it('rechecks current component presence when recreating a sampler for caller-owned arrays', () => {
+    const board = uno();
+    const components: SchematicComponent[] = [board];
+    const connections: SchematicConnection[] = [];
+    const document: ElectronicsDocument = { ...circuit(), components, connections };
+    const state = snapshot('void setup(){analogWrite(3,102);}void loop(){delay(1000);}', 1);
+    const branch = arduinoOutputBranchesFromSnapshot(board, state).find(
+      (candidate) => candidate.terminal === 'd3',
+    )!;
+    const voltages = { d3: 4.75, 'power-gnd-1': 0.25 };
+    const before = createL298nArduinoCurrentSampler(document, buildNetlist(document).nodeOf);
+    expect(before('uno', voltages, branch, { simulationTimeMs: 0 })).toBe(0.25);
+
+    components.push(driver);
+    connections.push(
+      wire('gpio-enable', 'uno', 'd3', 'driver', 'ENA'),
+      wire('uno-ground', 'uno', 'power-gnd-1', 'driver', 'GND'),
+    );
+    const { nodeOf } = buildNetlist(document);
+    expect(
+      l298nControlNetIndices(document, nodeOf).has(nodeOf.get(terminalKey('uno', 'd3'))!),
+    ).toBe(true);
+    const connected = createL298nArduinoCurrentSampler(document, nodeOf);
+    // The same 2 V mean duty now drives the H-bridge as physical 5 V / 0 V levels.
+    expect(connected('uno', voltages, branch, { simulationTimeMs: 0 })).toBe(-0.05);
+    expect(connected('uno', voltages, branch, { simulationTimeMs: 1.5 })).toBe(0.45);
+
+    components.splice(components.indexOf(driver), 1);
+    connections.splice(0, connections.length);
+    const removed = createL298nArduinoCurrentSampler(document, buildNetlist(document).nodeOf);
+    expect(document.components).toBe(components);
+    expect(document.connections).toBe(connections);
+    expect(removed('uno', voltages, branch, { simulationTimeMs: 0 })).toBe(0.25);
+    expect(removed('uno', voltages, branch, { simulationTimeMs: 1.5 })).toBe(0.25);
+  });
 });
 
 describe('L298N temporary high-impedance bootstrap boundary', () => {

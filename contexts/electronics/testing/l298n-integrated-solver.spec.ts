@@ -7,6 +7,8 @@ import type {
 import { solveCircuit } from '../domain/solver.js';
 import { analyseCircuit } from '../domain/simulation.js';
 import { L298N_TERMINALS } from '../domain/models/l298n-dc-model.js';
+import { l298nControlNetIndices } from '../domain/models/l298n-input-network.js';
+import { buildNetlist } from '../domain/netlist.js';
 
 type Line = 'high' | 'low' | 'floating';
 type Channel = 'forward' | 'reverse' | 'brake-low' | 'brake-high' | 'coast';
@@ -125,8 +127,13 @@ function solve(options: Harness = {}) {
 }
 
 describe('L298N real ASA Lab netlist -> shared DC solver', () => {
-  it('drives two separately loaded physical outputs with polarity-aware currents', () => {
-    const { result, driver, motorA, motorB } = solve();
+  it('drives both shunted bridges with rail-wired inputs and no PWM control nets', () => {
+    const document = harness();
+    expect(l298nControlNetIndices(document, buildNetlist(document).nodeOf).size).toBe(0);
+    const result = solveCircuit(document);
+    const driver = result.components.find((component) => component.componentId === 'driver');
+    const motorA = result.components.find((component) => component.componentId === 'motor-a');
+    const motorB = result.components.find((component) => component.componentId === 'motor-b');
     expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
     expect(driver?.lit).toBe(true);
     const va = (driver?.terminalVoltages.OUT1 ?? 0) - (driver?.terminalVoltages.OUT2 ?? 0);
