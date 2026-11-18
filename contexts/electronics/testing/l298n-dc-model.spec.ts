@@ -546,3 +546,25 @@ describe('L298N reviewed voltage ratings, TTL boundaries and total output curren
     },
   );
 });
+
+describe('L298N regulator voltage boundary stability', () => {
+  it.each([
+    { voltage: 7 - Number.EPSILON * 4, on: true, outOfRange: false },
+    { voltage: 7, on: true, outOfRange: false },
+    { voltage: 7 + Number.EPSILON * 4, on: true, outOfRange: false },
+    { voltage: 12 + Number.EPSILON * 8, on: true, outOfRange: false },
+    { voltage: 6.9999999, on: false, outOfRange: false },
+    { voltage: 12.0000001, on: false, outOfRange: true },
+    { voltage: Number.NaN, on: false, outOfRange: true },
+    { voltage: Number.POSITIVE_INFINITY, on: false, outOfRange: true },
+    { voltage: Number.NEGATIVE_INFINITY, on: false, outOfRange: true },
+  ])(
+    'classifies VS=$voltage V without altering the MNA operating point',
+    ({ voltage, on, outOfRange }) => {
+      const evaluated = step(board({ regulatorJumperInstalled: true }), { '+12V': voltage });
+      expect(evaluated.state.regulatorOn).toBe(on);
+      expect(evaluated.state.voltageOutOfRange).toBe(outOfRange);
+      expect(evaluated.point.terminalVoltages['+12V']).toBe(voltage);
+    },
+  );
+});

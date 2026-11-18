@@ -575,6 +575,54 @@ describe('L298N reviewed physical supply conflicts and voltage boundaries', () =
     },
   );
 
+  it.each([
+    { motorVolt: 0.001, valid: false },
+    { motorVolt: 6, valid: false },
+    { motorVolt: 6.99, valid: false },
+    { motorVolt: 6.9999999, valid: false },
+    { motorVolt: 7, valid: true },
+    { motorVolt: 9, valid: true },
+    { motorVolt: 12, valid: true },
+    { motorVolt: 12.0000001, valid: false },
+  ])(
+    'permits a GPIO pull-up only with an operating regulator at VS=$motorVolt V',
+    ({ motorVolt, valid }) => {
+      const fixture = harness({
+        regulatorJumperInstalled: true,
+        motorVolt,
+        resistanceA: 1_000,
+        resistanceB: 1_000,
+      });
+      const document: ElectronicsDocument = {
+        ...fixture,
+        components: [...fixture.components, gpioBoard(true), base('input-pullup', 'resistor', 100)],
+        connections: [
+          ...fixture.connections.filter(
+            (edge) => !(edge.from.componentId === 'driver' && edge.from.terminal === 'IN1'),
+          ),
+          wire('gpio-ground', 'uno-pullup', 'power-gnd-1', 'driver', 'GND'),
+          wire('gpio-input', 'uno-pullup', 'd2', 'driver', 'IN1'),
+          wire('pullup-input', 'input-pullup', 'a', 'driver', 'IN1'),
+          wire('pullup-rail', 'input-pullup', 'b', 'driver', '+5V'),
+        ],
+      };
+      const result = analyseCircuit(document, { simulationTimeMs: 1 });
+      if (valid) {
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
+        expect(result.quality.passed, JSON.stringify(result.quality)).toBe(true);
+      } else {
+        expect(result.solved).toBe(false);
+        expect(result.status).toBe('invalid');
+        expect(
+          result.diagnostics.some(
+            (entry) =>
+              entry.code === 'unsupported_topology' && entry.componentIds?.includes('driver'),
+          ),
+        ).toBe(true);
+      }
+    },
+  );
+
   it('still rejects a positive GPIO used as a parallel logic supply through a resistor', () => {
     const fixture = regulatorFixture();
     const document: ElectronicsDocument = {
@@ -626,6 +674,23 @@ describe('L298N reviewed physical supply conflicts and voltage boundaries', () =
       ),
     ).toBe(true);
   });
+
+  it.each([7, 12])(
+    'converges without GPIO assistance at the exact %s V regulator boundary',
+    (motorVolt) => {
+      const result = analyseCircuit(
+        harness({
+          regulatorJumperInstalled: true,
+          motorVolt,
+          resistanceA: 1_000,
+          resistanceB: 1_000,
+        }),
+      );
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
+      expect(result.quality.passed, JSON.stringify(result.quality)).toBe(true);
+      expect(result.components.find((entry) => entry.componentId === 'driver')?.lit).toBe(true);
+    },
+  );
 
   function withInputVoltage(voltage: number, disabled = false): ElectronicsDocument {
     const fixture = harness({

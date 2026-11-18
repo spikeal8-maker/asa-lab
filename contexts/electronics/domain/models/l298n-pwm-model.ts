@@ -3,6 +3,7 @@ import type { ArduinoRuntimeState } from '../arduino-program-runtime.js';
 import { isArduinoUno } from '../arduino-model.js';
 import { arduinoServoWaveforms } from '../arduino-servo-runtime.js';
 import { terminalKey } from '../netlist.js';
+import { l298nControlNetIndices } from './l298n-input-network.js';
 import {
   advanceArduinoTimedWaveform,
   arduinoWaveformLevelAt,
@@ -40,6 +41,47 @@ export function sampleL298nArduinoPwmVoltage(
   const at = Math.round(simulationTimeMs * 1000);
   if (!Number.isSafeInteger(at) || at < 0) return Number.NaN;
   return arduinoWaveformLevelAt(signal, at) * 5;
+}
+
+/**
+ * The direct and incremental quality audits must reconstruct the same source
+ * voltage as the physical frame: held interval, committed state, then request.
+ * This pure projection shares PWM eligibility and never advances a clock.
+ */
+export function createL298nArduinoCurrentSampler(
+  document: ElectronicsDocument,
+  nodes: ReadonlyMap<string, number>,
+) {
+  const controls = l298nControlNetIndices(document, nodes);
+  return (
+    componentId: string,
+    voltages: Readonly<Partial<Record<Terminal, number>>>,
+    branch: {
+      readonly id: string;
+      readonly terminal: Terminal;
+      readonly ground: Terminal;
+      readonly targetVoltage: number;
+      readonly resistanceOhm: number;
+    },
+    options: {
+      readonly simulationTimeMs?: number;
+      readonly l298nPwmSampleTimeMs?: number | undefined;
+    },
+    committedTimeMs?: number,
+  ): number => {
+    const target =
+      !branch.id.startsWith('servo-') &&
+      controls.has(nodes.get(terminalKey(componentId, branch.terminal)) ?? -1)
+        ? sampleL298nArduinoPwmVoltage(
+            branch.terminal,
+            branch.targetVoltage,
+            options.l298nPwmSampleTimeMs ?? committedTimeMs ?? options.simulationTimeMs ?? 0,
+          )
+        : branch.targetVoltage;
+    const positive = voltages[branch.terminal] ?? 0;
+    const ground = voltages[branch.ground] ?? 0;
+    return (positive - ground - target) / branch.resistanceOhm;
+  };
 }
 
 /**

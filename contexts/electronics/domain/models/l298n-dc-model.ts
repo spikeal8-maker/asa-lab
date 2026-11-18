@@ -124,6 +124,8 @@ export const L298N_BOARD_PROFILE = Object.freeze({
   regulator: Object.freeze({
     minimumInputVolt: 7,
     maximumInputVolt: 12,
+    // Switching comparisons only; MNA stamps and energy use unrounded voltages.
+    inputVoltageDecimalPlaces: 12,
     outputVolt: 5,
     gainSiemens: 10,
     maxCurrentAmp: 0.5,
@@ -157,6 +159,12 @@ export function l298nConfiguration(component: SchematicComponent) {
     enbJumperInstalled: props['enbJumperInstalled'] !== false,
     regulatorJumperInstalled: props['regulatorJumperInstalled'] !== false,
   };
+}
+/** Prevent matrix roundoff from toggling the pass element at exactly 7 or 12 V. */
+export function l298nRegulatorInputVoltage(value: number): number {
+  return Number.isFinite(value)
+    ? Number(value.toFixed(L298N_BOARD_PROFILE.regulator.inputVoltageDecimalPlaces))
+    : value;
 }
 export function l298nLogicLevel(value: number, reference: number, driven: boolean): L298nLogic {
   if (!driven || !Number.isFinite(value) || !Number.isFinite(reference)) return 'unknown';
@@ -308,6 +316,7 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
     const ground = v('GND');
     const logicVolt = v('+5V') - ground;
     const motorVolt = v('+12V') - ground;
+    const regulatorInputVolt = l298nRegulatorInputVoltage(motorVolt);
     const logicPowered =
       logicVolt >= L298N_BOARD_PROFILE.logicOperatingMinimumVolt &&
       logicVolt <= L298N_BOARD_PROFILE.logicMaximumVolt;
@@ -319,8 +328,8 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
     const regulatorOn =
       instance.parameters.regulatorJumperInstalled &&
       !regulatorConflict &&
-      motorVolt >= L298N_BOARD_PROFILE.regulator.minimumInputVolt &&
-      motorVolt <= L298N_BOARD_PROFILE.regulator.maximumInputVolt;
+      regulatorInputVolt >= L298N_BOARD_PROFILE.regulator.minimumInputVolt &&
+      regulatorInputVolt <= L298N_BOARD_PROFILE.regulator.maximumInputVolt;
     const input = (terminal: string) =>
       l298nLogicLevel(v(terminal), ground, point.drivenTerminals.has(terminal));
     const config = instance.parameters;
@@ -346,7 +355,7 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       motorVolt < L298N_BOARD_PROFILE.minimumSupplyVoltageVolt ||
       motorVolt > L298N_BOARD_PROFILE.motorMaximumVolt ||
       (config.regulatorJumperInstalled &&
-        motorVolt > L298N_BOARD_PROFILE.regulator.maximumInputVolt) ||
+        regulatorInputVolt > L298N_BOARD_PROFILE.regulator.maximumInputVolt) ||
       controls.some(
         (pin) =>
           !Number.isFinite(v(pin) - ground) ||

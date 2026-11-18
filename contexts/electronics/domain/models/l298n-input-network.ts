@@ -5,7 +5,11 @@ import { arduinoRuntimeStateMatchesProgram } from '../arduino-program-runtime.js
 import { terminalKey } from '../netlist.js';
 import { switchContactClosed, switchSelectedTerminal } from '../switch-topology.js';
 import { regulatedPowerSupplySettings } from './regulated-power-supply-model.js';
-import { L298N_BOARD_PROFILE, l298nConfiguration } from './l298n-dc-model.js';
+import {
+  L298N_BOARD_PROFILE,
+  l298nConfiguration,
+  l298nRegulatorInputVoltage,
+} from './l298n-dc-model.js';
 
 type Nodes = ReadonlyMap<string, number>;
 type LogicalTerminal = 'a' | 'b' | 'wiper';
@@ -224,6 +228,13 @@ export function createL298nLogicSourceResolver(context: DriveContext) {
     if (logic === undefined || ground === undefined || logic === ground) return false;
     const feed = reachable(logic, ground);
     const returns = reachable(ground, logic);
+    const motorSupply = l298nRegulatorInputVoltage(
+      voltage(component, '+12V') - voltage(component, 'GND'),
+    );
+    const onboardLogicPowerAvailable =
+      l298nConfiguration(component).regulatorJumperInstalled &&
+      motorSupply >= L298N_BOARD_PROFILE.regulator.minimumInputVolt &&
+      motorSupply <= L298N_BOARD_PROFILE.regulator.maximumInputVolt;
     let signals = controlNets.get(component.id);
     if (!signals) {
       signals = l298nControlNetIndices(
@@ -248,11 +259,13 @@ export function createL298nLogicSourceResolver(context: DriveContext) {
     if (
       branches.some((branch) => {
         const output = network.pin(branch.component, branch.terminal);
-        // A GPIO driving this board's input through a pull-up is a signal;
-        // LOW is a sink (filtered above), and explicit power pins are supplies.
+        // A GPIO pull-up is a signal only while this board's regulator can
+        // actually power the logic. Otherwise it can backfeed +5V through the
+        // pull-up. LOW is a sink; explicit power pins are always supplies.
         // Scope the exemption to this board so controlling B cannot hide a
         // separate GPIO feed into A's +5V rail.
         if (
+          onboardLogicPowerAvailable &&
           branch.terminal !== 'power-5v' &&
           branch.terminal !== 'power-3v3' &&
           output !== undefined &&
@@ -269,7 +282,7 @@ export function createL298nLogicSourceResolver(context: DriveContext) {
         !connected(context.physicalNode(other, '+5V'), context.physicalNode(other, 'GND'))
       )
         return false;
-      const supply = voltage(other, '+12V') - voltage(other, 'GND');
+      const supply = l298nRegulatorInputVoltage(voltage(other, '+12V') - voltage(other, 'GND'));
       return (
         supply >= L298N_BOARD_PROFILE.regulator.minimumInputVolt &&
         supply <= L298N_BOARD_PROFILE.regulator.maximumInputVolt

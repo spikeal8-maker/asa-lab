@@ -12,7 +12,7 @@ export const PRE_HC_SR04_V2_MODEL_SET_DIGEST =
   'sha256:fcb0f3241eef974a312c1fa1891b86aee92d5d3cd5a8e76475f53fcaa2b201d5';
 /** Exact L298N v1 registry and bounded board profile; requires independent final-source review. */
 export const L298N_MODEL_SET_DIGEST =
-  'sha256:dbf9ea6b6ff7017da61c68747a8c5db0aa2f5a56cddf82e523d0074a614db14c';
+  'sha256:3bbb15e6e5fbea0b32357b7dd48900261d0197878ada13b010067cab33715f3f';
 /** Unchanged identity projection of the previous 43-entry registry. */
 export const PRE_L298N_REGISTRY_SHA256 =
   'sha256:c999b9d097296f571bf2b45b3638c8a8e83d523d525a708a4e2052fd68381491';

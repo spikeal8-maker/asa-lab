@@ -6,8 +6,7 @@ import {
 } from './arduino-model.js';
 import { copyNumericalNode, numericalShuntPowerWatt } from './numerical-shunt-power.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
-import { l298nControlNetIndices } from './models/l298n-input-network.js';
-import { sampleL298nArduinoPwmVoltage } from './models/l298n-pwm-model.js';
+import { createL298nArduinoCurrentSampler } from './models/l298n-pwm-model.js';
 import { L298N_BOARD_PROFILE } from './models/l298n-dc-model.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
@@ -424,7 +423,7 @@ export function verifyCircuitQuality(
     };
   }
 
-  const l298nControlNodes = l298nControlNetIndices(document, compiled.netlist.nodeOf);
+  const arduinoCurrent = createL298nArduinoCurrentSampler(document, compiled.netlist.nodeOf);
   const componentResult = new Map(result.components.map((entry) => [entry.componentId, entry]));
   const residualByNode = new Map<number, number>();
   const addAtNode = (componentId: string, terminal: Terminal, currentLeaving: number): void => {
@@ -473,25 +472,13 @@ export function verifyCircuitQuality(
         options.simulationTimeMs ?? 0,
       );
       for (const branch of branches) {
-        const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
-        const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-        const currentLeaving =
-          (positive -
-            ground -
-            (!branch.id.startsWith('servo-') &&
-            l298nControlNodes.has(
-              compiled.netlist.nodeOf.get(terminalKey(component.id, branch.terminal)) ?? -1,
-            )
-              ? sampleL298nArduinoPwmVoltage(
-                  branch.terminal,
-                  branch.targetVoltage,
-                  options.l298nPwmSampleTimeMs ??
-                    result.transientState?.simulationTimeMs ??
-                    options.simulationTimeMs ??
-                    0,
-                )
-              : branch.targetVoltage)) /
-          branch.resistanceOhm;
+        const currentLeaving = arduinoCurrent(
+          component.id,
+          resultForComponent.terminalVoltages,
+          branch,
+          options,
+          result.transientState?.simulationTimeMs,
+        );
         addBranch(component, branch.terminal, branch.ground, currentLeaving);
       }
       continue;
@@ -830,7 +817,7 @@ export function createArduinoQualityTraversal(
   // Neither these Maps nor the derived terminal layouts escape this closure.
   const nodeOf = new Map(compiled.netlist.nodeOf);
   const nodeCount = compiled.netlist.nodeCount;
-  const l298nControlNodes = l298nControlNetIndices(document, nodeOf);
+  const arduinoCurrent = createL298nArduinoCurrentSampler(document, nodeOf);
   const componentResult = new Map<string, ComponentResult>();
   const residualByNode = new Map<number, number>();
   const terminalPowerByComponent: number[] = [];
@@ -930,25 +917,13 @@ export function createArduinoQualityTraversal(
             options.simulationTimeMs ?? 0,
           );
           for (const branch of branches) {
-            const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
-            const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-            const currentLeaving =
-              (positive -
-                ground -
-                (!branch.id.startsWith('servo-') &&
-                l298nControlNodes.has(
-                  compiled.netlist.nodeOf.get(terminalKey(component.id, branch.terminal)) ?? -1,
-                )
-                  ? sampleL298nArduinoPwmVoltage(
-                      branch.terminal,
-                      branch.targetVoltage,
-                      options.l298nPwmSampleTimeMs ??
-                        result.transientState?.simulationTimeMs ??
-                        options.simulationTimeMs ??
-                        0,
-                    )
-                  : branch.targetVoltage)) /
-              branch.resistanceOhm;
+            const currentLeaving = arduinoCurrent(
+              component.id,
+              resultForComponent.terminalVoltages,
+              branch,
+              options,
+              result.transientState?.simulationTimeMs,
+            );
             addBranch(component, branch.terminal, branch.ground, currentLeaving);
           }
           continue;
