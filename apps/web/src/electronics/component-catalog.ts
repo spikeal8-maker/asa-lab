@@ -445,6 +445,23 @@ export function renderedSize(entry: CatalogEntry, rotation = 0): { width: number
   };
 }
 
+/**
+ * With ENA/ENB shunts removed, their input-side header pads are real external
+ * PWM terminals. Coordinates are from the owner's contacts.json, not guessed
+ * from the rendered SVG. The other four jumper contacts stay configuration-only.
+ */
+export function l298nExternalEnablePad(
+  component: SchematicComponent,
+  terminal: string,
+): { readonly xMm: number; readonly yMm: number } | null {
+  if (component.componentTypeId !== 'l298n-motor-driver') return null;
+  if (terminal === 'ENA' && component.stateProperties?.['enaJumperInstalled'] === false)
+    return { xMm: 5.63, yMm: 22.32 };
+  if (terminal === 'ENB' && component.stateProperties?.['enbJumperInstalled'] === false)
+    return { xMm: 5.64, yMm: 34.96 };
+  return null;
+}
+
 export function terminalPosition(
   componentOrType: SchematicComponent | ComponentKind | string,
   origin: { x: number; y: number },
@@ -475,7 +492,9 @@ export function terminalPosition(
     : component
       ? (aliases[component.kind]?.[terminal] ?? terminal)
       : terminal;
-  let spec = entry?.terminals[resolved];
+  let spec =
+    entry?.terminals[resolved] ??
+    (component ? (l298nExternalEnablePad(component, resolved) ?? undefined) : undefined);
   if (entry && component?.kind === 'rgb-led') {
     const layout = RGB_PIN_LAYOUTS[String(component.stateProperties?.['pinLayout'] ?? 'RCBG')];
     const slot = layout?.indexOf(resolved) ?? -1;

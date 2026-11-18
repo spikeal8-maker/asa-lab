@@ -31,7 +31,7 @@ describe('L298N P0A owner artwork and disabled catalog intake (#1199)', () => {
     expect(xml).not.toMatch(/data:image\//i);
   });
 
-  it('registers exactly one owner-supplied 43×43-mm preview, without enabling a model', () => {
+  it('registers exactly one owner-supplied 43×43-mm asset with stage-appropriate model status', () => {
     expect(manifest.schema).toBe('asa-lab.electronics-component-database.v1');
     expect(manifest.worldUnitsPerMm).toBe(5);
     expect(matches).toHaveLength(1);
@@ -39,9 +39,9 @@ describe('L298N P0A owner artwork and disabled catalog intake (#1199)', () => {
       componentId: 'l298n-motor-driver',
       familyId: 'l298n-motor-driver',
       category: 'motors',
-      catalogTier: 'preview',
+      catalogTier: matches[0]?.status === 'enabled' ? 'core' : 'preview',
       provenance: 'owner_supplied',
-      status: 'disabled_missing_model',
+      status: matches[0]?.status === 'enabled' ? 'enabled' : 'disabled_missing_model',
       physicalWidthMm: 43,
       physicalHeightMm: 43,
       viewBox: [0, 0, 43, 43],
@@ -50,7 +50,10 @@ describe('L298N P0A owner artwork and disabled catalog intake (#1199)', () => {
       sourceSha256: ownerSha,
       runtimePath: '/assets/electronics/component-database/components/drivers/l298n/component.svg',
       runtimeSha256: ownerSha,
-      simulationSupport: 'not_implemented_in_domain_solver',
+      simulationSupport:
+        matches[0]?.status === 'enabled'
+          ? 'l298n_dual_hbridge_v1'
+          : 'not_implemented_in_domain_solver',
     });
   });
 
@@ -94,16 +97,17 @@ describe('L298N P0A owner artwork and disabled catalog intake (#1199)', () => {
     });
   });
 
-  it('fails closed in the real production catalog adapter until solver acceptance', () => {
+  it('fails closed until solver acceptance, and exposes the same owner art only after P2 activation', () => {
     configureProductionLibrary(manifest);
+    const enabled = matches[0]?.status === 'enabled';
     const ownerEntry = ownerCatalogItems().find((item) => item.key === 'l298n-motor-driver');
     expect(ownerEntry).toMatchObject({
-      catalogStatus: 'disabled_missing_model',
-      enabled: false,
-      simulationSupported: false,
+      catalogStatus: enabled ? 'enabled' : 'disabled_missing_model',
+      enabled,
+      simulationSupported: enabled,
       sourceSha256: ownerSha,
       runtimeSha256: ownerSha,
     });
-    expect(productionCatalog().some((item) => item.key === 'l298n-motor-driver')).toBe(false);
+    expect(productionCatalog().some((item) => item.key === 'l298n-motor-driver')).toBe(enabled);
   });
 });

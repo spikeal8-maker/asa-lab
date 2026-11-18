@@ -12,6 +12,7 @@ import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset, SPST_COMPONENT_TYPE } from './component-catalog';
 import { OwnerServoVisual } from './OwnerServoVisual';
+import { L298nLedOverlay } from './L298nLedOverlay';
 import {
   subscribeSharedQuietAssetRecovery,
   dcMotorRuntimeMarkup,
@@ -2435,6 +2436,13 @@ export function ProductionComponentVisual({
           ) : null}
         </>
       )}
+
+      {entry.key === 'l298n-motor-driver' ? (
+        <L298nLedOverlay
+          componentId={component.id}
+          powered={simulationRunning && result?.lit === true}
+        />
+      ) : null}
 
       {entry.key === 'piezo-passive-buzzer' ? (
         <g

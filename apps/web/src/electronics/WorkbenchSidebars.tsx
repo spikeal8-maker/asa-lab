@@ -736,6 +736,7 @@ export function WorkbenchInspector({
     ? c.resultByComponent.get(c.selectedComponent.id)
     : undefined;
   const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
+  const selectedIsL298n = c.selectedEntry?.key === 'l298n-motor-driver';
   const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
   const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
   const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
@@ -1071,6 +1072,46 @@ export function WorkbenchInspector({
                   onChange={(event) => c.updateSelectedName(event.target.value)}
                 />
               </label>
+              {selectedIsL298n ? (
+                <fieldset
+                  className="workbench-state-controls workbench-primary-controls"
+                  data-testid="l298n-jumper-controls"
+                  disabled={c.simulationRunning}
+                >
+                  <legend>Перемычки L298N</legend>
+                  {(
+                    [
+                      ['enaJumperInstalled', 'ENA — разрешение канала A'],
+                      ['enbJumperInstalled', 'ENB — разрешение канала B'],
+                      ['regulatorJumperInstalled', '5V_EN — внутренние 5 В'],
+                    ] as const
+                  ).map(([property, caption]) => (
+                    <label key={property}>
+                      <input
+                        type="checkbox"
+                        data-testid={'l298n-jumper-' + property}
+                        checked={c.selectedComponent?.stateProperties?.[property] !== false}
+                        onChange={(event) =>
+                          c.setSelectedL298nJumper(property, event.target.checked)
+                        }
+                      />
+                      <span>{caption}</span>
+                    </label>
+                  ))}
+                  <p className="workbench-component-note">
+                    Снимите ENA/ENB для внешнего PWM. Установить перемычку обратно можно только
+                    после отключения подключённого PWM-провода. Изменение доступно при остановленном
+                    моделировании и сохраняется вместе с проектом.
+                  </p>
+                  <p className="workbench-component-note" data-testid="l298n-supply-status">
+                    {c.simulationRunning && measurement
+                      ? measurement.lit === true
+                        ? 'Логика 5 В: питание есть'
+                        : 'Логика 5 В: питания нет'
+                      : 'Индикатор показывает питание логики только при моделировании.'}
+                  </p>
+                </fieldset>
+              ) : null}
               {selectedIsPiezo ? (
                 <fieldset
                   className="workbench-state-controls workbench-primary-controls workbench-piezo-controls"
