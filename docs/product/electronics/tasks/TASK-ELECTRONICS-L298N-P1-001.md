@@ -33,7 +33,13 @@ review: independent
 - `contexts/electronics/domain/model-identity.ts`
 - `contexts/electronics/domain/model-registry.ts`
 - `contexts/electronics/domain/models/l298n-dc-model.ts`
-- `contexts/electronics/domain/models/l298n-driven-inputs.ts` — восстановить только отдельно проверенное определение активного входа/временно высокоимпедансного Arduino, сохранив точный provenance существующего P3 WIP.
+- `contexts/electronics/domain/models/l298n-input-network.ts` — единственный принимаемый P1 модуль определения активных входов и временно высокоимпедансного Arduino. Новый непересекающийся путь позволяет сохранить `l298n-driven-inputs.ts` из P3 побайтово и только для чтения. Использовать его проверенный алгоритм как явно указанный исходный материал, а не копировать незавершённый файл без анализа. После принятого P1 последующий срез P3 должен использовать этот канонический модуль, не поддерживать две реализации.
+- `contexts/electronics/domain/models/l298n-pwm-model.ts`
+- `contexts/electronics/domain/arduino-circuit-scheduler.ts`
+- `contexts/electronics/domain/simulation.ts`
+- `contexts/electronics/testing/l298n-input-network.spec.ts`
+- `contexts/electronics/testing/l298n-clock-integration.spec.ts`
+- `apps/web/src/electronics/testing/l298n-domain-worker.browser.mjs`
 - `contexts/electronics/domain/solver.ts`
 - `contexts/electronics/testing/l298n-dc-model.spec.ts`
 - `contexts/electronics/testing/l298n-integrated-solver.spec.ts`
@@ -42,8 +48,19 @@ review: independent
 - `docs/product/electronics/generated/component-coverage.json` — только
   машинно-генерируемые P1 identity/DC-поля, не переписывать ручные данные.
 
-Не менять здесь P2 UI/LED/джамперы, P3 scheduler и browser, глобальные
-CI workflows, R4 фикстуры, базу, production, Docker, 3D или Robotics.
+В P1 входят минимальный допуск L298N в существующий Arduino clock,
+единая выборка PWM для MNA и обеих проверок KCL, а также реальный
+браузерный Worker-test без включения компонента в пользовательский каталог.
+Эти доменные зависимости переносятся из уже существующего committed P3,
+иначе требование приёмки P1 `preflight → advance` зависело бы от ещё
+непринятого P3. Это один канонический clock/solver, не вторая реализация.
+Новые тесты проверяют setup/high-Z, активные и плавающие входы, реальные
+фронты PWM и продолжение через JSON без зависимости от границ UI-кадров.
+
+Не входят новые P2 UI/LED/перемычки, P3 полная редакторская приёмка,
+изменения CI workflows, R4 фикстуры, сервер, production, Docker, 3D или
+Robotics. Сохранённые чужие P3 WIP-файлы остаются read-only. Полная
+приёмка Workbench, каталога и настоящего API/БД остаётся в P2/P3.
 
 **Shared source:** `solver.ts` исторически учитывается в
 `electronics-core-fet` (#658), а `component-coverage.json` в
@@ -96,11 +113,19 @@ CI workflows, R4 фикстуры, базу, production, Docker, 3D или Robot
   ограниченное количество итераций и неизменность незатронутых
   моделей/registry identities. Golden migrates only through
   separately reviewed exact-digest contract.
-- До допуска P1 обязателен реальный запуск Arduino clock с
-  двухмоторной схемой: preflight → step/advance → Run, без
-  `physical_advance_failed`. Native P3 тест D2-R2 на
-  текущем WIP ранее остановился на первом 1440 px кадре:
-  этот дефект нельзя скрывать успешными direct `solveCircuit` tests.
+- До выпуска P1 обязателен реальный общий Arduino clock и настоящий
+  браузерный Worker с двухмоторной схемой: preflight → advance →
+  непрерывное продвижение физического времени, без `physical_advance_failed`.
+  Нативный тест `l298n-domain-worker.browser.mjs` не подменяет решатель и
+  не включает ещё не принятый UI. Native P3 на D2-R2 ранее останавливался
+  при первом запуске: это нельзя скрывать успешным direct `solveCircuit`.
+- Коммутация индуктивной нагрузки должна сохранять ток/энергию в принятой
+  модели моста. Проверить EN=0, торможение и реверс уже вращающегося мотора,
+  а не только нулевой ток резистора в стационарной таблице. PWM-fronts
+  должны служить барьерами существующего физического clock, а не случайно
+  считываться только через шаг 1 мс. Отдельные дефекты общей модели
+  вибромотора/отключённого лабораторного БП по #1230 не скрывать и не
+  исправлять расширением этого L298N-среза на чужие моторные профили.
 - Focused Vitest + uncached electronics type/build, target
   ESLint/Prettier/hygiene, required exact-SHA GitHub General;
   строгий R4 классифицировать по явным A/B/C/D/E причинам.
