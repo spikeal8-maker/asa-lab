@@ -81,6 +81,136 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-ultrasonic-u00
+    parent_lane: electronics
+    worktree_id: electronics-ultrasonic-u00-1240
+    owned_paths:
+      - docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+      - docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+      head_sha: null
+      observed_at: '2026-11-18T07:07:24Z'
+      main:
+        branch: main
+        sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+      observation_note: >-
+        Dated GitHub observation after accepted specification PR1239 and registration PR1251.
+        This snapshot is historical, not a live HEAD or acceptance claim. Fresh fetch main and
+        inspect exact-source CI before execution or publication. Actual prerequisite evidence
+        is recorded separately in this task; no foreign lane or blocker is changed.
+    task:
+      id: TASK-ELECTRONICS-ULTRASONIC-U00-001
+      issue: 1240
+      programme_issue: 1238
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: design-decision
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: controller_selected_u00_after_accepted_spec_and_registration
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly directed completion of TASK-ELECTRONICS-ULTRASONIC-U00-001, ordinary
+        integration of existing PR1239 and PR1251, and a separate controller activation followed
+        by scoped execution. Authorization is limited to the two declared documentation paths
+        and external diagnostic harnesses. Product, deployment, working database changes and automatic
+        U01 selection are not authorized by U00.
+      activation_condition: >-
+        Specification and registration are accepted on main with exact-source required CI and
+        independent review recorded below. This controller proposal selects U00 only after its
+        own normal reviewed integration into canonical main. The executor must inherit that accepted
+        state, pass fresh child-lane preflight and selected-task validation, and cannot modify
+        current.yaml to authorize its own work.
+      selection_authority: >-
+        Controller selects electronics-ultrasonic-u00 only. Root Electronics R10, L298N, Robotics,
+        all other tasks, blockers and the hygiene counter are preserved. Prepared decision PR1256
+        is not automatically accepted by this transition. Executor stops after U00; U01 requires
+        a later separate controller decision.
+      preparation_boundary: >-
+        The owner-authorized two-document preparation was published as PR1256 at d1b37a3239a9f3f1a97d56670adeb2e63c40fe52
+        and independently reviewed as a draft. Its prior preparation checks do not replace the
+        fresh selected-lane checks required after this controller transition is accepted on main.
+      scope: >-
+        Qualify the HC-SR04 and PING electrical output, supply/reference topology, canonical timestamp
+        ordering and compatibility decisions required before U01. Component IDs are electronics.peripheral.ultrasonic
+        and electronics.engine.solver. Production files: zero. Write only the two declared documentation
+        paths; runtime, solver, scheduler, generated coverage and historical audit remain read-only.
+      planned_paths:
+        - docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+        - docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ULTRASONIC-U00-001.md
+        - docs/product/electronics/START_HERE.md
+        - docs/product/electronics/components/arduino-peripherals.yaml
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        - docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+        - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+        - docs/product/electronics/evidence/ultrasonic-audit-20261117.md
+      next_action: >-
+        After this controller transition is accepted on main, converge existing PR1256 normally
+        with the accepted canonical state. Run child scope electronics-ultrasonic-u00 preflight
+        with both exact planned paths, selected-task docs validation, the uncached three runtime/scheduler
+        suites, general docs validation, governance and git diff check. Record exact SHA and actual
+        results; retain diagnostic FAIL and NOT_REACHED distinctions. Obtain independent review
+        of the final source and ordinary required CI before integration. Stop after U00. Do not
+        select U01 or close parent issue1238. Before any future U01/U05A selection, reconcile
+        those existing cards and allowed paths with the accepted U00 decision.
+      verification_note: The U00 task card retains the exact uncached Vitest fixture command and
+        git diff check as mandatory verification. The gates map below lists only existing package.json
+        scripts as required by the control-plane schema.
+      activation_evidence:
+        observed_at: '2026-11-18T07:07:24Z'
+        observed_main_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+        specification:
+          pr: 1239
+          merged: true
+          source_sha: bf2c9c8d9482184eb8cd3b0e2ee35c4019221698
+          integrated_sha: b4e9fb9f07ee6a9db912820b341603eae0c69a08
+          required_conclusion: success
+          required_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/44247920069/job/134623863481
+          independent_review: approved
+          review_kind: independent_agent_exact_source_review
+          post_merge_required_conclusion: success
+          post_merge_required_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/44251938870/job/134638314187
+        registration:
+          pr: 1251
+          merged: true
+          source_sha: e2b530c43077653e5f9440f3bc69eb6acbb59c96
+          integrated_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+          required_conclusion: success
+          required_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/44252232662/job/134638026505
+          independent_review: approved
+          review_kind: independent_agent_exact_source_review
+          accepted_tree: d8605d098a8699ca4e81d418b1de8b67aed26718
+          source_and_integrated_tree_equal: true
+          post_merge_docs_validation:
+            source_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+            command: corepack pnpm validate:electronics-agent-docs
+            exit_code: 0
+            result: 114/114 PASS; routing PASS
+        cleared_blockers:
+          - ELECTRONICS-ULTRASONIC-U00-PREREQUISITES
+          - ELECTRONICS-ULTRASONIC-U00-INTEGRATION-CI
+        prepared_decision:
+          pr: 1256
+          source_sha: d1b37a3239a9f3f1a97d56670adeb2e63c40fe52
+          independent_review: approved_prepared_documents_only
+          formal_u00_acceptance: pending
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-ULTRASONIC-U00-001
+          - pnpm validate:electronics-agent-docs
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-l298n-p0
     parent_lane: electronics
     worktree_id: electronics-l298n-p0-1199
