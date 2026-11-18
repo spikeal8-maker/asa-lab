@@ -206,6 +206,7 @@ A moving `main` cannot silently replace the selected release.
 | `AGENT_GUIDE.md` | Detailed Electronics agent behaviour, budgets, semantic risk, review and STOP |
 | `DEVELOPMENT_SPEC.md` | Architecture boundaries, compatibility, determinism/failures, extension and performance/portability acceptance |
 | `ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md` | Roadmap stages, dependencies, prerequisites and milestone boundaries |
+| `ASA_ELECTRONICS_RECOVERY_SPEC.md` | Versioned owner recovery acceptance scenarios and legacy PR/ref disposition rules inside programme #452/#703; never active execution state or a replacement product/roadmap owner |
 | `COMPONENT_MAP.yaml` / subsystem cards | Stable IDs, keywords, ownership/risk, exact contracts/source/symbol/test routes and dependencies |
 | `tasks/` | One bounded slice per concrete card; templates define required fields |
 | `contracts/ENGINEERING_HYGIENE_CONTRACT.md` | Mandatory hygiene cadence, lifecycle classes, deletion proof and large-source review rules |
