@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import type { LearningNotification } from '../apps/web/src/api';
 import { telemetryReceipt } from './fixtures/telemetry-receipts';
+import { openAccountSettings, openPortalSection } from './portal-navigation';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
 const r3Evidence = 'reports/playwright/portal-compact-settings-r3-20261008';
@@ -2009,6 +2010,164 @@ test('unknown MAX is not disconnected; teaching is a separate explicit action', 
   expect(state.mutations).not.toContain('/api/schools');
   expect(state.mutations).not.toContain('/api/account/role');
 });
+
+for (const destination of ['home', 'learning'] as const)
+  test(`session self-attest deadline releases personal reads after Settings to ${destination}`, async ({
+    page,
+  }) => {
+    await fixture(page);
+    const selfAttestPath = '/api/capabilities/educator/self-attest';
+    const reads: string[] = [];
+    const writes: string[] = [];
+    const failures: string[] = [];
+    const errors: string[] = [];
+    let documents = 0;
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('request', (request) => {
+      if (request.resourceType() === 'document') documents += 1;
+      const path = new URL(request.url()).pathname;
+      if (!path.startsWith('/api/')) return;
+      if (request.method() === 'GET') reads.push(path);
+      else writes.push(path);
+    });
+    page.on('requestfailed', (request) => {
+      if (new URL(request.url()).pathname === selfAttestPath)
+        failures.push(request.failure()?.errorText ?? 'request failed');
+    });
+    const counts = () => {
+      const count = (path: string) => reads.filter((entry) => entry === path).length;
+      return {
+        summary: count('/api/progress/summary'),
+        avatar: count('/api/account/avatar'),
+        assignments: count('/api/class-join/account/assignments'),
+        courses: count('/api/class-join/account/course-runs'),
+        results: count('/api/class-join/account/results'),
+        session: count('/api/auth/me'),
+        profile: count('/api/account/profile'),
+      };
+    };
+    let published = 3;
+    await page.route('**/api/progress/summary', (route) =>
+      route.fulfill({
+        json: {
+          scope: { kind: 'account', accountId: '20000000-0000-4000-8000-000000000001' },
+          asOf: '2026-11-18T10:00:00Z',
+          availability: 'available',
+          metrics: {
+            everPublishedWorks: { availability: 'available', value: published },
+            currentLikes: { availability: 'available', value: 0 },
+            createdCopies: { availability: 'available', value: 0 },
+            activePublicWorks: { availability: 'available', value: published },
+          },
+          coverage: Object.fromEntries(
+            [
+              ['everPublishedWorks', 'confirmed_publication_revisions'],
+              ['currentLikes', 'current_publication_likes'],
+              ['createdCopies', 'durable_publication_copy_receipts'],
+              ['activePublicWorks', 'current_catalog_visibility'],
+            ].map(([name, basis]) => [
+              name,
+              { basis, completeness: 'complete', knownSince: null, limitations: [] },
+            ]),
+          ),
+          personalRating: { availability: 'not_enabled', value: null },
+          groups: { availability: 'available', items: [], hasMore: false, nextCursor: null },
+        },
+      }),
+    );
+    await page.goto('/#/home');
+    const originalDocument = await page.evaluateHandle(() => document);
+    const publicationCount = page.getByTestId('profile-full-everPublishedWorks').locator('span');
+    await expect(publicationCount).toHaveText('3');
+    await expect.poll(() => counts().avatar).toBe(1);
+    const initial = counts();
+    expect(initial.summary).toBe(1);
+    await openAccountSettings(page);
+    await panel(page, 'Материалы и классы').click();
+    await expect(page.getByRole('button', { name: 'Подключить', exact: true })).toBeEnabled();
+    // Settings has its own editable avatar resource, separate from the Header.
+    await expect.poll(() => counts().avatar).toBe(initial.avatar + 1);
+    const beforeMutation = counts();
+    let release!: () => void;
+    let responseHandled!: () => void;
+    const held = new Promise<void>((resolveHeld) => {
+      release = resolveHeld;
+    });
+    const handled = new Promise<void>((resolveHandled) => {
+      responseHandled = resolveHandled;
+    });
+    await page.route(`**${selfAttestPath}`, async (route) => {
+      await held;
+      try {
+        await route.fulfill({
+          status: 201,
+          json: { capability: 'educator', state: 'provisional', created: true },
+        });
+      } catch (error) {
+        if (!route.request().failure()) throw error;
+      } finally {
+        responseHandled();
+      }
+    });
+    await page.clock.install({ time: new Date('2026-11-18T10:00:00Z') });
+    await page.clock.pauseAt(new Date('2026-11-18T10:00:01Z'));
+    try {
+      // The actual Account action calls api.selfAttestEducator() without a signal.
+      await page.getByRole('button', { name: 'Подключить', exact: true }).click();
+      await expect.poll(() => writes.filter((path) => path === selfAttestPath).length).toBe(1);
+      await expect(page.getByRole('button', { name: 'Подключаем…', exact: true })).toBeDisabled();
+      await openPortalSection(page, destination === 'home' ? 'Главная' : 'Моё обучение');
+      await expect(page).toHaveURL(new RegExp('#/' + destination + '$'));
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Настройки', exact: true })).toHaveCount(0);
+      // The existing shell attention dot reads once on each route change.
+      // Its independent request is not the paused Home/Learning personal read.
+      await expect
+        .poll(counts)
+        .toEqual({ ...beforeMutation, assignments: beforeMutation.assignments + 1 });
+      const duringHold = counts();
+      await page.clock.fastForward(14_999);
+      expect(counts()).toEqual(duringHold);
+      expect(failures).toEqual([]);
+      published = 7;
+      await page.clock.fastForward(1);
+      await expect.poll(() => failures.length).toBe(1);
+      await expect(publicationCount).toHaveText('7');
+      const expected = {
+        ...duringHold,
+        summary: duringHold.summary + 1,
+        avatar: duringHold.avatar + 1,
+        assignments: duringHold.assignments + 1,
+        courses: duringHold.courses + (destination === 'learning' ? 1 : 0),
+        results: duringHold.results + (destination === 'learning' ? 1 : 0),
+      };
+      await expect.poll(counts).toEqual(expected);
+      const afterTimeout = counts();
+      // A delayed successful response must not resume the retired Settings action
+      // or produce a second refresh; the uncertain POST is never sent again.
+      release();
+      await handled;
+      await page.evaluate(() => new Promise<void>((resolve) => queueMicrotask(resolve)));
+      expect(counts()).toEqual(afterTimeout);
+      expect(writes.filter((path) => path === selfAttestPath)).toHaveLength(1);
+      expect(documents).toBe(1);
+      expect(await originalDocument.evaluate((original) => original === document)).toBe(true);
+      expect(errors).toEqual([]);
+      mkdirSync(test.info().outputDir, { recursive: true });
+      writeFileSync(
+        test.info().outputPath('session-self-attest-lifecycle.json'),
+        JSON.stringify(
+          { destination, initial, beforeMutation, duringHold, afterTimeout, failures, documents },
+          null,
+          2,
+        ),
+      );
+      await page.screenshot({ path: test.info().outputPath('personal-reads-resumed.png') });
+    } finally {
+      release();
+      await originalDocument.dispose();
+    }
+  });
 
 for (const width of [1440, 1024, 390, 320])
   test(`six account panels fit ${width}px without horizontal overflow`, async ({ page }) => {

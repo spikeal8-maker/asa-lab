@@ -2009,17 +2009,17 @@ export interface LearningNotification {
   createdAt: string;
   readAt: string | null;
 }
-async function endSession(path: string, init: RequestInit) {
+async function sessionMutation<T>(path: string, init: RequestInit, onSuccess?: () => void) {
   const hold = init.signal?.aborted ? null : pausePersonalReads();
   try {
-    const result = await call<{ ok: true }>(path, init);
+    const result = await call<T>(path, init);
     if (hold && !hold.current())
       return {
         ok: false as const,
         status: 0,
         error: { code: 'request_cancelled', message: 'Запрос отменён.' },
       };
-    if (result.ok && !init.signal?.aborted) notifySessionLoggedOut();
+    if (result.ok && !init.signal?.aborted) onSuccess?.();
     return result;
   } finally {
     hold?.resume();
@@ -2287,10 +2287,11 @@ export const api = {
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
   logout: (signal?: AbortSignal) =>
-    endSession('/api/auth/logout', {
-      method: 'POST',
-      ...(signal ? { signal } : {}),
-    }),
+    sessionMutation<{ ok: true }>(
+      '/api/auth/logout',
+      { method: 'POST', ...(signal ? { signal } : {}) },
+      notifySessionLoggedOut,
+    ),
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
   accountPasswordStatus: () => call<AccountPasswordStatus>('/api/account/password'),
   changeAccountPassword: (currentPassword: string, newPassword: string) =>
@@ -2343,15 +2344,15 @@ export const api = {
       finishTelemetryWorkspaceSwitch(mutation, !successful);
     }
   },
-  selfAttestEducator: () =>
-    call<{ capability: 'educator'; state: string; created: boolean }>(
+  selfAttestEducator: (signal?: AbortSignal) =>
+    sessionMutation<{ capability: 'educator'; state: string; created: boolean }>(
       '/api/capabilities/educator/self-attest',
-      { method: 'POST', body: JSON.stringify({}) },
+      { method: 'POST', body: JSON.stringify({}), ...(signal ? { signal } : {}) },
     ),
-  selfAttestContentAuthor: () =>
-    call<{ capability: 'content_author'; state: string; created: boolean }>(
+  selfAttestContentAuthor: (signal?: AbortSignal) =>
+    sessionMutation<{ capability: 'content_author'; state: string; created: boolean }>(
       '/api/capabilities/content-author/self-attest',
-      { method: 'POST', body: JSON.stringify({}) },
+      { method: 'POST', body: JSON.stringify({}), ...(signal ? { signal } : {}) },
     ),
   learningAudience: (
     classroomId: string,
@@ -3551,10 +3552,11 @@ export const api = {
   classroomStudentMe: () =>
     call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),
   classroomStudentLogout: () =>
-    endSession('/api/class-join/logout', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }),
+    sessionMutation<{ ok: true }>(
+      '/api/class-join/logout',
+      { method: 'POST', body: JSON.stringify({}) },
+      notifySessionLoggedOut,
+    ),
   listProjects: async (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);

@@ -19,9 +19,14 @@ import {
 import * as apiCall from '../api-call';
 import { setTelemetryContext, telemetryContext } from '../telemetry-context';
 import { notifySessionLoggedOut } from '../session-fetch';
+import { AUTH_REQUEST_TIMEOUT_MS } from '../auth-request';
 import { PersonalProgress, SidebarProfileMetrics } from './PersonalProgress';
 import { ProfileMetricStrip } from './PersonalProgress';
-import { portalMutationCompleted, setPortalSessionKey } from '../portal-requests';
+import {
+  personalReadsPaused,
+  portalMutationCompleted,
+  setPortalSessionKey,
+} from '../portal-requests';
 import {
   limitedGroupRead,
   groupRatingPreviewLimit,
@@ -376,6 +381,93 @@ describe('Shared shell and page reads', () => {
       } finally {
         response.resolve(Response.json({}, { status: 500 }));
         if (mutation) await act(async () => void (await mutation));
+      }
+    },
+  );
+
+  it.each(['response', 'body'] as const)(
+    'resumes one personal read wave after navigating away from a stalled self-attest %s',
+    async (phase) => {
+      vi.useFakeTimers();
+      const { transport } = realSessionReads();
+      const read = transport.getMockImplementation()!;
+      const response = deferred<Response>();
+      const body = deferred<unknown>();
+      const reply = Response.json({ capability: 'content_author' }, { status: 201 });
+      if (phase === 'body') vi.spyOn(reply, 'json').mockReturnValue(body.promise);
+      const paths = [
+        '/api/progress/summary',
+        '/api/account/avatar',
+        '/api/class-join/account/assignments',
+        '/api/class-join/account/course-runs',
+        '/api/class-join/account/results',
+      ];
+      transport.mockImplementation((url, init) => {
+        const path = String(url);
+        if (path === '/api/capabilities/content-author/self-attest')
+          return phase === 'response' ? response.promise : Promise.resolve(reply);
+        if (paths.slice(2).includes(path))
+          return Promise.resolve(Response.json({ items: ['confirmed'] }));
+        return read(url, init);
+      });
+      const counts = () =>
+        paths.map((path) => transport.mock.calls.filter(([url]) => String(url) === path).length);
+      const content = () =>
+        host.querySelector('[data-testid="session-learning-reads"]')?.textContent;
+      const consumers = () =>
+        createElement(
+          'div',
+          null,
+          createElement(SharedConsumers),
+          createElement(SessionLearningReads),
+        );
+      await act(async () => root.render(consumers()));
+      expect(counts()).toEqual([1, 1, 1, 1, 1]);
+      await act(async () => {
+        setTelemetryContext(telemetryContext().actor, true, 'account');
+        root.render(null);
+      });
+      let mutation!: ReturnType<typeof api.selfAttestContentAuthor>;
+      let settled: unknown;
+      try {
+        await act(async () => {
+          mutation = api.selfAttestContentAuthor();
+          void mutation.then((result) => (settled = result));
+        });
+        for (const route of ['home', 'learning'] as const) {
+          await act(async () => {
+            setTelemetryContext(telemetryContext().actor, true, route);
+            root.render(consumers());
+          });
+          expect(counts()).toEqual([1, 1, 1, 1, 1]);
+          expect(content()).toBe('[null,null,null]');
+        }
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+        });
+        expect(settled).toMatchObject({ ok: false, error: { code: 'auth_timeout' } });
+        expect(personalReadsPaused()).toBe(false);
+        expect(counts()).toEqual([2, 2, 2, 2, 2]);
+        expect(allLikeValues()).toEqual(['84', '84']);
+        expect(content()).toBe('[["confirmed"],["confirmed"],["confirmed"]]');
+        const post = transport.mock.calls.filter(
+          ([url]) => String(url) === '/api/capabilities/content-author/self-attest',
+        );
+        expect(post).toHaveLength(1);
+        expect(post[0]![1]!.signal!.aborted).toBe(true);
+        await act(async () => {
+          response.resolve(reply);
+          body.resolve({ capability: 'content_author', state: 'provisional', created: true });
+        });
+        expect(counts()).toEqual([2, 2, 2, 2, 2]);
+        expect(allLikeValues()).toEqual(['84', '84']);
+      } finally {
+        await act(async () => {
+          response.resolve(reply);
+          body.resolve({});
+          if (mutation) await mutation;
+        });
+        vi.useRealTimers();
       }
     },
   );

@@ -92,7 +92,7 @@ describe('session mutation personal-read admission', () => {
     try {
       expect(personalReadsPaused()).toBe(true);
       controller.abort();
-      expect(await mutation).toMatchObject({ ok: false, error: { code: 'request_cancelled' } });
+      expect(await mutation).toMatchObject({ ok: false, error: { code: 'auth_cancelled' } });
       expect(personalReadsPaused()).toBe(false);
       const epoch = portalSessionEpoch();
       response.resolve(Response.json({ capability: 'content_author' }));
