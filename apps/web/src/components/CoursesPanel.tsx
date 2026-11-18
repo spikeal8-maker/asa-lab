@@ -1170,9 +1170,13 @@ function CourseEditor({
       setLocalDirty(false);
       setSections(result.data.sections);
       // LessonEditor initializes its fields from props only when mounted. A
-      // clean publication refresh must adopt the content and revision together
-      // before actions resume; the dirty-form branch above keeps later typing.
-      if (publicationRefresh) setEditorEpoch((value) => value + 1);
+      // clean publication refresh must adopt changed content and revision
+      // together. Unchanged fields stay mounted; the dirty branch keeps typing.
+      if (
+        publicationRefresh &&
+        JSON.stringify(result.data.sections) !== publicationRefresh.sections
+      )
+        setEditorEpoch((value) => value + 1);
       setSelectedLessonId((current) => {
         if (
           current &&

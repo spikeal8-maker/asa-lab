@@ -298,6 +298,57 @@ async function setup() {
 }
 
 describe('Course publication revision handoff', () => {
+  it.each(['success', 'retry'] as const)(
+    'keeps the same lesson fields when a %s publication refresh leaves content unchanged',
+    async (phase) => {
+      const state = await setup();
+      const liveTitle = titleInput();
+      const liveContent = lessonField('Текст блока');
+      const delayed = deferred<ApiResult<Outline>>();
+      if (phase === 'retry') {
+        state.outline.mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          error: { code: 'unavailable', message: 'Outline temporarily unavailable' },
+        });
+      } else state.outline.mockImplementationOnce(() => delayed.promise);
+      await act(async () => button('Опубликовать v3').click());
+      expect(liveTitle.isConnected).toBe(true);
+      expect(titleInput()).toBe(liveTitle);
+      if (phase === 'retry') {
+        state.outline.mockImplementationOnce(() => delayed.promise);
+        await act(async () => button('Повторить обновление').click());
+      }
+      expect(button('Сохранить урок').disabled).toBe(true);
+      await act(async () => delayed.resolve(state.snapshot()));
+      expect(container.querySelector('[data-testid="course-save-state"]')?.textContent).toContain(
+        'редакция 11',
+      );
+      expect(liveTitle.isConnected).toBe(true);
+      expect(liveContent.isConnected).toBe(true);
+      expect(titleInput()).toBe(liveTitle);
+      expect(lessonField('Текст блока')).toBe(liveContent);
+      await act(async () => button('Предпросмотр').click());
+      await act(async () => button('Редактировать').click());
+      expect(liveTitle.isConnected).toBe(true);
+      expect(titleInput()).toBe(liveTitle);
+      expect(lessonField('Текст блока')).toBe(liveContent);
+      await typeSummary('Description after publication and preview');
+      await submitLesson();
+      expect(state.save).toHaveBeenCalledExactlyOnceWith(
+        'course-1',
+        'lesson-1',
+        expect.objectContaining({
+          title: 'Lesson V3',
+          blocks: [{ id: 'text-1', type: 'paragraph', text: 'Saved content V3' }],
+          summary: 'Description after publication and preview',
+          expectedRevision: 11,
+        }),
+      );
+      expect(container.textContent).toContain('Урок сохранён.');
+    },
+  );
+
   it('holds restore until the published outline is confirmed and sends revision 11', async () => {
     const state = await setup();
     const delayed = deferred<ApiResult<Outline>>();
