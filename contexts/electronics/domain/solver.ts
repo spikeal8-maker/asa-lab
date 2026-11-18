@@ -30,10 +30,18 @@ import { buildNetlist, terminalKey } from './netlist.js';
 import {
   isL298n,
   L298N_DC_MODEL,
+  l298nLogicLevel,
   type L298nObservation,
   type L298nIterationState,
   type L298nOperatingPoint,
 } from './models/l298n-dc-model.js';
+import {
+  createL298nInputDriveResolver,
+  createL298nLogicSourceResolver,
+  l298nArduinoSetupHighImpedance,
+  l298nControlNetIndices,
+} from './models/l298n-input-network.js';
+import { sampleL298nArduinoPwmVoltage } from './models/l298n-pwm-model.js';
 import { GMIN, emitNumericalNodes, copyNumericalNode } from './numerical-shunt-power.js';
 import { solveLinear } from './linear-system.js';
 import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
@@ -790,6 +798,9 @@ interface InternalSolveOptions extends SolveOptions {
   readonly servoRuntimeStateById?: ReadonlyMap<string, ServoMotorRuntimeState> | undefined;
   /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
   readonly clockedRcTransient?: boolean;
+  readonly clockedArduinoInputs?: boolean | undefined;
+  /** Held PWM input instant of the current canonical physical interval. */
+  readonly l298nPwmSampleTimeMs?: number | undefined;
   readonly thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch> | undefined;
   /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
   readonly holdCapacitorVoltages?: boolean | undefined;
@@ -2001,6 +2012,8 @@ function solveCircuitBase(
       operatingPointReuse: options.operatingPointReuse,
       simulationTimeMs: targetTimeMs,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
+      clockedArduinoInputs: options.clockedArduinoInputs,
+      l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
       ...peripheralRuntimeStates,
       holdCapacitorVoltages: true,
       holdMotorStates: true,
@@ -2078,6 +2091,8 @@ function solveCircuitBase(
       ),
       arduinoRuntimeStateById,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
+      clockedArduinoInputs: options.clockedArduinoInputs,
+      l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
       ...peripheralRuntimeStates,
     } as const;
     let acceptedResult: SolveResult;
@@ -2173,6 +2188,8 @@ function solveCircuitBase(
         meterFuseBlownById: common.meterFuseBlownById,
         arduinoRuntimeStateById: arduinoRuntimeStatesFromController(firstHalf.controllerState),
         heldArduinoSnapshots: options.heldArduinoSnapshots,
+        clockedArduinoInputs: options.clockedArduinoInputs,
+        l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
         ...peripheralRuntimeStates,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
@@ -2377,6 +2394,8 @@ function solveCircuitBase(
         preparation: options.preparation,
         operatingPointReuse: options.operatingPointReuse,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
+        clockedArduinoInputs: options.clockedArduinoInputs,
+        l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
         ...peripheralRuntimeStates,
         holdCapacitorVoltages: options.clockedRcTransient,
         simulationTimeMs: stepEndTimeMs,
@@ -2447,6 +2466,8 @@ function solveCircuitBase(
         preparation: options.preparation,
         operatingPointReuse: options.operatingPointReuse,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
+        clockedArduinoInputs: options.clockedArduinoInputs,
+        l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
         ...peripheralRuntimeStates,
         failedComponentIds,
         motorPreviousStateById: motorStateById,
@@ -2661,6 +2682,7 @@ export function solveCircuitWithHeldArduino(
       operatingPointReuse,
       simulationTimeMs,
       heldArduinoSnapshots: snapshots,
+      clockedArduinoInputs: true,
       ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
       ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
       ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
@@ -2748,6 +2770,7 @@ export function solveRcCircuitWithHeldArduino(
   operatingPointReuse?: ArduinoOperatingPointReuse,
   thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch>,
   externalShaft?: ExternalShaftStep,
+  l298nPwmSampleTimeMs?: number,
 ): SolveResult {
   return issueArduinoQualityReceipt(
     solveCircuitBase(document, {
@@ -2758,10 +2781,12 @@ export function solveRcCircuitWithHeldArduino(
       simulationTimeMs,
       ...(transientState ? { transientState } : {}),
       heldArduinoSnapshots: snapshots,
+      clockedArduinoInputs: true,
       ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
       ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
       ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
       clockedRcTransient: true,
+      l298nPwmSampleTimeMs,
       suppressOscilloscopeTrace: true,
     }),
     externalShaft ? undefined : operatingPointReuse,
@@ -2779,6 +2804,7 @@ export function solveRcCircuitWithHeldArduinoAndExternalShaft(
   pingUltrasonicStates: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates: ReadonlyMap<string, ServoMotorRuntimeState>,
   preparation: CircuitSolvePreparation,
+  l298nPwmSampleTimeMs?: number,
 ) {
   const { winding, toMicroseconds, angularVelocityRadPerSecond } = input;
   const component = document.components.find((entry) => entry.id === winding.componentId);
@@ -2825,6 +2851,7 @@ export function solveRcCircuitWithHeldArduinoAndExternalShaft(
         accepted = { voltageVolt, transition };
       },
     },
+    l298nPwmSampleTimeMs,
   );
   if (frame.solved && !held && !accepted) throw new Error('Missing solved TT winding branch.');
   return { frame, accepted };
@@ -2861,31 +2888,7 @@ function solveCircuitStep(
   // Only L298N logic/enable nets need actual 0/5 V switching: sample the
   // physical PWM phase using the existing canonical simulation timestamp.
   // Other Arduino consumers retain their established behavior.
-  const l298nInputNodes = new Set(
-    document.components
-      .filter(isL298n)
-      .flatMap((component) =>
-        ['ENA', 'ENB', 'IN1', 'IN2', 'IN3', 'IN4']
-          .map((terminal) => netlist.nodeOf.get(terminalKey(component.id, terminal)))
-          .filter((node): node is number => node !== undefined),
-      ),
-  );
-  const l298nPwmVolt = (pin: string, meanVoltage: number): number => {
-    const frequencyHz: Readonly<Record<string, number>> = {
-      d3: 490,
-      d5: 980,
-      d6: 980,
-      d9: 490,
-      d10: 490,
-      d11: 490,
-    };
-    const frequency = frequencyHz[pin];
-    if (!frequency || !Number.isFinite(meanVoltage) || meanVoltage <= 0 || meanVoltage >= 5)
-      return meanVoltage;
-    const periodMs = 1000 / frequency;
-    const phaseMs = ((simulationTimeMs % periodMs) + periodMs) % periodMs;
-    return phaseMs < (meanVoltage / 5) * periodMs ? 5 : 0;
-  };
+  const l298nInputNodes = l298nControlNetIndices(document, netlist.nodeOf);
   const branchesForSnapshots = (snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>) =>
     document.components.flatMap((component) =>
       failedComponentIds.has(component.id)
@@ -2899,8 +2902,16 @@ function solveCircuitStep(
                     return {
                       component,
                       ...branch,
-                      ...(node !== undefined && l298nInputNodes.has(node)
-                        ? { targetVoltage: l298nPwmVolt(branch.terminal, branch.targetVoltage) }
+                      ...(!branch.id.startsWith('servo-') &&
+                      node !== undefined &&
+                      l298nInputNodes.has(node)
+                        ? {
+                            targetVoltage: sampleL298nArduinoPwmVoltage(
+                              branch.terminal,
+                              branch.targetVoltage,
+                              options.l298nPwmSampleTimeMs ?? simulationTimeMs,
+                            ),
+                          }
                         : {}),
                     };
                   },
@@ -3482,6 +3493,19 @@ function solveCircuitStep(
       : netlist.nodeOf.get(terminalKey(component.id, terminal))) as number;
   const voltageFrom = (values: number[], node: number): number =>
     referenceNodes.has(node) ? 0 : (values[nodeVariables.get(node) as number] as number);
+  const l298nDriveContext = {
+    document,
+    nodeOf: netlist.nodeOf,
+    sources,
+    arduinoBranches,
+    failedComponentIds,
+    logicalNode: nodeIndex,
+    physicalNode: physicalNodeIndex,
+  };
+  const resolveL298nInputDrive =
+    l298nDevices.length === 0 ? undefined : createL298nInputDriveResolver(l298nDriveContext);
+  const resolveL298nLogicSource =
+    l298nDevices.length === 0 ? undefined : createL298nLogicSourceResolver(l298nDriveContext);
   const l298nOperatingPoint = (
     component: SchematicComponent,
     values: number[],
@@ -3494,34 +3518,11 @@ function solveCircuitStep(
           voltageFrom(values, physicalNodeIndex(component, terminal)),
         ]),
       ),
-      drivenTerminals: new Set(
-        terminals.filter((terminal) => {
-          const node = physicalNodeIndex(component, terminal);
-          const others = netlist.terminalsByNode.get(node) ?? [];
-          return others.some(
-            (key) =>
-              !key.startsWith(component.id + ':') ||
-              key === terminalKey(component.id, '+5V') ||
-              key === terminalKey(component.id, 'GND'),
-          );
-        }),
-      ),
-      externalLogicSourcePresent: document.components.some((other) => {
-        if (other.id === component.id) return false;
-        if (other.kind === 'source') {
-          return (
-            netlist.nodeOf.get(terminalKey(other.id, logicalTerminal(other, 'a'))) ===
-            physicalNodeIndex(component, '+5V')
-          );
-        }
-        if (isArduinoUno(other)) {
-          return (
-            netlist.nodeOf.get(terminalKey(other.id, 'power-5v')) ===
-            physicalNodeIndex(component, '+5V')
-          );
-        }
-        return false;
-      }),
+      drivenTerminals: resolveL298nInputDrive?.(component, terminals) ?? new Set<Terminal>(),
+      externalLogicSourcePresent:
+        resolveL298nLogicSource?.(component, (other, terminal) =>
+          voltageFrom(values, physicalNodeIndex(other, terminal)),
+        ) ?? false,
     };
   };
 
@@ -4005,7 +4006,44 @@ function solveCircuitStep(
       ),
     ]),
   );
-  const rejectedL298n = [...l298nObservations.values()].filter((value) => value.unsupported);
+  const rejectedL298n = [...l298nObservations.values()].filter((value) => {
+    if (!value.unsupported) return false;
+    if (!options.clockedArduinoInputs || !options.heldArduinoSnapshots || value.overCurrent)
+      return true;
+    const device = l298nDevices.find((item) => item.componentId === value.componentId);
+    const state = l298nStates.get(value.componentId);
+    if (!device || !state || state.inputKnown || state.regulatorConflict || state.voltageOutOfRange)
+      return true;
+    const inputs: Terminal[] = [
+      'IN1',
+      'IN2',
+      'IN3',
+      'IN4',
+      ...(device.parameters.enaJumperInstalled ? [] : ['ENA']),
+      ...(device.parameters.enbJumperInstalled ? [] : ['ENB']),
+    ];
+    const point = l298nOperatingPoint(device.component, solution!);
+    const missing = inputs.filter((pin) => !point.drivenTerminals.has(pin));
+    const ground = point.terminalVoltages['GND'];
+    const knownValid = inputs.every((pin) => {
+      if (!point.drivenTerminals.has(pin)) return true;
+      return l298nLogicLevel(point.terminalVoltages[pin], ground, true) !== 'unknown';
+    });
+    // No invented LOW: the existing unknown-input branch remains non-conducting.
+    // Only canonical bootstrap/setup GPIO may be unsettled; loop/passive floats fail.
+    return (
+      !knownValid ||
+      !l298nArduinoSetupHighImpedance(
+        device.component,
+        missing,
+        document,
+        netlist.nodeOf,
+        options.heldArduinoSnapshots,
+        simulationTimeMs,
+        failedComponentIds,
+      )
+    );
+  });
   if (rejectedL298n.length > 0) {
     diagnostics.push({
       code: 'unsupported_topology',

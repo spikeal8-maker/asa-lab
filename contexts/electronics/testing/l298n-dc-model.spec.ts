@@ -377,3 +377,155 @@ describe('L298N passive flyback in the shared MNA matrix', () => {
     expect(JSON.stringify(frozen)).toBe(before);
   });
 });
+
+describe('L298N reviewed voltage ratings, TTL boundaries and total output current', () => {
+  const disabledBoard = () =>
+    board({
+      enaJumperInstalled: false,
+      enbJumperInstalled: false,
+    });
+
+  it.each([
+    { label: 'logic overvoltage', pin: '+5V', voltage: 6 },
+    { label: 'motor overvoltage', pin: '+12V', voltage: 36 },
+    { label: 'negative logic supply', pin: '+5V', voltage: -0.31 },
+    { label: 'negative motor supply', pin: '+12V', voltage: -0.31 },
+  ])('fails closed on $label even with both bridges disabled', ({ pin, voltage }) => {
+    const evaluated = step(disabledBoard(), { ENA: 0, ENB: 0, [pin]: voltage });
+    const observation = L298N_DC_MODEL.observe(
+      evaluated.instance,
+      evaluated.state,
+      evaluated.point,
+    );
+    expect(evaluated.state.voltageOutOfRange).toBe(true);
+    expect(observation.overCurrent).toBe(false);
+    expect(observation.unsupported).toBe(true);
+  });
+
+  it.each(['IN1', 'IN2', 'IN3', 'IN4', 'ENA', 'ENB'])(
+    'rejects 8 V on driven %s independently of the enable state',
+    (pin) => {
+      const evaluated = step(disabledBoard(), { ENA: 0, ENB: 0, [pin]: 8 });
+      const observation = L298N_DC_MODEL.observe(
+        evaluated.instance,
+        evaluated.state,
+        evaluated.point,
+      );
+      expect(evaluated.state.voltageOutOfRange).toBe(true);
+      expect(observation.overCurrent).toBe(false);
+      expect(observation.unsupported).toBe(true);
+    },
+  );
+
+  it('keeps a normal loss of power distinct from a voltage-rating violation', () => {
+    for (const power of [
+      { '+12V': 0, '+5V': 0 },
+      { '+12V': 9, '+5V': 0 },
+      { '+12V': 0, '+5V': 5 },
+    ]) {
+      const evaluated = step(disabledBoard(), {
+        ...power,
+        ENA: 0,
+        ENB: 0,
+        IN1: 0,
+        IN2: 0,
+        IN3: 0,
+        IN4: 0,
+      });
+      const observation = L298N_DC_MODEL.observe(
+        evaluated.instance,
+        evaluated.state,
+        evaluated.point,
+      );
+      expect(evaluated.state.voltageOutOfRange).toBe(false);
+      expect(evaluated.state.channelA.mode).toBe('coast');
+      expect(evaluated.state.channelB.mode).toBe('coast');
+      expect(observation.unsupported).toBe(false);
+    }
+  });
+
+  it.each([
+    { voltage: 1.5, mode: 'brake-low', known: true },
+    { voltage: 2.1, mode: 'unknown', known: false },
+    { voltage: 2.3, mode: 'forward', known: true },
+  ])('uses the guaranteed TTL boundary at $voltage V', ({ voltage, mode, known }) => {
+    const evaluated = step(disabledBoard(), { ENA: 5, ENB: 0, IN1: voltage, IN2: 0 });
+    expect(evaluated.state.voltageOutOfRange).toBe(false);
+    expect(evaluated.state.channelA.mode).toBe(mode);
+    expect(evaluated.state.inputKnown).toBe(known);
+  });
+
+  it("does not confuse a disabled bridge don't-care input with electrical overvoltage", () => {
+    const evaluated = step(disabledBoard(), { ENA: 0, ENB: 0, IN1: 2.1 });
+    const observation = L298N_DC_MODEL.observe(
+      evaluated.instance,
+      evaluated.state,
+      evaluated.point,
+    );
+    expect(evaluated.state.voltageOutOfRange).toBe(false);
+    expect(evaluated.state.inputKnown).toBe(true);
+    expect(evaluated.state.channelA.mode).toBe('coast');
+    expect(observation.unsupported).toBe(false);
+  });
+
+  it.each([
+    {
+      channel: 'A',
+      firstOutput: 'OUT1',
+      secondOutput: 'OUT2',
+      firstInput: 'IN1',
+      secondInput: 'IN2',
+      enable: 'ENA',
+    },
+    {
+      channel: 'B',
+      firstOutput: 'OUT3',
+      secondOutput: 'OUT4',
+      firstInput: 'IN3',
+      secondInput: 'IN4',
+      enable: 'ENB',
+    },
+  ])(
+    'limits total regenerative output current on channel $channel, including diode and transistor paths',
+    ({ firstOutput, secondOutput, firstInput, secondInput, enable }) => {
+      // At each output, the 0.85 V rail excursion drives 0.708333 A through
+      // the on-stage and 1.5 A through the flyback diode: 2.208333 A in total.
+      // Every individual branch is below 2 A, so a branch-only guard misses it.
+      const evaluated = step(disabledBoard(), {
+        ENA: 0,
+        ENB: 0,
+        IN1: 0,
+        IN2: 0,
+        IN3: 0,
+        IN4: 0,
+        [firstInput]: 5,
+        [secondInput]: 0,
+        [enable]: 5,
+        [firstOutput]: 9.85,
+        [secondOutput]: -0.85,
+      });
+      const observation = L298N_DC_MODEL.observe(
+        evaluated.instance,
+        evaluated.state,
+        evaluated.point,
+      );
+      expect(evaluated.state.voltageOutOfRange).toBe(false);
+      expect(observation.terminalCurrents[firstOutput]).toBeCloseTo(2.208333333333333, 12);
+      expect(observation.terminalCurrents[secondOutput]).toBeCloseTo(-2.208333333333333, 12);
+      expect(observation.overCurrent).toBe(true);
+      expect(observation.unsupported).toBe(true);
+      const totalCurrent = Object.values(observation.terminalCurrents).reduce(
+        (sum, current) => sum + current,
+        0,
+      );
+      const operatingPoint: L298nOperatingPoint = evaluated.point;
+      const terminalPower = Object.entries(observation.terminalCurrents).reduce(
+        (sum, [terminal, current]) =>
+          sum + current * (operatingPoint.terminalVoltages[terminal] ?? 0),
+        0,
+      );
+      expect(totalCurrent).toBeCloseTo(0, 12);
+      expect(terminalPower).toBeCloseTo(observation.powerWatt, 12);
+    },
+  );
+});

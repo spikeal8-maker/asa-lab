@@ -390,3 +390,191 @@ describe('L298N real ASA Lab netlist -> shared DC solver', () => {
     expect(JSON.stringify(original.result)).toBe(JSON.stringify(solve().result));
   });
 });
+
+describe('L298N reviewed physical supply conflicts and voltage boundaries', () => {
+  function regulatorFixture(): ElectronicsDocument {
+    return harness({
+      regulatorJumperInstalled: true,
+      resistanceA: 1_000,
+      resistanceB: 1_000,
+    });
+  }
+
+  function withExternalLogic(options: {
+    path: 'direct' | 'resistor' | 'closed-switch' | 'open-switch';
+    enabled?: boolean;
+    reverse?: boolean;
+  }): ElectronicsDocument {
+    const fixture = regulatorFixture();
+    const enabled = options.enabled !== false;
+    const external: SchematicComponent = enabled
+      ? base('external-logic', 'source', 5)
+      : {
+          ...base('external-logic', 'source', 5),
+          componentTypeId: 'regulated-power-supply',
+          pinIds: ['positive', 'negative'],
+          stateProperties: {
+            outputEnabled: false,
+            voltageSetpointVolt: 5,
+            currentLimitAmp: 1,
+            outputResistanceOhm: 0.05,
+          },
+        };
+    const positive = enabled ? 'a' : 'positive';
+    const negative = enabled ? 'b' : 'negative';
+    const signal = options.reverse ? negative : positive;
+    const reference = options.reverse ? positive : negative;
+    const intermediate: SchematicComponent[] =
+      options.path === 'direct'
+        ? []
+        : [
+            options.path === 'resistor'
+              ? base('external-path', 'resistor', 100)
+              : {
+                  ...base('external-path', 'switch', 0),
+                  state: options.path === 'closed-switch',
+                },
+          ];
+    return {
+      ...fixture,
+      components: [...fixture.components, external, ...intermediate],
+      connections: [
+        ...fixture.connections,
+        wire('external-reference', 'external-logic', reference, 'driver', 'GND'),
+        ...(options.path === 'direct'
+          ? [wire('external-direct', 'external-logic', signal, 'driver', '+5V')]
+          : [
+              wire('external-series', 'external-logic', signal, 'external-path', 'a'),
+              wire('external-to-logic', 'external-path', 'b', 'driver', '+5V'),
+            ]),
+      ],
+    };
+  }
+
+  it.each([
+    { path: 'resistor' as const, reverse: false },
+    { path: 'closed-switch' as const, reverse: false },
+    { path: 'resistor' as const, reverse: true },
+  ])('rejects an active external source through $path (reverse=$reverse)', (options) => {
+    const result = solveCircuit(withExternalLogic(options));
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('unsupported');
+    expect(
+      result.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === 'unsupported_topology' && diagnostic.componentIds?.includes('driver'),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not report a source beyond an open switch as a competing logic supply', () => {
+    const result = solveCircuit(withExternalLogic({ path: 'open-switch' }));
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
+    const driverResult = result.components.find((component) => component.componentId === 'driver');
+    expect(driverResult?.lit).toBe(true);
+    expect(driverResult?.terminalVoltages['+5V']).toBeCloseTo(5, 2);
+  });
+
+  it('does not disable the onboard regulator merely because an OFF bench source is connected', () => {
+    const result = solveCircuit(withExternalLogic({ path: 'direct', enabled: false }));
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
+    const driverResult = result.components.find((component) => component.componentId === 'driver');
+    expect(driverResult?.lit).toBe(true);
+    expect(driverResult?.terminalVoltages['+5V']).toBeCloseTo(5, 2);
+    expect(driverResult?.terminalCurrents?.['+12V']).toBeGreaterThan(0);
+  });
+
+  function twoDrivers(peerRegulatorInstalled: boolean): ElectronicsDocument {
+    const fixture = regulatorFixture();
+    const original = fixture.components.find((component) => component.id === 'driver')!;
+    const peer: SchematicComponent = {
+      ...original,
+      id: 'driver-peer',
+      stateProperties: {
+        ...original.stateProperties,
+        regulatorJumperInstalled: peerRegulatorInstalled,
+      },
+    };
+    return {
+      ...fixture,
+      components: [...fixture.components, peer],
+      connections: [
+        ...fixture.connections,
+        wire('peer-vs', 'driver-peer', '+12V', 'driver', '+12V'),
+        wire('peer-ground', 'driver-peer', 'GND', 'driver', 'GND'),
+        wire('peer-logic', 'driver-peer', '+5V', 'driver', '+5V'),
+        ...['IN1', 'IN2', 'IN3', 'IN4'].map((pin) =>
+          wire('peer-' + pin, 'driver-peer', pin, 'driver-peer', 'GND'),
+        ),
+      ],
+    };
+  }
+
+  it('rejects two enabled onboard regulators tied to the same physical logic rail', () => {
+    const result = solveCircuit(twoDrivers(true));
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('unsupported');
+    const affected = result.diagnostics.flatMap((diagnostic) =>
+      diagnostic.code === 'unsupported_topology' ? (diagnostic.componentIds ?? []) : [],
+    );
+    expect(affected).toEqual(expect.arrayContaining(['driver', 'driver-peer']));
+  });
+
+  it('can power a second board from one regulator when the second regulator shunt is removed', () => {
+    const result = solveCircuit(twoDrivers(false));
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
+    for (const id of ['driver', 'driver-peer']) {
+      const driverResult = result.components.find((component) => component.componentId === id);
+      expect(driverResult?.lit).toBe(true);
+      expect(driverResult?.terminalVoltages['+5V']).toBeCloseTo(5, 2);
+    }
+  });
+
+  function withInputVoltage(voltage: number, disabled = false): ElectronicsDocument {
+    const fixture = harness({
+      resistanceA: 1_000,
+      resistanceB: 1_000,
+      ...(disabled ? { channelA: 'coast' as const, enaJumperInstalled: false } : {}),
+    });
+    return {
+      ...fixture,
+      components: [...fixture.components, base('input-source', 'source', voltage)],
+      connections: [
+        ...fixture.connections.filter(
+          (connection) =>
+            !(connection.from.componentId === 'driver' && connection.from.terminal === 'IN1'),
+        ),
+        wire('external-input', 'input-source', 'a', 'driver', 'IN1'),
+        wire('input-reference', 'input-source', 'b', 'driver', 'GND'),
+      ],
+    };
+  }
+
+  it.each([
+    { label: '6 V logic', options: { logicVolt: 6 } },
+    { label: '36 V motor supply', options: { motorVolt: 36 } },
+  ])('rejects $label through the actual MNA solver', ({ options }) => {
+    const result = solveCircuit(harness({ ...options, resistanceA: 1_000, resistanceB: 1_000 }));
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('unsupported');
+  });
+
+  it('rejects a driven 8 V input even when ENA is grounded', () => {
+    const result = solveCircuit(withInputVoltage(8, true));
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('unsupported');
+  });
+
+  it.each([
+    { voltage: 1.5, status: 'solved', moving: false },
+    { voltage: 2.1, status: 'unsupported', moving: false },
+    { voltage: 2.3, status: 'solved', moving: true },
+  ])(
+    'uses the guaranteed input boundary at $voltage V in the physical netlist',
+    ({ voltage, status, moving }) => {
+      const result = solveCircuit(withInputVoltage(voltage));
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe(status);
+      if (status === 'solved') {
+        const motorA = result.components.find((component) => component.componentId === 'motor-a');
+        if (moving) expect(motorA?.current).toBeGreaterThan(0);
+        else expect(motorA?.current).toBeCloseTo(0, 8);
+      }
+    },
+  );
+});

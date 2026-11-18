@@ -43,6 +43,7 @@ export interface L298nIterationState {
   readonly inputKnown: boolean;
   readonly regulatorOn: boolean;
   readonly regulatorConflict: boolean;
+  readonly voltageOutOfRange: boolean;
   /** Active external flyback diodes; immutable within one MNA iteration. */
   readonly flybackMask: number;
 }
@@ -82,13 +83,9 @@ const INITIAL: L298nIterationState = Object.freeze({
   inputKnown: true,
   regulatorOn: false,
   regulatorConflict: false,
+  voltageOutOfRange: false,
   flybackMask: 0,
 });
-const OUTPUT_ON_RESISTANCE_OHM = 1.2;
-const LOGIC_LOAD_RESISTANCE_OHM = 1250;
-const MAX_CHANNEL_CURRENT_AMP = 2;
-const REGULATOR_GAIN_SIEMENS = 10;
-const REGULATOR_MAX_CURRENT_AMP = 0.5;
 /**
  * Generic-board educational diode assumptions, not an identified owner part.
  * ST L298 DS0218 Rev 5, Figure 8/9, requires external fast flyback diodes for
@@ -100,6 +97,45 @@ export const L298N_FLYBACK_PROFILE = Object.freeze({
   forwardVoltageVolt: 0.7,
   dynamicResistanceOhm: 0.1,
 });
+/**
+ * Bounded 43 mm module profile, not the IC's absolute maximum rating.
+ * TTL thresholds follow ST DS0218 Rev 5 table 4. Output resistance, logic
+ * load and diode values are explicit educational approximations.
+ */
+export const L298N_INPUT_PROFILE = Object.freeze({
+  minimumVoltageVolt: -0.3,
+  lowMaximumVoltageVolt: 1.5,
+  highMinimumVoltageVolt: 2.3,
+  maximumVoltageVolt: 5.5,
+});
+export const L298N_BOARD_PROFILE = Object.freeze({
+  profileId: 'l298n-red-43mm-v1',
+  version: 1,
+  outputOnResistanceOhm: 1.2,
+  logicLoadResistanceOhm: 1250,
+  maxChannelCurrentAmp: 2,
+  minimumSupplyVoltageVolt: -0.3,
+  logicOperatingMinimumVolt: 4.5,
+  logicMaximumVolt: 5.5,
+  motorOperatingMinimumVolt: 4.5,
+  motorMaximumVolt: 35,
+  input: L298N_INPUT_PROFILE,
+  flyback: L298N_FLYBACK_PROFILE,
+  regulator: Object.freeze({
+    minimumInputVolt: 7,
+    maximumInputVolt: 12,
+    outputVolt: 5,
+    gainSiemens: 10,
+    maxCurrentAmp: 0.5,
+    reverseCurrentToleranceAmp: 0.001,
+  }),
+});
+const OUTPUT_ON_RESISTANCE_OHM = L298N_BOARD_PROFILE.outputOnResistanceOhm;
+const LOGIC_LOAD_RESISTANCE_OHM = L298N_BOARD_PROFILE.logicLoadResistanceOhm;
+const MAX_CHANNEL_CURRENT_AMP = L298N_BOARD_PROFILE.maxChannelCurrentAmp;
+const REGULATOR_GAIN_SIEMENS = L298N_BOARD_PROFILE.regulator.gainSiemens;
+const REGULATOR_MAX_CURRENT_AMP = L298N_BOARD_PROFILE.regulator.maxCurrentAmp;
+
 const FLYBACK_EDGES = [
   ['OUT1', '+12V'],
   ['OUT2', '+12V'],
@@ -122,11 +158,19 @@ export function l298nConfiguration(component: SchematicComponent) {
     regulatorJumperInstalled: props['regulatorJumperInstalled'] !== false,
   };
 }
-function logicLevel(value: number, reference: number, driven: boolean): L298nLogic {
+export function l298nLogicLevel(value: number, reference: number, driven: boolean): L298nLogic {
   if (!driven || !Number.isFinite(value) || !Number.isFinite(reference)) return 'unknown';
   const relative = value - reference;
-  if (relative >= -0.3 && relative <= 0.8) return 'low';
-  if (relative >= 2 && relative <= 5.5) return 'high';
+  if (
+    relative >= L298N_INPUT_PROFILE.minimumVoltageVolt &&
+    relative <= L298N_INPUT_PROFILE.lowMaximumVoltageVolt
+  )
+    return 'low';
+  if (
+    relative >= L298N_INPUT_PROFILE.highMinimumVoltageVolt &&
+    relative <= L298N_INPUT_PROFILE.maximumVoltageVolt
+  )
+    return 'high';
   return 'unknown';
 }
 function channelState(
@@ -229,7 +273,11 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       const motorSupply = context.node(component, '+12V');
       const ground = context.node(component, 'GND');
       context.stampVccs(logic, motorSupply, logic, ground, REGULATOR_GAIN_SIEMENS);
-      context.stampOffset(logic, motorSupply, REGULATOR_GAIN_SIEMENS * 5);
+      context.stampOffset(
+        logic,
+        motorSupply,
+        REGULATOR_GAIN_SIEMENS * L298N_BOARD_PROFILE.regulator.outputVolt,
+      );
     }
     // External protection is passive: EN/logic power cannot disconnect it.
     for (const [index, [anode, cathode]] of FLYBACK_EDGES.entries()) {
@@ -260,17 +308,21 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
     const ground = v('GND');
     const logicVolt = v('+5V') - ground;
     const motorVolt = v('+12V') - ground;
-    const logicPowered = logicVolt >= 4.5 && logicVolt <= 5.5;
-    const motorPowered = motorVolt >= 4.5 && motorVolt <= 35;
+    const logicPowered =
+      logicVolt >= L298N_BOARD_PROFILE.logicOperatingMinimumVolt &&
+      logicVolt <= L298N_BOARD_PROFILE.logicMaximumVolt;
+    const motorPowered =
+      motorVolt >= L298N_BOARD_PROFILE.motorOperatingMinimumVolt &&
+      motorVolt <= L298N_BOARD_PROFILE.motorMaximumVolt;
     const regulatorConflict =
       instance.parameters.regulatorJumperInstalled && point.externalLogicSourcePresent === true;
     const regulatorOn =
       instance.parameters.regulatorJumperInstalled &&
       !regulatorConflict &&
-      motorVolt >= 7 &&
-      motorVolt <= 12;
+      motorVolt >= L298N_BOARD_PROFILE.regulator.minimumInputVolt &&
+      motorVolt <= L298N_BOARD_PROFILE.regulator.maximumInputVolt;
     const input = (terminal: string) =>
-      logicLevel(v(terminal), ground, point.drivenTerminals.has(terminal));
+      l298nLogicLevel(v(terminal), ground, point.drivenTerminals.has(terminal));
     const config = instance.parameters;
     const ena: L298nLogic = config.enaJumperInstalled ? 'high' : input('ENA');
     const enb: L298nLogic = config.enbJumperInstalled ? 'high' : input('ENB');
@@ -278,6 +330,30 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       logicPowered && motorPowered ? channelState(ena, input('IN1'), input('IN2')) : COAST;
     const channelB =
       logicPowered && motorPowered ? channelState(enb, input('IN3'), input('IN4')) : COAST;
+    const controls = [
+      'IN1',
+      'IN2',
+      'IN3',
+      'IN4',
+      ...(config.enaJumperInstalled ? [] : ['ENA']),
+      ...(config.enbJumperInstalled ? [] : ['ENB']),
+    ];
+    const voltageOutOfRange =
+      !Number.isFinite(logicVolt) ||
+      !Number.isFinite(motorVolt) ||
+      logicVolt < L298N_BOARD_PROFILE.minimumSupplyVoltageVolt ||
+      logicVolt > L298N_BOARD_PROFILE.logicMaximumVolt ||
+      motorVolt < L298N_BOARD_PROFILE.minimumSupplyVoltageVolt ||
+      motorVolt > L298N_BOARD_PROFILE.motorMaximumVolt ||
+      (config.regulatorJumperInstalled &&
+        motorVolt > L298N_BOARD_PROFILE.regulator.maximumInputVolt) ||
+      controls.some(
+        (pin) =>
+          point.drivenTerminals.has(pin) &&
+          (!Number.isFinite(v(pin) - ground) ||
+            v(pin) - ground < L298N_INPUT_PROFILE.minimumVoltageVolt ||
+            v(pin) - ground > L298N_INPUT_PROFILE.maximumVoltageVolt),
+      );
     const flybackMask = FLYBACK_EDGES.reduce(
       (mask, [anode, cathode], index) =>
         v(anode) - v(cathode) > L298N_FLYBACK_PROFILE.forwardVoltageVolt
@@ -293,6 +369,7 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       inputKnown: channelA.mode !== 'unknown' && channelB.mode !== 'unknown',
       regulatorOn,
       regulatorConflict,
+      voltageOutOfRange,
       flybackMask,
     };
     return {
@@ -305,6 +382,7 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
         next.inputKnown !== state.inputKnown ||
         next.regulatorOn !== state.regulatorOn ||
         next.regulatorConflict !== state.regulatorConflict ||
+        next.voltageOutOfRange !== state.voltageOutOfRange ||
         next.flybackMask !== state.flybackMask,
     };
   },
@@ -318,12 +396,14 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
     currents['GND'] -= iLogic;
     let powerWatt = iLogic * (v('+5V') - v('GND'));
     const regulatorCurrent = state.regulatorOn
-      ? REGULATOR_GAIN_SIEMENS * (5 - (v('+5V') - v('GND')))
+      ? REGULATOR_GAIN_SIEMENS * (L298N_BOARD_PROFILE.regulator.outputVolt - (v('+5V') - v('GND')))
       : 0;
     currents['+12V'] += regulatorCurrent;
     currents['+5V'] -= regulatorCurrent;
     powerWatt += regulatorCurrent * (v('+12V') - v('+5V'));
-    let overCurrent = regulatorCurrent < -0.001 || regulatorCurrent > REGULATOR_MAX_CURRENT_AMP;
+    let overCurrent =
+      regulatorCurrent < -L298N_BOARD_PROFILE.regulator.reverseCurrentToleranceAmp ||
+      regulatorCurrent > REGULATOR_MAX_CURRENT_AMP;
     const edges = [
       ['OUT1', state.channelA.firstRail],
       ['OUT2', state.channelA.secondRail],
@@ -350,6 +430,10 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       powerWatt += current * dropVolt;
       if (Math.abs(current) > MAX_CHANNEL_CURRENT_AMP) overCurrent = true;
     }
+    // A regenerative output can share current between a stage and a diode.
+    // The module's channel limit applies to their summed terminal current too.
+    for (const terminal of ['OUT1', 'OUT2', 'OUT3', 'OUT4'])
+      if (Math.abs(currents[terminal]!) > MAX_CHANNEL_CURRENT_AMP) overCurrent = true;
     return {
       componentId: instance.componentId,
       channelA: state.channelA.mode,
@@ -361,7 +445,8 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       supplyCurrentAmp: currents['+12V'],
       powerWatt,
       overCurrent,
-      unsupported: !state.inputKnown || overCurrent || state.regulatorConflict,
+      unsupported:
+        !state.inputKnown || overCurrent || state.regulatorConflict || state.voltageOutOfRange,
     };
   },
 };
