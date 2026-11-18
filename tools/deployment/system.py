@@ -10,7 +10,8 @@ import subprocess
 import time
 import urllib.request
 
-from .contracts import Blocked, atomic_json, attest_database_targets, attest_proxy_policy, read_env, require
+from .contracts import Blocked, attest_database_targets, attest_proxy_policy, read_env, require
+from .paths import atomic_json as private_atomic_json
 from .resources import pool_configuration
 
 
@@ -210,6 +211,6 @@ class Installation:
 
     def receipt(self, value):
         value = {"at": dt.datetime.now(dt.timezone.utc).isoformat(), **value}
-        atomic_json(self.state / "last-operation.json", value)
+        private_atomic_json(self.state / "last-operation.json", value)
         from .operational import append_safely, from_manager_receipt
         append_safely(self.root, from_manager_receipt(value))
