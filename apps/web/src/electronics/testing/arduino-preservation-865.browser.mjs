@@ -155,7 +155,7 @@ try {
       );
       if (name === 'corrupt') {
         await page.locator('.arduino-mode-menu summary').click();
-        await page.getByRole('button', { name: 'Настройки Arduino' }).click();
+        await page.getByRole('button', { name: /^Настройки (?:Arduino|блоков)$/ }).click();
         await page.getByRole('checkbox', { name: 'Входной порт A0', exact: true }).check();
         await page.getByRole('button', { name: 'Применить' }).click();
         const afterSettings = await page.evaluate(() => window.board.stateProperties);
