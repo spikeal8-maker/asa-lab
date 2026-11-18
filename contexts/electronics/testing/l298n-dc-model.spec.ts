@@ -417,6 +417,23 @@ describe('L298N reviewed voltage ratings, TTL boundaries and total output curren
     },
   );
 
+  it.each(
+    ['IN1', 'IN2', 'IN3', 'IN4', 'ENA', 'ENB'].flatMap((pin) =>
+      [8, -1].map((voltage) => ({ pin, voltage })),
+    ),
+  )('rejects $voltage V on $pin without a recognised driver', ({ pin, voltage }) => {
+    const driven = new Set(['IN1', 'IN2', 'IN3', 'IN4', 'ENA', 'ENB']);
+    driven.delete(pin);
+    const evaluated = step(disabledBoard(), { ENA: 0, ENB: 0, [pin]: voltage }, driven);
+    const observation = L298N_DC_MODEL.observe(
+      evaluated.instance,
+      evaluated.state,
+      evaluated.point,
+    );
+    expect(evaluated.state.voltageOutOfRange).toBe(true);
+    expect(observation.unsupported).toBe(true);
+  });
+
   it('keeps a normal loss of power distinct from a voltage-rating violation', () => {
     for (const power of [
       { '+12V': 0, '+5V': 0 },

@@ -5,6 +5,7 @@ import type {
   SchematicConnection,
 } from '../domain/document.js';
 import { solveCircuit } from '../domain/solver.js';
+import { analyseCircuit } from '../domain/simulation.js';
 import { L298N_TERMINALS } from '../domain/models/l298n-dc-model.js';
 
 type Line = 'high' | 'low' | 'floating';
@@ -528,6 +529,104 @@ describe('L298N reviewed physical supply conflicts and voltage boundaries', () =
     }
   });
 
+  function gpioBoard(high: boolean): SchematicComponent {
+    return {
+      ...base('uno-pullup', 'visual', 5),
+      componentTypeId: 'arduino-uno',
+      pinIds: ['d2', 'd13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+      stateProperties: {
+        arduinoSource:
+          'void setup(){pinMode(2,OUTPUT);digitalWrite(2,' +
+          (high ? 'HIGH' : 'LOW') +
+          ');}void loop(){delay(1000);}',
+      },
+    };
+  }
+
+  it.each([false, true])(
+    'accepts a normal input pull-up with a real GPIO HIGH=%s and the onboard regulator',
+    (high) => {
+      const fixture = regulatorFixture();
+      const document: ElectronicsDocument = {
+        ...fixture,
+        components: [
+          ...fixture.components,
+          gpioBoard(high),
+          base('input-pullup', 'resistor', 10_000),
+        ],
+        connections: [
+          ...fixture.connections.filter(
+            (edge) => !(edge.from.componentId === 'driver' && edge.from.terminal === 'IN1'),
+          ),
+          wire('gpio-ground', 'uno-pullup', 'power-gnd-1', 'driver', 'GND'),
+          wire('gpio-input', 'uno-pullup', 'd2', 'driver', 'IN1'),
+          wire('pullup-input', 'input-pullup', 'a', 'driver', 'IN1'),
+          wire('pullup-rail', 'input-pullup', 'b', 'driver', '+5V'),
+        ],
+      };
+      const result = analyseCircuit(document, { simulationTimeMs: 1 });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
+      expect(result.quality.passed, JSON.stringify(result.quality)).toBe(true);
+      const observed = result.components.find((entry) => entry.componentId === 'driver');
+      expect(observed?.lit).toBe(true);
+      expect(observed?.terminalVoltages.IN1).toBeCloseTo(high ? 5 : 0, 2);
+      const pullup = result.components.find((entry) => entry.componentId === 'input-pullup');
+      expect(Math.abs(pullup?.current ?? Number.NaN)).toBeLessThanOrEqual(0.00051);
+    },
+  );
+
+  it('still rejects a positive GPIO used as a parallel logic supply through a resistor', () => {
+    const fixture = regulatorFixture();
+    const document: ElectronicsDocument = {
+      ...fixture,
+      components: [...fixture.components, gpioBoard(true), base('gpio-feed', 'resistor', 10_000)],
+      connections: [
+        ...fixture.connections,
+        wire('gpio-ground', 'uno-pullup', 'power-gnd-1', 'driver', 'GND'),
+        wire('gpio-feed-from', 'uno-pullup', 'd2', 'gpio-feed', 'a'),
+        wire('gpio-feed-to', 'gpio-feed', 'b', 'driver', '+5V'),
+      ],
+    };
+    const result = solveCircuit(document, { simulationTimeMs: 1 });
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('unsupported');
+    expect(
+      result.diagnostics.some(
+        (entry) => entry.code === 'unsupported_topology' && entry.componentIds?.includes('driver'),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not let a signal on board B exempt a parallel GPIO supply to board A', () => {
+    const fixture = twoDrivers(false);
+    const document: ElectronicsDocument = {
+      ...fixture,
+      components: [...fixture.components, gpioBoard(true)],
+      connections: [
+        ...fixture.connections.filter((edge) => edge.id !== 'peer-IN1'),
+        wire('gpio-ground', 'uno-pullup', 'power-gnd-1', 'driver', 'GND'),
+        wire('gpio-peer-input', 'uno-pullup', 'd2', 'driver-peer', 'IN1'),
+      ],
+    };
+    const control = solveCircuit(document, { simulationTimeMs: 1 });
+    expect(control.status, JSON.stringify(control.diagnostics)).toBe('solved');
+    const crossFed: ElectronicsDocument = {
+      ...document,
+      components: [...document.components, base('cross-feed', 'resistor', 10_000)],
+      connections: [
+        ...document.connections,
+        wire('cross-from', 'uno-pullup', 'd2', 'cross-feed', 'a'),
+        wire('cross-to', 'cross-feed', 'b', 'driver', '+5V'),
+      ],
+    };
+    const result = solveCircuit(crossFed, { simulationTimeMs: 1 });
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe('unsupported');
+    expect(
+      result.diagnostics.some(
+        (entry) => entry.code === 'unsupported_topology' && entry.componentIds?.includes('driver'),
+      ),
+    ).toBe(true);
+  });
+
   function withInputVoltage(voltage: number, disabled = false): ElectronicsDocument {
     const fixture = harness({
       resistanceA: 1_000,
@@ -574,6 +673,60 @@ describe('L298N reviewed physical supply conflicts and voltage boundaries', () =
         const motorA = result.components.find((component) => component.componentId === 'motor-a');
         if (moving) expect(motorA?.current).toBeGreaterThan(0);
         else expect(motorA?.current).toBeCloseTo(0, 8);
+      }
+    },
+  );
+});
+
+describe('L298N voltage ratings from stored energy without a recognised input driver', () => {
+  it.each([
+    { voltage: 5, valid: true },
+    { voltage: 8, valid: false },
+    { voltage: -1, valid: false },
+  ])(
+    'checks a capacitor holding IN1 at $voltage V while both enables are LOW',
+    ({ voltage, valid }) => {
+      const fixture = harness({
+        channelA: 'coast',
+        channelB: 'coast',
+        enaJumperInstalled: false,
+        enbJumperInstalled: false,
+        in1: 'floating',
+        resistanceA: 1_000,
+        resistanceB: 1_000,
+      });
+      const document: ElectronicsDocument = {
+        ...fixture,
+        components: [
+          ...fixture.components,
+          {
+            ...base('stored-input', 'visual', 100),
+            componentTypeId: 'electrolytic-capacitor',
+            pinIds: ['positive', 'negative'],
+            stateProperties: { initialVoltageVolt: voltage, voltageRatingVolt: 25 },
+          },
+        ],
+        connections: [
+          ...fixture.connections,
+          wire('stored-input-positive', 'stored-input', 'positive', 'driver', 'IN1'),
+          wire('stored-input-negative', 'stored-input', 'negative', 'driver', 'GND'),
+        ],
+      };
+      const result = analyseCircuit(document, { simulationTimeMs: 1 });
+      if (valid) {
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe('solved');
+        expect(result.quality.passed, JSON.stringify(result.quality)).toBe(true);
+        const observed = result.components.find((entry) => entry.componentId === 'driver');
+        expect(observed?.terminalVoltages.IN1).toBeCloseTo(voltage, 6);
+      } else {
+        expect(result.solved).toBe(false);
+        expect(result.status).toBe('invalid');
+        expect(
+          result.diagnostics.some(
+            (entry) =>
+              entry.code === 'unsupported_topology' && entry.componentIds?.includes('driver'),
+          ),
+        ).toBe(true);
       }
     },
   );

@@ -79,12 +79,17 @@ function passiveNetwork(document: ElectronicsDocument, nodes: Nodes, failed: Rea
 export function l298nControlNetIndices(
   document: ElectronicsDocument,
   nodes: Nodes,
+  driverId?: string,
+  failedComponentIds: ReadonlySet<string> = new Set(),
 ): ReadonlySet<number> {
   const drivers = document.components.filter(
-    (component) => component.componentTypeId === 'l298n-motor-driver',
+    (component) =>
+      component.componentTypeId === 'l298n-motor-driver' &&
+      (driverId === undefined || component.id === driverId) &&
+      !failedComponentIds.has(component.id),
   );
   if (drivers.length === 0) return new Set();
-  const network = passiveNetwork(document, nodes, new Set());
+  const network = passiveNetwork(document, nodes, failedComponentIds);
   // A signal can pass through a series resistor/switch, but never through a
   // shared supply rail into an unrelated consumer. Electrical reference
   // connectivity and PWM signal reachability are deliberately different graphs.
@@ -128,6 +133,7 @@ interface DriveContext {
     readonly component: SchematicComponent;
     readonly terminal: Terminal;
     readonly ground: Terminal;
+    readonly targetVoltage: number;
   }[];
   readonly failedComponentIds: ReadonlySet<string>;
   readonly logicalNode: (
@@ -200,8 +206,9 @@ export function createL298nLogicSourceResolver(context: DriveContext) {
     return settings.outputEnabled && settings.currentLimitAmp > 0;
   });
   const branches = context.arduinoBranches.filter(
-    (branch) => !context.failedComponentIds.has(branch.component.id),
+    (branch) => !context.failedComponentIds.has(branch.component.id) && branch.targetVoltage > 0,
   );
+  const controlNets = new Map<string, ReadonlySet<number>>();
   const regulators = context.document.components.filter(
     (component) =>
       component.componentTypeId === 'l298n-motor-driver' &&
@@ -217,6 +224,16 @@ export function createL298nLogicSourceResolver(context: DriveContext) {
     if (logic === undefined || ground === undefined || logic === ground) return false;
     const feed = reachable(logic, ground);
     const returns = reachable(ground, logic);
+    let signals = controlNets.get(component.id);
+    if (!signals) {
+      signals = l298nControlNetIndices(
+        context.document,
+        context.nodeOf,
+        component.id,
+        context.failedComponentIds,
+      );
+      controlNets.set(component.id, signals);
+    }
     const connected = (a: number | undefined, b: number | undefined) =>
       a !== undefined &&
       b !== undefined &&
@@ -229,12 +246,21 @@ export function createL298nLogicSourceResolver(context: DriveContext) {
     )
       return true;
     if (
-      branches.some((branch) =>
-        connected(
-          network.pin(branch.component, branch.terminal),
-          network.pin(branch.component, branch.ground),
-        ),
-      )
+      branches.some((branch) => {
+        const output = network.pin(branch.component, branch.terminal);
+        // A GPIO driving this board's input through a pull-up is a signal;
+        // LOW is a sink (filtered above), and explicit power pins are supplies.
+        // Scope the exemption to this board so controlling B cannot hide a
+        // separate GPIO feed into A's +5V rail.
+        if (
+          branch.terminal !== 'power-5v' &&
+          branch.terminal !== 'power-3v3' &&
+          output !== undefined &&
+          signals.has(output)
+        )
+          return false;
+        return connected(output, network.pin(branch.component, branch.ground));
+      })
     )
       return true;
     return regulators.some((other) => {

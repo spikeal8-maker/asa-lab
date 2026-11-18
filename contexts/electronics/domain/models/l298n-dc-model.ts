@@ -349,10 +349,9 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
         motorVolt > L298N_BOARD_PROFILE.regulator.maximumInputVolt) ||
       controls.some(
         (pin) =>
-          point.drivenTerminals.has(pin) &&
-          (!Number.isFinite(v(pin) - ground) ||
-            v(pin) - ground < L298N_INPUT_PROFILE.minimumVoltageVolt ||
-            v(pin) - ground > L298N_INPUT_PROFILE.maximumVoltageVolt),
+          !Number.isFinite(v(pin) - ground) ||
+          v(pin) - ground < L298N_INPUT_PROFILE.minimumVoltageVolt ||
+          v(pin) - ground > L298N_INPUT_PROFILE.maximumVoltageVolt,
       );
     const flybackMask = FLYBACK_EDGES.reduce(
       (mask, [anode, cathode], index) =>
