@@ -81,6 +81,176 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-ultrasonic-u01
+    parent_lane: electronics
+    worktree_id: electronics-ultrasonic-u01-1241
+    owned_paths:
+      - contexts/electronics/domain/models/hc-sr04-runtime.ts
+      - contexts/electronics/domain/models/ping-ultrasonic-runtime.ts
+      - contexts/electronics/testing/hc-sr04-runtime.spec.ts
+      - contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: e792998fc418e2210a116051848d76571155efe1
+      head_sha: null
+      observed_at: '2026-11-18T15:31:48Z'
+      main:
+        branch: main
+        sha: e792998fc418e2210a116051848d76571155efe1
+      observation_note: Dated controller source observation only. Fresh fetch main, candidate, CI and peer
+        bytes before authoring/publication; this field is not live acceptance evidence.
+    task:
+      id: TASK-ELECTRONICS-ULTRASONIC-U01-001
+      issue: 1241
+      programme_issue: 1238
+      branch: main
+      working_branch: feature/electronics-ultrasonic-u01-1241
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: controller_selected_u01_after_independently_reviewed_full_checkpoint008
+      owner_acceptance: pending
+      owner_authorization: 'Owner on 2026-11-18 explicitly assigned U01 implementation and its separate controller
+        preparation: update this card/issue, handle a due hygiene checkpoint, verify shared solver/model identities
+        and select this isolated child lane before product authoring. One product author and an independent reviewer;
+        ordinary source publication/integration remains subject to existing owner permissions and exact required
+        gates. No deployment, database operation, U02 activation or inferred owner acceptance.'
+      activation_condition: This proposed transition has no authority on its feature branch. It becomes effective
+        only in accepted main after independent final-SHA controller review, required CI, protected integration
+        and verified checkpoint008 evidence. Product author then inherits that main and runs a fresh nine-path
+        scoped preflight.
+      controller_preparation:
+        id: TASK-ELECTRONICS-CONTROL-016
+        kind: plan/governance
+        scope:
+        - docs/execution/current.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ULTRASONIC-U01-001.md
+        - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-008.yaml
+        author: /root
+        independent_reviewer: /root/u01_governance
+        goal: Accept the mandatory seven-category checkpoint008 and align U01 to the already accepted U00 decision,
+          then activate only U01 in canonical main.
+        acceptance_rule: Prepared until final-SHA independent APPROVE and required CI followed by normal main
+          integration. That accepted transition is the checkpoint receipt; no pre-merge acceptance claim.
+      hygiene:
+        full_checkpoint: 8
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-008.yaml
+        reviewed_source_sha: e792998fc418e2210a116051848d76571155efe1
+        confirmed_accepted_slices_before: 8
+        additional_source_integrations_not_reclassified:
+        - 1131
+        - 1196
+        - 1163
+        production_slices_since_accepted_checkpoint: 0
+        counter_semantics: Zero applies only once this full source-endpoint checkpoint is technically accepted
+          on main. U01 is not yet a counted production slice. Increment once after its technical integration;
+          docs/U00 do not count. Preserve historical counters elsewhere.
+      scope: 'Only UL-E01 physical output stamping/observation, PING response phases and required compatibility:
+        four product files, four test files and one generated-only coverage file. Preserve thresholds, scheduler
+        ordering, ground topology, ranges, UI, L298N behavior and protected assets.'
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ULTRASONIC-U01-001.md
+      - docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+      - docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+      - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-008.yaml
+      planned_paths:
+      - contexts/electronics/domain/solver.ts
+      - contexts/electronics/domain/models/hc-sr04-runtime.ts
+      - contexts/electronics/domain/models/ping-ultrasonic-runtime.ts
+      - contexts/electronics/domain/model-identity.ts
+      - contexts/electronics/testing/hc-sr04-runtime.spec.ts
+      - contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts
+      - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
+      - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+      - docs/product/electronics/generated/component-coverage.json
+      product_author: /root/u01_author
+      independent_reviewer: /root/u01_reviewer
+      compatibility:
+        hc_profile_version: 3
+        ping_profile_version: 2
+        sensor_state_version: 2
+        electrical_model_version: 1
+        model_set_digest: compute_and_pin_in_U01_tests_before_publication
+        collision_check: Accepted reviewed main has HC2/PING1 and state1 for both. Verify again at actual author
+          handoff; another use of HC3/PING2 requires controller coordination.
+      logical_shared_paths_note: The five existing shared paths remain in their historical advisory owned scopes; the complete nine-path plan above and bounded coordination below authorize only this U01 slice. No foreign lane ownership is changed.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: /workspace/scratch/94732fd38a6d/asa-u01-product
+          branch: feature/electronics-ultrasonic-u01-1241
+        peer:
+          device: D2-R2
+          worktree: C:/Users/spike/asa-l298n-p1-20261116
+          branch: feature/electronics-l298n-p1-domain-1199
+          head: 1963c25ebddac301b8d3fc0db71229dcd8c18e53
+          repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+          path_sha256:
+            contexts/electronics/domain/solver.ts: 49bd8fa156598b1be3cd0fb65968e304c9089086ec3c181f5e28877620cd8ce5
+            contexts/electronics/domain/model-identity.ts: 6497b10c5ff6c8f76adf34bb6cc0592124ca47c8b3262e483efbd6c81fd3ea03
+            contexts/electronics/testing/model-set-golden-compatibility.spec.ts: a55d50a76982459c72183c0ed3fc0ca1213802fbb057dbce2e143dbe4de08736
+            contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts: 8fd1eeb813304bf644987bffefa61d7801a3702e151ddc7b1fa71b8dc6d5150d
+            docs/product/electronics/generated/component-coverage.json: 7ae26cadf793e157d1693fad18f959d365d09e241a15cf5f8757f2910753097a
+          physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
+            are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
+            were read only.
+        additional_peer_snapshots:
+        - device: D2-R2
+          worktree: C:/Users/spike/asa-l298n-p3-20261116
+          branch: feature/electronics-l298n-p3-qualification-1199
+          head: 6ae5b38c1c13b6eee40020c0bc67c14359dd1210
+          repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+          path_sha256:
+            contexts/electronics/domain/solver.ts: 0b93ddf846babcd896aa948f9ada1a093729880f5e0023b3f2deccd081d2023c
+            contexts/electronics/domain/model-identity.ts: 6497b10c5ff6c8f76adf34bb6cc0592124ca47c8b3262e483efbd6c81fd3ea03
+            contexts/electronics/testing/model-set-golden-compatibility.spec.ts: c18f7be769519d0bc4c005ed805fd347dc89de17c67246bf034681cf4c87b4c5
+            contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts: 8f93f52572b9ca19756a1a137e2af0d4970896f9e7ea497a967b77a69d6d16ae
+            docs/product/electronics/generated/component-coverage.json: fe3a0b1cfbe75190cad3525da27ba0cc4249b90367f9334256dc32be92643553
+          physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
+            are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
+            were read only.
+        paths:
+        - contexts/electronics/domain/solver.ts
+        - contexts/electronics/domain/model-identity.ts
+        - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
+        - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+        - docs/product/electronics/generated/component-coverage.json
+        boundary: Bounded coordination for the owner-requested U01 only. Cloud Linux author and D2-R2 peer worktrees
+          have separate physical files, indexes and Git directories; no foreign mutation, ownership transfer
+          or automatic conflict resolution. Existing P1/P3 coordination is unchanged. The local preflight checks
+          its own registered worktrees; direct D2 snapshots supply external-peer evidence, not a claim that local
+          preflight inspected Windows. Refresh head and exact shared-path hashes before starting/publishing.
+          Any change requires new controller reconciliation before the affected action.
+        integration_ready: false
+        release_ready: false
+      joint_verification:
+        accepted_l298n_scope: Only P0A/P0B artwork/catalog/terminal-wire work is accepted on reviewed main; P1/P2/P3
+          solver/model candidates are unaccepted. Do not import their unfinished implementation.
+        commands:
+        - NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run contexts/electronics/testing/uno-digital-pins.spec.ts
+          apps/web/src/electronics/testing/l298n-owner-art.spec.ts apps/web/src/electronics/testing/l298n-top-wires.spec.ts
+          --maxWorkers=1
+        future_main_overlap: If main accepts L298N or other shared-source work before final convergence, controller
+          re-evaluates exact diff/identities, adds its existing accepted regression suites to joint verification
+          and obtains new final-source review/CI. No automatic resolution or stale digest.
+      next_action: After this controller transition is accepted on main and fresh scoped preflight passes, the
+        single product author implements and verifies U01, then stops. U02 remains unselected.
+      deployment: not_run
+      database_actions: none
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-ULTRASONIC-U01-001
+        - pnpm gate:electronics-m1
+        - pnpm benchmark:electronics:ci
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
   - id: electronics-ultrasonic-u00
     parent_lane: electronics
     worktree_id: electronics-ultrasonic-u00-1240
