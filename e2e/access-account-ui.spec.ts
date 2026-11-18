@@ -5136,7 +5136,12 @@ for (const width of [1440, 1024, 390, 320])
 
     await expect(main.locator('.home-module-empty')).toHaveCount(4);
     await expect(page.locator('.portal-header .portal-quick-create > summary')).toBeVisible();
-    await expect(main.getByRole('link', { name: 'Открыть знания', exact: true })).toBeVisible();
+    const knowledge = page
+      .locator('.portal-header')
+      .getByRole('link', { name: 'Знания', exact: true });
+    await expect(knowledge).toBeVisible();
+    await expect(knowledge).toHaveAttribute('href', '/#/knowledge');
+    await expect(main.locator('.access-personal-start')).toHaveCount(0);
     await assertShellGeometry(page, width);
     expect(notifications).toBe(0);
     expect(attention).toBe(0);

@@ -1705,21 +1705,51 @@ test('owner UX real empty Account keeps project entry and shares controlled prog
         controls.push(bounds);
       }
       await zoom.page.evaluate(async () => {
-        const main = document.querySelector<HTMLElement>('.portal-shell > main');
-        if (!main) throw new Error('Expected the Home scroll container');
-        main.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         await document.fonts.ready;
-        await new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        );
       });
+      const captureScrollAttempts: Array<{ x: number; y: number; main: number }> = [];
+      // Native zoom and the preceding trial scrolls can settle after a reset.
+      // Establish the exact capture origin after layout instead of accepting an offset.
+      await expect
+        .poll(async () => {
+          const position = await zoom.page.evaluate(async () => {
+            const main = document.querySelector<HTMLElement>('.portal-shell > main');
+            if (!main) throw new Error('Expected the Home scroll container');
+            main.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            await new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            );
+            return { x: scrollX, y: scrollY, main: main.scrollTop };
+          });
+          captureScrollAttempts.push(position);
+          return position;
+        })
+        .toEqual({ x: 0, y: 0, main: 0 });
       const captureScroll = await zoom.page.evaluate(() => ({
         x: scrollX,
         y: scrollY,
         main: document.querySelector<HTMLElement>('.portal-shell > main')!.scrollTop,
       }));
       expect(captureScroll).toEqual({ x: 0, y: 0, main: 0 });
+      const captureFirstControl = await buttons.first().evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          module: element.closest('[data-module]')?.getAttribute('data-module'),
+          y: rect.y,
+          height: rect.height,
+          headerBottom:
+            document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0,
+          viewportHeight: innerHeight,
+        };
+      });
+      expect(captureFirstControl.module).toBe('three-d');
+      expect(captureFirstControl.y).toBeGreaterThanOrEqual(
+        Math.max(0, captureFirstControl.headerBottom),
+      );
+      expect(captureFirstControl.y + captureFirstControl.height).toBeLessThanOrEqual(
+        captureFirstControl.viewportHeight + 1,
+      );
       const cdp = await zoom.page.context().newCDPSession(zoom.page);
       let png: Buffer;
       try {
@@ -1747,6 +1777,8 @@ test('owner UX real empty Account keeps project entry and shares controlled prog
         pixels,
         controls,
         captureScroll,
+        captureScrollAttempts,
+        captureFirstControl,
       });
       persist();
     } catch (error) {
