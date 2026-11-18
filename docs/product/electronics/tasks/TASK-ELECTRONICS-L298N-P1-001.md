@@ -45,6 +45,12 @@ review: independent
 - `contexts/electronics/testing/l298n-integrated-solver.spec.ts`
 - `contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts` — только новый доказанный digest реестра с L298N и неизменные исходные контрольные данные.
 - `contexts/electronics/testing/model-set-golden-compatibility.spec.ts` — negative checks и точное сопоставление old/new digests без динамического разрешения.
+- `tools/public-electronics-worker-modules.json` — только три точных ID
+  `contexts/electronics/domain/models/l298n-dc-model.ts`,
+  `contexts/electronics/domain/models/l298n-input-network.ts` и
+  `contexts/electronics/domain/models/l298n-pwm-model.ts` для фактически
+  достижимых модулей публичного Worker. Сохранить все прежние ID; не менять
+  checker, workflows, запреты main-thread/private modules или thresholds.
 - `docs/product/electronics/generated/component-coverage.json` — только
   машинно-генерируемые P1 identity/DC-поля, не переписывать ручные данные.
 
@@ -130,6 +136,15 @@ Robotics. Сохранённые чужие P3 WIP-файлы остаются r
   ESLint/Prettier/hygiene, required exact-SHA GitHub General;
   строгий R4 классифицировать по явным A/B/C/D/E причинам.
   Не ослаблять существующие тесты и thresholds ради зелёного статуса.
+- Publication run `44339573232` на кандидате
+  `1963c25ebddac301b8d3fc0db71229dcd8c18e53` выявил прямую
+  зависимость P1 (категория B): emitted graph отвергает новый
+  `l298n-dc-model.ts`. До source integration добавить только три
+  перечисленных L298N ID в канонический список и получить фактический
+  `node tools/public-electronics-emitted-graph.mjs` PASS на exact build
+  с capture metadata, затем успешный exact-SHA Publication workflow
+  через существующий `pnpm gate:projects-publication` и новый независимый
+  review. Локальная проверка только графа не заменяет полный PostgreSQL gate.
 - Независимый HIGH-RISK source/physics review **нового exact SHA**,
   затем только разрешённый merge существующего #1209 и
   post-merge checks. Нельзя принимать собственное ревью автора

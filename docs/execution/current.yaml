@@ -535,7 +535,7 @@ parallel_lanes:
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: p1_activation_requires_selection_and_shared_solver_handoff
+      checkpoint: p1_public_worker_closure_repair_required
       owner_acceptance: pending
       owner_authorization: >-
         Owner directed complete, quality-gated L298N implementation through
@@ -556,6 +556,9 @@ parallel_lanes:
         electrical matrix, with correct power domains, 78M05 approximation,
         genuine Arduino logic and fail-closed floating inputs, current
         limits, signed motor observations, and regression proofs.
+        Admit only the three reviewed L298N domain modules to the canonical
+        public Worker module list; preserve the emitted graph checker and
+        all main-thread/private-module restrictions.
       existing_candidate_pr: 1209
       existing_candidate_head_at_selection: d1327be437f22114b0053a00a8e398d564ed7b15
       planned_paths:
@@ -575,6 +578,7 @@ parallel_lanes:
         - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
         - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
         - docs/product/electronics/generated/component-coverage.json
+        - tools/public-electronics-worker-modules.json
         - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
       shared_path_coordination:
         status: owner_approved
@@ -634,12 +638,15 @@ parallel_lanes:
         - docs/product/electronics/components/engine-worker-clock.yaml
         - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
       next_action: >-
-        After P0B post-merge SUCCESS and P1 task selection in main, validate
-        the two shared-path handoffs and no active dirty competing writer.
-        Then inspect/fix existing P1 domain source against the real
-        physical_advance_failed reproduction and high-Z negative cases,
-        independently review the final SHA and run scoped/General CI.
-        No P1 merge or P2/P3 activation before that evidence.
+        Repair exact Publication run 44339573232 category B: the emitted graph
+        rejects l298n-dc-model.ts; static runtime closure identifies three new
+        L298N modules absent from the canonical admission list. After this
+        two-file documentation update is accepted in main, obtain fresh
+        exact-path preflight and add only those three module IDs. Preserve
+        checker, workflows and thresholds. Require actual emitted-graph
+        evidence, completed exact-SHA General and Publication, full strict R4
+        classification and new independent final-SHA review before ordinary
+        merge of existing PR1209.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
