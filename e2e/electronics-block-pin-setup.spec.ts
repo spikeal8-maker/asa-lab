@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { devices, expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import type { SchematicDocument } from '../apps/web/src/api';
@@ -38,7 +39,7 @@ async function checkInput(control: Locator) {
 
 // Inspect rendered text, not just the checkbox rectangle. Each control may be
 // scrolled into view, but only the modal may own that vertical scrolling.
-async function settingsLayout(page: Page, dialog: Locator, info: TestInfo) {
+async function settingsLayout(page: Page, dialog: Locator, info: TestInfo, evidencePrefix = '') {
   const snapshot = () =>
     dialog.evaluate((element) => ({
       top: element.scrollTop,
@@ -115,11 +116,8 @@ async function settingsLayout(page: Page, dialog: Locator, info: TestInfo) {
   expect(after.ancestors).toEqual(before.ancestors);
   expect(after.rect).toEqual(before.rect);
   if (before.contentHeight > before.height) expect(after.top).toBeGreaterThan(before.top);
-  await receipt(info, 'settings-layout', { before, after, captions: evidence });
-  await info.attach('settings-actions-reached', {
-    body: await dialog.screenshot(),
-    contentType: 'image/png',
-  });
+  await receipt(info, `${evidencePrefix}settings-layout`, { before, after, captions: evidence });
+  await screenshot(info, `${evidencePrefix}settings-actions-reached`, dialog);
   // Restore the initial keyboard-trap position for the rest of the journey.
   const close = dialog.getByRole('button', { name: 'Закрыть настройки блоков' });
   await close.focus();
@@ -128,10 +126,15 @@ async function settingsLayout(page: Page, dialog: Locator, info: TestInfo) {
 }
 
 async function receipt(info: TestInfo, name: string, value: unknown) {
-  await info.attach(name, {
-    body: JSON.stringify(value, null, 2),
-    contentType: 'application/json',
-  });
+  const path = info.outputPath(`${name}.json`);
+  await writeFile(path, JSON.stringify(value, null, 2));
+  await info.attach(name, { path, contentType: 'application/json' });
+}
+
+async function screenshot(info: TestInfo, name: string, target: Page | Locator) {
+  const path = info.outputPath(`${name}.png`);
+  await target.screenshot({ path });
+  await info.attach(name, { path, contentType: 'image/png' });
 }
 
 async function serverDocument(page: Page, id: string): Promise<SchematicDocument> {
@@ -182,6 +185,86 @@ async function settings(page: Page) {
   await expect(dialog.getByRole('checkbox')).toHaveCount(20);
   await expect(dialog.getByRole('button', { name: 'Закрыть настройки блоков' })).toBeFocused();
   return dialog;
+}
+
+async function selectCodeMode(page: Page, label: 'Блоки' | 'Блоки с текстом' | 'Текст') {
+  const menu = page.locator('.arduino-mode-menu');
+  const previous = await menu.locator('summary').innerText();
+  if ((await menu.getAttribute('open')) === null) await activate(menu.locator('summary'));
+  await activate(menu.getByRole('button', { name: label, exact: true }));
+  if ((previous === 'Текст') !== (label === 'Текст')) {
+    const confirmation = page.getByRole('dialog', { name: 'Продолжить?', exact: true });
+    await expect(confirmation).toBeVisible();
+    await activate(confirmation.getByRole('button', { name: 'Продолжить', exact: true }));
+    await expect(confirmation).toHaveCount(0);
+  }
+  await expect(menu.locator('summary')).toHaveText(label);
+}
+
+// Robotics embeds the same dialog inside a clipped panel, in two different
+// hosts. Viewport bounds alone cannot prove that its native targets are exposed.
+async function settingsHostTargets(dialog: Locator, info: TestInfo, prefix: string) {
+  const targets = [];
+  for (const target of await dialog.locator('header button, label, footer button').all()) {
+    await target.scrollIntoViewIfNeeded();
+    await expect(target).toBeInViewport();
+    const evidence = await target.evaluate((element) => {
+      const modal = element.closest('[role="dialog"]')!.getBoundingClientRect();
+      const host = element.closest('.arduino-code-panel')!.getBoundingClientRect();
+      const rect = element.getBoundingClientRect();
+      const input = element.querySelector('input');
+      const inset = Math.min(4, rect.width / 4, rect.height / 4);
+      const xs = [rect.left + inset, rect.left + rect.width / 2, rect.right - inset];
+      const ys = [rect.top + inset, rect.top + rect.height / 2, rect.bottom - inset];
+      const insideHost = (bounds: DOMRect) =>
+        bounds.left >= host.left - 1 &&
+        bounds.right <= host.right + 1 &&
+        bounds.top >= host.top - 1 &&
+        bounds.bottom <= host.bottom + 1;
+      const inputRect = input?.getBoundingClientRect();
+      const inputHit = inputRect
+        ? document.elementFromPoint(
+            inputRect.left + inputRect.width / 2,
+            inputRect.top + inputRect.height / 2,
+          )
+        : null;
+      return {
+        text: element.textContent,
+        pin: input?.getAttribute('aria-label') ?? null,
+        checked: input?.checked ?? null,
+        disabled: input?.disabled ?? false,
+        host: host.toJSON(),
+        dialog: modal.toJSON(),
+        rect: rect.toJSON(),
+        dialogInsideHost: insideHost(modal),
+        targetInsideHost: insideHost(rect),
+        nativeHit: xs.every((x) =>
+          ys.every((y) => element.contains(document.elementFromPoint(x, y))),
+        ),
+        nativeCheckboxTarget:
+          !input || (input.disabled ? element.contains(inputHit) : inputHit === input),
+      };
+    });
+    expect(evidence, `native Robotics target: ${evidence.pin ?? evidence.text}`).toMatchObject({
+      dialogInsideHost: true,
+      targetInsideHost: true,
+      nativeHit: true,
+      nativeCheckboxTarget: true,
+    });
+    if (evidence.disabled) {
+      expect(evidence.checked).toBe(true);
+      expect(evidence.text).toContain('(авто)');
+    }
+    targets.push(evidence);
+  }
+  expect(targets.filter((target) => target.pin).map((target) => target.pin)).toEqual(
+    pins.map((pin) => `Входной порт ${pin}`),
+  );
+  await receipt(info, `${prefix}native-targets`, targets);
+  const close = dialog.getByRole('button', { name: 'Закрыть настройки блоков' });
+  await close.focus();
+  await expect(close).toBeFocused();
+  await expect(close).toBeInViewport();
 }
 
 async function generated(page: Page) {
@@ -683,10 +766,7 @@ for (const viewport of [
           else await checkbox.press('Space');
           await expect(checkbox).toBeChecked();
         }
-        await info.attach('settings', {
-          body: await dialog.screenshot(),
-          contentType: 'image/png',
-        });
+        await screenshot(info, 'settings', dialog);
         await activate(dialog.getByRole('button', { name: 'Применить', exact: true }));
         // No debounce sleep or intermediate server poll between Apply and Save.
         const expected = structuredClone(baseline.persisted);
@@ -827,16 +907,145 @@ for (const viewport of [
           ).toBe(true);
         }
         await receipt(info, 'worker-electrical-effects', worker);
-        await info.attach('owner-effects', {
-          body: await page.screenshot(),
-          contentType: 'image/png',
-        });
+        await screenshot(info, 'owner-effects', page);
         await activate(page.getByRole('button', { name: 'Остановить моделирование', exact: true }));
         await page.goto('/#/home');
         await boardIsolation(page, info);
         failures.assertEmpty();
       } finally {
         await receipt(info, 'complete-console-journal', { events, counts: failures.counts });
+        await pool.end();
+      }
+    },
+  );
+
+  run(
+    `1220 shared Arduino settings in Robotics ${viewport.width}x${viewport.height}`,
+    async ({ page }, info) => {
+      // Initial UI-only budget: real login plus two hosts with two modal modes.
+      test.setTimeout(120_000);
+      expect(page.context().browser()?.browserType().name()).toBe('chromium');
+      expect(page.viewportSize()).toEqual(viewport);
+      if (mobile) touchPages.add(page);
+      const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+      const events: unknown[] = [];
+      const hosts: unknown[] = [];
+      page.on('console', (m) =>
+        events.push({ kind: 'console', type: m.type(), text: m.text(), location: m.location() }),
+      );
+      page.on('pageerror', (e) => events.push({ kind: 'pageerror', message: e.message }));
+      const pool = e2eAdminPool();
+      try {
+        const teacher = await seedTeacher(pool, `robotics-settings-1220-${viewport.width}`);
+        await loginWithOrganization(page, teacher);
+        const created = await page.request.post('/api/projects', {
+          headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
+          data: {
+            scope: 'personal',
+            classroomId: null,
+            module: 'robotics',
+            title: '1220 shared Arduino settings',
+          },
+        });
+        expect(created.status()).toBe(201);
+        const id = (await created.json()).project.id as string;
+        await page.goto(`/#/home/${id}?module=robotics`);
+        await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+        const panel = page.locator('#robotics-panel-program');
+        const textEditor = page.getByRole('textbox', { name: 'Код Arduino C++', exact: true });
+        let manualSource: string | undefined;
+        for (const host of ['code-tab', 'electronics-drawer']) {
+          if (host === 'code-tab') {
+            await activate(page.getByRole('tab', { name: 'Код', exact: true }));
+            await expect(panel).toHaveAttribute('role', 'tabpanel');
+            await expect(panel).toHaveAttribute('data-drawer-open', 'false');
+          } else {
+            await activate(page.getByRole('tab', { name: 'Электроника', exact: true }));
+            await activate(page.getByRole('button', { name: 'Открыть код', exact: true }));
+            await expect(panel).toHaveAttribute('role', 'region');
+            await expect(panel).toHaveAttribute('aria-label', 'Выдвижной редактор кода Arduino');
+            await expect(panel).toHaveAttribute('data-drawer-open', 'true');
+          }
+          await expect(panel).toBeVisible();
+          if (manualSource !== undefined) await expect(textEditor).toHaveValue(manualSource);
+          for (const [mode, label] of [
+            ['blocks', 'Блоки'],
+            ['blocks-text', 'Блоки с текстом'],
+          ] as const) {
+            await selectCodeMode(page, label);
+            const prefix = `robotics-${host}-${mode}-`;
+            let dialog = await settings(page);
+            await expect(dialog).toContainText('Ручной C++ не изменяется.');
+            await settingsLayout(page, dialog, info, prefix);
+            await settingsHostTargets(dialog, info, prefix);
+            await screenshot(info, `${prefix}settings`, page);
+            // Inferred GPIO remain checked/read-only; exercise a real editable pin.
+            const editable = dialog.locator('input[type="checkbox"]:not(:disabled)').first();
+            const original = await editable.isChecked();
+            await activate(editable);
+            await expect(editable).toBeChecked({ checked: !original });
+            await activate(dialog.getByRole('button', { name: 'Отмена', exact: true }));
+            await expect(dialog).toHaveCount(0);
+            await expect(
+              page.getByRole('button', { name: 'Настройки блоков', exact: true }),
+            ).toBeFocused();
+            dialog = await settings(page);
+            await expect(editable).toBeChecked({ checked: original });
+            await activate(editable);
+            await expect(editable).toBeChecked({ checked: !original });
+            await page.keyboard.press('Escape');
+            await expect(dialog).toHaveCount(0);
+            await expect(
+              page.getByRole('button', { name: 'Настройки блоков', exact: true }),
+            ).toBeFocused();
+            dialog = await settings(page);
+            await expect(editable).toBeChecked({ checked: original });
+            const close = dialog.getByRole('button', { name: 'Закрыть настройки блоков' });
+            await close.press('Shift+Tab');
+            await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeFocused();
+            await page.keyboard.press('Tab');
+            await expect(close).toBeFocused();
+            await activate(dialog.getByRole('button', { name: 'Применить', exact: true }));
+            await expect(dialog).toHaveCount(0);
+            await expect(
+              page.getByRole('button', { name: 'Настройки блоков', exact: true }),
+            ).toBeFocused();
+          }
+          const generatedSource = await generated(page);
+          await selectCodeMode(page, 'Текст');
+          await expect(textEditor).toHaveValue(generatedSource);
+          manualSource = `// 1220 ${host}: preserve manual C++ and newline\n${generatedSource}`;
+          await textEditor.fill(manualSource);
+          const menu = page.locator('.arduino-mode-menu');
+          await activate(menu.locator('summary'));
+          await expect(
+            menu.getByRole('button', { name: 'Настройки блоков', exact: true }),
+          ).toHaveCount(0);
+          await expect(
+            page.getByRole('dialog', { name: 'Настройки блоков — входные порты', exact: true }),
+          ).toHaveCount(0);
+          await expect(textEditor).toHaveValue(manualSource);
+          await screenshot(info, `robotics-${host}-text`, page);
+          await activate(menu.locator('summary'));
+          // A mode-only round trip preserves manual text; Apply in a block
+          // mode is a separate, explicit regeneration operation tested above.
+          await selectCodeMode(page, 'Блоки с текстом');
+          expect(await generated(page)).toBe(manualSource);
+          await selectCodeMode(page, 'Текст');
+          await expect(textEditor).toHaveValue(manualSource);
+          hosts.push({ host, generatedSource, manualSource });
+        }
+        await activate(page.getByRole('tab', { name: 'Код', exact: true }));
+        await expect(textEditor).toHaveValue(manualSource!);
+        failures.assertEmpty();
+      } finally {
+        await receipt(info, 'robotics-shared-hosts', {
+          viewport,
+          mobile,
+          hosts,
+          events,
+          counts: failures.counts,
+        });
         await pool.end();
       }
     },
