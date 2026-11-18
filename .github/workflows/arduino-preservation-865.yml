@@ -1,0 +1,70 @@
+name: Arduino preservation 865 native browser regression
+run-name: Arduino preserved source and workspace — ${{ github.event.pull_request.head.sha }}
+
+"on":
+  pull_request:
+    paths:
+      - 'apps/web/src/electronics/ArduinoCodePanel.tsx'
+      - 'apps/web/src/electronics/testing/arduino-preservation-865.browser.mjs'
+      - '.github/workflows/arduino-preservation-865.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arduino-preservation-865-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preservation:
+    name: Arduino 865 native Chromium source preservation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact source revision
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install pinned dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install real native Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build native module dependencies
+        run: pnpm exec nx build module-sdk
+
+      - name: Verify legacy saved-workspace and source invariants in real Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/arduino-preservation-865
+          node apps/web/src/electronics/testing/arduino-preservation-865.browser.mjs | tee reports/arduino-preservation-865/receipt.json
+
+      - name: Preserve exact-SHA regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arduino-preservation-865-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: reports/arduino-preservation-865
+          if-no-files-found: warn
+          retention-days: 14

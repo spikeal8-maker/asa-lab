@@ -1447,6 +1447,8 @@ export function ArduinoCodePanel({
   }
 
   function openInputSettings(): void {
+    // Source-only C++ never consumes the block generator's input-pin settings.
+    if (programRef.current.mode === 'text') return;
     const current = programRef.current;
     const handle = programWorkspaceRef.current;
     const live = handle?.workspace;
@@ -1554,6 +1556,12 @@ export function ArduinoCodePanel({
       aria-label="Редактор кода Arduino"
       aria-hidden={!open}
       style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
+      onPointerDownCapture={(event) => {
+        const menu = modeMenuRef.current;
+        if (menu?.open && !menu.contains(event.target as Node)) {
+          menu.removeAttribute('open');
+        }
+      }}
     >
       <HorizontalResizeHandle
         kind="drawer"
@@ -1587,9 +1595,11 @@ export function ArduinoCodePanel({
                 {MODE_LABELS[mode]}
               </button>
             ))}
-            <button type="button" ref={inputSettingsButtonRef} onClick={openInputSettings}>
-              Настройки Arduino
-            </button>
+            {program.mode !== 'text' ? (
+              <button type="button" ref={inputSettingsButtonRef} onClick={openInputSettings}>
+                Настройки блоков
+              </button>
+            ) : null}
           </div>
         </details>
         <ArduinoToolbarOverflow active={Boolean(toolbarActions)}>
@@ -1797,13 +1807,13 @@ export function ArduinoCodePanel({
         onOpenChange={(serialOpen) => updateProgram({ serialOpen })}
         onSend={c.sendArduinoSerialRx}
       />
-      {inputSettings ? (
+      {inputSettings && program.mode !== 'text' ? (
         <div className="arduino-confirm-backdrop" role="presentation">
           <section
             className="arduino-confirm-dialog"
             role="dialog"
             aria-modal="true"
-            aria-label="Настройки Arduino"
+            aria-label="Настройки блоков — входные порты"
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 event.preventDefault();
@@ -1827,25 +1837,26 @@ export function ArduinoCodePanel({
             }}
           >
             <header>
-              <strong>Настройки Arduino</strong>
+              <strong>Настройки блоков — входные порты</strong>
               <button
                 type="button"
                 autoFocus
-                aria-label="Закрыть настройки Arduino"
+                aria-label="Закрыть настройки блоков"
                 onClick={closeInputSettings}
               >
                 ×
               </button>
             </header>
             <p>
-              Входные порты (INPUT). Для вычисляемых входов выберите все порты, которые может
-              прочитать программа. Остальные GPIO в блоках настраиваются как OUTPUT.
+              Эта настройка влияет только на pinMode() в C++, созданном из блоков. Автоматически
+              определённые входы отмечены и недоступны для изменения. Остальные GPIO генератор
+              настраивает как OUTPUT. Ручной C++ не изменяется.
             </p>
             {inputSettings.unresolved ? (
-              <p>В программе есть вычисляемые входные порты: укажите их в списке.</p>
-            ) : null}
-            {program.mode === 'text' ? (
-              <p>Настройки применяются к блокам. Текстовый код не изменится.</p>
+              <p>
+                Номер входного порта задан выражением или переменной. Его нельзя определить заранее:
+                отметьте все возможные входы вручную.
+              </p>
             ) : null}
             <fieldset className="arduino-input-pins">
               <legend>Входные порты</legend>
@@ -1854,6 +1865,7 @@ export function ArduinoCodePanel({
                 return (
                   <label
                     key={pin}
+                    style={{ flexWrap: 'wrap' }}
                     title={
                       inferred
                         ? 'Вход определяется блоками или Serial'
@@ -1862,6 +1874,7 @@ export function ArduinoCodePanel({
                   >
                     <input
                       type="checkbox"
+                      style={{ width: 'auto', flex: '0 0 auto' }}
                       aria-label={`Входной порт ${pin}`}
                       checked={inferred || inputSettings.pins.includes(pin!)}
                       disabled={inferred}
@@ -1874,8 +1887,8 @@ export function ArduinoCodePanel({
                         })
                       }
                     />
-                    {pin}
-                    {inferred ? ' (авто)' : ''}
+                    <span>{pin}</span>
+                    {inferred ? <span> (авто)</span> : null}
                   </label>
                 );
               })}
