@@ -222,6 +222,7 @@ async function settingsHostTargets(dialog: Locator, info: TestInfo, prefix: stri
         bounds.top >= host.top - 1 &&
         bounds.bottom <= host.bottom + 1;
       const inputRect = input?.getBoundingClientRect();
+      const captionRect = element.querySelector(':scope > span')?.getBoundingClientRect();
       const inputHit = inputRect
         ? document.elementFromPoint(
             inputRect.left + inputRect.width / 2,
@@ -236,6 +237,16 @@ async function settingsHostTargets(dialog: Locator, info: TestInfo, prefix: stri
         host: host.toJSON(),
         dialog: modal.toJSON(),
         rect: rect.toJSON(),
+        inputRect: inputRect?.toJSON() ?? null,
+        captionRect: captionRect?.toJSON() ?? null,
+        checkboxAndNumberSameRow:
+          !input ||
+          Boolean(
+            inputRect &&
+            captionRect &&
+            Math.max(inputRect.top, captionRect.top) <
+              Math.min(inputRect.bottom, captionRect.bottom),
+          ),
         dialogInsideHost: insideHost(modal),
         targetInsideHost: insideHost(rect),
         nativeHit: xs.every((x) =>
@@ -250,6 +261,7 @@ async function settingsHostTargets(dialog: Locator, info: TestInfo, prefix: stri
       targetInsideHost: true,
       nativeHit: true,
       nativeCheckboxTarget: true,
+      checkboxAndNumberSameRow: true,
     });
     if (evidence.disabled) {
       expect(evidence.checked).toBe(true);

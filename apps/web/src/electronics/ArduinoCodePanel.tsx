@@ -1874,6 +1874,7 @@ export function ArduinoCodePanel({
                   >
                     <input
                       type="checkbox"
+                      style={{ width: 'auto', flex: '0 0 auto' }}
                       aria-label={`Входной порт ${pin}`}
                       checked={inferred || inputSettings.pins.includes(pin!)}
                       disabled={inferred}
