@@ -1,0 +1,143 @@
+name: Learning 1252 causal diagnostic
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/learning-1252-diagnostic.yml'
+      - 'tools/testing/learning-1252-diagnostic.mjs'
+      - 'tools/testing/learning-1252-pg-probe.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: learning-1252-causal-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: Same-fixture baseline and candidate causal capture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: asa_lrn_1252_seed_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: learning-1252-isolated-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_lrn_1252_seed_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NODE_ENV: test
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_SEED_DEMO: 'false'
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      VITE_ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4613
+      TEST_DATABASE_URL: postgresql://postgres:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_seed_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_seed_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_seed_test
+      MIGRATION_EXPECT_DATABASE: asa_lrn_1252_seed_test
+      MIGRATION_CONFIRM: APPLY:asa_lrn_1252_seed_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: diagnostic
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 5ab4f526e907fe0a349aad6919cca278d21e948c
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 4a6b0f41c3351d5be8f3d9c77c4111d0c698c0bd
+          path: candidate
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: baseline/pnpm-lock.yaml
+      - name: Record exact common source and fixture inputs
+        shell: bash
+        run: |
+          mkdir -p evidence
+          python3 - <<'PY'
+          import hashlib,json,pathlib,subprocess
+          paths=['pnpm-lock.yaml','e2e/courses-sharing.spec.ts','e2e/learning-author-preview.spec.ts','e2e/learning-authoring-navigation.ts','e2e/seed.ts','e2e/server.mjs','playwright.config.ts']
+          for root in ['apps/api/src','contexts','migrations']:
+              paths += [str(p.relative_to('baseline')) for p in pathlib.Path('baseline',root).rglob('*') if p.is_file()]
+          records={}
+          for variant in ['baseline','candidate']:
+              records[variant]={'sha':subprocess.check_output(['git','-C',variant,'rev-parse','HEAD'],text=True).strip(),'files':{name:hashlib.sha256(pathlib.Path(variant,name).read_bytes()).hexdigest() for name in sorted(paths)}}
+          pathlib.Path('evidence/common-inputs.json').write_text(json.dumps(records,indent=2)+'\n')
+          if records['baseline']['files'] != records['candidate']['files']: raise SystemExit('Backend/schema/original scenarios differ: comparison needs a new design')
+          PY
+      - name: Install and build both exact sources without Nx reuse
+        shell: bash
+        run: |
+          for source in baseline candidate; do
+            (cd "$source" && pnpm install --frozen-lockfile && pnpm build) > "evidence/${source}-build.log" 2>&1
+          done
+          cd baseline
+          pnpm exec playwright install --with-deps chromium
+      - name: Prepare original Learning data-test workload once
+        working-directory: baseline
+        shell: bash
+        run: |
+          pnpm db:migrate > ../evidence/migrate.log 2>&1
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'learning-1252-isolated-test'"
+          pnpm test:learning-e1 > ../evidence/original-data-preparation.log 2>&1
+      - name: Clone one completed fixture into both isolated databases
+        id: clone
+        shell: bash
+        run: |
+          pg_dump "$TEST_DATABASE_URL" --format=custom --file=evidence/prepared-fixture.dump
+          sha256sum evidence/prepared-fixture.dump > evidence/prepared-fixture.sha256
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "SELECT 'accounts',count(*) FROM accounts UNION ALL SELECT 'classroom_student_seats',count(*) FROM classroom_student_seats UNION ALL SELECT 'learning_project_origins',count(*) FROM learning_project_origins UNION ALL SELECT 'activity_participations',count(*) FROM activity_participations UNION ALL SELECT 'activity_runs',count(*) FROM activity_runs UNION ALL SELECT 'projects',count(*) FROM projects UNION ALL SELECT 'learner_identity_links',count(*) FROM learner_identity_links" > evidence/prepared-fixture-counts.txt
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE asa_lrn_1252_baseline_test TEMPLATE asa_lrn_1252_seed_test"
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE asa_lrn_1252_candidate_test TEMPLATE asa_lrn_1252_seed_test"
+      - name: Capture accepted main with original assertions and all API errors
+        env:
+          SOURCE_ROOT: baseline
+          SOURCE_SHA: 5ab4f526e907fe0a349aad6919cca278d21e948c
+          DIAGNOSTIC_VARIANT: baseline
+          REPORT_DIR: evidence/baseline
+          TEST_DATABASE_URL: postgresql://postgres:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_baseline_test
+          APP_TEST_DATABASE_URL: postgresql://asalab_app:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_baseline_test
+        run: node diagnostic/tools/testing/learning-1252-diagnostic.mjs
+      - name: Capture PR1252 with the identical prepared fixture and conditions
+        if: always() && steps.clone.outcome == 'success'
+        env:
+          SOURCE_ROOT: candidate
+          SOURCE_SHA: 4a6b0f41c3351d5be8f3d9c77c4111d0c698c0bd
+          DIAGNOSTIC_VARIANT: candidate
+          REPORT_DIR: evidence/candidate
+          TEST_DATABASE_URL: postgresql://postgres:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_candidate_test
+          APP_TEST_DATABASE_URL: postgresql://asalab_app:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_candidate_test
+        run: node diagnostic/tools/testing/learning-1252-diagnostic.mjs
+      - name: Preserve PostgreSQL errors and nested auto-explain JIT plans
+        if: always()
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          mkdir -p evidence
+          docker logs "$PG_CONTAINER" > evidence/postgres.log 2>&1
+          gzip evidence/postgres.log
+      - name: Preserve causal evidence even when an original scenario fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learning-1252-causal-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: evidence
+          retention-days: 14
+          if-no-files-found: error
