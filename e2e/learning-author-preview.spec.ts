@@ -710,9 +710,134 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await expect(editor.getByLabel('Название урока')).toHaveValue(
     'Unsaved input during outline refresh',
   );
+  const lessonPath = new URL(saved.url()).pathname;
+  const outlinePath = lessonPath.replace(/\/lessons\/[^/]+$/, '/outline');
+  const publishPath = lessonPath.replace(/\/lessons\/[^/]+$/, '/publish');
+  const origin = new URL(page.url()).origin;
+  const cleanRefresh = {
+    publishRevision: null as number | null,
+    outlineRevision: null as number | null,
+    nextWriteRevision: null as number | null,
+    laterConflictRevision: null as number | null,
+  };
+  const remoteContent = {
+    title: 'Concurrent title after publication',
+    blocks: [{ id: 'concurrent-text', type: 'paragraph', text: 'Concurrent lesson content' }],
+  };
+  const initialInput = saved.request().postDataJSON();
+  let publicationConfirmed = false;
+  let refreshHeld = false;
+  let releaseCleanRefresh!: () => void;
+  const cleanRefreshHeld = new Promise<void>((resolve) => {
+    releaseCleanRefresh = resolve;
+  });
+  let startedCleanRefresh!: () => void;
+  const cleanRefreshStarted = new Promise<void>((resolve) => {
+    startedCleanRefresh = resolve;
+  });
+  const confirmCleanPublication = async (route: Route) => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    cleanRefresh.publishRevision = route.request().postDataJSON().expectedRevision;
+    publicationConfirmed = true;
+    await route.fulfill({ response });
+  };
+  const holdCleanRefresh = async (route: Route) => {
+    if (!publicationConfirmed || refreshHeld) return route.continue();
+    refreshHeld = true;
+    startedCleanRefresh();
+    await cleanRefreshHeld;
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    cleanRefresh.outlineRevision = (await response.json()).draftRevision;
+    await route.fulfill({ response });
+  };
+  await page.route('**' + publishPath, confirmCleanPublication);
+  await page.route('**' + outlinePath, holdCleanRefresh);
+  await editor.getByRole('button', { name: 'Опубликовать v5', exact: true }).click();
+  let remoteRevision: number;
+  try {
+    await cleanRefreshStarted;
+    await expect(
+      editor.getByRole('button', { name: 'Сохранить урок', exact: true }),
+    ).toBeDisabled();
+    const publishedOutline = await page.request.get(outlinePath);
+    expect(publishedOutline.ok()).toBe(true);
+    const publishedRevision = (await publishedOutline.json()).draftRevision;
+    expect(publishedRevision).toBe(cleanRefresh.publishRevision! + 1);
+    // A second authenticated client commits while the clean editor is still
+    // waiting for its publication outline. The delivered outline includes it.
+    const remoteSave = await page.request.patch(lessonPath, {
+      headers: { origin },
+      data: { ...initialInput, ...remoteContent, expectedRevision: publishedRevision },
+    });
+    expect(remoteSave.status()).toBe(200);
+    remoteRevision = (await remoteSave.json()).draftRevision;
+    expect(Number.isSafeInteger(remoteRevision)).toBe(true);
+    expect(remoteRevision).toBeGreaterThan(publishedRevision);
+  } finally {
+    releaseCleanRefresh();
+  }
+  await expect(editor.getByTestId('course-save-state')).toContainText('редакция ' + remoteRevision);
+  expect(cleanRefresh.outlineRevision).toBe(remoteRevision);
+  await expect(editor.getByLabel('Название урока')).toHaveValue(remoteContent.title);
+  await expect(editor.getByLabel('Текст блока', { exact: true })).toHaveValue(
+    remoteContent.blocks[0].text,
+  );
+  await page.unroute('**' + publishPath, confirmCleanPublication);
+  await page.unroute('**' + outlinePath, holdCleanRefresh);
+  await editor.getByLabel('Что будет в уроке').fill('Only my description changes');
+  const nextSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
+  );
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  const nextSaved = await nextSave;
+  expect(nextSaved.status()).toBe(200);
+  const nextInput = nextSaved.request().postDataJSON();
+  cleanRefresh.nextWriteRevision = nextInput.expectedRevision;
+  expect(nextInput).toMatchObject({
+    ...remoteContent,
+    summary: 'Only my description changes',
+    expectedRevision: remoteRevision,
+  });
+  const nextReceipt = await nextSaved.json();
+  const afterDescription = await page.request.get(outlinePath);
+  expect(afterDescription.ok()).toBe(true);
+  expect(await afterDescription.json()).toMatchObject({
+    draftRevision: nextReceipt.draftRevision,
+    sections: [{ lessons: [{ ...remoteContent, summary: 'Only my description changes' }] }],
+  });
+
+  await editor.getByLabel('Что будет в уроке').fill('My later unsaved description');
+  const laterContent = {
+    title: 'A later competing title',
+    blocks: [{ id: 'concurrent-text', type: 'paragraph', text: 'A later competing content' }],
+  };
+  const laterRemote = await page.request.patch(lessonPath, {
+    headers: { origin },
+    data: { ...nextInput, ...laterContent, expectedRevision: nextReceipt.draftRevision },
+  });
+  expect(laterRemote.status()).toBe(200);
+  const conflictingSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
+  );
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  const conflict = await conflictingSave;
+  expect(conflict.status()).toBe(409);
+  cleanRefresh.laterConflictRevision = conflict.request().postDataJSON().expectedRevision;
+  expect(cleanRefresh.laterConflictRevision).toBe(nextReceipt.draftRevision);
+  const conflictBody = await conflict.json();
+  expect(conflictBody.error.code).toBe('draft_conflict');
+  await expect(editor.getByRole('alert')).toContainText(conflictBody.error.message);
+  await expect(editor.getByLabel('Что будет в уроке')).toHaveValue('My later unsaved description');
+  const afterConflict = await page.request.get(outlinePath);
+  expect(afterConflict.ok()).toBe(true);
+  expect(await afterConflict.json()).toMatchObject({ sections: [{ lessons: [laterContent] }] });
   writeFileSync(
     'e2e/artifacts/learning/version-draft/publication-revision-handoff.json',
-    JSON.stringify(publicationHandoff, null, 2),
+    JSON.stringify({ ...publicationHandoff, cleanRefresh }, null, 2),
   );
 });
 

@@ -71,6 +71,25 @@ async function typeTitle(value: string): Promise<void> {
   });
 }
 
+function lessonField(label: string): HTMLTextAreaElement {
+  const field = container.querySelector<HTMLTextAreaElement>(
+    `.course-lesson-editor textarea[aria-label="${label}"]`,
+  );
+  if (!field) throw new Error(`Missing lesson field: ${label}`);
+  return field;
+}
+
+async function typeSummary(value: string): Promise<void> {
+  await act(async () => {
+    const field = lessonField('Что будет в уроке');
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      field,
+      value,
+    );
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
 async function selectHistoricalVersion(): Promise<void> {
   await act(async () => button('История версий').click());
   await act(async () => {
@@ -271,8 +290,8 @@ async function setup() {
     snapshot,
     canLeave: () => leave!(),
     lesson: () => structuredClone(lesson),
-    remoteEdit: () => {
-      lesson = { ...lesson, title: 'Another author changed this lesson' };
+    remoteEdit: (changes: Partial<CourseLesson> = {}) => {
+      lesson = { ...lesson, title: 'Another author changed this lesson', ...changes };
       revision += 1;
     },
   };
@@ -382,6 +401,83 @@ describe('Course publication revision handoff', () => {
     expect(container.textContent).toContain('Курс изменён в другом окне.');
     expect(button('Создать черновик из этой версии').disabled).toBe(true);
   });
+
+  it.each(['pending', 'retry'] as const)(
+    'adopts concurrent content into a clean form after a %s refresh before its next write',
+    async (phase) => {
+      const state = await setup();
+      const delayed = deferred<ApiResult<Outline>>();
+      if (phase === 'retry') {
+        state.outline.mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          error: { code: 'unavailable', message: 'Outline temporarily unavailable' },
+        });
+      } else state.outline.mockImplementationOnce(() => delayed.promise);
+      await act(async () => button('Опубликовать v3').click());
+      if (phase === 'retry') {
+        state.outline.mockImplementationOnce(() => delayed.promise);
+        await act(async () => button('Повторить обновление').click());
+      }
+      state.remoteEdit({
+        blocks: [{ id: 'text-1', type: 'paragraph', text: 'Another author changed this content' }],
+      });
+      const remote = state.lesson();
+      await act(async () => delayed.resolve(state.snapshot()));
+      const visibleTitle = titleInput().value;
+      const visibleContent = lessonField('Текст блока').value;
+      // Editing just the description must retain the title and blocks of the
+      // adopted revision, both in the visible form and in the next write.
+      await typeSummary('My description after the confirmed refresh');
+      await submitLesson();
+      expect({
+        visibleTitle,
+        visibleContent,
+        writes: state.save.mock.calls.map((call) => call[2]),
+        saved: state.lesson(),
+      }).toMatchObject({
+        visibleTitle: remote.title,
+        visibleContent: 'Another author changed this content',
+        writes: [
+          {
+            title: remote.title,
+            blocks: remote.blocks,
+            summary: 'My description after the confirmed refresh',
+            expectedRevision: 12,
+          },
+        ],
+        saved: {
+          title: remote.title,
+          blocks: remote.blocks,
+          summary: 'My description after the confirmed refresh',
+        },
+      });
+      expect(container.textContent).toContain('Урок сохранён.');
+
+      await typeSummary('My later unsaved description');
+      state.remoteEdit({
+        title: 'A subsequent competing title',
+        blocks: [{ id: 'text-1', type: 'paragraph', text: 'A subsequent competing content' }],
+      });
+      const laterRemote = state.lesson();
+      await submitLesson();
+      expect(state.save).toHaveBeenLastCalledWith(
+        'course-1',
+        'lesson-1',
+        expect.objectContaining({
+          title: remote.title,
+          blocks: remote.blocks,
+          summary: 'My later unsaved description',
+          expectedRevision: 13,
+        }),
+      );
+      expect(state.lesson()).toEqual(laterRemote);
+      expect(container.textContent).toContain('The course changed in another window');
+      expect(lessonField('Что будет в уроке').value).toBe('My later unsaved description');
+      expect(titleInput().value).toBe(remote.title);
+      expect(lessonField('Текст блока').value).toBe('Another author changed this content');
+    },
+  );
 
   it('keeps the server conflict check for a remote edit after the confirmed refresh', async () => {
     const state = await setup();
