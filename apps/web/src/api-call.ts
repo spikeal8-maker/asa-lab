@@ -5,6 +5,7 @@ import {
   beginPortalMutation,
   portalMutationCompleted,
   portalRead,
+  portalSessionBinding,
   retryAfterMilliseconds,
   schedulePortalJson,
 } from './portal-requests';
@@ -42,6 +43,7 @@ export async function call<T>(path: string, init: SessionRequestInit = {}): Prom
         ...request,
         headers: Object.fromEntries(headers.entries()),
       };
+      const binding = portalSessionBinding();
       const finishMutation = beginPortalMutation(path, prepared);
       try {
         const result = await portalRead(path, prepared, (shared) =>
@@ -72,7 +74,8 @@ export async function call<T>(path: string, init: SessionRequestInit = {}): Prom
             };
           }),
         );
-        if (result.ok) portalMutationCompleted(path, prepared);
+        if (result.ok && binding === portalSessionBinding())
+          portalMutationCompleted(path, prepared);
         return result;
       } finally {
         finishMutation();
