@@ -29,6 +29,7 @@ import {
   nextLearningAction,
   readPersonalProgress,
   usePersonalProgress,
+  usePersonalRead,
   useProgressLifetime,
   useNextLearningAction,
   useDirectQuizAction,
@@ -282,6 +283,102 @@ describe('Shared shell and page reads', () => {
         .filter((path) => /\/(?:progress\/summary|account\/avatar)$/.test(path));
     return { transport, personalStarts };
   }
+
+  const readMutationAssignments = (signal: AbortSignal) => api.attendedAssignments(signal);
+  const readMutationCourses = () => api.accountCourseRuns();
+  const readMutationResults = () => api.accountResults();
+  function SessionLearningReads() {
+    const lifetime = useProgressLifetime(account);
+    const assignments = usePersonalRead(lifetime, readMutationAssignments);
+    const courses = usePersonalRead(lifetime, readMutationCourses);
+    const results = usePersonalRead(lifetime, readMutationResults);
+    return createElement(
+      'output',
+      { 'data-testid': 'session-learning-reads' },
+      JSON.stringify([assignments.data?.items, courses.data?.items, results.data?.items]),
+    );
+  }
+
+  it.each([201, 500])(
+    'holds shared and generic personal reads until self-attest settles with HTTP %i',
+    async (status) => {
+      const { transport } = realSessionReads();
+      const read = transport.getMockImplementation()!;
+      const response = deferred<Response>();
+      const paths = [
+        '/api/progress/summary',
+        '/api/account/avatar',
+        '/api/class-join/account/assignments',
+        '/api/class-join/account/course-runs',
+        '/api/class-join/account/results',
+      ];
+      let settled = false;
+      transport.mockImplementation((url, init) => {
+        const path = String(url);
+        if (path === '/api/capabilities/content-author/self-attest') return response.promise;
+        if (paths.slice(2).includes(path))
+          return Promise.resolve(Response.json({ items: [settled ? 'confirmed' : 'initial'] }));
+        if (path === '/api/progress/summary' && settled) {
+          const data = summary();
+          return Promise.resolve(
+            Response.json({
+              ...data,
+              metrics: { ...data.metrics, currentLikes: { availability: 'available', value: 85 } },
+            }),
+          );
+        }
+        return read(url, init);
+      });
+      const counts = () =>
+        paths.map((path) => transport.mock.calls.filter(([url]) => String(url) === path).length);
+      const content = () =>
+        host.querySelector('[data-testid="session-learning-reads"]')?.textContent;
+      await act(async () =>
+        root.render(
+          createElement(
+            'div',
+            null,
+            createElement(SharedConsumers),
+            createElement(SessionLearningReads),
+          ),
+        ),
+      );
+      expect(counts()).toEqual([1, 1, 1, 1, 1]);
+      expect(content()).toBe('[["initial"],["initial"],["initial"]]');
+      let mutation!: ReturnType<typeof api.selfAttestContentAuthor>;
+      try {
+        await act(async () => {
+          mutation = api.selfAttestContentAuthor();
+        });
+        expect(counts()).toEqual([1, 1, 1, 1, 1]);
+        expect(currentProgress.summary.data).toBeNull();
+        expect(content()).toBe('[null,null,null]');
+        await act(async () => {
+          settled = true;
+          response.resolve(
+            Response.json(
+              status === 201
+                ? { capability: 'content_author', state: 'provisional', created: true }
+                : { error: { code: 'server_error', message: 'Offline' } },
+              { status },
+            ),
+          );
+          expect((await mutation).ok).toBe(status === 201);
+        });
+        expect(counts()).toEqual([2, 2, 2, 2, 2]);
+        expect(allLikeValues()).toEqual(['85', '85']);
+        expect(content()).toBe('[["confirmed"],["confirmed"],["confirmed"]]');
+        expect(
+          transport.mock.calls.filter(
+            ([url]) => String(url) === '/api/capabilities/content-author/self-attest',
+          ),
+        ).toHaveLength(1);
+      } finally {
+        response.resolve(Response.json({}, { status: 500 }));
+        if (mutation) await act(async () => void (await mutation));
+      }
+    },
+  );
 
   it.each([account, seat])(
     'admits no personal reads across the pending and completed $kind logout boundary',

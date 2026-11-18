@@ -39,7 +39,7 @@ let sessionBinding = { holds: 0 };
 export const portalSessionBinding = (): object => sessionBinding;
 export const personalReadsPaused = (): boolean => sessionBinding.holds > 0;
 
-/** A logout spans transport settlement and the caller's session notification. */
+/** Session mutations may also hold admission through their caller's notification. */
 export function pausePersonalReads() {
   const binding = sessionBinding;
   const current = () => binding === sessionBinding;
@@ -238,13 +238,9 @@ function changesSession(path: string): boolean {
 /** Invalidate synchronously on both sides of a write; never coalesce a mutation. */
 export function beginPortalMutation(path: string, init: RequestInit): () => void {
   if (['GET', 'HEAD'].includes(methodOf(init)) || isTelemetryPath(path)) return () => undefined;
-  const session = changesSession(path);
-  const binding = sessionBinding;
-  const invalidate = session ? invalidatePortalSession : invalidatePortalReads;
-  invalidate();
-  return () => {
-    if (!session || binding === sessionBinding) invalidate();
-  };
+  if (changesSession(path)) return pausePersonalReads().resume;
+  invalidatePortalReads();
+  return invalidatePortalReads;
 }
 
 const mutationListeners = new Set<(path: string) => void>();
