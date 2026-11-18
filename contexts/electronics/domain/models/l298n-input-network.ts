@@ -5,6 +5,7 @@ import { arduinoRuntimeStateMatchesProgram } from '../arduino-program-runtime.js
 import { terminalKey } from '../netlist.js';
 import { switchContactClosed, switchSelectedTerminal } from '../switch-topology.js';
 import { regulatedPowerSupplySettings } from './regulated-power-supply-model.js';
+import { signalGeneratorSettings } from './signal-generator-model.js';
 import {
   L298N_BOARD_PROFILE,
   l298nConfiguration,
@@ -156,6 +157,11 @@ export function createL298nInputDriveResolver(context: DriveContext) {
   const network = passiveNetwork(context.document, context.nodeOf, context.failedComponentIds);
   for (const source of context.sources) {
     if (context.failedComponentIds.has(source.id)) continue;
+    if (
+      source.componentTypeId === 'signal-generator' &&
+      !signalGeneratorSettings(source).outputEnabled
+    )
+      continue;
     if (source.componentTypeId === 'regulated-power-supply') {
       const settings = regulatedPowerSupplySettings(source);
       if (!settings.outputEnabled || settings.currentLimitAmp <= 0) continue;
@@ -205,6 +211,8 @@ export function createL298nLogicSourceResolver(context: DriveContext) {
   };
   const sources = context.sources.filter((source) => {
     if (context.failedComponentIds.has(source.id)) return false;
+    if (source.componentTypeId === 'signal-generator')
+      return signalGeneratorSettings(source).outputEnabled;
     if (source.componentTypeId !== 'regulated-power-supply') return true;
     const settings = regulatedPowerSupplySettings(source);
     return settings.outputEnabled && settings.currentLimitAmp > 0;

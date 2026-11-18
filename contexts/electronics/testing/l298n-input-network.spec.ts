@@ -5,6 +5,9 @@ import type {
   SchematicConnection,
   Terminal,
 } from '../domain/document.js';
+import { parseElectronicsDocument } from '../domain/document.js';
+import { solveCircuit } from '../domain/solver.js';
+import { analyseCircuit } from '../domain/simulation.js';
 import {
   arduinoOutputBranchesFromSnapshot,
   arduinoSnapshotFromState,
@@ -614,4 +617,197 @@ describe('L298N temporary high-impedance bootstrap boundary', () => {
       ),
     ).toBe(false);
   });
+});
+
+describe('L298N signal-generator activity through document parsing and the real solver', () => {
+  function poweredCircuit(onboardLogic = false): ElectronicsDocument {
+    return {
+      schemaVersion: 4,
+      components: [
+        {
+          ...driver,
+          pinIds: [...L298N_TERMINALS],
+          stateProperties: {
+            enaJumperInstalled: true,
+            enbJumperInstalled: true,
+            regulatorJumperInstalled: onboardLogic,
+          },
+        },
+        base('motor-supply', 'source', 9),
+        ...(onboardLogic ? [] : [base('logic', 'source', 5)]),
+        base('load-a', 'resistor', 1_000),
+        base('load-b', 'resistor', 2_000),
+      ],
+      connections: [
+        wire('motor-positive', 'motor-supply', 'a', 'driver', '+12V'),
+        wire('motor-ground', 'motor-supply', 'b', 'driver', 'GND'),
+        ...(onboardLogic
+          ? [wire('in1-low', 'driver', 'IN1', 'driver', 'GND')]
+          : [
+              wire('logic-positive', 'logic', 'a', 'driver', '+5V'),
+              wire('logic-ground', 'logic', 'b', 'driver', 'GND'),
+            ]),
+        wire('in2-high', 'driver', 'IN2', 'driver', '+5V'),
+        wire('in3-high', 'driver', 'IN3', 'driver', '+5V'),
+        wire('in4-low', 'driver', 'IN4', 'driver', 'GND'),
+        wire('out-a1', 'driver', 'OUT1', 'load-a', 'a'),
+        wire('out-a2', 'driver', 'OUT2', 'load-a', 'b'),
+        wire('out-b1', 'driver', 'OUT3', 'load-b', 'a'),
+        wire('out-b2', 'driver', 'OUT4', 'load-b', 'b'),
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    };
+  }
+
+  function withGenerator(
+    document: ElectronicsDocument,
+    terminal: 'IN1' | '+5V',
+    settings: { readonly outputEnabled?: boolean; readonly state: boolean },
+    dcOffsetVolt = 5,
+  ): ElectronicsDocument {
+    return {
+      ...document,
+      components: [
+        ...document.components,
+        {
+          ...base('generator', 'visual', 1_000),
+          componentTypeId: 'signal-generator',
+          pinIds: ['signal', 'ground'],
+          state: settings.state,
+          stateProperties: {
+            ...(settings.outputEnabled === undefined
+              ? {}
+              : { outputEnabled: settings.outputEnabled }),
+            waveform: 'square',
+            frequencyHz: 1_000,
+            amplitudeVpp: 0,
+            dcOffsetVolt,
+            outputResistanceOhm: 50,
+            maxContinuousCurrentAmp: 0.1,
+          },
+        },
+      ],
+      connections: [
+        ...document.connections,
+        wire('generator-signal', 'generator', 'signal', 'driver', terminal),
+        wire('generator-ground', 'generator', 'ground', 'driver', 'GND'),
+      ],
+    };
+  }
+
+  function evaluate(document: ElectronicsDocument) {
+    const parsed = parseElectronicsDocument(JSON.parse(JSON.stringify(document)));
+    expect(parsed.ok, JSON.stringify(parsed)).toBe(true);
+    if (!parsed.ok) throw new Error(parsed.message);
+    return { raw: solveCircuit(parsed.document), audited: analyseCircuit(parsed.document) };
+  }
+
+  function expectUnsupported(document: ElectronicsDocument) {
+    const { raw, audited } = evaluate(document);
+    expect(raw.status, JSON.stringify(raw.diagnostics)).toBe('unsupported');
+    expect(audited.status, JSON.stringify(audited.diagnostics)).toBe('invalid');
+    expect(audited.quality.passed).toBe(false);
+    for (const result of [raw, audited]) {
+      expect(result.components).toEqual([]);
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: 'unsupported_topology',
+          componentIds: ['driver'],
+        }),
+      );
+    }
+  }
+
+  function expectSolved(document: ElectronicsDocument) {
+    const { raw, audited } = evaluate(document);
+    expect(raw.status, JSON.stringify(raw.diagnostics)).toBe('solved');
+    expect(audited.status, JSON.stringify(audited.diagnostics)).toBe('solved');
+    expect(audited.quality.finite).toBe(true);
+    expect(audited.quality.passed).toBe(true);
+    expect(raw.numericalResidual).toBeLessThanOrEqual(raw.numericalTolerance);
+    return raw;
+  }
+
+  const disabledSettings = [
+    { name: 'explicit OFF overriding state=true', outputEnabled: false, state: true },
+    { name: 'legacy state=false fallback', state: false },
+  ] as const;
+  const enabledSettings = [
+    { name: 'explicit ON overriding state=false', outputEnabled: true, state: false },
+    { name: 'legacy state=true fallback', state: true },
+  ] as const;
+
+  it('qualifies the floating-input and powered-regulator controls without a generator', () => {
+    expectUnsupported(poweredCircuit());
+    expectSolved(poweredCircuit(true));
+  });
+
+  it.each(disabledSettings)('keeps IN1 floating for $name', (settings) => {
+    // The OFF output has a real 1 TΩ impedance; its 0 V EMF is not a driven LOW.
+    expectUnsupported(withGenerator(poweredCircuit(), 'IN1', settings));
+  });
+
+  it.each(disabledSettings)('keeps the onboard regulator available for $name', (settings) => {
+    const baseline = expectSolved(poweredCircuit(true));
+    const result = expectSolved(withGenerator(poweredCircuit(true), '+5V', settings));
+    const baselineDriver = baseline.components.find(
+      (component) => component.componentId === 'driver',
+    )!;
+    const poweredDriver = result.components.find(
+      (component) => component.componentId === 'driver',
+    )!;
+    expect(poweredDriver.lit).toBe(true);
+    expect(poweredDriver.terminalVoltages['+5V']).toBeCloseTo(5, 2);
+    expect(poweredDriver.terminalVoltages['+5V']).toBeCloseTo(
+      baselineDriver.terminalVoltages['+5V'],
+      8,
+    );
+    expect(
+      result.components.find((component) => component.componentId === 'load-a')?.current,
+    ).toBeLessThan(0);
+    expect(
+      result.components.find((component) => component.componentId === 'load-b')?.current,
+    ).toBeGreaterThan(0);
+  });
+
+  it.each(enabledSettings)('recognizes an active 0 V output as LOW for $name', (settings) => {
+    const result = expectSolved(withGenerator(poweredCircuit(), 'IN1', settings, 0));
+    const poweredDriver = result.components.find(
+      (component) => component.componentId === 'driver',
+    )!;
+    expect(poweredDriver.terminalVoltages.IN1).toBeCloseTo(0, 8);
+    expect(
+      result.components.find((component) => component.componentId === 'load-a')?.current,
+    ).toBeCloseTo(-9 / (1_000 + 2.4), 7);
+  });
+
+  it.each(enabledSettings)('still rejects a parallel active +5 V source for $name', (settings) => {
+    expectUnsupported(withGenerator(poweredCircuit(true), '+5V', settings));
+  });
+
+  it.each(['GND', '+5V'] as const)(
+    'retains the independent %s pull resistor when the generator is OFF',
+    (reference) => {
+      const document = withGenerator(poweredCircuit(), 'IN1', disabledSettings[0]);
+      const result = expectSolved({
+        ...document,
+        components: [...document.components, base('pull', 'resistor', 10_000)],
+        connections: [
+          ...document.connections,
+          wire('input-pull', 'driver', 'IN1', 'pull', 'a'),
+          wire('pull-reference', 'pull', 'b', 'driver', reference),
+        ],
+      });
+      const poweredDriver = result.components.find(
+        (component) => component.componentId === 'driver',
+      )!;
+      expect(poweredDriver.terminalVoltages.IN1).toBeCloseTo(reference === 'GND' ? 0 : 5, 2);
+      const current = result.components.find(
+        (component) => component.componentId === 'load-a',
+      )!.current;
+      if (reference === 'GND') expect(current).toBeLessThan(0);
+      else expect(current).toBeCloseTo(0, 7);
+    },
+  );
 });
