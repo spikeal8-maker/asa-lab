@@ -81,13 +81,260 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-ultrasonic-u00
+    parent_lane: electronics
+    worktree_id: electronics-ultrasonic-u00-1240
+    owned_paths:
+      - docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+      - docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+      head_sha: null
+      observed_at: '2026-11-18T07:07:24Z'
+      main:
+        branch: main
+        sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+      observation_note: Dated GitHub observation after accepted specification PR1239 and registration
+        PR1251. This snapshot is historical, not a live HEAD or acceptance claim. Fresh fetch
+        main and inspect exact-source CI before execution or publication. Actual prerequisite
+        evidence is recorded separately in this task; no foreign lane or blocker is changed.
+    task:
+      id: TASK-ELECTRONICS-ULTRASONIC-U00-001
+      issue: 1240
+      programme_issue: 1238
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: design-decision
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: accepted_u00_electrical_decision_and_reproducible_schematics
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly directed completion of TASK-ELECTRONICS-ULTRASONIC-U00-001,
+        ordinary integration of existing PR1239 and PR1251, and a separate controller activation
+        followed by scoped execution. Authorization is limited to the two declared documentation
+        paths and external diagnostic harnesses. Product, deployment, working database changes
+        and automatic U01 selection are not authorized by U00.
+      activation_condition: Specification and registration are accepted on main with exact-source
+        required CI and independent review recorded below. This controller proposal selects U00
+        only after its own normal reviewed integration into canonical main. The executor must
+        inherit that accepted state, pass fresh child-lane preflight and selected-task validation,
+        and cannot modify current.yaml to authorize its own work.
+      selection_authority: Controller selects electronics-ultrasonic-u00 only. Root Electronics
+        R10, L298N, Robotics, all other tasks, blockers and the hygiene counter are preserved.
+        Prepared decision PR1256 is not automatically accepted by this transition. Executor stops
+        after U00; U01 requires a later separate controller decision.
+      preparation_boundary: The owner-authorized two-document preparation was published as PR1256
+        at d1b37a3239a9f3f1a97d56670adeb2e63c40fe52 and independently reviewed as a draft. Its
+        prior preparation checks do not replace the fresh selected-lane checks required after
+        this controller transition is accepted on main.
+      scope: 'Qualify the HC-SR04 and PING electrical output, supply/reference topology, canonical
+        timestamp ordering and compatibility decisions required before U01. Component IDs are
+        electronics.peripheral.ultrasonic and electronics.engine.solver. Production files: zero.
+        Write only the two declared documentation paths; runtime, solver, scheduler, generated
+        coverage and historical audit remain read-only.'
+      planned_paths:
+        - docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+        - docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ULTRASONIC-U00-001.md
+        - docs/product/electronics/START_HERE.md
+        - docs/product/electronics/components/arduino-peripherals.yaml
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        - docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+        - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
+        - docs/product/electronics/evidence/ultrasonic-audit-20261117.md
+      next_action: >-
+        STOP after U00. The documented electrical decision and reproducible schemes are technically
+        accepted only when this controller proposal is integrated after all conditions below are
+        verified. U01 is not selected and parent issue1238 remains open. A later separately authorized
+        controller decision must reconcile the existing U01 card with the PING LOW phases and
+        the U05A scope with the actual codegen repair before selecting those slices. Do not change
+        product code, reset hygiene, deploy or infer owner acceptance from this technical result.
+      verification_note: The U00 task card retains the exact uncached Vitest fixture command and
+        git diff check as mandatory verification. The gates map below lists only existing package.json
+        scripts as required by the control-plane schema.
+      activation_evidence:
+        observed_at: '2026-11-18T07:07:24Z'
+        observed_main_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+        specification:
+          pr: 1239
+          merged: true
+          source_sha: bf2c9c8d9482184eb8cd3b0e2ee35c4019221698
+          integrated_sha: b4e9fb9f07ee6a9db912820b341603eae0c69a08
+          required_conclusion: success
+          required_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/44247920069/job/134623863481
+          independent_review: approved
+          review_kind: independent_agent_exact_source_review
+          post_merge_required_conclusion: success
+          post_merge_required_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/44251938870/job/134638314187
+        registration:
+          pr: 1251
+          merged: true
+          source_sha: e2b530c43077653e5f9440f3bc69eb6acbb59c96
+          integrated_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+          required_conclusion: success
+          required_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/44252232662/job/134638026505
+          independent_review: approved
+          review_kind: independent_agent_exact_source_review
+          accepted_tree: d8605d098a8699ca4e81d418b1de8b67aed26718
+          source_and_integrated_tree_equal: true
+          post_merge_docs_validation:
+            source_sha: 694c30017d41980506bff3f0a3a9ac60151d10cc
+            command: corepack pnpm validate:electronics-agent-docs
+            exit_code: 0
+            result: 114/114 PASS; routing PASS
+        cleared_blockers:
+          - ELECTRONICS-ULTRASONIC-U00-PREREQUISITES
+          - ELECTRONICS-ULTRASONIC-U00-INTEGRATION-CI
+        prepared_decision:
+          pr: 1256
+          source_sha: d1b37a3239a9f3f1a97d56670adeb2e63c40fe52
+          independent_review: approved_prepared_documents_only
+          formal_u00_acceptance_at_activation: pending
+      acceptance_condition: >-
+        This is a proposed controller transition until accepted on canonical main. Merge this
+        proposal only after exact-source U00 required CI is SUCCESS, PR1256 is merged with the
+        recorded source SHA, applicable post-merge evidence is obtained, and the final independent
+        controller review verifies this proposal SHA and its own gates. The source CI observation
+        below is explicitly dated history; pending is never treated as success. Final real integration
+        and post-merge receipts are recorded in PR1256 and the acceptance PR before this transition
+        is integrated. A fresh main/diff check must preserve the accepted U00 documents and all
+        foreign state.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-ULTRASONIC-U00-001
+          - pnpm validate:electronics-agent-docs
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    accepted_slices:
+      - task_id: TASK-ELECTRONICS-ULTRASONIC-U00-001
+        issue: 1240
+        programme_issue: 1238
+        result_kind: documented_electrical_decision_and_reproducible_schemes
+        source_pr: 1256
+        accepted_source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+        product_files: 0
+        hygiene_counter_change: 0
+        activation_main_sha: 1fa42d81263357891e7473598f11f260cd1fb5af
+        independent_review:
+          source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+          verdict: approved
+          reviewer: u00_engineering_review
+          kind: independent_agent_exact_source_review
+          observed_at: '2026-11-18T08:01:46Z'
+          blocking_findings: 0
+          note: Technical agent review; not a GitHub user approval. Exact source, inherited activation,
+            two-document diff, engineering decisions and all eight completed formal checks reviewed.
+        formal_checks:
+          - id: preflight
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: corepack pnpm agent:preflight --scope electronics-ultrasonic-u00 --planned-path
+              docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md --planned-path docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+              --check
+            started_at: '2026-11-18T07:53:44.456159+00:00'
+            finished_at: '2026-11-18T07:54:01.677538+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/preflight.log
+          - id: selected_docs
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: corepack pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-ULTRASONIC-U00-001
+            started_at: '2026-11-18T07:54:01.707058+00:00'
+            finished_at: '2026-11-18T07:54:58.518250+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/selected_docs.log
+          - id: runtime
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run contexts/electronics/testing/hc-sr04-runtime.spec.ts
+              contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
+              --maxWorkers=1
+            started_at: '2026-11-18T07:54:58.576277+00:00'
+            finished_at: '2026-11-18T07:55:12.128570+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/runtime.log
+          - id: docs
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: corepack pnpm validate:electronics-agent-docs
+            started_at: '2026-11-18T07:55:12.152306+00:00'
+            finished_at: '2026-11-18T07:56:04.954787+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/docs.log
+          - id: governance
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: corepack pnpm gate:governance
+            started_at: '2026-11-18T07:56:04.981208+00:00'
+            finished_at: '2026-11-18T08:00:16.215364+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/governance.log
+          - id: diff
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: git diff --check
+            started_at: '2026-11-18T08:00:16.245405+00:00'
+            finished_at: '2026-11-18T08:00:16.252843+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/diff.log
+          - id: diff_commit
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: git diff --check 1fa42d81263357891e7473598f11f260cd1fb5af 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            started_at: '2026-11-18T08:00:16.280210+00:00'
+            finished_at: '2026-11-18T08:00:16.290428+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/diff_commit.log
+          - id: verify_plan
+            source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+            command: corepack pnpm agent:preflight --scope electronics-ultrasonic-u00 --verify-plan
+              --diff-base 1fa42d81263357891e7473598f11f260cd1fb5af --planned-path docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+              --planned-path docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+            started_at: '2026-11-18T08:00:16.316884+00:00'
+            finished_at: '2026-11-18T08:00:34.808611+00:00'
+            exit_code: 0
+            log: /workspace/scratch/1ffdca8fb2ca/u00-formal-final/verify_plan.log
+        source_ci_observation_at_proposal:
+          source_sha: 1fbfbefb452bc8a4baad44d9a20edfd20bf898c5
+          workflow_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/44262082435
+          status: in_progress
+          conclusion: null
+          observed_at: '2026-11-18T08:01:46Z'
+        integration_and_post_merge_receipt: https://github.com/spikeal8-maker/asa-lab/pull/1256
+        acceptance_rule: >-
+          This result record takes effect only with the accepted canonical-main copy of this controller
+          transition. All task.acceptance_condition prerequisites must be observed complete before
+          merge. It is not authorization for U01 and does not claim repaired ultrasonic product
+          behavior.
+        artifacts:
+          - path: docs/product/electronics/contracts/ULTRASONIC_EXECUTION_SPEC.md
+            git_blob: b2a4744bd6f63d89aa6626d991d66523593476cf
+            sha256: 768e33f4b74a19851f12104b3f482cdc971d39b73e11c0f014a0b2a7c015dfa7
+          - path: docs/product/electronics/evidence/ultrasonic-u00-electrical-decision.md
+            git_blob: 40e0503ab54056862feb4da80ad546b2ef0a2c6a
+            sha256: 9dc66739528adb2420352c7a4ca769db542b29a8bbaf2925301ed58d602b2125
   - id: electronics-l298n-p0
     parent_lane: electronics
     worktree_id: electronics-l298n-p0-1199
     owned_paths:
-      - apps/web/src/electronics/WorkbenchStage.tsx
-      - apps/web/src/electronics/testing/l298n-top-wires.spec.ts
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0B-001.md
+      - contexts/electronics/domain/model-identity.ts
+      - contexts/electronics/domain/model-registry.ts
+      - contexts/electronics/domain/models/l298n-dc-model.ts
+      - contexts/electronics/domain/models/l298n-input-network.ts
+      - contexts/electronics/domain/models/l298n-pwm-model.ts
+      - contexts/electronics/testing/l298n-input-network.spec.ts
+      - contexts/electronics/testing/l298n-clock-integration.spec.ts
+      - apps/web/src/electronics/testing/l298n-domain-worker.browser.mjs
+      - contexts/electronics/testing/l298n-dc-model.spec.ts
+      - contexts/electronics/testing/l298n-integrated-solver.spec.ts
+      - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+      - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
     accepted_slices:
       - task_id: TASK-ELECTRONICS-L298N-P0-001
         issue: 1199
@@ -96,46 +343,143 @@ parallel_lanes:
         source_status: merged
         owner_acceptance: pending
         post_merge_general_run: 43907204634
+      - task_id: TASK-ELECTRONICS-L298N-P0B-001
+        issue: 1199
+        candidate_sha: 0cd469a9530a94cca2e0434f1aa5ff277ba33356
+        integrated_main_sha: df78069c44271609615707b6e38767f276188c4b
+        source_status: merged_postmerge_general_success
+        owner_acceptance: pending
+        post_merge_general_run: 43928812420
+        post_merge_required_conclusion: success
+        strict_r4_run: 43922911118
+        strict_r4_conclusion: failure_existing_arduino_baseline_not_waived
     task:
-      id: TASK-ELECTRONICS-L298N-P0B-001
+      id: TASK-ELECTRONICS-L298N-P1-001
       issue: 1199
       programme_issue: 1199
       branch: main
       base_branch: main
       pr: null
-      pr_draft: false
+      pr_draft: true
       status: in_progress
       kind: implementation
-      risk: medium
-      semantic_change: 'no'
-      checkpoint: p0a_main_source_merged_p0b_wiring_selection_pending
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: p1_activation_requires_selection_and_shared_solver_handoff
       owner_acceptance: pending
       owner_authorization: >-
-        Owner explicitly directed continuation of the existing L298N programme
-        on 2026-11-16. The selected P0B slice is limited to the existing
-        WorkbenchStage top-wire change and dedicated geometry/hit-target tests;
-        no P1/P2/P3 domain, UI activation or deployment is authorized here.
+        Owner directed complete, quality-gated L298N implementation through
+        existing branches to main on 2026-11-16, without bypassing checks,
+        independent review, source restrictions or deployment rules.
+        P1 is the bounded domain-model step; P2 UI and P3 acceptance remain
+        separate steps, not authorized for simultaneous product edits.
+      activation_condition: >-
+        This proposed P1 selection becomes executable only after this
+        current.yaml change is integrated into accepted main, P0B exact
+        post-merge General run 43928812420 is verified SUCCESS, and
+        renewed P1 scoped preflight and physical worktree overlap checks
+        prove a safe one-task handoff. The preparation branch cannot select
+        itself or approve simultaneous solver writers.
       scope: >-
-        Resume existing Draft PR #1206 only after P0A main CI has been checked.
-        Render the L298N body below wires, preserve terminal hit targets above
-        wires, and verify rotations, mirrors and unaffected component layers.
-        This is a change of active task in the same unique #1199 lane, not a
-        duplicate parallel lane. The completed electronics-field #679 lane
-        hands off only WorkbenchStage.tsx ownership; its history is preserved.
+        Resume the existing stacked PR #1209 rather than writing a second
+        solver. Integrate two deterministic H-bridges into the established
+        electrical matrix, with correct power domains, 78M05 approximation,
+        genuine Arduino logic and fail-closed floating inputs, current
+        limits, signed motor observations, and regression proofs.
+      existing_candidate_pr: 1209
+      existing_candidate_head_at_selection: d1327be437f22114b0053a00a8e398d564ed7b15
+      planned_paths:
+        - contexts/electronics/domain/model-identity.ts
+        - contexts/electronics/domain/model-registry.ts
+        - contexts/electronics/domain/models/l298n-dc-model.ts
+        - contexts/electronics/domain/models/l298n-input-network.ts
+        - contexts/electronics/domain/models/l298n-pwm-model.ts
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/testing/l298n-input-network.spec.ts
+        - contexts/electronics/testing/l298n-clock-integration.spec.ts
+        - apps/web/src/electronics/testing/l298n-domain-worker.browser.mjs
+        - contexts/electronics/domain/solver.ts
+        - contexts/electronics/testing/l298n-dc-model.spec.ts
+        - contexts/electronics/testing/l298n-integrated-solver.spec.ts
+        - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+        - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
+        - docs/product/electronics/generated/component-coverage.json
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        approval_basis: >-
+          Owner explicitly directed safe completion of the existing L298N
+          programme on 2026-11-17, including exact coordination and preservation
+          of the P3 uncommitted source. This coordinates the two existing
+          overlapping P1 files at the exact recorded peer identity and SHA-256.
+          The separately planned l298n-input-network.ts path is the single
+          canonical P1 input resolver; the P3 untracked helper remains read-only.
+          This does not grant modification of P3, release, owner acceptance
+          or protected merge.
+        author:
+          worktree: C:/Users/spike/asa-l298n-p1-20261116
+          branch: feature/electronics-l298n-p1-domain-1199
+        peer:
+          worktree: C:/Users/spike/asa-l298n-p3-20261116
+          branch: feature/electronics-l298n-p3-qualification-1199
+          head: 6ae5b38c1c13b6eee40020c0bc67c14359dd1210
+          path_sha256:
+            contexts/electronics/domain/solver.ts: 0b93ddf846babcd896aa948f9ada1a093729880f5e0023b3f2deccd081d2023c
+            contexts/electronics/testing/l298n-integrated-solver.spec.ts: 42361a29af73ee2078f23157e122d2d311cbc5c35417c13978831667e86a37a1
+        paths:
+          - contexts/electronics/domain/solver.ts
+          - contexts/electronics/testing/l298n-integrated-solver.spec.ts
+        existing_owners:
+          - electronics-core-fet
+          - electronics-reverse-led-colour
+          - electronics-arduino
+          - electronics-classroom
+        historical_shared_path_advisory:
+          - docs/product/electronics/generated/component-coverage.json
+          - contexts/electronics/domain/arduino-circuit-scheduler.ts
+          - contexts/electronics/domain/simulation.ts
+        additional_dirty_peer: feature/electronics-l298n-p3-qualification-1199
+        unapproved_new_peer_path:
+          path: contexts/electronics/domain/models/l298n-driven-inputs.ts
+          sha256: 27cedf5e924ec1039fccc8d890844ff845b1885dd4442a1663bac7ad3b1ecc08
+          status: read_only_provenance_no_new_file_write
+        preservation: >-
+          The peer's four uncommitted files, including its browser fixture and
+          new high-Z helper, remain intact. Author may read them only.
+          No stash, reset, peer checkout modification, force push or automatic
+          cherry-pick. Revalidate peer HEAD/hash and physical isolation
+          before every P1 write; changed identity revokes this consent.
+        acceptance_boundary: >-
+          P1 must first converge non-destructively to accepted main, then
+          obtain scoped SAFE_TO_START for exact planned existing files.
+          Unknown/untracked helper cannot be created at the same repository
+          path under this consent. This approval is not merge evidence:
+          require numerical/golden regression, real Worker, independent
+          exact-SHA HIGH-RISK review and strict applicable GitHub checks.
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P0B-001.md
-        - docs/product/electronics/components/ui-assets-persistence.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md
       next_action: >-
-        Verify exact main post-merge General #43907204634 and P0B scoped
-        preflight, inspect the existing #1206 diff, run focused/source gates,
-        obtain required review and integrate only accepted P0B source.
-        P1/P2/P3 remain unselected Draft candidates.
+        After P0B post-merge SUCCESS and P1 task selection in main, validate
+        the two shared-path handoffs and no active dirty competing writer.
+        Then inspect/fix existing P1 domain source against the real
+        physical_advance_failed reproduction and high-Z negative cases,
+        independently review the final SHA and run scoped/General CI.
+        No P1 merge or P2/P3 activation before that evidence.
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Electronics R4-M1 Focused
         commands:
-          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-L298N-P0B-001
-          - pnpm gate:governance
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-L298N-P1-001
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -144,14 +488,15 @@ parallel_lanes:
       kind: observed_snapshot
       main:
         branch: main
-        sha: 8c23c86fb7df9ff0ddc5627ced2487c52f5a5346
-      convergence_baseline_sha: 8c23c86fb7df9ff0ddc5627ced2487c52f5a5346
+        sha: df78069c44271609615707b6e38767f276188c4b
+      convergence_baseline_sha: df78069c44271609615707b6e38767f276188c4b
       head_sha: null
-      observed_at: '2026-11-16T16:24:46Z'
+      observed_at: '2026-11-16T18:39:59Z'
       observation_note: >-
-        Owner-directed P0B continuation after source-only P0A merge.
-        Require fresh fetch main, verify exact main CI, single-lane scope
-        and active-peer worktrees before product writes or any acceptance.
+        Proposed P1 task handoff after source-only P0B merge; exact P0B
+        post-merge General 43928812420/ASA required SUCCESS. Full P1 runtime/owner acceptance
+        remains pending; require fresh fetch main and exact remote heads,
+        checked CI conclusions and peer worktree status before any writes.
   - id: electronics-recovery-hygiene
     parent_lane: electronics
     worktree_id: electronics-recovery-hygiene-1111
@@ -16842,11 +17187,11 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: ready
+      status: in_progress
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: block_only_input_settings_selected_after_1163
+      checkpoint: existing_pr_qualification_and_browser_artifact_repair
       owner_acceptance: pending
       owner_authorization: >-
         Owner explicitly requests the full multi-slice
@@ -16869,10 +17214,12 @@ parallel_lanes:
       deployment: prohibited_by_owner
       database_actions: none_live
       next_action: >-
-        After this governance registration is accepted in main, run fresh
-        scoped preflight for two implementation files, use one bounded author,
-        native browser/focused tests and independent exact-SHA review before
-        ordinary protected GitHub PR merge.
+        Continue existing QA PR1235 and product PR1232 after accepted security
+        PR1237. Preserve the three approved implementation files and original
+        product history. Repair file-backed browser attachments in the existing
+        E2E file, then inspect the actual four-viewport archive. Require fresh
+        scoped preflight, exact-source preservation and applicable gates,
+        independent review, protected merges and post-merge verification.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
