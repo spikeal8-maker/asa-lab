@@ -43,6 +43,10 @@ import './courses-panel.css';
 type MutationResult = Promise<{ ok: boolean; error?: { message: string } }>;
 
 type VisibilityWriteState = 'pending' | 'unconfirmed' | null;
+interface PublicationRefresh {
+  expectedRevision: number;
+  sections: string;
+}
 const unconfirmedVisibilityMessage =
   'Не удалось подтвердить изменение видимости. Несохранённые правки остались в форме. Для продолжения откройте «Задания», подтвердите отмену правок и снова откройте курс.';
 
@@ -830,6 +834,8 @@ function CourseEditor({
   const [draftRevision, setDraftRevision] = useState(course.draftRevision);
   const draftRevisionRef = useRef(course.draftRevision);
   const revisionRefreshRef = useRef<Promise<boolean> | null>(null);
+  const publicationRefreshRef = useRef<PublicationRefresh | null>(null);
+  const [publicationRefreshRequired, setPublicationRefreshRequired] = useState(false);
   const visibilityWriteRef = useRef<VisibilityWriteState>(null);
   const [visibilityWrite, setVisibilityWrite] = useState<VisibilityWriteState>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
@@ -1008,9 +1014,16 @@ function CourseEditor({
     value: CourseAssignAttempt;
   } | null>(null);
   const [assignBusy, setAssignBusy] = useState(false);
-  const hasWork =
-    localDirty || sectionWork || writing || previewBusy || restoreBusy || visibilityWrite !== null;
   const [publishing, setPublishing] = useState(false);
+  const hasWork =
+    localDirty ||
+    sectionWork ||
+    writing ||
+    previewBusy ||
+    restoreBusy ||
+    publishing ||
+    publicationRefreshRequired ||
+    visibilityWrite !== null;
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [publicationProblem, setPublicationProblem] =
@@ -1024,7 +1037,9 @@ function CourseEditor({
         : null;
   const lessonSaveBlock = unavailableMessage
     ? 'Курс недоступен. Сохранение урока остановлено.'
-    : visibilitySaveBlock;
+    : publishing || publicationRefreshRequired
+      ? 'Дождитесь подтверждения редакции после публикации. При ошибке повторите обновление.'
+      : visibilitySaveBlock;
   useEffect(() => {
     // Read the refs as well: an older effect must not clear work reported
     // synchronously by input or by a just-started visibility command.
@@ -1090,13 +1105,35 @@ function CourseEditor({
   }, [hasWork, publishing, assignBusy, assignVersion]);
 
   const loadOutline = useCallback(
-    async (force = false) => {
+    async (force = false, publicationRefresh?: PublicationRefresh) => {
       if (unavailableMessage) return false;
       if (visibilityWriteRef.current) return false;
+      if (publicationRefreshRef.current && publicationRefreshRef.current !== publicationRefresh)
+        return false;
       if (localDirtyRef.current && !force) return false;
       const generation = editGeneration.current;
       const result = await api.courseOutline(course.id);
       if (visibilityWriteRef.current) return false;
+      if (publicationRefreshRef.current && publicationRefreshRef.current !== publicationRefresh)
+        return false;
+      if (publicationRefresh && result.ok && localDirtyRef.current) {
+        // Publication changes no lesson content and advances the course at most
+        // once (an idempotent replay may leave its revision unchanged). Accept
+        // only the server's observed revision for that same saved outline;
+        // never rebase later typing onto a concurrent author's changed draft.
+        if (
+          !Number.isSafeInteger(result.data.draftRevision) ||
+          result.data.draftRevision < publicationRefresh.expectedRevision ||
+          result.data.draftRevision > publicationRefresh.expectedRevision + 1 ||
+          JSON.stringify(result.data.sections) !== publicationRefresh.sections
+        ) {
+          setError('Курс изменён в другом окне. Локальные правки сохранены в форме.');
+          return false;
+        }
+        draftRevisionRef.current = result.data.draftRevision;
+        setDraftRevision(result.data.draftRevision);
+        return true;
+      }
       // A request started before a local edit must not replace the save
       // receipt's revision or report a stale fetch error. A newer remote
       // revision is still worth reporting while that edit remains unsaved.
@@ -1175,6 +1212,10 @@ function CourseEditor({
       );
       return;
     }
+    if (publicationRefreshRef.current) {
+      setError('Сначала подтвердите редакцию после публикации: повторите обновление.');
+      return;
+    }
     if (localDirtyRef.current || sectionWork || writing || publishing || assignBusy) {
       setNotice(null);
       setError('Сначала сохраните изменения урока. Переход не выполнен, данные не потеряны.');
@@ -1196,6 +1237,10 @@ function CourseEditor({
           ? unconfirmedVisibilityMessage
           : 'Дождитесь подтверждения изменения видимости.',
       );
+      return false;
+    }
+    if (publicationRefreshRef.current) {
+      setError('Сначала подтвердите редакцию после публикации: повторите обновление.');
       return false;
     }
     if (localDirtyRef.current || writing || publishing || assignBusy) {
@@ -1295,6 +1340,10 @@ function CourseEditor({
   }
 
   async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
+    if (publishing || publicationRefreshRef.current) {
+      setError('Сначала подтвердите редакцию после публикации: повторите обновление.');
+      return;
+    }
     if (unavailableMessage) {
       setNotice(null);
       setError(unavailableMessage);
@@ -1384,6 +1433,37 @@ function CourseEditor({
 
   const lessonCount = (sections ?? []).reduce((sum, section) => sum + section.lessons.length, 0);
 
+  async function refreshPublication(): Promise<void> {
+    const pending = publicationRefreshRef.current;
+    if (!pending) return;
+    try {
+      if (await loadOutline(true, pending)) {
+        publicationRefreshRef.current = null;
+        setPublicationRefreshRequired(false);
+        setError(null);
+      } else {
+        setError(
+          (current) =>
+            current ?? 'Не удалось обновить содержание после публикации. Повторите обновление.',
+        );
+      }
+    } catch {
+      setError('Не удалось обновить содержание после публикации. Повторите обновление.');
+    }
+  }
+
+  async function retryPublicationRefresh(): Promise<void> {
+    if (publishing || !publicationRefreshRef.current) return;
+    setPublishing(true);
+    setError(null);
+    try {
+      await refreshPublication();
+      onChanged();
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   async function publishCourse(): Promise<void> {
     if (unavailableMessage) {
       setNotice(null);
@@ -1395,6 +1475,7 @@ function CourseEditor({
       localDirtyRef.current ||
       sectionWork ||
       writing ||
+      publicationRefreshRef.current ||
       visibilityWriteRef.current ||
       lessonCount === 0
     )
@@ -1404,32 +1485,44 @@ function CourseEditor({
       return;
     }
     setPublishing(true);
+    onEditorWorkChange(true);
     setPublicationProblem(null);
-    const result = await api.publishCourse(
-      course.id,
-      draftRevision,
-      `course-publish:${course.id}:${draftRevision}`,
-    );
-    setPublishing(false);
-    if (!result.ok) {
-      setNotice(null);
-      setError(result.error.message);
-      setPublicationProblem(coursePrepublicationDiagnostic(result.error, course.id, draftRevision));
-      return;
+    const expectedRevision = draftRevisionRef.current;
+    try {
+      const result = await api.publishCourse(
+        course.id,
+        expectedRevision,
+        `course-publish:${course.id}:${expectedRevision}`,
+      );
+      if (!result.ok) {
+        setNotice(null);
+        setError(result.error.message);
+        setPublicationProblem(
+          coursePrepublicationDiagnostic(result.error, course.id, expectedRevision),
+        );
+        return;
+      }
+      publicationReceipt.current = {
+        id: result.data.versionId,
+        versionNumber: result.data.versionNumber,
+      };
+      publicationRefreshRef.current = {
+        expectedRevision,
+        sections: JSON.stringify(sections),
+      };
+      setPublicationRefreshRequired(true);
+      setPublishedPreview(null);
+      setError(null);
+      setNotice(
+        result.data.reused
+          ? `Публикация подтверждена: версия ${result.data.versionNumber}.`
+          : `Курс опубликован: версия ${result.data.versionNumber}.`,
+      );
+      await refreshPublication();
+      onChanged();
+    } finally {
+      setPublishing(false);
     }
-    publicationReceipt.current = {
-      id: result.data.versionId,
-      versionNumber: result.data.versionNumber,
-    };
-    setPublishedPreview(null);
-    setError(null);
-    setNotice(
-      result.data.reused
-        ? `Публикация подтверждена: версия ${result.data.versionNumber}.`
-        : `Курс опубликован: версия ${result.data.versionNumber}.`,
-    );
-    await loadOutline();
-    onChanged();
   }
 
   function correctPublicationProblem(): void {
@@ -1697,6 +1790,16 @@ function CourseEditor({
           {unavailableMessage || error ? (
             <p className="form-error course-inline-notice" role="alert">
               {unavailableMessage ?? error}
+              {!unavailableMessage && publicationRefreshRequired ? (
+                <button
+                  type="button"
+                  className="btn-secondary course-correction-button"
+                  disabled={publishing}
+                  onClick={() => void retryPublicationRefresh()}
+                >
+                  Повторить обновление
+                </button>
+              ) : null}
               {!unavailableMessage && publicationProblem?.lessonId ? (
                 <button
                   type="button"
@@ -1737,6 +1840,8 @@ function CourseEditor({
               rootId={course.id}
               revision={draftRevision}
               dirty={
+                publishing ||
+                publicationRefreshRequired ||
                 localDirty ||
                 sectionForm !== null ||
                 newLessonSectionId !== null ||
@@ -2178,6 +2283,7 @@ function CourseEditor({
                 localDirtyRef.current ||
                 writing ||
                 publishing ||
+                publicationRefreshRef.current ||
                 assignBusy ||
                 revisionRefreshRef.current ||
                 target.draftRevision === null

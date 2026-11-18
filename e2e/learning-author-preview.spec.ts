@@ -505,16 +505,86 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   ).toBeDisabled();
   await expect(editor.getByRole('button', { name: 'Опубликовать v2', exact: true })).toBeDisabled();
   await addCourseBlock(page, 'Текст');
+  const publicationHandoff = {
+    expectedRevision: null as number | null,
+    outlineRevision: null as number | null,
+    restoreRevisions: [] as number[],
+    recoveryRevision: null as number | null,
+    savedRevision: null as number | null,
+    refreshFailure: 'controlled HTTP 503 after a real successful publish',
+  };
+  let releaseThirdOutline!: () => void;
+  const thirdOutlineHeld = new Promise<void>((resolve) => {
+    releaseThirdOutline = resolve;
+  });
+  let startedThirdOutline!: () => void;
+  const thirdOutlineStarted = new Promise<void>((resolve) => {
+    startedThirdOutline = resolve;
+  });
+  let holdThirdOutline = false;
+  const holdThirdPublication = async (route: Route) => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    const receipt = await response.json();
+    if (receipt.versionNumber === 3) {
+      publicationHandoff.expectedRevision = route.request().postDataJSON().expectedRevision;
+      holdThirdOutline = true;
+    }
+    await route.fulfill({ response });
+  };
+  const holdPublishedOutline = async (route: Route) => {
+    if (!holdThirdOutline) return route.continue();
+    holdThirdOutline = false;
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    publicationHandoff.outlineRevision = (await response.json()).draftRevision;
+    startedThirdOutline();
+    await thirdOutlineHeld;
+    await route.fulfill({ response });
+  };
+  await page.route('**/courses/*/publish', holdThirdPublication);
+  await page.route('**/courses/*/outline', holdPublishedOutline);
+  page.on('request', (request) => {
+    if (
+      publicationHandoff.expectedRevision !== null &&
+      request.method() === 'POST' &&
+      /\/api\/courses\/[^/]+\/versions\/[^/]+\/draft$/.test(new URL(request.url()).pathname)
+    )
+      publicationHandoff.restoreRevisions.push(request.postDataJSON().expectedRevision);
+  });
   for (const n of [2, 3]) {
     await editor.getByLabel('Название урока').fill('Lesson V' + n);
     await editor.getByLabel('Текст блока', { exact: true }).fill('Lesson content V' + n);
     await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
     await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
+    if (n === 3) {
+      await openCourseHistory(page);
+      await history
+        .getByLabel('Опубликованная версия', { exact: true })
+        .selectOption({ label: 'Версия 1' });
+    }
     await editor.getByRole('button', { name: 'Опубликовать v' + n, exact: true }).click();
     await expect(
       page.getByText('Курс опубликован: версия ' + n + '.', { exact: true }),
     ).toBeVisible();
+    if (n === 3) {
+      try {
+        await thirdOutlineStarted;
+        expect(publicationHandoff.outlineRevision).toBe(publicationHandoff.expectedRevision! + 1);
+        await expect(
+          history.getByRole('button', { name: 'Создать черновик из этой версии' }),
+        ).toBeDisabled();
+        expect(publicationHandoff.restoreRevisions).toEqual([]);
+      } finally {
+        releaseThirdOutline();
+      }
+      await expect(editor.getByTestId('course-save-state')).toContainText(
+        'редакция ' + publicationHandoff.outlineRevision,
+      );
+    }
   }
+  await page.unroute('**/courses/*/publish', holdThirdPublication);
+  await page.unroute('**/courses/*/outline', holdPublishedOutline);
   await openCourseHistory(page);
   history = editor.getByTestId('author-version-history');
   await history
@@ -523,6 +593,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await expect(history.getByRole('heading', { name: 'Lesson V1', exact: true })).toBeVisible();
   await history.getByRole('button', { name: 'Создать черновик из этой версии' }).click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Lesson V1');
+  expect(publicationHandoff.restoreRevisions).toEqual([publicationHandoff.outlineRevision]);
   await expect(editor.getByLabel('Текст блока', { exact: true })).toHaveValue(
     'Exact historical lesson V1',
   );
@@ -549,19 +620,69 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   page.on('response', (response) => {
     if (response.url().endsWith('/publish')) publicationFinished = true;
   });
-  await page.route('**/courses/*/outline', async (route) => {
+  let failedOutline = false;
+  const failPublishedOutline = async (route: Route) => {
     if (!publicationFinished) return route.continue();
+    if (failedOutline) return route.continue();
+    failedOutline = true;
     const response = await route.fetch();
+    expect(response.ok()).toBe(true);
     startedOutline();
     await delayedOutline;
-    await route.fulfill({ response });
-  });
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'unavailable', message: 'Контролируемый отказ обновления содержания' },
+      }),
+    });
+  };
+  await page.route('**/courses/*/outline', failPublishedOutline);
   await editor.getByRole('button', { name: 'Опубликовать v5', exact: true }).click();
   await outlineStarted;
   await editor.getByLabel('Название урока').fill('Unsaved input during outline refresh');
+  await openCourseHistory(page);
+  await history
+    .getByLabel('Опубликованная версия', { exact: true })
+    .selectOption({ label: 'Версия 4' });
+  const checkRefreshLayout = async (phase: 'pending' | 'failed') => {
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(editor.getByLabel('Название урока')).toHaveValue(
+        'Unsaved input during outline refresh',
+      );
+      await expect(
+        editor.getByRole('button', { name: 'Сохранить урок', exact: true }),
+      ).toBeDisabled();
+      await expect(
+        history.getByRole('button', { name: 'Создать черновик из этой версии' }),
+      ).toBeDisabled();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      if (phase === 'failed')
+        await editor.getByRole('button', { name: 'Повторить обновление' }).click({ trial: true });
+      if (width === 1440 || width === 390)
+        await editor.screenshot({
+          path: `e2e/artifacts/learning/version-draft/refresh-${phase}-${width}.png`,
+        });
+    }
+  };
+  await checkRefreshLayout('pending');
   releaseOutline();
 
   await expect(page.getByText('Публикация подтверждена: версия 4.', { exact: true })).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Повторить обновление' })).toBeVisible();
+  await checkRefreshLayout('failed');
+  const recoveredOutline = page.waitForResponse((response) =>
+    /\/api\/courses\/[^/]+\/outline$/.test(new URL(response.url()).pathname),
+  );
+  await editor.getByRole('button', { name: 'Повторить обновление' }).click();
+  const recovery = await recoveredOutline;
+  expect(recovery.ok()).toBe(true);
+  publicationHandoff.recoveryRevision = (await recovery.json()).draftRevision;
+  await expect(editor.getByRole('button', { name: 'Повторить обновление' })).toHaveCount(0);
+  await page.unroute('**/courses/*/outline', failPublishedOutline);
   await expect(editor.getByRole('button', { name: /^Опубликовать/ })).toHaveCount(0);
   await expect(editor.getByLabel('Название урока')).toHaveValue(
     'Unsaved input during outline refresh',
@@ -575,6 +696,24 @@ test('draft from historical Course and Activity versions uses the author UI, pro
     history.getByRole('button', { name: 'Создать черновик из этой версии' }),
   ).toBeDisabled();
   await editor.screenshot({ path: 'e2e/artifacts/learning/version-draft/published-v4.png' });
+  const savedAfterRecovery = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      /\/api\/courses\/[^/]+\/lessons\/[^/]+$/.test(new URL(response.url()).pathname),
+  );
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  const saved = await savedAfterRecovery;
+  expect(saved.ok()).toBe(true);
+  publicationHandoff.savedRevision = saved.request().postDataJSON().expectedRevision;
+  expect(publicationHandoff.savedRevision).toBe(publicationHandoff.recoveryRevision);
+  await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
+  await expect(editor.getByLabel('Название урока')).toHaveValue(
+    'Unsaved input during outline refresh',
+  );
+  writeFileSync(
+    'e2e/artifacts/learning/version-draft/publication-revision-handoff.json',
+    JSON.stringify(publicationHandoff, null, 2),
+  );
 });
 
 function solidPng(red: number, green: number, blue: number, width = 3, height = 3): Buffer {
