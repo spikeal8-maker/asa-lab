@@ -17052,11 +17052,11 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: ready
+      status: in_progress
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: block_only_input_settings_selected_after_1163
+      checkpoint: existing_pr_qualification_and_browser_artifact_repair
       owner_acceptance: pending
       owner_authorization: >-
         Owner explicitly requests the full multi-slice
@@ -17079,10 +17079,12 @@ parallel_lanes:
       deployment: prohibited_by_owner
       database_actions: none_live
       next_action: >-
-        After this governance registration is accepted in main, run fresh
-        scoped preflight for two implementation files, use one bounded author,
-        native browser/focused tests and independent exact-SHA review before
-        ordinary protected GitHub PR merge.
+        Continue existing QA PR1235 and product PR1232 after accepted security
+        PR1237. Preserve the three approved implementation files and original
+        product history. Repair file-backed browser attachments in the existing
+        E2E file, then inspect the actual four-viewport archive. Require fresh
+        scoped preflight, exact-source preservation and applicable gates,
+        independent review, protected merges and post-merge verification.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
