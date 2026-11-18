@@ -10,6 +10,9 @@ import {
   isolatedDatabase,
   startPostgresMonitor,
   probeLearnerOrigins,
+  preparePlannerStatistics,
+  statisticsSnapshot,
+  readBrowserIdentities,
 } from './learning-1252-pg-probe.mjs';
 
 const source = path.resolve(process.env.SOURCE_ROOT ?? '.');
@@ -38,8 +41,27 @@ const receipt = {
   variant,
   sourceSha: sha,
   fixture: 'Same prepared PostgreSQL database template for both variants',
+  fixtureSource: {
+    run: 44249101088,
+    artifact: 14403373712,
+    dumpSha256: '980b742a547fff40f485b5ae49effb5fe0cd2dbea7ae92ec4851669e1a933360',
+  },
   hypothesis:
-    'Learner-origin SQL holds connections until 15s; 5s acquisition failure prevents self-attest/preferences. Compare frontend amplification separately.',
+    'Planner statistics after original preparation change learner-origin plans/startup cost. Controlled ANALYZE tests this without changing SQL, timeouts or pool capacity.',
+  priorDiagnostic:
+    'Both 5ab and 4a completed all 13 scenarios with no HTTP500; 7252 nested plans had no JIT and on/off probes had matching payloads and timings.',
+  runtime: {
+    node: process.version,
+    runnerOS: process.env.RUNNER_OS,
+    runnerArch: process.env.RUNNER_ARCH,
+    imageOS: process.env.ImageOS,
+    imageVersion: process.env.ImageVersion,
+  },
+  originalRuntimeDifferences: [
+    'Original unit completion preceded browser by about 193s of Scratch/Minio preparation; this iteration replaces speculative wait with explicit isolated ANALYZE.',
+    'Scratch/Minio are not started for these two specs; this is a planner-statistics intervention, not a CPU-pressure reproduction.',
+    'pg_dump restores the exact fixture data, not historical pg_statistic. Before/after statistics snapshots explicitly record the tested states.',
+  ],
   originalRun: 44201046979,
   originalSha: 'd64a76664c3a5584d2f845b20ce675c39a555565',
   originalSpecOrder: specs,
@@ -58,6 +80,9 @@ for (const spec of specs)
 const writeReceipt = () =>
   fs.writeFileSync(path.join(directory, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n');
 writeReceipt();
+receipt.plannerIntervention = await preparePlannerStatistics(source, databaseUrl, directory);
+writeReceipt();
+const observedIdentities = new Map();
 
 async function stop(child) {
   if (child.exitCode !== null || child.signalCode !== null) return;
@@ -91,6 +116,7 @@ for (const [index, spec] of specs.entries()) {
     ASA_WEB_PORT: '4612',
     ASA_WEB_ORIGIN: 'http://127.0.0.1:4612',
     ASA_HTTP_LOG: '1',
+    ASA_BUILD_REVISION: sha,
     ASA_BLOCKS_RUNTIME_ORIGIN: 'http://127.0.0.1:4612',
     ASA_BLOCKS_UPSTREAM_ORIGIN: 'http://127.0.0.1:4613',
     ASA_APPLICATION_LOG_STORE: path.join(phaseDirectory, 'application'),
@@ -168,8 +194,20 @@ for (const [index, spec] of specs.entries()) {
       writeReceipt();
     }
   }
+  const identities = readBrowserIdentities(phaseDirectory);
+  phase.browserIdentities = identities.identities;
+  phase.targetRequestIdentityCount = identities.requests.length;
+  for (const identity of identities.identities)
+    observedIdentities.set(`${identity.kind}:${identity.id}`, identity);
+  writeReceipt();
 }
-receipt.sqlProbe = await probeLearnerOrigins(source, databaseUrl, directory);
+await statisticsSnapshot(source, databaseUrl, directory, 'after-browser');
+for (const { identity } of receipt.plannerIntervention.after.probes)
+  observedIdentities.set(`${identity.kind}:${identity.id}`, identity);
+receipt.sqlProbe = await probeLearnerOrigins(source, databaseUrl, directory, {
+  label: 'actual-browser-identities',
+  identities: [...observedIdentities.values()],
+});
 receipt.complete = true;
 writeReceipt();
 console.log(

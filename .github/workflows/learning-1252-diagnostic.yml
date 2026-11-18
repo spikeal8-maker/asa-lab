@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: learning-1252-causal-${{ github.ref }}
@@ -67,6 +68,13 @@ jobs:
           node-version: '22'
           cache: pnpm
           cache-dependency-path: baseline/pnpm-lock.yaml
+      - name: Reuse the attested original data-test fixture
+        uses: actions/download-artifact@v4
+        with:
+          name: learning-1252-causal-48e6a24249715eeb1f6a15eb7b47a62c98c086a8-44249101088
+          run-id: 44249101088
+          github-token: ${{ github.token }}
+          path: previous
       - name: Record exact common source and fixture inputs
         shell: bash
         run: |
@@ -82,6 +90,11 @@ jobs:
           pathlib.Path('evidence/common-inputs.json').write_text(json.dumps(records,indent=2)+'\n')
           if records['baseline']['files'] != records['candidate']['files']: raise SystemExit('Backend/schema/original scenarios differ: comparison needs a new design')
           PY
+          lscpu --json > evidence/runner-cpu.json
+          uname -a > evidence/runner-kernel.txt
+          cat /etc/os-release > evidence/runner-os.txt
+          docker image inspect postgres:16 --format '{{json .RepoDigests}}' > evidence/postgres-image.json
+          psql --version > evidence/postgres-client-version.txt
       - name: Install and build both exact sources without Nx reuse
         shell: bash
         run: |
@@ -90,23 +103,24 @@ jobs:
           done
           cd baseline
           pnpm exec playwright install --with-deps chromium
-      - name: Prepare original Learning data-test workload once
-        working-directory: baseline
+      - name: Restore exactly the previously prepared fixture
         shell: bash
         run: |
-          pnpm db:migrate > ../evidence/migrate.log 2>&1
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'learning-1252-isolated-test'"
-          pnpm test:learning-e1 > ../evidence/original-data-preparation.log 2>&1
+          echo '980b742a547fff40f485b5ae49effb5fe0cd2dbea7ae92ec4851669e1a933360  previous/prepared-fixture.dump' | sha256sum --check
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE asalab_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD 'learning-1252-isolated-test'"
+          pg_restore --list previous/prepared-fixture.dump > evidence/fixture-toc.txt
+          pg_restore --exit-on-error --dbname="$TEST_DATABASE_URL" previous/prepared-fixture.dump > evidence/fixture-restore.log 2>&1
+          cp previous/prepared-fixture.sha256 evidence/reused-fixture.sha256
+          cp previous/prepared-fixture-counts.txt evidence/reused-fixture-counts.txt
       - name: Clone one completed fixture into both isolated databases
         id: clone
         shell: bash
         run: |
-          pg_dump "$TEST_DATABASE_URL" --format=custom --file=evidence/prepared-fixture.dump
-          sha256sum evidence/prepared-fixture.dump > evidence/prepared-fixture.sha256
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "SELECT 'accounts',count(*) FROM accounts UNION ALL SELECT 'classroom_student_seats',count(*) FROM classroom_student_seats UNION ALL SELECT 'learning_project_origins',count(*) FROM learning_project_origins UNION ALL SELECT 'activity_participations',count(*) FROM activity_participations UNION ALL SELECT 'activity_runs',count(*) FROM activity_runs UNION ALL SELECT 'projects',count(*) FROM projects UNION ALL SELECT 'learner_identity_links',count(*) FROM learner_identity_links" > evidence/prepared-fixture-counts.txt
+          diff -u evidence/reused-fixture-counts.txt evidence/prepared-fixture-counts.txt
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE asa_lrn_1252_baseline_test TEMPLATE asa_lrn_1252_seed_test"
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE asa_lrn_1252_candidate_test TEMPLATE asa_lrn_1252_seed_test"
-      - name: Capture accepted main with original assertions and all API errors
+      - name: Capture accepted main after the controlled statistics intervention
         env:
           SOURCE_ROOT: baseline
           SOURCE_SHA: 5ab4f526e907fe0a349aad6919cca278d21e948c
@@ -115,7 +129,7 @@ jobs:
           TEST_DATABASE_URL: postgresql://postgres:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_baseline_test
           APP_TEST_DATABASE_URL: postgresql://asalab_app:learning-1252-isolated-test@127.0.0.1:5432/asa_lrn_1252_baseline_test
         run: node diagnostic/tools/testing/learning-1252-diagnostic.mjs
-      - name: Capture PR1252 with the identical prepared fixture and conditions
+      - name: Capture PR1252 after the identical statistics intervention
         if: always() && steps.clone.outcome == 'success'
         env:
           SOURCE_ROOT: candidate
