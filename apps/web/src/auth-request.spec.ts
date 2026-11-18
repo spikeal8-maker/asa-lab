@@ -3,6 +3,12 @@ import { abortable, authRequest, AUTH_REQUEST_TIMEOUT_MS, isAuthRequest } from '
 import { call } from './api-call';
 import { call as adminCall } from './admin/admin-api';
 import { api } from './api';
+import {
+  onPortalMutation,
+  personalReadsPaused,
+  portalSessionEpoch,
+  setPortalSessionKey,
+} from './portal-requests';
 
 vi.mock('./client-diagnostics', () => ({ reportClientDiagnostic: vi.fn() }));
 
@@ -13,10 +19,12 @@ afterEach(() => {
 });
 
 describe('bounded authentication requests', () => {
-  it('limits only authentication and selected provider administration endpoints', () => {
+  it('limits authentication, self-attestation and selected provider administration endpoints', () => {
     for (const path of [
       '/api/auth/providers',
       '/api/auth/verification?fresh=1',
+      '/api/capabilities/content-author/self-attest',
+      '/api/capabilities/educator/self-attest?fresh=1',
       '/api/admin/v1/integrations/max',
       '/api/admin/v1/integrations/telegram/check',
       '/api/admin/v1/auth/verification-policy',
@@ -28,6 +36,8 @@ describe('bounded authentication requests', () => {
       '/api/admin/v1/accounts',
       '/api/admin/v1/integrations/max-other',
       '/api/authentication',
+      '/api/capabilities/content-author/self-attest/extra',
+      '/api/capabilities/other/self-attest',
     ]) {
       expect(isAuthRequest(path)).toBe(false);
     }
@@ -216,4 +226,175 @@ describe('bounded authentication requests', () => {
     finish(true);
     await expect(second).resolves.toBe(true);
   });
+});
+
+describe('public self-attestation request lifecycle', () => {
+  const methods = [
+    ['selfAttestContentAuthor', '/api/capabilities/content-author/self-attest'],
+    ['selfAttestEducator', '/api/capabilities/educator/self-attest'],
+  ] as const;
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((complete) => {
+      resolve = complete;
+    });
+    return { promise, resolve };
+  }
+
+  for (const phase of ['response', 'body'] as const) {
+    it.each(methods)(
+      `bounds the actual %s API through stalled ${phase} delivery without replay`,
+      async (method, path) => {
+        vi.useFakeTimers();
+        setPortalSessionKey(`deadline:${method}:${phase}`);
+        const response = deferred<Response>();
+        const body = deferred<unknown>();
+        const reply = Response.json({ capability: 'content_author' }, { status: 201 });
+        if (phase === 'body') vi.spyOn(reply, 'json').mockReturnValue(body.promise);
+        const transport = vi
+          .fn<typeof fetch>()
+          .mockImplementation(() =>
+            phase === 'response' ? response.promise : Promise.resolve(reply),
+          );
+        vi.stubGlobal('fetch', transport);
+        const completed = vi.fn();
+        const stop = onPortalMutation(completed);
+        let settled: unknown;
+        const request = api[method]().then((result) => (settled = result));
+        try {
+          expect(personalReadsPaused()).toBe(true);
+          expect(transport.mock.calls[0]?.[0]).toBe(path);
+          await vi.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS - 1);
+          expect(settled).toBeUndefined();
+          expect(personalReadsPaused()).toBe(true);
+          await vi.advanceTimersByTimeAsync(1);
+          expect(settled).toMatchObject({
+            ok: false,
+            status: 0,
+            error: { code: 'auth_timeout', message: expect.stringContaining('неизвестен') },
+          });
+          expect(transport.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+          expect(personalReadsPaused()).toBe(false);
+          expect(transport).toHaveBeenCalledTimes(1);
+          expect(completed).not.toHaveBeenCalled();
+          const epoch = portalSessionEpoch();
+          response.resolve(reply);
+          body.resolve({ capability: 'content_author', state: 'provisional', created: true });
+          await vi.advanceTimersByTimeAsync(0);
+          expect(portalSessionEpoch()).toBe(epoch);
+          expect(completed).not.toHaveBeenCalled();
+          expect(transport).toHaveBeenCalledTimes(1);
+          expect(vi.getTimerCount()).toBe(0);
+        } finally {
+          response.resolve(reply);
+          body.resolve({});
+          await request;
+          stop();
+        }
+      },
+    );
+  }
+
+  it.each(methods)('cancels the real %s transport with its public signal', async (method) => {
+    setPortalSessionKey(`cancel:${method}`);
+    const response = deferred<Response>();
+    const transport = vi.fn<typeof fetch>().mockReturnValue(response.promise);
+    vi.stubGlobal('fetch', transport);
+    const controller = new AbortController();
+    let settled: unknown;
+    const request = api[method](controller.signal).then((result) => (settled = result));
+    try {
+      expect(personalReadsPaused()).toBe(true);
+      controller.abort();
+      for (let index = 0; index < 40; index++) await Promise.resolve();
+      expect(settled).toMatchObject({ ok: false, error: { code: 'auth_cancelled' } });
+      expect(transport.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+      expect(personalReadsPaused()).toBe(false);
+      expect(transport).toHaveBeenCalledTimes(1);
+    } finally {
+      response.resolve(Response.json({}));
+      await request;
+    }
+  });
+
+  for (const phase of ['response', 'body'] as const) {
+    it.each(methods)(
+      `rejects a late successful %s ${phase} from a replaced binding`,
+      async (method) => {
+        setPortalSessionKey(`old:${method}:${phase}`);
+        const response = deferred<Response>();
+        const body = deferred<unknown>();
+        const reply = Response.json({ capability: 'content_author' }, { status: 201 });
+        if (phase === 'body') vi.spyOn(reply, 'json').mockReturnValue(body.promise);
+        vi.stubGlobal(
+          'fetch',
+          vi
+            .fn<typeof fetch>()
+            .mockImplementation(() =>
+              phase === 'response' ? response.promise : Promise.resolve(reply),
+            ),
+        );
+        const request = api[method]();
+        for (let index = 0; index < 40; index++) await Promise.resolve();
+        setPortalSessionKey(`new:${method}:${phase}`);
+        const epoch = portalSessionEpoch();
+        response.resolve(reply);
+        body.resolve({ capability: 'content_author', state: 'provisional', created: true });
+        expect(await request).toMatchObject({ ok: false, error: { code: 'request_cancelled' } });
+        expect(portalSessionEpoch()).toBe(epoch);
+        expect(personalReadsPaused()).toBe(false);
+      },
+    );
+  }
+
+  it('does not notify current mutation subscribers about a successful old self-attest', async () => {
+    setPortalSessionKey('callback:old');
+    const response = deferred<Response>();
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockReturnValue(response.promise));
+    const completed = vi.fn();
+    const stop = onPortalMutation(completed);
+    try {
+      const request = api.selfAttestContentAuthor();
+      setPortalSessionKey('callback:new');
+      response.resolve(Response.json({ capability: 'content_author' }, { status: 201 }));
+      await request;
+      expect(completed).not.toHaveBeenCalled();
+    } finally {
+      response.resolve(Response.json({}));
+      stop();
+    }
+  });
+
+  it.each([false, true])(
+    'retains the second public mutation hold when the first binding is replaced: %s',
+    async (replaced) => {
+      setPortalSessionKey(`overlap:old:${replaced}`);
+      const authorReply = deferred<Response>();
+      const educatorReply = deferred<Response>();
+      const transport = vi
+        .fn<typeof fetch>()
+        .mockImplementation((path) =>
+          String(path).includes('content-author') ? authorReply.promise : educatorReply.promise,
+        );
+      vi.stubGlobal('fetch', transport);
+      const first = api.selfAttestContentAuthor();
+      if (replaced) setPortalSessionKey('overlap:new');
+      const second = api.selfAttestEducator();
+      const epoch = portalSessionEpoch();
+      try {
+        authorReply.resolve(Response.json({ capability: 'content_author' }, { status: 201 }));
+        expect((await first).ok).toBe(!replaced);
+        expect(personalReadsPaused()).toBe(true);
+        if (replaced) expect(portalSessionEpoch()).toBe(epoch);
+        educatorReply.resolve(Response.json({ capability: 'educator' }, { status: 201 }));
+        expect((await second).ok).toBe(true);
+        expect(personalReadsPaused()).toBe(false);
+        expect(transport).toHaveBeenCalledTimes(2);
+      } finally {
+        authorReply.resolve(Response.json({}));
+        educatorReply.resolve(Response.json({}));
+        await Promise.all([first, second]);
+      }
+    },
+  );
 });
