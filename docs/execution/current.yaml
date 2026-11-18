@@ -118,7 +118,7 @@ parallel_lanes:
         gates. No deployment, database operation, U02 activation or inferred owner acceptance.'
       activation_condition: This proposed transition has no authority on its feature branch. It becomes effective
         only in accepted main after independent final-SHA controller review, required CI, protected integration
-        and verified checkpoint008 evidence. Product author then inherits that main and runs a fresh nine-path
+        and verified checkpoint008 evidence. Product author then inherits that main and runs a fresh twelve-path
         scoped preflight.
       controller_preparation:
         id: TASK-ELECTRONICS-CONTROL-016
@@ -147,7 +147,7 @@ parallel_lanes:
           on main. U01 is not yet a counted production slice. Increment once after its technical integration;
           docs/U00 do not count. Preserve historical counters elsewhere.
       scope: 'Only UL-E01 physical output stamping/observation, PING response phases and required compatibility:
-        four product files, four test files and one generated-only coverage file. Preserve thresholds, scheduler
+        six product files, five test files and one generated-only coverage file. Preserve thresholds, scheduler
         ordering, ground topology, ranges, UI, L298N behavior and protected assets.'
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ULTRASONIC-U01-001.md
@@ -163,7 +163,26 @@ parallel_lanes:
       - contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts
       - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
       - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
+      - contexts/electronics/domain/simulation.ts
+      - contexts/electronics/testing/engine-timed-api.spec.ts
+      - contexts/robotics/domain/default-project.ts
       - docs/product/electronics/generated/component-coverage.json
+      scope_expansion_20261118:
+        owner_authorized: true
+        product_candidate_count: 12
+        production_count: 6
+        test_count: 5
+        generated_count: 1
+        controller_documents_outside_product_scope:
+        - docs/execution/current.yaml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ULTRASONIC-U01-001.md
+        reasons:
+        - missing_sensor_power_in_both_filters
+        - stale_timed_engine_HC_profile_expectations
+        - stale_robotics_initial_project_HC_profile
+        prior_U00_and_checkpoint008: accepted_unchanged
+        product_pr: 1264
+        technical_acceptance: pending
       product_author: /root/u01_author
       independent_reviewer: /root/u01_reviewer
       compatibility:
@@ -174,7 +193,7 @@ parallel_lanes:
         model_set_digest: compute_and_pin_in_U01_tests_before_publication
         collision_check: Accepted reviewed main has HC2/PING1 and state1 for both. Verify again at actual author
           handoff; another use of HC3/PING2 requires controller coordination.
-      logical_shared_paths_note: The five existing shared paths remain in their historical advisory owned scopes; the complete nine-path plan above and bounded coordination below authorize only this U01 slice. No foreign lane ownership is changed.
+      logical_shared_paths_note: The five existing shared paths remain in their historical advisory owned scopes; the complete twelve-path plan above and bounded coordination below authorize only this U01 slice. No foreign lane ownership is changed.
       shared_path_coordination:
         status: owner_approved
         purpose: isolated_development_only
