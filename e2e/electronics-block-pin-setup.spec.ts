@@ -266,6 +266,7 @@ async function settingsHostTargets(dialog: Locator, info: TestInfo, prefix: stri
   ]);
   await receipt(info, `${prefix}native-targets`, targets);
   const close = dialog.getByRole('button', { name: 'Закрыть настройки блоков' });
+  await close.scrollIntoViewIfNeeded();
   await close.focus();
   await expect(close).toBeFocused();
   await expect(close).toBeInViewport();

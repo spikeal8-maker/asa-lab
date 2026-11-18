@@ -1865,6 +1865,7 @@ export function ArduinoCodePanel({
                 return (
                   <label
                     key={pin}
+                    style={{ flexWrap: 'wrap' }}
                     title={
                       inferred
                         ? 'Вход определяется блоками или Serial'
@@ -1885,8 +1886,8 @@ export function ArduinoCodePanel({
                         })
                       }
                     />
-                    {pin}
-                    {inferred ? ' (авто)' : ''}
+                    <span>{pin}</span>
+                    {inferred ? <span> (авто)</span> : null}
                   </label>
                 );
               })}
