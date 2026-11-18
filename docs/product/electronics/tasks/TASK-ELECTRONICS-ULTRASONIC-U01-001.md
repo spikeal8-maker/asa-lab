@@ -33,17 +33,20 @@ preflight. Просроченный checkpoint означает `BLOCKED_BY HYGI
 
 ## Точные разрешённые пути
 
-Production, максимум **4**:
+Production, максимум **6**:
 
 - `contexts/electronics/domain/solver.ts`.
 - `contexts/electronics/domain/models/hc-sr04-runtime.ts`.
 - `contexts/electronics/domain/models/ping-ultrasonic-runtime.ts`.
 - `contexts/electronics/domain/model-identity.ts` — только совместимость этого semantic delta.
+- `contexts/electronics/domain/simulation.ts`.
+- `contexts/robotics/domain/default-project.ts`.
 
-Focused test writes, **2**:
+Focused test writes, **3**:
 
 - `contexts/electronics/testing/hc-sr04-runtime.spec.ts`.
 - `contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts`.
+- `contexts/electronics/testing/engine-timed-api.spec.ts`.
 
 Дополнительно для обязательной совместимости, **2**:
 
@@ -53,10 +56,10 @@ Focused test writes, **2**:
 Generated-only, **1**: `docs/product/electronics/generated/component-coverage.json`.
 Он содержит hash `model-identity.ts`, поэтому после изменения identity пересоздаётся
 неизменённым `tools/generate-electronics-component-coverage.mjs`. Ручная правка
-JSON, изменение генератора или пятый продуктовый файл не разрешены.
+JSON, изменение генератора не разрешены.
 
-Итого точный план — **9 путей**. Compatibility suites — обоснованное дополнение
-к двум focused suites для HIGH-risk изменения identity. Любой иной путь сначала
+Итого точный план — **12 путей: 6 продуктовых, 5 тестовых, 1 генерируемый**. Compatibility suites — обоснованное дополнение
+к трём focused suites для HIGH-risk изменения identity. Любой иной путь сначала
 требует ограниченного контроллерского уточнения scope. Read-only dependencies:
 существующие solver/power-balance, GPIO и принятые пересекающиеся L298N tests.
 Не менять общие quality thresholds, порядок scheduler, ground topology,
@@ -154,9 +157,9 @@ Golden bridge может переводить только точное metadata
 После принятого контроллерского выбора:
 
 ```bash
-corepack pnpm agent:preflight --scope electronics-ultrasonic-u01 --planned-path contexts/electronics/domain/solver.ts --planned-path contexts/electronics/domain/models/hc-sr04-runtime.ts --planned-path contexts/electronics/domain/models/ping-ultrasonic-runtime.ts --planned-path contexts/electronics/domain/model-identity.ts --planned-path contexts/electronics/testing/hc-sr04-runtime.spec.ts --planned-path contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts --planned-path contexts/electronics/testing/model-set-golden-compatibility.spec.ts --planned-path contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts --planned-path docs/product/electronics/generated/component-coverage.json --check
+corepack pnpm agent:preflight --scope electronics-ultrasonic-u01 --planned-path contexts/electronics/domain/solver.ts --planned-path contexts/electronics/domain/models/hc-sr04-runtime.ts --planned-path contexts/electronics/domain/models/ping-ultrasonic-runtime.ts --planned-path contexts/electronics/domain/model-identity.ts --planned-path contexts/electronics/testing/hc-sr04-runtime.spec.ts --planned-path contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts --planned-path contexts/electronics/testing/model-set-golden-compatibility.spec.ts --planned-path contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts --planned-path contexts/electronics/domain/simulation.ts --planned-path contexts/electronics/testing/engine-timed-api.spec.ts --planned-path contexts/robotics/domain/default-project.ts --planned-path docs/product/electronics/generated/component-coverage.json --check
 corepack pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-ULTRASONIC-U01-001
-NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run contexts/electronics/testing/hc-sr04-runtime.spec.ts contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts contexts/electronics/testing/power-balance-shunts.spec.ts contexts/electronics/testing/solver.spec.ts --maxWorkers=1
+NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run contexts/electronics/testing/hc-sr04-runtime.spec.ts contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts contexts/electronics/testing/engine-timed-api.spec.ts contexts/electronics/testing/power-balance-shunts.spec.ts contexts/electronics/testing/solver.spec.ts --maxWorkers=1
 NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run contexts/electronics/testing/model-set-golden-compatibility.spec.ts contexts/electronics/testing/timed-state.spec.ts --maxWorkers=1
 NX_SKIP_NX_CACHE=true corepack pnpm gate:electronics-m1
 NX_SKIP_NX_CACHE=true corepack pnpm benchmark:electronics:ci
@@ -169,7 +172,7 @@ git diff --check
 источнике выполнить существующие пересекающиеся L298N и Arduino GPIO cases согласно
 handoff. Не объявлять ещё не принятый L298N runtime присутствующим в main.
 После окончательной конвергенции выполнить `agent:preflight --verify-plan --diff-base`
-относительно фактической принятой базы со всеми девятью planned paths, получить
+относительно фактической принятой базы со всеми двенадцатью planned paths, получить
 evidence, независимое review и required CI окончательного публикуемого SHA.
 Каждая проверка: команда, source SHA, exit code, число тестов, cache и CI URL.
 Неисполненное — NOT_RUN, диагностический FAIL — FAIL. Датированные U00 дефекты
@@ -182,3 +185,11 @@ self-review и independent review. При разрешённой интегра�
 Техническое принятие, owner acceptance и deployment различаются.
 **Исполнитель STOP после U01; U02 выбирает контроллер отдельным переходом.
 Родительская программа #1238 остаётся открытой.**
+
+## Уточнение scope U01 — решение владельца от 18.11.2026
+
+Разрешены **12 путей: 6 продуктовых, 5 тестовых, 1 генерируемый**. Сохранены исходные 9 путей, дополнительно только `contexts/electronics/domain/simulation.ts`, `contexts/electronics/testing/engine-timed-api.spec.ts`, `contexts/robotics/domain/default-project.ts`. Контроллерские документы (эта карточка и `docs/execution/current.yaml`) считаются отдельно, вне 12 product paths. Прежний лимит 9/4 больше не действует.
+
+Три основания: (1) independent review `f52dde0d959efbcc771dbfebfba449e211135209` — HC-SR04/PING исключены из обоих фильтров powerBalanceComponents и потери I²R не учитываются; (2) General CI — устаревшие ожидания версии HC-SR04 current=2/future=3, должны быть 3/4; (3) createInitialRoboticsProject() устанавливает профиль HC-SR04 2 вместо 3. Обязательные регрессии 5 V/10 kOhm без Uno на обоих quality paths с доказательством optimized branch, отрицательная энергетическая проверка с проходящим KCL, HIGH/reverse/LOW backdrive/short/high-Z, 8 × Uno pulseIn 5800 мкс. Не менять старые opaque continuations и строгий read-only Robotics parity. Публичный PING echoAvailable=false остаётся U04.
+
+Отдельная контроллерская интеграция + независимое ревью/CI/main перед новым 12-path preflight и product repair в существующем PR #1264. U00/checkpoint008 не переоткрывать. Full gate, benchmark before/after и новые General/Electronics CI/review обязательны. Technical/owner acceptance pending; deployment/U02 запрещены.
