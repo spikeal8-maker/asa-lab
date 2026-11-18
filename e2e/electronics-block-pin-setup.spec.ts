@@ -260,6 +260,10 @@ async function settingsHostTargets(dialog: Locator, info: TestInfo, prefix: stri
   expect(targets.filter((target) => target.pin).map((target) => target.pin)).toEqual(
     pins.map((pin) => `Входной порт ${pin}`),
   );
+  expect(targets.filter((target) => target.disabled).map((target) => target.pin)).toEqual([
+    'Входной порт 0',
+    'Входной порт 2',
+  ]);
   await receipt(info, `${prefix}native-targets`, targets);
   const close = dialog.getByRole('button', { name: 'Закрыть настройки блоков' });
   await close.focus();
