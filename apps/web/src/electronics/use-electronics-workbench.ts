@@ -1205,6 +1205,7 @@ export function useElectronicsWorkbenchHost(
         readHostHorizonMicroseconds: () => {
           return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
         },
+        isDefaultHostPace: () => !simulationPacing.explicit,
         onGenerationPending: () => {
           if (!currentSession()) return;
           // A real Reset starts a new generation and receives a new budget.
