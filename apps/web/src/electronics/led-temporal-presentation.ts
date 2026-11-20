@@ -15,6 +15,7 @@ export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
 // A 20 ms held phase is visible at 60 Hz; genuinely sub-frame cycles retain
 // their integrated brightness from actual complete electrical history.
 const FAST_PHASE_MICROSECONDS = 16_667;
+const ARDUINO_INDICATOR_ON_VOLTS = 2.5;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
@@ -86,6 +87,25 @@ interface HeldHistory<T extends HeldPresentationSample> {
 
 function heldValue(sample: HeldPresentationSample): number {
   return 'voltage' in sample ? sample.voltage : sample.brightness;
+}
+
+function holdsVisibleValue(
+  { samples, completeSince }: HeldHistory<HeldPresentationSample>,
+  start: number,
+  end: number,
+): boolean {
+  if (completeSince > start || samples.at(-1)!.atMicroseconds < end) return false;
+  let initial: number | boolean | undefined;
+  for (const sample of samples) {
+    if (sample.atMicroseconds >= end) break;
+    const value =
+      'voltage' in sample
+        ? sample.voltage >= ARDUINO_INDICATOR_ON_VOLTS
+        : Math.round(sample.brightness);
+    if (sample.atMicroseconds <= start) initial = value;
+    else if (value !== initial) return false;
+  }
+  return initial !== undefined;
 }
 
 function sameState(left: HeldPresentationSample, right: HeldPresentationSample) {
@@ -301,16 +321,16 @@ export class LedTemporalPresentation {
   /** Resource demand can follow wall time without preparing or acknowledging a frame. */
   nextNativeAssetFrameAt(wallMicroseconds?: number): LedNativeAssetFrame | null {
     if (this.d === null || this.a === null) return null;
-    const target =
+    const due =
       wallMicroseconds === undefined || this.e === null
         ? this.d
-        : Math.min(
-            this.a,
-            Math.max(
-              this.d,
-              this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w) * this.playbackRate),
-            ),
+        : Math.max(
+            this.d,
+            this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w) * this.playbackRate),
           );
+    const current = this.sampleDueFrame(Math.min(this.a, due), due);
+    if (!current) return null;
+    const target = current.atMicroseconds;
     const times = new Set([target, this.a]);
     if (!this.l) {
       for (const { samples } of this.b.values()) {
@@ -327,7 +347,7 @@ export class LedTemporalPresentation {
     }
     let last: LedNativeAssetFrame | null = null;
     for (const time of [...times].sort((left, right) => left - right)) {
-      const frame = this.o(time);
+      const frame = time === target ? current : this.o(time);
       if (!frame) return null;
       last = { ...frame, generation: this.g };
       if (!this.j || !sameLedBrightness(frame.brightness, this.j.brightness)) return last;
@@ -667,17 +687,11 @@ export class LedTemporalPresentation {
     if (this.k) return this.k;
     if (this.playbackRate === 0 && this.j !== null) return null;
     if (this.d === null || this.a === null) return null;
-    const target = this.l
-      ? this.l.atMicroseconds
-      : this.j === null
-        ? this.d
-        : Math.min(
-            this.a,
-            this.pacingChanged
-              ? Math.max(this.d, (this.e?.m ?? this.d) + Math.floor(elapsed * this.playbackRate))
-              : (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
-          );
-    const values = this.o(target);
+    const due = this.pacingChanged
+      ? Math.max(this.d, (this.e?.m ?? this.d) + Math.floor(elapsed * this.playbackRate))
+      : (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE);
+    const target = this.l?.atMicroseconds ?? (this.j === null ? this.d : Math.min(this.a, due));
+    const values = this.sampleDueFrame(target, due);
     if (!values) {
       // Missing/truncated coverage cannot establish a displayable frame. Report
       // the discontinuity and forget it; never jump across unpresented phases.
@@ -692,6 +706,72 @@ export class LedTemporalPresentation {
     if (this.j && !sameOpticalFrame(this.j, frame) && !this.canPublishDistinctFrame) return null;
     this.k = frame;
     return frame;
+  }
+
+  private sampleDueFrame(
+    target: number,
+    wallDue: number,
+  ): Omit<LedPresentationFrame, 'token'> | null {
+    const cursor = this.d;
+    const displayed = this.j;
+    // The accepted horizon is capped by the cursor. Use the uncapped wall time
+    // to expire replay when the browser can no longer keep up with the phases.
+    if (
+      cursor === null ||
+      !displayed ||
+      this.l ||
+      this.pacingChanged ||
+      this.displays.size > 0 ||
+      displayed.brightness.size !== this.b.size ||
+      wallDue - cursor > HISTORY_MICROSECONDS ||
+      target - cursor < FAST_PHASE_MICROSECONDS
+    )
+      return this.o(target);
+
+    // Two accepted edges can arrive between frames. Keep a complete, visibly
+    // distinct phase instead of sampling past both edges. The wall target stays
+    // fixed and only the existing native ACK can advance the displayed cursor.
+    let earliest = target;
+    for (const [id, { samples }] of this.b) {
+      const shown = displayed.brightness.get(id);
+      if (shown === undefined) return this.o(target);
+      let phase = samples[0]!;
+      let phaseHigh = Math.round(phase.brightness) > 0;
+      for (const sample of samples) {
+        if (sample.atMicroseconds > target) break;
+        const high = Math.round(sample.brightness) > 0;
+        if (high === phaseHigh) continue;
+        const start = phase.atMicroseconds;
+        if (
+          start > cursor &&
+          start < earliest &&
+          sample.atMicroseconds - start >= FAST_PHASE_MICROSECONDS &&
+          Math.round(phase.brightness) !== Math.round(shown)
+        ) {
+          earliest = start;
+          break;
+        }
+        phase = sample;
+        phaseHigh = high;
+      }
+    }
+    if (earliest === target) return this.o(target);
+    // Individually slow channels can change the joint vector faster than a
+    // frame. Only retain a jointly held phase with complete optical history.
+    const end = earliest + FAST_PHASE_MICROSECONDS;
+    for (const history of this.b.values()) {
+      const { samples } = history;
+      if (
+        !holdsVisibleValue(history, earliest, end) ||
+        fastCycleBrightness(this.n(samples, target), target) !== undefined ||
+        fastCycleBrightness(this.n(samples, earliest), earliest) !== undefined
+      )
+        return this.o(target);
+    }
+    for (const history of this.c.values()) {
+      if (!holdsVisibleValue(history, earliest, end)) return this.o(target);
+    }
+    return this.o(earliest) ?? this.o(target);
   }
 
   /** The only cursor commit. A native load callback alone must never call this. */
@@ -759,7 +839,9 @@ export class LedTemporalPresentation {
       atMicroseconds,
       brightness,
       ...(sevenSegmentBrightness.size ? { sevenSegmentBrightness } : {}),
-      arduinoLStates: new Map([...voltages].map(([id, voltage]) => [id, voltage >= 2.5])),
+      arduinoLStates: new Map(
+        [...voltages].map(([id, voltage]) => [id, voltage >= ARDUINO_INDICATOR_ON_VOLTS]),
+      ),
     };
   }
 

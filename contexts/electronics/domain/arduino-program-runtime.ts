@@ -3343,7 +3343,12 @@ export function createOwnedClockedArduinoRuntime(
   };
   let previous = initial;
   return {
-    advance(time: number, instructionBudget: number, stopAtElectricalBoundary = false) {
+    advance(
+      time: number,
+      instructionBudget: number,
+      stopAtElectricalBoundary = false,
+      stableLoopWindowMicroseconds = 0,
+    ) {
       if (!memory) throw new Error('Disposed Arduino request.');
       const advanced = advanceRuntime(
         source,
@@ -3356,6 +3361,7 @@ export function createOwnedClockedArduinoRuntime(
         false,
         stopAtElectricalBoundary,
         memory,
+        stableLoopWindowMicroseconds,
       );
       previous = advanced.state;
       return advanced;
@@ -3378,6 +3384,7 @@ function advanceRuntime(
   pulseInputSample = false,
   stopAtElectricalBoundary = false,
   owned?: OwnedRuntimeMemory,
+  stableLoopWindowMicroseconds = 0,
 ): ArduinoRuntimeAdvance {
   const clocked = clockProfile === 'instruction-us-v1';
   const compilation = owned?.compilation ?? compileArduinoProgram(source);
@@ -3534,6 +3541,7 @@ function advanceRuntime(
   let advanceStatementCount = 0;
   let continuousStatementCount = 0;
   let executedInstructions = 0;
+  let allowedInstructions = instructionBudget;
   let attemptedMillisecond = -1;
   let loopProof:
     | {
@@ -3549,7 +3557,7 @@ function advanceRuntime(
   const targetMicroseconds = stableLoop ? microsecondsFromMilliseconds(targetTimeMs) : 0;
   const accountForCompleteLoops = (first: number, end: number, stride: number): boolean => {
     const loops = Math.floor(
-      Math.min(end - first, instructionBudget - executedInstructions) / stride,
+      Math.min(end - first, allowedInstructions - executedInstructions) / stride,
     );
     if (loops <= 0 || loopIterations > Number.MAX_SAFE_INTEGER - loops) return false;
     loopIterations += loops;
@@ -3683,7 +3691,7 @@ function advanceRuntime(
   while (
     resumeAtMs <= targetTimeMs &&
     (clocked
-      ? executedInstructions < instructionBudget
+      ? executedInstructions < allowedInstructions
       : completedLoops < MAX_LOOP_ADVANCES && advanceStatementCount < MAX_ADVANCE_STATEMENTS) &&
     diagnostics.length === 0
   ) {
@@ -3722,10 +3730,20 @@ function advanceRuntime(
             ({ terminal, targetVoltage }) =>
               pinModes.get(terminal) === 'OUTPUT' &&
               Object.is(outputVoltages.get(terminal), targetVoltage),
-          ) &&
-          accountForCompleteLoops(first, targetMicroseconds + 1, stableLoop.writes.length + 1)
-        )
-          continue;
+          )
+        ) {
+          const stride = stableLoop.writes.length + 1;
+          const remaining = targetMicroseconds - first + 1;
+          // Only already latched writes can extend the private batch. The
+          // scheduler's target stops before the next physical or input event.
+          if (
+            remaining >= stride &&
+            remaining <= stableLoopWindowMicroseconds &&
+            loopIterations <= Number.MAX_SAFE_INTEGER - remaining
+          )
+            allowedInstructions = Math.max(allowedInstructions, executedInstructions + remaining);
+          if (accountForCompleteLoops(first, targetMicroseconds + 1, stride)) continue;
+        }
       } else {
         // Use the absolute millisecond so proof never crosses the unsigned millis rollover.
         const millisecond = Math.floor(resumeAtMs);
@@ -3739,7 +3757,19 @@ function advanceRuntime(
             sameRuntimeEntries(outputVoltages, loopProof.outputVoltages);
           loopProof = undefined;
           const end = Math.min((millisecond + 1) * 1000, targetMicroseconds + 1);
-          if (unchanged && accountForCompleteLoops(first, end, stride)) continue;
+          if (unchanged) {
+            const remaining = end - first;
+            // Only complete proven iterations add to the private budget. Any
+            // partial iteration at the end must fit the original budget.
+            if (
+              remaining >= stride &&
+              remaining <= stableLoopWindowMicroseconds &&
+              remaining % stride <= instructionBudget - executedInstructions &&
+              loopIterations <= Number.MAX_SAFE_INTEGER - remaining
+            )
+              allowedInstructions = Math.max(allowedInstructions, executedInstructions + remaining);
+            if (accountForCompleteLoops(first, end, stride)) continue;
+          }
         } else if (attemptedMillisecond !== millisecond) {
           attemptedMillisecond = millisecond;
           loopProof = {
