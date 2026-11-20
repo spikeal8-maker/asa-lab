@@ -100,6 +100,9 @@ TST-... NOT_RUN reason="..."
 
 ## Rollout
 
+- [ ] Для изменений установки/настроек: воспроизводимый рецепт находится
+  в GitHub, приведены SHA и readback состояния на сервере (или указано N/A).
+
 <!-- Feature flag, release ring, canary tenant/classroom, monitoring. -->
 
 ## Rollback или forward-fix
