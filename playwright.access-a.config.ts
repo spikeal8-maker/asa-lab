@@ -4,7 +4,7 @@ const batch = process.env.ASA_ACCESS_A_BATCH;
 const runId = process.env.ASA_ACCESS_A_RUN_ID;
 if (
   (batch !== undefined || runId !== undefined) &&
-  (!['discovery', 'journeys', 'nat'].includes(batch ?? '') ||
+  (!['discovery', 'journeys', 'participants', 'nat'].includes(batch ?? '') ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(runId ?? ''))
 ) {
   throw new Error('Invalid internal Access A batch identity');
@@ -22,8 +22,15 @@ const allSpecs = [
   'classroom-observation.spec.ts',
 ];
 const natSpec = 'student-seat-access-hardening.spec.ts';
+const participantsSpec = 'classroom-participants.spec.ts';
 const testMatch = allSpecs.filter((file) =>
-  batch === 'nat' ? file === natSpec : batch === 'journeys' ? file !== natSpec : true,
+  batch === 'nat'
+    ? file === natSpec
+    : batch === 'participants'
+      ? file === participantsSpec
+      : batch === 'journeys'
+        ? file !== natSpec && file !== participantsSpec
+        : true,
 );
 const batchDirectory = batch ? `reports/playwright/access-a/runs/${runId}/${batch}` : null;
 
