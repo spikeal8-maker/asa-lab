@@ -37,6 +37,7 @@ import {
 } from '../apps/web/src/electronics/workbench-document';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
+import type { SimulationWorkerPhaseTiming } from '../apps/web/src/electronics/simulation-worker-evaluator';
 import type { SimulationTimedAdvancePayload } from '../apps/web/src/electronics/simulation-worker-protocol';
 
 configureProductionLibrary(
@@ -562,7 +563,13 @@ async function realtime682Journal(
       while (acknowledged < target && errors.length === 0) await flush();
       return { sent: target, acknowledged, dropped, errors: [...errors] };
     };
-    const requests = new Map<string, { at: number; generation: number; source: string }>();
+    type RequestStamp = {
+      at: number;
+      generation: number;
+      source: string;
+      hostPostAt?: number;
+    };
+    const requests = new Map<string, RequestStamp>();
     const OriginalWorker = window.Worker;
     window.Worker = new Proxy(OriginalWorker, {
       construct(target, args, newTarget) {
@@ -579,17 +586,19 @@ async function realtime682Journal(
             inputEvents?: unknown;
             document?: SchematicDocument;
           };
+          let stamp: RequestStamp | undefined;
           if (request.kind === 'advance') {
             const source = String(
               request.document?.components.find((row) => row.id === 'uno')?.stateProperties?.[
                 'arduinoSource'
               ] ?? '',
             );
-            requests.set(request.requestId, {
+            stamp = {
               at: performance.now(),
               generation: request.generationId,
               source,
-            });
+            };
+            requests.set(request.requestId, stamp);
             push('request', {
               id: request.requestId,
               generation: request.generationId,
@@ -598,6 +607,7 @@ async function realtime682Journal(
               inputs: request.inputEvents ?? [],
             });
           }
+          if (stamp) stamp.hostPostAt = performance.now();
           Reflect.apply(post, worker, values);
         }) as Worker['postMessage'];
         worker.addEventListener('message', (event: MessageEvent) => {
@@ -609,7 +619,9 @@ async function realtime682Journal(
             generationId: number;
             advance?: SimulationTimedAdvancePayload;
             metrics?: { computeMs: number };
+            phaseTiming?: SimulationWorkerPhaseTiming;
           };
+          const hostReceiptAt = response.phaseTiming ? performance.now() : null;
           const request = requests.get(response.requestId);
           if (!request) return;
           requests.delete(response.requestId);
@@ -622,6 +634,16 @@ async function realtime682Journal(
             ok: response.ok,
             code: response.code ?? null,
             computeMs: response.metrics?.computeMs ?? null,
+            ...(response.phaseTiming
+              ? {
+                  phaseTiming: {
+                    ...response.phaseTiming,
+                    hostTimeOriginMs: performance.timeOrigin,
+                    hostPostAt: request.hostPostAt ?? null,
+                    hostReceiptAt,
+                  },
+                }
+              : {}),
             advance: response.advance
               ? {
                   executionStatus: response.advance.executionStatus,

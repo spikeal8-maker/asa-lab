@@ -1,6 +1,7 @@
 import {
   evaluateSimulationWorkerRequest,
   evaluateSimulationWorkerRequestBatched,
+  type SimulationWorkerPhaseTiming,
 } from './simulation-worker-evaluator';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -11,7 +12,9 @@ import {
 
 interface ElectronicsSimulationWorkerScope {
   onmessage: ((event: MessageEvent<ElectronicsSimulationWorkerRequest>) => void) | null;
-  postMessage(message: ElectronicsSimulationWorkerResponse): void;
+  postMessage(
+    message: ElectronicsSimulationWorkerResponse & { phaseTiming?: SimulationWorkerPhaseTiming },
+  ): void;
 }
 
 const scope = self as unknown as ElectronicsSimulationWorkerScope;
@@ -20,6 +23,7 @@ let activeRequest = 0;
 
 scope.onmessage = (event): void => {
   const request = event.data;
+  const workerReceivedAt = performance.now();
   try {
     if (
       request.protocolVersion !== ELECTRONICS_SIMULATION_WORKER_PROTOCOL ||
@@ -40,12 +44,33 @@ scope.onmessage = (event): void => {
       scope.postMessage(evaluateSimulationWorkerRequest(request));
       return;
     }
+    // Diagnostic branch only. Sample startup and the next predicted HIGH wake.
+    const phaseTiming: SimulationWorkerPhaseTiming | undefined =
+      request.kind === 'advance' &&
+      (request.requestedHorizonMicroseconds <= 100_000 ||
+        Math.abs(request.requestedHorizonMicroseconds - 20_000_000) <= 100_000)
+        ? {
+            workerTimeOriginMs: performance.timeOrigin,
+            workerReceivedAt,
+            steps: 0,
+            stepMs: 0,
+            yields: 0,
+            yieldWaitMs: 0,
+          }
+        : undefined;
     void evaluateSimulationWorkerRequestBatched(
       request,
       () => request.generationId >= activeGeneration && token === activeRequest,
+      undefined,
+      phaseTiming,
     ).then((response) => {
-      if (response && request.generationId >= activeGeneration && token === activeRequest)
-        scope.postMessage(response);
+      if (response && request.generationId >= activeGeneration && token === activeRequest) {
+        if (phaseTiming) {
+          const message = { ...response, phaseTiming };
+          phaseTiming.workerPostAt = performance.now();
+          scope.postMessage(message);
+        } else scope.postMessage(response);
+      }
     });
   } catch (error) {
     if (request.kind === 'cancel-generation') return;

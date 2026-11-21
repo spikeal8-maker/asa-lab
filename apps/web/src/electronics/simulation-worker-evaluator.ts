@@ -19,6 +19,20 @@ import {
 
 type EvaluationRequest = SimulationPreflightRequest | SimulationAdvanceRequest;
 
+export interface SimulationWorkerPhaseTiming {
+  readonly workerTimeOriginMs: number;
+  readonly workerReceivedAt: number;
+  prepareStartedAt?: number;
+  prepareFinishedAt?: number;
+  steps: number;
+  stepMs: number;
+  yields: number;
+  yieldWaitMs: number;
+  projectionStartedAt?: number;
+  projectionFinishedAt?: number;
+  workerPostAt?: number;
+}
+
 function failure(
   request: EvaluationRequest,
   code: Extract<ElectronicsSimulationWorkerResponse, { ok: false }>['code'],
@@ -199,6 +213,7 @@ export async function evaluateSimulationWorkerRequestBatched(
   request: EvaluationRequest,
   isCurrent: () => boolean,
   yieldControl: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 0)),
+  phaseTiming?: SimulationWorkerPhaseTiming,
 ): Promise<ElectronicsSimulationWorkerResponse | null> {
   if (
     request.kind !== 'advance' ||
@@ -211,6 +226,7 @@ export async function evaluateSimulationWorkerRequestBatched(
   let session: ReturnType<typeof createElectronicsAdvanceSession> | undefined;
   try {
     const prepareStarted = globalThis.performance.now();
+    if (phaseTiming) phaseTiming.prepareStartedAt = prepareStarted;
     const owned = structuredClone(request);
     session = createElectronicsAdvanceSession(
       owned.document,
@@ -221,18 +237,35 @@ export async function evaluateSimulationWorkerRequestBatched(
       },
       { observeLedTemporal: true, observeSevenSegmentTemporal: true },
     );
-    let computeMs = globalThis.performance.now() - prepareStarted;
+    const prepareFinished = globalThis.performance.now();
+    let computeMs = prepareFinished - prepareStarted;
+    if (phaseTiming) phaseTiming.prepareFinishedAt = prepareFinished;
     let sliceStarted = globalThis.performance.now();
     while (isCurrent()) {
       const before = globalThis.performance.now();
       const timed = session.step();
       const now = globalThis.performance.now();
       computeMs += now - before;
+      if (phaseTiming) {
+        phaseTiming.steps += 1;
+        phaseTiming.stepMs += now - before;
+      }
       if (!isCurrent()) return null;
-      if (timed) return timedResponse(owned, timed, computeMs);
+      if (timed) {
+        if (!phaseTiming) return timedResponse(owned, timed, computeMs);
+        phaseTiming.projectionStartedAt = globalThis.performance.now();
+        const response = timedResponse(owned, timed, computeMs);
+        phaseTiming.projectionFinishedAt = globalThis.performance.now();
+        return response;
+      }
       if (now - sliceStarted >= 8) {
+        const yieldStartedAt = phaseTiming ? globalThis.performance.now() : 0;
         await yieldControl();
         sliceStarted = globalThis.performance.now();
+        if (phaseTiming) {
+          phaseTiming.yields += 1;
+          phaseTiming.yieldWaitMs += sliceStarted - yieldStartedAt;
+        }
       }
     }
     return null;

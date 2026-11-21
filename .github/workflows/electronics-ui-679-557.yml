@@ -1,6 +1,6 @@
-# Isolated timing diagnostic for #836. This branch is not a merge candidate.
-name: Electronics Arduino trace diagnostic
-run-name: 'Electronics Arduino 1 ms trace ABBA (${{ github.sha }})'
+# Isolated Worker timing diagnostic for #682.
+name: Electronics Arduino Worker phase diagnostic
+run-name: 'Electronics long10000 Worker phases (${{ github.sha }})'
 
 on:
   push:
@@ -17,16 +17,17 @@ env:
 jobs:
   browser:
     if: github.ref == 'refs/heads/codex/electronics-548-current-diagnostic'
-    name: Arduino 1 ms full and light tracing on the same runner
+    name: Native long10000 with Worker phase timestamps
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: c1d768211ed3fdff5a47dfe9ab9779f02c2294f4
-      ASA_ELECTRONICS_EXPECTED_SHA: c1d768211ed3fdff5a47dfe9ab9779f02c2294f4
+      ASA_DIAGNOSTIC_BASE_SHA: dbba985c65b831ead0e7ce041cfcee8bc9bb63fb
+      ASA_BUILD_REVISION: ${{ github.sha }}
+      ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.sha }}
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: strict-real-time
       ASA_ELECTRONICS_FAILURE_REPORT: 'true'
-      ASA_IMAGE_TAG: c1d768211ed3fdff5a47dfe9ab9779f02c2294f4
+      ASA_IMAGE_TAG: ${{ github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-trace-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
@@ -38,16 +39,20 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Prove unchanged production and test inputs from the pinned main
+      - name: Check diagnostic scope against the pinned source
         run: |
-          git merge-base --is-ancestor "$ASA_BUILD_REVISION" HEAD
-          git diff --exit-code "$ASA_BUILD_REVISION" HEAD -- . \
-            ':!.github/workflows/electronics-ui-679-557.yml' ':!playwright.config.ts'
-          mkdir -p e2e/artifacts/electronics-simulation reports/electronics-trace-abba
+          test "$(git rev-parse HEAD)" = "$ASA_BUILD_REVISION"
+          git merge-base --is-ancestor "$ASA_DIAGNOSTIC_BASE_SHA" HEAD
+          git diff --exit-code "$ASA_DIAGNOSTIC_BASE_SHA" HEAD -- . \
+            ':!.github/workflows/electronics-ui-679-557.yml' ':!playwright.config.ts' \
+            ':!apps/web/src/electronics/simulation.worker.ts' \
+            ':!apps/web/src/electronics/simulation-worker-evaluator.ts' \
+            ':!e2e/electronics-interactions.spec.ts'
+          mkdir -p e2e/artifacts/electronics-simulation reports/electronics-worker-phase-682
           chmod -R 0777 e2e/artifacts reports
-          jq -n --arg source "$ASA_BUILD_REVISION" --arg diagnostic "$(git rev-parse HEAD)" \
-            '{production_source: $source, diagnostic_commit: $diagnostic}' \
-            > reports/electronics-trace-abba/provenance.json
+          jq -n --arg source "$ASA_DIAGNOSTIC_BASE_SHA" --arg diagnostic "$ASA_BUILD_REVISION" \
+            '{production_source: $source, diagnostic_commit: $diagnostic, trial: "long10000"}' \
+            > reports/electronics-worker-phase-682/provenance.json
 
       - name: Prepare and verify image-only PostgreSQL transport
         run: |
@@ -80,98 +85,52 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
-      - name: Run the unchanged Arduino 1 ms scenario in ABBA order
+      - name: Run the original strict long10000 scenario once
         shell: bash
         run: |
           compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml
             -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
-          root=reports/electronics-trace-abba
-          artifact_mount="$RUNNER_TEMP/electronics-trace-artifacts.yaml"
-          cat > "$artifact_mount" <<'YAML'
-          services:
-            test-runner:
-              volumes:
-                - type: bind
-                  source: "${ASA_TRACE_TRIAL_ARTIFACTS:?}"
-                  target: /workspace/e2e/artifacts
-          YAML
-          failure_report=reports/electronics-failures.ndjson
-          title='Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness$'
+          root=reports/electronics-worker-phase-682
+          title='long10000: strict real time and acknowledged native evidence$'
           docker image inspect --format '{{.Id}} {{range .RepoTags}}{{.}} {{end}}' \
             "asa-lab-api:$ASA_IMAGE_TAG" "asa-lab-web:$ASA_IMAGE_TAG" "asa-lab-test:$ASA_IMAGE_TAG" \
             > "$root/images.txt"
-          printf 'order\ttrace\texit_code\tevidence\n' > "$root/status.tsv"
-
-          result=0
-          index=0
-          for trace_variant in full light light full; do
-            index=$((index + 1))
-            trial="$root/$index-$trace_variant"
-            static_har="reports/.electronics-static-trace-$index.har"
-            mkdir -m 0777 -- "$trial" "$trial/test-artifacts"
-            export ASA_TRACE_TRIAL_ARTIFACTS="$PWD/$trial/test-artifacts"
-            test_artifacts="$trial/test-artifacts/electronics-simulation/ready-cadence-539"
-            "${compose[@]}" -f "$artifact_mount" config --format json |
-              jq -e --arg host "$ASA_TRACE_TRIAL_ARTIFACTS" '
-                .services["test-runner"].volumes
-                | any(.[]; .target == "/workspace/e2e/artifacts" and .source == $host)
-              ' >/dev/null
-            if "${compose[@]}" -f "$artifact_mount" run --rm --no-deps -e NX_SKIP_NX_CACHE=true \
-              -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE \
-              -e ASA_ELECTRONICS_FAILURE_REPORT -e "ASA_ELECTRONICS_DIAGNOSTIC_TRACE=$trace_variant" \
-              -e "ASA_ELECTRONICS_DIAGNOSTIC_STATIC_HAR=$static_har" test-runner \
-              pnpm exec playwright test e2e/electronics-ready-cadence.spec.ts --workers=1 \
-              --grep "$title" --output "$trial/playwright" 2>&1 | tee "$trial/playwright.log"; then
-              trial_exit=0
-            else
-              trial_exit=$?
-              result=1
-            fi
-            if [[ -f "$failure_report" ]]; then
-              mv -- "$failure_report" "$trial/electronics-failures.ndjson"
-            fi
-
-            evidence=complete
-            if [[ ! -s "$static_har" ]] || ! jq -e '
-              .log.entries
-              | map({
-                  path: (.request.url | sub("^https?://[^/]+"; "") | split("?")[0] | split("#")[0]),
-                  method: .request.method,
-                  status: .response.status,
-                  started_at: .startedDateTime,
-                  duration_ms: .time
-                })
-              | map(select(.path | test("^/assets/(electronics/|simulation[.]worker-[A-Za-z0-9_-]+[.]js$)")))
-              | select(length > 0)
-            ' "$static_har" > "$trial/static-network.json"; then
-              evidence=missing
-              result=1
-            fi
-            # The raw HAR is outside the upload root even if filtering fails.
-            rm -f -- "$static_har"
-            trace_files=("$trial"/playwright/*/trace.zip)
-            if [[ ! -s "$test_artifacts/owner-r18-blink-1-raw.json" ||
-                  ! -s "$test_artifacts/owner-r18-blink-1-frame.png" ||
-                  ! -s "$trial/electronics-failures.ndjson" || ! -s "${trace_files[0]}" ]]; then
-              evidence=missing
-              result=1
-            fi
-            printf '%s\t%s\t%s\t%s\n' "$index" "$trace_variant" "$trial_exit" "$evidence" \
-              >> "$root/status.tsv"
-          done
+          if "${compose[@]}" run --rm --no-deps -e NX_SKIP_NX_CACHE=true \
+            -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE \
+            -e ASA_ELECTRONICS_FAILURE_REPORT test-runner \
+            pnpm exec playwright test e2e/electronics-interactions.spec.ts --workers=1 \
+            --grep "$title" --output "$root/playwright"; then
+            trial_exit=0
+          else
+            trial_exit=$?
+          fi
+          journals=("$root"/playwright/*/realtime-682-native.jsonl)
+          evidence=missing
+          if [[ -s "${journals[0]}" ]]; then
+            evidence=retained
+          fi
+          printf 'playwright_exit\traw_journal\n%s\t%s\n' "$trial_exit" "$evidence" > "$root/status.tsv"
           cat "$root/status.tsv"
-          exit "$result"
+          if [[ "$evidence" != retained && "$trial_exit" == 0 ]]; then
+            exit 1
+          fi
+          exit "$trial_exit"
 
       - name: Show isolated stack state
         if: always()
         run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
 
-      - name: Upload diagnostic receipts and browser trace
+      - name: Upload the raw journal and isolated timing receipts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: electronics-trace-abba-${{ github.run_id }}-${{ github.run_attempt }}
-          path: reports/electronics-trace-abba
+          name: electronics-worker-phase-682-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/electronics-worker-phase-682/provenance.json
+            reports/electronics-worker-phase-682/images.txt
+            reports/electronics-worker-phase-682/status.tsv
+            reports/electronics-worker-phase-682/playwright/**/realtime-682-native.jsonl
+            reports/electronics-worker-phase-682/playwright/**/realtime-682.png
           if-no-files-found: ignore
           retention-days: 14
 
