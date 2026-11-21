@@ -2,7 +2,7 @@ import type { AiWebImage, AiWebSource, AiWebWeather } from '@asa-lab/contracts';
 import { createHash } from 'node:crypto';
 
 const MAX_BODY = 2 * 1024 * 1024;
-export const MAX_SEARCH_CANDIDATES = 48;
+const MAX_SEARCH_CANDIDATES = 48;
 const USER_AGENT = 'ASA-Lab/1.0 (+https://github.com/spikeal8-maker/asa-lab)';
 export class AiWebProviderError extends Error {
   constructor(readonly kind: 'unavailable' | 'invalid_response' = 'unavailable') {
@@ -77,7 +77,14 @@ export function parseSearxResults(
   value: unknown,
   imageMode: boolean,
   limit = 8,
-): { sources: AiWebSource[]; images: AiWebImage[]; rawCount: number; engineFailureCount: number } {
+  sourceAllowed: (url: string) => boolean = () => true,
+): {
+  sources: AiWebSource[];
+  images: AiWebImage[];
+  rawCount: number;
+  validatedCount: number;
+  engineFailureCount: number;
+} {
   const data = record(value);
   if (!Array.isArray(data['results'])) throw new AiWebProviderError('invalid_response');
   const engines = data['unresponsive_engines'];
@@ -96,38 +103,42 @@ export function parseSearxResults(
     images: AiWebImage[] = [],
     seen = new Set<string>();
   const seenImages = new Set<string>();
-  const count = Math.max(1, Math.min(MAX_SEARCH_CANDIDATES, limit));
+  const validated = new Set<string>();
+  const count = Math.max(1, Math.min(12, limit));
   for (const raw of data['results'].slice(0, MAX_SEARCH_CANDIDATES)) {
     const item = record(raw),
       url = publicWebUrl(item['url']);
-    if (!url || seen.has(url)) continue;
+    if (!url) continue;
+    const thumbnailUrl = imageMode ? searchThumbnailUrl(item['thumbnail_src']) : null;
+    const originalUrl = imageMode ? publicWebUrl(item['img_src']) : null;
+    const identity = originalUrl ?? thumbnailUrl;
+    if (imageMode && (!thumbnailUrl || !identity)) continue;
+    validated.add(identity ?? url);
+    // Rejected sources cannot consume the result limit or hide an allowed copy of an image.
+    if (!sourceAllowed(url) || seen.has(url) || (identity && seenImages.has(identity))) continue;
     seen.add(url);
-    const title = plain(item['title'], 240) || new URL(url).hostname;
+    const hostname = new URL(url).hostname;
+    const title = plain(item['title'], 240) || hostname;
     sources.push({
       id: sources.length + 1,
       title,
       url,
-      hostname: new URL(url).hostname,
+      hostname,
       snippet: plain(item['content'], 1200),
     });
-    if (imageMode) {
-      const thumbnailUrl = searchThumbnailUrl(item['thumbnail_src']);
-      const originalUrl = publicWebUrl(item['img_src']);
-      const identity = originalUrl ?? thumbnailUrl;
-      if (thumbnailUrl && identity && !seenImages.has(identity)) {
-        seenImages.add(identity);
-        images.push({
-          id: images.length + 1,
-          title,
-          sourceUrl: url,
-          thumbnailUrl,
-          ...(originalUrl ? { originalUrl } : {}),
-        });
-      }
+    if (thumbnailUrl && identity) {
+      seenImages.add(identity);
+      images.push({
+        id: images.length + 1,
+        title,
+        sourceUrl: url,
+        thumbnailUrl,
+        ...(originalUrl ? { originalUrl } : {}),
+      });
     }
-    if (!imageMode && sources.length === count) break;
   }
-  if (!imageMode) return { sources: sources.slice(0, count), images, ...metadata };
+  const validatedCount = validated.size;
+  if (!imageMode) return { sources: sources.slice(0, count), images, ...metadata, validatedCount };
   // Keep relevance order within each group, prefer an available original, and remove duplicates.
   const selected = images
     .sort((a, b) => Number(!!b.originalUrl) - Number(!!a.originalUrl))
@@ -135,6 +146,7 @@ export function parseSearxResults(
     .map((image, index) => ({ ...image, id: index + 1 }));
   return {
     ...metadata,
+    validatedCount,
     images: selected,
     sources: selected.flatMap((image, index) => {
       const source = sources.find((item) => item.url === image.sourceUrl);
@@ -480,7 +492,13 @@ export class FreeInternetProvider {
       throw new AiWebProviderError('invalid_response');
     }
   }
-  async search(query: string, images: boolean, signal: AbortSignal, limit = 8) {
+  async search(
+    query: string,
+    images: boolean,
+    signal: AbortSignal,
+    limit = 8,
+    sourceAllowed?: (url: string) => boolean,
+  ) {
     if (!this.searchBase) throw new AiWebProviderError();
     const url = new URL('search', this.searchBase);
     url.search = new URLSearchParams({
@@ -491,7 +509,12 @@ export class FreeInternetProvider {
       categories: images ? 'images' : 'general',
       engines: images ? 'bing images,duckduckgo images' : 'bing,duckduckgo,wikipedia',
     }).toString();
-    return parseSearxResults(await this.json(await this.response(url.href, signal)), images, limit);
+    return parseSearxResults(
+      await this.json(await this.response(url.href, signal)),
+      images,
+      limit,
+      sourceAllowed,
+    );
   }
   async weather(
     cityInput: string,

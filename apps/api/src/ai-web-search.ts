@@ -11,7 +11,6 @@ import type {
 } from '@asa-lab/contracts';
 import {
   FreeInternetProvider,
-  MAX_SEARCH_CANDIDATES,
   boundedWebResponse,
   cityQuery,
   searchThumbnailUrl,
@@ -743,17 +742,16 @@ export class AiWebSearchService {
     diagnostics?: AiWebSearchProbeResult['modes'][number]['diagnostics'];
   }> {
     try {
-      const resultsLimit = base.retrievalOptions?.resultsLimit ?? 8;
-      const found = await this.provider.search(base.query, images, signal, MAX_SEARCH_CANDIDATES);
-      // A blocked hit must not consume a slot before an allowed candidate is considered.
-      const allowed = (url: string) =>
-        searchDomainAllowed(url, config.allowed_domains ?? [], config.blocked_domains ?? []);
-      const sources = found.sources.filter((item) => allowed(item.url)).slice(0, resultsLimit);
-      const filteredImages = found.images
-        .filter((item) => allowed(item.sourceUrl))
-        .slice(0, resultsLimit);
-      const hasResults = sources.length > 0 || filteredImages.length > 0;
-      const hasUsableResults = found.sources.length > 0 || found.images.length > 0;
+      const found = await this.provider.search(
+        base.query,
+        images,
+        signal,
+        base.retrievalOptions?.resultsLimit ?? 8,
+        (url) =>
+          searchDomainAllowed(url, config.allowed_domains ?? [], config.blocked_domains ?? []),
+      );
+      const hasResults = found.sources.length > 0 || found.images.length > 0;
+      const hasUsableResults = found.validatedCount > 0;
       let outcome = reason;
       if (!outcome) {
         if (found.engineFailureCount) outcome = 'provider_partial_failure';
@@ -763,14 +761,14 @@ export class AiWebSearchService {
       return {
         evidence: {
           ...base,
-          sources,
-          images: filteredImages,
+          sources: found.sources,
+          images: found.images,
           status: hasResults ? 'ready' : 'empty',
           ...(outcome ? { reason: outcome } : {}),
         },
         diagnostics: {
           rawCount: found.rawCount,
-          validatedCount: images ? found.images.length : found.sources.length,
+          validatedCount: found.validatedCount,
           engineFailureCount: found.engineFailureCount,
         },
       };

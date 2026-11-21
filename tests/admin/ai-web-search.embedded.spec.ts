@@ -223,7 +223,7 @@ it.each(['web', 'images'] as const)(
       const results = Array.from({ length: 48 }, (_, i) => ({
         title: 'Источник ' + i,
         url: 'https://' + (i < 46 ? 'blocked.example.org' : 'example.org') + '/result-' + i,
-        thumbnail_src: 'https://tse1.mm.bing.net/th?id=image-' + i,
+        thumbnail_src: 'https://tse1.mm.bing.net/th?id=image-' + (i === 46 ? 0 : i),
       }));
       const fetchImpl = upstream(false, JSON.stringify({ results }));
       const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
@@ -232,10 +232,22 @@ it.each(['web', 'images'] as const)(
       await chat.send(owner, thread.id, 'Найди факт', request, mode);
       const receipt = await web.evidence(owner, thread.id, request);
       expect(receipt?.status).toBe('ready');
-      expect(receipt?.sources.map(({ url }) => url)).toEqual(['https://example.org/result-46']);
-      expect(receipt?.images.map(({ sourceUrl }) => sourceUrl)).toEqual(
-        mode === 'images' ? ['https://example.org/result-46'] : [],
+      expect(receipt?.sources.map(({ id, url }) => ({ id, url }))).toEqual([
+        { id: 1, url: 'https://example.org/result-46' },
+      ]);
+      const imagePath = `/api/ai/threads/${thread.id}/web-search/${request}/images/1`;
+      expect(
+        receipt?.images.map(({ id, sourceUrl, thumbnailUrl }) => ({ id, sourceUrl, thumbnailUrl })),
+      ).toEqual(
+        mode === 'images'
+          ? [{ id: 1, sourceUrl: 'https://example.org/result-46', thumbnailUrl: imagePath }]
+          : [],
       );
+      if (mode === 'images') {
+        const ownerWeb = new AiWebSearchService(pool, fetchImpl);
+        const image = await ownerWeb.image(owner, thread.id, request, 1);
+        expect(image.mediaType).toBe('image/png');
+      }
       expect(JSON.stringify(receipt)).not.toContain('blocked.example.org');
     } finally {
       await web.save(
