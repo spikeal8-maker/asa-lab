@@ -1,0 +1,154 @@
+name: Classroom Journal Latency Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - 'e2e/classroom-journal-diagnostic.spec.ts'
+      - '.github/workflows/classroom-journal-diagnostic.yml'
+  push:
+    branches: ['codex/classroom-journal-latency-diagnostic']
+    paths:
+      - 'e2e/classroom-journal-diagnostic.spec.ts'
+      - '.github/workflows/classroom-journal-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: classroom-journal-diagnostic-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  characterize:
+    name: Isolated journal write characterization
+    runs-on: ubuntu-24.04
+    timeout-minutes: 32
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASA_E2E_EXTERNAL: 'true'
+      ASA_CLASSROOM_JOURNAL_DIAGNOSTIC: '1'
+      ASA_HTTP_LOG: '1'
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      TEST_DATABASE_URL: postgresql://postgres:journal-diagnostic-ci-only@127.0.0.1:5432/asa_classroom_journal_diagnostic_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:journal-diagnostic-ci-only@127.0.0.1:5432/asa_classroom_journal_diagnostic_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:journal-diagnostic-ci-only@127.0.0.1:5432/asa_classroom_journal_diagnostic_test
+      MIGRATION_EXPECT_DATABASE: asa_classroom_journal_diagnostic_test
+      MIGRATION_CONFIRM: APPLY:asa_classroom_journal_diagnostic_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Build the exact diagnostic source
+        run: |
+          test "$(git rev-parse HEAD)" = "$ASA_BUILD_REVISION"
+          VITE_ASA_BUILD_REVISION="$ASA_BUILD_REVISION" pnpm build
+      - name: Prepare isolated PostgreSQL and verify runtime restrictions
+        run: |
+          sudo systemctl start postgresql.service
+          version=$(sudo -u postgres psql -Atqc 'SHOW server_version_num')
+          test "$version" -ge 160000 && test "$version" -lt 170000
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE postgres WITH PASSWORD 'journal-diagnostic-ci-only'"
+          sudo -u postgres createdb asa_classroom_journal_diagnostic_test
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'journal-diagnostic-ci-only'"
+          role=$(psql "$APP_TEST_DATABASE_URL" -Atqc "SELECT current_user || ':' || rolsuper || ':' || rolbypassrls FROM pg_roles WHERE rolname=current_user")
+          test "$role" = "asalab_app:false:false"
+      - name: Run the real journal browser against the isolated API
+        run: |
+          umask 077
+          mkdir -p reports/classroom-journal-diagnostic
+          startup=reports/classroom-journal-diagnostic/startup.json
+          status() { printf '{"sourceSha":"%s","stage":"%s"}\n' "$ASA_BUILD_REVISION" "$1" > "$startup"; }
+          status api_starting
+          node e2e/server.mjs > "$RUNNER_TEMP/journal-diagnostic-api.log" 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; wait "$api_pid" || true' EXIT
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:4612/health/live > /dev/null; then
+              ready=true
+              break
+            fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              status api_exited_before_ready
+              echo '::error::Isolated API terminated before readiness'
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            status api_readiness_timeout
+            echo '::error::Isolated API did not reach readiness'
+            exit 1
+          fi
+          if ! curl --silent --fail http://127.0.0.1:4612/build-metadata.json |
+            jq -e --arg sha "$ASA_BUILD_REVISION" '.revision == $sha' > /dev/null; then
+            status served_revision_unverified
+            echo '::error::Could not verify the SHA of the served SPA'
+            exit 1
+          fi
+          status served_revision_verified
+          pnpm exec playwright test e2e/classroom-journal-diagnostic.spec.ts --workers=1
+      - name: Join teacher request IDs to sanitized server timings
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          reports = sorted(Path('reports/classroom-journal-diagnostic').glob('cohort-*.json'))
+          source = os.environ['ASA_BUILD_REVISION']
+          samples = {}
+          api_log = Path(os.environ['RUNNER_TEMP']) / 'journal-diagnostic-api.log'
+          if api_log.is_file():
+              for line in api_log.open(encoding='utf-8', errors='replace'):
+                  try:
+                      event = json.loads(line)
+                  except ValueError:
+                      continue
+                  if not isinstance(event, dict):
+                      continue
+                  if event.get('kind') not in ('http_response', 'http_request_ended'):
+                      continue
+                  if event.get('method') != 'POST' or not str(event.get('path')).endswith('/journal/quick'):
+                      continue
+                  if event.get('revision') == source:
+                      samples[event.get('requestId')] = event
+
+          missing = 0
+          for report in reports:
+              data = json.loads(report.read_text(encoding='utf-8'))
+              for item in data['teacher']:
+                  server = samples.get(item.get('requestId'))
+                  if server is not None and server.get('status') == item.get('status'):
+                      item['serverHttpDurationMs'] = server['durationMs']
+                  elif data['complete']:
+                      missing += 1
+              report.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+
+          print(f'Journal reports: {len(reports)}, confirmed actions without server timings: {missing}')
+          if missing:
+              raise SystemExit('A complete report must correlate teacher requests to server logs')
+          PY
+      - name: Publish diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-journal-diagnostic-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/classroom-journal-diagnostic/
+          retention-days: 14
+          if-no-files-found: warn
