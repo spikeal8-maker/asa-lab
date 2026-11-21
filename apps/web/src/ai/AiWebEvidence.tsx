@@ -6,6 +6,7 @@ import './ai-web-search.css';
 const notices: Partial<Record<NonNullable<AiWebSearchEvidence['reason']>, string>> = {
   not_configured: 'Интернет-поиск ещё не подключён администратором.',
   provider_unavailable: 'Поиск сейчас недоступен. Ответ не подтверждён свежими источниками.',
+  domains_filtered: 'Результаты найдены, но не прошли фильтр сайтов.',
   weather_unavailable: 'Точный прогноз недоступен. Ниже — найденные погодные источники.',
   location_required: 'Для прогноза укажите город.',
   location_ambiguous: 'Найдено несколько мест. Уточните город и регион.',

@@ -700,12 +700,15 @@ export class AiWebSearchService {
           config.blocked_domains ?? [],
         ),
       );
+      const hasResults = sources.length > 0 || filteredImages.length > 0;
+      const allFiltered = !hasResults && (found.sources.length > 0 || found.images.length > 0);
+      const outcome = reason ?? (allFiltered ? 'domains_filtered' : undefined);
       return {
         ...base,
         sources,
         images: filteredImages,
-        status: sources.length || filteredImages.length ? 'ready' : 'empty',
-        ...(reason ? { reason } : {}),
+        status: hasResults ? 'ready' : 'empty',
+        ...(outcome ? { reason: outcome } : {}),
       };
     } catch {
       return { ...base, reason: reason ?? 'provider_unavailable' };

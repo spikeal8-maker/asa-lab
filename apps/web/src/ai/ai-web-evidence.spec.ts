@@ -176,6 +176,15 @@ describe('server-issued internet evidence', () => {
     expect(html).toContain('попытка');
     expect(html).not.toContain('получено');
   });
+  it('distinguishes domain filtering from a search with no matches', () => {
+    const empty = { ...evidence, status: 'empty', sources: [], images: [] };
+    const render = (data: unknown) =>
+      renderToStaticMarkup(createElement(AiWebEvidence, { evidence: data }));
+    expect(render(empty)).toContain('По этому запросу источники не найдены.');
+    const filtered = render({ ...empty, reason: 'domains_filtered' });
+    expect(filtered).toContain('Результаты найдены, но не прошли фильтр сайтов.');
+    expect(filtered).not.toContain('источники не найдены');
+  });
   it('renders a scrollable multi-image gallery with distinct source links and a truthful temperature card', () => {
     const basePath =
       '/api/ai/threads/11111111-1111-4111-8111-111111111111/web-search/22222222-2222-4222-8222-222222222222/images/';

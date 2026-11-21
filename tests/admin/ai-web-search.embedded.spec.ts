@@ -47,20 +47,22 @@ async function identity(elevated = false) {
     );
   return principal;
 }
-function upstream() {
+function upstream(empty = false) {
   return vi.fn<typeof fetch>(async (url, options) => {
     const u = new URL(String(url));
     if (u.hostname === 'search')
       return new Response(
         JSON.stringify({
-          results: [
-            {
-              title: 'Источник',
-              url: 'https://example.org/fact',
-              content: 'Подтверждённый факт.',
-              thumbnail_src: 'https://tse1.mm.bing.net/th?id=image',
-            },
-          ],
+          results: empty
+            ? []
+            : [
+                {
+                  title: 'Источник',
+                  url: 'https://example.org/fact',
+                  content: 'Подтверждённый факт.',
+                  thumbnail_src: 'https://tse1.mm.bing.net/th?id=image',
+                },
+              ],
         }),
       );
     if (u.hostname === 'tse1.mm.bing.net')
@@ -159,6 +161,41 @@ it('persists exact owner sources for JSON, refresh/replay and variants without a
   expect(
     fetchImpl.mock.calls.filter((c) => new URL(String(c[0])).hostname === 'search'),
   ).toHaveLength(1);
+});
+it('persists distinct filtered and empty receipts without exposing rejected results', async () => {
+  const owner = await identity();
+  const web = new AiWebSearchService(pool);
+  const { enabled, weatherEnabled, operationsPerHour, configurationVersion, blockedDomains } =
+    await web.admin(admin);
+  const config = { enabled, weatherEnabled, operationsPerHour, configurationVersion };
+  const saved = await web.save(admin, { ...config, blockedDomains: ['example.org'] }, randomUUID());
+  try {
+    for (const empty of [false, true]) {
+      const fetchImpl = upstream(empty);
+      const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+      const thread = await chat.createThread(owner);
+      const request = randomUUID();
+      await chat.send(owner, thread.id, 'Найди факт', request, 'web');
+      const receipt = await web.evidence(owner, thread.id, request);
+      expect(receipt).toMatchObject({ status: 'empty', sources: [], images: [] });
+      expect(receipt?.reason).toBe(empty ? undefined : 'domains_filtered');
+      expect(JSON.stringify(receipt)).not.toContain('example.org');
+      const modelRequest = fetchImpl.mock.calls.find(([url]) =>
+        String(url).startsWith('https://api.deepseek.com/'),
+      );
+      const modelBody = JSON.parse(String(modelRequest?.[1]?.body));
+      const modelInput = modelBody.messages.at(-1).content;
+      expect(modelInput).toContain('"status":"empty"');
+      expect(modelInput.includes('domains_filtered')).toBe(!empty);
+      expect(modelInput).not.toContain('example.org');
+    }
+  } finally {
+    await web.save(
+      admin,
+      { ...config, configurationVersion: saved.configurationVersion, blockedDomains },
+      randomUUID(),
+    );
+  }
 });
 it('keeps image original URLs private and authenticates the same-origin raster proxy', async () => {
   const owner = await identity(),
