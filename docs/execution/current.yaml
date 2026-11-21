@@ -11922,8 +11922,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
-      checkpoint: exact_e1_32native_proof_approved_overall86fail_548_acceptance_open
+      status: done
+      checkpoint: field32_verified_on_main_catalog_548_dependency_resolved
+      current_source_proof:
+        verified_main_sha: 71193663404f520ef0ea611d5ce93a3c71ae29fb
+        tested_source_sha: 6200557f5680e3d77556fad42143a50acc0ff371
+        shared_source_tree: 1f3a98d8852e70234cb03338f0998c0f445245c6
+        general_main_run: 44886024888
+        browser_run: 44882345175
+        browser_job: 136780874141
+        browser_artifact: 14699780434
+        browser_result: 32 of 32 native boundary journeys passed, including authenticated Save, revision,
+          cookies-only reopen with the same document and native regrab at four viewport widths.
+        raw_files: 32
+        phase_pngs: 224
+        independent_review: APPROVE scoped native field proof on the verified main tree.
+        full_strict_result: 259 passed and 13 failed outside the field journey scope.
       proof_sha: e1be12d19f8669c1145020c756551dd2188ed10f
       proof_run: 41026543811
       proof_result: Field32of32_raw256files_independentAPPROVE_focused2565tests71freshNx_benchmarkPASS_General41026543011_all4SUCCESS_overallbrowser183pass86fail_notrelease
@@ -11943,7 +11957,8 @@ parallel_lanes:
       preserved_oracle_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
       historical_evidence: 32 whole-document native drag/Save/revision/cookies-only reopen journeys passed historically; not current exact-SHA acceptance.
       acceptance_dependency_issue: 548
-      next_action: Bounded current-source proof complete; preserve all32 raw and224PNG plus independent verdict. No unrelated baseline repair or issue544 closure;548 acceptance remains open.
+      acceptance_dependency_state: resolved_on_verified_main
+      next_action: Close issue544 after this source record and issue548 closure. Keep owner and release acceptance pending.
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 46aab6bc166b706f643b7e2e850f263b84ec1f25
@@ -13063,8 +13078,28 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: budget_blocked_selected_own_helper_attempt_withdrawn
+      status: done
+      checkpoint: merged_image_recovery_verified_original_548_scope
+      source_closure:
+        verified_main_sha: 71193663404f520ef0ea611d5ce93a3c71ae29fb
+        tested_source_sha: 6200557f5680e3d77556fad42143a50acc0ff371
+        shared_source_tree: 1f3a98d8852e70234cb03338f0998c0f445245c6
+        product_commits:
+        - 5d6866bdc
+        - 09b4c8162a52fad4e5f54359eace4d18b6799f31
+        general_main_run: 44886024888
+        browser_run: 44882345175
+        browser_job: 136780874141
+        browser_artifact: 14699780434
+        browser_result: Permanent AA2 failure on stage and catalog, catalog recovery without placement or Save,
+          and sparse HEAD recovery passed under the original assertions.
+        independent_review: APPROVE original defect closure on the verified main tree.
+        separate_observation: >-
+          Run44882381110 reported 6 to 7 requests in the 800ms quiet window. Both warnings were visible
+          before the seventh request, which was asa-mask-retry=2. The original badge defect did not recur.
+          Keep that observation and all existing limits. Isolated AA2 repeats passed 3/3 on each
+          of runs44882741479 and44883167774.
+        full_strict_result: 259 passed and 13 failed outside the original issue scope.
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -13203,10 +13238,7 @@ parallel_lanes:
         unit: 46PASS;eslint and formatPASS;exactunitfile preserved.
         raw_proxy: Prototype43950;attempt43953 deltaPLUS3;actualfullbundleNOT_RUN. This attempt does not prove all possible implementations infeasible.
         evidence: docs/product/electronics/evidence/instrument-525-hit-ownership-selection-20261021.md
-      next_action: >-
-        STOP548 BUDGET_BLOCKED;preserve unchanged9f/e89/e0af and46units. No automatic optimization,
-        newmeasurement,productmain or closure. Separately selected525TESTONLY hitownership repair
-        may proceed after canonicalpublication;KEEP544547OPEN until demonstrated548fix.
+      next_action: Close issue548 after publishing this verified source record. Retain previous prototype evidence.
       preservation: >-
         Preserve e89prototype/e0afRED/public9f/history and final46unit bytes;all foreign525/549/LED/
         assets/hook/API/persistence/currentstate and acceptanceblocks. Own-diff author onlyVisual;
@@ -22716,9 +22748,7 @@ blocking:
     lane: electronics-field-grab
     task_id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
     blocks:
-      - technical_acceptance
       - owner_acceptance
-      - close_issue
       - release_claim
     allows:
       - bounded_composition
@@ -22727,10 +22757,9 @@ blocking:
       - documentation_update
       - source_publication
     reason: >-
-      Historical field32 evidence is preserved, but new composition needs exact focused/browser/general
-      evidence and new independent review. Separate catalog548 remains an independent acceptance dependency;
-      do not repair it in544 or claim closure from source publication. Owner explicitly resumed544 and
-      authorized normal source delivery; owner acceptance, device/class and deployment remain pending.
+      The 32 native field journeys and ordinary General gate passed on the verified main tree.
+      The independent review approved the field scope and the original catalog548 defect is resolved.
+      Full strict remains red outside these scopes. Owner device/class acceptance and release remain pending.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
   - id: ELECTRONICS-658-STRICT-BASELINE
     kind: acceptance_blocker
