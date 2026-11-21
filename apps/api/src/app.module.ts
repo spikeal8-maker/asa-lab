@@ -72,6 +72,8 @@ import { PublicScratchPlayerController } from './public-scratch-player.controlle
 import { AdminController } from './admin.controller.js';
 import { AiChatController } from './ai-chat.controller.js';
 import { AiAdminController } from './ai-admin.controller.js';
+import { AiOwnQualityController } from './ai-own-quality.controller.js';
+import { AiOwnQualityService, AI_OWN_QUALITY_SERVICE } from './ai-own-quality.js';
 import { AiToolPolicyController } from './ai-tool-policy.controller.js';
 import { AiChatService } from './ai-chat.service.js';
 import { AiAccessController } from './ai-access.controller.js';
@@ -287,6 +289,7 @@ export class AppModule {
         AdminPolzaController,
         AiSttController,
         AiAdminController,
+        AiOwnQualityController,
         AiToolPolicyController,
         AdminLogsController,
         ClientDiagnosticsController,
@@ -348,6 +351,7 @@ export class AppModule {
         { provide: TOKENS.accountVerification, useValue: accountVerification },
         { provide: TOKENS.emailService, useValue: emailService },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
+        { provide: AI_OWN_QUALITY_SERVICE, useValue: new AiOwnQualityService(requirePool()) },
         { provide: AI_IMAGE_SERVICE, useValue: aiImageService },
         { provide: AI_POLZA_SERVICE, useValue: aiPolzaService },
         { provide: TOKENS.aiAccessService, useValue: aiAccessService },

@@ -12,6 +12,7 @@ import { AdminAiWebSearch } from './AdminAiWebSearch';
 import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
 import { AdminAiTokenBudgets } from './AdminAiTokenBudgets';
 import { AdminAiUsageOverview } from './AdminAiUsageOverview';
+import { AdminAiOwnQuality } from './AdminAiOwnQuality';
 import type { AiAdminConfig } from './ai-model-config';
 import { isPolzaConfig, type AiPolzaAdminConfig } from './ai-polza-admin';
 import {
@@ -233,6 +234,7 @@ function AiAdminWorkspaceSession({
       {section === 'overview' ? (
         <div id="ai-panel-overview" role="tabpanel" aria-labelledby="ai-tab-overview">
           <AdminAiUsageOverview onAccessDenied={onAccessDenied} />
+          <AdminAiOwnQuality />
         </div>
       ) : section === 'connections' ? (
         <section
