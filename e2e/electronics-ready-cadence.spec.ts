@@ -5973,7 +5973,35 @@ async function d2FailureArchive(page: Page, context: string, error: unknown) {
   if (state.available && !state.pending) await d2Archive(page, context, []);
 }
 
+async function d2PrepareCaptureViewport(page: Page): Promise<void> {
+  await expect(page.locator('.arduino-code-panel')).toBeHidden();
+  const boardInsideViewport = () =>
+    page.evaluate(() => {
+      const board = document
+        .querySelector('[data-component-id="uno"] .workbench-production-visual image')
+        ?.getBoundingClientRect();
+      const canvas = document.querySelector('.workbench-canvas')?.getBoundingClientRect();
+      return (
+        !!board &&
+        !!canvas &&
+        board.width > 0 &&
+        board.height > 0 &&
+        board.left >= Math.max(0, canvas.left) &&
+        board.top >= Math.max(0, canvas.top) &&
+        board.right <= Math.min(innerWidth, canvas.right) &&
+        board.bottom <= Math.min(innerHeight, canvas.bottom)
+      );
+    });
+  if (await boardInsideViewport()) return;
+  await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+  await expect
+    .poll(boardInsideViewport, { message: 'D2–D4 acquisition requires the whole native Uno' })
+    .toBe(true);
+}
+
 async function d2Capture(page: Page, stage: D2Stage, action: 'start' | 'reset' = 'start') {
+  // Fit the stopped editor before the trusted action; preserve the running Reset interval.
+  if (action === 'start') await d2PrepareCaptureViewport(page);
   const beforeAction = await page.evaluate(() => performance.now());
   if (action === 'reset') await page.getByTestId('arduino-reset-button').click();
   else await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
