@@ -469,15 +469,19 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     evidence.completed.controlledExit = 1;
 
     const revoked = learners.at(-1)!;
+    const issueSession = () =>
+      revoked.context.request.post(`/api/projects/${revoked.projectId}/blocks/runtime-session`, {
+        headers,
+        data: {},
+      });
+    expect((await issueSession()).status()).toBe(200);
     const removal = await staff.delete(`/api/classrooms/${classId}/seats/${revoked.seatId}`, {
       headers,
     });
     expect(removal.status()).toBe(200);
-    const denied = await revoked.context.request.post(
-      `/api/projects/${revoked.projectId}/blocks/runtime-session`,
-      { headers, data: { mode: 'editor' } },
-    );
-    expect([401, 403]).toContain(denied.status());
+    const denied = await issueSession();
+    expect(denied.status()).toBe(401);
+    expect(await denied.json()).toMatchObject({ error: { code: 'unauthorized' } });
     evidence.completed.revocation = 1;
     expect(evidence.databaseActivity.samples).toBeGreaterThan(0);
     expect(evidence.databaseActivity.errors).toBe(0);

@@ -242,10 +242,12 @@ jobs:
           pnpm exec vitest run tests/portal/public-scratch-player.pg.spec.ts --maxWorkers=1
           pnpm exec playwright test e2e/public-project-scratch-viewer.spec.ts --workers=1 --reporter=list --output=reports/blocks/public-player-results
           before="$(docker inspect --format '{{.Id}} {{.RestartCount}}' asa-lab-scratch-editor)"
-          ASA_E2E_PORT=4614 ASA_SCRATCH_CLASSROOM30=1 pnpm exec playwright test e2e/scratch-classroom-30.spec.ts --workers=1 --reporter=list --output=reports/blocks/classroom-30
+          classroom_status=0
+          ASA_E2E_PORT=4614 ASA_SCRATCH_CLASSROOM30=1 pnpm exec playwright test e2e/scratch-classroom-30.spec.ts --workers=1 --reporter=list --output=reports/blocks/classroom-30 || classroom_status=$?
           after="$(docker inspect --format '{{.Id}} {{.RestartCount}}' asa-lab-scratch-editor)"
           test "$before" = "$after"
           printf 'Scratch container identity and restart count unchanged: %s\n' "$after"
+          exit "$classroom_status"
 
       - name: Preserve native player and classroom evidence
         if: always()
