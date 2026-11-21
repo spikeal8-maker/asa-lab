@@ -10,6 +10,7 @@ import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
 import { AiImageService, imageInput, imageAdminInput } from '../../apps/api/src/ai-image.service';
 import type { ComfyImageRecovery } from '../../apps/api/src/ai-image-comfyui';
 import { AiAttachmentStorageError } from '../../apps/api/src/ai-attachments/blob-store';
+import { WorkingFileStore } from '../../apps/api/src/ai-working-files';
 import { AiTextHistoryStore } from '../../apps/api/src/ai-text-history';
 import { aiClassFixture } from './ai-student-access.contract';
 let legacyOwner: string, legacyThread: string, legacyRequest: string, legacyParent: string;
@@ -775,7 +776,7 @@ it('cleanup_done defensively closes historical deleted storing rows without eras
   ).toBe('cancelled');
 });
 
-it('atomically turns an admitted local text request into one owner-scoped image job', async () => {
+async function verifyNativeImageHandoff(variant: 'legacy' | 'visible' | 'bound') {
   await config();
   const actor = await identity();
   const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
@@ -846,6 +847,57 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     ],
     offered,
   )[0]!;
+  const visible = variant === 'legacy' ? '' : 'Готовлю иллюстрацию для леса. ';
+  const target =
+    variant === 'bound'
+      ? { name: 'forest.html', expectedVersion: 1, placeholder: 'ASA_GENERATED_IMAGE_PENDING' }
+      : undefined;
+  if (target) {
+    await new WorkingFileStore(pool).write(
+      actor,
+      chat,
+      target.name,
+      0,
+      '<img src="ASA_GENERATED_IMAGE_PENDING">',
+      randomUUID(),
+      parent,
+      parent,
+      null,
+      null,
+      'Лес',
+    );
+  }
+  if (visible) {
+    const failedChild = randomUUID();
+    const args = [
+      actor,
+      chat,
+      parent,
+      failedChild,
+      childPrompt,
+      768,
+      randomUUID(),
+      1,
+      false,
+      'a'.repeat(64),
+      fp8Settings.recipe,
+    ];
+    const signature =
+      '$1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar';
+    const select = target
+      ? `SELECT ai_tool_image_file_visible_begin(${signature},$12::jsonb,$13::varchar)`
+      : `SELECT ai_tool_image_visible_begin(${signature},$12::varchar)`;
+    await expect(
+      pool.query(select, [...args, ...(target ? [JSON.stringify(target)] : []), visible]),
+    ).rejects.toThrow('AI_IMAGE_UNAVAILABLE');
+    expect(
+      (await new AiTextHistoryStore(pool).messages(actor, chat)).map(({ role }) => role),
+    ).toEqual(['user']);
+    expect(
+      (await db.query('SELECT request_id FROM ai_image_jobs WHERE request_id=$1', [failedChild]))
+        .rows,
+    ).toEqual([]);
+  }
   const job = await service().createFromTool(
     actor,
     chat,
@@ -854,6 +906,8 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     768,
     new AbortController().signal,
     parsed.arguments.model as typeof fp8Settings.recipe,
+    target,
+    visible,
   );
   expect(job.state).toBe('admitted');
   expect(transport.dispatch.mock.calls.length).toBe(before);
@@ -897,7 +951,26 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   const acknowledged = await new AiTextHistoryStore(pool).messages(actor, chat);
   expect(
     acknowledged.find((item) => item.role === 'assistant' && item.requestId === parent)?.content,
-  ).toContain('Задание');
+  ).toBe(visible || 'Задание на создание изображения принято.');
+  const replay = await service().createFromTool(
+    actor,
+    chat,
+    parent,
+    childPrompt,
+    768,
+    new AbortController().signal,
+    fp8Settings.recipe,
+    target,
+    'Текст повторного запроса.',
+  );
+  expect(replay.requestId).toBe(job.requestId);
+  if (target) {
+    const bindings = await db.query<{ child_request_id: string }>(
+      'SELECT child_request_id FROM ai_image_file_bindings WHERE owner_principal_id=$1 AND parent_request_id=$2',
+      [actor, parent],
+    );
+    expect(bindings.rows).toEqual([{ child_request_id: job.requestId }]);
+  }
   const lease = randomUUID();
   await db.query(
     "UPDATE ai_image_jobs SET lease_id=$2,lease_until=clock_timestamp()+interval '2 minutes' WHERE request_id=$1",
@@ -921,6 +994,9 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   ).toBe(true);
   const completed = await new AiTextHistoryStore(pool).messages(actor, chat);
   expect(completed.filter((item) => item.role === 'assistant')).toHaveLength(1);
+  expect(completed.find((item) => item.role === 'assistant')?.content).toBe(
+    visible || 'Задание на создание изображения принято.',
+  );
   expect(completed.filter((item) => item.role === 'user')).toHaveLength(1);
   expect(
     completed.filter((item) => item.role === 'assistant' && item.generatedImages?.length),
@@ -965,7 +1041,12 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   expect(manualHistory.filter((item) => item.role === 'assistant')).toHaveLength(1);
   expect(manualHistory[1]?.generatedImages?.[0]?.requestId).toBe(manual.requestId);
   await expect(service().replayTool(stranger, chat, parent)).rejects.toThrow();
-});
+}
+
+it.each(['legacy', 'visible', 'bound'] as const)(
+  'atomically turns a %s local text request into one owner-scoped image job',
+  verifyNativeImageHandoff,
+);
 
 it('uses the six preset dimensions in durable owner history and rejects new 512 jobs', async () => {
   await db.query(

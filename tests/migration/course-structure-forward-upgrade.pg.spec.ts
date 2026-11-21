@@ -198,6 +198,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0326', // Allow large PDF task attachments.
         '0327', // Expand supported task attachment formats.
         '0328', // Safe Mode blocks new publications and retroactive public reads.
+        '0332', // Retain visible assistant text when admitting an image tool.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -555,6 +556,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0326', // Allow large PDF task attachments.
           '0327', // Expand supported task attachment formats.
           '0328', // Safe Mode blocks new publications and retroactive public reads.
+          '0332', // Retain visible assistant text when admitting an image tool.
         ]);
         expect(
           await applyIsolatedTestPlan(

@@ -2538,6 +2538,7 @@ export class AiChatService {
             call.arguments.model as AiImageRecipe,
             call.arguments.target as
               Readonly<{ name: string; expectedVersion: number; placeholder: string }> | undefined,
+            visibleProviderText,
           ),
         );
         await this.usage.finish(
