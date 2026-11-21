@@ -17,14 +17,14 @@ env:
 jobs:
   browser:
     if: github.ref == 'refs/heads/codex/electronics-548-current-diagnostic'
-    name: E07 mouse and touch plus permanent AA2 on built Chromium
+    name: Permanent AA2 on main, three runs
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: 6200557f5680e3d77556fad42143a50acc0ff371
-      ASA_ELECTRONICS_EXPECTED_SHA: 6200557f5680e3d77556fad42143a50acc0ff371
-      ASA_IMAGE_TAG: 6200557f5680e3d77556fad42143a50acc0ff371
+      ASA_BUILD_REVISION: 0e0e47db95d7d16f5a67e11ac0561d6a3b00281d
+      ASA_ELECTRONICS_EXPECTED_SHA: 0e0e47db95d7d16f5a67e11ac0561d6a3b00281d
+      ASA_IMAGE_TAG: 0e0e47db95d7d16f5a67e11ac0561d6a3b00281d
       COMPOSE_PROJECT_NAME: asa-lab-electronics-548-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
@@ -81,8 +81,8 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA test-runner
-          pnpm exec playwright test e2e/electronics-interactions.spec.ts --workers=1
-          --grep 'E07 saved legacy wire segments with the real API|a permanently missing ordinary image shows an accessible failure on stage and catalog$'
+          pnpm exec playwright test e2e/electronics-interactions.spec.ts --workers=1 --repeat-each=3
+          --grep 'a permanently missing ordinary image shows an accessible failure on stage and catalog$'
 
       - name: Show isolated stack state
         if: always()
