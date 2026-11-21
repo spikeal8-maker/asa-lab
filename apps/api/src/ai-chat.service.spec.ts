@@ -457,43 +457,52 @@ describe('ASA native AI Chat', () => {
   );
 
   it('uses the same digital-laboratory instruction for JSON and streaming requests', async () => {
-    const query = vi.fn(async (sql: string) => {
-      const journal = aiUsageQueryFixture(sql);
-      if (journal) return journal;
-      if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
-      if (sql.includes('ai_text_generation_context'))
-        return { rows: [{ role: 'user', content: 'Вопрос' }] };
-      return { rows: [] };
-    });
-    const fetchImpl = vi.fn<typeof fetch>(async (_url, options) => {
-      const body = JSON.parse(String(options?.body)) as { stream?: boolean };
-      return body.stream
-        ? new Response(
-            'event: response.output_text.delta\ndata: {"delta":"Ответ"}\n\n' +
-              'event: response.completed\ndata: {"type":"response.completed"}\n\n',
-          )
-        : new Response(JSON.stringify({ status: 'completed', output_text: 'Ответ' }));
-    });
-    const service = new AiChatService(prePolzaPool(query), {
-      encryptionKey: ROOT,
-      fetchImpl,
-    });
-    await service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST);
-    await service.sendStream(
-      PRINCIPAL,
-      THREAD,
-      'Вопрос',
-      REQUEST,
-      () => undefined,
-      new AbortController().signal,
-    );
-    const prompts = fetchImpl.mock.calls.map(
-      ([, options]) => (JSON.parse(String(options?.body)) as { instructions: string }).instructions,
-    );
-    expect(prompts[0]).toBe(prompts[1]);
-    expect(prompts[0]).toContain('цифровой лаборатории ASA Lab');
-    expect(prompts[0]).toContain('создавать проекты');
+    // The instruction contains the current date and time. Keep only Date fixed;
+    // real async I/O and request timers must continue to run normally.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-13T12:00:00.000Z'));
+    try {
+      const query = vi.fn(async (sql: string) => {
+        const journal = aiUsageQueryFixture(sql);
+        if (journal) return journal;
+        if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
+        if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
+        if (sql.includes('ai_text_generation_context'))
+          return { rows: [{ role: 'user', content: 'Вопрос' }] };
+        return { rows: [] };
+      });
+      const fetchImpl = vi.fn<typeof fetch>(async (_url, options) => {
+        const body = JSON.parse(String(options?.body)) as { stream?: boolean };
+        return body.stream
+          ? new Response(
+              'event: response.output_text.delta\ndata: {"delta":"Ответ"}\n\n' +
+                'event: response.completed\ndata: {"type":"response.completed"}\n\n',
+            )
+          : new Response(JSON.stringify({ status: 'completed', output_text: 'Ответ' }));
+      });
+      const service = new AiChatService(prePolzaPool(query), {
+        encryptionKey: ROOT,
+        fetchImpl,
+      });
+      await service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST);
+      await service.sendStream(
+        PRINCIPAL,
+        THREAD,
+        'Вопрос',
+        REQUEST,
+        () => undefined,
+        new AbortController().signal,
+      );
+      const prompts = fetchImpl.mock.calls.map(
+        ([, options]) =>
+          (JSON.parse(String(options?.body)) as { instructions: string }).instructions,
+      );
+      expect(prompts[0]).toBe(prompts[1]);
+      expect(prompts[0]).toContain('цифровой лаборатории ASA Lab');
+      expect(prompts[0]).toContain('создавать проекты');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('stops an owned stream across UUID casing without stopping another owner or thread', async () => {
