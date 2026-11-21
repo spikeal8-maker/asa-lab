@@ -85,9 +85,45 @@ function assertIsolatedRun(baseURL: string | undefined): string {
   return adminUrl.href;
 }
 
+const apiErrorCodes = new Set([
+  'batch_failed',
+  'classroom_not_found',
+  'conflict',
+  'database_unavailable',
+  'forbidden',
+  'idempotency_conflict',
+  'invalid_body',
+  'invalid_class_credentials',
+  'invalid_idempotency_key',
+  'learning_context_unavailable',
+  'not_found',
+  'rate_limited',
+  'revision_conflict',
+  'unauthorized',
+  'validation_error',
+]);
+
+type ApiFailure = { step: string; status: number; code: string };
+
+class DiagnosticApiError extends Error {
+  constructor(readonly failure: ApiFailure) {
+    super(failure.step + ': HTTP ' + failure.status + ' (' + failure.code + ')');
+  }
+}
+
 async function json<T>(response: APIResponse, status: number, action: string): Promise<T> {
   try {
-    expect(response.status(), action).toBe(status);
+    if (response.status() !== status) {
+      const body = (await response.json().catch(() => null)) as {
+        error?: { code?: unknown };
+      } | null;
+      const code = body?.error?.code;
+      throw new DiagnosticApiError({
+        step: action,
+        status: response.status(),
+        code: typeof code === 'string' && apiErrorCodes.has(code) ? code : 'unclassified',
+      });
+    }
     return (await response.json()) as T;
   } finally {
     await response.dispose();
@@ -98,7 +134,7 @@ async function prepareClass(page: Page, count: number) {
   const title = 'Journal diagnostic ' + randomUUID().slice(0, 8);
   const created = await json<{ classroom: { id: string } }>(
     await page.request.post('/api/classrooms', {
-      headers: { origin },
+      headers: { origin, 'idempotency-key': randomUUID() },
       data: { title },
     }),
     201,
@@ -167,6 +203,7 @@ async function preparePupil(client: APIRequestContext, pupil: Pupil, classroom: 
   expect(me.student.seatId).toBe(pupil.id);
   const created = await json<{ project: { id: string } }>(
     await client.post('/api/projects', {
+      headers: { 'idempotency-key': randomUUID() },
       data: { module: 'electronics', scope: 'personal', title: 'Synthetic journal diagnostic' },
     }),
     201,
@@ -404,17 +441,21 @@ for (const count of cohortSizes) {
       const background: PupilSample[] = [];
       const teacher: TeacherSample[] = [];
       const databaseSamples: DatabaseSample[] = [];
-      const workloadErrors: number[] = [];
+      const workloadErrors: { pupil: number; api?: ApiFailure }[] = [];
       let databaseSampleFailed = false;
       let work: Promise<unknown>[] = [];
       let observe: ReturnType<typeof observeJournal> | undefined;
       let startedAt = performance.now();
       let complete = false;
+      let stage = 'teacher-login';
+      let failure: { stage: string; api?: ApiFailure } | undefined;
       mkdirSync(reportDirectory, { recursive: true });
       try {
         await page.setViewportSize({ width: 1366, height: 900 });
         await loginWithOrganization(page, await seedTeacher(admin, 'journal-diagnostic'));
+        stage = 'classroom-and-roster';
         const { classroom, journal, gradedPupil, pupils } = await prepareClass(page, count);
+        stage = 'pupil-sessions-and-drafts';
         const active: ActivePupil[] = [];
         for (const pupil of pupils) {
           const client = await request.newContext({
@@ -426,11 +467,15 @@ for (const count of cohortSizes) {
           active.push(await preparePupil(client, pupil, classroom));
         }
 
+        stage = 'diagnostic-workload';
         observe = observeJournal(page, classroom.id);
         startedAt = performance.now();
         work = active.map((pupil, index) =>
-          loadPupil(pupil, index, background, stop.signal).catch(() => {
-            workloadErrors.push(index);
+          loadPupil(pupil, index, background, stop.signal).catch((error: unknown) => {
+            workloadErrors.push({
+              pupil: index,
+              api: error instanceof DiagnosticApiError ? error.failure : undefined,
+            });
             stop.abort();
           }),
         );
@@ -492,7 +537,7 @@ for (const count of cohortSizes) {
             grade.getByRole('button', { name: 'Очистить оценку', exact: true }),
             grade,
           );
-          await expect(cell).toHaveText('—');
+          await expect(cell).toHaveText('Отозвана');
           await verifyGrade(reader, classroom.id, gradedPupil.id, slot, 3, null);
           cleared.verified = true;
 
@@ -540,6 +585,12 @@ for (const count of cohortSizes) {
           }
         }
         complete = true;
+      } catch (error) {
+        failure = {
+          stage,
+          api: error instanceof DiagnosticApiError ? error.failure : undefined,
+        };
+        throw error;
       } finally {
         stop.abort();
         await Promise.allSettled(work);
@@ -571,6 +622,7 @@ for (const count of cohortSizes) {
                 sourceSha: process.env.ASA_BUILD_REVISION,
                 cohort: count,
                 complete,
+                failure,
                 fixture: '1 real teacher Chromium page, independent StudentSeat HTTP contexts',
                 limits: [
                   'Synthetic data and small Electronics drafts; pupil browser rendering is not measured.',
