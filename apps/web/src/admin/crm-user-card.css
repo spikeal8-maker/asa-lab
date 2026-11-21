@@ -67,6 +67,12 @@
   overflow: visible;
   margin: 0;
 }
+.crm-user-dialog .admin-user-tabs.asa-system-tabs {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
 .crm-user-dialog .admin-crm-panel {
   padding: 0;
 }

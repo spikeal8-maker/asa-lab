@@ -62,7 +62,7 @@ beforeAll(async () => {
     },
   } as unknown as pg.Pool;
   const plan = planMigrations('migrations');
-  const csvMigration = plan.find(({ file }) => file === '0324_ai_csv_attachments.sql')!;
+  const csvMigration = plan.find(({ file }) => file === '0330_ai_csv_attachments.sql')!;
   await applyPlan(
     adapter,
     plan.filter((migration) => migration.version < '0229'),
@@ -229,7 +229,7 @@ it('0229 upgrades 005 without changing messages, archived variants, original sou
 
 aiAttachmentsContract(() => ({ admin, runtime }));
 
-it('0324 stores a CSV extraction under the existing attachment owner and receipt rules', async () => {
+it('0330 stores a CSV extraction under the existing attachment owner and receipt rules', async () => {
   const store = new PgAiAttachmentStore(runtime);
   const bytes = Buffer.from('Ученик,Код\nИрина,0007');
   const digest = createHash('sha256').update(bytes).digest('hex');

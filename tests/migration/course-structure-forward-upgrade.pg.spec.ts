@@ -192,7 +192,13 @@ describe('Course Builder structure forward upgrade', () => {
         '0320', // Authorized own progress summary; no identity or score writes.
         '0321', // Qualified ordinary Account admission identity, preserving retained history.
         '0322', // Learner-only group rating projection, retained Course history unchanged.
-        '0324', // Read bounded CSV attachments without changing retained files.
+        '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+        '0324', // Classroom merit history and revocation read (canonical main).
+        '0325', // Direct written assignments reuse the academic submission chain.
+        '0326', // Allow large PDF task attachments.
+        '0327', // Expand supported task attachment formats.
+        '0328', // Safe Mode blocks new publications and retroactive public reads.
+        '0330', // Read bounded CSV attachments without changing retained files.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -544,7 +550,13 @@ describe('Course Builder structure forward upgrade', () => {
           '0320', // Authorized own progress summary; no identity or score writes.
           '0321', // Qualified ordinary Account admission identity, preserving retained history.
           '0322', // Authorized learner-only group pages; retained Course history unchanged.
-          '0324', // Read bounded CSV attachments without changing retained files.
+          '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+          '0324', // Classroom merit history and revocation read (canonical main).
+          '0325', // Direct written assignments reuse the academic submission chain.
+          '0326', // Allow large PDF task attachments.
+          '0327', // Expand supported task attachment formats.
+          '0328', // Safe Mode blocks new publications and retroactive public reads.
+          '0330', // Read bounded CSV attachments without changing retained files.
         ]);
         expect(
           await applyIsolatedTestPlan(

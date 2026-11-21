@@ -30730,6 +30730,141 @@
       "sourceSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8",
       "runtimePath": "/assets/electronics/component-database/components/instruments/oscilloscope/component.svg",
       "runtimeSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8"
+    },
+    {
+      "componentId": "l298n-motor-driver",
+      "familyId": "l298n-motor-driver",
+      "familyLabelRu": "Драйвер двигателей L298N",
+      "familyLabelEn": "L298N motor driver",
+      "variantId": "red-43mm",
+      "isDefaultVariant": true,
+      "variantLabelRu": "Красный модуль 43×43 мм",
+      "variantLabelEn": "Red module 43×43mm",
+      "displayName": "Драйвер двигателей L298N",
+      "displayNameEn": "L298N Dual H-bridge Driver",
+      "category": "motors",
+      "subcategoryId": "motors",
+      "catalogOrder": 15.5,
+      "appearsInBasic": false,
+      "searchAliases": [
+        "L298N",
+        "драйвер L298N",
+        "H-мост",
+        "двухканальный драйвер моторов",
+        "Arduino motor driver"
+      ],
+      "catalogTier": "preview",
+      "sourceOwnerArchive": "ASA_LAB_L298N_INTEGRATION_v1_1_TOP_WIRES.zip",
+      "sourceOwnerPath": "assets/l298n-board.display.svg",
+      "sourceSha256": "289c604c4ff4e1e74a733e2d01c18b2beab58721f6b4c5c369de37e34a425498",
+      "runtimePath": "/assets/electronics/component-database/components/drivers/l298n/component.svg",
+      "runtimeSha256": "289c604c4ff4e1e74a733e2d01c18b2beab58721f6b4c5c369de37e34a425498",
+      "provenance": "owner_supplied",
+      "status": "disabled_missing_model",
+      "physicalWidthMm": 43,
+      "physicalHeightMm": 43,
+      "viewBox": [0, 0, 43, 43],
+      "assetFit": "meet",
+      "pins": [
+        {
+          "id": "+12V",
+          "xMm": 5.23,
+          "yMm": 8.38,
+          "electricalRole": "motor_supply",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "GND",
+          "xMm": 5.23,
+          "yMm": 13.46,
+          "electricalRole": "ground",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "+5V",
+          "xMm": 5.23,
+          "yMm": 18.54,
+          "electricalRole": "logic_voltage",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT1",
+          "xMm": 10.85,
+          "yMm": 4.07,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT2",
+          "xMm": 15.93,
+          "yMm": 4.07,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT3",
+          "xMm": 11.7,
+          "yMm": 38.78,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT4",
+          "xMm": 16.78,
+          "yMm": 38.78,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN1",
+          "xMm": 4.84,
+          "yMm": 24.58,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN2",
+          "xMm": 4.84,
+          "yMm": 27.12,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN3",
+          "xMm": 4.84,
+          "yMm": 29.66,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN4",
+          "xMm": 4.84,
+          "yMm": 32.2,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        }
+      ],
+      "footprint": null,
+      "states": [],
+      "stateAssets": [],
+      "stateContract": {
+        "type": "l298n_dual_hbridge_v1",
+        "enableJumpers": ["ENA", "ENB"],
+        "regulatorJumper": "5V_EN",
+        "indicatorLed": "logic_5v",
+        "motorChannels": 2,
+        "wireTerminals": 11,
+        "jumperPads": 6
+      },
+      "animations": [
+        {
+          "driver": "simulation_state",
+          "decorativeLoop": false,
+          "channels": ["logic_power_led"]
+        }
+      ],
+      "simulationSupport": "not_implemented_in_domain_solver",
+      "blockReason": "Расчёт L298N ещё не подключён к общему симулятору. Арт и контакты готовы; до включения необходимы доменные тесты."
     }
   ],
   "breadboardPlacementRules": {

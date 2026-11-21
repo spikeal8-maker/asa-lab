@@ -42,7 +42,14 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
   await page.getByRole('button', { name: 'Добавить ученика', exact: true }).click();
   const pupilDialog = page.getByRole('dialog');
   await pupilDialog.getByLabel('Имя в списке класса').fill('Анна Наблюдаемая');
+  const savedSeat = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /^\/api\/classrooms\/[^/]+\/seats$/.test(new URL(response.url()).pathname),
+  );
   await pupilDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
+  expect((await savedSeat).status()).toBe(201);
+  await expect(pupilDialog).toBeHidden();
   const classUrl = page.url();
   const list = (await (await page.request.get('/api/classrooms')).json()) as {
     items: Array<{ id: string; title: string }>;

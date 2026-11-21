@@ -16,7 +16,9 @@ import { SystemToastViewport } from '../components/SystemToastViewport';
 import { ClassroomActionFeedbackProvider } from '../components/ClassroomActionFeedback';
 import { ClassroomStudentProjects } from '../components/ClassroomStudentProjects';
 import { ClassroomStudentHistory } from '../components/ClassroomStudentHistory';
+import { ClassroomAssignmentIssuer } from '../components/ClassroomAssignmentIssuer';
 import { ClassroomLearning } from '../components/ClassroomLearning';
+import { SystemTabs } from '../components/SystemTabs';
 import {
   LearningNotificationPreferences,
   ClassroomLearningReminders,
@@ -32,6 +34,7 @@ import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal
 import { ClassroomGradingScheme } from '../components/ClassroomGradingScheme';
 import { sortClassroomRoster, type ClassroomRosterSort } from '../components/classroom-roster-sort';
 import { classroomStudentNavigation } from '../components/classroom-student-navigation';
+import { ClassroomNavigator } from '../components/ClassroomNavigator';
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
@@ -401,6 +404,7 @@ type ClassroomPageProps = {
   /** Opens straight into one learner: how a teacher returns from their work. */
   openSeatId?: string;
   onBack: () => void;
+  onNavigateClassroom?: (id: string, title: string) => void;
   onOpenProjects: (classroomTitle: string) => void;
   onOpenProject: (projectId: string, moduleKey: string, seatId?: string) => void;
 };
@@ -415,6 +419,7 @@ function ClassroomPageContent({
   classroomId,
   openSeatId,
   onBack,
+  onNavigateClassroom,
   onOpenProject,
 }: ClassroomPageProps): JSX.Element {
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
@@ -842,7 +847,14 @@ function ClassroomPageContent({
               ← Мои классы
             </button>
             <div className="classroom-head-title">
-              <h1>{classroom.title}</h1>
+              {onNavigateClassroom ? (
+                <ClassroomNavigator
+                  classroom={classroom}
+                  onNavigateClassroom={onNavigateClassroom}
+                />
+              ) : (
+                <h1>{classroom.title}</h1>
+              )}
             </div>
           </div>
           <div className="teacher-class-status">
@@ -948,19 +960,13 @@ function ClassroomPageContent({
               ))}
             </select>
           </label>
-          <nav className="classroom-workspace-tabs" aria-label="Разделы класса">
-            {TABS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={tab === item.id ? 'active' : undefined}
-                aria-current={tab === item.id ? 'page' : undefined}
-                onClick={() => setTab(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+          <SystemTabs
+            items={TABS}
+            active={tab}
+            onChange={setTab}
+            label="Разделы класса"
+            className="classroom-workspace-tabs"
+          />
           {tab === 'students' ? (
             <div className="classroom-roster-toolbar">
               <div className="classroom-roster-actions">
@@ -995,6 +1001,7 @@ function ClassroomPageContent({
                   <span className="classroom-desktop-label">Карточки доступа</span>
                   <span className="classroom-mobile-label">Карточки</span>
                 </button>
+                <ClassroomAssignmentIssuer classroomId={classroomId} archived={archived} compact />
               </div>
               <button
                 type="button"

@@ -35,10 +35,18 @@ export function ArduinoSerialMonitor({
   const mark = clearedThroughByBoard[boardId];
   const clearedThrough =
     mark?.generation === serial?.streamGeneration ? (mark?.sequence ?? -1) : -1;
-  const visibleTx = useMemo(
-    () => (serial?.tx ?? []).filter((entry) => entry.sequence > clearedThrough),
-    [clearedThrough, serial?.tx],
-  );
+  const visibleGroups = useMemo(() => {
+    const groups: { sequence: number; text: string }[] = [];
+    for (const entry of serial?.tx ?? []) {
+      if (entry.sequence <= clearedThrough || !entry.text) continue;
+      const last = groups.at(-1);
+      // Join fragments across a partial line. Let pre-wrap render embedded newlines
+      // so the number of DOM nodes stays bounded by the number of TX entries.
+      if (last && !last.text.endsWith('\n')) last.text += entry.text;
+      else groups.push({ sequence: entry.sequence, text: entry.text });
+    }
+    return groups;
+  }, [clearedThrough, serial?.tx]);
   const connected = running && serial?.begun;
   const status = !running ? 'Остановлен' : connected ? 'Подключён' : 'Ожидает Serial.begin';
 
@@ -74,7 +82,7 @@ export function ArduinoSerialMonitor({
   useEffect(() => {
     const output = outputRef.current;
     if (output) output.scrollTop = output.scrollHeight;
-  }, [visibleTx]);
+  }, [visibleGroups]);
 
   return (
     <section className={`arduino-serial-monitor${open ? ' open' : ''}`}>
@@ -91,9 +99,9 @@ export function ArduinoSerialMonitor({
       </button>
       <div className="arduino-serial-body" aria-hidden={!open}>
         <div className="arduino-serial-output" ref={outputRef} aria-live="polite">
-          {visibleTx.map((entry) => (
-            <div key={entry.sequence} style={{ whiteSpace: 'pre-wrap' }}>
-              {entry.text}
+          {visibleGroups.map(({ sequence, text }) => (
+            <div key={sequence} style={{ whiteSpace: 'pre-wrap' }}>
+              {text}
             </div>
           ))}
         </div>

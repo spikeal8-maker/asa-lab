@@ -1,0 +1,135 @@
+{
+  "id": "E1-EDITABLE-RAMP-SPHERE-ROLLING-01",
+  "scope": "TEST_ONLY",
+  "registration": "4b4aa0785343f444a3ef75b923fa96ba902be899",
+  "specification": {
+    "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+    "sha256": "0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3",
+    "requirements": ["REQ-TERR-01", "REQ-TERR-02", "REQ-VERIFY-01", "REQ-VERIFY-02"],
+    "test": "PHY-05"
+  },
+  "engine": {
+    "version": "4.0.0",
+    "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "glue": {
+      "file": "mujoco.js",
+      "bytes": 331846,
+      "sha256": "9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8"
+    },
+    "wasm": {
+      "file": "mujoco.wasm",
+      "bytes": 11229000,
+      "sha256": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241"
+    },
+    "declarations": {
+      "file": "mujoco.d.ts",
+      "bytes": 151568,
+      "sha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff"
+    },
+    "license": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "buildReceipt": {
+      "bytes": 15869,
+      "sha256": "c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9"
+    },
+    "browserReceipt": {
+      "bytes": 449526,
+      "sha256": "70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5"
+    }
+  },
+  "profile": {
+    "timestep": 0.0005,
+    "gravity": [0, 0, -9.81],
+    "integrator": 3,
+    "solver": 2,
+    "jacobian": 0,
+    "cone": 1,
+    "iterations": 100,
+    "tolerance": 1e-10,
+    "ls_iterations": 50,
+    "ls_tolerance": 0.01,
+    "noslip_iterations": 20,
+    "noslip_tolerance": 1e-12,
+    "impratio": 1,
+    "ccd_iterations": 100,
+    "ccd_tolerance": 1e-8,
+    "density": 0,
+    "viscosity": 0,
+    "disableflags": 65536,
+    "enableflags": 32
+  },
+  "contact": {
+    "friction": [0.5, 0.5, 0, 0, 0],
+    "solref": [0.004, 1],
+    "solimp": [0.99, 0.99, 0.001, 0.5, 2],
+    "margin": 0,
+    "gap": 0,
+    "dimension": 3,
+    "nativeFrictionClamp": [0.5, 0.5, 1e-5, 1e-5, 1e-5]
+  },
+  "ramp": {
+    "lengthMeters": 2,
+    "widthMeters": 0.5,
+    "baseThicknessMeters": 0.05,
+    "originMeters": [0, 0, 0],
+    "releaseU": 1.5,
+    "releaseV": 0
+  },
+  "sphere": {
+    "radiusMeters": 0.05,
+    "massKg": 0.1,
+    "principalInertiaKgM2": 0.0001
+  },
+  "cases": [
+    {
+      "id": "nominal10",
+      "angleDegrees": 10,
+      "headingDegrees": 0
+    },
+    {
+      "id": "holdout5",
+      "angleDegrees": 5,
+      "headingDegrees": 45
+    },
+    {
+      "id": "holdout15",
+      "angleDegrees": 15,
+      "headingDegrees": -90
+    }
+  ],
+  "schedule": {
+    "stepUs": 500,
+    "durationUs": 1000000,
+    "repeats": 2,
+    "maxIntervalsPerWorld": 2000,
+    "maxWorlds": 6,
+    "maxIntervalsTotal": 12000,
+    "analysisStartUs": 400000,
+    "samplesUs": [400000, 600000, 800000, 1000000]
+  },
+  "limits": {
+    "contacts": 8,
+    "rows": 48,
+    "rawBytes": 33554432,
+    "normalVectorDistance": 3e-5,
+    "clearanceMeters": 0.001,
+    "normalVelocityMps": 0.001,
+    "tangentSlipMps": 0.001,
+    "relativeAcceleration": 0.05,
+    "clockSeconds": 1e-12,
+    "readback": 1e-12,
+    "velocityParity": 1e-10,
+    "meshVertexMeters": 2e-6
+  },
+  "protocol": {
+    "phases": "Each interval: step1 freezes current PRE qpos/qvel, contacts and rows; step2 advances exactly once with no applied forces. Solved force rows must retain exact PRE identity. POST velocity uses the actual qpos quaternion and local free-joint qvel, not stale cvel. Next PRE independently checks that mapping against native world-frame mj_objectVelocity.",
+    "measurement": "Every analysed PRE and POST uses the signed finite top-plane normal and analytic sphere arm -r*n. Actual solver point relative velocities are retained separately. Native support comes from the solved PRE pair, with correct signed normals, positive normal force and unchanged material. Analytic acceleration is reported only after every support/no-slip interval gate passes.",
+    "failure": "Immutable external JSONL captures all observed values before assessment. Numerical/ownership/row failures are ERROR/UNRESOLVED and halt further dynamics; genuine physical threshold failures latch FAIL and retain the full bounded trajectory. Startup errors preserve exact attempted/returned counts and cleanup. Every dispatched interval consumes the acquisition.",
+    "replay": "Two independently created worlds per case produce byte-identical interval streams (world label excluded). Full retained records, not a display decimation, are independently reassessable. No cross-engine or browser performance acceptance.",
+    "preservation": "Both archived Rapier PHY05 failures and R5 PASS/GAP_CAUSAL_ALT remain historical evidence; no old source, oracle, material or threshold is edited.",
+    "binaryEncoding": "Each JSONL interval data is base64 little-endian F64: PRE time,qpos[7],qvel[6],world omega[3]; POST same; ncon,nefc,nJ; each contact geom[2],dim,exclude,address,dist,margin,pos[3],frame[9],friction[5],solref[2],solreffriction[2],solimp[5],surfacevel[3],adhesion,solved force[6],PRE actual point relative velocity[3]; row type[nefc],row id[nefc],PRE constraint velocity[nefc],solved row force[nefc],PRE dense Jacobian[nJ]. Case/repeat/tick are envelope fields. All intervals retained.",
+    "admission": "Default tests do not initialize native. Controller only after exact review: ASA_RAMP_ROLLING_RUN=six-frozen-worlds-1071, ASA_RAMP_ENGINE=absolute admitted artifact directory, ASA_RAMP_LICENSE=absolute pinned upstream LICENSE path, ASA_RAMP_GEOMETRY_SHA256 / ASA_RAMP_FIXTURE_SHA256 / ASA_RAMP_SOURCE_SHA256=independently frozen lowercase working-byte digests; ASA_RAMP_OUTPUT=new absolute JSONL in an existing unique external OS-Temp directory. Receipt uses exclusive wx creation and records all failures before further dynamics. Run only this spec via pnpm exec vitest run tests/robotics/field-core-qualification/editable-ramp-rolling.spec.ts --maxWorkers=1."
+  }
+}
