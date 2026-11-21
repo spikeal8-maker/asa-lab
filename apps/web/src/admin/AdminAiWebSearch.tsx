@@ -61,7 +61,7 @@ function probeShape(value: unknown): value is AiWebSearchProbeResult {
         (item.diagnostics === undefined ||
           (item.diagnostics &&
             probeCount(item.diagnostics.rawCount, 48) &&
-            probeCount(item.diagnostics.validatedCount, Math.min(12, item.diagnostics.rawCount)) &&
+            probeCount(item.diagnostics.validatedCount, item.diagnostics.rawCount) &&
             item.count <= item.diagnostics.validatedCount &&
             probeCount(item.diagnostics.engineFailureCount, 32))),
     ),
@@ -604,7 +604,7 @@ export function AdminAiWebSearch({
                   {probeOutcomes[item.status]} ({item.count})
                   {item.diagnostics ? (
                     <small>
-                      {' · '}В выдаче: {item.diagnostics.rawCount}, пригодных:{' '}
+                      {' · '}Проверено: {item.diagnostics.rawCount}, пригодных:{' '}
                       {item.diagnostics.validatedCount}, сбоев движков:{' '}
                       {item.diagnostics.engineFailureCount}.
                     </small>

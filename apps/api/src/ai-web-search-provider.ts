@@ -2,6 +2,7 @@ import type { AiWebImage, AiWebSource, AiWebWeather } from '@asa-lab/contracts';
 import { createHash } from 'node:crypto';
 
 const MAX_BODY = 2 * 1024 * 1024;
+export const MAX_SEARCH_CANDIDATES = 48;
 const USER_AGENT = 'ASA-Lab/1.0 (+https://github.com/spikeal8-maker/asa-lab)';
 export class AiWebProviderError extends Error {
   constructor(readonly kind: 'unavailable' | 'invalid_response' = 'unavailable') {
@@ -81,7 +82,7 @@ export function parseSearxResults(
   if (!Array.isArray(data['results'])) throw new AiWebProviderError('invalid_response');
   const engines = data['unresponsive_engines'];
   const metadata = {
-    rawCount: Math.min(data['results'].length, 48),
+    rawCount: Math.min(data['results'].length, MAX_SEARCH_CANDIDATES),
     engineFailureCount: Array.isArray(engines)
       ? engines
           .slice(0, 32)
@@ -95,8 +96,8 @@ export function parseSearxResults(
     images: AiWebImage[] = [],
     seen = new Set<string>();
   const seenImages = new Set<string>();
-  const count = Math.max(1, Math.min(12, limit));
-  for (const raw of data['results'].slice(0, 48)) {
+  const count = Math.max(1, Math.min(MAX_SEARCH_CANDIDATES, limit));
+  for (const raw of data['results'].slice(0, MAX_SEARCH_CANDIDATES)) {
     const item = record(raw),
       url = publicWebUrl(item['url']);
     if (!url || seen.has(url)) continue;

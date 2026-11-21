@@ -200,6 +200,57 @@ it('persists distinct filtered and empty receipts without exposing rejected resu
     );
   }
 });
+it.each(['web', 'images'] as const)(
+  'applies the result limit after filtering the bounded %s candidate window',
+  async (mode) => {
+    const owner = await identity();
+    const web = new AiWebSearchService(pool);
+    const {
+      enabled,
+      weatherEnabled,
+      operationsPerHour,
+      configurationVersion,
+      blockedDomains,
+      resultsLimit,
+    } = await web.admin(admin);
+    const config = { enabled, weatherEnabled, operationsPerHour, configurationVersion };
+    const saved = await web.save(
+      admin,
+      { ...config, resultsLimit: 1, blockedDomains: ['blocked.example.org'] },
+      randomUUID(),
+    );
+    try {
+      const results = Array.from({ length: 48 }, (_, i) => ({
+        title: 'Источник ' + i,
+        url: 'https://' + (i < 46 ? 'blocked.example.org' : 'example.org') + '/result-' + i,
+        thumbnail_src: 'https://tse1.mm.bing.net/th?id=image-' + i,
+      }));
+      const fetchImpl = upstream(false, JSON.stringify({ results }));
+      const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+      const thread = await chat.createThread(owner);
+      const request = randomUUID();
+      await chat.send(owner, thread.id, 'Найди факт', request, mode);
+      const receipt = await web.evidence(owner, thread.id, request);
+      expect(receipt?.status).toBe('ready');
+      expect(receipt?.sources.map(({ url }) => url)).toEqual(['https://example.org/result-46']);
+      expect(receipt?.images.map(({ sourceUrl }) => sourceUrl)).toEqual(
+        mode === 'images' ? ['https://example.org/result-46'] : [],
+      );
+      expect(JSON.stringify(receipt)).not.toContain('blocked.example.org');
+    } finally {
+      await web.save(
+        admin,
+        {
+          ...config,
+          configurationVersion: saved.configurationVersion,
+          blockedDomains,
+          resultsLimit,
+        },
+        randomUUID(),
+      );
+    }
+  },
+);
 it.each([
   { searchResponse: '{}', status: 'unavailable', reason: 'invalid_results', sourceCount: 0 },
   {
