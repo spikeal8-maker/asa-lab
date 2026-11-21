@@ -265,11 +265,12 @@ function probePlugin() {
               code.replace(
                 marker,
                 marker +
-                  '\nrecoveryLayoutEffect(()=>{window.__asaRecovery?.commit(controller,window.__asaRecoveryDiagnostic);});',
+                  '\nrecoveryLayoutEffect(()=>{window.__asaRecovery?.commit(controller,window.__asaRecoveryDiagnostic,window.__asaRecoveryStoppedPreflight);});',
               );
           } else if (normalized === 'apps/web/src/electronics/use-electronics-workbench.ts') {
             const ast = ts.createSourceFile(path, code, ts.ScriptTarget.Latest, true);
             const matches = [];
+            const stoppedSnapshots = [];
             function visit(node) {
               if (
                 ts.isVariableStatement(node) &&
@@ -278,14 +279,29 @@ function probePlugin() {
                 )
               )
                 matches.push(node);
+              if (
+                ts.isVariableStatement(node) &&
+                node.declarationList.declarations.some(
+                  (d) => d.name.getText(ast) === 'stoppedPreflight',
+                )
+              )
+                stoppedSnapshots.push(node);
               ts.forEachChild(node, visit);
             }
             visit(ast);
             assert.equal(matches.length, 1, 'single diagnostic result observation');
+            assert.ok(stoppedSnapshots.length <= 1, 'unambiguous stopped preflight snapshot');
+            if (phase === 'after')
+              assert.equal(
+                stoppedSnapshots.length,
+                1,
+                'candidate exposes its actual stopped snapshot',
+              );
             const end = matches[0].end;
             code =
               code.slice(0, end) +
               '\nglobalThis.__asaRecoveryDiagnostic=diagnosticResult;' +
+              `\nglobalThis.__asaRecoveryStoppedPreflight=${stoppedSnapshots.length ? 'stoppedPreflight' : 'null'};` +
               code.slice(end);
           } else return;
           transformReceipts.set(normalized, {
@@ -313,8 +329,14 @@ import React from 'react';import{createRoot}from'react-dom/client';
 import{api}from'./apps/web/src/api';import{SchematicEditor}from'./apps/web/src/pages/SchematicEditor';
 import{configureProductionLibrary}from'./apps/web/src/electronics/production-manifest-adapter';
 import{parseElectronicsDocument,simulationInputDigest}from'@asa-lab/electronics';
+import{simulationModelSetDigest}from'./contexts/electronics/domain/simulation';
+import{ELECTRONICS_SIMULATION_ENGINE_REVISION,ELECTRONICS_SIMULATION_WORKER_PROTOCOL}from'./apps/web/src/electronics/simulation-worker-protocol';
 configureProductionLibrary(${catalogText});window.__asaWorkerCode=${JSON.stringify(workerCode)};
 window.__asaDigest=simulationInputDigest;
+window.__asaRecoveryModelSet=simulationModelSetDigest();
+window.__asaRecoveryEngineRevision=ELECTRONICS_SIMULATION_ENGINE_REVISION;
+window.__asaRecoveryProtocol=ELECTRONICS_SIMULATION_WORKER_PROTOCOL;
+window.__asaRecoveryInputKey=(document,electrical=simulationInputDigest(document,0))=>JSON.stringify({electrical,programs:document.components.filter(c=>c.componentTypeId==='arduino-uno'||c.variantId==='arduino-uno').sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0).map(c=>[c.id,c.stateProperties?.arduinoSource??null]),modelSet:simulationModelSetDigest(),engineRevision:ELECTRONICS_SIMULATION_ENGINE_REVISION,protocolVersion:ELECTRONICS_SIMULATION_WORKER_PROTOCOL});
 const initial=window.__asaInitialDocument;let saved=structuredClone(initial),revision=1;
 const user={id:'r00-fixture-user',displayName:'R00 — контрольная копия',email:'r00@example.test'};
 const projectId=window.__asaProjectId;
@@ -376,12 +398,21 @@ assert.equal(process.env.NX_SKIP_NX_CACHE, 'true');
 
 // This function runs in the browser. It observes native inputs and committed DOM;
 // it never calls a workbench mutation method.
-function installProbe({ initial, projectId, title, workerSource }) {
+function installProbe({ initial, projectId, title, workerSource, requiresStoppedSnapshot }) {
   window.__asaInitialDocument = initial;
   window.__asaProjectId = projectId;
   window.__asaFixtureTitle = title;
   window.__asaWorkerCode = workerSource;
   const resultMeta = new WeakMap();
+  const inputKeys = new WeakMap();
+  const inputKey = (input) => {
+    let key = inputKeys.get(input);
+    if (key === undefined) {
+      key = window.__asaRecoveryInputKey(input);
+      inputKeys.set(input, key);
+    }
+    return key;
+  };
   const p = (window.__asaRecovery = {
     controller: null,
     diagnostic: null,
@@ -400,14 +431,22 @@ function installProbe({ initial, projectId, title, workerSource }) {
       this.lastCalculationAt = performance.now();
       this.calls.push({ ...row, context: 'main', at: row.startTime, phase: this.phase });
       if (row.kind === 'calculateSimulationPreflight' && result && typeof result === 'object')
-        resultMeta.set(result, { input, receivedAt: performance.now(), context: 'main' });
+        resultMeta.set(result, {
+          input,
+          projectId,
+          receivedAt: performance.now(),
+          context: 'main',
+        });
     },
-    commit(controller, diagnostic) {
+    commit(controller, diagnostic, stoppedPreflight) {
       this.controller = controller;
       this.diagnostic = diagnostic;
+      if (requiresStoppedSnapshot && (!stoppedPreflight || typeof stoppedPreflight !== 'object'))
+        throw Error('candidate must expose its actual stopped preflight snapshot');
       const a = this.pending;
       if (!a || a.startedAt === undefined) return;
       const doc = controller.document;
+      if (!doc) return;
       const c = doc?.components.find((c) => c.id === a.expected.id);
       const node = a.expected.id
         ? document.querySelector(`[data-component-id="${a.expected.id}"]`)
@@ -452,11 +491,57 @@ function installProbe({ initial, projectId, title, workerSource }) {
       }
       const meta = diagnostic && resultMeta.get(diagnostic);
       if (a.diagnosticAt === undefined && a.commitAt !== undefined && meta) {
-        // Pure movement retains electrical input; the old result is correct.
-        if (a.expected.kind === 'position' || matches(meta.input)) {
+        // The same physical/program/model predicate applies to direct baseline,
+        // Worker responses and accepted cache hits. Geometry is intentionally
+        // excluded by the real canonical electrical digest, never by a move
+        // wildcard. The candidate's actual accepted session is observed only.
+        const currentInputKey = inputKey(doc);
+        // Read the electrical identity already produced by the real solver.
+        // Do not add another canonical SHA-256 to every observed preflight:
+        // that would disproportionately burden the duplicate baseline path.
+        const resultInputKey = window.__asaRecoveryInputKey(
+          meta.input,
+          diagnostic.simulationInputDigest,
+        );
+        const currentInput =
+          controller.status === 'ready' &&
+          controller.simulationRunning === false &&
+          controller.project?.id === projectId &&
+          meta.projectId === projectId &&
+          typeof diagnostic.simulationInputDigest === 'string' &&
+          resultInputKey === currentInputKey &&
+          diagnostic.modelSetDigest === window.__asaRecoveryModelSet &&
+          diagnostic.solverRevision === window.__asaRecoveryEngineRevision;
+        const currentSession =
+          !requiresStoppedSnapshot ||
+          (meta.context === 'worker' &&
+            meta.responseMatchesRequest &&
+            stoppedPreflight.result === diagnostic &&
+            stoppedPreflight.pending === false &&
+            stoppedPreflight.error === null &&
+            stoppedPreflight.projectId === projectId &&
+            typeof stoppedPreflight.projectSessionId === 'string' &&
+            stoppedPreflight.projectSessionId.length > 0 &&
+            stoppedPreflight.projectSessionId === meta.projectSessionId &&
+            stoppedPreflight.inputKey === currentInputKey &&
+            stoppedPreflight.key ===
+              JSON.stringify([stoppedPreflight.projectSessionId, currentInputKey]));
+        if (currentInput && currentSession) {
           a.diagnosticAt = performance.now();
           a.diagnosticContext = meta.context;
           a.resultReceivedAt = meta.receivedAt;
+          a.diagnosticCorrelation = {
+            inputKey: currentInputKey,
+            modelSetDigest: diagnostic.modelSetDigest,
+            solverRevision: diagnostic.solverRevision,
+            protocolVersion: window.__asaRecoveryProtocol,
+            projectId,
+            projectSessionId: meta.projectSessionId ?? null,
+            generationId: meta.generationId ?? null,
+            requestId: meta.requestId ?? null,
+            acceptedKey: stoppedPreflight?.key ?? null,
+            lifecycle: requiresStoppedSnapshot ? 'accepted-worker-session' : 'direct-baseline',
+          };
         }
       }
     },
@@ -537,6 +622,13 @@ function installProbe({ initial, projectId, title, workerSource }) {
           if (event.data.result)
             resultMeta.set(event.data.result, {
               input: request.document,
+              projectId,
+              projectSessionId: event.data.projectSessionId,
+              generationId: event.data.generationId,
+              responseMatchesRequest:
+                event.data.projectSessionId === request.projectSessionId &&
+                event.data.generationId === request.generationId &&
+                event.data.protocolVersion === request.protocolVersion,
               receivedAt: performance.now(),
               context: 'worker',
               requestId: event.data.requestId,
@@ -548,6 +640,9 @@ function installProbe({ initial, projectId, title, workerSource }) {
       if (message.kind === 'preflight') {
         this.requests.set(message.requestId, {
           document: message.document,
+          projectSessionId: message.projectSessionId,
+          generationId: message.generationId,
+          protocolVersion: message.protocolVersion,
           sentAt: performance.now(),
           phase: p.phase,
         });
@@ -661,6 +756,7 @@ async function openFixture(scene, codeOpen, viewport, videoDirectory) {
     projectId: `r00-${scene}`,
     title: `${scene} — реконструкция R00`,
     workerSource: workerCode,
+    requiresStoppedSnapshot: phase === 'after',
   });
   await context.route('**/*', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -694,7 +790,7 @@ async function openFixture(scene, codeOpen, viewport, videoDirectory) {
     if (path.startsWith('/api/')) return route.fulfill({ status: 200, json: {} });
     return route.fulfill({
       contentType: 'text/html',
-      body: `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/recovery.css"><style>body{margin:0}#receipt{position:fixed;bottom:2px;right:6px;z-index:99999;pointer-events:none;font:11px sans-serif;background:#fff9;padding:3px}</style><div id="app"></div><div id="receipt">${phase} · ${scene} reconstruction · candidate ${sourceSha.slice(0, 12)}</div><script src="/recovery-ui.js"></script></html>`,
+      body: `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/recovery.css"><style>body{margin:0}#receipt{position:fixed;bottom:2px;right:6px;max-width:calc(100vw - 18px);z-index:99999;pointer-events:none;font:11px sans-serif;background:#fff9;padding:3px;overflow-wrap:anywhere}</style><div id="app"></div><div id="receipt">${phase} · ${scene} reconstruction · candidate ${sourceSha}<span id="visual-action"></span></div><script src="/recovery-ui.js"></script></html>`,
     });
   });
   await page.goto(`http://127.0.0.1:4612/projects/r00-${scene}/electronics/edit`);
@@ -913,12 +1009,12 @@ async function measureAction(page, gesture, index, codeOpen, nominalId, label) {
   row.electricalDigestAfter = domain.simulationInputDigest(after);
   row.programHashesBefore = Object.fromEntries(
     before.components
-      .filter((c) => c.componentTypeId === 'arduino-uno')
+      .filter((c) => c.componentTypeId === 'arduino-uno' || c.variantId === 'arduino-uno')
       .map((c) => [c.id, sha256(c.stateProperties?.arduinoSource ?? '')]),
   );
   row.programHashesAfter = Object.fromEntries(
     after.components
-      .filter((c) => c.componentTypeId === 'arduino-uno')
+      .filter((c) => c.componentTypeId === 'arduino-uno' || c.variantId === 'arduino-uno')
       .map((c) => [c.id, sha256(c.stateProperties?.arduinoSource ?? '')]),
   );
   row.latencyBoundary =
@@ -1089,6 +1185,12 @@ try {
       }
   // Separate visual replay: tracing/video do not distort numeric passes.
   const visual = [];
+  const visualActionNames = {
+    add: 'Добавить загруженный резистор',
+    move: 'Переместить Arduino без изменения связей',
+    nominal: 'Изменить номинал 220 → 330 Ω',
+    source: 'Изменить программу Arduino',
+  };
   for (const viewport of [
     { width: 1920, height: 1080 },
     { width: 1366, height: 768 },
@@ -1099,6 +1201,11 @@ try {
       const dir = resolve(output, 'videos');
       await mkdir(dir, { recursive: true });
       const f = await openFixture(scene, false, viewport, dir);
+      const actions = [];
+      const labelAction = async (text) =>
+        f.page.locator('#visual-action').evaluate((node, value) => {
+          node.textContent = ` · Stop · ${value}`;
+        }, text);
       const trace = [],
         cdp = await f.context.newCDPSession(f.page);
       cdp.on('Tracing.dataCollected', (event) => trace.push(...event.value));
@@ -1107,23 +1214,46 @@ try {
         options: 'record-as-much-as-possible',
       });
       try {
-        await f.page.screenshot({ path: resolve(output, `${id}-closed.png`) });
-        if (viewport.width >= 1366) {
-          await measureAction(f.page, 'add', 0, false, null, `${id}-add`);
-          await measureAction(f.page, 'move', 0, false, null, `${id}-move`);
-          const p = { id };
-          const nominal = await prepareNominal(f.page, scene, false, p);
-          await measureAction(f.page, 'nominal', 0, false, nominal, `${id}-nominal`);
-          await measureAction(f.page, 'source', 0, false, null, `${id}-source`);
+        for (const codeOpen of [false, true]) {
+          await setCode(f.page, codeOpen);
+          await labelAction(codeOpen ? 'Код открыт' : 'Код закрыт');
+          await f.page.waitForTimeout(800);
+          await f.page.screenshot({
+            path: resolve(output, `${id}-${codeOpen ? 'open' : 'closed'}.png`),
+          });
+          if (codeOpen)
+            assert.ok(
+              await f.page
+                .getByRole('button', { name: 'Закрыть редактор кода', exact: true })
+                .isVisible(),
+            );
+          if (viewport.width < 1366) continue;
+          for (const gesture of protocol.gestures) {
+            const label = `${id}-${codeOpen ? 'open' : 'closed'}-${gesture}`;
+            const nominalProfile = { id: label };
+            if (gesture === 'nominal')
+              await labelAction('Подготовка истории номинала 220 ↔ 330 Ω (вне измерения)');
+            const nominal =
+              gesture === 'nominal'
+                ? await prepareNominal(f.page, scene, codeOpen, nominalProfile)
+                : null;
+            await labelAction(
+              `${codeOpen ? 'Код открыт' : 'Код закрыт'} · ${visualActionNames[gesture]}${
+                nominal?.mode === 'history' ? ' (Undo/Redo)' : ''
+              }`,
+            );
+            const row = await measureAction(
+              f.page,
+              gesture,
+              gesture === 'source' && codeOpen ? 1 : 0,
+              codeOpen,
+              nominal,
+              label,
+            );
+            actions.push({ codeOpen, gesture, nominalMode: nominal?.mode ?? null, row });
+          }
         }
-        await setCode(f.page, true);
-        await f.page.waitForTimeout(800);
-        await f.page.screenshot({ path: resolve(output, `${id}-open.png`) });
-        assert.ok(
-          await f.page
-            .getByRole('button', { name: 'Закрыть редактор кода', exact: true })
-            .isVisible(),
-        );
+        await labelAction('Визуальный сценарий завершён');
         await setCode(f.page, false);
         const completion = new Promise((resolve) => cdp.once('Tracing.tracingComplete', resolve));
         await cdp.send('Tracing.end');
@@ -1144,6 +1274,7 @@ try {
           video: `${id}.webm`,
           trace: `${id}-trace.json.gz`,
           observed: f.observed,
+          actions,
         });
       } catch (error) {
         await f.page.screenshot({ path: resolve(output, `${id}-failure.png`) });

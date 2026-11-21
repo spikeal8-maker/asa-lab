@@ -306,7 +306,9 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(projectStateSource).not.toContain('prepareLiveSimulationStart(document)');
     expect(controllerModuleSource).toContain('warmProductionAsset(');
-    expect(controllerModuleSource).toContain('calculateSimulationPreflight(runningDocument)');
+    expect(controllerModuleSource).toContain('useStoppedSimulationPreflight(');
+    expect(controllerModuleSource).toContain('const preview = stoppedPreflight.result;');
+    expect(controllerModuleSource).not.toContain('calculateSimulationPreflight(');
     expect(controllerModuleSource).toContain('applyRuntimeComponentOverrides(');
     expect(controllerModuleSource).toContain('setRuntimeComponentOverride(');
     expect(projectStateSource).not.toContain('persist(start.document');

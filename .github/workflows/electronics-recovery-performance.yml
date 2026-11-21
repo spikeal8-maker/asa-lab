@@ -67,10 +67,6 @@ jobs:
         run: >-
           node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
           --source-root=before --expected-source-sha="$BEFORE_REVISION" --phase=before --smoke --output=reports/smoke
-      - name: Baseline — three fixed 30-slot passes and separate visual replay
-        run: >-
-          node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
-          --source-root=before --expected-source-sha="$BEFORE_REVISION" --phase=before --output=reports/before
       - name: Checkout exact after source
         if: env.AFTER_REVISION != ''
         uses: actions/checkout@v4
@@ -85,6 +81,15 @@ jobs:
         run: |
           cmp ../before/pnpm-lock.yaml pnpm-lock.yaml
           corepack pnpm install --frozen-lockfile
+      - name: Smoke candidate editor and gestures before both full passes — not acceptance
+        if: env.AFTER_REVISION != ''
+        run: >-
+          node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
+          --source-root=after --expected-source-sha="$AFTER_REVISION" --phase=after --smoke --output=reports/smoke-after
+      - name: Baseline — three fixed 30-slot passes and separate visual replay
+        run: >-
+          node control/apps/web/src/electronics/testing/stopped-preflight.browser.mjs
+          --source-root=before --expected-source-sha="$BEFORE_REVISION" --phase=before --output=reports/before
       - name: After — same runner, scenes, machine, browser and action schedule
         if: env.AFTER_REVISION != ''
         run: >-

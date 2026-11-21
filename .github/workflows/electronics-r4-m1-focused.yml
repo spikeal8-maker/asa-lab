@@ -7,6 +7,7 @@ on:
       - 'compose.test.yaml'
       - '.github/compose.registry-ci.yaml'
       - 'tools/test_ci_image_transport.py'
+      - 'tools/electronics_r10_paired_diagnostic.py'
       - 'docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json'
       - 'apps/api/src/origin-policy.ts'
       - 'apps/api/src/app.factory.ts'
@@ -49,6 +50,16 @@ on:
           - classroom-d13-v2
           - classroom-d13-v3
           - arduino-editor-error
+          - r10-paired-regression
+      before_revision:
+        description: Immutable baseline SHA for r10-paired-regression only
+        required: false
+        type: string
+        default: cb15c700253f26bf276ad69d5e45ca27c2306787
+      after_revision:
+        description: Immutable candidate SHA for r10-paired-regression only
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -62,7 +73,7 @@ concurrency:
 
 jobs:
   focused:
-    if: ${{ inputs.qualification_profile != 'arduino-editor-error' }}
+    if: ${{ inputs.qualification_profile != 'arduino-editor-error' && inputs.qualification_profile != 'r10-paired-regression' }}
     name: Shared solver, editor contracts and build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -152,8 +163,9 @@ jobs:
   browser:
     name: Actual editor live simulation journey (${{ matrix.browser_case.label }})
     needs: focused
+    if: ${{ !cancelled() && (needs.focused.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.qualification_profile == 'r10-paired-regression')) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: ${{ inputs.qualification_profile == 'r10-paired-regression' && 60 || 50 }}
     strategy:
       fail-fast: false
       matrix:
@@ -161,6 +173,8 @@ jobs:
         # arduino-editor-error dispatch. Strict CI runs four required shards.
         browser_case: >-
           ${{ fromJSON(
+              inputs.qualification_profile == 'r10-paired-regression' &&
+              '[{"label":"paired","shard":""}]' ||
               (inputs.qualification_profile == 'classroom-d13-v2' ||
               inputs.qualification_profile == 'classroom-d13-v3' ||
               inputs.qualification_profile == 'arduino-editor-error') &&
@@ -179,6 +193,8 @@ jobs:
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}-${{ matrix.browser_case.label }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
+      ASA_R10_BEFORE_REVISION: ${{ inputs.before_revision }}
+      ASA_R10_AFTER_REVISION: ${{ inputs.after_revision }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -187,38 +203,111 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      # A diagnostic comparison of exactly two unchanged cases, not a full R4
+      # qualification. Both builds use their own immutable source and the
+      # existing image-proof CLI in this genuine, already allowed browser job.
+      - name: Validate paired immutable revisions
+        if: inputs.qualification_profile == 'r10-paired-regression'
+        run: >-
+          python3 tools/electronics_r10_paired_diagnostic.py --check-revisions
+          --before-revision="$ASA_R10_BEFORE_REVISION" --after-revision="$ASA_R10_AFTER_REVISION"
+
+      - name: Checkout paired baseline
+        if: inputs.qualification_profile == 'r10-paired-regression'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ASA_R10_BEFORE_REVISION }}
+          path: paired-before
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout paired candidate
+        if: inputs.qualification_profile == 'r10-paired-regression'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ASA_R10_AFTER_REVISION }}
+          path: paired-after
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Paired original millis and joint-LED cases — one attempt each, not full R4
+        if: always() && inputs.qualification_profile == 'r10-paired-regression'
+        run: >-
+          python3 -u tools/electronics_r10_paired_diagnostic.py
+          --before-revision="$ASA_R10_BEFORE_REVISION" --after-revision="$ASA_R10_AFTER_REVISION"
+
+      - name: Remove only paired disposable stacks
+        if: always() && inputs.qualification_profile == 'r10-paired-regression'
+        run: >-
+          python3 -u tools/electronics_r10_paired_diagnostic.py --cleanup-only
+          --before-revision="$ASA_R10_BEFORE_REVISION" --after-revision="$ASA_R10_AFTER_REVISION"
+
+      - name: Upload paired status and incremental failures
+        if: always() && inputs.qualification_profile == 'r10-paired-regression'
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r10-paired-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/r10-paired/paired.json
+            paired-before/reports/electronics-failures.ndjson
+            paired-after/reports/electronics-failures.ndjson
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload complete paired receipts, raw observations, traces and videos
+        if: always() && inputs.qualification_profile == 'r10-paired-regression'
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r10-paired-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/r10-paired
+            paired-before/reports
+            paired-before/e2e/artifacts/electronics-simulation
+            paired-after/reports
+            paired-after/e2e/artifacts/electronics-simulation
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Prepare writable evidence directories
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: |
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
       - name: Prepare and verify image-only PostgreSQL transport
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: |
           python3 tools/test_ci_image_transport.py --prepare-electronics-postgres
           python3 tools/test_ci_image_transport.py --electronics-compose-model-check
 
       - name: Build isolated Electronics browser images
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
 
       - name: Verify original base layers and exact source revision
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: python3 tools/test_ci_image_transport.py --electronics-built-images
 
       - name: Start isolated PostgreSQL
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 120 postgres
 
       - name: Verify original PostgreSQL image identity
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: python3 tools/test_ci_image_transport.py --electronics-pulled-postgres
 
       - name: Apply isolated migrations
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps migration
 
       - name: Start Electronics API and Web without unrelated media services
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
@@ -227,19 +316,20 @@ jobs:
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
       - name: Selected Electronics browser qualification
+        if: inputs.qualification_profile != 'r10-paired-regression'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
           pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}
 
       - name: Show isolated stack state
-        if: always()
+        if: always() && inputs.qualification_profile != 'r10-paired-regression'
         run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
 
       # The journal is flushed after each test, including before a job cancellation.
       # Keep it separately readable when retained traces make the full archive large.
       - name: Upload incremental browser failure evidence
-        if: always()
+        if: always() && inputs.qualification_profile != 'r10-paired-regression'
         uses: actions/upload-artifact@v4
         with:
           name: electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}
@@ -248,7 +338,7 @@ jobs:
           retention-days: 14
 
       - name: Upload browser evidence
-        if: always()
+        if: always() && inputs.qualification_profile != 'r10-paired-regression'
         uses: actions/upload-artifact@v4
         with:
           name: electronics-r4-m1-browser-${{ github.run_id }}-${{ matrix.browser_case.label }}
@@ -259,7 +349,7 @@ jobs:
           retention-days: 14
 
       - name: Remove isolated test stack
-        if: always()
+        if: always() && inputs.qualification_profile != 'r10-paired-regression'
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           down -v --remove-orphans
