@@ -18793,16 +18793,15 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_r5_browser_live_stand_selected
+      checkpoint: e1_editable_ramp_geometry_sphere_rolling_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: E1-BROWSER-R5-LIVE-STAND
+      slice: E1-EDITABLE-RAMP-SPHERE-ROLLING
       planned_paths:
-      - apps/web/src/robotics/testing/r5-live/index.html
-      - apps/web/src/robotics/testing/r5-live/stand.ts
-      - apps/web/src/robotics/testing/r5-live/r5.worker.ts
-      - apps/web/src/robotics/testing/r5-live/stand.browser.mjs
+      - tests/robotics/field-core-qualification/editable-ramp-geometry.ts
+      - tests/robotics/field-core-qualification/editable-ramp-rolling.fixture.json
+      - tests/robotics/field-core-qualification/editable-ramp-rolling.spec.ts
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -19283,7 +19282,7 @@ parallel_lanes:
           both positional dispatches and the open-loop archive equivalence passed. WASM is byte-identical
           to the admitted finite-cap native artifact. The receipt establishes synthetic response-scoped
           CSP and the tested fixtures. It supplies no coupled R5, real stand, weak-host or product result.
-      selected_acquisition:
+      r5_browser_live_registration:
         scope: TEST_ONLY
         owner_request: Owner directed the multi-agent programme to continue to actual Arduino-driven 3D
           physics on the existing 4630 development stand. This selection covers a fixed in-memory
@@ -19404,6 +19403,167 @@ parallel_lanes:
           No changes to field/electronics/editor product routes, current saved projects, schema,
           APIs, databases, system tooling, host packages, deployment or published assets. No
           re-run of archived Node R5, R6 changes, full PHY-06, D01/D02 closure or throughput claim.
+      r5_browser_live_result:
+        source_ref: refs/heads/codex/robotics-r5-live-stand-1071
+        source_commit: acf2fbbff6f682a5a148732ab878fcd5f6d82fd9
+        source_tree: dc6c0a951d81bc486dc38abcd410c50d8800975b
+        source_location: Preserved exact source on its published topic ref; absent from the observed c1d7682 product main.
+        registration_pr: 1198
+        registration_merge: be6d93c5dd76ff2fca86a7beaa77e7bcf237504a
+        registration_tested_head: 978d9f78565b4473661132c5618441c613ff0dd5
+        registration_required_success: https://github.com/spikeal8-maker/asa-lab/actions/runs/43750096490/job/132930417353
+        bundle_manifest_sha256: 5cbf74d62b9cc9f2ef2cb45bd1c2aaf86b5cad31c38b447e0391feb490b65887
+        raw: {file: qualification.bin, bytes: 159423000, sha256: b791e3fe84a6ed043ff55a7a6b84466fbd22d22cba2d29b1fc40fb4280c63318}
+        receipt: {file: qualification.jsonl, bytes: 279148, sha256: 3ade031c727a327ab9d82de4f09bd43ec51ea49600ded8cb3374dc7b4baa8735}
+        outcome: {runtime: COMPLETE, powered_physical: PASS, low_control_physical: PASS, causal: GAP_CAUSAL_ALT}
+        intervals: {powered: 20090, control: 20090, native_step2_total: 40180}
+        measured_powered_us: {top: 3808500, impact: 4257000, tip_cross: 4338500, final_low: 4340082, free_side_from: 4481500, free_side_to: 4581500, late_recontact: 4902500}
+        native_rise_m: 0.06999020507717987
+        first_late_reverse_positive: {from_us: 6003000, to_us: 6003500, work_j: 3.855204e-14}
+        interpretation: >-
+          Dated acquired live-stand TEST_ONLY evidence. Exact source, bundle and raw are preserved;
+          this record does not assert present stand availability, integration into the ordinary field,
+          full energy acceptance, D01/D02 closure, owner acceptance or deployment.
+      selected_acquisition:
+        scope: TEST_ONLY
+        owner_request: >-
+          Owner requests a working field with visibly rotating balls, a robot on an incline and
+          editable ramp height and angle in components. Select the common geometry and first
+          necessary sphere mechanics qualification under the existing E1/#1071 programme.
+          Source implementation follows acceptance of this record on main.
+        specification:
+          path: docs/product/robotics/FIELD_CORE_SPEC.md
+          requirements: [REQ-CORE-01, REQ-GEO-02, REQ-TERR-01, REQ-TERR-02, REQ-PHY-04, REQ-VERIFY-01, REQ-VERIFY-02]
+          tests: [PHY-05]
+          sections: [16.2, 19.7, 19.10]
+        geometry_contract: >-
+          One pure engine-independent function computes the same finite ramp surface, solid collider,
+          plan and side-profile data from horizontal projected length L, width W, rise H, lower-end
+          origin and XY heading. Use metres and radians internally, labelled metres and degrees in
+          future UI. Positive L/W and nonnegative H must be finite; reject invalid angles,
+          nonfinite/overflowed derived values, degenerate geometry and invalid transforms.
+          Heading points upslope from lower end to higher end. Theta=atan2(H,L); sloping
+          length=hypot(L,H). With horizontal unit e=(cos(phi),sin(phi),0), transverse
+          b=(-sin(phi),cos(phi),0), top points are o+u*e+v*b+(H*u/L)*Z,
+          0<=u<=L and -W/2<=v<=W/2. The upslope unit tangent is
+          (cos(theta)*cos(phi),cos(theta)*sin(phi),sin(theta)); top unit normal is
+          (-sin(theta)*cos(phi),-sin(theta)*sin(phi),cos(theta)).
+          A fixture-fixed 0.05 m base thickness closes the solid beneath the top with a horizontal
+          bottom at o.z-0.05 m, including the level H=0 plate. Thickness is explicit collider
+          construction data, independent of the user rise H. Verify closed finite geometry, winding,
+          outward normals, positive volume and matching top/plan/profile endpoints.
+        future_angle_edit: >-
+          Future component editing holds the current horizontal L fixed when angle theta changes
+          and computes H=L*tan(theta). Height editing holds L fixed and recomputes theta.
+          Validate 0<=theta<90 degrees plus finite representable geometry before accepting an edit.
+          A rejected edit preserves the last valid source. This slice supplies and tests the pure
+          conversion/geometry only; it does not add component UI, saved fields or a new world schema.
+        cases:
+          angle_heading_pairs_deg: [[10, 0], [5, 45], [15, -90]]
+          horizontal_length_m: 2
+          width_m: 0.5
+          base_thickness_m: 0.05
+          sphere_radius_m: 0.05
+          sphere_mass_kg: 0.1
+          inertia: Homogeneous solid sphere, I=2*m*r*r/5 per principal axis.
+          gravity_mps2: [0, 0, -9.81]
+          contact_friction: 0.5
+          rolling_friction: 0
+          spinning_friction: 0
+          linear_angular_damping: 0
+          contact_response: Inherit the exact R5 contact solref/solimp and solver profile; no restitution or loss tuning.
+          release: >-
+            Every case derives H=L*tan(theta). Release from exact tangency above the top at
+            u=1.5 m, v=0 with native velocities zero and sphere centre top+r*n. These placements
+            leave the analytic one-second travel and the measured witnesses inside the finite face.
+            Verify actual contact and finite-face interior at every analysed interval, excluding
+            toe/side/edge contact from the analytic oracle. No pose/velocity setters after factory,
+            imposed spin, motor, second inertia, artificial traction or replayed trajectory.
+        engine:
+          name: MuJoCo
+          version: 4.0.0
+          upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+          glue: {bytes: 331846, sha256: 9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8}
+          wasm: {bytes: 11229000, sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241}
+          declarations_sha256: 779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff
+          artifact_binding: >-
+            Reuse the exact unchanged admitted AOT build and strict synthetic Worker CSP evidence
+            in aot_worker_csp_result, and R5's shared nativeCCD solver profile. Pin/read back the
+            full profile and all model inputs before dynamic dispatch. The sphere/finite-ramp
+            pair uses stock sphere collision dispatch; preserve the named can finite-cap patch.
+            Hash and licence verification precedes native module initialization; default tests
+            remain pure and native is explicit opt-in. No rebuild, dependency or solver tuning.
+        schedule:
+          timestep_us: 500
+          duration_us: 1000000
+          identical_fresh_worlds_per_case: 2
+          max_worlds_total: 6
+          max_concurrent_worlds: 1
+          max_intervals_per_world: 2000
+          max_native_intervals_total: 12000
+          observation_window_us: [400000, 1000000]
+          acceleration_sample_times_us: [400000, 600000, 800000, 1000000]
+          max_contacts_per_interval: 8
+          max_constraint_rows_per_interval: 48
+          max_external_raw_bytes: 33554432
+        oracle: >-
+          Establish loaded native sphere/ramp contact, geometric support and no-slip before
+          assessing acceleration. At every retained analysed PRE and POST require finite state,
+          correct signed plane normal, finite-face witnesses, nonnegative contact normal force
+          and actual positive supporting load. Check full tangent magnitude of v_COM+omega cross
+          (-r*n)<=0.001 m/s, absolute normal velocity<=0.001 m/s and absolute signed geometric
+          sphere/plane clearance<=0.001 m. Preserve the original 0.00003 normal-vector distance
+          bound. Capture actual solver contact-point velocities separately and bind PRE contact
+          identity/rows to solved forces; preserve native phase and endpoint time distinctions.
+          For downslope d=-t, analytic a=g*sin(theta)/(1+I/(m*r*r)) and angular acceleration
+          vector=(n cross d)*a/r. Compare each adjacent registered sample difference of actual
+          COM velocity and omega with those analytic vectors, each within 5 percent of its
+          analytic norm. Also retain COM displacement, full spatial quaternion and omega for
+          future truthful visual rolling. No post-FAIL window selection, fitted denominator,
+          tolerance increase, imposed no-slip kinematics or conversion of failed support to PASS.
+        evidence_and_admission: >-
+          Freeze geometry cases, exact fixture/source hashes, specification hash, artifact and
+          model/profile readback, dispatch/resource caps, units and expected analytic values
+          before native. Pure tests cover rotated and level geometry, L/H/angle round-trips,
+          invalid inputs and immutable callers; default native test is skipped. After independent
+          exact-source review the controller may dispatch one bounded acquisition of the six
+          preregistered fresh worlds, including exact repeat streams for each case. Retain every
+          PRE/POST state, contact/force/clock and cleanup event in an exclusive external immutable
+          raw receipt; enforce capture capacity before advancing. Preserve failures and partial
+          evidence before assertions. Independent raw recomputation and focused TS/lint/format,
+          regression and applicable protected CI follow. This registers future work only.
+        prior_rapier_failures:
+          - source_commit: 2dcd83bc009666ac5e8f459c4755b2425648e4de
+            source_ref: refs/heads/codex/robotics-phy05-20261115
+            fixture: {file: phy05.fixture.json, bytes: 2977, sha256: f952e2dec347d52ff2b5c8ce4b2c8f9d98412505149ef79b6d759ab43856f1fe}
+            spec: {file: phy05.spec.ts, bytes: 19344, sha256: ae4595c34d98b9f8791888c774a729430f223fce05d2d39270000078566aa96e}
+            raw: {file: phy05-first-native.json, bytes: 702655, sha256: 41bb9e2a4c1bc9d284315729098c68d8a31486a571cf68402665d6456009a529}
+            result: FAIL; no-slip first failed at 0.4 s and geometric support at 0.5275 s; acceleration acceptance withheld.
+          - source_commit: 63757dbf935df0de5028de90f7bb072268fd7901
+            source_ref: refs/heads/codex/robotics-phy05-r2-20261115
+            fixture: {file: phy05.fixture.json, bytes: 3350, sha256: b70a650580c8c953a7f652dc5f2d116d7838d8d0697443e6d2d6caf95550964f}
+            spec: {file: phy05.spec.ts, bytes: 19378, sha256: 47883680f59440f0e14838d4767b9d598d1e218cd3452739461df11d1855996d}
+            raw: {file: phy05-r2-native.json, bytes: 903379, sha256: 714f8e9d6f74b5f415bfe519f07e03a6dd0f05562ca3557b4da3be779d197bb0}
+            result: FAIL; no-slip first failed at 0.4 s; geometry passed; acceleration acceptance withheld.
+        prior_rapier_preservation: >-
+          Both archived Rapier 0.19.3 sources, fixtures and exact-repeat failed streams remain
+          unchanged. R2 changed normalizedAllowedLinearError from 0.001 to zero; it did not
+          qualify rolling. Do not import or invoke their historically unconditional native tests.
+        downstream_user_outcomes: >-
+          Later selected work must expose a ramp catalogue component with labelled height and
+          fixed-L angle editing, matching plan/profile/3D geometry, safe save/reopen and legacy
+          migration under E2. The runtime must publish actual ball quaternion/angular velocity to
+          shared 2D/3D committed views, and a real assembled Arduino/electrical/drive must climb
+          authored grades with contact, gravity and load feedback under E6/E7 and checkpoint rules.
+          Qualify sphere rolling, chassis support and ramp input changes separately from old
+          planar mechanics and frozen R5. D01/E1 qualification precedes E2 per section 19.10;
+          this slice neither activates those outcomes nor adds a prerequisite to independent
+          isolated work already allowed by the specification.
+        exclusions: >-
+          Preserve the ordinary portal, legacy Planck paths, saved/replayed projects, R5 source
+          and physical PASS, its late causal GAP, all historical failures and the parent D01/D02
+          acceptance blocker. No UI/product integration, schema migration, native actuator rewrite,
+          engine rebuild, actual browser/stand mount, deployment, owner acceptance or D01/D02 closure.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
