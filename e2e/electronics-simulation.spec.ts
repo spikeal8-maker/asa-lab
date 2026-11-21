@@ -9038,6 +9038,9 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
       { key: localKey, id: projectId, userId },
     );
     expect(base.components.find((entry) => entry.id === 'resistor')?.value).toBe(333.3);
+    expect(base.components.find((entry) => entry.id === 'uno')?.stateProperties).not.toHaveProperty(
+      'arduinoWorkspace',
+    );
     const changedSource = `// latest sketch before ${action}\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n`;
     const expected = {
       ...base,
@@ -9048,7 +9051,6 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
               stateProperties: {
                 ...entry.stateProperties,
                 arduinoCodeMode: 'text',
-                arduinoWorkspace: '',
                 arduinoSource: changedSource,
                 arduinoSerialOpen: false,
                 arduinoBaudRate: 9600,
@@ -9144,6 +9146,9 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
     ).toBeLessThan(260);
     expect(elapsedMs).toBeGreaterThanOrEqual(0);
     expect(receipt.inputLocal?.document).toEqual(expected);
+    expect(
+      receipt.inputLocal?.document.components.find((entry) => entry.id === 'uno')?.stateProperties,
+    ).not.toHaveProperty('arduinoWorkspace');
     expect(receipt.actionLocal?.document).toEqual(expected);
     expect(puts).toEqual([expected]);
     const opened = await page.context().request.get(`/api/projects/${projectId}`, {

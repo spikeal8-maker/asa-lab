@@ -2723,6 +2723,18 @@ for (const width of [1440, 1024, 390, 320]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
+    const savedPrograms = JSON.parse(
+      readFileSync(
+        resolve(
+          process.cwd(),
+          'apps/web/src/electronics/testing/arduino-preservation-865-oracles.json',
+        ),
+        'utf8',
+      ),
+    ) as { name: string; source: string; workspace: string }[];
+    const savedProgram = savedPrograms.find(({ name }) => name === 'hats');
+    if (!savedProgram) throw new Error('The saved Arduino hats program is missing');
+    const before = { source: savedProgram.source, workspace: savedProgram.workspace };
     const fixture = documentFixture();
     const initial = {
       ...fixture,
@@ -2730,12 +2742,20 @@ for (const width of [1440, 1024, 390, 320]) {
         component.id === 'uno'
           ? {
               ...component,
-              stateProperties: { ...component.stateProperties, arduinoCodeMode: 'blocks' },
+              stateProperties: {
+                ...component.stateProperties,
+                arduinoCodeMode: 'blocks',
+                arduinoSource: before.source,
+                arduinoWorkspace: before.workspace,
+              },
             }
           : component,
       ),
     } as SchematicDocument;
-    const { errors, readEditorDocument } = await openEditor(page, initial);
+    const { requests, errors, readEditorDocument } = await openEditor(page, initial);
+    const draftWriteCount = () =>
+      page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites);
+    const initialDraftWrites = await draftWriteCount();
     await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
     const code = page.getByRole('region', { name: 'Редактор кода Arduino' });
     await expect(code).toBeVisible();
@@ -2751,10 +2771,10 @@ for (const width of [1440, 1024, 390, 320]) {
     const readProgram = async () => {
       const doc = await readEditorDocument();
       const state = doc.components.find((component) => component.id === 'uno')!.stateProperties!;
-      return { source: state.arduinoSource, workspace: JSON.parse(String(state.arduinoWorkspace)) };
+      return { source: state.arduinoSource, workspace: state.arduinoWorkspace };
     };
     await expect.poll(async () => (await readProgram()).source).toContain('void setup()');
-    const before = await readProgram();
+    expect(await readProgram()).toEqual(before);
     for (let attempt = 0; attempt < 3; attempt++) {
       await openWorkspaceMenu();
       const menu = page.locator('.blocklyContextMenu');
@@ -2784,6 +2804,8 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );
+    expect(requests).toEqual([]);
+    expect(await draftWriteCount()).toBe(initialDraftWrites);
     expect(errors).toEqual([]);
   });
 }
