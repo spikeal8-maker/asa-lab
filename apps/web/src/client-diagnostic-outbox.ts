@@ -2,6 +2,10 @@ import { diagnosticQuality, type TelemetryQuality } from './telemetry-quality';
 import { record, sendTelemetry, telemetryRetryDelay } from './telemetry-contract';
 import { validClientException, exceptionMatchesCode } from './client-error-details';
 import { validRequestDetails } from './request-diagnostic-details';
+import {
+  SCRATCH_SAVE_FAILURE_CODES,
+  isScratchSaveFailureCode,
+} from './blocks/scratch-save-diagnostics';
 // Only this fixed vocabulary may cross the browser diagnostics boundary.
 export const DIAGNOSTIC_CODES = [
   'render_failed',
@@ -30,9 +34,7 @@ export const FAILURE_CATEGORIES = [
   'technical',
 ] as const;
 export const FAILURE_CODES = [
-  'scratch-save-asset',
-  'scratch-save-draft',
-  'scratch-save-prepare',
+  ...SCRATCH_SAVE_FAILURE_CODES,
   'worker-start',
   'worker-runtime',
   'worker-message',
@@ -171,9 +173,7 @@ function valid(value: unknown, now: number): value is Envelope {
       FAILURE_CATEGORIES.includes(v.category as (typeof FAILURE_CATEGORIES)[number])) &&
     (v.failureCode === undefined ||
       FAILURE_CODES.includes(v.failureCode as (typeof FAILURE_CODES)[number])) &&
-    (!['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
-      v.failureCode as string,
-    ) ||
+    (!isScratchSaveFailureCode(v.failureCode) ||
       (v.code === 'autosave_failed' && v.module === 'scratch' && v.phase === 'save')) &&
     (v.script === undefined || (typeof v.script === 'string' && ASSET_SCRIPT.test(v.script))) &&
     (v.exception === undefined ||

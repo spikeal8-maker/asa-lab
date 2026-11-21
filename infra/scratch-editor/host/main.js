@@ -44,6 +44,34 @@
   // The shipping editor is a component of this ASA page, never a standalone
   // application. The configured origin below remains for isolated protocol CI.
   const integrated = new URL(window.location.href).pathname.startsWith('/internal/blocks/');
+  const saveRequestSignal = (timeoutMs, signal) => {
+    if (
+      typeof AbortSignal.timeout === 'function' &&
+      (!signal || typeof AbortSignal.any === 'function')
+    ) {
+      const deadline = AbortSignal.timeout(timeoutMs);
+      return signal ? AbortSignal.any([signal, deadline]) : deadline;
+    }
+    // Retain the deadline through response body reads on browsers with only
+    // AbortController. A caller abort still cancels the same request.
+    if (signal?.aborted) return signal;
+    const controller = new AbortController();
+    const abort = () => controller.abort(signal.reason);
+    const timer = window.setTimeout(
+      () => controller.abort(new DOMException('Scratch save timed out', 'TimeoutError')),
+      timeoutMs,
+    );
+    signal?.addEventListener('abort', abort, { once: true });
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        window.clearTimeout(timer);
+        signal?.removeEventListener('abort', abort);
+      },
+      { once: true },
+    );
+    return controller.signal;
+  };
   if (integrated) {
     if (window.parent === window) {
       failLocal('configuration-required', 'Откройте проект через приложение ASA Lab.');
@@ -82,10 +110,11 @@
   };
   // A disposable diagnostic ID carries no capability or project identity.
   const diagnosticInstance = new URL(window.location.href).searchParams.get('diagnosticInstance');
-  if (
-    integrated &&
-    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(diagnosticInstance ?? '')
-  ) {
+  const hasDiagnosticInstance =
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+      diagnosticInstance ?? '',
+    );
+  if (integrated) {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const url = new URL(
@@ -94,15 +123,29 @@
       );
       if (url.origin !== window.location.origin || !url.pathname.startsWith('/api/'))
         return originalFetch(input, init);
-      const headers = new Headers(
-        init?.headers ?? (input instanceof Request ? input.headers : undefined),
-      );
-      headers.set('x-asa-diagnostic-instance', diagnosticInstance);
-      headers.set('x-asa-diagnostic-module', 'scratch');
+      const request = input instanceof Request ? input : null;
+      const isPut = (init?.method ?? request?.method)?.toUpperCase() === 'PUT';
+      const draftWrite =
+        isPut && /^\/api\/blocks\/runtime\/projects\/[^/]+\/draft$/.test(url.pathname);
+      const assetWrite =
+        isPut && /^\/api\/blocks\/runtime\/projects\/[^/]+\/assets\/[^/]+$/.test(url.pathname);
+      const requestInit = { ...init };
+      if (hasDiagnosticInstance) {
+        const headers = new Headers(init?.headers ?? request?.headers);
+        headers.set('x-asa-diagnostic-instance', diagnosticInstance);
+        headers.set('x-asa-diagnostic-module', 'scratch');
+        requestInit.headers = headers;
+      }
+      if (draftWrite || assetWrite) {
+        const signal = init?.signal === undefined ? request?.signal : init.signal;
+        requestInit.signal = saveRequestSignal(draftWrite ? 20_000 : 60_000, signal);
+      }
+      // Draft storage emits a terminal report after its own renewal and reconciliation.
+      const reportRequestFailure = hasDiagnosticInstance && !draftWrite;
       const started = performance.now();
       try {
-        const response = await originalFetch(input, { ...init, headers });
-        if (response.status >= 400)
+        const response = await originalFetch(input, requestInit);
+        if (reportRequestFailure && response.status >= 400)
           reporter?.requestFailed(
             response.status,
             response.headers.get('x-request-id'),
@@ -110,7 +153,7 @@
           );
         return response;
       } catch (failure) {
-        if (failure?.name !== 'AbortError')
+        if (reportRequestFailure && failure?.name !== 'AbortError')
           reporter?.requestFailed(null, null, Math.round(performance.now() - started));
         throw failure;
       }
@@ -179,19 +222,27 @@
         reporter?.saveBeforeExitResult(requestId, false, 'editor_not_ready');
         return;
       }
-      void editor.saveBeforeExit().then((result) => {
-        if (result.ok) {
-          reporter?.saveBeforeExitResult(
-            requestId,
-            true,
-            null,
-            result.revision,
-            result.savedGeneration,
-          );
-          return;
-        }
-        reporter?.saveBeforeExitResult(requestId, false, result.reason);
-      });
+      const activeEditor = editor;
+      const reportSaveFailure = (reason) => {
+        reporter?.saveBeforeExitResult(requestId, false, reason);
+        void activeEditor.flushRecovery().catch(() => undefined);
+      };
+      void activeEditor.saveBeforeExit().then(
+        (result) => {
+          if (result.ok) {
+            reporter?.saveBeforeExitResult(
+              requestId,
+              true,
+              null,
+              result.revision,
+              result.savedGeneration,
+            );
+            return;
+          }
+          reportSaveFailure(result.reason);
+        },
+        () => reportSaveFailure('upstream_saver_unavailable'),
+      );
     },
     onStop() {
       stopHeartbeat();

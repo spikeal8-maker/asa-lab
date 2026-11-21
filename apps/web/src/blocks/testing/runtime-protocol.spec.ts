@@ -96,7 +96,40 @@ describe('BlocksRuntimeBridge', () => {
     expect(bridge.acceptChildMessage(event)).toBe(false);
   });
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('times out an unresponsive iframe and ignores its late confirmation during a retry', async () => {
+    vi.useFakeTimers();
+    const { bridge, target } = makeBridge();
+    const send = (index: number) => {
+      const request = target.postMessage.mock.calls[index][0] as Record<string, unknown>;
+      return bridge.acceptChildMessage({
+        source: target,
+        origin: RUNTIME_ORIGIN,
+        data: {
+          ...request,
+          messageType: 'ASA_BLOCKS_SAVE_BEFORE_EXIT_RESULT',
+          ok: true,
+          revision: 13,
+          savedGeneration: 2,
+        },
+      });
+    };
+    const first = bridge.requestSaveBeforeExit();
+    await vi.advanceTimersByTimeAsync(35_000);
+    await expect(first).resolves.toEqual({ ok: false, reason: 'save_exit_timeout' });
+    const retry = bridge.requestSaveBeforeExit();
+    expect(send(0)).toBe(false);
+    expect(send(1)).toBe(true);
+    await expect(retry).resolves.toEqual({
+      ok: true,
+      reason: null,
+      revision: 13,
+      savedGeneration: 2,
+    });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('sends INIT only to the exact configured runtime origin', () => {

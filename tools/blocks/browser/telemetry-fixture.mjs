@@ -190,6 +190,20 @@ function validDiagnosticException(value, code) {
   );
 }
 
+const scratchSaveFailureCodes = [
+  'scratch-save-asset',
+  'scratch-save-asset-missing',
+  'scratch-save-asset-invalid',
+  'scratch-save-asset-response',
+  'scratch-save-draft',
+  'scratch-save-prepare',
+  'scratch-save-exit-timeout',
+  'scratch-save-exit-unavailable',
+  'scratch-save-recovery',
+  'scratch-save-recovery-quota',
+  'scratch-save-recovery-media',
+];
+
 function validDiagnostic(body) {
   return (
     record(body) &&
@@ -294,9 +308,7 @@ function validDiagnostic(body) {
       )) &&
     (body.failureCode === undefined ||
       [
-        'scratch-save-asset',
-        'scratch-save-draft',
-        'scratch-save-prepare',
+        ...scratchSaveFailureCodes,
         'worker-start',
         'worker-runtime',
         'worker-message',
@@ -313,9 +325,7 @@ function validDiagnostic(body) {
         'arduino_execution_failed',
         'timed_advance_failed',
       ].includes(body.failureCode)) &&
-    (!['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
-      body.failureCode,
-    ) ||
+    (!scratchSaveFailureCodes.includes(body.failureCode) ||
       (body.code === 'autosave_failed' && body.module === 'scratch' && body.phase === 'save')) &&
     (body.exception === undefined || validDiagnosticException(body.exception, body.code)) &&
     (body.script === undefined ||

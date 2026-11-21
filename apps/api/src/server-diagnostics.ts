@@ -62,6 +62,13 @@ const VALIDATION_REASONS = new Set<string>([
   'draft_mutation_id_invalid',
   'draft_document_unserializable',
   'draft_module_unavailable',
+  'blocks_project_invalid',
+  'blocks_project_too_large',
+  'blocks_asset_identity_invalid',
+  'blocks_asset_reference_missing',
+  'blocks_asset_reference_extra',
+  'blocks_asset_reference_duplicate',
+  'blocks_asset_reference_mismatch',
 ]);
 export function safeValidationReason(value: unknown): string | undefined {
   return typeof value === 'string' && VALIDATION_REASONS.has(value) ? value : undefined;

@@ -11,7 +11,7 @@ import { BlocksEditor } from '../../apps/web/src/blocks/BlocksEditor';
 import { ClientDiagnosticsController } from '../../apps/api/src/client-diagnostics.controller';
 
 describe('ordinary Scratch save failure to structured diagnostics', () => {
-  it.each(['asset', 'draft', 'prepare'] as const)(
+  it.each(['asset', 'asset-missing', 'draft', 'prepare'] as const)(
     'delivers a privacy-safe %s failure without an exit or fatal editor transition',
     async (stage) => {
       const testGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
@@ -148,6 +148,7 @@ describe('ordinary Scratch save failure to structured diagnostics', () => {
           }
         }
         const id = 'a'.repeat(32);
+        const hasAsset = stage === 'asset' || stage === 'asset-missing';
         const storage: {
           scratchStorage: { AssetType: Record<string, unknown> };
           saveProject(projectId: string, json: string): Promise<unknown>;
@@ -177,7 +178,7 @@ describe('ordinary Scratch save failure to structured diagnostics', () => {
               {
                 assetId: id,
                 dataFormat: 'svg',
-                data: Uint8Array.of(1),
+                data: stage === 'asset-missing' ? new Uint8Array(0) : Uint8Array.of(1),
                 assetType: storage.scratchStorage.AssetType.ImageVector,
               },
             ],
@@ -188,7 +189,7 @@ describe('ordinary Scratch save failure to structured diagnostics', () => {
           targets: [
             {
               name: 'PRIVATE_PUPIL_WORK',
-              costumes: stage === 'asset' ? [{ assetId: id, dataFormat: 'svg' }] : [],
+              costumes: hasAsset ? [{ assetId: id, dataFormat: 'svg' }] : [],
               sounds: [],
               blocks: { secret: 'PRIVATE_CODE' },
             },
@@ -219,7 +220,8 @@ describe('ordinary Scratch save failure to structured diagnostics', () => {
         if (stage === 'draft')
           expect(failed[0]).toMatchObject({ httpStatus: 503, relatedRequestId });
         if (stage === 'asset') expect(failed[0]).toMatchObject({ httpStatus: 400 });
-        if (stage === 'prepare') expect(failed[0]).not.toHaveProperty('httpStatus');
+        if (stage === 'prepare' || stage === 'asset-missing')
+          expect(failed[0]).not.toHaveProperty('httpStatus');
         expect(JSON.stringify(failed)).not.toMatch(
           /PRIVATE_|header\.payload|runtimeToken|projectJson|assetId/,
         );

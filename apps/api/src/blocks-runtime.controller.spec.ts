@@ -4,6 +4,7 @@ import { HttpException } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { BlocksRuntimeController } from './blocks-runtime.controller.js';
 import type { BlocksRuntimePersistenceService } from './blocks-runtime-persistence.service.js';
+import { recordServerFailure, requestValidationReasons } from './server-diagnostics.js';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
 const PRINCIPAL = '22222222-2222-4222-8222-222222222222';
@@ -107,6 +108,34 @@ describe('BlocksRuntimeController', () => {
     expect(runtime.save).toHaveBeenCalledWith(
       expect.objectContaining({ projectId: PROJECT, baseRevision: 3, mutationId: MUTATION }),
     );
+  });
+
+  it.each([
+    ['blocks_asset_reference_missing', 'blocks_asset_reference_missing'],
+    ['unrecognized private validation text', 'blocks_project_invalid'],
+  ])('attaches a bounded reason to a draft rejection: %s', async (message, reasonCode) => {
+    const runtime = service({
+      save: vi.fn().mockResolvedValue({ ok: false, code: 'validation_error', message }),
+    });
+    const controller = new BlocksRuntimeController(runtime, {
+      requirePrincipal: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AccountVerificationService);
+    const draftRequest = request();
+    const failure = controller
+      .putDraft(draftRequest, reply().value, PROJECT, {
+        document: {},
+        baseRevision: 3,
+        mutationId: MUTATION,
+      })
+      .catch((error: unknown) => {
+        recordServerFailure(error, draftRequest, 400, null, null);
+        throw error;
+      });
+    await expect(failure).rejects.toMatchObject({
+      status: 400,
+      response: { error: { code: 'validation_error', reasonCode } },
+    });
+    expect(requestValidationReasons.get(draftRequest)).toBe(reasonCode);
   });
 
   it('returns a read-only refusal for an accepted Learning original', async () => {
