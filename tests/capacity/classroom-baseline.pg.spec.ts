@@ -1,4 +1,5 @@
 import { edit, CAPACITY_PNG, CAPACITY_ASSET } from './documents';
+import { profileScratchAssetReads } from './scratch-asset-profile';
 import { createHash, randomUUID } from 'node:crypto';
 import { BLOCKS_DRAFT_CONTENT_TYPE } from '../../apps/api/dist/blocks-runtime-transport.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -178,7 +179,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
               ...(capability ? { authorization: `Bearer ${capability}` } : {}),
               ...(method === 'POST' ? { 'idempotency-key': randomUUID() } : {}),
             },
-            body: binary ? new Uint8Array(text as Buffer).buffer : (text as string | undefined),
+            body: typeof text === 'string' ? text : text ? new Uint8Array(text).buffer : null,
           });
           status = response.status;
           actor.jar.receive(response.headers.getSetCookie(), path);
@@ -690,6 +691,101 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         try {
           mkdirSync('reports/capacity', { recursive: true });
           writeFileSync('reports/capacity/backend30.json', JSON.stringify(report, null, 2));
+          if (success && process.env.ASA_CAPACITY_SCRATCH_PROFILE === '1') {
+            // The original workload, samples and artifact are complete before
+            // creating extra fixtures or collecting asset timings.
+            phase = 'scratch_asset_profile';
+            const checkpointsPerProject = 3;
+            await profileScratchAssetReads({
+              pool: runtime,
+              checkpointsPerProject,
+              prepare: async () => {
+                const prepared = [];
+                for (const actor of actors) {
+                  let projectId = actor.module === 'blocks' ? actor.project : undefined;
+                  let capability = actor.module === 'blocks' ? actor.capability : undefined;
+                  if (actor.module !== 'blocks') {
+                    const created = await call(
+                      actor,
+                      'profile_project_create',
+                      'POST',
+                      '/api/projects',
+                      { module: 'blocks', scope: 'personal', title: 'Synthetic asset profile' },
+                      [201],
+                    );
+                    projectId = uuid(object(created.project).id);
+                    const projectPath = `/api/projects/${projectId}`;
+                    const runtimePath = `/api/blocks/runtime/projects/${projectId}`;
+                    const openedProject = await call(actor, 'profile_open', 'GET', projectPath);
+                    const session = await call(
+                      actor,
+                      'profile_session',
+                      'POST',
+                      `${projectPath}/blocks/runtime-session`,
+                      {},
+                    );
+                    if (typeof session.runtimeToken !== 'string')
+                      throw new Error('missing_profile_runtime_capability');
+                    capability = session.runtimeToken;
+                    const upload = await call(
+                      actor,
+                      'profile_upload',
+                      'PUT',
+                      `${runtimePath}/assets/${CAPACITY_ASSET.assetId}.png`,
+                      CAPACITY_PNG,
+                      [200],
+                      capability,
+                    );
+                    if (object(upload.asset).sha256 !== CAPACITY_ASSET.sha256)
+                      throw new Error('profile_upload_mismatch');
+                    await call(
+                      actor,
+                      'profile_save',
+                      'PUT',
+                      `${runtimePath}/draft`,
+                      {
+                        document: edit('blocks', 1),
+                        baseRevision: object(openedProject.draft).revision,
+                        mutationId: randomUUID(),
+                      },
+                      [200],
+                      capability,
+                    );
+                  }
+                  if (!projectId || !capability || !actor.identity)
+                    throw new Error('missing_profile_actor_fixture');
+                  for (let index = 0; index < checkpointsPerProject; index++) {
+                    await call(
+                      actor,
+                      'profile_checkpoint',
+                      'POST',
+                      `/api/projects/${projectId}/checkpoints`,
+                      { label: `Synthetic asset profile ${index + 1}` },
+                      [201],
+                    );
+                  }
+                  prepared.push({
+                    projectId,
+                    identity: actor.identity,
+                    read: async () => {
+                      const media = await call(
+                        actor,
+                        'profile_asset_read',
+                        'GET',
+                        `/api/blocks/runtime/projects/${projectId}/assets/${CAPACITY_ASSET.assetId}.png`,
+                        undefined,
+                        [200],
+                        capability,
+                      );
+                      if (media.assetSha256 !== CAPACITY_ASSET.sha256)
+                        throw new Error('profile_private_asset_mismatch');
+                    },
+                  });
+                }
+                return prepared;
+              },
+            });
+          }
         } finally {
           opened.mockRestore();
           projectLoads.mockRestore();
