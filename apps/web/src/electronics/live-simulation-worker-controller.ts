@@ -677,15 +677,20 @@ export class ElectronicsLiveSimulationWorkerController {
   private reserveIdleArduinoWake(generationId: number): void {
     const wake = this.acknowledgedWake;
     const document = this.canonicalDocument;
+    const dispatchedDocument = this.dispatchedDocument;
+    const callbacks = this.callbacks;
     if (
       wake === null ||
       document === null ||
-      !sameArduinoSources(this.dispatchedDocument, document)
+      callbacks === null ||
+      !sameArduinoSources(dispatchedDocument, document)
     )
       return;
     const idle = () =>
       this.generationId === generationId &&
+      this.callbacks === callbacks &&
       this.canonicalDocument === document &&
+      this.dispatchedDocument === dispatchedDocument &&
       this.acknowledgedWake === wake &&
       !this.inFlight &&
       !this.paused &&
@@ -696,8 +701,8 @@ export class ElectronicsLiveSimulationWorkerController {
       this.continuationTarget === null &&
       this.latestTarget === null &&
       this.pendingInputEvents.length === 0;
-    if (!idle() || this.callbacks?.isDefaultHostPace?.() !== true) return;
-    const host = this.callbacks.readHostHorizonMicroseconds?.();
+    if (!idle() || callbacks.isDefaultHostPace?.() !== true || !idle()) return;
+    const host = callbacks.readHostHorizonMicroseconds?.();
     if (!idle() || typeof host !== 'number' || !Number.isSafeInteger(host)) return;
     const freshHorizon = host - this.horizonOffsetMicroseconds;
     const committed = this.committedHorizonMicroseconds;
@@ -729,18 +734,27 @@ export class ElectronicsLiveSimulationWorkerController {
       return;
     let freshHorizon: number | null = null;
     let defaultPace = false;
-    if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
-      defaultPace = this.acknowledgedWake !== null && this.callbacks.isDefaultHostPace?.() === true;
+    const callbacks = this.callbacks;
+    if (pendingTarget === this.latestTarget && callbacks?.readHostHorizonMicroseconds) {
+      const acknowledgedWake = this.acknowledgedWake;
+      const dispatchedDocument = this.dispatchedDocument;
+      const current = () =>
+        generationId === this.generationId &&
+        callbacks === this.callbacks &&
+        document === this.canonicalDocument &&
+        dispatchedDocument === this.dispatchedDocument &&
+        acknowledgedWake === this.acknowledgedWake &&
+        !this.inFlight &&
+        !this.paused &&
+        !this.resuming &&
+        pendingTarget === this.latestTarget;
+      defaultPace = acknowledgedWake !== null && callbacks.isDefaultHostPace?.() === true;
+      if (!current()) return;
       // A native RAF may acknowledge new progress between the last host tick
       // and this serial dispatch. Refresh the same bounded demand at its use.
-      const hostHorizon = this.callbacks.readHostHorizonMicroseconds();
+      const hostHorizon = callbacks.readHostHorizonMicroseconds();
       if (
-        generationId !== this.generationId ||
-        document !== this.canonicalDocument ||
-        this.inFlight ||
-        this.paused ||
-        this.resuming ||
-        pendingTarget !== this.latestTarget ||
+        !current() ||
         hostHorizon === null ||
         !Number.isSafeInteger(hostHorizon) ||
         hostHorizon < 0

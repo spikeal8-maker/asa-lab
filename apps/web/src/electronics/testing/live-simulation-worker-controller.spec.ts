@@ -3141,6 +3141,7 @@ describe('ordinary demand near an accepted Arduino wake', () => {
     executor: FakeExecutor,
     checkpoint: number,
     sketch = source,
+    onReadPace?: () => void,
   ) {
     const fixture =
       sketch === source
@@ -3189,9 +3190,13 @@ describe('ordinary demand near an accepted Arduino wake', () => {
       return reply;
     };
 
+    const readHostHorizonMicroseconds = vi.fn(() => host);
     const callbacks = {
-      isDefaultHostPace: () => defaultPace,
-      readHostHorizonMicroseconds: () => host,
+      isDefaultHostPace: () => {
+        onReadPace?.();
+        return defaultPace;
+      },
+      readHostHorizonMicroseconds,
       onResult: vi.fn(),
       onFailure,
     };
@@ -3224,6 +3229,7 @@ describe('ordinary demand near an accepted Arduino wake', () => {
       advance,
       evaluate,
       update,
+      readHostHorizonMicroseconds,
       wake: Math.round(board.runtime.resumeAtMs * 1000),
       setHost: (at: number) => {
         host = at;
@@ -3343,6 +3349,53 @@ describe('ordinary demand near an accepted Arduino wake', () => {
       }
     },
   );
+
+  it.each([
+    ['stop', 'arming'],
+    ['reset', 'arming'],
+    ['stop', 'firing'],
+    ['reset', 'firing'],
+  ] as const)('rejects reentrant %s while %s an idle wake', async (action, phase) => {
+    vi.useFakeTimers();
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    try {
+      let onReadPace: (() => void) | undefined;
+      const probe = await establishWake(
+        controller,
+        executor,
+        434_000,
+        source.replaceAll('delay(50)', 'delay(30)'),
+        () => onReadPace?.(),
+      );
+      probe.update(444_600);
+      probe.setHost(448_300);
+      if (phase === 'firing') {
+        await probe.advance();
+        expect(vi.getTimerCount()).toBe(1);
+        probe.setHost(451_300);
+      }
+      const dispatched = executor.advances.length;
+      const hostReads = probe.readHostHorizonMicroseconds.mock.calls.length;
+      onReadPace = () => {
+        onReadPace = undefined;
+        if (action === 'stop') controller.stop();
+        else controller.restart(document);
+      };
+      if (phase === 'arming') await probe.advance();
+      else await vi.advanceTimersByTimeAsync(3);
+      expect(onReadPace).toBeUndefined();
+      expect(probe.readHostHorizonMicroseconds).toHaveBeenCalledTimes(hostReads);
+      expect(executor.generation).toBe(action === 'reset' ? 2 : 1);
+      expect(controller.committedHorizonMicroseconds).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(20);
+      expect(executor.advances).toHaveLength(dispatched);
+    } finally {
+      controller.dispose();
+      vi.useRealTimers();
+    }
+  });
 
   it('uses the new cursor ceiling even if the timer cannot reach the wake', async () => {
     vi.useFakeTimers();
