@@ -1025,6 +1025,70 @@ function ownProgressSummary(actor: OwnProgressActor, groups = 3): PersonalProgre
 }
 
 describe('Personal Learning overview', () => {
+  it('keeps Courses and Classes reachable without expanding the empty Account overview', async () => {
+    reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    vi.spyOn(api, 'attendedAssignments').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'accountCourseRuns').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'accountResults').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'accountAvatar').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { avatarDataUrl: null },
+    });
+    vi.spyOn(apiCall, 'call').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: ownProgressSummary(accountActor, 0),
+    });
+    try {
+      window.history.replaceState(null, '', '#/learning');
+      setTelemetryContext(
+        { kind: 'account', accountId: accountActor.accountId, workspaceId: 'personal' },
+        true,
+        'learning',
+      );
+      await act(async () =>
+        root.render(
+          createElement(LearningPage, { seat: null, actor: accountActor, onOpenProject: vi.fn() }),
+        ),
+      );
+      expect(container.querySelector('.learning-overview-empty')).not.toBeNull();
+      expect(container.querySelectorAll('.learning-overview-metrics a')).toHaveLength(0);
+      expect(container.querySelectorAll('.learning-overview-panel')).toHaveLength(0);
+      const links = container.querySelectorAll('nav[aria-label="Разделы моего обучения"] a');
+      expect([...links].map((link) => link.textContent)).toEqual([
+        'Обзор',
+        'Курсы',
+        'Классы',
+        'Самостоятельно',
+      ]);
+      expect([...links].map((link) => link.getAttribute('href'))).toEqual([
+        '#/learning?view=overview',
+        '#/learning?view=courses',
+        '#/learning?view=classes',
+        '#/learning?view=self',
+      ]);
+    } finally {
+      await act(async () => root.unmount());
+      setTelemetryContext(null, false, 'unknown');
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+    }
+  });
+
   it('renders all own groups and available sections while another read is pending or failed', async () => {
     reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement('div');
@@ -1069,14 +1133,7 @@ describe('Personal Learning overview', () => {
       );
       expect(container.querySelectorAll('[data-testid="own-progress-group"]')).toHaveLength(3);
       expect(container.querySelector('[data-testid="own-progress-score"]')?.textContent).toBe('0');
-      expect(
-        container.querySelector('.learning-overview-metrics a[href*="view=results"] strong')
-          ?.textContent,
-      ).toBe('0');
-      expect(
-        container.querySelector('.learning-overview-metrics a[href*="view=assignments"] strong')
-          ?.textContent,
-      ).toBe('—');
+      expect(container.querySelectorAll('.learning-overview-metrics a')).toHaveLength(0);
       expect(container.textContent).toContain('Часть обзора недоступна');
       expect(container.textContent).not.toContain('Не удалось загрузить задания');
       expect(

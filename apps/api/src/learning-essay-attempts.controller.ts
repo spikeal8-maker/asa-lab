@@ -1,3 +1,5 @@
+import { sendTaskImage } from './learning-task-image.js';
+import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
   Controller,
@@ -140,7 +142,7 @@ export class LearningEssayAttemptsController {
       !row ||
       !Buffer.isBuffer(row.media_bytes) ||
       (role === 'file'
-        ? row.content_type !== 'application/pdf'
+        ? !isLearningTaskFileContentType(row.content_type)
         : !['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type))
     )
       reject('learning_media_unavailable', 404);
@@ -148,7 +150,9 @@ export class LearningEssayAttemptsController {
       .header('content-type', row.content_type)
       .header('cache-control', 'private, no-store')
       .header('x-content-type-options', 'nosniff');
-    if (role === 'file') reply.header('content-disposition', 'attachment; filename="material.pdf"');
+    if (role === 'file') reply.header('content-disposition', 'attachment');
+    if (role === 'image')
+      return sendTaskImage(request, reply, row.media_bytes, row.content_type, contentHash);
     return reply.send(row.media_bytes);
   }
 
