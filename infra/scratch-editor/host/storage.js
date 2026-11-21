@@ -31,6 +31,11 @@
   const RECOVERY_ASSET_TOTAL_LIMIT = 250 * 1024 * 1024;
   const UPSTREAM_ASSET_STORE_CONCURRENCY = 4;
   const PROJECT_OPEN_ASSET_GET_CONCURRENCY = 4;
+  const PROJECT_ASSET_READ_RETRIES = 2;
+  const PROJECT_ASSET_RETRY_BURST = 8;
+  const PROJECT_ASSET_RETRY_WINDOW_MS = 30_000;
+  const PROJECT_ASSET_RETRY_AFTER_LIMIT_MS = 4_000;
+  const RETRYABLE_ASSET_READ_STATUS = new Set([408, 429, 500, 502, 503, 504]);
   const RECOVERY_ASSET_LIMITS = {
     svg: 10 * 1024 * 1024,
     png: 10 * 1024 * 1024,
@@ -46,6 +51,16 @@
     Object.hasOwn(mediaTypes, format);
 
   const runtimeKey = (id, format) => `${id}.${format}`;
+  const retryAfterMilliseconds = (response) => {
+    const value = response.headers.get('retry-after')?.trim();
+    if (!value) return null;
+    if (/^\d+$/.test(value)) return Number(value) * 1_000;
+    if (!value.endsWith(' GMT')) return null;
+    const retryAt = Date.parse(value);
+    if (!Number.isFinite(retryAt)) return null;
+    const serverTime = Date.parse(response.headers.get('date'));
+    return Math.max(0, retryAt - (Number.isFinite(serverTime) ? serverTime : Date.now()));
+  };
   const exactBytes = (data) => {
     if (data instanceof Uint8Array) return Uint8Array.from(data);
     if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
@@ -54,6 +69,7 @@
     }
     return null;
   };
+  const hasByteView = (data) => ArrayBuffer.isView(data) && data.BYTES_PER_ELEMENT === 1;
   const sameReference = (a, b) =>
     a?.assetId === b?.assetId &&
     a?.dataFormat === b?.dataFormat &&
@@ -145,6 +161,7 @@
     let latestUpstreamSaveOutcome = null;
     const upstreamSaveWaiters = new Set();
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
+    const assetReadRetriesAt = [];
     let disposed = false;
 
     const key = (type, id, format) => `${type.name}:${id}:${format}`;
@@ -153,6 +170,14 @@
       const asset = scratchStorage.createAsset(type, format, bytes, String(id), false);
       target.set(key(type, id, format), asset);
       return asset;
+    };
+    const cachedAssetBytes = (type, id, format) => {
+      const assetKey = key(type, id, format);
+      for (const cache of [cachedAssets, recoveryAssets]) {
+        const bytes = exactBytes(cache.get(assetKey)?.data);
+        if (bytes?.byteLength) return bytes;
+      }
+      return null;
     };
 
     const defaults = standalone.buildDefaultProject();
@@ -270,13 +295,21 @@
 
     const saveFailureReason = (error) =>
       typeof error?.code === 'string' && error.code.length > 0 ? error.code : 'save_failed';
+    const assetFailureCodes = {
+      asset_reference_missing: 'scratch-save-asset-missing',
+      asset_write_invalid: 'scratch-save-asset-invalid',
+      asset_reference_mismatch: 'scratch-save-asset-response',
+    };
     const reportSaveFailure = (failureCode, error, started) => {
       if (disposed) return;
       try {
         const status = typeof error === 'number' ? error : error?.status;
         const requestId = error?.relatedRequestId;
         options.onSaveFailure?.({
-          failureCode,
+          failureCode:
+            failureCode === 'scratch-save-asset' && Object.hasOwn(assetFailureCodes, error?.code)
+              ? assetFailureCodes[error.code]
+              : failureCode,
           durationMs: Math.max(0, Math.min(600000, Date.now() - started)),
           ...(Number.isInteger(status) && status >= 100 && status <= 599
             ? { httpStatus: status }
@@ -301,19 +334,34 @@
       }
       return latestUpstreamSaveOutcome;
     };
-    const waitForUpstreamSaveAfter = (afterSequence) => {
+    const waitForUpstreamSaveAfter = (afterSequence, signal) => {
       if (latestUpstreamSaveOutcome?.sequence > afterSequence) {
         return Promise.resolve(latestUpstreamSaveOutcome);
       }
-      if (disposed) {
+      if (disposed || signal?.aborted) {
         return Promise.resolve({
           sequence: upstreamSaveSequence,
           ok: false,
-          reason: 'storage_disposed',
+          reason: disposed ? 'storage_disposed' : 'save_exit_timeout',
         });
       }
       return new Promise((resolve) => {
-        upstreamSaveWaiters.add({ afterSequence, resolve });
+        const waiter = {
+          afterSequence,
+          resolve(outcome) {
+            upstreamSaveWaiters.delete(waiter);
+            signal?.removeEventListener('abort', abort);
+            resolve(outcome);
+          },
+        };
+        const abort = () =>
+          waiter.resolve({
+            sequence: upstreamSaveSequence,
+            ok: false,
+            reason: 'save_exit_timeout',
+          });
+        upstreamSaveWaiters.add(waiter);
+        signal?.addEventListener('abort', abort, { once: true });
       });
     };
 
@@ -385,31 +433,30 @@
     scratchStorage.store = async (assetType, dataFormat, data, assetId) => {
       const started = Date.now();
       const format = dataFormat || assetType?.runtimeFormat;
-      if (
-        !validTypeAndFormat(assetType, format) ||
-        !ASSET_ID_RE.test(String(assetId ?? '')) ||
-        !ArrayBuffer.isView(data) ||
-        data.BYTES_PER_ELEMENT !== 1 ||
-        data.byteLength < 1
-      ) {
-        const error = unavailable('asset_write_failed');
-        reportSaveFailure('scratch-save-asset', error, started);
-        throw error;
-      }
       const generation = options.getProjectGeneration?.();
       if (upstreamSaveGeneration === null && Number.isSafeInteger(generation)) {
         upstreamSaveGeneration = generation;
       }
       try {
+        if (
+          !validTypeAndFormat(assetType, format) ||
+          !ASSET_ID_RE.test(String(assetId ?? '')) ||
+          !Object.hasOwn(canonicalMediaType, format)
+        ) {
+          throw unavailable('asset_write_invalid');
+        }
+        if (data != null && !hasByteView(data)) throw unavailable('asset_write_invalid');
+        const bytes = data?.byteLength ? data : cachedAssetBytes(assetType, assetId, format);
+        if (!bytes?.byteLength) throw unavailable('asset_reference_missing');
         const response = await enqueueUpstreamAssetStore(async () => {
           if (disposed) throw unavailable('storage_disposed');
           const token = getToken();
           try {
-            return await upstreamStore(assetType, format, data, assetId);
+            return await upstreamStore(assetType, format, bytes, assetId);
           } catch (error) {
             // Pinned Scratch FetchTool rejects with the HTTP status number.
             if ((error === 401 || error?.status === 401) && (await renewToken(token))) {
-              return upstreamStore(assetType, format, data, assetId);
+              return upstreamStore(assetType, format, bytes, assetId);
             }
             throw error;
           }
@@ -417,8 +464,8 @@
         const expected = {
           assetId: String(assetId),
           dataFormat: format,
-          sha256: await sha256(data),
-          sizeBytes: data.byteLength,
+          sha256: await sha256(bytes),
+          sizeBytes: bytes.byteLength,
         };
         if (
           !response ||
@@ -443,9 +490,84 @@
             savedGeneration: failedGeneration,
             latestGeneration: options.getProjectGeneration?.(),
           });
-          reportSaveFailure('scratch-save-asset', error, started);
         }
+        reportSaveFailure('scratch-save-asset', error, started);
         throw error;
+      }
+    };
+
+    const waitForAssetRetry = (delay) =>
+      new Promise((resolve, reject) => {
+        if (disposed) {
+          reject(unavailable('storage_disposed'));
+          return;
+        }
+        const signal = abortController?.signal;
+        const timer = globalThis.setTimeout(() => {
+          signal?.removeEventListener('abort', abort);
+          resolve();
+        }, delay);
+        const abort = () => {
+          globalThis.clearTimeout(timer);
+          reject(unavailable('storage_disposed'));
+        };
+        signal?.addEventListener('abort', abort, { once: true });
+      });
+
+    const readRuntimeAsset = async (url, contentTypes) => {
+      const init = {
+        method: 'GET',
+        credentials: 'omit',
+        // Surface redirects as terminal responses without following them.
+        redirect: 'manual',
+        cache: 'no-store',
+        headers: { accept: contentTypes[0] },
+        ...(abortController ? { signal: abortController.signal } : {}),
+      };
+      for (let retries = 0; ; retries += 1) {
+        if (disposed) throw unavailable('storage_disposed');
+        let retryAfter = 0;
+        try {
+          const response = await runtimeFetch(url, init);
+          if (response.redirected) throw unavailable();
+          if (response.ok) {
+            const contentType = response.headers.get('content-type')?.split(';')[0].trim();
+            if (!contentTypes.includes(contentType)) throw unavailable();
+            return new Uint8Array(await response.arrayBuffer());
+          }
+          const suppliedDelay = retryAfterMilliseconds(response);
+          void response.body?.cancel().catch(() => undefined);
+          if (
+            !RETRYABLE_ASSET_READ_STATUS.has(response.status) ||
+            (response.status === 429 && suppliedDelay === null)
+          ) {
+            throw unavailable();
+          }
+          retryAfter = suppliedDelay ?? 0;
+        } catch (error) {
+          if (disposed) throw unavailable('storage_disposed');
+          // Fetch uses TypeError for network failures and interrupted body reads.
+          // Authorization, validation and explicit aborts never enter backoff.
+          if (error?.name !== 'TypeError') throw error;
+        }
+        if (
+          retries === PROJECT_ASSET_READ_RETRIES ||
+          retryAfter > PROJECT_ASSET_RETRY_AFTER_LIMIT_MS
+        )
+          throw unavailable();
+
+        // All concurrent readers in this editor draw from one retry budget.
+        const now = Date.now();
+        while (
+          assetReadRetriesAt.length &&
+          now - assetReadRetriesAt[0] >= PROJECT_ASSET_RETRY_WINDOW_MS
+        )
+          assetReadRetriesAt.shift();
+        if (assetReadRetriesAt.length >= PROJECT_ASSET_RETRY_BURST) throw unavailable();
+        assetReadRetriesAt.push(now);
+
+        const backoff = Math.max(retryAfter, 250 * 2 ** retries);
+        await waitForAssetRetry(backoff + Math.random() * 250);
       }
     };
 
@@ -454,31 +576,16 @@
       const existing = verifiedRuntimeAssets.get(key(type, reference.assetId, format));
       if (existing) return existing;
 
-      const response = await runtimeFetch(
+      const bytes = await readRuntimeAsset(
         options.publicationRevisionId && options.canSave === false
           ? `${options.apiOrigin}/api/blocks/runtime/publications/${options.projectId}/revisions/${options.publicationRevisionId}/assets/${reference.assetId}.${reference.dataFormat}`
           : `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${reference.assetId}.${reference.dataFormat}`,
-        {
-          method: 'GET',
-          credentials: 'omit',
-          redirect: 'error',
-          cache: 'no-store',
-          headers: {
-            accept: mediaTypes[reference.dataFormat][0],
-            authorization: `Bearer ${getToken()}`,
-          },
-          ...(abortController ? { signal: abortController.signal } : {}),
-        },
+        mediaTypes[reference.dataFormat],
       );
-      if (!response.ok || response.redirected) throw unavailable();
-
-      const contentType = response.headers.get('content-type')?.split(';')[0].trim();
-      if (!mediaTypes[reference.dataFormat].includes(contentType)) throw unavailable();
-
-      const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength !== reference.sizeBytes) throw unavailable();
       if ((await sha256(bytes)) !== reference.sha256) throw unavailable();
 
+      if (disposed) throw unavailable('storage_disposed');
       return cache(type, format, bytes, reference.assetId, verifiedRuntimeAssets);
     };
 
@@ -637,47 +744,31 @@
 
     const captureRecoveryAssets = async (projectJson, liveAssets) => {
       if (!Array.isArray(liveAssets)) throw unavailable('recovery_vm_assets_unavailable');
-      const liveByKey = new Map();
-      for (const asset of liveAssets) {
-        if (
-          asset &&
-          ASSET_ID_RE.test(String(asset.assetId ?? '')) &&
-          Object.hasOwn(canonicalMediaType, asset.dataFormat ?? '')
-        ) {
-          liveByKey.set(runtimeKey(asset.assetId, asset.dataFormat), asset);
-        }
-      }
-
+      const missing = referencedProjectAssets(projectJson).filter(
+        (reference) => !confirmedAssets.has(runtimeKey(reference.assetId, reference.dataFormat)),
+      );
+      const candidates = availableProjectAssets(missing, liveAssets);
       const captured = [];
       let totalBytes = 0;
-      for (const reference of referencedProjectAssets(projectJson)) {
-        const referenceKey = runtimeKey(reference.assetId, reference.dataFormat);
-        if (confirmedAssets.has(referenceKey)) continue;
-
-        const live = liveByKey.get(referenceKey);
-        if (
-          !live ||
-          !validTypeAndFormat(live.assetType, reference.dataFormat) ||
-          String(live.assetId) !== reference.assetId
-        ) {
-          throw unavailable('media_recovery_required');
-        }
-        const bytes = exactBytes(live.data);
+      for (const reference of missing) {
+        const bytes = candidates.get(runtimeKey(reference.assetId, reference.dataFormat))?.data;
         const limit = RECOVERY_ASSET_LIMITS[reference.dataFormat];
-        if (!bytes || bytes.byteLength < 1 || bytes.byteLength > limit) {
+        if (!bytes || bytes.byteLength > limit) {
           throw unavailable('media_recovery_required');
         }
         totalBytes += bytes.byteLength;
         if (!Number.isSafeInteger(totalBytes) || totalBytes > RECOVERY_ASSET_TOTAL_LIMIT) {
           throw unavailable('recovery_quota_exceeded');
         }
+        const snapshot = exactBytes(bytes);
+        if (!snapshot?.byteLength) throw unavailable('media_recovery_required');
         captured.push(
           Object.freeze({
             assetId: reference.assetId,
             dataFormat: reference.dataFormat,
-            sha256: await sha256(bytes),
-            sizeBytes: bytes.byteLength,
-            bytes,
+            sha256: await sha256(snapshot),
+            sizeBytes: snapshot.byteLength,
+            bytes: snapshot,
           }),
         );
       }
@@ -720,34 +811,44 @@
       return staged.length;
     };
 
-    const prepareMissingProjectAssets = async (references) => {
-      const missing = references.filter(
-        (reference) => !durableAssets.has(runtimeKey(reference.assetId, reference.dataFormat)),
+    const availableProjectAssets = (references, live) => {
+      const wanted = new Set(
+        references.map((reference) => runtimeKey(reference.assetId, reference.dataFormat)),
       );
-      if (missing.length === 0) return;
-      const live = options.getProjectAssets?.();
       const candidates = new Map();
+      // Scratch's clean bit only describes its own store lifecycle. A live
+      // reference may also lack bytes while the cache still has a usable copy.
       for (const asset of [
         ...(Array.isArray(live) ? live : []),
         ...cachedAssets.values(),
         ...recoveryAssets.values(),
       ]) {
         const assetKey = runtimeKey(asset?.assetId, asset?.dataFormat);
-        if (!candidates.has(assetKey)) candidates.set(assetKey, asset);
+        if (!wanted.has(assetKey) || !validTypeAndFormat(asset.assetType, asset.dataFormat))
+          continue;
+        if (
+          !asset.data?.byteLength ||
+          !(hasByteView(asset.data) || asset.data instanceof ArrayBuffer)
+        )
+          continue;
+        candidates.set(assetKey, asset);
+        wanted.delete(assetKey);
+        if (wanted.size === 0) break;
       }
-      // Scratch's clean bit describes its own store lifecycle, not ASA
-      // durability. Snapshot every missing reference before starting uploads.
+      return candidates;
+    };
+
+    const prepareMissingProjectAssets = async (references) => {
+      const missing = references.filter(
+        (reference) => !durableAssets.has(runtimeKey(reference.assetId, reference.dataFormat)),
+      );
+      if (missing.length === 0) return;
+      const candidates = availableProjectAssets(missing, options.getProjectAssets?.());
+      if (candidates.size !== missing.length) throw unavailable('asset_reference_missing');
+      // All missing references must have bytes before starting any uploads.
       const uploads = missing.map((reference) => {
         const asset = candidates.get(runtimeKey(reference.assetId, reference.dataFormat));
-        const data = exactBytes(asset?.data);
-        if (
-          !asset ||
-          !validTypeAndFormat(asset.assetType, reference.dataFormat) ||
-          !data?.byteLength
-        ) {
-          throw unavailable('asset_reference_missing');
-        }
-        return { assetType: asset.assetType, ...reference, data };
+        return { ...reference, assetType: asset.assetType, data: exactBytes(asset.data) };
       });
       await Promise.all(
         uploads.map((asset) =>
@@ -861,14 +962,25 @@
       },
       waitForUpstreamSaveAfter,
       async saveProject(projectId, vmState) {
+        if (disposed) throw unavailable('storage_disposed');
+        if (options.canSave === false) throw unavailable('runtime_storage_read_only');
         const started = Date.now();
+        const currentGeneration = options.getProjectGeneration?.();
+        const generationAtStart = Number.isSafeInteger(upstreamSaveGeneration)
+          ? upstreamSaveGeneration
+          : currentGeneration;
         const failPreparation = (code) => {
           const error = unavailable(code);
+          upstreamSaveGeneration = null;
+          publishUpstreamSaveOutcome({
+            ok: false,
+            reason: code,
+            savedGeneration: Number.isSafeInteger(generationAtStart) ? generationAtStart : null,
+            latestGeneration: options.getProjectGeneration?.(),
+          });
           reportSaveFailure('scratch-save-prepare', error, started);
           throw error;
         };
-        if (disposed) throw unavailable('storage_disposed');
-        if (options.canSave === false) throw unavailable('runtime_storage_read_only');
         const isManagedReset = projectId === null || typeof projectId === 'undefined';
         if (!isManagedReset && String(projectId) !== String(options.projectId ?? '')) {
           failPreparation('project_identity_mismatch');
@@ -882,10 +994,6 @@
           failPreparation('project_document_invalid');
         }
 
-        const currentGeneration = options.getProjectGeneration?.();
-        const generationAtStart = Number.isSafeInteger(upstreamSaveGeneration)
-          ? upstreamSaveGeneration
-          : currentGeneration;
         const saveSequenceAtStart = upstreamSaveSequence;
         let failureCode = 'scratch-save-prepare';
         try {

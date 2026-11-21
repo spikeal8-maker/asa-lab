@@ -59,6 +59,7 @@ export function BlocksEditor({
   const homeSavePendingRef = useRef(false);
   const onHomeClickRef = useRef(onHomeClick);
   const [startupState, setStartupState] = useState<BlocksEditorStartupState>('loading');
+  const [exitSaveFailed, setExitSaveFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const diagnosticInstance = useMemo(() => newClientId(), [projectId, attempt]);
   const runtimePath = `/internal/blocks/?asaStatus=parent&diagnosticInstance=${diagnosticInstance}`;
@@ -70,16 +71,39 @@ export function BlocksEditor({
     const activeBridge = bridgeRef.current;
     if (!activeBridge || homeSavePendingRef.current) return;
     homeSavePendingRef.current = true;
+    setExitSaveFailed(false);
+    const started = performance.now();
+    const reportExitFailure = (failureCode: string) =>
+      reportClientDiagnostic('autosave_failed', 'scratch', {
+        phase: 'save',
+        category: 'technical',
+        failureCode,
+        durationMs: Math.round(performance.now() - started),
+      });
     void activeBridge
       .requestSaveBeforeExit()
       .then((result) => {
-        if (result.ok && bridgeRef.current === activeBridge) onHomeClickRef.current();
-        else if (!result.ok && bridgeRef.current === activeBridge)
-          reportClientDiagnostic('autosave_failed', 'scratch');
+        if (bridgeRef.current !== activeBridge) return;
+        if (result.ok) {
+          onHomeClickRef.current();
+          return;
+        }
+        setExitSaveFailed(true);
+        if (result.reason === 'save_exit_timeout') {
+          reportExitFailure('scratch-save-exit-timeout');
+        } else if (
+          ['editor_not_ready', 'upstream_saver_unavailable'].includes(result.reason ?? '')
+        ) {
+          reportExitFailure('scratch-save-exit-unavailable');
+        }
       })
-      .catch(() => reportClientDiagnostic('autosave_failed', 'scratch'))
+      .catch(() => {
+        if (bridgeRef.current !== activeBridge) return;
+        setExitSaveFailed(true);
+        reportExitFailure('scratch-save-exit-unavailable');
+      })
       .finally(() => {
-        homeSavePendingRef.current = false;
+        if (bridgeRef.current === activeBridge) homeSavePendingRef.current = false;
       });
   }, []);
 
@@ -421,6 +445,7 @@ export function BlocksEditor({
       if (bridgeRef.current === bridge) bridgeRef.current = null;
       bridge = null;
       homeSavePendingRef.current = false;
+      setExitSaveFailed(false);
       setStartupState('loading');
       void connect(loadGeneration, requestController);
     };
@@ -494,6 +519,14 @@ export function BlocksEditor({
           title="Scratch runtime"
         />
       </BlocksEditorShell>
+      {exitSaveFailed && (
+        <div className="blocks-editor-exit-warning">
+          <span role="alert">Сохранение не подтверждено. Проект остаётся открытым.</span>
+          <button type="button" className="blocks-editor-loading-button" onClick={requestHomeExit}>
+            Повторить сохранение
+          </button>
+        </div>
+      )}
       <div
         className="blocks-editor-loading-overlay"
         data-asa-blocks-loading-overlay

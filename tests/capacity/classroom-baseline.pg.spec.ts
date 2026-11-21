@@ -527,6 +527,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         );
         // Electronics validates replacements against the current draft once
         // per save, replay and conflict. Both modules also classify conflicts.
+        // Scratch asset GET reads the current draft without its version history.
         const electronicsProjects = new Set(
           actors.filter((actor) => actor.module === 'electronics').map((actor) => actor.project),
         );
@@ -535,7 +536,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         ).toHaveLength(b.electronics * b.saveWaves + 3);
         expect(
           draftReads.filter(([, projectId]) => !electronicsProjects.has(projectId)),
-        ).toHaveLength(1);
+        ).toHaveLength(1 + b.blocks);
         expect(draftTargets).toHaveBeenCalledTimes(acknowledged + retriedReceipts + conflicts);
         success = true;
       } finally {
@@ -644,9 +645,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
               ).length,
           },
           draftReads: {
-            // Replacement validation and conflict classification can read the
+            // Asset reads, replacement validation and conflict classification read the
             // current draft without loading its history.
-            expectedWithoutHistory: b.electronics * b.saveWaves + 4,
+            expectedWithoutHistory: b.electronics * b.saveWaves + 4 + b.blocks,
             actualWithoutHistory: projectLoads.mock.calls.filter(
               (call) => call[3]?.includeVersions === false,
             ).length,

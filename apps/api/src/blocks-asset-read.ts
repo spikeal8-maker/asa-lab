@@ -67,7 +67,9 @@ export class BlocksDraftAssetReader {
       return denied('invalid_request');
     }
     try {
-      const loaded = await this.projects.load(tenantId, projectId, actor);
+      const loaded = await this.projects.load(tenantId, projectId, actor, {
+        includeVersions: false,
+      });
       if (!loaded || loaded.project.moduleKey !== 'blocks' || loaded.project.status === 'trashed') {
         return denied('project_not_found');
       }
