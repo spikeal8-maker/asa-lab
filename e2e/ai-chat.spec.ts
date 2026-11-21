@@ -50,6 +50,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
   const requestThreads: string[] = [];
   const models: string[] = [];
   const historyCursors: (string | null)[] = [];
+  const receiptReads: string[] = [];
   let completion: 'current' | 'legacy' | 'recovery' | 'stopped' | 'pending' = 'current';
   let releaseAnswer: (() => void) | null = null;
   let enabled = true;
@@ -117,6 +118,16 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         messages.delete(id);
         return respond(route, { deleted: true });
       }
+    }
+    const receipt = /^\/api\/ai\/threads\/([a-f0-9-]+)\/requests\/([a-f0-9-]+)$/.exec(path);
+    if (method === 'GET' && receipt) {
+      receiptReads.push(receipt[2]!);
+      const history = messages.get(receipt[1]!);
+      if (!history)
+        return respond(route, { error: { code: 'ai_thread_denied', message: 'Not found' } }, 404);
+      return respond(route, {
+        items: history.filter((message) => message.requestId === receipt[2]),
+      });
     }
     const chat = /^\/api\/ai\/threads\/([a-f0-9-]+)\/messages(?:\/stream)?$/.exec(path);
     if (chat) {
@@ -268,6 +279,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
     models,
     messages,
     historyCursors,
+    receiptReads,
     setCompletion: (value: typeof completion) => {
       completion = value;
     },
@@ -894,7 +906,8 @@ for (const outcome of ['current', 'legacy', 'recovery', 'stopped'] as const) {
     await expect(turns.last()).toContainText('Новый сохранённый ответ');
     // A valid large completion must succeed through SSE, without a hidden
     // history-recovery GET masking a parser failure.
-    expect(fake.historyCursors).toHaveLength(outcome === 'recovery' ? 3 : 2);
+    expect(fake.historyCursors).toHaveLength(2);
+    expect(fake.receiptReads).toEqual(outcome === 'recovery' ? fake.requests : []);
     if (outcome === 'stopped') await expect(turns.last()).toContainText('Ответ не завершён.');
     await expect(page.locator('.asa-ai-error')).toHaveCount(0);
     await older.click();
@@ -936,6 +949,7 @@ test('AI pending and stopped replays keep request identity and state', async ({ 
   await composer.fill('Запрос без завершённого ответа');
   await send.click();
   await expect(composer).toBeEnabled();
+  await expect(send).toBeEnabled({ timeout: 12_000 });
   await expect(turns).toHaveCount(1);
   await expect(page.locator('.asa-ai-error')).toBeVisible();
   fake.setCompletion('current');

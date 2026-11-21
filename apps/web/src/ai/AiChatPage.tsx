@@ -1285,6 +1285,7 @@ export function AiChatPage({
         }
         setDraft((value) => value || text);
         setError(problem instanceof AiStreamClientError ? problem.message : AI_TEXT_UNAVAILABLE);
+        setStreamedText('');
         const requestPath =
           '/api/ai/threads/' +
           encodeURIComponent(id) +
