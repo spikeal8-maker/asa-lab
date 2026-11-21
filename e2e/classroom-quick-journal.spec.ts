@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
@@ -29,6 +29,32 @@ async function counts(classId: string) {
     )
   ).rows[0];
 }
+async function expectDialogByCell(page: Page, dialog: Locator, cell: Locator) {
+  await expect(dialog).toBeVisible();
+  await expect(cell).toHaveAttribute('aria-expanded', 'true');
+  await expect
+    .poll(async () => {
+      const bounds = await dialog.boundingBox();
+      const anchor = await cell.boundingBox();
+      const viewport = page.viewportSize();
+      if (!bounds || !anchor || !viewport) return null;
+      return {
+        inViewport:
+          bounds.x >= 0 &&
+          bounds.y >= 0 &&
+          bounds.x + bounds.width <= viewport.width &&
+          bounds.y + bounds.height <= viewport.height,
+        sharesColumn: bounds.x < anchor.x + anchor.width && bounds.x + bounds.width > anchor.x,
+        nextToCell:
+          Math.min(
+            Math.abs(bounds.y - (anchor.y + anchor.height)),
+            Math.abs(bounds.y + bounds.height - anchor.y),
+          ) <= 10,
+      };
+    })
+    .toEqual({ inViewport: true, sharesColumn: true, nextToCell: true });
+}
+
 test('30 students, ten free slots, atomic retry, keyboard, header edit and relogin', async ({
   page,
   browser,
@@ -102,6 +128,33 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
   await expect(cell(names[0], 2)).toBeFocused();
+
+  const movedCell = cell(names[4], 4);
+  const desktopDialog = journal.getByRole('dialog', { name: `Быстрая оценка: ${names[4]}` });
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await movedCell.click();
+    await expectDialogByCell(page, desktopDialog, movedCell);
+    await expect(desktopDialog).toContainText('Работа 4');
+    if (width === 1440) {
+      await page.screenshot({
+        path: 'e2e/artifacts/owner-preview/classroom-quick-journal/grade-dialog-1440.png',
+      });
+    } else {
+      const beforeScroll = (await desktopDialog.boundingBox())!.y;
+      await matrix.evaluate((el) => {
+        el.scrollTop += 40;
+      });
+      await expectDialogByCell(page, desktopDialog, movedCell);
+      await expect
+        .poll(async () => Math.abs((await desktopDialog.boundingBox())!.y - beforeScroll))
+        .toBeGreaterThan(15);
+    }
+    await page.keyboard.press('Escape');
+    await expect(desktopDialog).toBeHidden();
+    await expect(movedCell).toBeFocused();
+  }
+  await page.setViewportSize({ width: 1366, height: 900 });
   let loseOnce = true;
   const firstPayloads: unknown[] = [];
   await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
@@ -268,7 +321,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
       fullPage: true,
     });
   }
-  const context = await browser.newContext(),
+  const context = await browser.newContext({ hasTouch: true }),
     again = await context.newPage();
   try {
     await loginWithOrganization(again, owner);
@@ -285,6 +338,26 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
         name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
       }),
     ).toBeVisible();
+    const touchJournal = again.getByRole('region', { name: 'Ручной журнал', exact: true });
+    const touchCell = touchJournal.getByRole('button', {
+      name: new RegExp(`^${names[0]}, .*?, Работа 10:`),
+    });
+    const touchDialog = touchJournal.getByRole('dialog', { name: `Быстрая оценка: ${names[0]}` });
+    for (const width of [390, 320]) {
+      await again.setViewportSize({ width, height: 844 });
+      await touchCell.tap();
+      await expectDialogByCell(again, touchDialog, touchCell);
+      await expect(touchDialog.locator('time')).toHaveAttribute('datetime', /^2026-10-/);
+      await expect(touchDialog).toContainText('Работа 10');
+      if (width === 390) {
+        await again.screenshot({
+          path: 'e2e/artifacts/owner-preview/classroom-quick-journal/grade-dialog-390.png',
+        });
+      }
+      await touchDialog.getByRole('button', { name: 'Закрыть оценку' }).tap();
+      await expect(touchDialog).toBeHidden();
+      await expect(touchCell).toBeFocused();
+    }
     expect(await counts(classId)).toEqual({
       columns: 3,
       grades: 3,
