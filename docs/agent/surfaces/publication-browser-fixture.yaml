@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+context: identity
+surfaces:
+  - id: SURF-PUBLICATION-BROWSER-FIXTURE
+    routes: [cli:gate:projects-publication, cli:gate:projects-publication:browser]
+    implementation:
+      files: &fixture_files
+        - tools/projects-publication-gate.mjs
+        - tools/projects-publication-partitions.mjs
+        - tools/projects-publication-partitions.test.mjs
+        - docs/agent/surfaces/publication-browser-fixture.yaml
+        - docs/testing/test-catalog.yaml
+        - docs/product/projects/evidence/likes-fixture-isolation-20261102.md
+    invariants: &fixture_invariants [IDA-AUTH-001, IDA-SEAT-PUBLIC-001]
+    tests: &fixture_tests [TST-PUBLICATION-BROWSER-ISOLATION-001]
+    controls:
+      - id: CTRL-PUBLICATION-BROWSER-FIXTURE
+        change_class: L2_DOMAIN_MUTATION
+        files: *fixture_files
+        invariants: *fixture_invariants
+        tests: *fixture_tests

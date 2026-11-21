@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCommittedWorkbenchPresentation,
+  type WorkbenchInspectorController,
+} from './committed-result-presentation';
 import {
   INCANDESCENT_LAMP_PROFILE,
   ledForwardVoltageAtCurrent,
   ordinaryLedProfile,
   photoresistorIlluminanceLux,
+  photoresistorLightSourceDistanceCm,
+  photoresistorLightSourceId,
   photoresistorResistanceOhm,
   PHOTORESISTOR_PROFILE,
   resolveBrushedMotorProfileSelection,
@@ -39,6 +45,7 @@ import {
 } from './workbench-values';
 import { SEVEN_SEGMENT_COLOUR_OPTIONS } from './production-asset-contracts';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
+import type { NativeOpticalPresentation } from './native-optical-presentation';
 import {
   componentInformationProfile,
   readMetricBinding,
@@ -248,6 +255,8 @@ const RGB_CHANNELS = [
 ] as const;
 
 const SEVEN_SEGMENT_IDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] as const;
+const idleSubscribe = () => () => {};
+const noMeasurement = () => undefined;
 
 function RgbLedMeasurements({
   measurement,
@@ -288,12 +297,23 @@ function RgbLedMeasurements({
 }
 
 function SevenSegmentMeasurements({
-  measurement,
+  measurement: fallback,
   isConnected,
+  nativePort,
+  componentId,
 }: {
   readonly measurement: ComponentResult | undefined;
   readonly isConnected: (terminal: string) => boolean;
+  readonly nativePort: NativeOpticalPresentation | null;
+  readonly componentId: string;
 }): JSX.Element {
+  // Only this readout follows accepted physics; proposals cannot refresh its values.
+  const committedMeasurement = useSyncExternalStore(
+    nativePort?.subscribe ?? idleSubscribe,
+    nativePort ? () => nativePort.resultMap().get(componentId) : noMeasurement,
+    noMeasurement,
+  );
+  const measurement = nativePort ? committedMeasurement : fallback;
   const active = SEVEN_SEGMENT_IDS.filter(
     (segment) => (measurement?.branchBrightness?.[segment] ?? 0) > 0,
   );
@@ -365,7 +385,6 @@ export function WorkbenchSidebars({
 }: {
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
-  const [helpOpen, setHelpOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const mobileSearchExpanded = mobileSearchOpen || c.libraryQuery.length > 0;
@@ -445,187 +464,6 @@ export function WorkbenchSidebars({
       document.removeEventListener('visibilitychange', hidden);
     };
   }, []);
-  const [stateOpen, setStateOpen] = useState(false);
-  const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
-  const measurement = c.selectedComponent
-    ? c.resultByComponent.get(c.selectedComponent.id)
-    : undefined;
-  const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
-  const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
-  const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
-  const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
-  const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
-  const selectedIsVibrationMotor = c.selectedEntry?.key === 'vibration-motor';
-  const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
-  const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
-  const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
-  const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter';
-  const selectedIsSignalGenerator = c.selectedEntry?.key === 'signal-generator';
-  const selectedIsOscilloscope = c.selectedEntry?.key === 'oscilloscope';
-  const selectedIsPiezo = c.selectedComponent?.kind === 'piezo';
-  const selectedPiezoMode = selectedIsPiezo
-    ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
-    : 'passive';
-  const selectedMotorProfile =
-    c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor || selectedIsVibrationMotor)
-      ? resolveBrushedMotorProfileSelection(c.selectedComponent)
-      : null;
-  const selectedDiagnostics = c.selectedComponent
-    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
-    : [];
-  const selectedDiagnosticSeverity = selectedDiagnostics.some(
-    (diagnostic) => diagnostic.severity === 'error',
-  )
-    ? 'error'
-    : selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'warning')
-      ? 'warning'
-      : undefined;
-  const selectedLedColour =
-    c.selectedComponent?.kind === 'led'
-      ? String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')
-      : null;
-  const selectedLedProfile = selectedLedColour ? ordinaryLedProfile(selectedLedColour) : null;
-  const selectedLedColourLabel =
-    LED_COLOUR_OPTIONS.find((option) => option.value === selectedLedColour)?.label ??
-    selectedLedColour;
-  const selectedPhotoresistor =
-    c.selectedComponent?.kind === 'photoresistor'
-      ? {
-          lux: photoresistorIlluminanceLux(c.selectedComponent),
-          resistanceOhm: photoresistorResistanceOhm(c.selectedComponent),
-        }
-      : null;
-  const selectedSupplyVoltageSetpoint = selectedIsAdjustableSource
-    ? Number(
-        c.selectedComponent?.stateProperties?.['voltageSetpointVolt'] ??
-          c.selectedComponent?.value ??
-          5,
-      )
-    : 0;
-  const selectedSupplyCurrentLimit = selectedIsAdjustableSource
-    ? Number(c.selectedComponent?.stateProperties?.['currentLimitAmp'] ?? 1)
-    : 0;
-  const selectedSupplyOutputEnabled = selectedIsAdjustableSource
-    ? typeof c.selectedComponent?.stateProperties?.['outputEnabled'] === 'boolean'
-      ? c.selectedComponent.stateProperties['outputEnabled']
-      : c.selectedComponent?.state === true
-    : false;
-  const selectedGeneratorWaveform = selectedIsSignalGenerator
-    ? String(c.selectedComponent?.stateProperties?.['waveform'] ?? 'sine')
-    : 'sine';
-  const selectedGeneratorFrequencyHz = selectedIsSignalGenerator
-    ? Number(
-        c.selectedComponent?.stateProperties?.['frequencyHz'] ??
-          c.selectedComponent?.value ??
-          1_000,
-      )
-    : 1_000;
-  const selectedGeneratorAmplitudeVpp = selectedIsSignalGenerator
-    ? Number(c.selectedComponent?.stateProperties?.['amplitudeVpp'] ?? 5)
-    : 5;
-  const selectedGeneratorOffsetVolt = selectedIsSignalGenerator
-    ? Number(c.selectedComponent?.stateProperties?.['dcOffsetVolt'] ?? 0)
-    : 0;
-  const generatorOutputProperty = c.selectedComponent?.stateProperties?.['outputEnabled'];
-  const selectedGeneratorOutputEnabled = selectedIsSignalGenerator
-    ? typeof generatorOutputProperty === 'boolean'
-      ? generatorOutputProperty
-      : c.selectedComponent?.state === true
-    : false;
-  const scopeDisplayProperty = c.selectedComponent?.stateProperties?.['displayEnabled'];
-  const selectedScopeDisplayEnabled = selectedIsOscilloscope
-    ? typeof scopeDisplayProperty === 'boolean'
-      ? scopeDisplayProperty
-      : c.selectedComponent?.state !== false
-    : true;
-  const selectedScopeVoltsPerDivision = selectedIsOscilloscope
-    ? Number(c.selectedComponent?.stateProperties?.['voltsPerDivision'] ?? 1)
-    : 1;
-  const selectedScopeTimePerDivisionMs = selectedIsOscilloscope
-    ? Number(c.selectedComponent?.stateProperties?.['timePerDivisionMs'] ?? 1)
-    : 1;
-  const selectedScopeTriggerLevelVolt = selectedIsOscilloscope
-    ? Number(c.selectedComponent?.stateProperties?.['triggerLevelVolt'] ?? 0)
-    : 0;
-  useEffect(() => {
-    setHelpSections(null);
-  }, [c.selectedComponent?.id]);
-  useEffect(() => {
-    if (!helpOpen || !c.selectedComponent || !c.selectedEntry) return;
-    let active = true;
-    setHelpSections(null);
-    void import('./component-help-content').then(({ componentHelpSections }) => {
-      if (active) {
-        setHelpSections(
-          componentHelpSections(
-            c.selectedComponent!.kind,
-            c.selectedEntry!.description,
-            c.selectedEntry!.key,
-            selectedLedColour ? { ledColour: selectedLedColour } : undefined,
-          ),
-        );
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [c.selectedComponent, c.selectedEntry, helpOpen, selectedLedColour]);
-  const informationProfile =
-    c.selectedComponent && c.selectedFamily
-      ? componentInformationProfile(c.selectedFamily.familyId, c.selectedComponent.kind)
-      : null;
-  const technicalMetrics =
-    informationProfile && measurement
-      ? informationProfile.technicalMetrics.flatMap((metric) => {
-          const value = readMetricBinding(metric.metricBindingId, measurement);
-          return value === null ? [] : [{ ...metric, value }];
-        })
-      : [];
-  const resistanceComponent =
-    c.selectedComponent && ['resistor', 'potentiometer'].includes(c.selectedComponent.kind)
-      ? c.selectedComponent
-      : null;
-  const storedResistanceUnit = resistanceComponent?.stateProperties?.['resistanceUnit'];
-  const resistanceUnit =
-    typeof storedResistanceUnit === 'string' &&
-    RESISTANCE_UNITS.some((candidate) => candidate.id === storedResistanceUnit)
-      ? (storedResistanceUnit as ResistanceUnit)
-      : defaultResistanceUnit(resistanceComponent?.value ?? 0);
-  const transistorType = (() => {
-    if (c.selectedComponent?.kind !== 'transistor') return null;
-    const raw = String(c.selectedComponent.stateProperties?.['transistorType'] ?? '');
-    if (raw === 'pnp' || raw === 'fet' || raw === 'npn') return raw;
-    const typeId = String(
-      c.selectedComponent.variantId ?? c.selectedComponent.componentTypeId ?? '',
-    );
-    if (typeId.includes('pnp')) return 'pnp';
-    if (typeId.includes('fet')) return 'fet';
-    return 'npn';
-  })();
-  const transistorOverloaded =
-    measurement?.stressState === 'overcurrent' || measurement?.stressState === 'burned';
-  const transistorStateLabel = transistorOverloaded
-    ? 'Перегрузка — возможен перегрев'
-    : measurement?.stressState === 'warning'
-      ? 'Повышенная нагрузка'
-      : measurement?.operatingRegion === 'saturation'
-        ? 'Полностью открыт как ключ'
-        : measurement?.operatingRegion === 'active'
-          ? 'Регулирует ток'
-          : measurement?.operatingRegion === 'ohmic'
-            ? 'Открыт — проводит ток'
-            : 'Закрыт — ток нагрузки не проходит';
-  const transistorStateExplanation = transistorOverloaded
-    ? (measurement?.baseCurrent ?? 0) > (measurement?.collectorCurrent ?? 0)
-      ? 'Ток базы слишком большой. Добавьте ограничивающий резистор в цепь базы.'
-      : 'Ток нагрузки или нагрев выше безопасного предела.'
-    : measurement?.operatingRegion === 'saturation'
-      ? 'Транзистор работает как замкнутый электронный выключатель.'
-      : measurement?.operatingRegion === 'active'
-        ? 'Небольшой ток базы управляет током нагрузки.'
-        : measurement?.operatingRegion === 'ohmic'
-          ? 'Канал открыт и проводит ток между стоком и истоком.'
-          : 'Управляющего напряжения недостаточно для открытия.';
   return (
     <>
       <aside
@@ -877,13 +715,255 @@ export function WorkbenchSidebars({
         ) : null}
       </aside>
 
-      {c.selection ? (
+      <WorkbenchInspector controller={c} />
+    </>
+  );
+}
+
+export function WorkbenchInspector({
+  controller,
+}: {
+  controller: WorkbenchInspectorController;
+}): JSX.Element {
+  const c = useCommittedWorkbenchPresentation(controller);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [stateOpen, setStateOpen] = useState(false);
+  const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
+  const propertiesId = useId();
+  const propertiesDisclosureRef = useRef<HTMLButtonElement>(null);
+  const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
+  const measurement = c.selectedComponent
+    ? c.resultByComponent.get(c.selectedComponent.id)
+    : undefined;
+  const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
+  const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
+  const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
+  const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
+  const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
+  const selectedIsVibrationMotor = c.selectedEntry?.key === 'vibration-motor';
+  const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
+  const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
+  const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
+  const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter';
+  const selectedIsSignalGenerator = c.selectedEntry?.key === 'signal-generator';
+  const selectedIsOscilloscope = c.selectedEntry?.key === 'oscilloscope';
+  const selectedIsPiezo = c.selectedComponent?.kind === 'piezo';
+  const selectedPiezoMode = selectedIsPiezo
+    ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
+    : 'passive';
+  const selectedMotorProfile =
+    c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor || selectedIsVibrationMotor)
+      ? resolveBrushedMotorProfileSelection(c.selectedComponent)
+      : null;
+  const selectedDiagnostics = c.selectedComponent
+    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
+    : [];
+  const selectedDiagnosticSeverity = selectedDiagnostics.some(
+    (diagnostic) => diagnostic.severity === 'error',
+  )
+    ? 'error'
+    : selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'warning')
+      ? 'warning'
+      : undefined;
+  const selectedLedColour =
+    c.selectedComponent?.kind === 'led'
+      ? String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')
+      : null;
+  const selectedLedProfile = selectedLedColour ? ordinaryLedProfile(selectedLedColour) : null;
+  const selectedLedColourLabel =
+    LED_COLOUR_OPTIONS.find((option) => option.value === selectedLedColour)?.label ??
+    selectedLedColour;
+  const selectedPhotoresistor =
+    c.selectedComponent?.kind === 'photoresistor'
+      ? {
+          lux: measurement?.illuminanceLux ?? photoresistorIlluminanceLux(c.selectedComponent),
+          resistanceOhm:
+            measurement?.effectiveResistanceOhm ?? photoresistorResistanceOhm(c.selectedComponent),
+          lampId: photoresistorLightSourceId(c.selectedComponent),
+          distanceCm: photoresistorLightSourceDistanceCm(c.selectedComponent),
+        }
+      : null;
+  const photoresistorLamps = selectedPhotoresistor
+    ? (c.document?.components.filter((component) => component.kind === 'lamp') ?? [])
+    : [];
+  const photoresistorLampId = photoresistorLamps.find(
+    (lamp) => lamp.id === selectedPhotoresistor?.lampId,
+  )?.id;
+  const selectedSupplyVoltageSetpoint = selectedIsAdjustableSource
+    ? Number(
+        c.selectedComponent?.stateProperties?.['voltageSetpointVolt'] ??
+          c.selectedComponent?.value ??
+          5,
+      )
+    : 0;
+  const selectedSupplyCurrentLimit = selectedIsAdjustableSource
+    ? Number(c.selectedComponent?.stateProperties?.['currentLimitAmp'] ?? 1)
+    : 0;
+  const selectedSupplyOutputEnabled = selectedIsAdjustableSource
+    ? typeof c.selectedComponent?.stateProperties?.['outputEnabled'] === 'boolean'
+      ? c.selectedComponent.stateProperties['outputEnabled']
+      : c.selectedComponent?.state === true
+    : false;
+  const selectedGeneratorWaveform = selectedIsSignalGenerator
+    ? String(c.selectedComponent?.stateProperties?.['waveform'] ?? 'sine')
+    : 'sine';
+  const selectedGeneratorFrequencyHz = selectedIsSignalGenerator
+    ? Number(
+        c.selectedComponent?.stateProperties?.['frequencyHz'] ??
+          c.selectedComponent?.value ??
+          1_000,
+      )
+    : 1_000;
+  const selectedGeneratorAmplitudeVpp = selectedIsSignalGenerator
+    ? Number(c.selectedComponent?.stateProperties?.['amplitudeVpp'] ?? 5)
+    : 5;
+  const selectedGeneratorOffsetVolt = selectedIsSignalGenerator
+    ? Number(c.selectedComponent?.stateProperties?.['dcOffsetVolt'] ?? 0)
+    : 0;
+  const generatorOutputProperty = c.selectedComponent?.stateProperties?.['outputEnabled'];
+  const selectedGeneratorOutputEnabled = selectedIsSignalGenerator
+    ? typeof generatorOutputProperty === 'boolean'
+      ? generatorOutputProperty
+      : c.selectedComponent?.state === true
+    : false;
+  const scopeDisplayProperty = c.selectedComponent?.stateProperties?.['displayEnabled'];
+  const selectedScopeDisplayEnabled = selectedIsOscilloscope
+    ? typeof scopeDisplayProperty === 'boolean'
+      ? scopeDisplayProperty
+      : c.selectedComponent?.state !== false
+    : true;
+  const selectedScopeVoltsPerDivision = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['voltsPerDivision'] ?? 1)
+    : 1;
+  const selectedScopeTimePerDivisionMs = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['timePerDivisionMs'] ?? 1)
+    : 1;
+  const selectedScopeTriggerLevelVolt = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['triggerLevelVolt'] ?? 0)
+    : 0;
+  useEffect(() => {
+    setHelpSections(null);
+    setMobilePropertiesOpen(false);
+  }, [c.selectedComponent?.id]);
+  useEffect(() => {
+    if (!helpOpen || !c.selectedComponent || !c.selectedEntry) return;
+    let active = true;
+    setHelpSections(null);
+    void import('./component-help-content').then(({ componentHelpSections }) => {
+      if (active) {
+        setHelpSections(
+          componentHelpSections(
+            c.selectedComponent!.kind,
+            c.selectedEntry!.description,
+            c.selectedEntry!.key,
+            selectedLedColour ? { ledColour: selectedLedColour } : undefined,
+          ),
+        );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [c.selectedComponent, c.selectedEntry, helpOpen, selectedLedColour]);
+  const informationProfile =
+    c.selectedComponent && c.selectedFamily
+      ? componentInformationProfile(c.selectedFamily.familyId, c.selectedComponent.kind)
+      : null;
+  const technicalMetrics =
+    informationProfile && measurement
+      ? informationProfile.technicalMetrics.flatMap((metric) => {
+          const value = readMetricBinding(metric.metricBindingId, measurement);
+          return value === null ? [] : [{ ...metric, value }];
+        })
+      : [];
+  const resistanceComponent =
+    c.selectedComponent && ['resistor', 'potentiometer'].includes(c.selectedComponent.kind)
+      ? c.selectedComponent
+      : null;
+  const storedResistanceUnit = resistanceComponent?.stateProperties?.['resistanceUnit'];
+  const resistanceUnit =
+    typeof storedResistanceUnit === 'string' &&
+    RESISTANCE_UNITS.some((candidate) => candidate.id === storedResistanceUnit)
+      ? (storedResistanceUnit as ResistanceUnit)
+      : defaultResistanceUnit(resistanceComponent?.value ?? 0);
+  const transistorType = (() => {
+    if (c.selectedComponent?.kind !== 'transistor') return null;
+    const raw = String(c.selectedComponent.stateProperties?.['transistorType'] ?? '');
+    if (raw === 'pnp' || raw === 'fet' || raw === 'npn') return raw;
+    const typeId = String(
+      c.selectedComponent.variantId ?? c.selectedComponent.componentTypeId ?? '',
+    );
+    if (typeId.includes('pnp')) return 'pnp';
+    if (typeId.includes('fet')) return 'fet';
+    return 'npn';
+  })();
+  const transistorOverloaded =
+    measurement?.stressState === 'overcurrent' || measurement?.stressState === 'burned';
+  const transistorStateLabel = transistorOverloaded
+    ? 'Перегрузка — возможен перегрев'
+    : measurement?.stressState === 'warning'
+      ? 'Повышенная нагрузка'
+      : measurement?.operatingRegion === 'saturation'
+        ? 'Полностью открыт как ключ'
+        : measurement?.operatingRegion === 'active'
+          ? 'Регулирует ток'
+          : measurement?.operatingRegion === 'ohmic'
+            ? 'Открыт — проводит ток'
+            : 'Закрыт — ток нагрузки не проходит';
+  const transistorStateExplanation = transistorOverloaded
+    ? (measurement?.baseCurrent ?? 0) > (measurement?.collectorCurrent ?? 0)
+      ? 'Ток базы слишком большой. Добавьте ограничивающий резистор в цепь базы.'
+      : 'Ток нагрузки или нагрев выше безопасного предела.'
+    : measurement?.operatingRegion === 'saturation'
+      ? 'Транзистор работает как замкнутый электронный выключатель.'
+      : measurement?.operatingRegion === 'active'
+        ? 'Небольшой ток базы управляет током нагрузки.'
+        : measurement?.operatingRegion === 'ohmic'
+          ? 'Канал открыт и проводит ток между стоком и истоком.'
+          : 'Управляющего напряжения недостаточно для открытия.';
+  return (
+    <>
+      {c.selection && c.selection.kind !== 'annotation' ? (
         <aside
           className={`workbench-inspector${c.selectedWire ? ' wire-selected' : ''}${
+            c.selectedComponent ? ' component-selected' : ''
+          }${
             selectedIsPotentiometer ? ' is-potentiometer' : ''
           }${c.libraryOpen ? '' : ' library-hidden'}`}
+          data-mobile-properties-open={mobilePropertiesOpen}
+          onKeyDown={(event) => {
+            const disclosure = propertiesDisclosureRef.current;
+            if (
+              event.key !== 'Escape' ||
+              !mobilePropertiesOpen ||
+              !disclosure ||
+              window.getComputedStyle(disclosure).display === 'none'
+            )
+              return;
+            event.preventDefault();
+            event.stopPropagation();
+            setMobilePropertiesOpen(false);
+            disclosure.focus();
+          }}
           aria-label={c.selectedWire ? 'Параметры выбранного провода' : 'Параметры выделения'}
         >
+          {c.selectedComponent ? (
+            <button
+              type="button"
+              ref={propertiesDisclosureRef}
+              className="workbench-properties-disclosure"
+              aria-label={
+                mobilePropertiesOpen
+                  ? 'Свернуть параметры компонента'
+                  : 'Открыть параметры компонента'
+              }
+              aria-expanded={mobilePropertiesOpen}
+              aria-controls={propertiesId}
+              onClick={() => setMobilePropertiesOpen((open) => !open)}
+            >
+              {mobilePropertiesOpen ? <CollapseIcon /> : <ExpandIcon />}
+            </button>
+          ) : null}
           {c.selectedWire ? null : (
             <div className="workbench-inspector-heading">
               <div>
@@ -951,7 +1031,11 @@ export function WorkbenchSidebars({
           c.selectedEntry &&
           c.selection.kind === 'component' &&
           c.selection.ids.length === 1 ? (
-            <div className="workbench-inspector-body" data-testid="component-compact-properties">
+            <div
+              id={propertiesId}
+              className="workbench-inspector-body"
+              data-testid="component-compact-properties"
+            >
               {c.selectedFamily &&
               c.selectedFamily.variants.length > 1 &&
               (!selectedIsPotentiometer || stateOpen) ? (
@@ -1434,7 +1518,9 @@ export function WorkbenchSidebars({
                       aria-pressed={spdtThrowFromState(c.selectedComponent.state) === 'left'}
                       onClick={() => c.setSelectedState(false)}
                     >
-                      Левый вывод
+                      {c.selectedComponent.componentTypeId === 'switch-spst'
+                        ? 'Замкнуто'
+                        : 'Левый вывод'}
                     </button>
                     <button
                       type="button"
@@ -1442,15 +1528,17 @@ export function WorkbenchSidebars({
                       aria-pressed={spdtThrowFromState(c.selectedComponent.state) === 'right'}
                       onClick={() => c.setSelectedState(true)}
                     >
-                      Правый вывод
+                      {c.selectedComponent.componentTypeId === 'switch-spst'
+                        ? 'Разомкнуто'
+                        : 'Правый вывод'}
                     </button>
                   </div>
                   <p className="workbench-contact-summary" data-testid="spdt-contact-summary">
-                    Общий контакт соединён с{' '}
-                    {spdtThrowFromState(c.selectedComponent.state) === 'right'
-                      ? 'правым выводом'
-                      : 'левым выводом'}
-                    .
+                    {c.selectedComponent.componentTypeId === 'switch-spst'
+                      ? c.selectedComponent.state
+                        ? 'Контакты разомкнуты.'
+                        : 'Общий и левый контакты замкнуты.'
+                      : `Общий контакт соединён с ${c.selectedComponent.state ? 'правым' : 'левым'} выводом.`}
                   </p>
                 </fieldset>
               ) : null}
@@ -1493,6 +1581,55 @@ export function WorkbenchSidebars({
                     Удерживать кнопку
                   </button>
                 </fieldset>
+              ) : null}
+              {selectedPhotoresistor ? (
+                <>
+                  <label>
+                    <span>Источник света</span>
+                    <select
+                      data-testid="photoresistor-light-source"
+                      value={photoresistorLampId ?? ''}
+                      disabled={c.simulationRunning}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ lightSourceComponentId: event.target.value })
+                      }
+                    >
+                      <option value="">Только фоновый свет</option>
+                      {photoresistorLamps.map((lamp, index) => (
+                        <option key={lamp.id} value={lamp.id}>
+                          {lamp.name ?? 'Лампа накаливания'} ({index + 1})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {photoresistorLampId ? (
+                    <label>
+                      <span>Расстояние до лампы, см</span>
+                      <input
+                        key={`${c.selectedComponent.id}:${selectedPhotoresistor.distanceCm}`}
+                        data-testid="photoresistor-light-distance"
+                        type="number"
+                        min={PHOTORESISTOR_PROFILE.optical.minimumDistanceCm}
+                        max={PHOTORESISTOR_PROFILE.optical.maximumDistanceCm}
+                        step="any"
+                        defaultValue={selectedPhotoresistor.distanceCm}
+                        disabled={c.simulationRunning}
+                        onBlur={(event) => {
+                          const input = event.currentTarget;
+                          const value = input.valueAsNumber;
+                          if (!input.validity.valid || !Number.isFinite(value)) {
+                            input.value = String(selectedPhotoresistor.distanceCm);
+                          } else if (value !== selectedPhotoresistor.distanceCm) {
+                            c.setSelectedProperties({ lightSourceDistanceCm: value });
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') event.currentTarget.blur();
+                        }}
+                      />
+                    </label>
+                  ) : null}
+                </>
               ) : null}
               {c.selectedComponent.componentTypeId === 'soil-moisture-sensor' ? (
                 <>
@@ -1908,6 +2045,8 @@ export function WorkbenchSidebars({
               {stateOpen && selectedIsSevenSegment ? (
                 <SevenSegmentMeasurements
                   measurement={measurement}
+                  nativePort={c.simulationRunning ? c.nativeOpticalPresentation : null}
+                  componentId={c.selectedComponent.id}
                   isConnected={(terminal) =>
                     c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0
                   }
@@ -2344,7 +2483,11 @@ export function WorkbenchSidebars({
                   </div>
                   <div>
                     <dt>Сопротивление сейчас</dt>
-                    <dd>{formatPhotoresistorResistance(selectedPhotoresistor.resistanceOhm)}</dd>
+                    <dd>
+                      {measurement?.deviceHealth === 'failed_open'
+                        ? 'Обрыв цепи'
+                        : formatPhotoresistorResistance(selectedPhotoresistor.resistanceOhm)}
+                    </dd>
                   </div>
                   <div>
                     <dt>Опорный профиль</dt>

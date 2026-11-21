@@ -20,10 +20,13 @@ export function copiedProjectHref(copy: PublicProjectCopy): string | null {
       });
 }
 
-export function copyError(status: number): string {
-  if (status === 401) return 'Войдите в свой аккаунт, затем снова нажмите «Создать свою копию».';
+export function copyError(status: number, code?: string): string {
+  if (status === 401)
+    return 'Войдите в свой аккаунт или класс, затем снова нажмите «Добавить в мои проекты».';
+  if (status === 403 && code === 'acquisition_disabled')
+    return 'Администратор платформы запретил получение публичных проектов. Разрешение класса или ученика не отменяет общий запрет.';
   if (status === 403)
-    return 'Копирование недоступно для текущего профиля, модуля или лицензии. Нужен личный аккаунт с разрешённым доступом.';
+    return 'Получение запрещено настройками платформы, автора или класса либо не поддерживается для этого проекта.';
   if (status === 404 || status === 410) return 'Публикация больше недоступна для копирования.';
   if (status === 409)
     return 'Версия публикации изменилась или запрос конфликтует с предыдущим. Обновите страницу проекта перед копированием.';
@@ -32,14 +35,18 @@ export function copyError(status: number): string {
 
 export function CopyPublicProject({
   publication,
+  onCopied,
 }: {
   readonly publication: PublicProject;
-}): JSX.Element {
+  readonly onCopied?: () => void;
+}): JSX.Element | null {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [href, setHref] = useState<string | null>(null);
+  const [receiptVisible, setReceiptVisible] = useState(false);
+  const receiptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
   const intentKey = useRef<string | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -58,7 +65,9 @@ export function CopyPublicProject({
       setBusy(false);
       setBlocked(true);
       setSignIn(true);
-      setError('Контекст входа изменился. Откройте публикацию заново в нужном аккаунте.');
+      setError(
+        'Контекст входа изменился. Откройте публикацию заново в нужном аккаунте или классе.',
+      );
     };
     // This is only a fence against late effects; the server proves identity and permissions.
     const unsubscribeContext = subscribeTelemetry((context) => {
@@ -67,6 +76,7 @@ export function CopyPublicProject({
     const unsubscribeLogout = onSessionLoggedOut(retire);
     return () => {
       active.current = false;
+      if (receiptTimer.current) clearTimeout(receiptTimer.current);
       controller.current?.abort();
       unsubscribeContext();
       unsubscribeLogout();
@@ -94,7 +104,7 @@ export function CopyPublicProject({
       );
       if (!active.current || retired.current || telemetryContext().continuity !== expected) return;
       if (!result.ok) {
-        setError(copyError(result.status));
+        setError(copyError(result.status, result.error.code));
         setSignIn(result.status === 401);
         setBlocked([403, 404, 409, 410].includes(result.status));
         return;
@@ -108,6 +118,9 @@ export function CopyPublicProject({
         return;
       }
       setHref(destination);
+      onCopied?.();
+      setReceiptVisible(true);
+      receiptTimer.current = setTimeout(() => setReceiptVisible(false), 3500);
     } catch {
       if (active.current && !retired.current) setError(copyError(0));
     } finally {
@@ -117,32 +130,46 @@ export function CopyPublicProject({
     }
   }
 
+  if (!eligible) return null;
   return (
     <section className="public-project-copy" aria-label="Личная копия проекта" aria-busy={busy}>
-      <p id="public-project-copy-help">
-        {eligible
-          ? 'Создайте независимую приватную копию в «Моих проектах». Её можно изменить и сохранить в редакторе. Оригинал и публикация автора останутся прежними.'
-          : 'Копирование этой публикации пока недоступно. Поддерживаются только разрешённые сервером проекты 3D и электроники с лицензией «Общественное достояние». Другие лицензии и модули пока не поддерживаются.'}
-      </p>
       {href ? (
-        <>
-          <p role="status">Приватная копия создана. Откройте её в редакторе.</p>
-          <PortalLink className="btn-primary" href={href}>
+        <div className="publication-copy-success">
+          <PortalLink className="btn-secondary" href={href}>
+            <span className="publication-copy-check" aria-hidden="true">
+              ✓
+            </span>
             Открыть мою копию
           </PortalLink>
-        </>
+          {receiptVisible ? (
+            <div role="status" className="publication-copy-receipt">
+              <strong>Добавлено в мои проекты</strong>
+              <small>{publication.title} · личная редактируемая копия</small>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <button
           type="button"
-          className="btn-primary"
+          className="btn-secondary"
           disabled={!eligible || busy || blocked}
-          aria-describedby="public-project-copy-help"
+          title="Личная копия появится в Моих проектах. Оригинал автора сохранится."
           onClick={() => void createCopy()}
         >
-          {busy ? 'Создаём копию…' : 'Создать свою копию'}
+          <span
+            className={busy ? 'publication-copy-spinner' : 'publication-copy-plus'}
+            aria-hidden="true"
+          >
+            {busy ? '' : '+'}
+          </span>
+          {busy ? 'Создаём копию…' : 'Добавить в мои проекты'}
         </button>
       )}
-      {busy ? <p role="status">Создаём личный проект. Дождитесь результата…</p> : null}
+      {busy ? (
+        <span className="sr-only" role="status">
+          Создаём личный проект. Дождитесь результата…
+        </span>
+      ) : null}
       {error ? (
         <p className="notice-error" role="alert">
           {error}

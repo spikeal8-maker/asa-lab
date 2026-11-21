@@ -1,0 +1,66 @@
+schema_version: 1.0.0
+contract_id: SP-DOMAIN
+domain: student-progress
+registry_document_id: STUDENT-PROGRESS-DOMAIN-CONTRACT
+master_documents:
+  - STUDENT-PROGRESS-MASTER-V1
+  - LEARNING-MASTER-V22
+  - IDENTITY-ACCESS-V22
+invariants:
+  - id: SP-LAYOUT-001
+    statement: Personal progress uses the existing ASA shell; the owner's compact avatar composition has own profile pinned first, rank top-left and score bottom-right, without denominators or peer names.
+    master_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        section: '§3 SP-D01, SP-D06 through SP-D09'
+    applies_to: [creator_home, learner_overview, group_rating]
+    forbid: [new_student_portal, header_redesign, peer_names, ranking_denominators]
+  - id: SP-SCORE-001
+    statement: Global profile score is a versioned cumulative contribution projection; group scores preserve the existing rolling formula and cannot be summed into it.
+    master_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        section: '§5'
+    applies_to: [global_rating, group_rating, rating_history]
+    forbid: [sum_group_scores, calendar_decay_global_score, invented_score, client_awarded_points]
+  - id: SP-SOURCE-001
+    statement: Publication statistics and qualified rating contributions are different facts; one stable source is credited once across revisions, retries and proven identity links.
+    master_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        section: '§3 SP-D12 through SP-D14 / §5.2'
+    applies_to: [publication_summary, contribution_ledger, identity_reconciliation]
+    forbid: [raw_copy_count_as_xp, revision_as_new_work, duplicate_credit, guessed_history]
+  - id: SP-IDENTITY-001
+    statement: Existing verified Account and StudentSeat identities determine accessible sources; a Seat session never exposes private Account documents or other groups through a progress aggregate.
+    master_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        section: '§6'
+    applies_to: [progress_summary, group_peers, linked_seat, personal_account]
+    forbid:
+      [merge_by_name, global_user_role, account_required_for_seat, teacher_roster_as_learner_dto]
+  - id: SP-ACCESS-001
+    statement: New teacher thresholds use only the learner rating of the authoritative group context; global score does not grant permissions, and existing games/AI admission semantics remain unchanged.
+    master_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        section: '§3 SP-D15 through SP-D20 / §7'
+    applies_to:
+      [publication_admission, comments_admission, copy_admission, games_admission, ai_admission]
+    forbid: [global_score_bypasses_group, ui_scope_as_authority, silent_legacy_policy_change]
+  - id: SP-GRANT-001
+    statement: After-achievement access is an explicit durable grant with auditable revocation; lower rolling score or higher threshold does not erase it, while explicit denials and mandatory platform constraints still take priority.
+    master_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        section: '§7'
+    applies_to: [after_achievement_grant, permission_revocation, policy_revision]
+    forbid:
+      [
+        automatic_regrant_after_revoke,
+        grant_bypasses_platform_denial,
+        decay_revokes_permanent_grant,
+      ]
+  - id: SP-EVIDENCE-001
+    statement: The accepted synthetic HTML is a layout reference only; product acceptance requires real authorized ASA surfaces, exact-SHA evidence and the required viewport/state matrix.
+    master_refs:
+      - document: STUDENT-PROGRESS-MASTER-V1
+        section: '§12'
+    applies_to: [ui_acceptance, data_acceptance, programme_delivery]
+    forbid:
+      [mock_as_product_proof, owner_account_as_seat_proof, ci_as_deployment, missing_data_as_zero]

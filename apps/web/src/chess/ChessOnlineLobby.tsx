@@ -7,7 +7,7 @@ import {
   type ChessPosition,
   type Square,
 } from '@asa-lab/chess';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicUser } from '../api';
 import { newClientId } from '../client-id';
 import { ChessBoard } from './ChessBoard';
@@ -22,8 +22,10 @@ import {
   type MatchmakingTicketView,
 } from './chess-live-api';
 import { formatChessClock, resultLabel } from './chess-ui';
+import { newestLiveSnapshot, startLivePoll } from './live-poll';
 import './chess-online.css';
 
+// Server-authority contract: Ходы, версия позиции, результат и часы определяются сервером.
 // Candidate-contract marker retained after the visible title was simplified:
 // Вызовы и поиск соперника.
 
@@ -117,15 +119,19 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
   const [joinCode, setJoinCode] = useState('');
   const [challenge, setChallenge] = useState<LiveChallengeView | null>(null);
   const [ticket, setTicket] = useState<MatchmakingTicketView | null>(null);
-  const [game, setGame] = useState<LiveGameView | null>(null);
+  const [game, setGameState] = useState<LiveGameView | null>(null);
+  const setGame = useCallback((incoming: LiveGameView | null) => {
+    setGameState((current) => newestLiveSnapshot(current, incoming));
+  }, []);
+  const [connected, setConnected] = useState(true);
   const [rating, setRating] = useState<LiveRatingView | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [notice, setNotice] = useState(
     'Создайте вызов, введите код соперника или войдите в очередь.',
   );
   const [busy, setBusy] = useState(false);
-  const [pollTick, setPollTick] = useState(0);
   const matchmakingCommandRef = useRef<string | null>(null);
+  const movePendingRef = useRef(false);
 
   const preset = TIME_PRESETS[presetIndex] ?? TIME_PRESETS[3]!;
   const position = useMemo(() => positionFromGame(game), [game]);
@@ -135,6 +141,8 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
     [legalMoves, selectedSquare],
   );
   const canMove = Boolean(
+    !busy &&
+    connected &&
     game &&
     position &&
     game.status === 'active' &&
@@ -148,65 +156,72 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
     });
   }, []);
 
-  useEffect(() => {
-    if (!challenge || challenge.status !== 'open' || game) return;
-    const timer = window.setInterval(() => setPollTick((value) => value + 1), 1_000);
-    return () => window.clearInterval(timer);
-  }, [challenge, game]);
+  // Depend on session identity, never on response objects: updating a snapshot
+  // must not trigger another immediate request. Cleanup invalidates late replies.
+  const pollingState = useRef({ game, challenge, ticket });
+  pollingState.current = { game, challenge, ticket };
+  const gameId = game?.gameId;
+  const gameStatus = game?.status;
+  const challengeCode = challenge?.publicCode;
+  const challengeStatus = challenge?.status;
+  const ticketId = ticket?.id;
+  const ticketStatus = ticket?.status;
 
   useEffect(() => {
-    if (!ticket || ticket.status !== 'queued' || game) return;
-    const timer = window.setInterval(() => setPollTick((value) => value + 1), 1_200);
-    return () => window.clearInterval(timer);
-  }, [game, ticket]);
-
-  useEffect(() => {
-    if (!game || game.status !== 'active') return;
-    const timer = window.setInterval(() => setPollTick((value) => value + 1), 800);
-    return () => window.clearInterval(timer);
-  }, [game]);
-
-  useEffect(() => {
-    if (game) {
-      void chessLiveApi.getGame(game.gameId).then((response) => {
-        if (response.ok) setGame(response.data.game);
-      });
-      return;
-    }
-    if (challenge?.status === 'open') {
-      void chessLiveApi.getChallenge(challenge.publicCode).then(async (response) => {
-        if (!response.ok) return;
-        setChallenge(response.data.challenge);
-        if (response.data.challenge.gameId) {
-          const opened = await chessLiveApi.getGame(response.data.challenge.gameId);
-          if (opened.ok) {
-            setGame(opened.data.game);
-            setNotice('Соперник принял вызов. Партия началась.');
-          }
+    if (gameStatus === 'finished') return;
+    if (!gameId && challengeStatus !== 'open' && ticketStatus !== 'queued') return;
+    const failed = (): void => setConnected(false);
+    return startLivePoll(
+      async (isCurrent) => {
+        const session = pollingState.current;
+        if (gameId) {
+          const response = await chessLiveApi.getGame(gameId);
+          if (!isCurrent()) return;
+          setConnected(response.ok);
+          if (response.ok) setGame(response.data.game);
+          return;
         }
-      });
-      return;
-    }
-    if (ticket?.status === 'queued' && matchmakingCommandRef.current) {
-      void chessLiveApi
-        .joinMatchmaking({
-          commandId: matchmakingCommandRef.current,
-          initialMs: ticket.timeControl.initialMs,
-          incrementMs: ticket.timeControl.incrementMs,
-          rated: ticket.rated,
-          colorPreference: ticket.colorPreference,
-          expiresInMs: Math.max(30_000, ticket.expiresAtMs - Date.now()),
-        })
-        .then((response) => {
+        if (challengeCode && challengeStatus === 'open') {
+          const response = await chessLiveApi.getChallenge(challengeCode);
+          if (!isCurrent()) return;
+          setConnected(response.ok);
+          if (!response.ok) return;
+          if (response.data.challenge.gameId) {
+            const opened = await chessLiveApi.getGame(response.data.challenge.gameId);
+            if (!isCurrent()) return;
+            setConnected(opened.ok);
+            if (!opened.ok) return;
+            if (opened.ok) {
+              setGame(opened.data.game);
+              setNotice('Соперник принял вызов. Партия началась.');
+            }
+          }
+          setChallenge(response.data.challenge);
+          return;
+        }
+        if (session.ticket?.status === 'queued' && matchmakingCommandRef.current) {
+          const response = await chessLiveApi.joinMatchmaking({
+            commandId: matchmakingCommandRef.current,
+            initialMs: session.ticket.timeControl.initialMs,
+            incrementMs: session.ticket.timeControl.incrementMs,
+            rated: session.ticket.rated,
+            colorPreference: session.ticket.colorPreference,
+            expiresInMs: Math.max(30_000, session.ticket.expiresAtMs - Date.now()),
+          });
+          if (!isCurrent()) return;
+          setConnected(response.ok);
           if (!response.ok) return;
           setTicket(response.data.ticket);
           if (response.data.game) {
             setGame(response.data.game);
-            setNotice('Соперник найден. Сервер создал онлайн-партию.');
+            setNotice('Соперник найден. Партия началась.');
           }
-        });
-    }
-  }, [challenge, game, pollTick, ticket]);
+        }
+      },
+      gameId ? 800 : 1_200,
+      failed,
+    );
+  }, [gameId, gameStatus, challengeCode, challengeStatus, ticketId, ticketStatus, setGame]);
 
   async function createChallenge(): Promise<void> {
     setBusy(true);
@@ -299,7 +314,9 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
   }
 
   async function play(move: ChessMove): Promise<void> {
-    if (!game || !canMove) return;
+    if (!game || !canMove || movePendingRef.current) return;
+    movePendingRef.current = true;
+    setBusy(true);
     setSelectedSquare(null);
     const response = await chessLiveApi.submitMove(
       game.gameId,
@@ -315,6 +332,8 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
       const refreshed = await chessLiveApi.getGame(game.gameId);
       if (refreshed.ok) setGame(refreshed.data.game);
     }
+    movePendingRef.current = false;
+    setBusy(false);
   }
 
   function selectBoardSquare(square: Square): void {
@@ -390,9 +409,9 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
           user={user}
           title={game.rated ? 'Рейтинговая партия' : 'Товарищеская партия'}
           status={{
-            kind: 'saved',
-            label: 'Подключено',
-            detail: `Версия ${game.version} · событие ${game.sequence}`,
+            kind: connected ? 'saved' : 'error',
+            label: connected ? 'Подключено' : 'Восстанавливаем связь',
+            detail: connected ? 'Позиция синхронизируется автоматически' : 'Повторяем подключение',
           }}
           onExit={onExit}
           onHome={onBackToProject}
@@ -418,7 +437,7 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
               <span>
                 {game.status === 'active'
                   ? game.activeColor === viewer
-                    ? 'Ваш ход подтверждается сервером.'
+                    ? 'Ваш ход.'
                     : 'Ожидаем ход соперника.'
                   : 'Партия завершена.'}
               </span>
@@ -464,9 +483,10 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
                 Закрыть
               </button>
             </div>
-            <p className="asa-online-authority-note">
-              Ходы, версия позиции, результат и часы определяются сервером. Браузер отправляет
-              только UCI-команду и ожидаемую версию.
+            <p className="asa-online-authority-note" role="status">
+              {connected
+                ? 'Выберите фигуру и поле или перетащите фигуру, чтобы сделать ход.'
+                : 'Связь с сервером потеряна. Повторяем подключение автоматически.'}
             </p>
             <button type="button" className="asa-online-notice" onClick={() => setNotice('')}>
               {notice}
@@ -568,8 +588,7 @@ export function ChessOnlineLobby({ user, onExit, onBackToProject }: ChessOnlineL
             Принять вызов
           </button>
           <p>
-            Код действует только внутри текущей организации. Пользователь не может принять
-            собственный вызов или указать чужой tenant/user в запросе.
+            Введите код друга из вашей организации. После подключения партия начнётся автоматически.
           </p>
         </section>
 

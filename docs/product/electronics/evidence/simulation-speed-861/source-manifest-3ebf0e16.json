@@ -1,0 +1,109 @@
+{
+  "baseline": "9821f0f8d66d6d870646cfeaef8666547876f66f",
+  "serialization": "Git index LF blobs; artifacts excluded",
+  "files": [
+    {
+      "path": "apps/web/src/electronics/SimulationSpeedControl.tsx",
+      "gitBlob": "51b3075c6bae0594f5df591ef526501b770c35d4",
+      "bytes": 3963,
+      "sha256": "e2fdaef3ec53ccf3f6290a007aa151d0ea02947aec9194a6d31d89f0e57b4408"
+    },
+    {
+      "path": "apps/web/src/electronics/WorkbenchHeader.tsx",
+      "gitBlob": "9b6a988521c44cbb905c31b40adb1731e205ee39",
+      "bytes": 19146,
+      "sha256": "c4ef1886549359fc84e3aff6c6bf6e1d03539aea5f656872bc786e6c544c9cfb"
+    },
+    {
+      "path": "apps/web/src/electronics/led-temporal-presentation.ts",
+      "gitBlob": "9dfb6482fafe359a5c652b23f6c740d7eeb3a6cb",
+      "bytes": 29545,
+      "sha256": "759449a88e18c506854541e724de47560bce0ece2b6f3fbe0d07f05ea1712482"
+    },
+    {
+      "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+      "gitBlob": "1179d37039c8dd67d1e9ff70e183075bcaabef30",
+      "bytes": 29584,
+      "sha256": "4559e064fb3958e98130de375929f28ae87122ae1265ee7486aa31ad90f6173b"
+    },
+    {
+      "path": "apps/web/src/electronics/simulation-pacing.ts",
+      "gitBlob": "c67eaff4135b6c23313f13be9f89c81b191566c0",
+      "bytes": 1801,
+      "sha256": "c443c206cfe78c39c8bbc03f06e9638a33fa8600d5bbb9ba18c2863d03774be5"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+      "gitBlob": "0eaf1b36de60578525c0f7c3b2ea973fa8d73508",
+      "bytes": 109163,
+      "sha256": "f30fad2347feea262770a0277f36f39601d580c9b037af4c933a147f702a647f"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts",
+      "gitBlob": "a170b001af48a378e5fbd828b61ba535e9027a0a",
+      "bytes": 110543,
+      "sha256": "f16a5cbfb5b4a056b361f9e455002a920c73ec7ae39312f91f953c2ede913ab6"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/simulation-pacing.spec.ts",
+      "gitBlob": "4dbac465ec264f6bc9ed82bf06c0fa726c084199",
+      "bytes": 1537,
+      "sha256": "9dbb95d444e153f53b60989dd24df513bad6c680bd6b0f588dd9e34fe4225d1c"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/simulation-speed-control.spec.ts",
+      "gitBlob": "8d1458930e874e040aecce2856e67d58b625276c",
+      "bytes": 2421,
+      "sha256": "f87a5036409559e9c02d761e57a8351811f0cdc68b3d68ea91a7d82bf7ccac67"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/simulation-speed.browser.mjs",
+      "gitBlob": "7a18b190e884887e6f35fb2f0ceda1cf3d79e1b5",
+      "bytes": 15529,
+      "sha256": "1f5ccb42c477cfbe419a66723f200a8f5fad794e30df0903a99507eb08a82eae"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts",
+      "gitBlob": "f5eaafd8caae006ef71a278b689b96cbd775d04b",
+      "bytes": 97895,
+      "sha256": "d7b9489238ccf7c32372f35ed7e5228160466f6bb64a791e018876e1021d8d5f"
+    },
+    {
+      "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+      "gitBlob": "3f4756e5b9efd07d3aa0a1cc523083be1ebca869",
+      "bytes": 140842,
+      "sha256": "a0503a8243d86dae0e7763fbd88b5e3889bcb2c3076f8befecae89f72529484a"
+    },
+    {
+      "path": "apps/web/src/electronics/workbench.css",
+      "gitBlob": "dec4a57938cb70cd205b732466c9142eccc00130",
+      "bytes": 140701,
+      "sha256": "3fac0711a44d1ef9b769dfb768dc1babc457d6d5bebd156aac43c7b23587f01f"
+    },
+    {
+      "path": "docs/product/electronics/README.md",
+      "gitBlob": "6dcdb28a5dd3859ccf05da40439cb920fa1b7324",
+      "bytes": 280906,
+      "sha256": "78c55394fded1cb86837d5fcd74d80431b1826aec1741d2970cda1969a1d7150"
+    },
+    {
+      "path": "docs/product/electronics/components/engine-worker-clock.yaml",
+      "gitBlob": "ff65647e183fcb3303acb0f606b367847da26ee6",
+      "bytes": 9357,
+      "sha256": "55f55245ee94458b32b420bc7ca204f3ef86d7968e4181ff73702846d3cdeaab"
+    },
+    {
+      "path": "docs/product/electronics/components/ui-assets-persistence.yaml",
+      "gitBlob": "fea3fabf45f81cb82847fe88227796474453304b",
+      "bytes": 9842,
+      "sha256": "cfd5880117bc63671d4999c956bdee5e07e15cfa2bcaa6535883af71566dc31c"
+    },
+    {
+      "path": "docs/product/electronics/contracts/HOST_PACING_PAUSE_ADAPTER_V1.md",
+      "gitBlob": "318e3318856d216d92b9f6c0a9b740f5e914780c",
+      "bytes": 2834,
+      "sha256": "cd9756318135940d7b1657e3bcdffffe93f54766e3d0ec18e38040a6d42679cd"
+    }
+  ],
+  "sourceDigest": "73a4a31750f9740ae8cf0eecec928c9a6d4e286536f3ef1cf68a8753fabf6ca0"
+}

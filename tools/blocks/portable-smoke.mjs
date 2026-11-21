@@ -530,7 +530,10 @@ try {
   await expect(
     page.getByRole('heading', { name: 'Программирование · Scratch', exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Создать программу', exact: true }).click();
+  await page
+    .getByRole('region', { name: 'Программирование · Scratch', exact: true })
+    .getByRole('button', { name: 'Создать программу', exact: true })
+    .click();
   const firstEditor = await waitForEditor(page);
   const projectId = projectIds.at(-1);
   assert.ok(projectId && UUID_RE.test(projectId), 'runtime-session must expose created project id');

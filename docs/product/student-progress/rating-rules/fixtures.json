@@ -1,0 +1,1652 @@
+{
+  "schemaVersion": 1,
+  "basis": "synthetic_only",
+  "cases": [
+    {
+      "id": "newcomer",
+      "personId": "person:newcomer",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:newcomer",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "weekly_learner",
+      "personId": "person:weekly_learner",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:weekly_learner",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "learner_without_publication",
+      "personId": "person:learner_without_publication",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:learner_without_publication",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "c2",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "adult_without_school",
+      "personId": "person:adult_without_school",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:adult_without_school",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "one_substantive_work",
+      "personId": "person:one_substantive_work",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:one_substantive_work",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "technical_duplicates",
+      "personId": "person:technical_duplicates",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:technical_duplicates",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "derived_reactor_1",
+          "personId": "person:derived_reactor_1",
+          "verified": true
+        },
+        {
+          "principal": "derived_reactor_2",
+          "personId": "person:derived_reactor_2",
+          "verified": true
+        },
+        {
+          "principal": "derived_reactor_3",
+          "personId": "person:derived_reactor_3",
+          "verified": true
+        },
+        {
+          "principal": "derived_reactor_4",
+          "personId": "person:derived_reactor_4",
+          "verified": true
+        },
+        {
+          "principal": "derived_reactor_5",
+          "personId": "person:derived_reactor_5",
+          "verified": true
+        },
+        {
+          "principal": "derived_reactor_6",
+          "personId": "person:derived_reactor_6",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        },
+        {
+          "publicationId": "p2",
+          "projectId": "technical-duplicate-from-native",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 2,
+          "proof": "server_verified",
+          "writerOperation": "ordinary_duplicate"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "derived_reactor_1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "derived_reactor_2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "derived_reactor_3",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "derived_reactor_4",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "derived_reactor_5",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "derived_reactor_6",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 50
+    },
+    {
+      "id": "scratch_and_robotics",
+      "personId": "person:scratch_and_robotics",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:scratch_and_robotics",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "scratch",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "robot",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "three_d_and_electronics",
+      "personId": "person:three_d_and_electronics",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:three_d_and_electronics",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        },
+        {
+          "principal": "ext3",
+          "personId": "person:ext3",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext3",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 41
+    },
+    {
+      "id": "multiple_learning_groups",
+      "personId": "person:multiple_learning_groups",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:multiple_learning_groups",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g2",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "linked_account_seat",
+      "personId": "person:linked_account_seat",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:linked_account_seat",
+          "verified": true
+        },
+        {
+          "principal": "seat",
+          "personId": "person:linked_account_seat",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "c1",
+          "principal": "seat",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g2",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "self_like",
+      "personId": "person:self_like",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:self_like",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "owner",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "unlike_then_relike",
+      "personId": "person:unlike_then_relike",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:unlike_then_relike",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 2,
+          "state": "removed",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 3,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "unlike_final",
+      "personId": "person:unlike_final",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:unlike_final",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 2,
+          "state": "removed",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "replayed_reaction",
+      "personId": "person:replayed_reaction",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:replayed_reaction",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "republication",
+      "personId": "person:republication",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:republication",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        },
+        {
+          "publicationId": "p2",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 2,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "withdrawn_publication",
+      "personId": "person:withdrawn_publication",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:withdrawn_publication",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "withdrawn",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "corrected_completion",
+      "personId": "person:corrected_completion",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:corrected_completion",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 2,
+          "state": "revoked",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "late_verified_merge",
+      "personId": "person:late_verified_merge",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:late_verified_merge",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "seat",
+          "personId": "person:late_verified_merge",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext1",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "c1",
+          "principal": "seat",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g2",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "known_copy_chain",
+      "personId": "person:known_copy_chain",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:known_copy_chain",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        },
+        {
+          "principal": "ext3",
+          "personId": "person:ext3",
+          "verified": true
+        },
+        {
+          "principal": "ext4",
+          "personId": "person:ext4",
+          "verified": true
+        },
+        {
+          "principal": "ext5",
+          "personId": "person:ext5",
+          "verified": true
+        },
+        {
+          "principal": "ext6",
+          "personId": "person:ext6",
+          "verified": true
+        },
+        {
+          "principal": "ext7",
+          "personId": "person:ext7",
+          "verified": true
+        },
+        {
+          "principal": "ext8",
+          "personId": "person:ext8",
+          "verified": true
+        },
+        {
+          "principal": "ext9",
+          "personId": "person:ext9",
+          "verified": true
+        },
+        {
+          "principal": "ext10",
+          "personId": "person:ext10",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "derived",
+          "authorPrincipal": "owner",
+          "origin": "known_copy",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "public_acquisition"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext3",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext4",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext5",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext6",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext7",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext8",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext9",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext10",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 3
+    },
+    {
+      "id": "incomplete_historical_origin",
+      "personId": "person:incomplete_historical_origin",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:incomplete_historical_origin",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        },
+        {
+          "principal": "ext3",
+          "personId": "person:ext3",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "legacy",
+          "authorPrincipal": "owner",
+          "origin": "unknown",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "unknown"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext3",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "per_publication_cap",
+      "personId": "person:per_publication_cap",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:per_publication_cap",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        },
+        {
+          "principal": "ext3",
+          "personId": "person:ext3",
+          "verified": true
+        },
+        {
+          "principal": "ext4",
+          "personId": "person:ext4",
+          "verified": true
+        },
+        {
+          "principal": "ext5",
+          "personId": "person:ext5",
+          "verified": true
+        },
+        {
+          "principal": "ext6",
+          "personId": "person:ext6",
+          "verified": true
+        },
+        {
+          "principal": "ext7",
+          "personId": "person:ext7",
+          "verified": true
+        },
+        {
+          "principal": "ext8",
+          "personId": "person:ext8",
+          "verified": true
+        },
+        {
+          "principal": "ext9",
+          "personId": "person:ext9",
+          "verified": true
+        },
+        {
+          "principal": "ext10",
+          "personId": "person:ext10",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext3",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext4",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext5",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext6",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext7",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext8",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext9",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext10",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "multi_publication_social_storm",
+      "personId": "person:multi_publication_social_storm",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:multi_publication_social_storm",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        },
+        {
+          "principal": "ext3",
+          "personId": "person:ext3",
+          "verified": true
+        },
+        {
+          "principal": "ext4",
+          "personId": "person:ext4",
+          "verified": true
+        },
+        {
+          "principal": "ext5",
+          "personId": "person:ext5",
+          "verified": true
+        },
+        {
+          "principal": "ext6",
+          "personId": "person:ext6",
+          "verified": true
+        },
+        {
+          "principal": "ext7",
+          "personId": "person:ext7",
+          "verified": true
+        },
+        {
+          "principal": "ext8",
+          "personId": "person:ext8",
+          "verified": true
+        },
+        {
+          "principal": "ext9",
+          "personId": "person:ext9",
+          "verified": true
+        },
+        {
+          "principal": "ext10",
+          "personId": "person:ext10",
+          "verified": true
+        },
+        {
+          "principal": "ext11",
+          "personId": "person:ext11",
+          "verified": true
+        },
+        {
+          "principal": "ext12",
+          "personId": "person:ext12",
+          "verified": true
+        },
+        {
+          "principal": "ext13",
+          "personId": "person:ext13",
+          "verified": true
+        },
+        {
+          "principal": "ext14",
+          "personId": "person:ext14",
+          "verified": true
+        },
+        {
+          "principal": "ext15",
+          "personId": "person:ext15",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        },
+        {
+          "publicationId": "p2",
+          "projectId": "project2",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 2,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        },
+        {
+          "publicationId": "p3",
+          "projectId": "project3",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 3,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext3",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext4",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext5",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "ext6",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "ext7",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "ext8",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "ext9",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p2",
+          "actorPrincipal": "ext10",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p3",
+          "actorPrincipal": "ext11",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p3",
+          "actorPrincipal": "ext12",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p3",
+          "actorPrincipal": "ext13",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p3",
+          "actorPrincipal": "ext14",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p3",
+          "actorPrincipal": "ext15",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "calendar_break",
+      "personId": "person:calendar_break",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:calendar_break",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "old",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2021-03-15",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "two_distinct_learning_results",
+      "personId": "person:two_distinct_learning_results",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:two_distinct_learning_results",
+          "verified": true
+        }
+      ],
+      "learning": [
+        {
+          "completionId": "c1",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        },
+        {
+          "completionId": "c2",
+          "principal": "owner",
+          "revision": 1,
+          "state": "confirmed",
+          "groupId": "g1",
+          "completedAt": "2026-11-01",
+          "evidence": "canonical_verified"
+        }
+      ],
+      "publications": [],
+      "reactions": [],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "own_project_copy",
+      "personId": "person:own_project_copy",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:own_project_copy",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": true
+        },
+        {
+          "principal": "ext2",
+          "personId": "person:ext2",
+          "verified": true
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "copy-of-self",
+          "authorPrincipal": "owner",
+          "origin": "known_copy",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "public_acquisition"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        },
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext2",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    },
+    {
+      "id": "unverified_external",
+      "personId": "person:unverified_external",
+      "identityLinks": [
+        {
+          "principal": "owner",
+          "personId": "person:unverified_external",
+          "verified": true
+        },
+        {
+          "principal": "ext1",
+          "personId": "person:ext1",
+          "verified": false
+        }
+      ],
+      "learning": [],
+      "publications": [
+        {
+          "publicationId": "p1",
+          "projectId": "project1",
+          "authorPrincipal": "owner",
+          "origin": "covered_native",
+          "state": "active",
+          "firstPublishOrder": 1,
+          "proof": "server_verified",
+          "writerOperation": "native"
+        }
+      ],
+      "reactions": [
+        {
+          "publicationId": "p1",
+          "actorPrincipal": "ext1",
+          "revision": 1,
+          "state": "active",
+          "evidence": "canonical_current_state"
+        }
+      ],
+      "copiesRecorded": 0
+    }
+  ]
+}

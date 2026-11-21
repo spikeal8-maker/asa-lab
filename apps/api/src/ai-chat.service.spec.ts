@@ -1,6 +1,7 @@
+import { prePolzaPool } from './testing/ai-pre-polza-pool.fixture';
+import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv, randomBytes } from 'node:crypto';
-import type pg from 'pg';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { describe, expect, it, vi } from 'vitest';
@@ -78,7 +79,14 @@ describe('ASA native AI Chat', () => {
         { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
       );
       const write = vi.fn();
-      const raw = { writeHead: vi.fn(), once: vi.fn(), write, end: vi.fn() };
+      const raw = {
+        writeHead: vi.fn(),
+        flushHeaders: vi.fn(),
+        once: vi.fn(),
+        off: vi.fn(),
+        write,
+        end: vi.fn(),
+      };
       await controller.sendStream(
         {
           cookies: {},
@@ -95,7 +103,8 @@ describe('ASA native AI Chat', () => {
           requestId: outcome === 'uppercase' ? requestId.toUpperCase() : requestId,
         },
       );
-      expect(write).toHaveBeenCalledTimes(1);
+      expect(write).toHaveBeenCalledTimes(2);
+      expect(write).toHaveBeenNthCalledWith(1, ': connected\n\n');
       expect(write).toHaveBeenCalledWith(
         'event: done\ndata: ' + JSON.stringify({ ...result, messages: current }) + '\n\n',
       );
@@ -119,7 +128,7 @@ describe('ASA native AI Chat', () => {
         },
       ],
     }));
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
     });
     const config = await service.adminConfig(PRINCIPAL);
@@ -132,6 +141,8 @@ describe('ASA native AI Chat', () => {
     const calls: unknown[][] = [];
     let configurationVersion = 1;
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       calls.push([sql, ...params]);
       if (sql.includes('ai_admin_get_config')) {
         return {
@@ -154,7 +165,7 @@ describe('ASA native AI Chat', () => {
       configurationVersion += 1;
       return { rows: [{ ai_admin_set_config: configurationVersion }] };
     });
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
     });
     await service.saveAdminConfig(
@@ -167,7 +178,7 @@ describe('ASA native AI Chat', () => {
       },
       'test-admin-request',
     );
-    const write = calls.find((call) => String(call[0]).includes('ai_admin_set_config'));
+    const write = calls.find((call) => String(call[0]).includes('ai_admin_set_provider_config'));
     expect(write).toBeDefined();
     expect(write?.[5]).toBe('replace');
     expect(JSON.stringify(write)).not.toContain('sk-test-private-key-123456');
@@ -180,6 +191,8 @@ describe('ASA native AI Chat', () => {
     const queries: string[] = [];
     let persisted = false;
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
@@ -217,7 +230,7 @@ describe('ASA native AI Chat', () => {
           { status: 200, headers: { 'content-type': 'application/json' } },
         ),
     );
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
       fetchImpl,
     });
@@ -242,6 +255,8 @@ describe('ASA native AI Chat', () => {
   it('does not retry a rejected paid request and releases the thread lock', async () => {
     const queries: string[] = [];
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
@@ -256,7 +271,7 @@ describe('ASA native AI Chat', () => {
       async () =>
         new Response(JSON.stringify({ error: { message: 'Unauthorized' } }), { status: 401 }),
     );
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
       fetchImpl,
     });
@@ -271,6 +286,8 @@ describe('ASA native AI Chat', () => {
 
   it('does not call provider again when the same client request ID is replayed', async () => {
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: false }] };
       if (sql.includes('ai_text_messages_page')) {
@@ -291,7 +308,7 @@ describe('ASA native AI Chat', () => {
     const fetchImpl = vi.fn<typeof fetch>(async () => {
       throw new Error('A replay must never POST to provider');
     });
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
       fetchImpl,
     });
@@ -304,6 +321,8 @@ describe('ASA native AI Chat', () => {
   it('persists interrupted streamed text before releasing its active SQL request', async () => {
     const calls: Array<{ sql: string; params: unknown[] }> = [];
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       calls.push({ sql, params });
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
@@ -318,7 +337,7 @@ describe('ASA native AI Chat', () => {
           headers: { 'content-type': 'text/event-stream' },
         }),
     );
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
       fetchImpl,
     });
@@ -345,6 +364,8 @@ describe('ASA native AI Chat', () => {
       let answer: Record<string, unknown> | null = null;
       const calls: Array<{ sql: string; params: unknown[] }> = [];
       const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+        const journal = aiUsageQueryFixture(sql);
+        if (journal) return journal;
         calls.push({ sql, params });
         if (sql.includes('ai_runtime_config')) {
           return {
@@ -402,7 +423,7 @@ describe('ASA native AI Chat', () => {
             ),
           ),
       );
-      const service = new AiChatService({ query } as unknown as pg.Pool, {
+      const service = new AiChatService(prePolzaPool(query), {
         encryptionKey: ROOT,
         fetchImpl,
       });
@@ -437,6 +458,8 @@ describe('ASA native AI Chat', () => {
 
   it('uses the same digital-laboratory instruction for JSON and streaming requests', async () => {
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
       if (sql.includes('ai_text_generation_context'))
@@ -452,7 +475,7 @@ describe('ASA native AI Chat', () => {
           )
         : new Response(JSON.stringify({ status: 'completed', output_text: 'Ответ' }));
     });
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
       fetchImpl,
     });
@@ -478,6 +501,8 @@ describe('ASA native AI Chat', () => {
     const thread = 'bcdefabc-defa-4bcd-9bcd-bcdefabcdefa';
     const request = 'cdefabcd-efab-4cde-acde-cdefabcdefab';
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
       if (sql.includes('ai_text_generation_context'))
@@ -487,7 +512,7 @@ describe('ASA native AI Chat', () => {
     const fetchImpl = vi.fn<typeof fetch>(
       async () => new Response('event: response.output_text.delta\ndata: {"delta":"Часть"}\n\n'),
     );
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
       fetchImpl,
     });
@@ -527,7 +552,7 @@ describe('ASA native AI Chat', () => {
       cursor_at: `2026-10-19T10:00:00.123${String(index).padStart(3, '0')}Z`,
     }));
     const query = vi.fn(async () => ({ rows }));
-    const service = new AiChatService({ query } as unknown as pg.Pool);
+    const service = new AiChatService(prePolzaPool(query));
     const threads = await service.threadPage(PRINCIPAL);
     expect(threads.items).toHaveLength(50);
     expect(threads.items.at(-1)?.updatedAt).toBe('2026-10-19T10:00:00.123Z');
@@ -606,6 +631,8 @@ describe('ASA native AI Chat', () => {
 
   it('explicit admin connection test verifies one response without enabling chat or storing a thread', async () => {
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_admin_get_config'))
         return {
           rows: [
@@ -635,7 +662,7 @@ describe('ASA native AI Chat', () => {
             'event: response.completed\ndata: {"type":"response.completed"}\n\n',
         ),
     );
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: ROOT,
       fetchImpl,
     });
@@ -674,7 +701,7 @@ describe('ASA native AI Chat', () => {
         : { rows: [secureRuntime()] },
     );
     const fetchImpl = vi.fn<typeof fetch>();
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: 'ab'.repeat(32),
       fetchImpl,
     });

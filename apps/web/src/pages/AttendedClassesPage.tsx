@@ -1,3 +1,6 @@
+import { EssayResponseEditor } from '../components/EssayResponseEditor';
+import { FileResponseEditor } from '../components/FileResponseEditor';
+import { QuizResponsePlayer } from '../components/QuizResponsePlayer';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
@@ -50,9 +53,17 @@ export function AttendedClassesPage({
   const [notice, setNotice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [participantSeatId, setParticipantSeatId] = useState<string | null>(null);
+  const fileGuard = useRef<(() => boolean) | null>(null);
+  const registerFileGuard = (_id: string, guard: (() => boolean) | null) => {
+    fileGuard.current = guard;
+  };
+  function openAssignment(id: string | null) {
+    if (id === openId || fileGuard.current?.() === false) return;
+    setOpenId(id);
+  }
   const destination = useLearningDestination();
   useEffect(() => {
-    if (destination.assignment) setOpenId(destination.assignment);
+    if (destination.assignment) openAssignment(destination.assignment);
   }, [destination.assignment]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const time = useSchoolTime();
@@ -282,8 +293,13 @@ export function AttendedClassesPage({
                 className={openId === assignment.id ? 'is-open' : undefined}
                 onClick={(event) => {
                   const target = event.target as HTMLElement;
-                  if (target.closest('button, a')) return;
-                  setOpenId(openId === assignment.id ? null : assignment.id);
+                  if (
+                    target.closest(
+                      'button, a, input, label, textarea, .essay-response, .file-response, .quiz-player',
+                    )
+                  )
+                    return;
+                  openAssignment(openId === assignment.id ? null : assignment.id);
                 }}
               >
                 {assignment.sampleImage ? (
@@ -301,7 +317,7 @@ export function AttendedClassesPage({
                     type="button"
                     className="seat-assignment-open"
                     aria-expanded={openId === assignment.id}
-                    onClick={() => setOpenId(openId === assignment.id ? null : assignment.id)}
+                    onClick={() => openAssignment(openId === assignment.id ? null : assignment.id)}
                   >
                     {assignment.title}
                   </button>
@@ -350,6 +366,33 @@ export function AttendedClassesPage({
                           ) : null
                         }
                       />
+                      {assignment.activityKind === 'essay' &&
+                      assignment.activityRunId &&
+                      assignment.activityVersionId ? (
+                        <EssayResponseEditor
+                          key={assignment.activityRunId}
+                          activityRunId={assignment.activityRunId}
+                          activityVersionId={assignment.activityVersionId}
+                          onChanged={load}
+                          onRegisterLeaveGuard={registerFileGuard}
+                        />
+                      ) : null}
+                      {assignment.activityKind === 'file' && assignment.activityRunId ? (
+                        <FileResponseEditor
+                          activityRunId={assignment.activityRunId}
+                          onChanged={load}
+                          onRegisterLeaveGuard={registerFileGuard}
+                        />
+                      ) : null}
+                      {assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                        <QuizResponsePlayer
+                          key={assignment.activityRunId}
+                          activityRunId={assignment.activityRunId}
+                          renderedTaskBlocks={assignment.blocks ?? null}
+                          onChanged={load}
+                          onRegisterLeaveGuard={registerFileGuard}
+                        />
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -398,6 +441,29 @@ export function AttendedClassesPage({
                             : 'Сдать'}
                       </button>
                     </>
+                  ) : assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                    openId !== assignment.id ? (
+                      <button
+                        type="button"
+                        className="portal-create-button"
+                        onClick={() => openAssignment(assignment.id)}
+                      >
+                        Открыть тест
+                      </button>
+                    ) : null
+                  ) : (assignment.activityKind === 'file' || assignment.activityKind === 'essay') &&
+                    assignment.activityRunId ? (
+                    openId !== assignment.id ? (
+                      <button
+                        type="button"
+                        className="portal-create-button"
+                        onClick={() => openAssignment(assignment.id)}
+                      >
+                        {assignment.activityKind === 'essay'
+                          ? 'Открыть письменный ответ'
+                          : 'Открыть файловый ответ'}
+                      </button>
+                    ) : null
                   ) : assignment.activityRunId ? (
                     <button
                       type="button"

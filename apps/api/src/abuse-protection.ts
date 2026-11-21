@@ -15,6 +15,14 @@ const PER_ADDRESS = 900;
 const PER_SESSION = 600;
 // A hard per-address aggregate ceiling, independent of the number of pupils.
 const SHARED_ADDRESS_CEILING = 15 * PER_SESSION;
+// Classroom sign-in is anonymous even behind a school's shared NAT. Preserve a
+// bounded, route-specific budget so unrelated classroom writes cannot starve QR
+// and manual admission. These are registered server routes, not client URLs.
+const CLASS_JOIN_ADMISSION_ROUTES = new Set([
+  'POST /api/class-join/resolve',
+  'POST /api/class-join/studentseat',
+]);
+const CLASS_JOIN_PER_ADDRESS = 600;
 
 // Match Fastify's registered route, never a client URL, prefix or header. The
 // limiter proves only an existing session for these AI mutations; it must not
@@ -31,7 +39,13 @@ const AI_MUTATION_ROUTES = new Set([
   'POST /api/ai/threads/:threadId/regenerations/stream',
   'PUT /api/ai/classrooms/:classroomId/access',
   'PUT /api/admin/v1/ai',
+  'PUT /api/admin/v1/ai/web-search',
+  'PUT /api/admin/v1/ai/generation-policy',
+  'PUT /api/admin/v1/ai/tool-policy',
   'POST /api/admin/v1/ai/test',
+  'POST /api/ai/stt/transcribe',
+  'PUT /api/admin/v1/ai/polza',
+  'POST /api/admin/v1/ai/polza/check',
   'POST /api/ai/attachments',
   'PUT /api/ai/attachments/:uploadId/bytes',
   'DELETE /api/ai/attachments/:uploadId',
@@ -95,6 +109,11 @@ export class MutationAbuseProtection {
   private readonly key = randomBytes(32);
   private readonly sharedAddress = new FixedWindowRateLimiter({
     limit: SHARED_ADDRESS_CEILING,
+    windowMs: WINDOW_MS,
+    maxKeys: 5000,
+  });
+  private readonly classJoinByAddress = new FixedWindowRateLimiter({
+    limit: CLASS_JOIN_PER_ADDRESS,
     windowMs: WINDOW_MS,
     maxKeys: 5000,
   });
@@ -213,6 +232,12 @@ export class MutationAbuseProtection {
     if (!aggregate.allowed) {
       requestMutationAdmission.set(request, { blockedBudget: 'shared_address' });
       return aggregate;
+    }
+    if (CLASS_JOIN_ADMISSION_ROUTES.has(`${request.method} ${request.routeOptions?.url}`)) {
+      const admission = this.classJoinByAddress.consume(source);
+      if (!admission.allowed)
+        requestMutationAdmission.set(request, { blockedBudget: 'class_join_address' });
+      return admission;
     }
     const address = this.byAddress.consume(source);
     if (address.allowed) return address;

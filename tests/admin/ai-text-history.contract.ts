@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { publishFixtureModels, fixtureGenerationSql } from './ai-model-policy.fixture';
+import { randomUUID, createCipheriv } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { AiAccessService } from '../../apps/api/src/ai-access.service';
@@ -7,7 +8,7 @@ import { aiClassFixture, aiIdentity } from './ai-student-access.contract';
 
 const ROOT = '4b'.repeat(32);
 
-export async function aiTextFixture(admin: pg.Pool, runtime: pg.Pool) {
+export async function aiTextFixture(admin: pg.Pool, runtime: pg.Pool, historical = false) {
   const owner = await aiIdentity(admin),
     stranger = await aiIdentity(admin),
     platform = await aiIdentity(admin);
@@ -25,17 +26,41 @@ export async function aiTextFixture(admin: pg.Pool, runtime: pg.Pool) {
       : new Response(JSON.stringify({ status: 'completed', output_text: 'Первый ответ' }));
   });
   const service = new AiChatService(runtime, { encryptionKey: ROOT, fetchImpl: upstream });
-  await service.saveAdminConfig(
-    platform.principal_id,
-    {
-      enabled: true,
-      provider: 'openai',
-      model: 'gpt-5-mini',
-      apiKey: 'sk-text-tests-only-0000000',
-      paidOperationsPerHour: 10000,
-    },
-    randomUUID(),
-  );
+  if (historical) {
+    // Deliberate pre-0229 seed: use its schema, never today's configuration API.
+    const iv = Buffer.alloc(12, 7),
+      cipher = createCipheriv('aes-256-gcm', Buffer.from(ROOT, 'hex'), iv);
+    const ciphertext = Buffer.concat([
+      cipher.update('sk-text-tests-only-0000000', 'utf8'),
+      cipher.final(),
+    ]).toString('base64url');
+    const parameters = [
+      ciphertext,
+      iv.toString('base64url'),
+      cipher.getAuthTag().toString('base64url'),
+    ];
+    await admin.query(
+      "UPDATE ai_assistant_config SET enabled=true,provider='openai',model='gpt-5-mini',api_key_ciphertext=$1,api_key_iv=$2,api_key_auth_tag=$3,key_fingerprint='historical',paid_operations_per_hour=10000",
+      parameters,
+    );
+    await admin.query(
+      "UPDATE ai_provider_settings SET model='gpt-5-mini',api_key_ciphertext=$1,api_key_iv=$2,api_key_auth_tag=$3,key_fingerprint='historical' WHERE provider='openai'",
+      parameters,
+    );
+  } else {
+    await service.saveAdminConfig(
+      platform.principal_id,
+      {
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        apiKey: 'sk-text-tests-only-0000000',
+        paidOperationsPerHour: 10000,
+      },
+      randomUUID(),
+    );
+    await publishFixtureModels(service, platform.principal_id, ['gpt-5-mini']);
+  }
   const thread = await service.createThread(owner.principal_id);
   const version = async () =>
     Number(
@@ -115,6 +140,105 @@ export function aiTextHistoryContract(database: () => { admin: pg.Pool; runtime:
   };
 
   describe('0228 full owner history and immutable answer variants', () => {
+    it('stores and replays a complete long code file, preserves it in follow-up context, and extends only its owned admission', async () => {
+      const { admin, runtime } = database();
+      const f = await aiTextFixture(admin, runtime);
+      const code =
+        '<!doctype html>\n<script>\n' + 'const step = () => {};\n'.repeat(600) + '</script>';
+      f.upstream.mockImplementation(async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        return body.stream
+          ? new Response(
+              'event: response.output_text.delta\ndata: ' +
+                JSON.stringify({ delta: code }) +
+                '\n\nevent: response.completed\ndata: {"type":"response.completed"}\n\n',
+            )
+          : new Response(JSON.stringify({ status: 'completed', output_text: code }));
+      });
+      const request = randomUUID();
+      await f.service.send(
+        f.owner.principal_id,
+        f.thread.id,
+        'Сделай игру одним HTML-файлом',
+        request,
+      );
+      expect((await f.service.messages(f.owner.principal_id, f.thread.id)).at(-1)).toMatchObject({
+        content: code,
+        state: 'complete',
+      });
+      const calls = f.upstream.mock.calls.length;
+      expect(
+        (
+          await f.service.send(
+            f.owner.principal_id,
+            f.thread.id,
+            'Сделай игру одним HTML-файлом',
+            request,
+          )
+        ).replayed,
+      ).toBe(true);
+      expect(f.upstream).toHaveBeenCalledTimes(calls);
+      await f.service.send(f.owner.principal_id, f.thread.id, 'Поменяй цвет змейки', randomUUID());
+      const latest = JSON.parse(String(f.upstream.mock.calls.at(-1)?.[1]?.body));
+      expect(
+        latest.input.some(
+          (item: { role: string; content: string }) =>
+            item.role === 'assistant' && item.content === code,
+        ),
+      ).toBe(true);
+      const admitted = randomUUID();
+      await runtime.query(fixtureGenerationSql, [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+        'Ещё вопрос',
+        await f.version(),
+      ]);
+      await expect(
+        runtime.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+          f.stranger.principal_id,
+          f.thread.id,
+          admitted,
+        ]),
+      ).rejects.toThrow('AI_THREAD_DENIED');
+      await runtime.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+      ]);
+      const seconds = Number(
+        (
+          await admin.query(
+            'SELECT EXTRACT(EPOCH FROM busy_until-clock_timestamp()) AS remaining FROM ai_assistant_threads WHERE id=$1',
+            [f.thread.id],
+          )
+        ).rows[0]!.remaining,
+      );
+      expect(seconds).toBeGreaterThan(320);
+      expect(seconds).toBeLessThanOrEqual(330);
+      // An explicitly local Ollama request can use the longer #790 Qwen lease.
+      await runtime.query('SELECT ai_chat_generation_lease($1,$2,$3,true)', [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+      ]);
+      const localSeconds = Number(
+        (
+          await admin.query(
+            'SELECT EXTRACT(EPOCH FROM busy_until-clock_timestamp()) AS remaining FROM ai_assistant_threads WHERE id=$1',
+            [f.thread.id],
+          )
+        ).rows[0]!.remaining,
+      );
+      expect(localSeconds).toBeGreaterThan(1820);
+      expect(localSeconds).toBeLessThanOrEqual(1830);
+      await runtime.query('SELECT ai_chat_abort($1,$2,$3)', [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+      ]);
+    });
+
     it('searches all old messages and literal title text, beyond the latest history page, without crossing owners', async () => {
       const f = await fixture();
       await f.service.renameThread(f.owner.principal_id, f.thread.id, 'Схема проекта');
@@ -214,13 +338,10 @@ export function aiTextHistoryContract(database: () => { admin: pg.Pool; runtime:
       const f = await fixture(),
         question = await f.seedQuestion('Исходный вопрос'),
         request = randomUUID();
-      await f.runtime.query('SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5)', [
-        f.owner.principal_id,
-        f.thread.id,
-        request,
-        question.sourceId,
-        await f.version(),
-      ]);
+      await f.runtime.query(
+        "SELECT ai_generation_begin($1,$2,$3,jsonb_build_object('text','','model','gpt-5-mini','source',$4::text,'uploads','[]'::jsonb,'webSearchMode',NULL,'weatherCity',NULL),'gpt-5-mini',(ai_generation_policy_runtime()->>'revision')::bigint,$5)",
+        [f.owner.principal_id, f.thread.id, request, question.sourceId, await f.version()],
+      );
       await expect(
         f.service.archiveThread(f.owner.principal_id, f.thread.id, true),
       ).rejects.toMatchObject({ code: 'ai_thread_busy' });
@@ -408,9 +529,27 @@ export function aiTextHistoryContract(database: () => { admin: pg.Pool; runtime:
       const f = await fixture(),
         question = await f.seedQuestion('Неизменяемый источник'),
         request = randomUUID();
+      await f.runtime.query(fixtureGenerationSql, [
+        f.owner.principal_id,
+        f.thread.id,
+        request,
+        'Импортированный вопрос',
+        await f.version(),
+      ]);
+      await f.runtime.query('SELECT ai_chat_abort($1,$2,$3)', [
+        f.owner.principal_id,
+        f.thread.id,
+        request,
+      ]);
+      // Simulate a legacy imported request without a modern receipt, after real paid admission.
       await f.admin.query(
-        'INSERT INTO ai_assistant_request_quota(account_id,owner_principal_id,request_id) VALUES($1,$2,$3)',
-        [f.owner.account_id, f.owner.principal_id, request],
+        'DELETE FROM ai_generation_receipts WHERE owner_principal_id=$1 AND request_id=$2',
+        [f.owner.principal_id, request],
+      );
+      const importedMessages = await f.service.requestMessages(
+        f.owner.principal_id,
+        f.thread.id,
+        request,
       );
       // Simulate a corrupt imported receipt using the isolated migration role.
       // Runtime callers have no INSERT or UPDATE privilege on this table.
@@ -429,7 +568,7 @@ export function aiTextHistoryContract(database: () => { admin: pg.Pool; runtime:
       expect(f.upstream).not.toHaveBeenCalled();
       expect(await f.ledgers()).toEqual(before);
       expect(await f.service.requestMessages(f.owner.principal_id, f.thread.id, request)).toEqual(
-        [],
+        importedMessages,
       );
     });
 

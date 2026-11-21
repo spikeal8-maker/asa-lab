@@ -1,0 +1,87 @@
+{
+  "use_default_settings": {
+    "engines": {
+      "keep_only": ["bing", "duckduckgo", "wikipedia", "bing images", "duckduckgo images"]
+    }
+  },
+  "general": {
+    "debug": false,
+    "instance_name": "ASA Lab Search",
+    "enable_metrics": false
+  },
+  "search": {
+    "safe_search": 2,
+    "default_lang": "ru-RU",
+    "autocomplete": "",
+    "favicon_resolver": "",
+    "formats": ["json"]
+  },
+  "server": {
+    "limiter": false,
+    "public_instance": false,
+    "image_proxy": false,
+    "method": "GET"
+  },
+  "outgoing": {
+    "request_timeout": 5.0,
+    "max_request_timeout": 8.0,
+    "pool_connections": 12
+  },
+  "engines": [
+    {
+      "name": "bing",
+      "disabled": false
+    },
+    {
+      "name": "duckduckgo",
+      "disabled": false
+    },
+    {
+      "name": "wikipedia",
+      "disabled": false
+    },
+    {
+      "name": "bing images",
+      "disabled": false
+    },
+    {
+      "name": "duckduckgo images",
+      "disabled": false
+    }
+  ],
+  "plugins": {
+    "searx.plugins.calculator.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.infinite_scroll.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.hash_plugin.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.self_info.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.unit_converter.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.ahmia_filter.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.hostnames.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.time_zone.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.oa_doi_rewrite.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.tor_check.SXNGPlugin": {
+      "active": false
+    },
+    "searx.plugins.tracker_url_remover.SXNGPlugin": {
+      "active": false
+    }
+  }
+}

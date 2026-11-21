@@ -1,0 +1,60 @@
+{
+  "source_candidate": "58b896f3acc1068659a47ae2ce10db32c28556dd",
+  "composition_candidate": "8080c1e4343e41be1ea13ab9eababc7c011df117",
+  "source_review": "APPROVE",
+  "composition_review": "APPROVE",
+  "integration": "REVIEWED_SOURCE_IN_MAIN_ANCESTRY",
+  "native": {
+    "author": {
+      "states": 432,
+      "actions": 2928,
+      "receipt_sha256": "2c1b9275044c6e2b582971c755575195bda32230e42f9595a391739f524cb8f2",
+      "receipt_bytes": 2671216
+    },
+    "independent": {
+      "states": 30,
+      "actions": 228,
+      "receipt_sha256": "a217c01f305fe39c21a19bfdbf3a2c2da2a53f5b5442c97f74b3cd8585900b82",
+      "receipt_bytes": 173838
+    }
+  },
+  "local_focused_gate": {
+    "conclusion": "FAIL",
+    "core_pass": 1421,
+    "core_fail": 2,
+    "reason": "Unchanged seven-segment-optical NPN1/4 tests exceeded5000ms; no assertion mismatch; Web/types/build not reached",
+    "nx_fresh": 1,
+    "full_pass_claim": false
+  },
+  "remote_scoped_run": 41356571160,
+  "remote_general_run": 41357921928,
+  "remote_scoped_result": {
+    "conclusion": "success",
+    "head_sha": "9238cdd66366ca304e47eb2de012572208030b5d",
+    "artifact_id": 13103876895,
+    "artifact_bytes": 7278319,
+    "tests": 9,
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "retry": 0,
+    "independent_actual_review": "ACTUAL_TARGET_PASS"
+  },
+  "remote_focused": {
+    "conclusion": "success",
+    "core_tests": 1423,
+    "core_files": 63,
+    "web_tests": 1180,
+    "web_files": 72,
+    "nx_fresh_tasks": 71,
+    "nx_cache": "Skipped",
+    "additional_classroom_adversarial_tests": 117
+  },
+  "remote_general_result": {
+    "run": 41357921928,
+    "sha": "8080c1e4343e41be1ea13ab9eababc7c011df117",
+    "conclusion": "success",
+    "jobs": 4
+  }
+}

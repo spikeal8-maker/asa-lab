@@ -26,6 +26,8 @@ export function aiAdminFixture(overrides: Partial<AiAdminConfig> = {}): AiAdminC
       catalog.providers.map((item) => ({
         provider: item.id,
         model: item.id === config.provider ? config.model : item.defaultModel,
+        enabled: item.id === config.provider && config.enabled,
+        revision: 1,
         apiKeyConfigured: item.id === config.provider && config.apiKeyConfigured,
         keyFingerprint: item.id === config.provider ? config.keyFingerprint : null,
         updatedAt: item.id === config.provider ? config.updatedAt : null,

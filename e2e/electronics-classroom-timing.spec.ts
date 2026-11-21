@@ -1988,12 +1988,127 @@ function classifyNativePng(png: PNG, references: NativeReferences) {
     },
   };
 }
+// A screenshot spans an interval, not one attributable worker response. Pixels
+// supply the phase; only same-run stable witnesses inside that interval qualify it.
+function qualifyNativeObservedPhase(
+  observedPhase: string,
+  beforeShot: Paint,
+  capture: Pick<Probe, 'epoch' | 'source' | 'paints' | 'errors' | 'observerErrors' | 'clicks'> & {
+    capturedAt: number;
+    frames: Array<
+      Pick<
+        Frame,
+        | 'at'
+        | 'status'
+        | 'solved'
+        | 'quality'
+        | 'source'
+        | 'loadedSource'
+        | 'workerId'
+        | 'generationId'
+        | 'requestedGenerationId'
+        | 'projectSessionId'
+        | 'components'
+        | 'd13Voltage'
+        | 'committedUs'
+        | 'requestedUs'
+        | 'continuationUs'
+      >
+    >;
+  },
+  expected: {
+    epoch: number;
+    source: string;
+    workerId: number;
+    generationId: number;
+    projectSessionId: string;
+  },
+  fixedGeometry: boolean,
+): 'HIGH' | 'LOW' | null {
+  if (observedPhase !== 'HIGH' && observedPhase !== 'LOW') return null;
+  const active = observedPhase === 'HIGH';
+  const sameRun =
+    capture.epoch === expected.epoch &&
+    capture.source === expected.source &&
+    Number.isFinite(capture.capturedAt) &&
+    capture.capturedAt >= beforeShot.at &&
+    capture.frames.length > 0 &&
+    capture.frames.every(
+      (frame) =>
+        frame.at >= beforeShot.at &&
+        frame.at <= capture.capturedAt &&
+        frame.status === 'ready' &&
+        frame.solved &&
+        frame.quality?.passed === true &&
+        frame.source === expected.source &&
+        frame.loadedSource === expected.source &&
+        frame.workerId === expected.workerId &&
+        frame.generationId === expected.generationId &&
+        frame.requestedGenerationId === expected.generationId &&
+        frame.projectSessionId === expected.projectSessionId &&
+        expected.projectSessionId.length > 0 &&
+        Number.isFinite(frame.committedUs) &&
+        frame.committedUs >= 0 &&
+        frame.committedUs === frame.requestedUs &&
+        frame.continuationUs === frame.committedUs,
+    ) &&
+    capture.errors.length === 0 &&
+    capture.observerErrors.length === 0 &&
+    capture.clicks.length === 0;
+  const coherentWitness = capture.paints.some(
+    (paint) =>
+      paint.at >= beforeShot.at &&
+      paint.at <= capture.capturedAt &&
+      paint.previousAt !== null &&
+      paint.previousAt >= beforeShot.at &&
+      paint.stable &&
+      paint.assetsReady &&
+      paint.ledLit === active &&
+      paint.lActive === active,
+  );
+  // Reuse the electrical LED/current and D13 phase contracts, from one ready
+  // receipt inside the capture interval. DOM agreement alone cannot prove it.
+  const electricalWitness = capture.frames.some((frame) => {
+    const led = frame.components?.find((component) => component.componentId === 'led0');
+    const uno = frame.components?.find((component) => component.componentId === 'uno');
+    const boardD13 = uno?.terminalVoltages?.d13;
+    const brightness = led?.brightness,
+      current = led?.current;
+    return (
+      typeof brightness === 'number' &&
+      Number.isFinite(brightness) &&
+      brightness >= 0 &&
+      brightness <= 100 &&
+      typeof current === 'number' &&
+      Number.isFinite(current) &&
+      (brightness > 0 ? current > 0.001 && current < 0.02 : Math.abs(current) < 0.000001) &&
+      brightness > 0 === active &&
+      typeof boardD13 === 'number' &&
+      Number.isFinite(boardD13) &&
+      boardD13 >= 2.5 === active &&
+      typeof frame.d13Voltage === 'number' &&
+      Number.isFinite(frame.d13Voltage) &&
+      frame.d13Voltage >= 2.5 === active
+    );
+  });
+  return fixedGeometry && sameRun && coherentWitness && electricalWitness ? observedPhase : null;
+}
 async function nativeSamples(page: Page, label: string, raw: Probe): Promise<string[]> {
   const findings: string[] = [];
   const basis = nativeAssetBasis(raw);
+  const initialFrame = raw.frames.find((frame) => frame.status === 'ready');
+  if (!initialFrame) throw new Error('native capture has no same-run identity');
+  const expected = {
+    epoch: raw.epoch,
+    source: raw.source,
+    workerId: initialFrame.workerId,
+    generationId: initialFrame.generationId,
+    projectSessionId: initialFrame.projectSessionId,
+  };
+  const observedPhases = new Set<'HIGH' | 'LOW'>();
   for (const active of [true, false]) {
-    let unambiguous = false;
-    for (let attempt = 0; attempt < 3 && !unambiguous; attempt++) {
+    let requestedObserved = false;
+    for (let attempt = 0; attempt < 3 && !requestedObserved; attempt++) {
       await page.waitForFunction(
         (active) => {
           const paint = (window as ProbeWindow).__classroomD13?.paints.at(-1);
@@ -2007,17 +2122,53 @@ async function nativeSamples(page: Page, label: string, raw: Probe): Promise<str
         active,
         { timeout: 5_000 },
       );
-      const beforeShot = await page.evaluate(() =>
-        (window as ProbeWindow).__classroomD13!.paints.at(-1)!,
-      );
+      const { beforeShot, frameOffset } = await page.evaluate(() => {
+        const probe = (window as ProbeWindow).__classroomD13!;
+        return { beforeShot: probe.paints.at(-1)!, frameOffset: probe.frames.length };
+      });
       const name = label + (active ? '-high-' : '-low-') + attempt;
       const path = resolve(artifactRoot, name + '.png');
       const bytes = await page.screenshot({ path });
-      const during = await page.evaluate(
-        (start) =>
-          (window as ProbeWindow).__classroomD13!.paints.filter((paint) => paint.at >= start),
-        beforeShot.at,
+      const capture = await page.evaluate(
+        ({ start, frameOffset }) => {
+          const probe = (window as ProbeWindow).__classroomD13!;
+          const capturedAt = performance.now();
+          return {
+            epoch: probe.epoch,
+            source: probe.source,
+            capturedAt,
+            // Browser receipts are encoded once; return only identity/quality/phase fields,
+            // never growing runtime event history through the screenshot trace.
+            frames: probe.frames
+              .slice(frameOffset)
+              .map((encoded) => JSON.parse(encoded) as Frame)
+              .filter((frame) => frame.at >= start && frame.at <= capturedAt)
+              .map((frame) => ({
+                at: frame.at,
+                status: frame.status,
+                solved: frame.solved,
+                quality: frame.quality,
+                source: frame.source,
+                loadedSource: frame.loadedSource,
+                workerId: frame.workerId,
+                generationId: frame.generationId,
+                requestedGenerationId: frame.requestedGenerationId,
+                projectSessionId: frame.projectSessionId,
+                components: frame.components,
+                d13Voltage: frame.d13Voltage,
+                committedUs: frame.committedUs,
+                requestedUs: frame.requestedUs,
+                continuationUs: frame.continuationUs,
+              })),
+            paints: probe.paints.filter((paint) => paint.at >= start && paint.at <= capturedAt),
+            errors: probe.errors.filter((error) => error.at >= start && error.at <= capturedAt),
+            observerErrors: probe.observerErrors,
+            clicks: probe.clicks.filter((click) => click.at >= start && click.at <= capturedAt),
+          };
+        },
+        { start: beforeShot.at, frameOffset },
       );
+      const during = capture.paints;
       const png = PNG.sync.read(bytes);
       const references = await nativeReferences(page, beforeShot, png.width, png.height, basis);
       const pixels = classifyNativePng(png, references);
@@ -2041,11 +2192,16 @@ async function nativeSamples(page: Page, label: string, raw: Probe): Promise<str
             );
           }),
         );
-      const coherentWitness = during.some(
-        (paint) =>
-          paint.stable && paint.assetsReady && paint.ledLit === active && paint.lActive === active,
+      const qualifiedObservedPhase = qualifyNativeObservedPhase(
+        pixels.observedPhase,
+        beforeShot,
+        capture,
+        expected,
+        fixedGeometry,
       );
-      unambiguous = fixedGeometry && coherentWitness && pixels.observedPhase === requestedPhase;
+      const unambiguous = qualifiedObservedPhase !== null;
+      if (qualifiedObservedPhase) observedPhases.add(qualifiedObservedPhase);
+      requestedObserved = qualifiedObservedPhase === requestedPhase;
       if (pixels.observedPhase === 'MISMATCH')
         findings.push(name + ': actual native PNG shows different body/L phases');
       persist(name + '-image', {
@@ -2056,18 +2212,25 @@ async function nativeSamples(page: Page, label: string, raw: Probe): Promise<str
         references,
         pixels,
         fixedGeometry,
-        coherentWitness,
+        capture,
+        captureIdentity: {
+          expected,
+          epoch: capture.epoch,
+          source: capture.source,
+          capturedAt: capture.capturedAt,
+        },
+        qualifiedObservedPhase,
+        requestedPhaseObserved: requestedObserved,
         unambiguousPhase: unambiguous,
         interpretation:
           'PNG pixels determine the observed phase; the requested phase and filename do not. Screenshot transport can span multiple phases.',
       });
       await test.info().attach(name + '-native', { path, contentType: 'image/png' });
     }
-    if (!unambiguous)
-      findings.push(
-        'native image never captured an unambiguous ' + (active ? 'HIGH' : 'LOW') + ' phase',
-      );
   }
+  for (const required of ['HIGH', 'LOW'] as const)
+    if (!observedPhases.has(required))
+      findings.push('native image never captured an unambiguous ' + required + ' phase');
   return findings;
 }
 function finish(info: TestInfo, findings: string[], extra: unknown = null): void {

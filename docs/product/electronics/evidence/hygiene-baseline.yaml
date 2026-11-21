@@ -14,12 +14,12 @@ checkpoint_policy:
 large_sources:
   - path: contexts/electronics/domain/arduino-circuit-scheduler.ts
     class: decomposition-candidate
-    reviewed_bytes: 71720
-    rationale: Canonical coupled-clock orchestration keeps continuation validation, producer eligibility, pre-event physics, simultaneous board updates and failure rollback in one ordered boundary. The retained preparation/runtime composition and bounded D13 amendments are reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md; future decomposition requires full-return, event-order and physical-quality parity rather than a size-only split.
+    reviewed_bytes: 82679
+    rationale: Canonical clock orchestration owns request validation, accepted continuations, peripheral and physical barrier order, quality-gated commit and fault isolation. Extract only a cohesive clock boundary after whole-return, event-order, suspension, rollback and physical-quality parity. The accepted source and its responsibility are recorded in evidence/robotics-tt-hygiene-1177.md.
   - path: contexts/electronics/domain/solver.ts
     class: decomposition-candidate
-    reviewed_bytes: 179752
-    rationale: Solver orchestration remains active but combines many physical/model responsibilities; decompose only under E-OPT-4 with parity/reference evidence.
+    reviewed_bytes: 215516
+    rationale: The shared solver owns topology admission, MNA device stamping and active modes, transient acceptance and electrical observations. Decomposition must follow numerical responsibilities under E-OPT-4 with stamp and observation parity, including transient, unsupported and failed cases. The accepted source and its responsibility are recorded in evidence/robotics-tt-hygiene-1177.md.
   - path: apps/web/src/electronics/workbench.css
     class: decomposition-candidate
     reviewed_bytes: 120669
@@ -34,8 +34,8 @@ large_sources:
     rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change. The prepared/ready/joint-commit acknowledgement, rollback and lifecycle cleanup boundary is reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md; retaining that atomic boundary does not discharge the existing decomposition debt.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
-    reviewed_bytes: 106392
-    rationale: Parsing, typed scopes, prepared instructions, resumable execution and peripheral dispatch remain one programme-state boundary. The earlier review in evidence/release-baseline-hygiene.md is preserved and the retained runtime responsibility/growth is reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md. Future extraction must preserve source/state validation, instruction timing, diagnostics and ordered events; the active legacy bridge and its retirement condition remain unchanged.
+    reviewed_bytes: 127658
+    rationale: Parsing, typed scopes, prepared instructions, resumable execution and peripheral dispatch remain one programme-state boundary. The accepted do-loop, increment/wait replay journal and private seeded-PRNG growth are reviewed in evidence/runtime-responsibility-20261026.md; the journal remains coupled to source/PC/typed-state validation and ordered effects, while the new helper owns only seed/recurrence arithmetic. Retain decomposition debt; future compiler or journal extraction requires exact old-state/event, JSON-resume, diagnostics, clock and budget parity. Earlier release-baseline and classroom-retained-source-responsibility-641 evidence is preserved; this bounded review does not reset unrelated hygiene checkpoints or change the active legacy bridge retirement condition.
   - path: apps/web/src/electronics/ArduinoCodePanel.tsx
     class: decomposition-candidate
     reviewed_bytes: 63884

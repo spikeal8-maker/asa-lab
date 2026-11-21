@@ -1,7 +1,26 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import {
+  ASSET_SCRIPT,
+  DIAGNOSTIC_CODES,
+  FAILURE_CATEGORIES,
+  FAILURE_CODES,
+} from '../apps/web/src/client-diagnostic-outbox';
+import { exceptionMatchesCode, validClientException } from '../apps/web/src/client-error-details';
+import { validRequestDetails } from '../apps/web/src/request-diagnostic-details';
 import { classId, fixture as classroomFixture } from './fixtures/classroom-owner';
 
+async function expectAiFeedback(page: Page): Promise<void> {
+  const message = /Доступ к ИИ сохранён/;
+  const ribbon = page.locator('.system-feedback-ribbon.system-feedback-success');
+  await expect(ribbon).toHaveCount(1);
+  await expect(ribbon).toBeVisible();
+  await expect(ribbon).toContainText(message);
+  const announcement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(announcement).toHaveCount(1);
+  await expect(announcement).toContainText(message);
+  await expect(page.locator('.classroom-ai-access').getByText(message)).toHaveCount(0);
+}
 const SEAT = '40000000-0000-4000-8000-000000000001';
 const ACCOUNT = '20000000-0000-4000-8000-000000000001';
 const WORKSPACE = '30000000-0000-4000-8000-000000000001';
@@ -134,6 +153,144 @@ async function chatFixture(page: Page, personal = false) {
     },
   };
 }
+
+// A malformed AI response emits independent, sanitized diagnostics telemetry.
+// Unknown events fall through to the fixture's strict unexpected-mutation guard.
+const diagnosticKeys = new Set([
+  'eventId',
+  'occurredAt',
+  'code',
+  'module',
+  'revision',
+  'instanceId',
+  'relatedRequestId',
+  'httpStatus',
+  'durationMs',
+  'phase',
+  'category',
+  'failureCode',
+  'script',
+  'line',
+  'column',
+  'exception',
+  'operation',
+  'method',
+  'clientAttemptId',
+  'failureKind',
+]);
+const diagnosticUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const diagnosticPhases = [
+  'startup',
+  'runtime',
+  'request',
+  'refresh',
+  'save',
+  'simulation',
+] as const;
+
+function validDiagnosticPayload(body: unknown, now = Date.now()): boolean {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+  const report = body as Record<string, unknown>;
+  return (
+    Object.keys(report).every((key) => diagnosticKeys.has(key)) &&
+    DIAGNOSTIC_CODES.includes(report.code as (typeof DIAGNOSTIC_CODES)[number]) &&
+    ['portal', 'scratch', 'electronics', 'auth'].includes(report.module as string) &&
+    typeof report.revision === 'string' &&
+    /^(?:[a-f0-9]{7,64}|unknown|development)$/.test(report.revision) &&
+    typeof report.eventId === 'string' &&
+    diagnosticUuid.test(report.eventId) &&
+    typeof report.occurredAt === 'number' &&
+    Number.isSafeInteger(report.occurredAt) &&
+    report.occurredAt <= now + 60_000 &&
+    report.occurredAt > now - 15 * 60_000 &&
+    validRequestDetails(report) &&
+    ['instanceId', 'relatedRequestId', 'clientAttemptId'].every(
+      (key) =>
+        report[key] === undefined ||
+        (typeof report[key] === 'string' && diagnosticUuid.test(report[key])),
+    ) &&
+    (report.httpStatus === undefined ||
+      (Number.isInteger(report.httpStatus) &&
+        (report.httpStatus as number) >= 100 &&
+        (report.httpStatus as number) <= 599)) &&
+    (report.durationMs === undefined ||
+      (Number.isInteger(report.durationMs) &&
+        (report.durationMs as number) >= 0 &&
+        (report.durationMs as number) <= 600_000)) &&
+    (report.phase === undefined ||
+      diagnosticPhases.includes(report.phase as (typeof diagnosticPhases)[number])) &&
+    (report.category === undefined ||
+      FAILURE_CATEGORIES.includes(report.category as (typeof FAILURE_CATEGORIES)[number])) &&
+    (report.failureCode === undefined ||
+      FAILURE_CODES.includes(report.failureCode as (typeof FAILURE_CODES)[number])) &&
+    (!['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+      report.failureCode as string,
+    ) ||
+      (report.code === 'autosave_failed' &&
+        report.module === 'scratch' &&
+        report.phase === 'save')) &&
+    (report.script === undefined ||
+      (typeof report.script === 'string' && ASSET_SCRIPT.test(report.script))) &&
+    (report.exception === undefined ||
+      (validClientException(report.exception) &&
+        exceptionMatchesCode(report.exception, report.code))) &&
+    ['line', 'column'].every(
+      (key) =>
+        report[key] === undefined ||
+        (Number.isInteger(report[key]) &&
+          (report[key] as number) > 0 &&
+          (report[key] as number) <= 10_000_000),
+    )
+  );
+}
+
+async function acknowledgeValidatedDiagnostics(page: Page) {
+  await page.route('**/api/diagnostics/client', async (route) => {
+    const request = route.request();
+    let body: unknown;
+    try {
+      body = request.postDataJSON();
+    } catch {
+      return route.fallback();
+    }
+    if (request.method() !== 'POST' || !validDiagnosticPayload(body)) return route.fallback();
+    return route.fulfill({ status: 202, json: { accepted: true } });
+  });
+}
+
+test('AI fixture rejects untrusted diagnostics rather than hiding product mutations', () => {
+  const base = {
+    eventId: randomUUID(),
+    occurredAt: Date.now(),
+    code: 'request_failed',
+    module: 'portal',
+    revision: 'development',
+    operation: 'other_api',
+    method: 'GET',
+    failureKind: 'http',
+    phase: 'request',
+    httpStatus: 500,
+  };
+  expect(validDiagnosticPayload(base)).toBe(true);
+  for (const invalid of [
+    { exception: { message: 'private student data' } },
+    { script: 'https://example.invalid/private-student-data.js' },
+    { httpStatus: 999 },
+    { durationMs: -1 },
+    { phase: 'invalid_phase' },
+    { category: 'private_student' },
+    { failureCode: 'unknown_code' },
+    { line: 0 },
+    { column: 10_000_001 },
+    { eventId: [base.eventId] },
+    { message: 'private student data' },
+    { relatedRequestId: 'invalid-id' },
+    { occurredAt: Date.now() + 120_000 },
+    { failureCode: 'scratch-save-draft' },
+  ]) {
+    expect(validDiagnosticPayload({ ...base, ...invalid })).toBe(false);
+  }
+});
 
 async function noOverflow(page: Page) {
   expect(
@@ -298,7 +455,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await access.getByRole('button', { name: 'Сохранить правило класса' }).click();
     await expect(access.getByRole('button', { name: 'Повторить сохранение' })).toBeVisible();
     await access.getByRole('button', { name: 'Повторить сохранение' }).click();
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toBeVisible();
+    await expectAiFeedback(page);
     expect(writes[1]).toEqual(writes[0]);
     await access.locator('summary').click();
     await access.getByLabel('Доступ для ' + name).selectOption('allow');
@@ -355,6 +512,7 @@ for (const invalid of ['generic fixture', 'non-JSON', 'invalid student'] as cons
     await page.setViewportSize({ width: 390, height: 900 });
     const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
     await page.unroute('**/*'); // Use the focused Vite server, keeping fixture API routes.
+    await acknowledgeValidatedDiagnostics(page);
     let valid = false;
     let reads = 0;
     const writes: string[] = [];
@@ -416,6 +574,7 @@ for (const invalid of ['wrong revision', 'non-JSON'] as const) {
     await page.setViewportSize({ width: 1440, height: 900 });
     const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
     await page.unroute('**/*'); // Use the focused Vite server, keeping fixture API routes.
+    await acknowledgeValidatedDiagnostics(page);
     let revision = 4;
     let mode = 'deny';
     let reads = 0;
@@ -448,7 +607,16 @@ for (const invalid of ['wrong revision', 'non-JSON'] as const) {
     await expect(access.getByRole('alert')).toContainText(
       'Не удалось подтвердить сохранение доступа к ИИ.',
     );
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-ribbon.system-feedback-success')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-announcement[role="status"]')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
     await expect(access.getByLabel('Правило класса')).toBeDisabled();
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({ kind: 'classroom', mode: 'allow', expectedRevision: 4 });
@@ -462,11 +630,20 @@ for (const invalid of ['wrong revision', 'non-JSON'] as const) {
     await expect.poll(() => reads).toBe(beforeRefresh + 1);
     await expect(access.getByRole('button', { name: 'Повторить сохранение' })).toBeEnabled();
     await expect(access.getByLabel('Правило класса')).toBeDisabled();
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-ribbon.system-feedback-success')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-announcement[role="status"]')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
     expect(writes).toHaveLength(1);
 
     await access.getByRole('button', { name: 'Повторить сохранение' }).click();
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toBeVisible();
+    await expectAiFeedback(page);
     await expect(access.getByLabel('Правило класса')).toBeEnabled();
     expect(writes).toHaveLength(2);
     expect(writes[1]).toEqual(writes[0]);

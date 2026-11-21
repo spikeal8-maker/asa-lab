@@ -35,59 +35,75 @@ function fixture(account: boolean, seat: boolean) {
   } as unknown as FastifyRequest;
   return { controller, request, analytics, accountContext, seatContext };
 }
-describe('Scratch uses authenticated ProductAnalytics endpoints', () => {
-  it.each(['account', 'student'] as const)(
-    'takes %s identity from cookies, never the client body',
-    async (kind) => {
-      const f = fixture(kind === 'account', kind === 'student');
-      const result = await f.controller.startModuleSession(f.request, {
-        sessionId: ID,
-        projectId: ID,
-        moduleKey: 'blocks',
-      });
-      expect(result).toEqual({ accepted: false, sessionId: ID });
-      expect(f.analytics.startModuleSession).toHaveBeenCalledWith(
-        expect.objectContaining({
+describe.each(['blocks', 'robotics'] as const)(
+  '%s uses authenticated ProductAnalytics endpoints',
+  (moduleKey) => {
+    it.each(['account', 'student'] as const)(
+      'takes %s identity from cookies, never the client body',
+      async (kind) => {
+        const f = fixture(kind === 'account', kind === 'student');
+        const result = await f.controller.startModuleSession(f.request, {
           sessionId: ID,
           projectId: ID,
-          moduleKey: 'blocks',
+          moduleKey,
+        });
+        expect(result).toEqual({ accepted: false, sessionId: ID });
+        expect(f.analytics.startModuleSession).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sessionId: ID,
+            projectId: ID,
+            moduleKey,
+            actor: { kind, context: kind === 'account' ? f.accountContext : f.seatContext },
+          }),
+        );
+        await f.controller.touchModuleSession(f.request, { sessionId: ID, closed: true });
+        expect(f.analytics.touchModuleSession).toHaveBeenCalledWith({
+          sessionId: ID,
+          closed: true,
           actor: { kind, context: kind === 'account' ? f.accountContext : f.seatContext },
-        }),
-      );
-      await f.controller.touchModuleSession(f.request, { sessionId: ID, closed: true });
-      expect(f.analytics.touchModuleSession).toHaveBeenCalledWith({
-        sessionId: ID,
-        closed: true,
-        actor: { kind, context: kind === 'account' ? f.accountContext : f.seatContext },
-      });
-      await expect(
-        f.controller.startModuleSession(f.request, {
-          sessionId: ID,
-          projectId: ID,
-          moduleKey: 'blocks',
-          actorId: 'foreign',
-        }),
-      ).rejects.toMatchObject({ status: 400 });
-    },
-  );
-  it('rejects simultaneous valid Account and Seat cookies and anonymous sessions', async () => {
-    for (const [account, seat, status] of [
-      [true, true, 409],
-      [false, false, 401],
-    ] as const) {
-      const f = fixture(account, seat);
-      await expect(
-        f.controller.startModuleSession(f.request, {
-          sessionId: ID,
-          projectId: ID,
-          moduleKey: 'blocks',
-        }),
-      ).rejects.toMatchObject({ status });
-      await expect(
-        f.controller.touchModuleSession(f.request, { sessionId: ID }),
-      ).rejects.toMatchObject({ status });
+        });
+        await expect(
+          f.controller.startModuleSession(f.request, {
+            sessionId: ID,
+            projectId: ID,
+            moduleKey,
+            actorId: 'foreign',
+          }),
+        ).rejects.toMatchObject({ status: 400 });
+      },
+    );
+    it('rejects simultaneous valid Account and Seat cookies and anonymous sessions', async () => {
+      for (const [account, seat, status] of [
+        [true, true, 409],
+        [false, false, 401],
+      ] as const) {
+        const f = fixture(account, seat);
+        await expect(
+          f.controller.startModuleSession(f.request, {
+            sessionId: ID,
+            projectId: ID,
+            moduleKey,
+          }),
+        ).rejects.toMatchObject({ status });
+        await expect(
+          f.controller.touchModuleSession(f.request, { sessionId: ID }),
+        ).rejects.toMatchObject({ status });
+        expect(f.analytics.startModuleSession).not.toHaveBeenCalled();
+        expect(f.analytics.touchModuleSession).not.toHaveBeenCalled();
+      }
+    });
+    it('still rejects unimplemented or unknown module keys', async () => {
+      const f = fixture(true, false);
+      for (const denied of ['drawing', 'unknown-module']) {
+        await expect(
+          f.controller.startModuleSession(f.request, {
+            sessionId: ID,
+            projectId: ID,
+            moduleKey: denied,
+          }),
+        ).rejects.toMatchObject({ status: 400 });
+      }
       expect(f.analytics.startModuleSession).not.toHaveBeenCalled();
-      expect(f.analytics.touchModuleSession).not.toHaveBeenCalled();
-    }
-  });
-});
+    });
+  },
+);

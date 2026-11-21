@@ -27,7 +27,12 @@ describe('owner SVG runtime catalog adapter', () => {
 
     for (const item of productionCatalog()) {
       expect(item.catalogStatus, item.key).toBe('enabled');
-      expect(['owner_supplied', 'exact_owner_svg'], item.key).toContain(item.provenance);
+      expect(
+        item.key === 'switch-spst'
+          ? ['owner_authorized_runtime_geometry']
+          : ['owner_supplied', 'exact_owner_svg'],
+        item.key,
+      ).toContain(item.provenance);
       expect(item.sourceOwnerPath, item.key).not.toBe('');
       expect(item.sourceSha256, item.key).toMatch(/^[0-9a-f]{64}$/);
       expect(item.runtimePath, item.key).toMatch(

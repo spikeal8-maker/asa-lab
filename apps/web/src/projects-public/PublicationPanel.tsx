@@ -13,18 +13,20 @@ import './public-projects.css';
 
 export function PublicationPanel({
   projectId,
+  moduleKey,
   metadata,
   disabled,
   onBusyChange,
 }: {
   readonly projectId: string;
+  readonly moduleKey?: string;
   readonly metadata: PublicationMetadata;
   readonly disabled: boolean;
   readonly onBusyChange: (busy: boolean) => void;
 }): JSX.Element {
   const [status, setStatus] = useState<ProjectPublicationStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<'publish' | 'revoke' | null>(null);
+  const [busy, setBusy] = useState<'publish' | 'revoke' | 'consent' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
@@ -71,36 +73,127 @@ export function PublicationPanel({
     onBusyChange(true);
     setError(null);
     setNotice(null);
-    const result =
-      operation === 'publish'
-        ? await publicProjectsApi.publish(projectId, metadata)
-        : await publicProjectsApi.revoke(projectId);
-    if (current !== request.current) return;
-    inFlight.current = false;
-    setBusy(null);
-    onBusyChange(false);
-    if (!result.ok) {
-      setError(
-        publicationError(
-          result,
-          operation === 'publish'
-            ? 'Не удалось подтвердить публикацию. Проверьте состояние и повторите.'
-            : 'Не удалось подтвердить снятие с публикации. Проверьте состояние и повторите.',
-        ),
+    try {
+      // Robotics publishes only its view. A previous generic consent must not
+      // survive an update merely because its checkbox is now hidden.
+      if (operation === 'publish' && moduleKey === 'robotics' && status?.acquisition?.allowed) {
+        const revision = status.publication?.revisionId;
+        if (!revision) {
+          setError('Не удалось проверить разрешение получения. Проверьте состояние публикации.');
+          return;
+        }
+        const consent = await publicProjectsApi.setAcquisition(
+          projectId,
+          false,
+          status.acquisition.version,
+          revision,
+        );
+        if (current !== request.current) return;
+        if (!consent.ok) {
+          setError(
+            publicationError(
+              consent,
+              'Не удалось закрыть получение проекта. Проверьте состояние и повторите.',
+            ),
+          );
+          return;
+        }
+        if (
+          consent.data?.acquisition?.allowed !== false ||
+          consent.data.publication?.revisionId !== revision
+        ) {
+          setError('Сервер не подтвердил закрытие получения. Проверьте состояние публикации.');
+          return;
+        }
+        setStatus(consent.data);
+      }
+      const result =
+        operation === 'publish'
+          ? await publicProjectsApi.publish(projectId, metadata)
+          : await publicProjectsApi.revoke(projectId);
+      if (current !== request.current) return;
+      if (!result.ok) {
+        setError(
+          publicationError(
+            result,
+            operation === 'publish'
+              ? 'Не удалось подтвердить публикацию. Проверьте состояние и повторите.'
+              : 'Не удалось подтвердить снятие с публикации. Проверьте состояние и повторите.',
+          ),
+        );
+        return;
+      }
+      if (!result.data || typeof result.data.canPublish !== 'boolean') {
+        setError('Ответ сервера не удалось прочитать. Проверьте состояние публикации.');
+        return;
+      }
+      setStatus(result.data);
+      setConfirmRevoke(false);
+      setNotice(
+        operation === 'publish'
+          ? 'Публикация сохранена. Её можно открыть в каталоге.'
+          : 'Публикация снята. Личный проект сохранён.',
       );
-      return;
+    } catch {
+      if (current === request.current)
+        setError('Не удалось подтвердить действие. Проверьте состояние публикации и повторите.');
+    } finally {
+      inFlight.current = false;
+      if (current === request.current) {
+        setBusy(null);
+        onBusyChange(false);
+      }
     }
-    if (!result.data || typeof result.data.canPublish !== 'boolean') {
-      setError('Ответ сервера не удалось прочитать. Проверьте состояние публикации.');
+  }
+
+  async function consent(allowed: boolean): Promise<void> {
+    if (
+      moduleKey === 'robotics' ||
+      inFlight.current ||
+      disabled ||
+      loading ||
+      !status?.publication ||
+      !status.acquisition
+    )
       return;
+    inFlight.current = true;
+    const current = ++request.current;
+    setBusy('consent');
+    onBusyChange(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await publicProjectsApi.setAcquisition(
+        projectId,
+        allowed,
+        status.acquisition.version,
+        status.publication.revisionId,
+      );
+      if (current !== request.current) return;
+      if (!result.ok) {
+        setError(
+          result.status === 409
+            ? 'Разрешение или публикация изменились. Проверьте состояние.'
+            : publicationError(result, 'Не удалось изменить разрешение.'),
+        );
+        return;
+      }
+      setStatus(result.data);
+      setNotice(
+        allowed
+          ? 'Получение разрешено автором. Общие ограничения платформы и класса продолжают действовать.'
+          : 'Получение новых копий запрещено.',
+      );
+    } catch {
+      if (current === request.current)
+        setError('Не удалось подтвердить разрешение. Проверьте состояние.');
+    } finally {
+      inFlight.current = false;
+      if (current === request.current) {
+        setBusy(null);
+        onBusyChange(false);
+      }
     }
-    setStatus(result.data);
-    setConfirmRevoke(false);
-    setNotice(
-      operation === 'publish'
-        ? 'Публикация сохранена. Её можно открыть в каталоге.'
-        : 'Публикация снята. Личный проект сохранён.',
-    );
   }
 
   const publication = status?.publication;
@@ -149,7 +242,10 @@ export function PublicationPanel({
           <p className="publication-help">
             Название, описание, теги и лицензия из этой формы попадут в публикацию вместе с
             сохранённой версией проекта. Изменения в редакторе станут публичными только после
-            обновления публикации.
+            обновления публикации.{' '}
+            {moduleKey === 'robotics'
+              ? 'В публичном просмотре будут доступны сохранённое поле и конструкция робота.'
+              : 'Если есть программа Arduino, она также станет доступна для просмотра и запуска.'}
           </p>
           {status.moderationReason ? (
             <p
@@ -166,6 +262,23 @@ export function PublicationPanel({
             <p className="publication-permission" data-testid="publication-permission">
               {reason}
             </p>
+          ) : null}
+          {moduleKey !== 'robotics' && publication && status.acquisition ? (
+            <label className="publication-permission">
+              <input
+                type="checkbox"
+                checked={status.acquisition.allowed}
+                disabled={blocked}
+                onChange={(event) => void consent(event.currentTarget.checked)}
+              />
+              Разрешить получение проекта
+              <small>
+                {' '}
+                Для поддерживаемых типов и лицензий другие пользователи смогут добавить
+                опубликованную версию в свои проекты с разрешения платформы и класса. Личный
+                черновик останется приватным.
+              </small>
+            </label>
           ) : null}
           <div className="publication-panel-actions">
             <button

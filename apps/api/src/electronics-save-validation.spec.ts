@@ -81,6 +81,11 @@ describe('Electronics parser, provider, Project Core and API validation reasons'
     return { controller, request, write, draft: () => draft };
   }
   it.each([
+    [
+      { ...EMPTY_DOCUMENT, schemaVersion: 5, annotations: [{ text: 'private-student-data' }] },
+      'electronics_annotations',
+    ],
+    [{ ...EMPTY_DOCUMENT, annotations: [] }, 'electronics_annotation_version'],
     [{ ...EMPTY_DOCUMENT, schemaVersion: 99 }, 'electronics_schema_version'],
     [dangling, 'electronics_hole_binding_reference'],
     [{ ...EMPTY_DOCUMENT, components: 'private-student-data' }, 'electronics_document_arrays'],

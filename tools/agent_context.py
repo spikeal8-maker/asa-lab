@@ -480,6 +480,7 @@ def build_context(
     lane: dict[str, Any],
     *,
     git_status: dict[str, Any] | None = None,
+    registry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     task = lane.get("task")
     if not isinstance(task, dict):
@@ -529,7 +530,7 @@ def build_context(
             card = f"docs/product/visual-programming/tasks/{task_id}.md"
             if (root / card).is_file():
                 docs.append(card)
-    registry = load_registry(root)
+    registry = registry if registry is not None else load_registry(root)
     lane_id = str(lane.get("id") or "")
     registry_routes = _registry_routes(registry, lane_id, task)
     delegated_roots = _delegated_roots_for_lane(registry, lane_id)
@@ -1017,11 +1018,17 @@ def validate_all(root: Path, document: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     try:
         lanes = collect_lanes(document)
+        # Share a coherent snapshot only within this validation invocation.
+        # Standalone builders and subsequent validations still read fresh state.
+        git_status = _git_status(root)
+        registry = load_registry(root)
     except ValueError as exc:
         return [str(exc)]
     for lane in lanes:
         try:
-            context = build_context(root, document, lane)
+            context = build_context(
+                root, document, lane, git_status=git_status, registry=registry
+            )
             rendered = render_text(context)
         except ValueError as exc:
             errors.append(str(exc))

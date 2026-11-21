@@ -585,7 +585,9 @@ export function httpContract(clients: () => Clients, fixture: ReturnType<typeof 
           mutationId: randomUUID(),
         },
       });
-      await waitForLock('WITH updated AS');
+      // Prepared saves prepend current_access before the UPDATE CTE. Observe the
+      // real blocked draft mutation, independent of that context prefix.
+      await waitForLock('UPDATE project_drafts d');
       revoke = clients().runtime.query(
         `SELECT classroom_games_policy_write($1,$2,$3,NULL,'class',$4::jsonb) data`,
         [

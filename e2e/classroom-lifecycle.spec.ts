@@ -19,6 +19,17 @@ const evidenceDir = 'e2e/artifacts/classroom-lifecycle';
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
+async function expectSuccessFeedback(page: Page, message: string | RegExp): Promise<void> {
+  const ribbon = page
+    .locator('.system-feedback-ribbon.system-feedback-success')
+    .filter({ hasText: message });
+  await expect(ribbon).toHaveCount(1);
+  await expect(ribbon).toBeVisible();
+  const announcement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(announcement).toHaveCount(1);
+  await expect(announcement).toContainText(message);
+}
+
 async function openClassrooms(page: Page): Promise<void> {
   await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Мои классы' })).toBeVisible();
@@ -84,7 +95,7 @@ test('a teacher renames, sorts, archives, restores and removes classes', async (
   await properties.getByLabel('Возраст учеников').selectOption('11-12');
   await properties.getByLabel('Электроника').check();
   await properties.getByRole('button', { name: 'Сохранить' }).click();
-  await expect(page.getByText('Класс «Ботаника 5Г» обновлён.')).toBeVisible();
+  await expectSuccessFeedback(page, 'Класс «Ботаника 5Г» обновлён.');
   await expect(page.getByTestId('classroom-card').filter({ hasText: 'Ботаника 5Г' })).toBeVisible();
   await page.screenshot({ path: `${evidenceDir}/renamed.png`, fullPage: true });
 
@@ -103,7 +114,7 @@ test('a teacher renames, sorts, archives, restores and removes classes', async (
   await page.getByRole('button', { name: 'Действия с выбранными классами' }).click();
   await page.screenshot({ path: `${evidenceDir}/bulk-menu.png` });
   await page.getByRole('button', { name: 'Архивировать', exact: true }).click();
-  await expect(page.getByText('В архиве: 2.')).toBeVisible();
+  await expectSuccessFeedback(page, 'В архиве: 2.');
   expect(await titles(page)).toEqual(['Электроника 9Б']);
 
   /**
@@ -134,7 +145,7 @@ test('a teacher renames, sorts, archives, restores and removes classes', async (
 
   // And it comes back into service from its own page.
   await page.getByRole('button', { name: 'Вернуть из архива' }).click();
-  await expect(page.getByText(/Класс вернулся из архива/)).toBeVisible();
+  await expectSuccessFeedback(page, /Класс вернулся из архива/);
   await expect(page.getByRole('button', { name: 'Добавить ученика' })).toBeEnabled();
 
   await page.getByRole('button', { name: '← Мои классы' }).click();
@@ -152,7 +163,7 @@ test('a teacher renames, sorts, archives, restores and removes classes', async (
   const doomed = page.getByTestId('classroom-card').filter({ hasText: 'Электроника 9Б' });
   await doomed.getByRole('button', { name: 'Действия с классом Электроника 9Б' }).click();
   await page.getByRole('button', { name: 'Удалить', exact: true }).click();
-  await expect(page.getByText('Удалено: 1.')).toBeVisible();
+  await expectSuccessFeedback(page, 'Удалено: 1.');
   await expect(
     page.getByTestId('classroom-card').filter({ hasText: 'Электроника 9Б' }),
   ).toHaveCount(0);

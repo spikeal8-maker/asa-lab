@@ -1,0 +1,147 @@
+.crm-person-dashboard {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.crm-person-presence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 32px;
+  padding: 4px 0;
+}
+.crm-person-presence > div {
+  display: grid;
+  gap: 4px;
+}
+.crm-person-presence span,
+.crm-person-kpis dt {
+  color: #5c6e7a;
+  font-size: 12px;
+}
+.crm-person-presence strong {
+  font-size: 14px;
+}
+.crm-person-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.crm-person-kpis > div,
+.crm-person-chart,
+.crm-person-bottom > section {
+  padding: 12px;
+  border: 1px solid var(--border, #d5dfe7);
+  border-radius: 10px;
+  min-width: 0;
+  background: #fff;
+}
+.crm-person-kpis dd {
+  margin: 6px 0 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+.crm-person-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.crm-person-chart header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.crm-person-dashboard h4 {
+  font-size: 14px;
+  margin: 0;
+}
+.crm-person-chart svg {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  overflow: visible;
+}
+.crm-person-scale,
+.crm-person-dates {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #637782;
+  font-size: 12px;
+}
+.crm-person-scale {
+  margin-top: 6px;
+}
+.crm-person-dates {
+  margin-top: -8px;
+  padding-left: 7.4%;
+  padding-right: 3.2%;
+}
+.crm-person-grid {
+  stroke: #e1e8ee;
+}
+.crm-person-line {
+  fill: none;
+  stroke: #0877b3;
+  stroke-width: 2;
+}
+.crm-person-line-aiRequests {
+  stroke: #7b55bc;
+}
+.crm-person-chart circle {
+  fill: #0877b3;
+}
+.crm-person-chart circle:focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
+}
+.crm-person-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.crm-person-actions ol {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.crm-person-actions li span {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.crm-person-actions small {
+  display: block;
+  color: #637782;
+  margin-top: 3px;
+}
+.crm-person-rating > strong {
+  display: block;
+  font-size: 24px;
+  margin-top: 12px;
+}
+.crm-person-rating p,
+.crm-person-rating small,
+.crm-person-chart small,
+.crm-person-coverage {
+  font-size: 12px;
+  color: #637782;
+  overflow-wrap: anywhere;
+}
+.crm-person-coverage summary {
+  cursor: pointer;
+}
+.crm-person-state {
+  padding: 16px;
+}
+@media (max-width: 620px) {
+  .crm-person-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .crm-person-charts,
+  .crm-person-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

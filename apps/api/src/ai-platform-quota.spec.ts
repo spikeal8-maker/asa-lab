@@ -1,3 +1,4 @@
+import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { classifyProviderHttpFailure } from './ai-provider-errors';
 import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv } from 'node:crypto';
@@ -31,13 +32,15 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
   };
   const order: string[] = [];
   const query = vi.fn(async (...[sql]: [string, unknown[]?]) => {
+    const journal = aiUsageQueryFixture(sql);
+    if (journal) return journal;
     order.push(sql);
     if (sql.includes('ai_runtime_config') || sql.includes('ai_admin_get_config')) {
       return { rows: [config] };
     }
     if (sql.includes('ai_text_generation_context'))
       return { rows: [{ role: 'user', content: 'Hello' }] };
-    if (sql.includes('ai_admin_set_config')) {
+    if (sql.includes('ai_admin_set_provider_config')) {
       config.configuration_version += 1;
       return { rows: [{ ai_admin_set_config: config.configuration_version }] };
     }
@@ -289,7 +292,9 @@ describe('platform-wide paid operation admission at every upstream path', () => 
         },
         'settings',
       );
-      const write = f.query.mock.calls.find(([sql]) => sql.includes('ai_admin_set_config'));
+      const write = f.query.mock.calls.find(([sql]) =>
+        sql.includes('ai_admin_set_provider_config'),
+      );
       expect(write?.[1]?.[10]).toBe(limit);
       expect(f.fetchImpl).not.toHaveBeenCalled();
     },

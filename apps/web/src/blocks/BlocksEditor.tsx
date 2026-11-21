@@ -61,6 +61,7 @@ export function BlocksEditor({
   const [startupState, setStartupState] = useState<BlocksEditorStartupState>('loading');
   const [attempt, setAttempt] = useState(0);
   const diagnosticInstance = useMemo(() => newClientId(), [projectId, attempt]);
+  const runtimePath = `/internal/blocks/?asaStatus=parent&diagnosticInstance=${diagnosticInstance}`;
   useEffect(() => beginDiagnosticContext('scratch', diagnosticInstance), [diagnosticInstance]);
 
   onHomeClickRef.current = onHomeClick;
@@ -82,21 +83,21 @@ export function BlocksEditor({
       });
   }, []);
 
-  // Capture navigation during commit, but defer bootstrap until ancestor layout
-  // effects have established the identity/analytics binding. Keep one early
-  // completion for this exact frame; never forward it to a replacement frame.
+  // The iframe initially stays on about:blank. Observe its real navigation, but
+  // do not treat the initial blank document as a loaded Scratch runtime.
   useLayoutEffect(() => {
     const frame = iframeRef.current;
     if (!frame) return undefined;
     if (loadedFrameRef.current !== frame) loadedFrameRef.current = null;
     const onLoad = (): void => {
+      if (frame.getAttribute('src') !== runtimePath) return;
       loadedFrameRef.current = frame;
       const handler = frameLoadHandlerRef.current;
       if (handler?.frame === frame) handler.onLoad();
     };
     frame.addEventListener('load', onLoad);
     return () => frame.removeEventListener('load', onLoad);
-  }, [projectId, recoveryPrincipalKey, attempt, actorKey(telemetryActor)]);
+  }, [projectId, recoveryPrincipalKey, attempt, runtimePath, actorKey(telemetryActor)]);
 
   useEffect(() => {
     if (!runtimeOrigin) return undefined;
@@ -426,9 +427,15 @@ export function BlocksEditor({
 
     window.addEventListener('message', onMessage);
     frameLoadHandlerRef.current = { frame, onLoad };
-    // The message listener and current identity-bound tracker must exist before
-    // draining an early load. Retaining completion also supports effect replay.
-    if (loadedFrameRef.current === frame) onLoad();
+    // Start navigation only after both listeners and the identity-bound tracker
+    // exist. A cached iframe load during DOM insertion can precede even layout
+    // effects; neither an imperative nor a React load listener can recover it.
+    // StrictMode replay retains this same frame's completed navigation instead
+    // of reloading it or forwarding an old frame's completion to a replacement.
+    if (frame.getAttribute('src') !== runtimePath) {
+      loadedFrameRef.current = null;
+      frame.src = runtimePath;
+    } else if (loadedFrameRef.current === frame) onLoad();
     return () => {
       activity.dispose();
       disposed = true;
@@ -453,6 +460,7 @@ export function BlocksEditor({
     projectId,
     recoveryPrincipalKey,
     runtimeOrigin,
+    runtimePath,
     attempt,
     requestHomeExit,
     actorKey(telemetryActor),
@@ -484,7 +492,6 @@ export function BlocksEditor({
           key={`${projectId}:${recoveryPrincipalKey}:${actorKey(telemetryActor)}:${attempt}`}
           ref={iframeRef}
           title="Scratch runtime"
-          src={`/internal/blocks/?asaStatus=parent&diagnosticInstance=${diagnosticInstance}`}
         />
       </BlocksEditorShell>
       <div

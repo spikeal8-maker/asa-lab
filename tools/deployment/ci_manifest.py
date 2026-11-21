@@ -17,6 +17,6 @@ for service in SERVICES:
     inspected = json.loads(run(["docker", "buildx", "imagetools", "inspect", ref, "--format", "{{json .Manifest}}"], capture=True))
     images[service] = f"{REGISTRY}/{service}@{inspected['digest']}"
 schema = max(int(re.match(r"(\d+)_", p.name)[1]) for p in Path("migrations").glob("*.sql") if re.match(r"(\d+)_", p.name))
-manifest = {"format": "asa-deployment-v1", "repository": REPOSITORY, "revision": revision,
+manifest = {"format": "asa-deployment-v2", "repository": REPOSITORY, "revision": revision,
             "schema": schema, "platform": "linux/amd64", "publicationRunId": int(os.environ["GITHUB_RUN_ID"]), "images": images}
 atomic_json(Path(".asa/release/release.json"), validate_release(manifest))

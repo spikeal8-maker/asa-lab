@@ -15,6 +15,7 @@ components:
     - contexts/electronics/domain/simulation.ts
     tests:
     - contexts/electronics/testing/engine-public-api.spec.ts
+    - contexts/electronics/testing/engine-timed-api.spec.ts
     - contexts/electronics/testing/simulation-contract.spec.ts
     - contexts/electronics/testing/solver.spec.ts
     dependencies:
@@ -36,8 +37,10 @@ components:
     - docs/product/electronics/README.md#5-circuitdocument
     sources:
     - contexts/electronics/domain/document.ts
+    - contexts/electronics/domain/canvas-annotations.ts
     tests:
     - contexts/electronics/testing/simulation-contract.spec.ts
+    - contexts/electronics/testing/canvas-annotations.spec.ts
     - contexts/electronics/testing/simulation-input-digest.spec.ts
     dependencies: []
     symbols:
@@ -70,6 +73,9 @@ components:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/benchmark-corpus.spec.ts
     - contexts/electronics/testing/linear-system.spec.ts
+    - contexts/electronics/testing/diode-active-set-cutoff.spec.ts
+    - contexts/electronics/testing/mixed-servo-observation.spec.ts
+    - apps/web/src/electronics/testing/mixed-servo-observation.browser.mjs
     dependencies:
     - electronics.engine.netlist
     - electronics.engine.device-model
@@ -77,6 +83,7 @@ components:
     symbols:
     - solveCircuit
     - solveCircuitWithHeldArduino
+    - solveRcCircuitWithHeldArduino
     - compileCircuit
     - analyseCircuit
   electronics.engine.device-model:
@@ -98,6 +105,8 @@ components:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/linear-dc-models.spec.ts
     - contexts/electronics/testing/brushed-motor-profiles.spec.ts
+    - contexts/electronics/testing/seven-segment-diode-matrix.spec.ts
+    - contexts/electronics/testing/fixtures/seven-segment-diode-matrix.ts
     dependencies:
     - electronics.engine.document
     symbols:
@@ -128,16 +137,20 @@ components:
     ownership: asa
     risk: high
     contracts:
+    - docs/product/electronics/contracts/HOST_PACING_PAUSE_ADAPTER_V1.md#pause-boundary
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#5-e-opt-2--dedicated-electronics-worker
     - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md#ordinary-led-temporal-observation-v1
     sources:
     - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/simulation-pacing.ts
     - apps/web/src/electronics/load-simulation-worker-controller.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
     - apps/web/src/electronics/use-workbench-project-state.ts
     - apps/web/src/electronics/led-temporal-presentation.ts
     tests:
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - apps/web/src/electronics/testing/simulation-pacing.spec.ts
+    - apps/web/src/electronics/testing/simulation-speed.browser.mjs
     - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
     - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
     - e2e/electronics-simulation.spec.ts
@@ -166,6 +179,7 @@ components:
     - contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
     - contexts/electronics/testing/arduino-execution-clock.spec.ts
     - contexts/electronics/testing/led-temporal-observation.spec.ts
+    - contexts/electronics/testing/seven-segment-optical.spec.ts
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
     - contexts/electronics/testing/canonical-piezo-clock.spec.ts
     - apps/web/src/electronics/testing/simulation-worker-piezo.spec.ts

@@ -1,0 +1,8 @@
+{
+  "source_sha": "66146712f2ea9f099f5109b49153948a72b5a286",
+  "raw_sha256": "e72058d0e9d71e59a9e719356ad5b981d736dbf7fdee2037b92056116d164b24",
+  "raw_bytes": 10491,
+  "original_source": "test-results/independent-review-868-pausing/after/geometry.json",
+  "result": "REQUEST_CHANGES: pausing label leaves16.515625px tool strip at320",
+  "png": "Not available in reviewer output directory; exact raw preserved."
+}

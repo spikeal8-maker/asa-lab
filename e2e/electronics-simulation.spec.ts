@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
+import { observeActualIntersections } from '../tests/electronics/actual-intersections';
 import type { SchematicDocument } from '../apps/web/src/api';
 import {
   localProjectDraftFingerprint,
@@ -2801,6 +2802,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           ledgerHealthy();
         };
         let reopenedContext: import('@playwright/test').BrowserContext | undefined;
+        let reopenedFailureCollector: ReturnType<typeof collectBrowserFailures> | undefined;
         let cleanupError: unknown;
         const orientation: Array<{
           label: string;
@@ -3123,14 +3125,18 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                 return ledger.length;
               },
             );
-            await target.addInitScript((projectId) => {
+            const installInstrument525Observer = (projectId: string) => {
               const probe = window as unknown as {
+                instrument525ObserverProjectId?: string;
                 instrument525ObserverError: (error: string) => Promise<number>;
                 instrument525DispatchAck: (observation: unknown) => Promise<number>;
                 instrument525DispatchAcks: Promise<number>[];
                 instrument525NativeAck: (event: unknown) => Promise<number>;
                 instrument525NativeAcks: Promise<number>[];
               };
+              if (probe.instrument525ObserverProjectId === projectId) return;
+              if (probe.instrument525ObserverProjectId !== undefined)
+                throw new Error('Observer already installed for another project');
               probe.instrument525DispatchAcks = [];
               const descriptor = Object.getOwnPropertyDescriptor(window, 'fetch')!;
               if (!descriptor || typeof descriptor.value !== 'function')
@@ -3197,7 +3203,18 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                   },
                   { capture: true, passive: true },
                 );
-            }, projectId);
+              probe.instrument525ObserverProjectId = projectId;
+            };
+            await target.addInitScript(installInstrument525Observer, projectId);
+            await target.evaluate(installInstrument525Observer, projectId);
+            const observerReady = await target.evaluate(
+              (id) =>
+                (window as unknown as { instrument525ObserverProjectId?: string })
+                  .instrument525ObserverProjectId === id,
+              projectId,
+            );
+            acknowledge('public-observer-ready', { page: pageId, projectId, ready: observerReady });
+            expect(observerReady).toBe(true);
             // Passive Chromium protocol provenance plus the transparent public fetch snapshot above.
             // Neither observer accesses product callbacks or changes the native fetch result/dispatch order.
             const protocol = await target.context().newCDPSession(target);
@@ -4046,27 +4063,15 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               const supply = component(page, 'regulated-power-supply').getByTestId(
                 'regulated-power-supply-runtime',
               );
-              await supply.locator('.workbench-regulated-supply-power-slider').click();
-              await expect(supply).toHaveAttribute('data-output-enabled', 'false');
-              await expect(supply).toHaveAttribute('data-regulation-mode', 'off');
-              await expect(supply.locator('.workbench-regulated-supply-reading')).toHaveText([
-                '5.00 V',
-                '1.000 A',
-              ]);
-              await capture('bench-supply', rotation, 'output-disabled');
-              await supply.locator('.workbench-regulated-supply-power-slider').click();
-              await expect(supply).toHaveAttribute('data-output-enabled', 'true');
-              await focusInstrument('generator');
-              const generator = component(page, 'signal-generator').getByTestId(
-                'signal-generator-runtime',
-              );
-              const clickWaveform = async (waveform: 'triangle' | 'sine') => {
-                const control = generator.locator(`.workbench-signal-generator-${waveform}`);
+              const clickOwnedRect = async (
+                control: import('@playwright/test').Locator,
+                label: string,
+              ) => {
                 const ownedPoint = await control.evaluate((node) => {
                   if (!(node instanceof SVGRectElement) || !node.isConnected)
-                    throw new Error('Missing waveform RECT');
+                    throw new Error('Missing control RECT');
                   const matrix = node.getScreenCTM();
-                  if (!matrix) throw new Error('Missing waveform CTM');
+                  if (!matrix) throw new Error('Missing control CTM');
                   const candidates = [];
                   for (const fy of [0.5, 0.25, 0.75]) {
                     for (const fx of [0.5, 0.25, 0.75]) {
@@ -4091,11 +4096,34 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                     candidates,
                   };
                 });
-                checkpoint(`${waveform}-owned-candidates`, ownedPoint);
-                if (!ownedPoint.selected) throw new Error(`No owned ${waveform} native point`);
+                checkpoint(`${label}-owned-candidates`, ownedPoint);
+                if (!ownedPoint.selected) throw new Error(`No owned ${label} native point`);
                 await page.mouse.click(ownedPoint.selected.x, ownedPoint.selected.y);
               };
-              await clickWaveform('triangle');
+              await clickOwnedRect(
+                supply.locator('.workbench-regulated-supply-power-slider'),
+                'supply-power-slider',
+              );
+              await expect(supply).toHaveAttribute('data-output-enabled', 'false');
+              await expect(supply).toHaveAttribute('data-regulation-mode', 'off');
+              await expect(supply.locator('.workbench-regulated-supply-reading')).toHaveText([
+                '5.00 V',
+                '1.000 A',
+              ]);
+              await capture('bench-supply', rotation, 'output-disabled');
+              await clickOwnedRect(
+                supply.locator('.workbench-regulated-supply-power-slider'),
+                'supply-power-slider',
+              );
+              await expect(supply).toHaveAttribute('data-output-enabled', 'true');
+              await focusInstrument('generator');
+              const generator = component(page, 'signal-generator').getByTestId(
+                'signal-generator-runtime',
+              );
+              await clickOwnedRect(
+                generator.locator('.workbench-signal-generator-triangle'),
+                'triangle',
+              );
               await expect(generator).toHaveAttribute('data-waveform', 'triangle');
               await generator.locator('.workbench-signal-generator-power-slider').click();
               await expect(generator).toHaveAttribute('data-output-enabled', 'false');
@@ -4105,7 +4133,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               await capture('generator', rotation, 'output-disabled');
               await generator.locator('.workbench-signal-generator-power-slider').click();
               await expect(generator).toHaveAttribute('data-output-enabled', 'true');
-              await clickWaveform('sine');
+              await clickOwnedRect(generator.locator('.workbench-signal-generator-sine'), 'sine');
               await expect(generator).toHaveAttribute('data-waveform', 'sine');
             }
             await page
@@ -4238,6 +4266,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           const afterEnter = await inspectorWitness('final-enter-after');
           expect(afterEnter.selected).toEqual(['generator']);
           expect(enterCount(afterEnter.events) - enterCount(beforeEnter.events)).toBe(1);
+          const frequency = page.getByLabel('Частота генератора', { exact: true });
           if (width < 500) {
             const beforeInspector = await inspectorWitness('inspector-precondition');
             const open =
@@ -4253,8 +4282,18 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               expect(afterClose.catalogPressed).toBe('false');
               expect(String(afterClose.shellClass)).toContain('library-collapsed');
             }
+            const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+            const disclosure = inspector.getByRole('button', {
+              name: 'Открыть параметры компонента',
+              exact: true,
+            });
+            await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+            await expect(frequency).toBeHidden();
+            await disclosure.tap();
+            await expect(
+              inspector.getByRole('button', { name: 'Свернуть параметры компонента', exact: true }),
+            ).toHaveAttribute('aria-expanded', 'true');
           }
-          const frequency = page.getByLabel('Частота генератора', { exact: true });
           acknowledge('final-input-visibility', {
             beforeEnter,
             visible: await frequency.isVisible(),
@@ -4336,6 +4375,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           const reopenedFailures = collectBrowserFailures(reopened, {
             allowAdminAccessProbe: true,
           });
+          reopenedFailureCollector = reopenedFailures;
           await recordPuts(reopened, 'reopened');
           const freshGET = reopened.waitForResponse(
             (response) =>
@@ -4380,9 +4420,15 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             );
           checkpoint('rendered-equality', { rendered, originalRendered });
           expect(rendered).toEqual(originalRendered);
-          expect(rendered.map((item) => item.id)).toEqual(
-            expected.components.map((item) => item.id),
-          );
+          // The regulated supply body paints below wires, ahead of ordinary fixture bodies.
+          expect(rendered.map((item) => item.id)).toEqual([
+            'bench-supply',
+            'source',
+            'meter',
+            'load',
+            'generator',
+            'scope',
+          ]);
           await settleLedger();
           expect(puts).toHaveLength(finalPutCount!);
           journal['nativeEvents'] = await page.evaluate(
@@ -4463,6 +4509,10 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             pending: pendingResponses.size,
             ledgerErrors,
           });
+          checkpoint('browser-failures-before-cleanup', {
+            original: failures.counts,
+            reopened: reopenedFailureCollector?.counts ?? null,
+          });
           write();
           for (const target of [reopenedContext, context]) {
             if (!target) continue;
@@ -4482,6 +4532,10 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               if (!journal['primaryError']) cleanupError ??= error;
             }
           }
+          checkpoint('browser-failures-after-cleanup', {
+            original: failures.counts,
+            reopened: reopenedFailureCollector?.counts ?? null,
+          });
         }
         await settleLedger();
         acknowledge('both-contexts-closed', { puts: puts.length, finalPutCount, revision });
@@ -4916,7 +4970,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
     mkdirSync(evidenceDir, { recursive: true });
     const observations: unknown[] = [];
     const blockSource =
-      '// C++ code generated by ASA Lab\n// Arduino Uno R3\n\nvoid setup()\n{\n\n}\n\nvoid loop()\n{\n\n}\n';
+      '// C++ code generated by ASA Lab\n// Arduino Uno R3\n\nvoid setup()\n{\n  pinMode(0, OUTPUT);\n  pinMode(1, OUTPUT);\n  pinMode(2, OUTPUT);\n  pinMode(3, OUTPUT);\n  pinMode(4, OUTPUT);\n  pinMode(5, OUTPUT);\n  pinMode(6, OUTPUT);\n  pinMode(7, OUTPUT);\n  pinMode(8, OUTPUT);\n  pinMode(9, OUTPUT);\n  pinMode(10, OUTPUT);\n  pinMode(11, OUTPUT);\n  pinMode(12, OUTPUT);\n  pinMode(13, OUTPUT);\n  pinMode(A0, OUTPUT);\n  pinMode(A1, OUTPUT);\n  pinMode(A2, OUTPUT);\n  pinMode(A3, OUTPUT);\n  pinMode(A4, OUTPUT);\n  pinMode(A5, OUTPUT);\n}\n\nvoid loop()\n{\n\n}\n';
     const workspace = JSON.stringify({
       blocks: {
         languageVersion: 0,
@@ -5017,183 +5071,216 @@ for (const { mode, segment, widths } of compactControlSegments) {
       mode: 'text' | 'blocks-text' | 'blocks' = 'text',
       expectedSource = source,
     ) {
-      const observation = await page.evaluate((phase) => {
-        const bounds = (rect: DOMRect) => ({
-          left: rect.left,
-          top: rect.top,
-          right: rect.right,
-          bottom: rect.bottom,
-          width: rect.width,
-          height: rect.height,
-        });
-        const nativeMenu = document.querySelector(
-          '.workbench-wire-color[open] > .workbench-wire-color-menu[role="menu"][aria-label="Цвет провода"]',
-        );
-        function inspect(element: Element) {
-          const rect = element.getBoundingClientRect();
-          const style = getComputedStyle(element);
-          const textRects: ReturnType<typeof bounds>[] = [];
-          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-          while (!(element instanceof HTMLSelectElement) && walker.nextNode()) {
-            if (!walker.currentNode.textContent?.trim()) continue;
-            const range = document.createRange();
-            range.selectNodeContents(walker.currentNode);
-            textRects.push(...Array.from(range.getClientRects(), bounds));
-          }
-          const clips = [];
-          for (let parent = element.parentElement; parent; parent = parent.parentElement) {
-            const css = getComputedStyle(parent);
-            if (
-              ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowX) ||
-              ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowY)
-            ) {
-              const box = parent.getBoundingClientRect();
-              clips.push({
-                selector: `${parent.tagName}.${parent.className}`,
-                overflowX: css.overflowX,
-                overflowY: css.overflowY,
-                left: box.left + parent.clientLeft,
-                top: box.top + parent.clientTop,
-                right: box.left + parent.clientLeft + parent.clientWidth,
-                bottom: box.top + parent.clientTop + parent.clientHeight,
+      // This union includes every control inspected below, including hidden popup controls.
+      const intersectionSelector = [
+        '.workbench-pill.simulate',
+        '.workbench-toolbar-group > button',
+        '.workbench-toolbar-group > strong',
+        '.workbench-toolbar-group > details > summary',
+        '.arduino-code-toolbar > details > summary',
+        '.arduino-code-toolbar > button',
+        '.arduino-code-toolbar > select',
+        '.arduino-code-toolbar .arduino-font-size-select > select',
+        '.workbench-simulation-time',
+        '[aria-label="Цвет провода: Фиолетовый"]',
+      ].join(', ');
+      const intersectionCapture = await page.evaluateHandle(
+        observeActualIntersections,
+        intersectionSelector,
+      );
+      const observation = await page
+        .evaluate(
+          ({ capture, phase }) =>
+            capture.read((intersectionTargets, intersections) => {
+              const bounds = (rect: DOMRect) => ({
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height,
               });
-            }
-          }
-          const points = [
-            [rect.left + 3, rect.top + 3],
-            [rect.right - 3, rect.top + 3],
-            [rect.left + 3, rect.bottom - 3],
-            [rect.right - 3, rect.bottom - 3],
-            [rect.left + rect.width / 2, rect.top + rect.height / 2],
-          ].map(([x, y]) => {
-            const hit = document.elementFromPoint(x!, y!);
-            const hitAncestry = [];
-            for (let ancestor = hit; ancestor; ancestor = ancestor.parentElement) {
-              hitAncestry.push({
-                selector: `${ancestor.tagName}.${ancestor.className}`,
-                role: ancestor.getAttribute('role'),
-                ariaLabel: ancestor.getAttribute('aria-label'),
-              });
-            }
-            return {
-              x,
-              y,
-              owned: hit !== null && (hit === element || element.contains(hit)),
-              hit: hit ? `${hit.tagName}.${hit.className}` : null,
-              hitAncestry,
-              ownedByOpenNativeMenu:
-                nativeMenu !== null &&
-                hit !== null &&
-                hit.closest('.workbench-wire-color-menu') === nativeMenu,
-            };
-          });
-          const selectedText =
-            element instanceof HTMLSelectElement
-              ? (element.selectedOptions[0]?.textContent ?? '')
-              : null;
-          const context = document.createElement('canvas').getContext('2d')!;
-          context.font = style.font;
-          return {
-            selector: `${element.tagName}.${element.className}`,
-            text: element.textContent?.trim(),
-            ariaLabel: element.getAttribute('aria-label'),
-            rect: bounds(rect),
-            fontSize: style.fontSize,
-            disabled: element instanceof HTMLButtonElement && element.disabled,
-            iconRects: Array.from(element.querySelectorAll(':scope > svg'), (icon) =>
-              bounds(icon.getBoundingClientRect()),
-            ),
-            textRects,
-            clips,
-            points,
-            selectedText,
-            selectedTextWidth:
-              selectedText === null ? null : context.measureText(selectedText).width,
-            contentWidth:
-              element.clientWidth -
-              Number.parseFloat(style.paddingLeft) -
-              Number.parseFloat(style.paddingRight),
-          };
-        }
-        const primary = document.querySelector('.workbench-pill.simulate')!;
-        const panel = document.querySelector('.arduino-code-panel')!;
-        const toolbar = document.querySelector('.workbench-toolbar')!;
-        const codeToolbar = document.querySelector('.arduino-code-toolbar')!;
-        return {
-          phase,
-          view: toolbar.className,
-          viewport: {
-            width: innerWidth,
-            height: innerHeight,
-            pageWidth: document.documentElement.scrollWidth,
-            clientWidth: document.documentElement.clientWidth,
-          },
-          primary: inspect(primary),
-          headerGroups: Array.from(
-            toolbar.querySelectorAll('.workbench-toolbar-group'),
-            (group) => {
-              const style = getComputedStyle(group);
-              return {
-                selector: `${group.tagName}.${group.className}`,
-                rect: bounds(group.getBoundingClientRect()),
-                paddingLeft: style.paddingLeft,
-                paddingRight: style.paddingRight,
-                gap: style.gap,
-              };
-            },
-          ),
-          headerControls: Array.from(
-            toolbar.querySelectorAll(
-              '.workbench-toolbar-group > button, .workbench-toolbar-group > strong, .workbench-toolbar-group > details > summary',
-            ),
-          )
-            .filter((control) => {
-              const rect = control.getBoundingClientRect();
-              return (
-                rect.width > 0 &&
-                rect.height > 0 &&
-                getComputedStyle(control).visibility === 'visible'
+              const nativeMenu = document.querySelector(
+                '.workbench-wire-color[open] > .workbench-wire-color-menu[role="menu"][aria-label="Цвет провода"]',
               );
-            })
-            .map(inspect),
-          fixtureBlockIds: Array.from(
-            document.querySelectorAll(
-              '[data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="setup-532"], [data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="loop-532"]',
-            ),
-            (block) => block.getAttribute('data-id'),
-          ).sort(),
-          codeControls: Array.from(
-            codeToolbar.querySelectorAll(
-              ':scope > details > summary, :scope > button, :scope > select, .arduino-font-size-select > select',
-            ),
-            inspect,
-          ),
-          clock: document.querySelector('.workbench-simulation-time')
-            ? inspect(document.querySelector('.workbench-simulation-time')!)
-            : null,
-          toolbar: bounds(toolbar.getBoundingClientRect()),
-          main: bounds(document.querySelector('.workbench-main')!.getBoundingClientRect()),
-          drawer: bounds(panel.getBoundingClientRect()),
-          codeToolbar: bounds(codeToolbar.getBoundingClientRect()),
-          nativeWireMenu: document.querySelector('.workbench-wire-color-menu')
-            ? {
-                open: document.querySelector('.workbench-wire-color')!.hasAttribute('open'),
-                toolbarZIndex: getComputedStyle(toolbar).zIndex,
-                rect: bounds(
-                  document.querySelector('.workbench-wire-color-menu')!.getBoundingClientRect(),
-                ),
-                purple: inspect(document.querySelector('[aria-label="Цвет провода: Фиолетовый"]')!),
+              function inspect(element: Element) {
+                const intersection = intersections[intersectionTargets.indexOf(element)];
+                if (!intersection) throw new Error('Missing actual control intersection');
+                const rect = element.getBoundingClientRect();
+                const style = getComputedStyle(element);
+                const textRects: ReturnType<typeof bounds>[] = [];
+                const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+                while (!(element instanceof HTMLSelectElement) && walker.nextNode()) {
+                  if (!walker.currentNode.textContent?.trim()) continue;
+                  const range = document.createRange();
+                  range.selectNodeContents(walker.currentNode);
+                  textRects.push(...Array.from(range.getClientRects(), bounds));
+                }
+                const clips = [];
+                for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+                  const css = getComputedStyle(parent);
+                  if (
+                    ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowX) ||
+                    ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowY)
+                  ) {
+                    const box = parent.getBoundingClientRect();
+                    clips.push({
+                      selector: `${parent.tagName}.${parent.className}`,
+                      overflowX: css.overflowX,
+                      overflowY: css.overflowY,
+                      left: box.left + parent.clientLeft,
+                      top: box.top + parent.clientTop,
+                      right: box.left + parent.clientLeft + parent.clientWidth,
+                      bottom: box.top + parent.clientTop + parent.clientHeight,
+                    });
+                  }
+                }
+                const points = [
+                  [rect.left + 3, rect.top + 3],
+                  [rect.right - 3, rect.top + 3],
+                  [rect.left + 3, rect.bottom - 3],
+                  [rect.right - 3, rect.bottom - 3],
+                  [rect.left + rect.width / 2, rect.top + rect.height / 2],
+                ].map(([x, y]) => {
+                  const hit = document.elementFromPoint(x!, y!);
+                  const hitAncestry = [];
+                  for (let ancestor = hit; ancestor; ancestor = ancestor.parentElement) {
+                    hitAncestry.push({
+                      selector: `${ancestor.tagName}.${ancestor.className}`,
+                      role: ancestor.getAttribute('role'),
+                      ariaLabel: ancestor.getAttribute('aria-label'),
+                    });
+                  }
+                  return {
+                    x,
+                    y,
+                    owned: hit !== null && (hit === element || element.contains(hit)),
+                    hit: hit ? `${hit.tagName}.${hit.className}` : null,
+                    hitAncestry,
+                    ownedByOpenNativeMenu:
+                      nativeMenu !== null &&
+                      hit !== null &&
+                      hit.closest('.workbench-wire-color-menu') === nativeMenu,
+                  };
+                });
+                const selectedText =
+                  element instanceof HTMLSelectElement
+                    ? (element.selectedOptions[0]?.textContent ?? '')
+                    : null;
+                const context = document.createElement('canvas').getContext('2d')!;
+                context.font = style.font;
+                return {
+                  selector: `${element.tagName}.${element.className}`,
+                  text: element.textContent?.trim(),
+                  ariaLabel: element.getAttribute('aria-label'),
+                  rect: bounds(rect),
+                  fontSize: style.fontSize,
+                  disabled: element instanceof HTMLButtonElement && element.disabled,
+                  iconRects: Array.from(element.querySelectorAll(':scope > svg'), (icon) =>
+                    bounds(icon.getBoundingClientRect()),
+                  ),
+                  textRects,
+                  clips,
+                  intersection,
+                  points,
+                  selectedText,
+                  selectedTextWidth:
+                    selectedText === null ? null : context.measureText(selectedText).width,
+                  contentWidth:
+                    element.clientWidth -
+                    Number.parseFloat(style.paddingLeft) -
+                    Number.parseFloat(style.paddingRight),
+                };
               }
-            : null,
-          codeBody: bounds(document.querySelector('.arduino-code-body')!.getBoundingClientRect()),
-          source:
-            document.querySelector<HTMLTextAreaElement>(
-              '[aria-label="Код Arduino C++"], [aria-label="Сгенерированный код Arduino"]',
-            )?.value ?? null,
-          codeMode: codeToolbar.className,
-          componentCount: document.querySelectorAll('[data-testid="schematic-component"]').length,
-        };
-      }, phase);
+              const primary = document.querySelector('.workbench-pill.simulate')!;
+              const panel = document.querySelector('.arduino-code-panel')!;
+              const toolbar = document.querySelector('.workbench-toolbar')!;
+              const codeToolbar = document.querySelector('.arduino-code-toolbar')!;
+              return {
+                phase,
+                view: toolbar.className,
+                viewport: {
+                  width: innerWidth,
+                  height: innerHeight,
+                  pageWidth: document.documentElement.scrollWidth,
+                  clientWidth: document.documentElement.clientWidth,
+                },
+                primary: inspect(primary),
+                headerGroups: Array.from(
+                  toolbar.querySelectorAll('.workbench-toolbar-group'),
+                  (group) => {
+                    const style = getComputedStyle(group);
+                    return {
+                      selector: `${group.tagName}.${group.className}`,
+                      rect: bounds(group.getBoundingClientRect()),
+                      paddingLeft: style.paddingLeft,
+                      paddingRight: style.paddingRight,
+                      gap: style.gap,
+                    };
+                  },
+                ),
+                headerControls: Array.from(
+                  toolbar.querySelectorAll(
+                    '.workbench-toolbar-group > button, .workbench-toolbar-group > strong, .workbench-toolbar-group > details > summary',
+                  ),
+                )
+                  .filter((control) => {
+                    const rect = control.getBoundingClientRect();
+                    return (
+                      rect.width > 0 &&
+                      rect.height > 0 &&
+                      getComputedStyle(control).visibility === 'visible'
+                    );
+                  })
+                  .map(inspect),
+                fixtureBlockIds: Array.from(
+                  document.querySelectorAll(
+                    '[data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="setup-532"], [data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="loop-532"]',
+                  ),
+                  (block) => block.getAttribute('data-id'),
+                ).sort(),
+                codeControls: Array.from(
+                  codeToolbar.querySelectorAll(
+                    ':scope > details > summary, :scope > button, :scope > select, .arduino-font-size-select > select',
+                  ),
+                  inspect,
+                ),
+                clock: document.querySelector('.workbench-simulation-time')
+                  ? inspect(document.querySelector('.workbench-simulation-time')!)
+                  : null,
+                toolbar: bounds(toolbar.getBoundingClientRect()),
+                main: bounds(document.querySelector('.workbench-main')!.getBoundingClientRect()),
+                drawer: bounds(panel.getBoundingClientRect()),
+                codeToolbar: bounds(codeToolbar.getBoundingClientRect()),
+                nativeWireMenu: document.querySelector('.workbench-wire-color-menu')
+                  ? {
+                      open: document.querySelector('.workbench-wire-color')!.hasAttribute('open'),
+                      toolbarZIndex: getComputedStyle(toolbar).zIndex,
+                      rect: bounds(
+                        document
+                          .querySelector('.workbench-wire-color-menu')!
+                          .getBoundingClientRect(),
+                      ),
+                      purple: inspect(
+                        document.querySelector('[aria-label="Цвет провода: Фиолетовый"]')!,
+                      ),
+                    }
+                  : null,
+                codeBody: bounds(
+                  document.querySelector('.arduino-code-body')!.getBoundingClientRect(),
+                ),
+                source:
+                  document.querySelector<HTMLTextAreaElement>(
+                    '[aria-label="Код Arduino C++"], [aria-label="Сгенерированный код Arduino"]',
+                  )?.value ?? null,
+                codeMode: codeToolbar.className,
+                componentCount: document.querySelectorAll('[data-testid="schematic-component"]')
+                  .length,
+              };
+            }),
+          { capture: intersectionCapture, phase },
+        )
+        .finally(() => intersectionCapture.dispose());
       observations.push(observation);
       writeFileSync(
         resolve(evidenceDir, 'geometry.json'),
@@ -5239,16 +5326,12 @@ for (const { mode, segment, widths } of compactControlSegments) {
             );
           }),
         ).toBe(true);
-        for (const clip of control.clips) {
-          if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowX)) {
-            expect(control.rect.left).toBeGreaterThanOrEqual(clip.left - 1);
-            expect(control.rect.right).toBeLessThanOrEqual(clip.right + 1);
-          }
-          if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowY)) {
-            expect(control.rect.top).toBeGreaterThanOrEqual(clip.top - 1);
-            expect(control.rect.bottom).toBeLessThanOrEqual(clip.bottom + 1);
-          }
-        }
+        // The browser resolves real clipping, including fixed containing blocks.
+        // Overflow ancestors above remain diagnostic; they are not all actual clips.
+        expect(control.rect.left).toBeGreaterThanOrEqual(control.intersection.left - 1);
+        expect(control.rect.right).toBeLessThanOrEqual(control.intersection.right + 1);
+        expect(control.rect.top).toBeGreaterThanOrEqual(control.intersection.top - 1);
+        expect(control.rect.bottom).toBeLessThanOrEqual(control.intersection.bottom + 1);
         for (const text of control.textRects) {
           expect(text.left).toBeGreaterThanOrEqual(control.rect.left - 1);
           expect(text.right).toBeLessThanOrEqual(control.rect.right + 1);
@@ -5258,7 +5341,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
       }
       assertFits(observation.primary);
       if ([1180, 1181, 1373, 1374].includes(observation.viewport.width)) {
-        expect(observation.toolbar.height).toBe(observation.viewport.width <= 1373 ? 96 : 48);
+        expect(observation.toolbar.height).toBe(48);
         expect(observation.headerGroups).toHaveLength(2);
         for (const group of observation.headerGroups) {
           expect(group.rect.left).toBeGreaterThanOrEqual(0);
@@ -5268,11 +5351,21 @@ for (const { mode, segment, widths } of compactControlSegments) {
         }
         expect(observation.headerControls).toHaveLength(
           observation.view.includes('breadboard')
-            ? 15
+            ? 17
             : observation.view.includes('schematic')
               ? 8
               : 6,
         );
+        if (observation.view.includes('breadboard')) {
+          expect(
+            observation.headerControls.filter((control) => control.ariaLabel === 'Дублировать'),
+          ).toHaveLength(1);
+          expect(
+            observation.headerControls.filter(
+              (control) => control.ariaLabel === 'Добавить текст на схему',
+            ),
+          ).toHaveLength(1);
+        }
         for (const control of observation.headerControls) {
           assertFits(control);
           expect(control.rect.width).toBeGreaterThan(0);
@@ -5395,8 +5488,15 @@ for (const { mode, segment, widths } of compactControlSegments) {
           expect(
             Math.abs(actualWidth - Number(await handle.getAttribute('aria-valuenow'))),
           ).toBeLessThanOrEqual(1);
-          for (const view of ['Схемы', 'Компоненты', 'Цепи']) {
-            await page.getByRole('button', { name: view, exact: true }).click();
+          for (const [view, root] of [
+            ['Схемы', '.workbench-schematic-view'],
+            ['Компоненты', '.workbench-bom-view'],
+            ['Цепи', '.workbench-stage'],
+          ]) {
+            const viewButton = page.getByRole('button', { name: view, exact: true });
+            await viewButton.click();
+            await expect(viewButton).toHaveAttribute('aria-pressed', 'true');
+            await expect(page.locator(root)).toBeVisible();
             await record(`${width}-${view}`, desktop, false);
           }
         }
@@ -5649,8 +5749,24 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
         ),
       );
     });
-    const source =
-      '// C++ code generated by ASA Lab\n// Arduino Uno R3\n\nvoid setup()\n{\n\n}\n\nvoid loop()\n{\n\n}\n';
+    // Seed the current generated source so opening the editor and using its
+    // media controls are the only operations under test.
+    const source = [
+      '// C++ code generated by ASA Lab',
+      '// Arduino Uno R3',
+      '',
+      'void setup()',
+      '{',
+      ...Array.from({ length: 14 }, (_, pin) => `  pinMode(${pin}, OUTPUT);`),
+      ...Array.from({ length: 6 }, (_, pin) => `  pinMode(A${pin}, OUTPUT);`),
+      '}',
+      '',
+      'void loop()',
+      '{',
+      '',
+      '}',
+      '',
+    ].join('\n');
     const workspace = JSON.stringify({
       blocks: {
         languageVersion: 0,
@@ -9359,10 +9475,11 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(0);
   await expect(led).not.toHaveAttribute('data-diagnostics', /reverse_polarity/);
-  await expect(led.locator('image:not([filter])').first()).toHaveAttribute(
-    'href',
-    /special\/led_red_reverse_polarity\.svg$/,
-  );
+  const reverseAsset = led.locator('image:not([filter])').first();
+  await expect(reverseAsset).toHaveAttribute('href', /\/led\/red\/led_red_i000\.svg$/);
+  await expect
+    .poll(() => reverseAsset.evaluate((image) => getComputedStyle(image).filter))
+    .toBe('none');
   await expect(led.locator('.workbench-production-visual')).toHaveClass(/is-reverse/);
   await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveCount(0);
@@ -10480,6 +10597,175 @@ type Psu543Sample = {
 async function psu543Records(page: Page): Promise<Psu543Sample[]> {
   return page.evaluate(() => (window as Window & { __psu543?: Psu543Sample[] }).__psu543 ?? []);
 }
+
+test('GMIN power accounting keeps a high-resistance divider running through Save and reopen', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await observePsuPersistenceWorker(page);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Высокоомный делитель: баланс мощности');
+  const base = regulatedPowerSupplyDocument();
+  const supply = base.components.find((part) => part.id === 'bench-supply')!;
+  const resistor = base.components.find((part) => part.id === 'load')!;
+  const circuit: SchematicDocument = {
+    ...base,
+    components: [
+      {
+        ...supply,
+        value: 23.5,
+        state: true,
+        stateProperties: {
+          ...supply.stateProperties,
+          voltageSetpointVolt: 23.5,
+          outputEnabled: true,
+        },
+      },
+      {
+        ...resistor,
+        id: 'upper',
+        name: 'Верхний резистор',
+        value: 31622.776601683792,
+        position: { x: 650, y: 220 },
+      },
+      {
+        ...resistor,
+        id: 'lower',
+        name: 'Нижний резистор',
+        value: 1_000_000,
+        stateProperties: { ...resistor.stateProperties, resistanceUnit: 'Ω' },
+        position: { x: 650, y: 420 },
+      },
+    ],
+    connections: [
+      {
+        id: 'positive-upper',
+        from: { componentId: 'bench-supply', terminal: 'positive' },
+        to: { componentId: 'upper', terminal: 'lead-1' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'upper-lower',
+        from: { componentId: 'upper', terminal: 'lead-2' },
+        to: { componentId: 'lower', terminal: 'lead-1' },
+        color: '#149447',
+        vertices: [],
+      },
+      {
+        id: 'lower-negative',
+        from: { componentId: 'lower', terminal: 'lead-2' },
+        to: { componentId: 'bench-supply', terminal: 'negative' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+  };
+  await saveDocument(page, projectId, circuit);
+  await page.goto(`/#/home/${projectId}`);
+  const observations: Psu543Sample[][] = [];
+  for (const reopened of [false, true]) {
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+      'data-simulation-status',
+      'running',
+    );
+    await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+    await expect
+      .poll(async () =>
+        (await psu543Records(page)).some(
+          (record) =>
+            record.direction === 'response' &&
+            record.status === 'ready' &&
+            (record.committed ?? 0) > 0 &&
+            record.solved &&
+            record.quality?.finite &&
+            record.quality.passed,
+        ),
+      )
+      .toBe(true);
+    const records = await psu543Records(page);
+    const ready = records.filter(
+      (record) => record.direction === 'response' && record.status === 'ready',
+    );
+    expect(ready.length).toBeGreaterThan(0);
+    for (const record of ready) {
+      expect(record.quality).toMatchObject({ finite: true, passed: true });
+      expect(record.supplyResult?.voltageDrop).toBeCloseTo(23.499998861016, 7);
+      expect(record.supplyResult?.current).toBeCloseTo(0.000022779689, 10);
+    }
+    observations.push(records);
+    const visual = component(page, 'regulated-power-supply').getByTestId(
+      'regulated-power-supply-runtime',
+    );
+    await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+    await expect(visual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+      '23.50 V',
+    );
+    if (reopened) {
+      await page
+        .locator('[data-testid="schematic-component"][data-component-id="lower"] .workbench-part')
+        .press('Enter');
+      const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+      await expect(inspector.getByLabel('Единица сопротивления')).toHaveValue('MΩ');
+      await expect(inspector.locator('.workbench-value-field input[type="number"]')).toHaveValue(
+        '1',
+      );
+      await page.screenshot({ path: `${ARTIFACT_DIR}/gmin-power-reopened.png`, fullPage: true });
+    }
+    await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    if (!reopened) {
+      await page
+        .locator('[data-testid="schematic-component"][data-component-id="lower"] .workbench-part')
+        .press('Enter');
+      const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+      await expect(inspector.getByLabel('Единица сопротивления')).toHaveValue('Ω');
+      const savedWrite = page.waitForResponse((response) => {
+        const request = response.request();
+        if (
+          request.method() !== 'PUT' ||
+          !response.url().endsWith(`/api/projects/${projectId}/draft`)
+        )
+          return false;
+        const payload = request.postDataJSON() as { document?: SchematicDocument };
+        return (
+          payload.document?.components.find((part) => part.id === 'lower')?.stateProperties?.[
+            'resistanceUnit'
+          ] === 'MΩ'
+        );
+      });
+      await inspector.getByLabel('Единица сопротивления').selectOption('MΩ');
+      await expect(inspector.locator('.workbench-value-field input[type="number"]')).toHaveValue(
+        '1',
+      );
+      await saveEditorNow(page);
+      expect((await savedWrite).status()).toBe(200);
+      const response = await page.context().request.get(`/api/projects/${projectId}`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+      expect(response.ok()).toBe(true);
+      const saved = (await response.json()) as { draft: { document: SchematicDocument } };
+      expect(saved.draft.document.connections).toEqual(circuit.connections);
+      expect(saved.draft.document.components.find((part) => part.id === 'lower')?.value).toBe(
+        1_000_000,
+      );
+      expect(
+        saved.draft.document.components.find((part) => part.id === 'lower')?.stateProperties?.[
+          'resistanceUnit'
+        ],
+      ).toBe('MΩ');
+      expect(
+        saved.draft.document.components.find((part) => part.id === 'bench-supply')?.stateProperties,
+      ).toMatchObject({ voltageSetpointVolt: 23.5, outputEnabled: true });
+      await page.reload();
+    }
+  }
+  writeFileSync(`${ARTIFACT_DIR}/gmin-power-worker.json`, JSON.stringify(observations, null, 2));
+  failures.assertEmpty();
+});
 
 for (const width of [1440, 1024, 390, 320]) {
   test(`ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at ${width}px`, async ({

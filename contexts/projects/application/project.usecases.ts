@@ -535,6 +535,9 @@ export class SaveDraftUseCase {
   async executeWithModule(
     input: Parameters<SaveDraftUseCase['execute']>[0],
   ): Promise<UseCaseResult<{ readonly draft: ProjectDraft; readonly moduleKey: string }>> {
+    // Bind every authorized read and the eventual CAS to one command identity,
+    // including when the caller mutates its actor while preparation awaits.
+    input = { ...input, actor: { ...input.actor } };
     if (!Number.isSafeInteger(input.baseRevision) || input.baseRevision < 0) {
       return fail(
         'validation_error',
@@ -585,11 +588,59 @@ export class SaveDraftUseCase {
     if (!parsed.ok) {
       return fail('validation_error', parsed.message, parsed.reasonCode);
     }
+    let validatedDocument = parsed.document;
+    if (module.validateReplacement !== undefined) {
+      if (typeof module.validateReplacement !== 'function')
+        return fail('validation_error', 'Project document replacement validation is invalid.');
+      try {
+        validatedDocument = structuredClone(parsed.document);
+      } catch {
+        return fail('validation_error', 'Project document must be serializable.');
+      }
+      const current =
+        loaded ??
+        (await this.repository.load(input.tenantId, input.projectId, input.actor, {
+          includeVersions: false,
+        }));
+      if (!current) return fail('project_not_found', 'project not found');
+      // An expected future revision could otherwise become true after a racing
+      // format upgrade. Stale requests retain the existing CAS/replay path.
+      if (input.baseRevision > current.draft.revision)
+        return fail(
+          'project_revision_conflict',
+          'Версия проекта изменилась. Текущая работа не была перезаписана.',
+        );
+      if (input.baseRevision === current.draft.revision) {
+        try {
+          const verdict: unknown = module.validateReplacement(
+            structuredClone(current.draft.document),
+            structuredClone(validatedDocument),
+          );
+          if (verdict === null || typeof verdict !== 'object' || Array.isArray(verdict))
+            return fail('validation_error', 'Project document replacement validation is invalid.');
+          const record = verdict as Record<string, unknown>;
+          if (record['ok'] !== true || Object.keys(record).length !== 1) {
+            return fail(
+              'validation_error',
+              typeof record['message'] === 'string'
+                ? record['message']
+                : 'Project document replacement is not supported.',
+              typeof record['reasonCode'] === 'string' ? record['reasonCode'] : undefined,
+            );
+          }
+        } catch {
+          return fail(
+            'validation_error',
+            'Project document replacement validation is unavailable.',
+          );
+        }
+      }
+    }
     // Detach the validated document from caller and guard mutations across await.
-    let document = parsed.document;
+    let document = validatedDocument;
     if (this.persistenceGuard) {
       try {
-        document = structuredClone(parsed.document);
+        document = structuredClone(validatedDocument);
         const result = await this.persistenceGuard.validate({
           tenantId: input.tenantId,
           projectId: input.projectId,

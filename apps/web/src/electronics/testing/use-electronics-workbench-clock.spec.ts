@@ -15,9 +15,11 @@ import { flushSync } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   resetElectronicsTimedState,
+  type ElectronicsHcSr04EnvironmentSample,
   type ElectronicsLedTemporalObservation,
 } from '@asa-lab/electronics/engine';
 import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
+import { reportClientDiagnostic } from '../../client-diagnostics';
 import type { LiveSimulationWorkerCallbacks } from '../live-simulation-worker-controller';
 import { ElectronicsLiveSimulationWorkerController } from '../live-simulation-worker-controller';
 import { loadSimulationWorkerController } from '../load-simulation-worker-controller';
@@ -25,7 +27,12 @@ import { SimulationFailure } from '../simulation-failure';
 import { catalogEntry } from '../component-catalog';
 import { configureProductionLibrary } from '../production-manifest-adapter';
 import { ProductionComponentVisual, NativeOpticalProvider } from '../NativeOpticalComponentVisual';
-import { useElectronicsWorkbench } from '../use-electronics-workbench';
+import {
+  useElectronicsWorkbench,
+  useElectronicsWorkbenchHost,
+  type ElectronicsWorkbenchProjectHost,
+} from '../use-electronics-workbench';
+import { addComponentToDocument } from '../workbench-document';
 import { SchematicView, BomView } from '../AlternateWorkbenchViews';
 import { WorkbenchHeader } from '../WorkbenchHeader';
 import { evaluateSimulationWorkerRequestBatched } from '../simulation-worker-evaluator';
@@ -43,6 +50,9 @@ const transport = vi.hoisted(() => ({
     stop: ReturnType<typeof vi.fn>;
     restart: ReturnType<typeof vi.fn>;
     sendSerialRx: ReturnType<typeof vi.fn>;
+    setPaused: ReturnType<typeof vi.fn>;
+    committedHorizonMicroseconds: number;
+    hasPendingAdvance: boolean;
   }>,
 }));
 vi.mock('../live-simulation-worker-controller', () => ({
@@ -68,6 +78,11 @@ vi.mock('../live-simulation-worker-controller', () => ({
       }
     });
     sendSerialRx = vi.fn();
+    committedHorizonMicroseconds = 0;
+    hasPendingAdvance = false;
+    setPaused = vi.fn((paused: boolean, reanchor?: (committed: number) => void) => {
+      if (!paused) reanchor?.(this.committedHorizonMicroseconds);
+    });
     constructor() {
       transport.instances.push(this);
     }
@@ -233,6 +248,74 @@ function Probe({
   );
 }
 const worker = () => transport.instances.at(-1)!;
+
+function localProjectHost(): ElectronicsWorkbenchProjectHost {
+  configureProductionLibrary(
+    JSON.parse(
+      readFileSync(
+        resolve('apps/web/public/assets/electronics/component-database/catalog.json'),
+        'utf8',
+      ),
+    ),
+  );
+  const added = addComponentToDocument(initial, 'ultrasonic-hc-sr04', { x: 300, y: 300 }, 'sonar');
+  const document: SchematicDocument = {
+    ...added.document,
+    components: added.document.components.map((component) =>
+      component.id === 'sonar'
+        ? { ...component, stateProperties: { ...component.stateProperties, distanceMeters: 0.5 } }
+        : component,
+    ),
+  };
+  return {
+    project: null,
+    document,
+    serverRevision: 0,
+    getCurrentDocument: () => document,
+    result: null,
+    versions: [],
+    status: 'ready',
+    saveStatus: 'saved',
+    saveError: null,
+    saveIssue: null,
+    localCopySaved: true,
+    exportEmergencyCopy: vi.fn(),
+    saveBeforeLeave: vi.fn(async () => {}),
+    notice: null,
+    setNotice: vi.fn(),
+    simulationRunning: true,
+    simulationStatus: 'running',
+    confirmSimulationStarted: vi.fn(),
+    busy: false,
+    projectTitle: 'Local robotics',
+    setProjectTitle: vi.fn(),
+    canUndo: false,
+    canRedo: false,
+    undo: vi.fn(() => false),
+    redo: vi.fn(() => false),
+    commitDocument: vi.fn(),
+    saveNow: vi.fn(async () => {}),
+    toggleSimulation: vi.fn(async () => {}),
+    resetSimulation: vi.fn(),
+    checkpoint: vi.fn(async () => {}),
+    renameProject: vi.fn(async () => {}),
+  };
+}
+
+function LocalHostProbe({
+  projectState,
+  keyboardShortcutsEnabled,
+}: {
+  projectState: ElectronicsWorkbenchProjectHost;
+  keyboardShortcutsEnabled?: boolean;
+}) {
+  workbench = useElectronicsWorkbenchHost('local-robotics', projectState, {
+    runtimeInputEventLimit: 1000,
+    reportSimulationDiagnostics: false,
+    ...(keyboardShortcutsEnabled === undefined ? {} : { keyboardShortcutsEnabled }),
+  });
+  return null;
+}
 function deferredController() {
   let resolve!: (controller: typeof ElectronicsLiveSimulationWorkerController) => void;
   let reject!: (reason: Error) => void;
@@ -289,6 +372,7 @@ beforeEach(() => {
   localStorage.clear();
   transport.instances.length = 0;
   transport.autoReady = true;
+  vi.mocked(reportClientDiagnostic).mockClear();
   vi.mocked(loadSimulationWorkerController)
     .mockReset()
     .mockResolvedValue(ElectronicsLiveSimulationWorkerController);
@@ -331,9 +415,349 @@ afterEach(async () => {
   host.remove();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.useRealTimers();
 });
+
+describe('shared workbench with a local project host', () => {
+  it('scopes shortcuts to the embedded editing page and restores the legacy default exactly once', async () => {
+    const projectState = {
+      ...localProjectHost(),
+      simulationRunning: false,
+      simulationStatus: 'stopped' as const,
+    };
+    const key = (code: string, ctrlKey = false) =>
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code,
+          key: code === 'Delete' ? 'Delete' : code,
+          ctrlKey,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    await act(async () =>
+      root.render(createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: false })),
+    );
+    act(() => workbench.selectComponent('uno', false));
+    act(() => {
+      key('ArrowRight');
+      key('Delete');
+      key('KeyV', true);
+      key('KeyZ', true);
+      key('Enter', true);
+    });
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(projectState.undo).not.toHaveBeenCalled();
+    expect(projectState.toggleSimulation).not.toHaveBeenCalled();
+    for (let cycle = 0; cycle < 2; cycle += 1) {
+      await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+      act(() => key('ArrowRight'));
+      expect(projectState.commitDocument).toHaveBeenCalledTimes(cycle + 1);
+      await act(async () =>
+        root.render(
+          createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: false }),
+        ),
+      );
+      act(() => key('ArrowRight'));
+      expect(projectState.commitDocument).toHaveBeenCalledTimes(cycle + 1);
+    }
+  });
+
+  it('never restarts the Worker generation when only keyboard scope changes', async () => {
+    const projectState = localProjectHost();
+    await act(async () =>
+      root.render(createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: true })),
+    );
+    const active = worker();
+    expect(active.start).toHaveBeenCalledOnce();
+    const stopped = active.stop.mock.calls.length;
+    for (const enabled of [false, true, false, true])
+      await act(async () =>
+        root.render(
+          createElement(LocalHostProbe, { projectState, keyboardShortcutsEnabled: enabled }),
+        ),
+      );
+    expect(worker()).toBe(active);
+    expect(active.start).toHaveBeenCalledOnce();
+    expect(active.stop).toHaveBeenCalledTimes(stopped);
+    expect(active.restart).not.toHaveBeenCalled();
+  });
+
+  it('keeps a local failure visible and resets the host without scheduling backend diagnostics', async () => {
+    const projectState = localProjectHost();
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    await act(async () =>
+      worker().callbacks!.onFailure(
+        new SimulationFailure('runtime', 'arduino_execution_failed', 'Недопустимая команда'),
+      ),
+    );
+    expect(projectState.resetSimulation).toHaveBeenCalledOnce();
+    expect(workbench.simulationMessage).toMatchObject({
+      code: 'arduino_execution_failed',
+      text: 'Исполнение программы остановлено: Недопустимая команда',
+    });
+    expect(reportClientDiagnostic).not.toHaveBeenCalled();
+    expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('sends only a runtime sensor override without document, history or server persistence edits', async () => {
+    const projectState = localProjectHost();
+    const original = JSON.stringify(projectState.document);
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    expect(api.me).not.toHaveBeenCalled();
+    expect(api.openProject).not.toHaveBeenCalled();
+    expect(worker().callbacks?.inputEventLimit).toBe(1000);
+    worker().update.mockClear();
+    const distanceSetter = workbench.setRuntimeSensorDistance;
+    await act(async () => {
+      expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(
+      worker().update.mock.calls[0]![0].components.find(
+        (component: { id: string }) => component.id === 'sonar',
+      ).stateProperties.distanceMeters,
+    ).toBe(0.25);
+    expect(JSON.stringify(projectState.document)).toBe(original);
+    expect(projectState.getCurrentDocument()).toBe(projectState.document);
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(workbench.documentMutationEpoch()).toBe(0);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+    expect(workbench.setRuntimeSensorDistance).toBe(distanceSetter);
+    worker().update.mockClear();
+    await act(async () => {
+      expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    const starts = worker().start.mock.calls.length;
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, notice: 'Локальный проект' },
+        }),
+      ),
+    );
+    expect(worker().start).toHaveBeenCalledTimes(starts);
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, simulationRunning: false, simulationStatus: 'stopped' },
+        }),
+      ),
+    );
+    await act(async () => {
+      expect(distanceSetter('sonar', 0.1)).toBe(false);
+    });
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid sensors, range and exhausted budget, and ignores stale callbacks after Stop', async () => {
+    const projectState = localProjectHost();
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    worker().update.mockClear();
+    await act(async () => {
+      for (const value of [-1, 0, 0.019, 4.001, Number.NaN, Number.POSITIVE_INFINITY]) {
+        expect(workbench.setRuntimeSensorDistance('sonar', value)).toBe(false);
+        expect(
+          workbench.setRuntimeHcSr04EnvironmentSample('sonar', {
+            kind: 'echo',
+            distanceMeters: value,
+          }),
+        ).toBe(false);
+      }
+      for (const sample of [null, { kind: 'unknown' }, { kind: 'echo', distanceMeters: '1' }])
+        expect(
+          workbench.setRuntimeHcSr04EnvironmentSample(
+            'sonar',
+            sample as unknown as ElectronicsHcSr04EnvironmentSample,
+          ),
+        ).toBe(false);
+      expect(workbench.setRuntimeSensorDistance('missing', 0.5)).toBe(false);
+      expect(workbench.setRuntimeSensorDistance('uno', 0.5)).toBe(false);
+      expect(workbench.setRuntimeHcSr04EnvironmentSample('missing', { kind: 'no-echo' })).toBe(
+        false,
+      );
+      expect(workbench.setRuntimeHcSr04EnvironmentSample('uno', { kind: 'no-echo' })).toBe(false);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    const callbacks = worker().callbacks!;
+    const exhausted = {
+      limit: 1000,
+      admitted: 1000,
+      accepted: 998,
+      pending: 1,
+      inFlight: 1,
+      exhausted: true,
+    };
+    await act(async () => callbacks.onInputBudget?.(exhausted));
+    expect(workbench.runtimeInputBudget).toEqual(exhausted);
+    expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(false);
+    expect(workbench.setRuntimeHcSr04EnvironmentSample('sonar', { kind: 'no-echo' })).toBe(false);
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, simulationRunning: false, simulationStatus: 'stopped' },
+        }),
+      ),
+    );
+    expect(workbench.setRuntimeSensorDistance('sonar', 0.25)).toBe(false);
+    expect(workbench.setRuntimeHcSr04EnvironmentSample('sonar', { kind: 'no-echo' })).toBe(false);
+    await act(async () =>
+      callbacks.onInputBudget?.({
+        ...exhausted,
+        admitted: 1,
+        accepted: 1,
+        pending: 0,
+        inFlight: 0,
+        exhausted: false,
+      }),
+    );
+    expect(workbench.runtimeInputBudget).toEqual(exhausted);
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    expect(workbench.runtimeInputBudget).toBeNull();
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('applies HC environment samples atomically only to runtime and lets the numeric setter restore reflection', async () => {
+    const projectState = localProjectHost();
+    const original = JSON.stringify(projectState.document);
+    await act(async () => root.render(createElement(LocalHostProbe, { projectState })));
+    const setter = workbench.setRuntimeHcSr04EnvironmentSample;
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.5 })).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    const sonarProperties = () =>
+      worker()
+        .update.mock.calls.at(-1)![0]
+        .components.find((component: { id: string }) => component.id === 'sonar').stateProperties;
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.5, echoAvailable: false });
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.75 })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+    });
+    worker().update.mockClear();
+    await act(async () => {
+      expect(workbench.setRuntimeSensorDistance('sonar', 0.75)).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    expect(workbench.setRuntimeHcSr04EnvironmentSample).toBe(setter);
+    worker().update.mockClear();
+    await act(async () => {
+      expect(setter('sonar', { kind: 'no-echo' })).toBe(true);
+      expect(setter('sonar', { kind: 'echo', distanceMeters: 0.75 })).toBe(true);
+    });
+    expect(worker().update).toHaveBeenCalledOnce();
+    expect(sonarProperties()).toMatchObject({ distanceMeters: 0.75, echoAvailable: true });
+    expect(JSON.stringify(projectState.document)).toBe(original);
+    expect(projectState.getCurrentDocument()).toBe(projectState.document);
+    expect(projectState.commitDocument).not.toHaveBeenCalled();
+    expect(workbench.documentMutationEpoch()).toBe(0);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+    await act(async () =>
+      root.render(
+        createElement(LocalHostProbe, {
+          projectState: { ...projectState, simulationRunning: false, simulationStatus: 'stopped' },
+        }),
+      ),
+    );
+    expect(setter('sonar', { kind: 'no-echo' })).toBe(false);
+  });
+});
+
 describe('mounted workbench host demand clock', () => {
+  it('does not backdate a paced event-history demand when accepted input work is ahead of display', async () => {
+    transport.autoReady = false;
+    await mount();
+    await act(async () => {
+      await workbench.toggleSimulation();
+    });
+    const worker = transport.instances[0]!;
+    await act(async () => {
+      worker.callbacks!.onInitialReady?.(0);
+      worker.callbacks!.onCommittedHorizon?.(0);
+      worker.callbacks!.onResult(
+        ready,
+        { profile: 'ordinary-led-held-v1', fromMicroseconds: 0, toMicroseconds: 0, components: [] },
+        'electrothermal-events-v2',
+      );
+    });
+    await frame(0);
+    worker.committedHorizonMicroseconds = 100000;
+    await act(async () => {
+      worker.callbacks!.onCommittedHorizon?.(100000);
+      worker.callbacks!.onResult(
+        { ...ready },
+        {
+          profile: 'ordinary-led-held-v1',
+          fromMicroseconds: 0,
+          toMicroseconds: 100000,
+          components: [],
+        },
+        'electrothermal-events-v2',
+      );
+      workbench.setSimulationRate(0.1);
+    });
+    await tick(10);
+    expect(worker.update.mock.calls.at(-1)?.[1]).toBe(100000);
+  });
+  it.each(['dc-inputs-v1', 'rc-inputs-v2', 'electrothermal-v1'] as const)(
+    'paces and pauses actual generic %s host demand without inventing observations',
+    async (profile) => {
+      transport.autoReady = false;
+      await mount();
+      await act(async () => {
+        await workbench.toggleSimulation();
+      });
+      const worker = transport.instances[0]!;
+      await act(async () => {
+        worker.callbacks!.onInitialReady?.(0);
+        worker.callbacks!.onCommittedHorizon?.(0);
+        worker.callbacks!.onResult(ready, undefined, profile);
+      });
+      await frame(0);
+      await act(async () => workbench.setSimulationRate(0.1));
+      await tick(100);
+      expect(worker.update.mock.calls.at(-1)?.[1]).toBe(10000);
+      expect(workbench.simulationTimeMs).toBe(0);
+      worker.committedHorizonMicroseconds = 10000;
+      await act(async () => {
+        worker.callbacks!.onCommittedHorizon?.(10000);
+        worker.callbacks!.onResult({ ...ready }, undefined, profile);
+      });
+      await frame(0);
+      expect(workbench.simulationTimeMs).toBe(10);
+      await act(async () => workbench.setSimulationRate(0));
+      expect(worker.setPaused).toHaveBeenLastCalledWith(true);
+      const calls = worker.update.mock.calls.length;
+      await tick(5000);
+      expect(worker.update).toHaveBeenCalledTimes(calls);
+      expect(workbench.simulationTimeMs).toBe(10);
+      await act(async () => workbench.setSimulationRate(0.1));
+      await tick(100);
+      expect(worker.update.mock.calls.at(-1)?.[1]).toBe(20000);
+      expect(worker.start).toHaveBeenCalledTimes(1);
+      expect(workbench.simulationTimeMs).toBe(10);
+    },
+  );
+
   it('restores normal demand from a real motor clock profile while publishing only actual ready frames', async () => {
     transport.autoReady = false;
     const motor: SchematicDocument = {
@@ -438,6 +862,89 @@ describe('mounted workbench host demand clock', () => {
     expect(workbench.result).toBe(next.result);
     expect(workbench.simulationTimeMs).toBe(100);
     expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['standard', undefined, 5_000],
+    ['school', 'school', 10_000],
+  ] as const)(
+    'enforces the %s cold-start budget before the first accepted Worker result',
+    async (_label, profile, budgetMs) => {
+      vi.stubEnv('VITE_ASA_ELECTRONICS_STARTUP_PROFILE', profile);
+      const loading = deferredController();
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await frame();
+      expect(workbench.simulationStatus).toBe('starting');
+      expect(workbench.simulationTimeMs).toBe(0);
+      await tick(budgetMs - 1);
+      expect(workbench.simulationRunning).toBe(true);
+      expect(workbench.simulationStatus).toBe('starting');
+      await tick(1);
+      expect(workbench.simulationRunning).toBe(false);
+      expect(workbench.simulationMessage?.code).toBe('startup-timeout');
+      expect(workbench.simulationMessage?.text).toContain(`${budgetMs / 1000} секунд`);
+      expect(workbench.simulationTimeMs).toBe(0);
+      // A late dynamic import cannot resurrect the timed-out generation.
+      await act(async () => loading.resolve());
+      expect(transport.instances).toHaveLength(0);
+    },
+  );
+
+  it('cancels the cold-start deadline on first accepted H0 and never charges it to model time', async () => {
+    transport.autoReady = false;
+    const loading = deferredController();
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await frame();
+    await tick(4_999);
+    await act(async () => loading.resolve());
+    const instance = worker();
+    await act(async () => {
+      instance.callbacks!.onInitialReady?.(0);
+      instance.callbacks!.onCommittedHorizon?.(0);
+      instance.callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+    });
+    expect(workbench.simulationRunning).toBe(true);
+    expect(workbench.simulationStatus).not.toBe('starting');
+    expect(workbench.simulationTimeMs).toBe(0);
+    await tick(200);
+    expect(workbench.simulationMessage?.code).not.toBe('startup-timeout');
+    expect(workbench.simulationRunning).toBe(true);
+  });
+
+  it('cancels the cold-start deadline on Stop before a lazy Worker import resolves', async () => {
+    const loading = deferredController();
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await frame();
+    await act(async () => workbench.toggleSimulation());
+    await tick(6_000);
+    expect(workbench.simulationRunning).toBe(false);
+    expect(workbench.simulationMessage?.code).not.toBe('startup-timeout');
+    await act(async () => loading.resolve());
+    expect(transport.instances).toHaveLength(0);
+  });
+
+  it('gives a restarted Arduino generation a fresh preparation budget', async () => {
+    transport.autoReady = false;
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const instance = worker();
+    await act(async () => {
+      instance.callbacks!.onInitialReady?.(0);
+      instance.callbacks!.onCommittedHorizon?.(0);
+      instance.callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+    });
+    await tick(3_000);
+    await act(async () => workbench.resetArduinoRuntime('uno'));
+    expect(instance.restart).toHaveBeenCalledTimes(1);
+    expect(workbench.simulationStatus).toBe('starting');
+    await tick(4_999);
+    expect(workbench.simulationRunning).toBe(true);
+    await tick(1);
+    expect(workbench.simulationRunning).toBe(false);
+    expect(workbench.simulationMessage?.code).toBe('startup-timeout');
   });
 
   it('loads only after Start and preserves every pending committed input in order before H0', async () => {
@@ -1138,6 +1645,11 @@ describe('mounted workbench host demand clock', () => {
         new SimulationFailure('technical', 'worker-runtime', 'Worker failed'),
       ),
     );
+    expect(reportClientDiagnostic).toHaveBeenCalledWith('simulation_failed', 'electronics', {
+      phase: 'simulation',
+      category: 'technical',
+      failureCode: 'worker-runtime',
+    });
     expect(workbench.simulationRunning).toBe(false);
     expect(workbench.simulationTimeMs).toBe(0);
     worker().update.mockClear();
@@ -1451,6 +1963,36 @@ describe('mounted workbench LED temporal display', () => {
     },
   );
 
+  it('settles only the existing cold native proposal before declaring Paused', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(opticalReady(0), true);
+    await frame();
+    const pending = workbench.preparedComponentLedAsset(led)!;
+    expect(pending.asset).toMatch(/_i080\.svg$/);
+    expect(workbench.result).toBeNull();
+    await act(async () => workbench.setSimulationRate(0));
+    expect(workbench.simulationPacing.read().phase).toBe('pausing');
+    expect(workbench.preparedComponentLedAsset(led)?.token).toBe(pending.token);
+    await loadMountedImages();
+    await frame();
+    assertCommitted(80, 'lit');
+    expect(workbench.simulationPacing.read().phase).toBe('paused');
+    const updates = worker().update.mock.calls.length;
+    await tick(1000);
+    await frames(3);
+    await loadMountedImages();
+    expect(worker().update).toHaveBeenCalledTimes(updates);
+    expect(workbench.simulationTimeMs).toBe(0);
+    assertCommitted(80, 'lit');
+    expect(workbench.preparedComponentLedAsset(led)).toEqual(pending);
+    await act(async () => workbench.setSimulationRate(0.1));
+    await tick(10);
+    await act(async () => intervalCallback()());
+    expect(worker().update.mock.calls.at(-1)?.[1]).toBe(1000);
+  });
+
   it('does not replace an unacknowledged native request with a later accepted asset', async () => {
     await mount();
     await loadMountedImages();
@@ -1727,7 +2269,59 @@ describe('mounted workbench LED temporal display', () => {
     assertCommitted(0, 'off');
   });
 
-  it('publishes every nonempty Serial projection and clears it immediately without RAF', async () => {
+  it('skips editor renders for identical idle single-board Serial receipts', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const receive = worker().callbacks!.onSerialProjection!;
+    const publish = (serial: Parameters<typeof receive>[0]) => act(async () => receive(serial));
+    const expectPublished = async (serial: Parameters<typeof receive>[0]) => {
+      const previous = workbench.arduinoSerialByBoard;
+      await publish(serial);
+      expect(workbench.arduinoSerialByBoard).not.toBe(previous);
+      expect(Object.values(workbench.arduinoSerialByBoard)).toEqual(serial);
+    };
+    const idle = {
+      componentId: 'uno',
+      streamGeneration: 'project:1:1',
+      begun: true,
+      baudRate: 9600,
+      tx: [],
+      rxPendingBytes: 0,
+    };
+
+    await expectPublished([idle]);
+    const before = renders;
+    for (let receipt = 0; receipt < 4; receipt++) {
+      await publish([{ ...idle, tx: [] }]);
+    }
+    expect(renders - before).toBe(0);
+
+    let last = idle;
+    for (const change of [
+      { streamGeneration: 'project:1:2' },
+      { begun: false },
+      { baudRate: 115200 },
+      { rxPendingBytes: 3 },
+      { componentId: 'second' },
+    ]) {
+      last = { ...last, ...change };
+      await expectPublished([last]);
+    }
+
+    const tx = { ...last, tx: [{ sequence: 0, atMicroseconds: 1000, text: 'ready' }] };
+    await expectPublished([tx]);
+    await expectPublished([{ ...tx, tx: [...tx.tx] }]);
+    await expectPublished([last]);
+
+    const twoBoards = [idle, last];
+    await expectPublished(twoBoards);
+    await expectPublished(twoBoards.map((board) => ({ ...board, tx: [] })));
+    await expectPublished([idle]);
+    await expectPublished([]);
+    await expectPublished([idle]);
+  });
+
+  it('publishes changed Serial projections and clears them immediately without RAF', async () => {
     await mount();
     await act(async () => workbench.toggleSimulation());
     const projection = {

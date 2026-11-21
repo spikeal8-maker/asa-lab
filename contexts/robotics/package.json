@@ -1,0 +1,49 @@
+{
+  "name": "@asa-lab/robotics",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    "./document": {
+      "types": "./dist/domain/document.d.ts",
+      "browser": "./domain/document.ts",
+      "default": "./dist/domain/document.js"
+    },
+    "./world": {
+      "types": "./dist/domain/world.d.ts",
+      "browser": "./domain/world.ts",
+      "default": "./dist/domain/world.js"
+    },
+    "./world-document": {
+      "types": "./dist/domain/world-document.d.ts",
+      "browser": "./domain/world-document.ts",
+      "default": "./dist/domain/world-document.js"
+    },
+    "./world-physics": {
+      "types": "./dist/domain/world-physics.d.ts",
+      "browser": "./domain/world-physics.ts",
+      "default": "./dist/domain/world-physics.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/domain/world-runtime.d.ts",
+      "browser": "./domain/world-runtime.ts",
+      "default": "./dist/domain/world-runtime.js"
+    },
+    "./world-authoring": {
+      "types": "./dist/domain/world-authoring.d.ts",
+      "browser": "./domain/world-authoring.ts",
+      "default": "./dist/domain/world-authoring.js"
+    }
+  },
+  "dependencies": {
+    "@asa-lab/electronics": "workspace:*",
+    "@asa-lab/module-sdk": "workspace:*",
+    "planck": "1.4.2",
+    "stage-js": "1.0.1"
+  }
+}

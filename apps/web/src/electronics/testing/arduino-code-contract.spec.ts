@@ -6,7 +6,18 @@ import { ARDUINO_COMPLETIONS } from '../arduino-source-language';
 import webViteConfig from '../../../vite.config';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
-const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
+// Definitions/format/theme are now shared with the read-only viewer. Keep the
+// same contract assertions over their canonical sources rather than the old file layout.
+const blocksSource = [
+  'arduino-blocks.ts',
+  'arduino-block-definitions.ts',
+  'arduino-block-schema.ts',
+]
+  .map((file) => readFileSync(resolve(electronicsRoot, file), 'utf8'))
+  .join('\n');
+const blockUiSource = ['arduino-block-ui.ts', 'arduino-block-appearance.ts']
+  .map((file) => readFileSync(resolve(electronicsRoot, file), 'utf8'))
+  .join('\n');
 const panelSource = readFileSync(resolve(electronicsRoot, 'ArduinoCodePanel.tsx'), 'utf8');
 const serialMonitorSource = readFileSync(
   resolve(electronicsRoot, 'ArduinoSerialMonitor.tsx'),
@@ -33,6 +44,21 @@ const editorSource = readFileSync(
 const css = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('Arduino programming room contract', () => {
+  it('keeps shared static block metadata outside the executable solver chunk', () => {
+    if (typeof webViteConfig !== 'function') throw new Error('Expected the canonical Vite config');
+    const config = webViteConfig({ command: 'build', mode: 'production' });
+    if (config instanceof Promise) throw new Error('Expected synchronous Vite config');
+    const output = config.build?.rollupOptions?.output;
+    if (!output || Array.isArray(output) || typeof output.manualChunks !== 'function')
+      throw new Error('Expected canonical chunk boundaries');
+    const graph = { getModuleInfo: () => null, getModuleIds: () => ([] as string[]).values() };
+    expect(
+      output.manualChunks('/repo/contexts/electronics/domain/arduino-block-support.ts', graph),
+    ).toBe('electronics-block-support');
+    expect(output.manualChunks('/repo/contexts/electronics/domain/solver.ts', graph)).toBe(
+      'electronics-simulation-core',
+    );
+  });
   it('initializes Scratch media with the same local directory as the emitted pinned assets', () => {
     expect(panelSource).toContain(
       "media: new URL('.', new URL(scratchZoomInUrl, document.baseURI)).href",
@@ -88,9 +114,9 @@ describe('Arduino programming room contract', () => {
     expect(blocksSource).toContain("from 'scratch-blocks'");
     expect(panelSource).toContain('ScratchBlocks.inject(host');
     expect(panelSource).toContain('ScratchBlocks.ScratchBlocksTheme.CLASSIC');
-    expect(panelSource).toContain("ScratchBlocks.Theme.defineTheme('asa-arduino'");
-    expect(panelSource).toContain("colourPrimary: '#4C97FF'");
-    expect(panelSource).toContain("colourPrimary: '#FFAB19'");
+    expect(blockUiSource).toContain("ScratchBlocks.Theme.defineTheme('asa-arduino'");
+    expect(blockUiSource).toContain("colourPrimary: '#4C97FF'");
+    expect(blockUiSource).toContain("colourPrimary: '#FFAB19'");
     expect(panelSource).toContain('applyScratchMediaAssets(host)');
     expect(panelSource).toContain('scratch-blocks/media/zoom-in.svg?url');
     expect(panelSource).toContain('scratch-blocks/media/sprites.png?url');
@@ -101,7 +127,7 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('.arduino-block-editor .blocklyFlyoutBackground');
     expect(css).toContain('font-weight: 500 !important');
     expect(css).toContain('.arduino-block-editor .blocklyLabelField > .blocklyText');
-    expect(css).toContain('text-shadow: 0 1px 1px');
+    expect(css).not.toContain('text-shadow: 0 1px 1px rgba(48, 51, 39, 0.42)');
     expect(css).toContain('grid-template-columns: minmax(500px, 2fr) minmax(330px, 1fr)');
   });
 
@@ -129,12 +155,12 @@ describe('Arduino programming room contract', () => {
   it('opens as independent resizable drawer and palette without moving the circuit', () => {
     expect(editorSource).toContain("codeOpen ? ' code-open' : ''");
     expect(editorSource).toContain("'--arduino-code-panel-width'");
-    expect(panelSource).toContain('DrawerResizeHandle');
+    expect(panelSource).toContain('HorizontalResizeHandle');
     expect(panelSource).toContain('role="separator"');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MIN_WIDTH = 220');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MAX_WIDTH = 520');
     expect(panelSource).toContain('ARDUINO_FLYOUT_DEFAULT_WIDTH = 290');
-    expect(panelSource).toContain('PaletteResizeHandle');
+    expect(panelSource).toContain('kind="palette"');
     expect(panelSource).toContain('Изменить ширину палитры блоков');
     expect(panelSource).toContain('Уменьшить блоки в палитре');
     expect(panelSource).toContain('Увеличить блоки в палитре');
@@ -148,7 +174,7 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('.arduino-palette-scale');
     expect(panelSource).toContain('centerArduinoProgram(workspace)');
     expect(panelSource).toContain("image.setAttribute('href', url)");
-    expect(blocksSource).not.toContain("delete definition['colour']");
+    expect(blocksSource).toContain("definition['style'] = 'operators'");
     expect(css.slice(0, css.indexOf('@media (max-width: 980px)'))).not.toContain(
       '.workbench-shell.code-open .workbench-stage',
     );
@@ -216,14 +242,15 @@ describe('Arduino programming room contract', () => {
     expect(blocksSource).toContain(
       "support.status === 'unsupported' ? { colour: UNSUPPORTED_BLOCK }",
     );
-    expect(blocksSource).toContain("? 'Пока не работает.'");
+    expect(blocksSource).toContain('arduinoBlockTooltip(blockType)');
+    expect(blockUiSource).not.toContain('Работает с ограничениями модели');
     expect(blocksSource).not.toContain('message0: `${marker}');
     expect(panelSource).toContain('analyseArduinoSourceSupport(source)');
     expect(panelSource).toContain('<strong>Проверка кода</strong>');
     expect(panelSource).toContain('Блокирующих: {unsupportedCount}');
-    expect(panelSource).toContain('Ограничений: {limitedCount}');
+    expect(panelSource).toContain('Примечаний: {limitedCount}');
     expect(panelSource).toContain('Моделирование заблокировано');
-    expect(panelSource).toContain('Это проверка модели ASA Lab, а не компиляция Arduino C++');
+    expect(panelSource).toContain('Это проверка симулятора, не компиляция C++');
     expect(panelSource).toContain('onDiagnosticsOpenChange');
     expect(panelSource).toContain('previousUnsupportedCountRef');
     expect(panelSource).toContain('unsupportedCount > previousCount');
@@ -236,14 +263,14 @@ describe('Arduino programming room contract', () => {
   });
 
   it('keeps block inputs visible and supports complete stack actions', () => {
-    expect(blocksSource).toContain("name: 'TIME', value: 1");
+    expect(blocksSource).toContain("type: 'input_value', name: 'TIME', check: 'Number'");
     expect(blocksSource).toContain("name: 'VALUE', value: '0'");
     expect(blocksSource).toContain('TOOLBOX_INPUT_DEFAULTS');
     expect(blocksSource).toContain('applyArduinoBlockDefaults');
     expect(blocksSource).toContain('asa_var_set: { VALUE: NUMBER_SHADOW() }');
     expect(blocksSource).toContain("asa_analog_write: { VALUE: NUMBER_SHADOW('0') }");
-    expect(blocksSource).toContain("node['type'] === 'asa_analog_write'");
-    expect(blocksSource).toContain("block.getInputTargetBlock('VALUE')");
+    expect(blocksSource).toContain("TOOLBOX_INPUT_DEFAULTS[node['type']]");
+    expect(blocksSource).toContain("current.getInputTargetBlock('VALUE')");
     expect(panelSource).toContain('arduino-block-context-menu');
     expect(panelSource).toContain('block.toCopyData(true)');
     expect(panelSource).toContain('block.dispose(false, true)');

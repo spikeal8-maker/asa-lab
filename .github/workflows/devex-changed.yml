@@ -1,0 +1,196 @@
+name: ASA DevEx bounded UI checks
+
+"on":
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+    outputs:
+      evidence:
+        description: Actual complete source-bound bounded checks
+        value: ${{ jobs.collect-picker.outputs.evidence }}
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+env:
+  CI: "true"
+  NX_SKIP_NX_CACHE: "true"
+  NX_DAEMON: "false"
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+  BASE_REF: ${{ github.event.pull_request.base.ref || github.ref_name }}
+  EVENT_NAME: ${{ github.event_name }}
+  EVENT_REF: ${{ github.ref }}
+  MERGE_CANDIDATE_SHA: ${{ github.sha }}
+  GENERAL_PLAN: ${{ inputs.plan }}
+
+jobs:
+  collect-picker:
+    name: Actual bounded UI checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    outputs:
+      evidence: ${{ steps.evidence.outputs.evidence }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate the pinned General plan before dependencies
+        id: changes
+        shell: bash
+        run: |
+          git switch --detach "$SOURCE_SHA"
+          python3 tools/devex_ci_contract.py validate
+          python3 - <<'PY'
+          import json, os
+          plan = json.loads(os.environ['GENERAL_PLAN'])
+          if plan['route'] not in ('PARALLEL', 'FAST'):
+              raise SystemExit('Bounded job requires an applicable plan')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('candidate=true\nmerge_base=' + plan['merge_base'] + '\n')
+          PY
+
+      - uses: pnpm/action-setup@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          python-version: "3.13"
+      - name: Install exact dependencies for candidate only
+        if: steps.changes.outputs.candidate == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install --disable-pip-version-check -r tools/requirements.txt
+
+      - name: Prove the existing CollectPicker effect
+        id: proof
+        if: steps.changes.outputs.candidate == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        shell: bash
+        run: |
+          node tools/devex-local-ui.mjs --prove "$MERGE_BASE" > .asa/devex/ci-proof.json
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          proof = json.loads(Path('.asa/devex/ci-proof.json').read_text())
+          if type(proof.get('eligible')) is not bool:
+              raise SystemExit('Malformed effect proof')
+          eligible = proof['eligible']
+          if eligible and (proof.get('profile_id') != 'collect-picker-presentation-v1' or proof.get('version') != 1 or
+                           proof.get('ci_test_files') != ['e2e/project-collections-baseline.spec.ts']):
+              raise SystemExit('Candidate has no trusted concrete browser baseline')
+          plan = json.loads(os.environ['GENERAL_PLAN'])
+          if not eligible or proof != plan.get('proof'):
+              raise SystemExit('Executed proof differs from authorized General plan')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'eligible={str(eligible).lower()}\n')
+          PY
+
+      # Same canonical local runner and catalog commands as the developer.
+      # The read-only token is needed solely for its mandatory preflight.
+      - name: Run three source-bound local checks
+        id: local
+        if: steps.proof.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm dev:check --changed --base "$BASE_SHA" --output .asa/devex/ci-check.json
+
+      - name: Validate the current local receipt
+        id: receipt
+        if: steps.proof.outputs.eligible == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          def require(condition, reason):
+              if not condition:
+                  raise SystemExit(reason)
+          report = json.loads(Path('.asa/devex/ci-check.json').read_text())
+          proof = json.loads(Path('.asa/devex/ci-proof.json').read_text())
+          expected = ['TST-COLLECT-PICKER-FORMAT-001', 'TST-COLLECT-PICKER-LINT-001', 'TST-COLLECT-PICKER-UNIT-001']
+          require(subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() == os.environ['SOURCE_SHA'], 'Checkout source changed')
+          require(report.get('git') == {'head': os.environ['SOURCE_SHA'], 'base': os.environ['BASE_SHA'], 'merge_base': os.environ['MERGE_BASE']}, 'Receipt source/base mismatch')
+          require(report.get('status') == 'LOCAL_PASS' and report.get('local_status') == 'PASS' and report.get('preflight_passed') is True, 'Local checks did not pass')
+          require(report.get('local_selected_ids') == expected, 'Local selection is incomplete or broader than the pilot')
+          executed = [item for item in report.get('checks', []) if item.get('state') != 'NOT_RUN']
+          require(len(executed) == 3 and {item.get('id') for item in executed} == set(expected) and all(item.get('state') == 'PASS' for item in executed), 'Selected checks failed, missing or duplicated')
+          require(proof.get('eligible') is True and proof.get('profile_id') == 'collect-picker-presentation-v1', 'Effect proof not eligible')
+          require(re.fullmatch(r'[0-9a-f]{64}', proof.get('source_digest', '')) is not None and report.get('local_profile') == proof, 'Effect proof/source digest changed')
+          require(report.get('ci_only_files') == [{'path': 'e2e/project-collections-baseline.spec.ts', 'state': 'CI_NOT_RUN', 'test_id': 'TST-COLLECT-PICKER-BROWSER-001'}], 'Concrete browser obligation missing')
+          require('TST-COLLECT-PICKER-BROWSER-001' in report.get('deferred_mandatory_ids', []), 'Browser check was waived')
+          require(report.get('ci_status') == 'CI_PENDING' and report.get('full_ci') == 'NOT_RUN' and report.get('release_status') == 'RELEASE_NOT_READY' and report.get('integration_ready') is False and report.get('release_ready') is False, 'Local receipt falsely claims full readiness')
+          PY
+
+      - name: Install supported Chromium
+        if: steps.proof.outputs.eligible == 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build only the Web dependency closure
+        id: build
+        if: steps.proof.outputs.eligible == 'true'
+        run: pnpm exec nx run web:build
+      - name: Run the concrete built-SPA browser journey
+        id: browser
+        if: steps.proof.outputs.eligible == 'true'
+        shell: bash
+        run: |
+          pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/project-collections-baseline.spec.ts | tee .asa/devex/ci-browser.log
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          text = re.sub(r'\x1b\[[0-9;]*m', '', Path('.asa/devex/ci-browser.log').read_text())
+          if not re.search(r'\b24 passed\b', text) or re.search(r'\b[1-9][0-9]* (?:failed|skipped|flaky|interrupted|timed out)\b', text):
+              raise SystemExit('Concrete browser run is incomplete; expected all 24 cases without skips')
+          PY
+      - name: Recheck bound source after browser execution
+        id: final-source
+        if: steps.proof.outputs.eligible == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        shell: bash
+        run: |
+          node tools/devex-local-ui.mjs --prove "$MERGE_BASE" > .asa/devex/ci-proof-after.json
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          before = json.loads(Path('.asa/devex/ci-proof.json').read_text())
+          after = json.loads(Path('.asa/devex/ci-proof-after.json').read_text())
+          if before != after or after.get('eligible') is not True or subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() != os.environ['SOURCE_SHA'] or subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all']):
+              raise SystemExit('Bound source changed during isolated CI')
+          PY
+
+      - name: Emit evidence only after every actual check and final source validation
+        id: evidence
+        run: python3 tools/devex_ci_contract.py evidence
+      - name: Preserve source-bound bounded UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devex-ui-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .asa/devex/ci-proof.json
+            .asa/devex/ci-proof-after.json
+            .asa/devex/ci-result.json
+            .asa/devex/ci-browser.log
+            reports/playwright/settings-ui
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

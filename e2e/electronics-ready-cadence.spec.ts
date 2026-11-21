@@ -4058,16 +4058,20 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
     return response.json() as Promise<{ draft: { revision: number; document: SchematicDocument } }>;
   };
   const initial = await read();
-  // Seed only the existing electrical fixture. The pupil's programme is created
-  // by the production mode switch/default blocks and edited through visible fields.
+  // Start with a source-only sketch so the confirmed mode switch creates default blocks.
   const circuit = threeLedFixture();
-  expect(
-    circuit.components.find((row) => row.id === 'uno')!.stateProperties!['arduinoWorkspace'],
-  ).toBe('');
+  const uno = circuit.components.find((component) => component.id === 'uno')!;
+  const stateProperties = { ...uno.stateProperties };
+  delete stateProperties['arduinoWorkspace'];
   const seeded = await page.context().request.put(`${endpoint}/draft`, {
     headers: { origin },
     data: {
-      document: circuit,
+      document: {
+        ...circuit,
+        components: circuit.components.map((component) =>
+          component === uno ? { ...uno, stateProperties } : component,
+        ),
+      },
       baseRevision: initial.draft.revision,
       mutationId: crypto.randomUUID(),
     },
@@ -4082,10 +4086,19 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
     .getByRole('dialog', { name: 'Продолжить?', exact: true })
     .getByRole('button', { name: 'Продолжить', exact: true })
     .click();
-  const workspace = page.getByTestId('arduino-block-workspace');
-  const canvas = workspace.locator(
-    ':scope > .injectionDiv > svg.blocklySvg > .blocklyWorkspace > .blocklyBlockCanvas',
-  );
+  const programCanvas = (target: Page) =>
+    target
+      .getByTestId('arduino-block-workspace')
+      .locator(':scope > .injectionDiv > svg.blocklySvg > .blocklyWorkspace > .blocklyBlockCanvas');
+  const waitFields = (target: Page, blockId: string) => {
+    const block = programCanvas(target).locator(`.asa_wait[data-id="${blockId}"]`);
+    // The wait SVG group also contains subsequent blocks in the stack.
+    return {
+      duration: block.locator(':scope > .asa_number.blocklyShadow > .blocklyTextInputField'),
+      unit: block.locator(':scope > .blocklyDropdownField'),
+    };
+  };
+  const canvas = programCanvas(page);
   const waits = await canvas
     .locator('text.blocklyText')
     .filter({ hasText: /^ожидать$/ })
@@ -4100,14 +4113,14 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
     if (half !== 100)
       await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
     for (const blockId of waits) {
-      const block = canvas.locator(`[data-id="${blockId}"]`);
-      await block.locator('.blocklyTextInputField').first().dblclick();
+      const { duration, unit } = waitFields(page, blockId);
+      await duration.dblclick();
       const input = page.locator('input.blocklyHtmlInput');
       await expect(input).toBeVisible();
       await input.fill(String(half));
       await input.press('Enter');
       if (half === 100) {
-        await block.locator('.blocklyDropdownField').first().click();
+        await unit.click();
         await page
           .locator('.blocklyDropDownDiv, .blocklyWidgetDiv')
           .getByText('мс', { exact: true })
@@ -4139,16 +4152,37 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
     expect(properties['arduinoSource']).toBe(source);
     expect(properties['arduinoCodeMode']).toBe('blocks-text');
     const workspaceJson = String(properties['arduinoWorkspace']);
-    const waitFields: Array<{ TIME: unknown; UNIT: unknown }> = [];
+    const savedWaits: Array<[number, unknown]> = [];
     const inspect = (value: unknown): void => {
       if (!value || typeof value !== 'object') return;
       const row = value as Record<string, unknown>;
-      if (row['type'] === 'asa_wait')
-        waitFields.push(row['fields'] as { TIME: unknown; UNIT: unknown });
+      if (row['type'] === 'asa_wait') {
+        const { fields, inputs } = row as {
+          fields?: { TIME?: unknown; UNIT?: unknown };
+          inputs?: {
+            TIME?: { block?: unknown; shadow?: { type?: unknown; fields?: { VALUE?: unknown } } };
+          };
+        };
+        const time = inputs?.TIME;
+        const duration = time?.shadow?.fields?.VALUE;
+        expect(fields?.TIME, 'saved asa_wait has no legacy TIME field').toBeUndefined();
+        expect(time?.block, 'edited default TIME is still a shadow').toBeUndefined();
+        expect(time?.shadow?.type).toBe('asa_number');
+        const numericDuration =
+          typeof duration === 'number' ||
+          (typeof duration === 'string' &&
+            /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(duration))
+            ? Number(duration)
+            : Number.NaN;
+        if (!Number.isFinite(numericDuration)) {
+          throw new Error('Saved asa_wait TIME shadow must contain a finite numeric field VALUE');
+        }
+        savedWaits.push([numericDuration, fields?.UNIT]);
+      }
       Object.values(row).forEach(inspect);
     };
     inspect(JSON.parse(workspaceJson));
-    expect(waitFields.map((fields) => [Number(fields.TIME), fields.UNIT])).toEqual([
+    expect(savedWaits).toEqual([
       [half, 'MILLISECONDS'],
       [half, 'MILLISECONDS'],
     ]);
@@ -4238,18 +4272,9 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
         reopened.getByRole('textbox', { name: 'Сгенерированный код Arduino', exact: true }),
       ).toHaveValue(source);
       for (const blockId of waits) {
-        await expect(
-          reopened
-            .getByTestId('arduino-block-workspace')
-            .locator(`[data-id="${blockId}"] .blocklyTextInputField`)
-            .first(),
-        ).toHaveText(String(half));
-        await expect(
-          reopened
-            .getByTestId('arduino-block-workspace')
-            .locator(`[data-id="${blockId}"] .blocklyDropdownField`)
-            .first(),
-        ).toHaveText('мс');
+        const { duration, unit } = waitFields(reopened, blockId);
+        await expect(duration).toHaveText(String(half));
+        await expect(unit).toHaveText('мс');
       }
       expect((await read()).draft).toEqual(saved.draft);
     } finally {

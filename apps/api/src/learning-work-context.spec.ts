@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import type {
   CanonicalLearningProjection,
@@ -141,6 +141,8 @@ const originEvidence: EvidenceRow = {
 };
 
 describe('A1 project-scoped Learning Work Context', () => {
+  afterEach(() => vi.useRealTimers());
+
   it('uses exact immutable origin evidence even when handout projection points to a sibling', async () => {
     const exactAttempt = originEvidence.attempt!.id;
     const originRow = { ...row, attemptId: exactAttempt, attemptNumber: 1 };
@@ -161,12 +163,13 @@ describe('A1 project-scoped Learning Work Context', () => {
         { ...projection, projectId: 'sibling', state: { ...projection.state } },
       ],
     ]) as Map<string, CanonicalLearningProjection>;
+    const loadProjections = vi.fn(async () => sibling);
     const context = await learningWorkContextForProject(
       pool,
       'viewer',
       projectId,
       'electronics',
-      sibling,
+      loadProjections,
       '2026-09-27T00:00:00.000Z',
     );
     expect(context).toMatchObject({
@@ -174,6 +177,11 @@ describe('A1 project-scoped Learning Work Context', () => {
       origin: { immutable: true, activityRunId: runId, courseBlockId: 'activity-a' },
       workflow: { attemptId: exactAttempt, canonicalState: { workflowState: 'in_progress' } },
     });
+    expect(loadProjections).not.toHaveBeenCalled();
+    expect(pool.query).toHaveBeenCalledWith(
+      'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
+      ['viewer', projectId],
+    );
   });
 
   it.each([
@@ -235,10 +243,12 @@ describe('A1 project-scoped Learning Work Context', () => {
           rows: [{ linked: true }],
         }),
     } as unknown as pg.Pool;
+    const loadProjections = vi.fn(async () => projections);
     await expect(
-      learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', projections),
+      learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', loadProjections),
     ).resolves.toEqual({ state: 'denied', projectId });
     expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+    expect(loadProjections).not.toHaveBeenCalled();
   });
 
   it('returns exact Course Activity block and canonical server actions', async () => {
@@ -273,6 +283,100 @@ describe('A1 project-scoped Learning Work Context', () => {
   });
 
   it.each([
+    [
+      'modern course',
+      row,
+      'learning_course_modern_provenance',
+      ['viewer', seatId, runId, projectId],
+    ],
+    [
+      'modern direct',
+      {
+        ...row,
+        sourceKind: 'direct',
+        courseRunId: null,
+        courseLessonId: null,
+        courseBlockId: null,
+      },
+      'learning_direct_modern_project_readable',
+      ['viewer', seatId, assignmentId, runId, projectId],
+    ],
+    ...(['course', 'direct'] as const).map(
+      (sourceKind) =>
+        [
+          `historical ${sourceKind}`,
+          {
+            ...row,
+            sourceKind,
+            activityRunId: null,
+            participationId: null,
+            runVersionId: null,
+            runStatus: null,
+            participationStatus: null,
+            effectiveConditions: null,
+            courseRunId: sourceKind === 'course' ? row.courseRunId : null,
+            courseLessonId: sourceKind === 'course' ? row.courseLessonId : null,
+            courseBlockId: null,
+          },
+          'learning_legacy_direct_provenance',
+          ['viewer', seatId, assignmentId, projectId],
+        ] as const,
+    ),
+  ] as const)(
+    'loads the same canonical result once after trusted no-origin %s provenance',
+    async (_name, candidate, proofFunction, proofArguments) => {
+      const canonical = new Map([
+        [
+          canonicalProjectionKey(seatId, assignmentId),
+          {
+            ...projection,
+            surface: { ...projection.surface, activityRunId: candidate.activityRunId },
+            state: {
+              ...projection.state,
+              provenance: {
+                ...projection.state.provenance,
+                activityRunId: candidate.activityRunId,
+              },
+            },
+          },
+        ],
+      ]);
+      const asOf = '2026-09-27T00:00:00.000Z';
+      const eager = await learningWorkContextForProject(
+        poolWith(candidate),
+        'viewer',
+        projectId,
+        'electronics',
+        canonical,
+        asOf,
+      );
+      const pool = poolWith(candidate);
+      const loadProjections = vi.fn(async () => {
+        expect(pool.query).toHaveBeenLastCalledWith(
+          expect.stringContaining(proofFunction),
+          proofArguments,
+        );
+        return canonical;
+      });
+      const deferred = await learningWorkContextForProject(
+        pool,
+        'viewer',
+        projectId,
+        'electronics',
+        loadProjections,
+        asOf,
+      );
+      expect(deferred).toEqual(eager);
+      expect(deferred).toMatchObject({
+        state: 'ready',
+        origin: { immutable: false, sourceKind: candidate.sourceKind },
+        allowedActions: { edit: true, submit: true },
+      });
+      expect(loadProjections).toHaveBeenCalledExactlyOnceWith();
+    },
+  );
+
+  it.each([
     ['course', row, 'learning_course_modern_provenance'],
     [
       'direct',
@@ -290,6 +394,18 @@ describe('A1 project-scoped Learning Work Context', () => {
       { ...row, activityRunId: null, sourceKind: 'course', courseBlockId: null },
       'learning_legacy_direct_provenance',
     ],
+    [
+      'historical direct',
+      {
+        ...row,
+        activityRunId: null,
+        sourceKind: 'direct',
+        courseRunId: null,
+        courseLessonId: null,
+        courseBlockId: null,
+      },
+      'learning_legacy_direct_provenance',
+    ],
   ] as const)(
     'denies remembered %s Project ID when its viewer-scoped no-origin proof is withdrawn',
     async (_name, candidate, proofFunction) => {
@@ -302,22 +418,31 @@ describe('A1 project-scoped Learning Work Context', () => {
         if (sql.includes(proofFunction)) return { rows: [{ proof: {}, readable: false }] };
         throw new Error('unexpected context query after revoked proof');
       });
+      const loadProjections = vi.fn(async () => projections);
       const context = await learningWorkContextForProject(
         { query } as unknown as pg.Pool,
         'viewer',
         projectId,
         'electronics',
-        projections,
+        loadProjections,
       );
       expect(context).toEqual({ state: 'denied', projectId });
       expect(query.mock.calls.some(([sql]) => sql.includes(proofFunction))).toBe(true);
+      expect(loadProjections).not.toHaveBeenCalled();
     },
   );
 
   it('only calls a provably personal project not_learning', async () => {
+    const pool = poolWith();
+    const loadProjections = vi.fn(async () => projections);
     await expect(
-      learningWorkContextForProject(poolWith(), 'viewer', projectId, 'electronics', projections),
+      learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', loadProjections),
     ).resolves.toEqual({ state: 'not_learning', projectId });
+    expect(pool.query).toHaveBeenLastCalledWith(
+      'SELECT learning_work_project_origin_exists($1, $2) AS linked',
+      ['viewer', projectId],
+    );
+    expect(loadProjections).not.toHaveBeenCalled();
   });
 
   it('distinguishes a linked project hidden from this viewer from a personal project', async () => {
@@ -331,9 +456,15 @@ describe('A1 project-scoped Learning Work Context', () => {
           rows: [{ linked: true }],
         }),
     } as unknown as pg.Pool;
+    const loadProjections = vi.fn(async () => projections);
     await expect(
-      learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', projections),
+      learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', loadProjections),
     ).resolves.toEqual({ state: 'denied', projectId });
+    expect(pool.query).toHaveBeenLastCalledWith(
+      'SELECT learning_work_project_origin_exists($1, $2) AS linked',
+      ['viewer', projectId],
+    );
+    expect(loadProjections).not.toHaveBeenCalled();
   });
 
   it('fails closed on ambiguous origins, version mismatch, and missing canonical evidence', async () => {
@@ -346,6 +477,98 @@ describe('A1 project-scoped Learning Work Context', () => {
         learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', canon),
       ).resolves.toEqual({ state: 'unavailable', projectId });
     }
+  });
+
+  it.each([
+    [
+      'ambiguous immutable origins',
+      [
+        { context: row, evidence: originEvidence },
+        { context: row, evidence: originEvidence },
+      ],
+      [],
+      1,
+    ],
+    ['ambiguous no-origin rows', [], [row, row], 3],
+    [
+      'a foreign immutable Project',
+      [
+        {
+          context: { ...row, projectId: 'foreign-project', attemptId: originEvidence.attempt!.id },
+          evidence: originEvidence,
+        },
+      ],
+      [],
+      1,
+    ],
+    ['invalid immutable evidence', [{ context: row, evidence: null }], [], 1],
+  ] as const)(
+    'rejects %s without loading the shared projection or exposing origin data',
+    async (_name, originRows, legacyRows, queryCount) => {
+      const query = vi.fn(async (sql: string) => {
+        if (sql.includes('learning_origin_work_context_for_project')) return { rows: originRows };
+        if (sql.includes('learning_immutable_project_origin_exists'))
+          return { rows: [{ linked: false }] };
+        if (sql.includes('learning_work_context_for_project'))
+          return { rows: legacyRows.map((context) => ({ context })) };
+        throw new Error('unexpected query after invalid origin');
+      });
+      const loadProjections = vi.fn(async () => projections);
+      await expect(
+        learningWorkContextForProject(
+          { query } as unknown as pg.Pool,
+          'viewer',
+          projectId,
+          'electronics',
+          loadProjections,
+        ),
+      ).resolves.toEqual({ state: 'unavailable', projectId });
+      expect(query).toHaveBeenCalledWith(
+        'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
+        ['viewer', projectId],
+      );
+      expect(query).toHaveBeenCalledTimes(queryCount);
+      expect(loadProjections).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['missing', new Map<string, CanonicalLearningProjection>()],
+    [
+      'foreign',
+      new Map([
+        [canonicalProjectionKey(seatId, assignmentId), { ...projection, projectId: 'foreign' }],
+      ]),
+    ],
+  ] as const)('fails closed when the required canonical projection is %s', async (_name, canon) => {
+    const loadProjections = vi.fn(async () => canon);
+    await expect(
+      learningWorkContextForProject(
+        poolWith(row),
+        'viewer',
+        projectId,
+        'electronics',
+        loadProjections,
+      ),
+    ).resolves.toEqual({ state: 'unavailable', projectId });
+    expect(loadProjections).toHaveBeenCalledOnce();
+  });
+
+  it('propagates a required canonical read failure without treating the Project as personal', async () => {
+    const failure = new Error('required canonical read failed');
+    const loadProjections = vi.fn(async () => {
+      throw failure;
+    });
+    await expect(
+      learningWorkContextForProject(
+        poolWith(row),
+        'viewer',
+        projectId,
+        'electronics',
+        loadProjections,
+      ),
+    ).rejects.toBe(failure);
+    expect(loadProjections).toHaveBeenCalledOnce();
   });
 
   it('denies restricted evidence and blocks actions after close', async () => {
@@ -364,9 +587,17 @@ describe('A1 project-scoped Learning Work Context', () => {
         } as CanonicalLearningProjection,
       ],
     ]);
+    const loadRestricted = vi.fn(async () => restricted);
     await expect(
-      learningWorkContextForProject(poolWith(row), 'viewer', projectId, 'electronics', restricted),
+      learningWorkContextForProject(
+        poolWith(row),
+        'viewer',
+        projectId,
+        'electronics',
+        loadRestricted,
+      ),
     ).resolves.toEqual({ state: 'denied', projectId });
+    expect(loadRestricted).toHaveBeenCalledOnce();
     const closed = await learningWorkContextForProject(
       poolWith({
         ...row,
@@ -388,6 +619,73 @@ describe('A1 project-scoped Learning Work Context', () => {
     expect(closed.state).toBe('ready');
     if (closed.state === 'ready') expect(closed.allowedActions.submit).toBe(false);
   });
+
+  it.each([
+    ['dueAt', undefined, false],
+    ['closesAt', undefined, false],
+    ['dueAt', '2026-09-27T00:00:00.000Z', true],
+    ['closesAt', '2026-09-27T00:00:00.000Z', true],
+  ] as const)(
+    'preserves %s action timing after a slow canonical read with asOf=%s',
+    async (boundary, asOf, allowed) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-27T00:00:00.000Z'));
+      const deadline = '2026-09-27T00:00:01.000Z';
+      const canonical = new Map([
+        [
+          canonicalProjectionKey(seatId, assignmentId),
+          { ...projection, surface: { ...projection.surface, effectiveDueAt: deadline } },
+        ],
+      ]);
+      const loadProjections = vi.fn(async () => {
+        vi.setSystemTime(new Date('2026-09-27T00:00:02.000Z'));
+        return canonical;
+      });
+      const context = await learningWorkContextForProject(
+        poolWith({
+          ...row,
+          effectiveConditions: {
+            values: { [boundary]: deadline, latePolicy: 'block_at_due' },
+          },
+        }),
+        'viewer',
+        projectId,
+        'electronics',
+        loadProjections,
+        asOf,
+      );
+      expect(context).toMatchObject({
+        state: 'ready',
+        task: { dueAt: deadline },
+        allowedActions: { edit: allowed, submit: allowed },
+      });
+      expect(loadProjections).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(['dueAt', 'closesAt'] as const)(
+    'keeps the existing entry-time %s clock for a prepared Map caller',
+    async (boundary) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-27T00:00:00.000Z'));
+      const pool = poolWith({
+        ...row,
+        effectiveConditions: {
+          values: { [boundary]: '2026-09-27T00:00:01.000Z', latePolicy: 'block_at_due' },
+        },
+      });
+      vi.mocked(pool.query).mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date('2026-09-27T00:00:02.000Z'));
+        return { rows: [] };
+      });
+      await expect(
+        learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', projections),
+      ).resolves.toMatchObject({
+        state: 'ready',
+        allowedActions: { edit: true, submit: true },
+      });
+    },
+  );
 
   it('allows a teacher-unlocked late submit and resume under block_at_due', async () => {
     const asOf = '2026-09-27T00:00:00.000Z';

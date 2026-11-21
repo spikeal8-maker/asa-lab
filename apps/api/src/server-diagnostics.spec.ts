@@ -29,6 +29,9 @@ class DiagnosticFixtureModule {}
 describe('structured server error evidence', () => {
   it.each([
     ['electronics_hole_binding_reference', 400, 'validation_error', true],
+    ['robotics_document_version', 400, 'validation_error', true],
+    ['robotics_document_version', 500, 'validation_error', false],
+    ['robotics_document_version', 400, 'permission_denied', false],
     ['private-student-data', 400, 'validation_error', false],
     ['electronics_hole_binding_reference', 500, 'validation_error', false],
     ['electronics_hole_binding_reference', 403, 'permission_denied', false],

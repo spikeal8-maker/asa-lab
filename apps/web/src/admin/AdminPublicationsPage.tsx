@@ -1,12 +1,17 @@
+import { PublicationCommentModeration } from './PublicationCommentModeration';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import './admin-publications.css';
+import { PublicationAcquisitionSettings } from './PublicationAcquisitionSettings';
+import { PublicationReactionSettings } from './PublicationReactionSettings';
 
 interface Publication {
+  readonly schemaVersion?: number;
+  readonly moderationSupported?: boolean;
   readonly publicationId: string;
   readonly revisionId: string;
   readonly title: string;
-  readonly authorLabel: string;
+  readonly authorLabel: string | null;
   readonly moduleKey: string;
   readonly publishedAt: string;
   readonly state: string;
@@ -15,9 +20,14 @@ interface Publication {
   readonly reason: string | null;
   readonly moderatedAt: string | null;
   readonly featured: boolean;
+  readonly pinned: boolean;
+  readonly pinVersion: number;
   readonly editorialEligible: boolean;
   readonly editorialVersion: number;
   readonly lifecycleVersion: number;
+  readonly likeCount?: number;
+  readonly reactionsEnabled?: boolean;
+  readonly reactionsVersion?: number;
 }
 
 interface ModerationResult {
@@ -37,7 +47,7 @@ const dateTime = (value: string): string => {
 
 function Preview({ publication }: { readonly publication: Publication }): JSX.Element {
   const [failed, setFailed] = useState(false);
-  return failed ? (
+  return failed || publication.moderationSupported === false ? (
     <span className="admin-publication-preview" role="img" aria-label="Превью недоступно">
       <span aria-hidden="true">▧</span>
     </span>
@@ -58,6 +68,7 @@ export function AdminPublicationsPage({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [items, setItems] = useState<readonly Publication[]>([]);
+  const [listEpoch, setListEpoch] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +129,10 @@ export function AdminPublicationsPage({
             ],
       );
       setNextOffset(result.data.nextOffset);
+      // Only a successful full list read replaces each row's authoritative
+      // reaction state, including unchanged counts/versions after a failed write.
+      // Loading, failed reads and appending another page retain existing forms.
+      if (offset === 0) setListEpoch((previous) => previous + 1);
     },
     [fail],
   );
@@ -183,7 +198,7 @@ export function AdminPublicationsPage({
     setItems((previous) =>
       previous.map((item) =>
         item.publicationId === result.data.publicationId
-          ? { ...item, ...result.data, featured: false, editorialEligible: false }
+          ? { ...item, ...result.data, featured: false, pinned: false, editorialEligible: false }
           : item,
       ),
     );
@@ -255,12 +270,74 @@ export function AdminPublicationsPage({
     );
   };
 
+  const togglePinned = async (item: Publication): Promise<void> => {
+    if (
+      busy.current ||
+      blocked.current ||
+      !item.editorialEligible ||
+      item.hidden ||
+      item.state !== 'public'
+    )
+      return;
+    busy.current = true;
+    setSaving(true);
+    setError(null);
+    const current = version.current;
+    const result = await call<{
+      publicationId: string;
+      revisionId: string;
+      pinned: boolean;
+      pinVersion: number;
+      lifecycleVersion: number;
+    }>(`${endpoint(item.publicationId)}/pin`, {
+      method: 'POST',
+      body: JSON.stringify({
+        pinned: !item.pinned,
+        expectedVersion: item.pinVersion,
+        expectedRevisionId: item.revisionId,
+        expectedModerationVersion: item.moderationVersion,
+        expectedLifecycleVersion: item.lifecycleVersion,
+      }),
+    });
+    if (current !== version.current) return;
+    busy.current = false;
+    setSaving(false);
+    if (!result.ok) {
+      if (result.status === 409)
+        setError('Закрепление изменилось. Обновите список перед повтором.');
+      else fail(result.status);
+      return;
+    }
+    if (
+      result.data.publicationId !== item.publicationId ||
+      result.data.revisionId !== item.revisionId ||
+      result.data.pinned === item.pinned ||
+      result.data.pinVersion !== item.pinVersion + 1 ||
+      result.data.lifecycleVersion !== item.lifecycleVersion
+    ) {
+      setError('Сервер не подтвердил закрепление. Обновите список.');
+      return;
+    }
+    setItems((previous) =>
+      previous.map((currentItem) =>
+        currentItem.publicationId === result.data.publicationId
+          ? {
+              ...currentItem,
+              pinned: result.data.pinned,
+              pinVersion: result.data.pinVersion,
+            }
+          : currentItem,
+      ),
+    );
+  };
+
   return (
     <section
       className="admin-publications"
       aria-labelledby="admin-publications-title"
       aria-busy={loading || saving}
     >
+      <PublicationAcquisitionSettings onAccessDenied={onAccessDenied} />
       <div className="admin-section-heading">
         <div>
           <h2 id="admin-publications-title">Публикации</h2>
@@ -289,7 +366,7 @@ export function AdminPublicationsPage({
             <div className="admin-publication-details">
               <h3>{item.title}</h3>
               <p>
-                {item.authorLabel} · {item.moduleKey}
+                {item.authorLabel || 'Автор не указан'} · {item.moduleKey}
               </p>
               <p>
                 <time dateTime={item.publishedAt}>{dateTime(item.publishedAt)}</time>
@@ -303,6 +380,17 @@ export function AdminPublicationsPage({
                       : item.state}
                 </strong>
               </p>
+              {item.pinned && item.editorialEligible && !item.hidden ? (
+                <p className="admin-publication-pinned" data-testid="admin-publication-pinned">
+                  Закреплено
+                </p>
+              ) : null}
+              {item.moderationSupported === false ? (
+                <p className="admin-publication-legacy">
+                  Сохранённая публикация прежнего формата. Для просмотра и модерации автору нужно
+                  заново опубликовать проект. Исходные данные сохранены.
+                </p>
+              ) : null}
               {item.featured && item.editorialEligible && !item.hidden ? (
                 <p className="admin-publication-featured" data-testid="admin-publication-featured">
                   ★ Выбор редакции
@@ -317,6 +405,32 @@ export function AdminPublicationsPage({
               ) : null}
             </div>
             <div className="admin-publication-actions">
+              {typeof item.reactionsEnabled === 'boolean' &&
+              typeof item.reactionsVersion === 'number' &&
+              typeof item.likeCount === 'number' ? (
+                <PublicationReactionSettings
+                  key={`${item.publicationId}:${item.reactionsVersion}:${item.revisionId}:${listEpoch}`}
+                  publicationId={item.publicationId}
+                  revisionId={item.revisionId}
+                  initial={{
+                    likeCount: item.likeCount,
+                    reactionsEnabled: item.reactionsEnabled,
+                    reactionsVersion: item.reactionsVersion,
+                  }}
+                  onAccessDenied={() => fail(403)}
+                />
+              ) : null}
+              {item.editorialEligible && !item.hidden && item.state === 'public' ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={loading || saving || denied || selected !== null}
+                  onClick={() => void togglePinned(item)}
+                  data-testid="admin-publication-pin-action"
+                >
+                  {item.pinned ? 'Открепить' : 'Закрепить'}
+                </button>
+              ) : null}
               {item.editorialEligible && !item.hidden && item.state === 'public' ? (
                 <button
                   type="button"
@@ -327,20 +441,29 @@ export function AdminPublicationsPage({
                   {item.featured ? 'Снять отметку' : 'Выбор редакции'}
                 </button>
               ) : null}
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={loading || saving || denied}
-                onClick={(event) => {
-                  trigger.current = event.currentTarget;
-                  setReason('');
-                  setError(null);
-                  setSelected(item);
-                }}
-              >
-                {item.hidden ? 'Восстановить' : 'Скрыть'}
-              </button>
+              {item.moderationSupported !== false ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={loading || saving || denied}
+                  onClick={(event) => {
+                    trigger.current = event.currentTarget;
+                    setReason('');
+                    setError(null);
+                    setSelected(item);
+                  }}
+                >
+                  {item.hidden ? 'Восстановить' : 'Скрыть'}
+                </button>
+              ) : null}
             </div>
+            {item.moderationSupported !== false ? (
+              <PublicationCommentModeration
+                key={`${item.publicationId}:${listEpoch}`}
+                publicationId={item.publicationId}
+                onAccessDenied={() => fail(403)}
+              />
+            ) : null}
           </li>
         ))}
       </ul>

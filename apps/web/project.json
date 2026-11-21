@@ -13,8 +13,18 @@
         "{workspaceRoot}/tools/web-private-symbols.mjs",
         "{workspaceRoot}/tools/browser-error-symbols.mjs",
         "{workspaceRoot}/tools/web-symbols-public.pem",
+        "{workspaceRoot}/tools/web-build-revision.mjs",
         { "env": "VITE_ASA_BUILD_REVISION" },
-        { "env": "VITE_ASA_BUILT_AT" }
+        { "env": "VITE_ASA_BUILT_AT" },
+        { "env": "VITE_ASA_BLOCKS_PREVIEW" },
+        { "env": "VITE_ASA_BLOCKS_RUNTIME_ORIGIN" },
+        { "env": "ASA_CAPTURE_PUBLICATION_GRAPH" },
+        { "env": "ASA_WEB_PORT" },
+        { "env": "ASA_API_PORT" },
+        { "env": "NODE_ENV" },
+        {
+          "runtime": "node tools/web-build-revision.mjs"
+        }
       ],
       "outputs": ["{workspaceRoot}/apps/web/dist", "{workspaceRoot}/apps/web/private-symbols"]
     },

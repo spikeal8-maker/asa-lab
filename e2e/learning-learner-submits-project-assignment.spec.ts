@@ -224,7 +224,7 @@ async function assignFromUi(
   page: Page,
   input: { title: string; due: string; students?: string[] },
 ): Promise<string> {
-  await page.getByRole('button', { name: 'Назначить задание', exact: true }).click();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Назначить задание' });
   await dialog.getByLabel('Задание').selectOption({ label: input.title });
   if (input.students) {
@@ -359,13 +359,77 @@ test('learner starts the real project editor and submits one immutable attempt',
   const teacherFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   const title = `Светодиод и резистор VS002 ${++sequence}`;
   const className = `7А — VS002 ${sequence}`;
-  await createPublishedProjectActivity(title);
   const joinCode = await createClassWithStudents(page, className, [
     { label: 'Анна', handle: `anna-vs002-${sequence}` },
     { label: 'Борис', handle: `boris-vs002-${sequence}` },
   ]);
-  await openAssignments(page);
-  await assignFromUi(page, { title, due: '2027-05-30' });
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  const classroomUrl = page.url();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать новое задание', exact: true }).click();
+  const author = page.getByRole('dialog', { name: 'Новое задание класса' });
+  expect(await author.evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth)).toBe(true);
+  await expect(author.getByRole('group', { name: 'Действия задания' })).toHaveCSS(
+    'display',
+    'flex',
+  );
+  await author.getByLabel('Название задания', { exact: true }).fill(title);
+  await author.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
+  await author.getByRole('textbox', { name: 'Содержание' }).fill('Соберите цепь со светодиодом.');
+  await author.screenshot({ path: `${evidenceDir}/teacher-create-in-class-mobile.png` });
+  const image = 'apps/web/public/assets/assignments/demo-robot.jpg';
+  await author.getByRole('button', { name: 'Добавить содержимое' }).click();
+  await author.getByLabel('Файл блока изображения', { exact: true }).setInputFiles(image);
+  await author.getByRole('button', { name: 'Добавить содержимое' }).click();
+  await author.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles(image);
+  await author.getByRole('button', { name: 'Сохранить черновик', exact: true }).click();
+  await expect(author.getByRole('button', { name: 'Предпросмотр', exact: true })).toBeEnabled();
+  await author.getByRole('button', { name: 'Вернуться к классу', exact: true }).click();
+  await expect(author).toBeHidden();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
+  const picker = page.getByRole('dialog', { name: 'Назначить задание' });
+  await picker.getByText('Продолжить черновик', { exact: true }).click();
+  await picker.getByLabel('Черновик', { exact: true }).selectOption({ label: title });
+  await picker.getByRole('button', { name: 'Открыть черновик', exact: true }).click();
+  const resumed = page.getByRole('dialog', { name: 'Редактор задания класса' });
+  await expect(resumed.getByLabel('Название задания', { exact: true })).toHaveValue(title);
+  await resumed.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = resumed.getByRole('dialog', { name: 'Как увидит ученик' });
+  await preview.getByRole('button', { name: 'Открыть крупно:' }).click();
+  await page
+    .getByRole('dialog', { name: 'Изображение задания:' })
+    .getByRole('button', { name: 'Закрыть', exact: true })
+    .click();
+  await preview.getByRole('button', { name: 'Закрепить изображение:' }).click();
+  await page.getByRole('button', { name: 'Закрыть окно: Материал', exact: true }).click();
+  await preview.getByRole('button', { name: 'Открыть образец:' }).click();
+  await page
+    .getByRole('dialog', { name: 'Образец:' })
+    .getByRole('button', { name: 'Закрыть', exact: true })
+    .click();
+  await preview.getByRole('button', { name: 'Закрыть предпросмотр' }).click();
+  await resumed.getByRole('button', { name: 'К выдаче', exact: true }).click();
+  await expect(resumed).toBeHidden();
+  await expect(picker.getByText(title, { exact: true })).toBeVisible();
+  await expect(picker.getByLabel('Весь класс', { exact: true })).toBeChecked();
+  await picker.getByLabel('Срок', { exact: true }).fill('2027-05-30T18:00');
+  await picker.screenshot({ path: `${evidenceDir}/teacher-confirm-assignment-mobile.png` });
+  const assignmentRequest = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().endsWith('/learning/activity-runs'),
+  );
+  await picker.getByRole('button', { name: 'Назначить', exact: true }).click();
+  expect((await assignmentRequest).postDataJSON()).toMatchObject({
+    audienceType: 'whole_class',
+    dueAt: await page.evaluate(() => new Date('2027-05-30T18:00').toISOString()),
+  });
+  await expect(picker).toBeHidden();
+  await expect(page).toHaveURL(classroomUrl);
+  await expect(page.getByRole('status').filter({ hasText: 'выдано всему классу' })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   const learner = await learnerAssignments(browser, joinCode, `anna-vs002-${sequence}`);
   const learnerFailures = collectBrowserFailures(learner.page, {

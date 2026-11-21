@@ -1,3 +1,4 @@
+import { publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -22,6 +23,7 @@ let originalProviders: Record<string, unknown>[] | undefined;
 const credentials: Record<AiProvider, string> = {
   openai: 'test-openai-pg-independent-key',
   deepseek: 'test-deepseek-pg-independent-key',
+  'ollama-cloud': 'test-ollama-cloud-pg-independent-key',
 };
 const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
   const provider: AiProvider = String(url).includes('openai.com') ? 'openai' : 'deepseek';
@@ -34,7 +36,7 @@ const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
     expect(body).toMatchObject({
       model: 'gpt-6-luna',
       reasoning: { effort: 'none' },
-      max_output_tokens: 1600,
+      max_output_tokens: 8192,
       store: false,
     });
     return new Response(
@@ -42,10 +44,96 @@ const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
     );
   }
   expect(url).toBe('https://api.deepseek.com/chat/completions');
-  expect(body).toMatchObject({ thinking: { type: 'disabled' }, max_tokens: 1600 });
+  expect(body).toMatchObject({ thinking: { type: 'disabled' }, max_tokens: 8192 });
   return new Response(
     'data: {"choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
   );
+});
+
+it('Ollama Cloud uses encrypted credentials, paid admission and durable usage on real PostgreSQL', async () => {
+  const existing = (
+    await admin.query(
+      "SELECT * FROM ai_provider_settings WHERE provider IN ('openai','deepseek') ORDER BY provider",
+    )
+  ).rows;
+  const upstream = vi.fn<typeof fetch>(async (url, options) => {
+    expect(url).toBe('https://ollama.com/v1/chat/completions');
+    expect(options?.redirect).toBe('error');
+    expect(new Headers(options?.headers).get('authorization')).toBe(
+      'Bearer ' + credentials['ollama-cloud'],
+    );
+    const packet = {
+      model: 'gemma4:31b',
+      choices: [
+        { delta: { content: 'Cloud PG' }, message: { content: 'Cloud PG' }, finish_reason: 'stop' },
+      ],
+      usage: { prompt_tokens: 7, completion_tokens: 3 },
+    };
+    return JSON.parse(String(options?.body)).stream
+      ? new Response('data: ' + JSON.stringify(packet) + '\n\ndata: [DONE]\n\n')
+      : new Response(JSON.stringify(packet));
+  });
+  const service = new AiChatService(first, { encryptionKey: '4c'.repeat(32), fetchImpl: upstream });
+  const previousConfig = await service.adminConfig(administrator);
+  const before = await used();
+  const config = await save({
+    provider: 'ollama-cloud',
+    model: 'gemma4:31b',
+    apiKey: credentials['ollama-cloud'],
+    enabled: true,
+    paidOperationsPerHour: before + 10,
+  });
+  await publishFixtureModels(service, administrator, ['gemma4:31b']);
+  expect(JSON.stringify(config)).not.toContain(credentials['ollama-cloud']);
+  const thread = await service.createThread(administrator);
+  const request = randomUUID();
+  await service.send(administrator, thread.id, 'Cloud PG JSON', request);
+  expect((await service.send(administrator, thread.id, 'Cloud PG JSON', request)).replayed).toBe(
+    true,
+  );
+  await service.sendStream(
+    administrator,
+    thread.id,
+    'Cloud PG SSE',
+    randomUUID(),
+    () => undefined,
+    new AbortController().signal,
+    'gemma4:31b',
+  );
+  expect(upstream).toHaveBeenCalledTimes(2);
+  expect(await used()).toBe(before + 2);
+  const usage = (
+    await admin.query(
+      'SELECT provider,status,input_tokens,output_tokens FROM ai_usage_journal WHERE thread_id=$1',
+      [thread.id],
+    )
+  ).rows;
+  expect(usage).toHaveLength(2);
+  expect(
+    usage.every(
+      (row) =>
+        row.provider === 'ollama-cloud' &&
+        row.status === 'succeeded' &&
+        Number(row.input_tokens) === 7 &&
+        Number(row.output_tokens) === 3,
+    ),
+  ).toBe(true);
+  await save({ provider: 'ollama-cloud', model: 'gemma4:31b', enabled: false, clearApiKey: true });
+  expect(
+    (
+      await admin.query(
+        "SELECT * FROM ai_provider_settings WHERE provider IN ('openai','deepseek') ORDER BY provider",
+      )
+    ).rows,
+  ).toEqual(existing);
+  // Restoring the prior active provider deliberately updates its own timestamp;
+  // compare preservation before that separate cleanup operation.
+  await save({
+    provider: previousConfig.provider,
+    model: previousConfig.model,
+    enabled: previousConfig.enabled,
+    paidOperationsPerHour: previousConfig.paidOperationsPerHour,
+  });
 });
 
 async function used(): Promise<number> {
@@ -117,6 +205,12 @@ beforeAll(async () => {
     apiKey: credentials.deepseek,
     enabled: false,
   });
+  // Deliberate compatibility-default baseline, independent of whichever suite held the lock before us.
+  const prepared = await serviceA.adminConfig(administrator);
+  await first.query(
+    "SELECT ai_admin_set_config($1,false,'openai','gpt-6-luna','keep',NULL,NULL,NULL,NULL,$2,$3,$4)",
+    [administrator, randomUUID(), prepared.paidOperationsPerHour, prepared.configurationVersion],
+  );
 }, 60000);
 
 afterAll(async () => {
@@ -137,7 +231,7 @@ afterAll(async () => {
     if (originalProviders)
       await admin.query(
         `UPDATE ai_provider_settings p SET
-       model = saved.model, api_key_ciphertext = saved.api_key_ciphertext,
+       enabled = saved.enabled, revision = saved.revision, model = saved.model, api_key_ciphertext = saved.api_key_ciphertext,
        api_key_iv = saved.api_key_iv, api_key_auth_tag = saved.api_key_auth_tag,
        key_fingerprint = saved.key_fingerprint, updated_at = saved.updated_at
        FROM json_populate_recordset(NULL::ai_provider_settings,$1::json) saved
@@ -163,17 +257,27 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
       first.query("SELECT ai_model_available('openai','gpt-6-luna',now())"),
     ).rejects.toMatchObject({ code: '42501' });
     const config = await serviceA.adminConfig(administrator);
-    expect(config.providerConfigurations.every((slot) => slot.apiKeyConfigured)).toBe(true);
+    expect(
+      Object.fromEntries(
+        config.providerConfigurations.map((slot) => [slot.provider, slot.apiKeyConfigured]),
+      ),
+    ).toEqual({ openai: true, deepseek: true, 'ollama-cloud': false, polza: false });
     for (const slot of config.providerConfigurations) {
       expect(Object.keys(slot).sort()).toEqual([
         'apiKeyConfigured',
+        'enabled',
         'keyFingerprint',
         'model',
         'provider',
+        'revision',
         'updatedAt',
       ]);
-      expect(slot.keyFingerprint).toMatch(/^[a-f0-9]{12}$/);
+      if (slot.apiKeyConfigured) expect(slot.keyFingerprint).toMatch(/^[a-f0-9]{12}$/);
+      else expect(slot.keyFingerprint).toBeNull();
     }
+    expect(
+      config.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
+    ).toMatchObject({ apiKeyConfigured: false, keyFingerprint: null });
     expect(JSON.stringify(config)).not.toContain(credentials.openai);
     expect(JSON.stringify(config)).not.toContain(credentials.deepseek);
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -215,6 +319,12 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
     const projection = (await admin.query('SELECT * FROM ai_assistant_config')).rows[0];
     const slots = (await admin.query('SELECT * FROM ai_provider_settings ORDER BY provider')).rows;
     const active = slots.find((slot) => slot['provider'] === current.provider)!;
+    const changed = slots.filter(
+      (slot) =>
+        JSON.stringify(slot) !==
+        JSON.stringify(previousSlots.find((old) => old.provider === slot.provider)),
+    );
+    expect(changed).toHaveLength(1);
     for (const key of [
       'provider',
       'model',
@@ -225,7 +335,7 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
     ]) {
       expect(projection[key]).toEqual(active[key]);
     }
-    const untouched = slots.find((slot) => slot['provider'] !== current.provider)!;
+    const untouched = slots.find((slot) => slot['provider'] !== changed[0]!.provider)!;
     expect(untouched).toEqual(
       previousSlots.find((slot) => slot['provider'] === untouched['provider']),
     );
@@ -235,9 +345,28 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
       code: 'ai_config_changed',
     });
     expect(await used()).toBe(baseline);
-    await serviceA.testConnection(administrator, current.configurationVersion);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(await used()).toBe(baseline + 1);
+    const changedProvider = changed[0]!.provider as AiProvider;
+    const changedSlot = current.providerConfigurations.find(
+      (slot) => slot.provider === changedProvider,
+    )!;
+    await expect(
+      serviceA.testConnection(
+        administrator,
+        current.configurationVersion,
+        changedProvider,
+        changedSlot.revision,
+      ),
+    ).rejects.toMatchObject({ code: 'ai_config_changed', status: 409 });
+    await expect(
+      admin.query('SELECT * FROM ai_admin_test_provider_begin($1,$2,$3,$4)', [
+        administrator,
+        current.configurationVersion,
+        changedProvider,
+        changedSlot.revision,
+      ]),
+    ).rejects.toThrow('AI_DISABLED');
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await used()).toBe(baseline);
   });
 
   it('switches both ways with no key in the update, decrypts the right key, and clears only the chosen provider', async () => {
@@ -245,8 +374,13 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
     const calls = fetchImpl.mock.calls.length;
     for (const provider of ['openai', 'deepseek'] as const) {
       const model = provider === 'openai' ? 'gpt-6-luna' : 'deepseek-v4-pro';
-      const config = await save({ provider, model, enabled: false });
-      await serviceB.testConnection(administrator, config.configurationVersion);
+      const config = await save({ provider, model, enabled: true });
+      await serviceB.testConnection(
+        administrator,
+        config.configurationVersion,
+        provider,
+        config.providerConfigurations.find((slot) => slot.provider === provider)!.revision,
+      );
     }
     expect(fetchImpl).toHaveBeenCalledTimes(calls + 2);
     const openaiSlot = (
@@ -258,7 +392,9 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
       enabled: false,
       clearApiKey: true,
     });
-    expect(cleared.apiKeyConfigured).toBe(false);
+    expect(
+      cleared.providerConfigurations.find((slot) => slot.provider === 'deepseek')?.apiKeyConfigured,
+    ).toBe(false);
     expect(
       cleared.providerConfigurations.find((slot) => slot.provider === 'openai')?.apiKeyConfigured,
     ).toBe(true);
@@ -266,17 +402,35 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
       (await admin.query("SELECT * FROM ai_provider_settings WHERE provider='openai'")).rows[0],
     ).toEqual(openaiSlot);
     await expect(
-      serviceA.testConnection(administrator, cleared.configurationVersion),
-    ).rejects.toMatchObject({ code: 'ai_key_required' });
+      serviceA.testConnection(
+        administrator,
+        cleared.configurationVersion,
+        'deepseek',
+        cleared.providerConfigurations.find((slot) => slot.provider === 'deepseek')!.revision,
+      ),
+    ).rejects.toMatchObject({ code: 'ai_config_changed', status: 409 });
+    await expect(
+      admin.query('SELECT * FROM ai_admin_test_provider_begin($1,$2,$3,$4)', [
+        administrator,
+        cleared.configurationVersion,
+        'deepseek',
+        cleared.providerConfigurations.find((slot) => slot.provider === 'deepseek')!.revision,
+      ]),
+    ).rejects.toThrow('AI_DISABLED');
     expect(fetchImpl).toHaveBeenCalledTimes(calls + 2);
     const back = await save({
       provider: 'openai',
       model: 'gpt-6-luna',
-      enabled: false,
+      enabled: true,
       paidOperationsPerHour: 0,
     });
     await expect(
-      serviceA.testConnection(administrator, back.configurationVersion),
+      serviceA.testConnection(
+        administrator,
+        back.configurationVersion,
+        'openai',
+        back.providerConfigurations.find((slot) => slot.provider === 'openai')!.revision,
+      ),
     ).rejects.toMatchObject({ code: 'ai_platform_quota_exhausted' });
     expect(fetchImpl).toHaveBeenCalledTimes(calls + 2);
     expect(await used()).toBe(baseline + 2);

@@ -9,6 +9,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -20,9 +21,13 @@ import { isValidProjectTitle } from '@asa-lab/projects';
 import { copyPublicProject, readPublicCopyAdmission } from './public-project-copy.js';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
-import { STUDENT_SESSION_COOKIE } from './seat-context.js';
+import { hashSessionToken } from '@asa-lab/identity';
+import { SeatContextUseCase, STUDENT_SESSION_COOKIE } from './seat-context.js';
+import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
 import { checkBodyShape, checkIdempotencyKey } from './validation.js';
+import { PublicArtifactService } from './public-project-artifact.js';
 import { publicationError, throwPublicationError } from './public-projects.errors.js';
+import { sendPublicAvatar, type PublicAvatarSource } from './public-avatar.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LICENSES = new Set(['reserved', 'public-domain', 'cc-by', 'cc-by-sa', 'cc-by-nc']);
@@ -62,11 +67,15 @@ interface PublicProjectRow {
   license: string;
   module_key: string;
   author_label: string;
+  author_avatar_url?: string | null;
   published_at: Date | string;
   preview_content_type: string | null;
   preview_width: number | null;
   preview_height: number | null;
   featured: boolean;
+  pinned: boolean;
+  like_count?: number;
+  copy_count?: number | string;
 }
 
 /** An explicit allowlist: never spread a database row into a public response. */
@@ -83,7 +92,11 @@ function publicProject(row: PublicProjectRow, canCopy: boolean) {
     license: row.license,
     moduleKey: row.module_key,
     authorLabel: row.author_label,
+    authorAvatarUrl: row.author_avatar_url ?? null,
     featured: row.featured === true,
+    pinned: row.pinned === true,
+    likeCount: Number(row.like_count ?? 0),
+    copyCount: Number(row.copy_count ?? 0),
     publishedAt:
       row.published_at instanceof Date ? row.published_at.toISOString() : row.published_at,
     preview:
@@ -105,6 +118,7 @@ function publicProject(row: PublicProjectRow, canCopy: boolean) {
 }
 
 export interface OwnerPublicationStatus {
+  acquisition?: { allowed: boolean; version: number } | null;
   moderationReason?: string;
   publication: {
     publicationId: string;
@@ -121,11 +135,74 @@ export interface OwnerPublicationStatus {
 
 @Controller('api/public-projects')
 export class PublicProjectsController {
+  private readonly artifactService: PublicArtifactService;
   constructor(
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.moduleRegistry) private readonly registry: ModuleRegistry,
-  ) {}
+    @Inject(TOKENS.seatContextUseCase) private readonly seats?: SeatContextUseCase,
+  ) {
+    this.artifactService = new PublicArtifactService(registry);
+  }
+
+  private async reactionActor(request: FastifyRequest) {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      const token = request.cookies[STUDENT_SESSION_COOKIE];
+      const seat = await this.seats?.resolveExisting(token);
+      if (!seat || !token) throw publicationError('unauthorized', 'Войдите в класс заново.', 401);
+      noteAuthoritativeMutationSession(request, 'seat-existing', token);
+      return { principal: seat.principalId, hash: hashSessionToken(token) };
+    }
+    const token = request.cookies[SESSION_COOKIE];
+    const account = await this.activeContext.resolve(token);
+    if (!account || !token) throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
+    return { principal: account.principalId, hash: hashSessionToken(token) };
+  }
+
+  @Get(':publicationId/like')
+  @Header('Cache-Control', 'private, no-store')
+  async likeState(@Req() request: FastifyRequest, @Param('publicationId') publicationId: string) {
+    requireUuid(publicationId);
+    const actor = await this.reactionActor(request);
+    try {
+      const result = await requirePool(this.pool).query<{ result: unknown }>(
+        'SELECT public.publication_like_state($1,$2,$3) AS result',
+        [actor.principal, publicationId, actor.hash],
+      );
+      return result.rows[0].result;
+    } catch (cause) {
+      throwPublicationError(cause);
+    }
+  }
+
+  @Put(':publicationId/like')
+  @Header('Cache-Control', 'private, no-store')
+  async like(
+    @Req() request: FastifyRequest,
+    @Param('publicationId') publicationId: string,
+    @Body() rawBody: unknown,
+  ) {
+    requireUuid(publicationId);
+    const actor = await this.reactionActor(request);
+    const shape = checkBodyShape(rawBody, ['revisionId', 'on']);
+    if (
+      !shape.ok ||
+      typeof shape.body['revisionId'] !== 'string' ||
+      typeof shape.body['on'] !== 'boolean'
+    ) {
+      throw publicationError('validation_error', 'Проверьте действие с лайком.', 400);
+    }
+    requireUuid(shape.body['revisionId']);
+    try {
+      const result = await requirePool(this.pool).query<{ result: unknown }>(
+        'SELECT public.publication_like_write($1,$2,$3,$4,$5) AS result',
+        [actor.principal, publicationId, shape.body['revisionId'], shape.body['on'], actor.hash],
+      );
+      return result.rows[0].result;
+    } catch (cause) {
+      throwPublicationError(cause);
+    }
+  }
 
   @Post(':publicationId/copy')
   @HttpCode(200)
@@ -136,16 +213,23 @@ export class PublicProjectsController {
     @Headers('idempotency-key') idempotencyKey: unknown,
     @Body() rawBody: unknown,
   ) {
-    // Presence selects Seat even for empty/invalid credentials. Never fall back.
+    let principalId: string;
+    let seatSessionHash: string | undefined;
     if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
-      throw publicationError(
-        'copy_forbidden',
-        'Создать личную копию можно только из аккаунта.',
-        403,
+      const seat = await this.seats?.resolveExisting(request.cookies[STUDENT_SESSION_COOKIE]);
+      if (!seat) throw publicationError('unauthorized', 'Войдите в класс заново.', 401);
+      noteAuthoritativeMutationSession(
+        request,
+        'seat-existing',
+        request.cookies[STUDENT_SESSION_COOKIE],
       );
+      principalId = seat.principalId;
+      seatSessionHash = hashSessionToken(request.cookies[STUDENT_SESSION_COOKIE]!);
+    } else {
+      const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+      if (!account) throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
+      principalId = account.principalId;
     }
-    const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
-    if (!account) throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
     requireUuid(publicationId);
     const key = checkIdempotencyKey(idempotencyKey);
     if (!key.ok || key.key.startsWith('learning:')) {
@@ -166,7 +250,8 @@ export class PublicProjectsController {
       return await copyPublicProject({
         pool: requirePool(this.pool),
         registry: this.registry,
-        principalId: account.principalId,
+        principalId,
+        ...(seatSessionHash ? { seatSessionHash } : {}),
         publicationId,
         revisionId,
         ...(typeof title === 'string' ? { title: title.trim() } : {}),
@@ -184,6 +269,8 @@ export class PublicProjectsController {
     @Query('module') moduleKey?: string,
     @Query('offset') offset?: string,
     @Query('limit') limit?: string,
+    @Query('catalog') catalog?: string,
+    @Query('sort') sort?: string,
   ) {
     if (query !== undefined && (typeof query !== 'string' || query.length > 120)) {
       throw publicationError('validation_error', 'Поисковый запрос слишком длинный.', 400);
@@ -193,9 +280,27 @@ export class PublicProjectsController {
     }
     const skip = boundedInteger(offset, 0, 0, 1000000);
     const take = boundedInteger(limit, 24, 1, 48);
+    if (catalog !== undefined && catalog !== 'projects')
+      throw publicationError('validation_error', 'Некорректный каталог.', 400);
+    if (
+      sort !== undefined &&
+      (catalog !== 'projects' || !['newest', 'oldest', 'likes', 'copies'].includes(sort))
+    )
+      throw publicationError('validation_error', 'Некорректная сортировка.', 400);
+    const readFunction =
+      catalog === 'projects'
+        ? 'public.public_projects_catalog_read'
+        : 'public.public_projects_read';
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
-      [null, query?.trim() || null, moduleKey ?? null, take + 1, skip],
+      `SELECT entry.*, public.project_publication_author_avatar(entry.publication_id,false)->>'url' AS author_avatar_url, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM ${readFunction}($1, $2, $3, $4, $5${catalog === 'projects' ? ', $6' : ''}) entry`,
+      [
+        null,
+        query?.trim() || null,
+        moduleKey ?? null,
+        take + 1,
+        skip,
+        ...(catalog === 'projects' ? [sort ?? 'newest'] : []),
+      ],
     );
     const page = result.rows.slice(0, take);
     const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, page);
@@ -210,13 +315,52 @@ export class PublicProjectsController {
   async detail(@Param('publicationId') publicationId: string) {
     requireUuid(publicationId);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
+      "SELECT entry.*, public.project_publication_author_avatar(entry.publication_id,false)->>'url' AS author_avatar_url, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry",
       [publicationId, null, null, 1, 0],
     );
     const row = result.rows[0];
     if (!row) throw publicationError('not_available', 'Публикация недоступна.', 404);
     const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, [row]);
     return { publication: publicProject(row, admitted.has(row.publication_id)) };
+  }
+
+  @Get(':publicationId/editor')
+  @Header('Cache-Control', 'private, no-store')
+  async editor(@Req() request: FastifyRequest, @Param('publicationId') publicationId: string) {
+    requireUuid(publicationId);
+    const actor = await this.reactionActor(request);
+    const result = await requirePool(this.pool).query<{
+      editor: { projectId: string; moduleKey: string } | null;
+    }>('SELECT public.project_publication_owner_editor($1, $2) AS editor', [
+      actor.principal,
+      publicationId,
+    ]);
+    return { editor: result.rows[0]?.editor ?? null };
+  }
+
+  @Get(':publicationId/artifact')
+  @Header('Cache-Control', 'no-store')
+  async artifact(
+    @Param('publicationId') publicationId: string,
+    @Query('revisionId') revisionId: string | undefined,
+  ) {
+    requireUuid(publicationId);
+    if (typeof revisionId !== 'string')
+      throw publicationError('validation_error', 'Укажите опубликованную версию.', 400);
+    requireUuid(revisionId);
+    return {
+      artifact: await this.artifactService.read(requirePool(this.pool), publicationId, revisionId),
+    };
+  }
+
+  @Get(':publicationId/author-avatar')
+  async authorAvatar(@Param('publicationId') id: string, @Res() reply: FastifyReply) {
+    requireUuid(id);
+    const result = await requirePool(this.pool).query<{ source: PublicAvatarSource | null }>(
+      'SELECT public.project_publication_author_avatar($1,true) AS source',
+      [id],
+    );
+    return sendPublicAvatar(reply, result.rows[0]?.source);
   }
 
   @Get(':publicationId/image')
@@ -253,18 +397,22 @@ export class ProjectPublicationController {
   constructor(
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
+    @Inject(TOKENS.seatContextUseCase) private readonly seats?: SeatContextUseCase,
   ) {}
 
   private async requireOwnerSession(request: FastifyRequest): Promise<string> {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      const seat = await this.seats?.resolveExisting(request.cookies[STUDENT_SESSION_COOKIE]);
+      if (!seat) throw publicationError('unauthorized', 'Войдите в класс заново.', 401);
+      noteAuthoritativeMutationSession(
+        request,
+        'seat-existing',
+        request.cookies[STUDENT_SESSION_COOKIE],
+      );
+      return seat.principalId;
+    }
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (context) return context.principalId;
-    if (request.cookies[STUDENT_SESSION_COOKIE]) {
-      throw publicationError(
-        'publication_forbidden',
-        'Публикация доступна владельцу личного проекта с аккаунтом.',
-        403,
-      );
-    }
     throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
   }
 
@@ -283,6 +431,48 @@ export class ProjectPublicationController {
     const principalId = await this.requireOwnerSession(request);
     requireUuid(projectId);
     return this.ownerStatus(principalId, projectId);
+  }
+
+  @Post('acquisition')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  async acquisition(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.requireOwnerSession(request);
+    requireUuid(projectId);
+    const shape = checkBodyShape(body, ['allowed', 'expectedVersion', 'expectedRevisionId']);
+    if (
+      !shape.ok ||
+      typeof shape.body['allowed'] !== 'boolean' ||
+      !Number.isInteger(shape.body['expectedVersion']) ||
+      Number(shape.body['expectedVersion']) < 0 ||
+      Number(shape.body['expectedVersion']) > 2147483646 ||
+      typeof shape.body['expectedRevisionId'] !== 'string'
+    ) {
+      throw publicationError('validation_error', 'Проверьте разрешение получения.', 400);
+    }
+    requireUuid(shape.body['expectedRevisionId']);
+    try {
+      const result = await requirePool(this.pool).query<{ result: OwnerPublicationStatus }>(
+        'SELECT project_publication_acquisition_write($1,$2,$3,$4,$5,$6) AS result',
+        [
+          actor,
+          projectId,
+          shape.body['allowed'],
+          shape.body['expectedVersion'],
+          shape.body['expectedRevisionId'],
+          request.cookies[STUDENT_SESSION_COOKIE]
+            ? hashSessionToken(request.cookies[STUDENT_SESSION_COOKIE]!)
+            : null,
+        ],
+      );
+      return result.rows[0].result;
+    } catch (cause) {
+      throwPublicationError(cause);
+    }
   }
 
   @Post()
@@ -333,11 +523,19 @@ export class ProjectPublicationController {
     try {
       const result = await requirePool(this.pool).query<{
         result: OwnerPublicationStatus;
-      }>('SELECT project_publication_publish($1, $2, $3::jsonb) AS result', [
-        principalId,
-        projectId,
-        JSON.stringify(metadata),
-      ]);
+      }>(
+        request.cookies[STUDENT_SESSION_COOKIE]
+          ? 'SELECT project_publication_publish_seat($1, $2, $3::jsonb, $4) AS result'
+          : 'SELECT project_publication_publish($1, $2, $3::jsonb) AS result',
+        [
+          principalId,
+          projectId,
+          JSON.stringify(metadata),
+          ...(request.cookies[STUDENT_SESSION_COOKIE]
+            ? [hashSessionToken(request.cookies[STUDENT_SESSION_COOKIE]!)]
+            : []),
+        ],
+      );
       const status = result.rows[0]?.result;
       if (!status) throw publicationError('not_available', 'Проект недоступен.', 404);
       return status;
@@ -352,8 +550,16 @@ export class ProjectPublicationController {
     const principalId = await this.requireOwnerSession(request);
     requireUuid(projectId);
     const result = await requirePool(this.pool).query<{ ok: boolean }>(
-      'SELECT project_publication_revoke($1, $2) AS ok',
-      [principalId, projectId],
+      request.cookies[STUDENT_SESSION_COOKIE]
+        ? 'SELECT project_publication_revoke_seat($1, $2, $3) AS ok'
+        : 'SELECT project_publication_revoke($1, $2) AS ok',
+      [
+        principalId,
+        projectId,
+        ...(request.cookies[STUDENT_SESSION_COOKIE]
+          ? [hashSessionToken(request.cookies[STUDENT_SESSION_COOKIE]!)]
+          : []),
+      ],
     );
     if (result.rows[0]?.ok !== true) {
       throw publicationError('not_available', 'Проект недоступен.', 404);

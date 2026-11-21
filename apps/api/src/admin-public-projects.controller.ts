@@ -78,6 +78,52 @@ export class AdminPublicProjectsController {
     }
   }
 
+  @Get('acquisition')
+  @Header('Cache-Control', 'no-store')
+  async acquisition(@Req() request: FastifyRequest) {
+    const actor = await this.actor(request);
+    return (
+      await this.query<{ result: unknown }>(
+        'SELECT admin_publication_acquisition_read($1) AS result',
+        [actor],
+      )
+    ).rows[0].result;
+  }
+
+  @Post('acquisition')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  async setAcquisition(@Req() request: FastifyRequest, @Body() body: unknown) {
+    const actor = await this.actor(request);
+    const shape = checkBodyShape(body, ['enabled', 'expectedVersion', 'reason']);
+    if (
+      !shape.ok ||
+      typeof shape.body['enabled'] !== 'boolean' ||
+      !Number.isInteger(shape.body['expectedVersion']) ||
+      Number(shape.body['expectedVersion']) < 0 ||
+      Number(shape.body['expectedVersion']) > 2147483646 ||
+      typeof shape.body['reason'] !== 'string' ||
+      !shape.body['reason'].trim() ||
+      shape.body['reason'].trim().length > 500 ||
+      typeof request.id !== 'string' ||
+      !request.id.trim() ||
+      request.id.length > 128
+    )
+      throw new BadRequestException();
+    return (
+      await this.query<{ result: unknown }>(
+        'SELECT admin_publication_acquisition_write($1,$2,$3,$4,$5) AS result',
+        [
+          actor,
+          shape.body['enabled'],
+          shape.body['expectedVersion'],
+          shape.body['reason'].trim(),
+          request.id,
+        ],
+      )
+    ).rows[0].result;
+  }
+
   @Get()
   @Header('Cache-Control', 'no-store')
   async list(
@@ -87,8 +133,57 @@ export class AdminPublicProjectsController {
   ) {
     const actor = await this.actor(request);
     const result = await this.query<{ result: unknown }>(
-      'SELECT public.admin_publications_list($1,$2,$3) AS result',
+      'SELECT public.admin_publications_with_reactions($1,$2,$3) AS result',
       [actor, integer(offset, 0, 0, 1000000), integer(limit, 25, 1, 50)],
+    );
+    return result.rows[0].result;
+  }
+
+  @Post(':publicationId/reactions')
+  @Header('Cache-Control', 'private, no-store')
+  async reactions(
+    @Req() request: FastifyRequest,
+    @Param('publicationId') publicationId: string,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.actor(request);
+    uuid(publicationId);
+    const shape = checkBodyShape(body, [
+      'enabled',
+      'reason',
+      'expectedVersion',
+      'expectedRevisionId',
+    ]);
+    if (!shape.ok) throw new BadRequestException();
+    const { enabled, reason, expectedVersion, expectedRevisionId } = shape.body;
+    if (
+      typeof enabled !== 'boolean' ||
+      typeof reason !== 'string' ||
+      !reason.trim() ||
+      reason.trim().length > 500 ||
+      typeof expectedVersion !== 'number' ||
+      !Number.isInteger(expectedVersion) ||
+      expectedVersion < 0 ||
+      expectedVersion > 2147483646 ||
+      typeof expectedRevisionId !== 'string' ||
+      typeof request.id !== 'string' ||
+      !request.id.trim() ||
+      request.id.length > 128
+    ) {
+      throw new BadRequestException();
+    }
+    uuid(expectedRevisionId);
+    const result = await this.query<{ result: unknown }>(
+      'SELECT public.admin_publication_reactions_write($1,$2,$3,$4,$5,$6,$7) AS result',
+      [
+        actor,
+        publicationId,
+        enabled,
+        expectedVersion,
+        expectedRevisionId,
+        reason.trim(),
+        request.id,
+      ],
     );
     return result.rows[0].result;
   }
@@ -210,6 +305,67 @@ export class AdminPublicProjectsController {
         actor,
         publicationId,
         shape.body['featured'],
+        request.id,
+        expectedVersion,
+        expectedRevisionId,
+        expectedModerationVersion,
+        expectedLifecycleVersion,
+      ],
+    );
+    return result.rows[0].result;
+  }
+
+  @Post(':publicationId/pin')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  async pin(
+    @Req() request: FastifyRequest,
+    @Param('publicationId') publicationId: string,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.actor(request);
+    uuid(publicationId);
+    const shape = checkBodyShape(body, [
+      'pinned',
+      'expectedVersion',
+      'expectedRevisionId',
+      'expectedModerationVersion',
+      'expectedLifecycleVersion',
+    ]);
+    if (!shape.ok || typeof shape.body['pinned'] !== 'boolean') {
+      throw new BadRequestException();
+    }
+    const expectedVersion = shape.body['expectedVersion'];
+    const expectedModerationVersion = shape.body['expectedModerationVersion'];
+    const expectedLifecycleVersion = shape.body['expectedLifecycleVersion'];
+    if (
+      typeof expectedVersion !== 'number' ||
+      !Number.isInteger(expectedVersion) ||
+      expectedVersion < 0 ||
+      expectedVersion > 2147483646 ||
+      typeof expectedModerationVersion !== 'number' ||
+      !Number.isInteger(expectedModerationVersion) ||
+      expectedModerationVersion < 0 ||
+      expectedModerationVersion > 2147483646 ||
+      typeof expectedLifecycleVersion !== 'number' ||
+      !Number.isInteger(expectedLifecycleVersion) ||
+      expectedLifecycleVersion < 0 ||
+      expectedLifecycleVersion > 2147483646
+    ) {
+      throw new BadRequestException();
+    }
+    const expectedRevisionId = shape.body['expectedRevisionId'];
+    if (typeof expectedRevisionId !== 'string') throw new BadRequestException();
+    uuid(expectedRevisionId);
+    if (typeof request.id !== 'string' || !request.id.trim() || request.id.length > 128) {
+      throw new BadRequestException();
+    }
+    const result = await this.query<{ result: unknown }>(
+      'SELECT public.admin_publication_pin_set($1,$2,$3,$4,$5,$6,$7,$8) AS result',
+      [
+        actor,
+        publicationId,
+        shape.body['pinned'],
         request.id,
         expectedVersion,
         expectedRevisionId,

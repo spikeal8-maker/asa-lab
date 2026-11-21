@@ -39,17 +39,26 @@ function raster() {
   return { bytes, imageDataUrl: `data:image/png;base64,${bytes.toString('base64')}` };
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 1024, 390, 320]) {
   test(`verified platform admin visibly hides and restores a publication at ${width}px`, async ({
     browser,
   }) => {
     const db = e2eAdminPool();
     const contexts = await Promise.all(
-      [width, 1440, 1440].map((w) => browser.newContext({ viewport: { width: w, height: 1000 } })),
+      // Admin and public viewer use the tested viewport; the author remains on desktop.
+      [width, 1440, width].map((w) => browser.newContext({ viewport: { width: w, height: 1000 } })),
     );
     const [moderator, author, guest] = await Promise.all(
       contexts.map((context) => context.newPage()),
     );
+    const verifyPublicViewport = async () => {
+      const actual = await guest.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+      }));
+      expect(actual.viewport).toBe(width);
+      expect(actual.document).toBeLessThanOrEqual(width);
+    };
     const failures = [moderator, author, guest].map((page) =>
       collectBrowserFailures(page, {
         allowAnonymousSessionProbe: true,
@@ -220,6 +229,19 @@ for (const width of [1440, 390, 320]) {
       await expect(row).toBeVisible();
       const preview = row.getByRole('img', { name: `Превью: ${title}`, exact: true });
       await expect(preview).toBeVisible();
+      // Controls must not squeeze publication information into a one-letter
+      // column, even before the subsequent hide/restore overflow checks.
+      expect(
+        await row.evaluate((element) => {
+          const details = element.querySelector('.admin-publication-details');
+          const preview = element.querySelector('.admin-publication-preview');
+          return (
+            !!details &&
+            !!preview &&
+            details.getBoundingClientRect().width >= preview.getBoundingClientRect().width
+          );
+        }),
+      ).toBe(true);
       await expect
         .poll(() =>
           preview.evaluate((element) => {
@@ -376,6 +398,7 @@ for (const width of [1440, 390, 320]) {
         has: guest.getByRole('heading', { name: title, exact: true }),
       });
       await expect(card.getByTestId('public-project-featured')).toContainText('Выбор редакции');
+      await verifyPublicViewport();
       await guest.screenshot({
         path: `${EVIDENCE}/${width}-featured-catalog.png`,
         fullPage: true,
@@ -383,6 +406,7 @@ for (const width of [1440, 390, 320]) {
       await guest.goto(`/#/public-projects/${publicationId}`);
       await guest.reload();
       await expect(guest.getByTestId('public-project-featured')).toContainText('Выбор редакции');
+      await verifyPublicViewport();
       await guest.screenshot({
         path: `${EVIDENCE}/${width}-featured-detail.png`,
         fullPage: true,
@@ -428,6 +452,68 @@ for (const width of [1440, 390, 320]) {
         after_version: '2',
         reason_text: 'Отметка редакции снята',
       });
+      // R8-03C: pinning is an independent administrative action and survives reload.
+      const pinResponse = moderator.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === `${BASE}/${publicationId}/pin`,
+      );
+      await row.getByRole('button', { name: 'Закрепить', exact: true }).click();
+      const pinReceipt = await pinResponse;
+      expect(pinReceipt.status()).toBe(200);
+      expect(pinReceipt.request().postDataJSON()).toEqual({
+        pinned: true,
+        expectedVersion: 0,
+        expectedRevisionId: revisionId,
+        expectedModerationVersion: 2,
+        expectedLifecycleVersion: lifecycleVersion,
+      });
+      expect(await pinReceipt.json()).toMatchObject({ pinned: true, pinVersion: 1 });
+      await expect(row.getByTestId('admin-publication-pinned')).toContainText('Закреплено');
+      await guest.goto('/#/explore');
+      await guest.reload();
+      const pinnedCard = guest.getByTestId('public-project-card').filter({
+        has: guest.getByRole('heading', { name: title, exact: true }),
+      });
+      await expect(pinnedCard.getByTestId('public-project-pinned')).toContainText('Закреплено');
+      await verifyPublicViewport();
+      await guest.screenshot({ path: `${EVIDENCE}/${width}-pinned-catalog.png`, fullPage: true });
+      await guest.goto(`/#/public-projects/${publicationId}`);
+      await guest.reload();
+      await expect(guest.getByTestId('public-project-pinned')).toContainText('Закреплено');
+      await verifyPublicViewport();
+      await guest.screenshot({ path: `${EVIDENCE}/${width}-pinned-detail.png`, fullPage: true });
+      const unpinResponse = moderator.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === `${BASE}/${publicationId}/pin`,
+      );
+      await row.getByRole('button', { name: 'Открепить', exact: true }).click();
+      const unpinReceipt = await unpinResponse;
+      expect(unpinReceipt.status()).toBe(200);
+      expect(unpinReceipt.request().postDataJSON()).toMatchObject({
+        pinned: false,
+        expectedVersion: 1,
+        expectedRevisionId: revisionId,
+        expectedModerationVersion: 2,
+        expectedLifecycleVersion: lifecycleVersion,
+      });
+      expect(await unpinReceipt.json()).toMatchObject({ pinned: false, pinVersion: 2 });
+      await guest.reload();
+      await expect(guest.getByTestId('public-project-pinned')).toHaveCount(0);
+      const pinnedAudit = await audit();
+      expect(pinnedAudit).toHaveLength(6);
+      expect(pinnedAudit[4]).toMatchObject({
+        action: 'publication.pin',
+        before_version: '0',
+        after_version: '1',
+      });
+      expect(pinnedAudit[5]).toMatchObject({
+        action: 'publication.unpin',
+        before_version: '1',
+        after_version: '2',
+      });
+
       expect(await original()).toEqual(draftBefore);
       expect(await projectRecord()).toEqual(projectBefore);
       expect(await frozen()).toEqual(versionsBefore);

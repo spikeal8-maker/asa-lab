@@ -21,6 +21,53 @@ import {
   closeCourseLessonSettings,
 } from './learning-authoring-navigation';
 
+async function expectCompactTaskEditor(page: Page, width: number): Promise<void> {
+  const editor = page.locator('.assignment-document-shell');
+  await editor.getByLabel('Название задания', { exact: true }).focus();
+  await expect
+    .poll(() =>
+      editor.evaluate((element) => {
+        const title = element
+          .querySelector('[aria-label="Название задания"]')!
+          .getBoundingClientRect();
+        const toolbar = element
+          .querySelector('.assignment-document-topbar')!
+          .getBoundingClientRect();
+        return title.top - toolbar.bottom;
+      }),
+    )
+    .toBeGreaterThanOrEqual(0);
+  await expect(editor.getByRole('group', { name: 'Действия задания', exact: true })).toHaveCount(1);
+  const layout = await editor.evaluate((element) => {
+    const toolbar = element.querySelector('.assignment-document-topbar')!;
+    const title = element.querySelector<HTMLTextAreaElement>('[aria-label="Название задания"]')!;
+    const body = element.querySelector<HTMLTextAreaElement>('[aria-label="Содержание"]')!;
+    return {
+      toolbarHeight: toolbar.getBoundingClientRect().height,
+      buttons: [...toolbar.querySelectorAll('button')].map((button) => {
+        const bounds = button.getBoundingClientRect();
+        return {
+          label: button.textContent?.trim(),
+          x: bounds.x,
+          right: bounds.right,
+          width: bounds.width,
+        };
+      }),
+      titleFont: Number.parseFloat(getComputedStyle(title).fontSize),
+      bodyFont: Number.parseFloat(getComputedStyle(body).fontSize),
+    };
+  });
+  expect(layout.toolbarHeight, JSON.stringify(layout)).toBeLessThanOrEqual(width < 761 ? 130 : 96);
+  expect(layout.titleFont).toBeLessThanOrEqual(20);
+  expect(layout.bodyFont).toBeLessThanOrEqual(14);
+  for (const button of layout.buttons) {
+    expect(button.x, JSON.stringify(button)).toBeGreaterThanOrEqual(0);
+    expect(button.right, JSON.stringify(button)).toBeLessThanOrEqual(width);
+    expect(button.width, JSON.stringify(button)).toBeLessThanOrEqual(180);
+  }
+  expect(await editor.locator('.assignment-document-meta button').count()).toBe(0);
+}
+
 test('exact saved and published learner preview ignores late responses and creates no commands', async ({
   page,
 }) => {
@@ -42,6 +89,19 @@ test('exact saved and published learner preview ignores late responses and creat
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await openNewAssignmentEditor(page);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectCompactTaskEditor(page, width);
+    expect(
+      await page
+        .getByLabel('Название задания', { exact: true })
+        .evaluate((field) => field.clientHeight),
+    ).toBeLessThanOrEqual(40);
+    expect(
+      await page.getByLabel('Содержание', { exact: true }).evaluate((field) => field.clientHeight),
+    ).toBeLessThanOrEqual(80);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByLabel('Название задания', { exact: true }).fill('Published V1');
   await page.getByLabel('Содержание', { exact: true }).fill('Published instructions V1');
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -54,9 +114,14 @@ test('exact saved and published learner preview ignores late responses and creat
   await expect(previewButton).toBeEnabled();
   const mutations: string[] = [];
   const qualityTelemetryUrl = new URL('/api/analytics/v2/quality', page.url()).href;
+  const diagnosticsQualityTelemetryUrl = new URL('/api/diagnostics/quality', page.url()).href;
   page.on('request', (request) => {
-    // This fixed endpoint persists background delivery counters.
-    if (request.method() === 'POST' && request.url() === qualityTelemetryUrl) return;
+    // These fixed endpoints persist background delivery counters.
+    if (
+      request.method() === 'POST' &&
+      (request.url() === qualityTelemetryUrl || request.url() === diagnosticsQualityTelemetryUrl)
+    )
+      return;
     if (request.url().includes('/api/') && !['GET', 'HEAD'].includes(request.method()))
       mutations.push(request.method() + ' ' + request.url());
   });
@@ -126,6 +191,7 @@ test('exact saved and published learner preview ignores late responses and creat
     [320, 720, 'editor-320.png'],
   ] as const) {
     await page.setViewportSize({ width, height });
+    await expectCompactTaskEditor(page, width);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -136,6 +202,36 @@ test('exact saved and published learner preview ignores late responses and creat
       fullPage: true,
     });
   }
+  const longTitle =
+    'Исследование электрических цепей и проверка подробного проектного задания. '.repeat(3);
+  const longBody =
+    'Соберите цепь, проверьте каждое соединение и подробно опишите наблюдения.\n'.repeat(24);
+  await page.getByLabel('Название задания', { exact: true }).fill(longTitle);
+  await page.getByLabel('Содержание', { exact: true }).fill(longBody);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectCompactTaskEditor(page, width);
+    for (const label of ['Название задания', 'Содержание']) {
+      await expect
+        .poll(() =>
+          page
+            .getByLabel(label, { exact: true })
+            .evaluate((field) => field.scrollHeight - field.clientHeight),
+        )
+        .toBeLessThanOrEqual(2);
+    }
+    expect(
+      await page.getByLabel('Содержание', { exact: true }).evaluate((field) => field.clientHeight),
+    ).toBeGreaterThan(200);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({
+      path: `e2e/artifacts/learning/teacher-authoring/editor-long-${width}.png`,
+      fullPage: false,
+    });
+  }
+  await page.getByLabel('Название задания', { exact: true }).fill('Saved draft r2');
+  await page.getByLabel('Содержание', { exact: true }).fill('Saved instructions r2');
+  await expect(previewButton).toBeEnabled();
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await openAssignmentSettings(page);
@@ -409,16 +505,86 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   ).toBeDisabled();
   await expect(editor.getByRole('button', { name: 'Опубликовать v2', exact: true })).toBeDisabled();
   await addCourseBlock(page, 'Текст');
+  const publicationHandoff = {
+    expectedRevision: null as number | null,
+    outlineRevision: null as number | null,
+    restoreRevisions: [] as number[],
+    recoveryRevision: null as number | null,
+    savedRevision: null as number | null,
+    refreshFailure: 'controlled HTTP 503 after a real successful publish',
+  };
+  let releaseThirdOutline!: () => void;
+  const thirdOutlineHeld = new Promise<void>((resolve) => {
+    releaseThirdOutline = resolve;
+  });
+  let startedThirdOutline!: () => void;
+  const thirdOutlineStarted = new Promise<void>((resolve) => {
+    startedThirdOutline = resolve;
+  });
+  let holdThirdOutline = false;
+  const holdThirdPublication = async (route: Route) => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    const receipt = await response.json();
+    if (receipt.versionNumber === 3) {
+      publicationHandoff.expectedRevision = route.request().postDataJSON().expectedRevision;
+      holdThirdOutline = true;
+    }
+    await route.fulfill({ response });
+  };
+  const holdPublishedOutline = async (route: Route) => {
+    if (!holdThirdOutline) return route.continue();
+    holdThirdOutline = false;
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    publicationHandoff.outlineRevision = (await response.json()).draftRevision;
+    startedThirdOutline();
+    await thirdOutlineHeld;
+    await route.fulfill({ response });
+  };
+  await page.route('**/courses/*/publish', holdThirdPublication);
+  await page.route('**/courses/*/outline', holdPublishedOutline);
+  page.on('request', (request) => {
+    if (
+      publicationHandoff.expectedRevision !== null &&
+      request.method() === 'POST' &&
+      /\/api\/courses\/[^/]+\/versions\/[^/]+\/draft$/.test(new URL(request.url()).pathname)
+    )
+      publicationHandoff.restoreRevisions.push(request.postDataJSON().expectedRevision);
+  });
   for (const n of [2, 3]) {
     await editor.getByLabel('Название урока').fill('Lesson V' + n);
     await editor.getByLabel('Текст блока', { exact: true }).fill('Lesson content V' + n);
     await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
     await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
+    if (n === 3) {
+      await openCourseHistory(page);
+      await history
+        .getByLabel('Опубликованная версия', { exact: true })
+        .selectOption({ label: 'Версия 1' });
+    }
     await editor.getByRole('button', { name: 'Опубликовать v' + n, exact: true }).click();
     await expect(
       page.getByText('Курс опубликован: версия ' + n + '.', { exact: true }),
     ).toBeVisible();
+    if (n === 3) {
+      try {
+        await thirdOutlineStarted;
+        expect(publicationHandoff.outlineRevision).toBe(publicationHandoff.expectedRevision! + 1);
+        await expect(
+          history.getByRole('button', { name: 'Создать черновик из этой версии' }),
+        ).toBeDisabled();
+        expect(publicationHandoff.restoreRevisions).toEqual([]);
+      } finally {
+        releaseThirdOutline();
+      }
+      await expect(editor.getByTestId('course-save-state')).toContainText(
+        'редакция ' + publicationHandoff.outlineRevision,
+      );
+    }
   }
+  await page.unroute('**/courses/*/publish', holdThirdPublication);
+  await page.unroute('**/courses/*/outline', holdPublishedOutline);
   await openCourseHistory(page);
   history = editor.getByTestId('author-version-history');
   await history
@@ -427,6 +593,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await expect(history.getByRole('heading', { name: 'Lesson V1', exact: true })).toBeVisible();
   await history.getByRole('button', { name: 'Создать черновик из этой версии' }).click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Lesson V1');
+  expect(publicationHandoff.restoreRevisions).toEqual([publicationHandoff.outlineRevision]);
   await expect(editor.getByLabel('Текст блока', { exact: true })).toHaveValue(
     'Exact historical lesson V1',
   );
@@ -453,19 +620,69 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   page.on('response', (response) => {
     if (response.url().endsWith('/publish')) publicationFinished = true;
   });
-  await page.route('**/courses/*/outline', async (route) => {
+  let failedOutline = false;
+  const failPublishedOutline = async (route: Route) => {
     if (!publicationFinished) return route.continue();
+    if (failedOutline) return route.continue();
+    failedOutline = true;
     const response = await route.fetch();
+    expect(response.ok()).toBe(true);
     startedOutline();
     await delayedOutline;
-    await route.fulfill({ response });
-  });
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'unavailable', message: 'Контролируемый отказ обновления содержания' },
+      }),
+    });
+  };
+  await page.route('**/courses/*/outline', failPublishedOutline);
   await editor.getByRole('button', { name: 'Опубликовать v5', exact: true }).click();
   await outlineStarted;
   await editor.getByLabel('Название урока').fill('Unsaved input during outline refresh');
+  await openCourseHistory(page);
+  await history
+    .getByLabel('Опубликованная версия', { exact: true })
+    .selectOption({ label: 'Версия 4' });
+  const checkRefreshLayout = async (phase: 'pending' | 'failed') => {
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(editor.getByLabel('Название урока')).toHaveValue(
+        'Unsaved input during outline refresh',
+      );
+      await expect(
+        editor.getByRole('button', { name: 'Сохранить урок', exact: true }),
+      ).toBeDisabled();
+      await expect(
+        history.getByRole('button', { name: 'Создать черновик из этой версии' }),
+      ).toBeDisabled();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      if (phase === 'failed')
+        await editor.getByRole('button', { name: 'Повторить обновление' }).click({ trial: true });
+      if (width === 1440 || width === 390)
+        await editor.screenshot({
+          path: `e2e/artifacts/learning/version-draft/refresh-${phase}-${width}.png`,
+        });
+    }
+  };
+  await checkRefreshLayout('pending');
   releaseOutline();
 
   await expect(page.getByText('Публикация подтверждена: версия 4.', { exact: true })).toBeVisible();
+  await expect(editor.getByRole('button', { name: 'Повторить обновление' })).toBeVisible();
+  await checkRefreshLayout('failed');
+  const recoveredOutline = page.waitForResponse((response) =>
+    /\/api\/courses\/[^/]+\/outline$/.test(new URL(response.url()).pathname),
+  );
+  await editor.getByRole('button', { name: 'Повторить обновление' }).click();
+  const recovery = await recoveredOutline;
+  expect(recovery.ok()).toBe(true);
+  publicationHandoff.recoveryRevision = (await recovery.json()).draftRevision;
+  await expect(editor.getByRole('button', { name: 'Повторить обновление' })).toHaveCount(0);
+  await page.unroute('**/courses/*/outline', failPublishedOutline);
   await expect(editor.getByRole('button', { name: /^Опубликовать/ })).toHaveCount(0);
   await expect(editor.getByLabel('Название урока')).toHaveValue(
     'Unsaved input during outline refresh',
@@ -479,6 +696,149 @@ test('draft from historical Course and Activity versions uses the author UI, pro
     history.getByRole('button', { name: 'Создать черновик из этой версии' }),
   ).toBeDisabled();
   await editor.screenshot({ path: 'e2e/artifacts/learning/version-draft/published-v4.png' });
+  const savedAfterRecovery = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      /\/api\/courses\/[^/]+\/lessons\/[^/]+$/.test(new URL(response.url()).pathname),
+  );
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  const saved = await savedAfterRecovery;
+  expect(saved.ok()).toBe(true);
+  publicationHandoff.savedRevision = saved.request().postDataJSON().expectedRevision;
+  expect(publicationHandoff.savedRevision).toBe(publicationHandoff.recoveryRevision);
+  await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
+  await expect(editor.getByLabel('Название урока')).toHaveValue(
+    'Unsaved input during outline refresh',
+  );
+  const lessonPath = new URL(saved.url()).pathname;
+  const outlinePath = lessonPath.replace(/\/lessons\/[^/]+$/, '/outline');
+  const publishPath = lessonPath.replace(/\/lessons\/[^/]+$/, '/publish');
+  const origin = new URL(page.url()).origin;
+  const cleanRefresh = {
+    publishRevision: null as number | null,
+    outlineRevision: null as number | null,
+    nextWriteRevision: null as number | null,
+    laterConflictRevision: null as number | null,
+  };
+  const remoteContent = {
+    title: 'Concurrent title after publication',
+    blocks: [{ id: 'concurrent-text', type: 'paragraph', text: 'Concurrent lesson content' }],
+  };
+  const initialInput = saved.request().postDataJSON();
+  let publicationConfirmed = false;
+  let refreshHeld = false;
+  let releaseCleanRefresh!: () => void;
+  const cleanRefreshHeld = new Promise<void>((resolve) => {
+    releaseCleanRefresh = resolve;
+  });
+  let startedCleanRefresh!: () => void;
+  const cleanRefreshStarted = new Promise<void>((resolve) => {
+    startedCleanRefresh = resolve;
+  });
+  const confirmCleanPublication = async (route: Route) => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    cleanRefresh.publishRevision = route.request().postDataJSON().expectedRevision;
+    publicationConfirmed = true;
+    await route.fulfill({ response });
+  };
+  const holdCleanRefresh = async (route: Route) => {
+    if (!publicationConfirmed || refreshHeld) return route.continue();
+    refreshHeld = true;
+    startedCleanRefresh();
+    await cleanRefreshHeld;
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    cleanRefresh.outlineRevision = (await response.json()).draftRevision;
+    await route.fulfill({ response });
+  };
+  await page.route('**' + publishPath, confirmCleanPublication);
+  await page.route('**' + outlinePath, holdCleanRefresh);
+  await editor.getByRole('button', { name: 'Опубликовать v5', exact: true }).click();
+  let remoteRevision: number;
+  try {
+    await cleanRefreshStarted;
+    await expect(
+      editor.getByRole('button', { name: 'Сохранить урок', exact: true }),
+    ).toBeDisabled();
+    const publishedOutline = await page.request.get(outlinePath);
+    expect(publishedOutline.ok()).toBe(true);
+    const publishedRevision = (await publishedOutline.json()).draftRevision;
+    expect(publishedRevision).toBe(cleanRefresh.publishRevision! + 1);
+    // A second authenticated client commits while the clean editor is still
+    // waiting for its publication outline. The delivered outline includes it.
+    const remoteSave = await page.request.patch(lessonPath, {
+      headers: { origin },
+      data: { ...initialInput, ...remoteContent, expectedRevision: publishedRevision },
+    });
+    expect(remoteSave.status()).toBe(200);
+    remoteRevision = (await remoteSave.json()).draftRevision;
+    expect(Number.isSafeInteger(remoteRevision)).toBe(true);
+    expect(remoteRevision).toBeGreaterThan(publishedRevision);
+  } finally {
+    releaseCleanRefresh();
+  }
+  await expect(editor.getByTestId('course-save-state')).toContainText('редакция ' + remoteRevision);
+  expect(cleanRefresh.outlineRevision).toBe(remoteRevision);
+  await expect(editor.getByLabel('Название урока')).toHaveValue(remoteContent.title);
+  await expect(editor.getByLabel('Текст блока', { exact: true })).toHaveValue(
+    remoteContent.blocks[0].text,
+  );
+  await page.unroute('**' + publishPath, confirmCleanPublication);
+  await page.unroute('**' + outlinePath, holdCleanRefresh);
+  await editor.getByLabel('Что будет в уроке').fill('Only my description changes');
+  const nextSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
+  );
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  const nextSaved = await nextSave;
+  expect(nextSaved.status()).toBe(200);
+  const nextInput = nextSaved.request().postDataJSON();
+  cleanRefresh.nextWriteRevision = nextInput.expectedRevision;
+  expect(nextInput).toMatchObject({
+    ...remoteContent,
+    summary: 'Only my description changes',
+    expectedRevision: remoteRevision,
+  });
+  const nextReceipt = await nextSaved.json();
+  const afterDescription = await page.request.get(outlinePath);
+  expect(afterDescription.ok()).toBe(true);
+  expect(await afterDescription.json()).toMatchObject({
+    draftRevision: nextReceipt.draftRevision,
+    sections: [{ lessons: [{ ...remoteContent, summary: 'Only my description changes' }] }],
+  });
+
+  await editor.getByLabel('Что будет в уроке').fill('My later unsaved description');
+  const laterContent = {
+    title: 'A later competing title',
+    blocks: [{ id: 'concurrent-text', type: 'paragraph', text: 'A later competing content' }],
+  };
+  const laterRemote = await page.request.patch(lessonPath, {
+    headers: { origin },
+    data: { ...nextInput, ...laterContent, expectedRevision: nextReceipt.draftRevision },
+  });
+  expect(laterRemote.status()).toBe(200);
+  const conflictingSave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
+  );
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  const conflict = await conflictingSave;
+  expect(conflict.status()).toBe(409);
+  cleanRefresh.laterConflictRevision = conflict.request().postDataJSON().expectedRevision;
+  expect(cleanRefresh.laterConflictRevision).toBe(nextReceipt.draftRevision);
+  const conflictBody = await conflict.json();
+  expect(conflictBody.error.code).toBe('draft_conflict');
+  await expect(editor.getByRole('alert')).toContainText(conflictBody.error.message);
+  await expect(editor.getByLabel('Что будет в уроке')).toHaveValue('My later unsaved description');
+  const afterConflict = await page.request.get(outlinePath);
+  expect(afterConflict.ok()).toBe(true);
+  expect(await afterConflict.json()).toMatchObject({ sections: [{ lessons: [laterContent] }] });
+  writeFileSync(
+    'e2e/artifacts/learning/version-draft/publication-revision-handoff.json',
+    JSON.stringify({ ...publicationHandoff, cleanRefresh }, null, 2),
+  );
 });
 
 function solidPng(red: number, green: number, blue: number, width = 3, height = 3): Buffer {
@@ -695,9 +1055,9 @@ test('first-class image block survives draft reload and pins exact published byt
   expect(v2Source).not.toBe(v1Source);
   const v2Bytes = await page.request.get(new URL(v2Source!, page.url()).toString());
   expect(Buffer.compare(await v2Bytes.body(), imageB)).toBe(0);
-  await page.route(new URL(v2Source!, page.url()).toString(), (route) =>
-    route.fulfill({ status: 404, body: 'unavailable' }),
-  );
+  const v2Preview = new URL(v2Source!, page.url());
+  v2Preview.searchParams.set('preview', '640');
+  await page.route(v2Preview.href, (route) => route.fulfill({ status: 404, body: 'unavailable' }));
   await page.reload();
   await openExistingAssignmentEditor(page, title);
   await previewAssignmentAs(page, 'published');

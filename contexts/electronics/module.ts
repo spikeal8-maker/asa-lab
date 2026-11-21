@@ -130,6 +130,26 @@ export const ELECTRONICS_MODULE = defineModule<ElectronicsDocument, SimulationRe
       }
       return { ok: true, payload: parsed.document, diagnostics: [] };
     },
+    validateReplacement: (previous: unknown, payload: ElectronicsDocument) => {
+      const version =
+        previous !== null && typeof previous === 'object' && !Array.isArray(previous)
+          ? (previous as Record<string, unknown>)['schemaVersion']
+          : undefined;
+      if (
+        typeof version !== 'number' ||
+        !Number.isSafeInteger(version) ||
+        version < 1 ||
+        (version >= 5 && payload.schemaVersion < version)
+      )
+        return {
+          ok: false,
+          diagnostics: invalidDocument(
+            'Формат проекта обновлён. Откройте его в новой версии редактора.',
+            'electronics_annotation_version',
+          ),
+        };
+      return { ok: true };
+    },
     createPreview: (payload: ElectronicsDocument) => {
       const summary = `${payload.components.length} компонентов · ${payload.connections.length} соединений`;
       const figure = electronicsPreviewFigure(payload);

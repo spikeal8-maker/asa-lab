@@ -1,4 +1,8 @@
 import { call, type ApiResult } from '../api-call';
+import {
+  validatePublicProjectDisplayArtifact,
+  type PublicProjectDisplayArtifact,
+} from '@asa-lab/contracts';
 
 export interface PublicProject {
   readonly publicationId: string;
@@ -12,7 +16,12 @@ export interface PublicProject {
   readonly license: string;
   readonly moduleKey: string;
   readonly authorLabel: string;
+  readonly authorAvatarUrl?: string | null;
   readonly featured: boolean;
+  readonly pinned: boolean;
+  readonly likeCount?: number;
+  /** Successfully created personal copies; not physical file downloads. */
+  readonly copyCount?: number;
   readonly publishedAt: string;
   readonly preview: {
     readonly url: string;
@@ -28,6 +37,7 @@ export interface PublicProject {
 }
 
 export interface ProjectPublicationStatus {
+  readonly acquisition?: { readonly allowed: boolean; readonly version: number } | null;
   readonly publication: {
     readonly publicationId: string;
     readonly revisionId: string;
@@ -61,18 +71,77 @@ export interface PublicProjectCopy {
   readonly created: boolean;
 }
 
+export interface PublicationLikeState {
+  readonly publicationId: string;
+  readonly revisionId: string;
+  readonly liked: boolean;
+  readonly canLike: boolean;
+  readonly canUnlike: boolean;
+  readonly reactionsEnabled: boolean;
+  readonly likeCount: number;
+  readonly reason: 'own_work' | 'reactions_disabled' | null;
+}
+
 /** Public reads use only the immutable publication namespace. */
 export const publicProjectsApi = {
-  list: (input: { search?: string; module?: string; offset?: number } = {}) => {
-    const query = new URLSearchParams({ offset: String(input.offset ?? 0), limit: '24' });
+  editor: (publicationId: string, signal?: AbortSignal) =>
+    call<{ editor: { projectId: string; moduleKey: string } | null }>(
+      `/api/public-projects/${encodeURIComponent(publicationId)}/editor`,
+      { cache: 'no-store', ...(signal ? { signal } : {}) },
+    ),
+  likeState: (publicationId: string, signal: AbortSignal) =>
+    call<PublicationLikeState>(`/api/public-projects/${encodeURIComponent(publicationId)}/like`, {
+      cache: 'no-store',
+      signal,
+    }),
+  like: (publicationId: string, revisionId: string, on: boolean, signal: AbortSignal) =>
+    call<{ liked: boolean }>(`/api/public-projects/${encodeURIComponent(publicationId)}/like`, {
+      method: 'PUT',
+      cache: 'no-store',
+      body: JSON.stringify({ revisionId, on }),
+      signal,
+    }),
+  artifact: async (
+    publicationId: string,
+    revisionId: string,
+    signal: AbortSignal,
+  ): Promise<ApiResult<{ artifact: PublicProjectDisplayArtifact }>> => {
+    const result = await call<{ artifact: unknown }>(
+      `/api/public-projects/${encodeURIComponent(publicationId)}/artifact?revisionId=${encodeURIComponent(revisionId)}`,
+      { cache: 'no-store', signal },
+    );
+    if (!result.ok) return result;
+    const validated = validatePublicProjectDisplayArtifact(result.data?.artifact);
+    if (!validated.ok)
+      return {
+        ok: false,
+        status: 502,
+        error: { code: 'invalid_public_artifact', message: 'Некорректный формат просмотра' },
+      };
+    return { ok: true, status: result.status, data: { artifact: validated.artifact } };
+  },
+  list: (
+    input: {
+      search?: string;
+      module?: string;
+      offset?: number;
+      sort?: 'newest' | 'oldest' | 'likes' | 'copies';
+    } = {},
+  ) => {
+    const query = new URLSearchParams({
+      offset: String(input.offset ?? 0),
+      limit: '24',
+      catalog: 'projects',
+    });
     if (input.search) query.set('q', input.search);
     if (input.module) query.set('module', input.module);
+    if (input.sort) query.set('sort', input.sort);
     return call<PublicProjectList>(`/api/public-projects?${query}`, { cache: 'no-store' });
   },
-  get: (publicationId: string) =>
+  get: (publicationId: string, signal?: AbortSignal) =>
     call<{ publication: PublicProject }>(
       `/api/public-projects/${encodeURIComponent(publicationId)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', ...(signal ? { signal } : {}) },
     ),
   copy: (publicationId: string, revisionId: string, idempotencyKey: string, signal: AbortSignal) =>
     call<PublicProjectCopy>(`/api/public-projects/${encodeURIComponent(publicationId)}/copy`, {
@@ -90,6 +159,19 @@ export const publicProjectsApi = {
       method: 'POST',
       body: JSON.stringify(metadata),
     }),
+  setAcquisition: (
+    projectId: string,
+    allowed: boolean,
+    expectedVersion: number,
+    expectedRevisionId: string,
+  ) =>
+    call<ProjectPublicationStatus>(
+      `/api/projects/${encodeURIComponent(projectId)}/publication/acquisition`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ allowed, expectedVersion, expectedRevisionId }),
+      },
+    ),
   revoke: (projectId: string) =>
     call<ProjectPublicationStatus>(`/api/projects/${encodeURIComponent(projectId)}/publication`, {
       method: 'DELETE',

@@ -109,8 +109,10 @@ test('teacher class and individual controls govern real offline games and direct
     await captureLayouts(learner, 'learner-allowed');
 
     await learner.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
-    await expect(learner.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
-    await expect(learner.getByRole('button', { name: 'Онлайн', exact: true })).toHaveCount(0);
+    await expect(learner.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
+    await expect(
+      learner.getByRole('button', { name: 'Играть с человеком', exact: true }),
+    ).toHaveCount(0);
     await expect(learner.getByRole('button', { name: 'Играть онлайн', exact: true })).toHaveCount(
       0,
     );
@@ -279,7 +281,7 @@ test('teacher class and individual controls govern real offline games and direct
       learner.getByRole('button', { name: 'Играть: Шахматы', exact: true }),
     ).toBeEnabled();
     await learner.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
-    await expect(learner.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+    await expect(learner.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
     const resumed = await learner.request.get('/api/projects?scope=personal&module=chess');
     expect((await resumed.json()).items.map((item: { id: string }) => item.id)).toEqual([chessId]);
     const stillSafe = await page.request.get(`/api/classrooms/${classroomId}`);

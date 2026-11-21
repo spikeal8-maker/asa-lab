@@ -1,16 +1,17 @@
-import {
-  resetElectronicsTimedState,
-  type ElectronicsArduinoSerialProjection,
-  type ElectronicsLedTemporalObservation,
-  type ElectronicsTimedInputEvent,
-  type ElectronicsTimedState,
+import { photoresistorIllumination } from '@asa-lab/electronics/rendering';
+import { resetElectronicsTimedState } from '@asa-lab/electronics/timed-state';
+import type {
+  ElectronicsArduinoSerialProjection,
+  ElectronicsLedTemporalObservation,
+  ElectronicsTimedInputEvent,
+  ElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
 import type { ProductionStateValue, SchematicDocument, SolveResult } from '../api';
 import {
   preflightFailure,
+  SimulationFailure,
   timedAdvanceFailure,
   workerFailure,
-  type SimulationFailure,
 } from './simulation-failure';
 import { ElectronicsSimulationWorkerClient } from './simulation-worker-client';
 import type { SimulationTimedAdvancePayload } from './simulation-worker-protocol';
@@ -30,7 +31,19 @@ export interface ElectronicsSimulationWorkerExecutor {
   dispose(): void;
 }
 
+export interface LiveSimulationInputBudget {
+  readonly limit: number;
+  readonly admitted: number;
+  readonly accepted: number;
+  readonly pending: number;
+  readonly inFlight: number;
+  readonly exhausted: boolean;
+}
+
 export interface LiveSimulationWorkerCallbacks {
+  /** Optional host ceiling; the canonical engine retains its own input limit. */
+  readonly inputEventLimit?: number;
+  readonly onInputBudget?: (budget: LiveSimulationInputBudget) => void;
   readonly onGenerationPending?: () => void;
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
   /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
@@ -56,6 +69,7 @@ const TIMED_STATE_PROPERTIES = [
   'distanceMeters',
 ] as const;
 const TIMED_CONTROL_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
+  'ultrasonic-hc-sr04': ['echoAvailable'],
   'regulated-power-supply': ['voltageSetpointVolt', 'currentLimitAmp', 'outputEnabled'],
   'signal-generator': ['waveform', 'frequencyHz', 'amplitudeVpp', 'dcOffsetVolt', 'outputEnabled'],
   oscilloscope: ['voltsPerDivision', 'timePerDivisionMs', 'triggerLevelVolt', 'displayEnabled'],
@@ -89,6 +103,8 @@ function boundedInputObservationHorizon(
 function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
   const withoutViewport = { ...document } as Partial<SchematicDocument>;
   delete withoutViewport.viewport;
+  delete withoutViewport.annotations;
+  if (withoutViewport.schemaVersion === 5) withoutViewport.schemaVersion = 4;
   return {
     ...withoutViewport,
     simulation: { ...document.simulation, running: false },
@@ -103,6 +119,7 @@ function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
       if (clone.stateProperties) {
         const stateProperties = { ...clone.stateProperties };
         for (const property of TIMED_STATE_PROPERTIES) delete stateProperties[property];
+        if (component.kind === 'photoresistor') delete stateProperties.illumination;
         for (const property of TIMED_CONTROL_PROPERTIES[component.componentTypeId ?? ''] ?? [])
           delete stateProperties[property];
         for (const property of DISPLAY_ONLY_PROPERTIES[component.componentTypeId ?? ''] ?? [])
@@ -195,6 +212,17 @@ function timedRuntimeEvents(
         payload: component.wiperPosition,
       });
     }
+    if (component.kind === 'photoresistor') {
+      const illumination = photoresistorIllumination(component);
+      if (illumination !== photoresistorIllumination(before)) {
+        events.push({
+          atMicroseconds,
+          targetId: component.id,
+          operation: 'illumination',
+          payload: illumination,
+        });
+      }
+    }
     for (const property of TIMED_STATE_PROPERTIES) {
       const value = component.stateProperties?.[property];
       if (
@@ -212,9 +240,17 @@ function timedRuntimeEvents(
       }
     }
     for (const property of TIMED_CONTROL_PROPERTIES[component.componentTypeId ?? ''] ?? []) {
-      const value = component.stateProperties?.[property];
+      const currentValue = component.stateProperties?.[property];
+      // Legacy HC-SR04 documents already mean echoAvailable=true. Materializing
+      // that default must not consume a second input or change their trace.
+      const value =
+        property === 'echoAvailable' && currentValue === undefined ? true : currentValue;
+      const previousValue =
+        property === 'echoAvailable' && before.stateProperties?.[property] === undefined
+          ? true
+          : before.stateProperties?.[property];
       if (
-        value !== before.stateProperties?.[property] &&
+        value !== previousValue &&
         (typeof value === 'boolean' ||
           typeof value === 'string' ||
           (typeof value === 'number' && Number.isFinite(value)))
@@ -244,12 +280,29 @@ export class ElectronicsLiveSimulationWorkerController {
   private continuationTarget: SimulationTarget | null = null;
   private inputTarget: SimulationTarget | null = null;
   private pendingInputEvents: ElectronicsTimedInputEvent[] = [];
+  private inputEventLimit: number | null = null;
+  private acceptedInputEventCount = 0;
+  private inFlightInputEventCount = 0;
+  private inputBudgetExhausted = false;
+  private publishedInputBudget: LiveSimulationInputBudget | null = null;
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private firstPositiveObservation = false;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
+  private paused = false;
+  private resuming = false;
+  private heldAdvance: {
+    generationId: number;
+    target: SimulationTarget;
+    advance: SimulationTimedAdvancePayload;
+    inputEventCount: number;
+  } | null = null;
+  private readonly serialPrograms = new Map<
+    string,
+    { fingerprint: string | undefined; revision: number }
+  >();
 
   constructor(
     private readonly executor: ElectronicsSimulationWorkerExecutor = new ElectronicsSimulationWorkerClient(),
@@ -261,8 +314,18 @@ export class ElectronicsLiveSimulationWorkerController {
     callbacks: LiveSimulationWorkerCallbacks,
   ): void {
     this.stop();
+    if (
+      callbacks.inputEventLimit !== undefined &&
+      (!Number.isSafeInteger(callbacks.inputEventLimit) || callbacks.inputEventLimit < 1)
+    ) {
+      callbacks.onFailure(
+        new SimulationFailure('runtime', 'input-event-limit-invalid', 'Некорректный лимит входов.'),
+      );
+      return;
+    }
     this.projectSessionId = projectSessionId;
     this.callbacks = callbacks;
+    this.inputEventLimit = callbacks.inputEventLimit ?? null;
     this.beginGeneration(document, 0);
   }
 
@@ -291,6 +354,7 @@ export class ElectronicsLiveSimulationWorkerController {
     const events = timedRuntimeEvents(previousDocument, document, eventAtMicroseconds);
     this.lastRuntimeDocument = document;
     const requestedHorizonMicroseconds = this.enqueueInputEvents(events, canonicalHorizon);
+    if (requestedHorizonMicroseconds === null) return;
     if (
       this.inFlight &&
       this.inFlightKind === 'preflight' &&
@@ -328,6 +392,7 @@ export class ElectronicsLiveSimulationWorkerController {
       [{ atMicroseconds, targetId: componentId, operation: 'serialRx', payload: text }],
       canonicalHorizon,
     );
+    if (requestedHorizonMicroseconds === null) return;
     this.latestTarget = {
       requestedHorizonMicroseconds: Math.max(
         requestedHorizonMicroseconds,
@@ -341,6 +406,70 @@ export class ElectronicsLiveSimulationWorkerController {
     if (this.generationId === null || !this.projectSessionId) return;
     this.horizonOffsetMicroseconds = 0;
     this.beginGeneration(document, 0);
+  }
+
+  get committedHorizonMicroseconds(): number {
+    return this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
+  }
+
+  get hasPendingAdvance(): boolean {
+    return this.inFlightKind === 'advance';
+  }
+
+  get inputBudget(): LiveSimulationInputBudget | null {
+    if (this.inputEventLimit === null) return null;
+    const pending = this.pendingInputEvents.length;
+    const admitted = this.acceptedInputEventCount + this.inFlightInputEventCount + pending;
+    return {
+      limit: this.inputEventLimit,
+      admitted,
+      accepted: this.acceptedInputEventCount,
+      pending,
+      inFlight: this.inFlightInputEventCount,
+      exhausted: this.inputBudgetExhausted || admitted >= this.inputEventLimit,
+    };
+  }
+
+  private publishInputBudget(): void {
+    const budget = this.inputBudget;
+    if (!budget) return;
+    const previous = this.publishedInputBudget;
+    if (
+      previous?.limit === budget.limit &&
+      previous.accepted === budget.accepted &&
+      previous.pending === budget.pending &&
+      previous.inFlight === budget.inFlight &&
+      previous.exhausted === budget.exhausted
+    )
+      return;
+    this.publishedInputBudget = budget;
+    this.callbacks?.onInputBudget?.(budget);
+  }
+
+  /** A host transition drops obsolete wall demand, never input/continuation work. */
+  reanchorHostDemand(): void {
+    this.latestTarget =
+      this.canonicalDocument && !sameArduinoSources(this.dispatchedDocument, this.canonicalDocument)
+        ? { requestedHorizonMicroseconds: this.committedHorizonMicroseconds }
+        : null;
+  }
+
+  setPaused(paused: boolean, reanchor?: (committedMicroseconds: number) => void): void {
+    this.paused = paused;
+    if (paused) return;
+    if (this.resuming) {
+      reanchor?.(this.committedHorizonMicroseconds);
+      return;
+    }
+    this.resuming = true;
+    this.reanchorHostDemand();
+    const held = this.heldAdvance;
+    this.heldAdvance = null;
+    if (held)
+      this.completeAdvance(held.generationId, held.target, held.advance, held.inputEventCount);
+    reanchor?.(this.committedHorizonMicroseconds);
+    this.resuming = false;
+    this.pump();
   }
 
   stop(): void {
@@ -357,8 +486,24 @@ export class ElectronicsLiveSimulationWorkerController {
   private enqueueInputEvents(
     events: readonly ElectronicsTimedInputEvent[],
     canonicalHorizonMicroseconds: number,
-  ): number {
+  ): number | null {
     if (events.length === 0) return canonicalHorizonMicroseconds;
+    const generationId = this.generationId;
+    const budget = this.inputBudget;
+    if (budget && budget.admitted + events.length > budget.limit) {
+      this.inputBudgetExhausted = true;
+      this.publishInputBudget();
+      if (generationId !== null)
+        this.fail(
+          generationId,
+          new SimulationFailure(
+            'runtime',
+            'input-event-limit',
+            `Достигнут лимит ${budget.limit} входных событий. Сбросьте симуляцию для нового запуска.`,
+          ),
+        );
+      return null;
+    }
     this.pendingInputEvents.push(...events);
     const lastAt = events[events.length - 1]!.atMicroseconds;
     this.lastInputEventAtMicroseconds = Math.max(this.lastInputEventAtMicroseconds, lastAt);
@@ -368,6 +513,8 @@ export class ElectronicsLiveSimulationWorkerController {
         canonicalHorizonMicroseconds,
       ),
     };
+    this.publishInputBudget();
+    if (generationId !== this.generationId) return null;
     return Math.max(canonicalHorizonMicroseconds, lastAt);
   }
 
@@ -375,14 +522,20 @@ export class ElectronicsLiveSimulationWorkerController {
     const projectSessionId = this.projectSessionId;
     if (!projectSessionId) return;
     this.canonicalDocument = document;
+    this.serialPrograms.clear();
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
     this.dispatchedDocument = null;
+    this.heldAdvance = null;
     this.latestTarget = { requestedHorizonMicroseconds: canonicalHorizonMicroseconds };
     this.startupTarget = { requestedHorizonMicroseconds: 0 };
     this.continuationTarget = null;
     this.inputTarget = null;
     this.pendingInputEvents = [];
+    this.acceptedInputEventCount = 0;
+    this.inFlightInputEventCount = 0;
+    this.inputBudgetExhausted = false;
+    this.publishedInputBudget = null;
     this.lastInputEventAtMicroseconds = -1;
     this.observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
     this.firstPositiveObservation = false;
@@ -392,6 +545,8 @@ export class ElectronicsLiveSimulationWorkerController {
     this.inFlight = true;
     this.inFlightKind = 'preflight';
     this.callbacks?.onGenerationPending?.();
+    this.publishInputBudget();
+    if (generationId !== this.generationId) return;
     void this.executor
       .preflight(generationId, document)
       .then((result) => this.completePreflight(generationId, result))
@@ -411,11 +566,19 @@ export class ElectronicsLiveSimulationWorkerController {
     this.continuationTarget = null;
     this.inputTarget = null;
     this.pendingInputEvents = [];
+    this.inputEventLimit = null;
+    this.acceptedInputEventCount = 0;
+    this.inFlightInputEventCount = 0;
+    this.inputBudgetExhausted = false;
+    this.publishedInputBudget = null;
     this.lastInputEventAtMicroseconds = -1;
     this.horizonOffsetMicroseconds = 0;
     this.firstPositiveObservation = false;
     this.inFlight = false;
     this.inFlightKind = null;
+    this.paused = false;
+    this.resuming = false;
+    this.heldAdvance = null;
   }
 
   private retimePendingInputsAfterCommitted(
@@ -463,7 +626,15 @@ export class ElectronicsLiveSimulationWorkerController {
     const document = this.canonicalDocument;
     let pendingTarget =
       this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
-    if (generationId === null || !document || this.inFlight || !pendingTarget) return;
+    if (
+      generationId === null ||
+      !document ||
+      this.inFlight ||
+      !pendingTarget ||
+      this.resuming ||
+      (this.paused && pendingTarget !== this.startupTarget)
+    )
+      return;
     if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
       // A native RAF may acknowledge new progress between the last host tick
       // and this serial dispatch. Refresh the same bounded demand at its use.
@@ -472,6 +643,8 @@ export class ElectronicsLiveSimulationWorkerController {
         generationId !== this.generationId ||
         document !== this.canonicalDocument ||
         this.inFlight ||
+        this.paused ||
+        this.resuming ||
         pendingTarget !== this.latestTarget ||
         hostHorizon === null ||
         !Number.isSafeInteger(hostHorizon) ||
@@ -525,6 +698,7 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     const inputEvents = isStartup ? [] : this.pendingInputEvents;
     if (!isStartup) this.pendingInputEvents = [];
+    this.inFlightInputEventCount = inputEvents.length;
     this.inFlight = true;
     this.inFlightKind = 'advance';
     this.dispatchedDocument = document;
@@ -536,8 +710,9 @@ export class ElectronicsLiveSimulationWorkerController {
         target.requestedHorizonMicroseconds,
         inputEvents,
       )
-      .then((advance) => this.completeAdvance(generationId, target, advance))
+      .then((advance) => this.completeAdvance(generationId, target, advance, inputEvents.length))
       .catch((error) => this.fail(generationId, error));
+    this.publishInputBudget();
   }
 
   private completePreflight(generationId: number, result: SolveResult): void {
@@ -556,10 +731,16 @@ export class ElectronicsLiveSimulationWorkerController {
     generationId: number,
     target: SimulationTarget,
     advance: SimulationTimedAdvancePayload,
+    inputEventCount: number,
   ): void {
     if (generationId !== this.generationId) return;
+    if (this.paused && target !== this.startupTarget) {
+      this.heldAdvance = { generationId, target, advance, inputEventCount };
+      return;
+    }
     this.inFlight = false;
     this.inFlightKind = null;
+    this.inFlightInputEventCount = 0;
     if (advance.executionStatus === 'fault') {
       this.fail(generationId, timedAdvanceFailure(advance));
       return;
@@ -575,9 +756,34 @@ export class ElectronicsLiveSimulationWorkerController {
       );
       return;
     }
+    this.acceptedInputEventCount += inputEventCount;
     const previouslyCommitted = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     this.timedState = advance.state;
-    this.callbacks?.onSerialProjection?.(advance.serial);
+    // UI-only identity from the accepted MCU state: source text or TX contents
+    // cannot distinguish a reset with identical output from a retained stream.
+    const fingerprints = new Map<string, string>();
+    try {
+      const snapshot = JSON.parse(advance.state.continuation?.serializedState ?? '{}') as {
+        boards?: readonly { componentId: string; runtime?: { programFingerprint?: string } }[];
+      };
+      for (const board of snapshot.boards ?? [])
+        if (typeof board.runtime?.programFingerprint === 'string')
+          fingerprints.set(board.componentId, board.runtime.programFingerprint);
+    } catch {
+      // An absent/invalid optional continuation supplies no program identity.
+      fingerprints.clear();
+    }
+    const serial = advance.serial.map((entry) => {
+      const fingerprint = fingerprints.get(entry.componentId);
+      const previous = this.serialPrograms.get(entry.componentId);
+      const revision = (previous?.revision ?? 0) + (previous?.fingerprint !== fingerprint ? 1 : 0);
+      this.serialPrograms.set(entry.componentId, { fingerprint, revision });
+      return {
+        ...entry,
+        streamGeneration: `${this.projectSessionId}:${generationId}:${revision}`,
+      };
+    });
+    this.callbacks?.onSerialProjection?.(serial);
     this.retimePendingInputsAfterCommitted(
       advance.committedHorizonMicroseconds,
       target.requestedHorizonMicroseconds,
@@ -597,6 +803,7 @@ export class ElectronicsLiveSimulationWorkerController {
           requestedHorizonMicroseconds: advance.committedHorizonMicroseconds,
         };
       }
+      this.publishInputBudget();
       this.pump();
       return;
     }
@@ -672,6 +879,7 @@ export class ElectronicsLiveSimulationWorkerController {
           pull();
         });
     }
+    this.publishInputBudget();
     this.pump();
   }
 

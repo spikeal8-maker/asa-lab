@@ -7,8 +7,10 @@ export function PublicProjectsSurface({
   view,
   onNavigate,
   onMyProjects,
+  authenticated = false,
 }: {
   readonly view: PublicProjectView;
+  readonly authenticated?: boolean;
   readonly onNavigate: (view: CreatorPortalView) => void;
   readonly onMyProjects?: () => void;
 }): JSX.Element {
@@ -19,6 +21,7 @@ export function PublicProjectsSurface({
       <PublicProjectPage
         key={view.publicationId}
         publicationId={view.publicationId}
+        authenticated={authenticated}
         onBack={back}
       />
     );

@@ -1,0 +1,228 @@
+{
+  "task": "TASK-ELECTRONICS-SERIAL-BEGIN-INPUT-001",
+  "issue": 782,
+  "baseline": "abfeff96da3b1bda50e2e79adaafa32dfe3f4ee2",
+  "scope": "Serial Monitor UI guard only; runtime/scheduler unchanged",
+  "before": [
+    {
+      "width": 1440,
+      "expectedBeforeInputLoss": true,
+      "ignoredRx": "A",
+      "tx": ""
+    },
+    {
+      "width": 390,
+      "expectedBeforeInputLoss": true,
+      "ignoredRx": "A",
+      "tx": ""
+    }
+  ],
+  "after": [
+    {
+      "width": 1440,
+      "beginGuard": true,
+      "inputPreserved": true,
+      "enterRx": 65,
+      "buttonRx": 66,
+      "stopRunReset": true
+    },
+    {
+      "width": 1440,
+      "connected": 511,
+      "floating": [
+        32,
+        207,
+        858,
+        489,
+        1004,
+        635,
+        262,
+        917,
+        200
+      ],
+      "actualWorkerResponses": 67,
+      "directParity": true,
+      "clearStopRunResetSource": true,
+      "circuits": [
+        {
+          "name": "pot",
+          "codes": [
+            767,
+            767,
+            767,
+            767,
+            767,
+            767,
+            767,
+            767,
+            767
+          ],
+          "expected": 767
+        },
+        {
+          "name": "diode",
+          "codes": [
+            145,
+            145,
+            145,
+            145,
+            145,
+            145,
+            145,
+            145,
+            145
+          ],
+          "expected": 145
+        },
+        {
+          "name": "ladder",
+          "codes": [
+            93,
+            93,
+            93,
+            93,
+            93,
+            93,
+            93,
+            93,
+            93
+          ],
+          "expected": 93
+        },
+        {
+          "name": "allpins",
+          "codes": [
+            511,
+            511,
+            0,
+            1023,
+            511,
+            511
+          ],
+          "expected": 511
+        }
+      ],
+      "boardIsolation": true,
+      "recordedTopologyActions": [
+        "disconnect",
+        "connect",
+        "disconnect"
+      ],
+      "realRx": 65
+    },
+    {
+      "width": 390,
+      "beginGuard": true,
+      "inputPreserved": true,
+      "enterRx": 65,
+      "buttonRx": 66,
+      "stopRunReset": true
+    },
+    {
+      "width": 390,
+      "connected": 511,
+      "floating": [
+        32,
+        207,
+        858,
+        489,
+        1004,
+        635,
+        262,
+        917,
+        200
+      ],
+      "actualWorkerResponses": 67,
+      "directParity": true,
+      "clearStopRunResetSource": true,
+      "circuits": [
+        {
+          "name": "pot",
+          "codes": [
+            767,
+            767,
+            767,
+            767,
+            767,
+            767,
+            767,
+            767,
+            767
+          ],
+          "expected": 767
+        },
+        {
+          "name": "diode",
+          "codes": [
+            145,
+            145,
+            145,
+            145,
+            145,
+            145,
+            145,
+            145,
+            145
+          ],
+          "expected": 145
+        },
+        {
+          "name": "ladder",
+          "codes": [
+            93,
+            93,
+            93,
+            93,
+            93,
+            93,
+            93,
+            93,
+            93
+          ],
+          "expected": 93
+        },
+        {
+          "name": "allpins",
+          "codes": [
+            511,
+            511,
+            0,
+            1023,
+            511,
+            511
+          ],
+          "expected": 511
+        }
+      ],
+      "boardIsolation": true,
+      "recordedTopologyActions": [
+        "disconnect",
+        "connect",
+        "disconnect"
+      ],
+      "realRx": 65
+    }
+  ],
+  "unit": {
+    "command": "pnpm exec vitest run apps/web/src/electronics/testing/arduino-serial-monitor.spec.ts",
+    "passed": 10
+  },
+  "native": {
+    "command": "node apps/web/src/electronics/testing/arduino-analog-serial.browser.mjs",
+    "worker": "actual production Worker/client/live controller/monitor",
+    "viewports": [
+      1440,
+      390
+    ],
+    "scope": "route-free bundled browser fixture; not installed application or server SaveCAS"
+  },
+  "sourceSha256": "fe0204734ba74e984e0060db69d54cdfda88942cbe729b82bae722e67f9d18f3",
+  "canonicalGate": "Reported separately on exact candidate SHA; no PASS inferred here",
+  "nonClaims": [
+    "whole point19 completion",
+    "installed proof",
+    "owner acceptance",
+    "global CI PASS",
+    "server update"
+  ]
+}

@@ -42,6 +42,8 @@ function load(extra: Record<string, unknown> = {}) {
       DOMPoint: Point,
       useState: React.useState,
       useMemo: React.useMemo,
+      useRef: React.useRef,
+      useLayoutEffect: React.useLayoutEffect,
       regulatedPowerSupplyRuntimeMarkup,
       signalGeneratorRuntimeMarkup,
       ...extra,
@@ -71,6 +73,53 @@ function reference(x: number, y: number, cx: number, cy: number) {
 }
 
 describe('actual instrument pointer conversions', () => {
+  it('keeps live switch availability stable while actual supply readouts change', () => {
+    const ownerSvg = readFileSync(
+      resolve(
+        process.cwd(),
+        'apps/web/public/assets/electronics/component-database/components/power/regulated-power-supply/component.svg',
+      ),
+      'utf8',
+    );
+    const Component = load({
+      useOwnerSvgSource: () => ({ source: ownerSvg, failed: false }),
+    }).OwnerRegulatedPowerSupplyVisual;
+    const host = document.body.appendChild(document.createElement('div'));
+    const root = createRoot(host);
+    const availability = vi.fn();
+    try {
+      for (let frame = 0; frame < 26; frame++) {
+        flushSync(() =>
+          root.render(
+            React.createElement(Component, {
+              asset: 'stable-owner.svg',
+              width: 294,
+              height: 237,
+              component: { id: 'bench-supply', value: 5, state: true, stateProperties: {} },
+              simulationRunning: true,
+              result: {
+                voltageDrop: frame / 10,
+                current: frame / 1000,
+                regulationMode: frame % 2 ? 'cc' : 'cv',
+              },
+              onSwitchAvailability: availability,
+            }),
+          ),
+        );
+        expect(host.querySelector('.workbench-regulated-supply-reading')?.textContent).toBe(
+          `${(frame / 10).toFixed(2)} V`,
+        );
+        expect(availability.mock.calls).toEqual([['bench-supply', true]]);
+      }
+    } finally {
+      flushSync(() => root.unmount());
+      host.remove();
+    }
+    expect(availability.mock.calls).toEqual([
+      ['bench-supply', true],
+      ['bench-supply', false],
+    ]);
+  });
   it('preserves exact PSU and generator results at arc seams and nonfinite inputs', () => {
     const api = load();
     const points: number[][] = [

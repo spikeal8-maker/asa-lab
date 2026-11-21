@@ -179,6 +179,7 @@ export async function copyPublicProject(input: {
   pool: pg.Pool;
   registry: ModuleRegistry;
   principalId: string;
+  seatSessionHash?: string;
   publicationId: string;
   revisionId: string;
   title?: string;
@@ -190,8 +191,15 @@ export async function copyPublicProject(input: {
     // Source is checked even on replay: after revoke the response is 404 and
     // the already committed private copy is retained. No fresh source is read.
     const result = await client.query<CopySource>(
-      'SELECT * FROM public_project_copy_source($1,$2,$3)',
-      [input.principalId, input.publicationId, input.revisionId],
+      input.seatSessionHash
+        ? 'SELECT * FROM public_project_copy_source_seat($1,$2,$3,$4)'
+        : 'SELECT * FROM public_project_copy_source($1,$2,$3)',
+      [
+        input.principalId,
+        input.publicationId,
+        input.revisionId,
+        ...(input.seatSessionHash ? [input.seatSessionHash] : []),
+      ],
     );
     const source = result.rows[0];
     if (!source) throw publicationError('not_available', 'Публикация недоступна.', 404);

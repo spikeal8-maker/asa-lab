@@ -219,7 +219,7 @@ export async function evaluateSimulationWorkerRequestBatched(
         state: owned.state,
         ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
       },
-      { observeLedTemporal: true },
+      { observeLedTemporal: true, observeSevenSegmentTemporal: true },
     );
     let computeMs = globalThis.performance.now() - prepareStarted;
     let sliceStarted = globalThis.performance.now();

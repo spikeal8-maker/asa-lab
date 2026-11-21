@@ -1,3 +1,4 @@
+import { EmailVerification } from '../components/EmailVerification';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type AccountVerificationState, type SessionPayload } from '../api';
 import { SocialAuthButtons } from '../auth-providers';
@@ -119,6 +120,12 @@ export function AccountConfirmationPage({
           <span>{session.account.email}</span>
           <small>Способ будет связан с этим аккаунтом. Ваши проекты и история сохранятся.</small>
         </div>
+        <EmailVerification
+          accountId={session.account.id}
+          available={state.providers.some(
+            (provider) => provider.id === 'email' && provider.available,
+          )}
+        />
         <SocialAuthButtons
           providers={state.providers}
           purpose="link"

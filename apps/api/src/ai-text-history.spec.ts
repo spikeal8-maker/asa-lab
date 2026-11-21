@@ -1,5 +1,6 @@
+import { prePolzaPool } from './testing/ai-pre-polza-pool.fixture';
+import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { createCipheriv } from 'node:crypto';
-import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { AiChatService } from './ai-chat.service';
 import { AiTextHistoryStore } from './ai-text-history';
@@ -32,6 +33,10 @@ function fixture() {
   let receipt: { request: string; source: string } | null = null;
   let messages: Record<string, unknown>[] = [];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+    const journal = aiUsageQueryFixture(sql);
+    if (journal) return journal;
+    if (sql.includes("to_regprocedure('public.ai_tool_policy_permit(uuid,uuid,uuid,text)')"))
+      return { rows: [{ ready: false }] };
     events.push(sql);
     if (sql.includes('ai_text_regeneration_replay')) {
       if (receipt && (receipt.source !== params[3] || receipt.request !== params[2])) {
@@ -45,6 +50,7 @@ function fixture() {
       return { rows: [{ admitted: true }] };
     }
     if (sql.includes('ai_text_generation_context')) return { rows: context };
+    if (sql.includes('ai_chat_generation_lease')) return { rows: [] };
     if (sql.includes('ai_text_request_messages')) return { rows: messages };
     if (sql.includes('ai_chat_finish')) {
       messages = [
@@ -72,7 +78,7 @@ function fixture() {
         'event: response.completed\ndata: {"type":"response.completed"}\n\n',
     );
   });
-  const service = new AiChatService({ query } as unknown as pg.Pool, {
+  const service = new AiChatService(prePolzaPool(query), {
     encryptionKey: ROOT,
     fetchImpl,
   });
@@ -136,8 +142,9 @@ describe('fresh answer admission and persistence', () => {
       messages: [{ requestId: REQUEST }],
     });
     expect(f.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'SELECT ai_generation_policy_runtime() AS value',
       'SELECT ai_text_regeneration_replay($1,$2,$3,$4) AS replayed',
-      'SELECT * FROM ai_text_request_messages($1,$2,$3)',
+      'SELECT page.*, ai_image_history($1,$2,page.request_id) AS generated_images, ai_image_kind($1,$2,page.request_id) AS generation_kind, ai_web_search_evidence($1,$2,page.request_id,true) AS web_search FROM ai_text_request_messages($1,$2,$3) page',
     ]);
     expect(f.fetchImpl).toHaveBeenCalledTimes(1);
   });
@@ -150,7 +157,10 @@ describe('fresh answer admission and persistence', () => {
       code: 'ai_request_id_reused',
       status: 409,
     });
-    expect(f.query).toHaveBeenCalledTimes(1);
+    expect(f.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'SELECT ai_generation_policy_runtime() AS value',
+      'SELECT ai_text_regeneration_replay($1,$2,$3,$4) AS replayed',
+    ]);
     expect(f.fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -243,7 +253,7 @@ describe('owner history projection', () => {
         cursor_at: '2026-10-19T10:00:00.123' + String(index).padStart(3, '0') + 'Z',
       })),
     }));
-    const store = new AiTextHistoryStore({ query } as unknown as pg.Pool);
+    const store = new AiTextHistoryStore(prePolzaPool(query));
     const cursor = { at: '2026-10-19T10:00:00.999123Z', id: THREAD };
     const result = await store.threads(OWNER, cursor, '%_literal', true);
     expect(query.mock.calls[0]).toEqual([

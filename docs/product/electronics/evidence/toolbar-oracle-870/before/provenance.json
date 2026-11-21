@@ -1,0 +1,145 @@
+{
+  "sourceSha": "e1be12d19f8669c1145020c756551dd2188ed10f",
+  "run": 41026543811,
+  "runUrl": "https://github.com/spikeal8-maker/asa-lab/actions/runs/41026543811",
+  "files": [
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/1374-stopped.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/1374-stopped.png",
+      "rawSha256": "43081af91ad8672f2c48ded15175df5a5b30ce643fa0dabd861d2f6bbe687f7c",
+      "bytes": 101958
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/1440-resized.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/1440-resized.png",
+      "rawSha256": "6fbcb4fc6b6171f83eb58df45951cfa402e325adec740ef51720539b09788a30",
+      "bytes": 103482
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/1440-running.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/1440-running.png",
+      "rawSha256": "9b948af6b922703b82b8deaf041321ea09484c3507051ef97cd0a189505bd0f1",
+      "bytes": 107107
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/1440-stopped.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/1440-stopped.png",
+      "rawSha256": "45bda556368a4b952c1e860f564adedf4c646eda9f5c4726be8bd6162ecf585b",
+      "bytes": 101138
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/1440-Компоненты.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/1440-Компоненты.png",
+      "rawSha256": "aed184c54eceab0a430cabf6c6643fd5ceaa02893a5b522e8bdd9a38d9d842a2",
+      "bytes": 61574
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/1440-Схемы.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/1440-Схемы.png",
+      "rawSha256": "8b0ac1f6c0220a309afe7b6ff319edcc26885bd6749853ec7e4a0fc67b0dca82",
+      "bytes": 82494
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/1440-Цепи.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/1440-Цепи.png",
+      "rawSha256": "2b19a792e6295d35c7072ba6efe5337dc36b43e0684e4e62373f22088141353e",
+      "bytes": 103462
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/electronics-compact-controls-532/text-desktop-wide/geometry.json",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/electronics-compact-controls-532/text-desktop-wide/geometry.json.gz",
+      "rawSha256": "1996d3ee21efb191e1fc6529123aeceb676aaef63c9193b8d9d35d658f05edda",
+      "bytes": 1352208
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide/error-context.md",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-f48c4/error-context.md",
+      "rawSha256": "40105414ad0d6a2871bdce6f2e5091173327916ee673b80362e0aaf0405cdb47",
+      "bytes": 21104
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-3b5ab-es-—-text-—-desktop-compact/electronics-compact-controls-532/text-desktop-compact/1181-stopped.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-3b5ab/electronics-compact-controls-532/text-desktop-compact/1181-stopped.png",
+      "rawSha256": "0457c3ed57387e52b60d7b6100c76c1d84789cb25f2f2525c112dec16f4e6d50",
+      "bytes": 94471
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-3b5ab-es-—-text-—-desktop-compact/electronics-compact-controls-532/text-desktop-compact/geometry.json",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-3b5ab/electronics-compact-controls-532/text-desktop-compact/geometry.json.gz",
+      "rawSha256": "9275577836f22610adced0a4e51bbc2dc182ad548a21b538c32be99528d71cd6",
+      "bytes": 216602
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-3b5ab-es-—-text-—-desktop-compact/error-context.md",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-3b5ab/error-context.md",
+      "rawSha256": "d4131681294417f979c1a0d605ecb566053ff08a5604f34685a2afb2d927ee3a",
+      "bytes": 21964
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-72838--—-blocks-text-—-all-widths/electronics-compact-controls-532/blocks-text-all-widths/1374-blocks-text.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-72838/electronics-compact-controls-532/blocks-text-all-widths/1374-blocks-text.png",
+      "rawSha256": "51a06e05d92d204172f63e0e0bb69295659a24027cb41b9ebfa1bec6e43a2dd9",
+      "bytes": 185986
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-72838--—-blocks-text-—-all-widths/electronics-compact-controls-532/blocks-text-all-widths/1440-blocks-text-font.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-72838/electronics-compact-controls-532/blocks-text-all-widths/1440-blocks-text-font.png",
+      "rawSha256": "b05c4f6f3002d48776184043ba2fff8fc1bbc0a256d2c66f416e86f83d091051",
+      "bytes": 187259
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-72838--—-blocks-text-—-all-widths/electronics-compact-controls-532/blocks-text-all-widths/1440-blocks-text-resized.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-72838/electronics-compact-controls-532/blocks-text-all-widths/1440-blocks-text-resized.png",
+      "rawSha256": "0505b23506bb68cc90cd01b2bead8c8f44a72f45f34b609ac831b1ceac853d71",
+      "bytes": 181504
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-72838--—-blocks-text-—-all-widths/electronics-compact-controls-532/blocks-text-all-widths/1440-blocks-text.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-72838/electronics-compact-controls-532/blocks-text-all-widths/1440-blocks-text.png",
+      "rawSha256": "24bd9bbaf60ac0e2228085fd7ea087fb50fd998f56efa85f3af26d5f591d190e",
+      "bytes": 180511
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-72838--—-blocks-text-—-all-widths/electronics-compact-controls-532/blocks-text-all-widths/geometry.json",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-72838/electronics-compact-controls-532/blocks-text-all-widths/geometry.json.gz",
+      "rawSha256": "383555b657771aec4a819a4c1356ab2292a24910c45534994b163f6e4bcff13e",
+      "bytes": 840763
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-72838--—-blocks-text-—-all-widths/error-context.md",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-72838/error-context.md",
+      "rawSha256": "bfc5bcbeb4060738fd80e833e74f2094b6bdd8ea658f96682129fd219e9d733d",
+      "bytes": 28276
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-1aa84-sizes-—-blocks-—-all-widths/electronics-compact-controls-532/blocks-all-widths/1374-blocks.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-1aa84/electronics-compact-controls-532/blocks-all-widths/1374-blocks.png",
+      "rawSha256": "53db5dba3910417c5ea403f9428dbbb2fa4ccefe9ecc2049d099f6188c6f2bcb",
+      "bytes": 160102
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-1aa84-sizes-—-blocks-—-all-widths/electronics-compact-controls-532/blocks-all-widths/1440-blocks-resized.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-1aa84/electronics-compact-controls-532/blocks-all-widths/1440-blocks-resized.png",
+      "rawSha256": "483aa76267bc0b9da6c7db70990fddbbb13fd625158946e8ec3dd847f6bf728c",
+      "bytes": 161041
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-1aa84-sizes-—-blocks-—-all-widths/electronics-compact-controls-532/blocks-all-widths/1440-blocks.png",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-1aa84/electronics-compact-controls-532/blocks-all-widths/1440-blocks.png",
+      "rawSha256": "6552460b205996fd6984385df4d09230a1bca9a2135210f1d3b14efaf433ed63",
+      "bytes": 161814
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-1aa84-sizes-—-blocks-—-all-widths/electronics-compact-controls-532/blocks-all-widths/geometry.json",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-1aa84/electronics-compact-controls-532/blocks-all-widths/geometry.json.gz",
+      "rawSha256": "d7fb5dfa33b6ca74bfdf4b133f435e07208669e6796fca9ccfe0a2d50f8c6a35",
+      "bytes": 543238
+    },
+    {
+      "source": "reports/field-boundary-544-proof-41026543811/artifact/reports/playwright/electronics-simulation-com-1aa84-sizes-—-blocks-—-all-widths/error-context.md",
+      "path": "docs/product/electronics/evidence/toolbar-oracle-870/before/electronics-simulation-com-1aa84/error-context.md",
+      "rawSha256": "cb8505fb92e6e3063e6b54e456c3813bf3c6f9a8bbfcd41cd22a9ba019aed49a",
+      "bytes": 25080
+    }
+  ]
+}

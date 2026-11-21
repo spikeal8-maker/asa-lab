@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AdminEmailSettings } from './AdminEmailSettings';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   adminApi,
   type AdminDashboardRange,
+  type AdminErrorTrend,
   type AdminIpActivity,
   type AdminProductDashboard,
   type AdminScope,
@@ -23,31 +33,82 @@ const RANGE_OPTIONS: readonly { readonly value: AdminDashboardRange; readonly la
 
 const MODULE_LABELS = {
   electronics: 'Электроника',
+  robotics: 'Робототехника',
   'three-d': '3D',
   chess: 'Шахматы',
   checkers: 'Шашки',
   blocks: 'Scratch',
 } as const;
+const MODULE_COLORS = {
+  electronics: '#0877b3',
+  robotics: '#16776f',
+  'three-d': '#8257c7',
+  blocks: '#c54b83',
+  chess: '#d4841c',
+  checkers: '#16835f',
+} as const;
+const LEARNING_MODULES = ['electronics', 'robotics', 'three-d', 'blocks'] as const;
+const GAME_MODULES = ['chess', 'checkers'] as const;
 
 const DATE_TIME = new Intl.DateTimeFormat('ru-RU', {
   dateStyle: 'short',
   timeStyle: 'short',
 });
+const MOSCOW_TIME = new Intl.DateTimeFormat('ru-RU', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Europe/Moscow',
+});
+const MOSCOW_DAY = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'Europe/Moscow',
+});
+const MOSCOW_DATE_TIME = new Intl.DateTimeFormat('ru-RU', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+  timeZone: 'Europe/Moscow',
+});
+const VALUE = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
+
+function moscowInterval(from: string, to: string): string {
+  return `${MOSCOW_DATE_TIME.format(new Date(from))} — ${MOSCOW_DATE_TIME.format(new Date(to))} МСК`;
+}
 
 type DashboardState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly dashboard: AdminProductDashboard };
+  | { readonly kind: 'loading'; readonly key: string }
+  | { readonly kind: 'error'; readonly key: string; readonly message: string }
+  | {
+      readonly kind: 'ready';
+      readonly key: string;
+      readonly dashboard: AdminProductDashboard;
+      readonly refreshing: boolean;
+      readonly refreshError: string | null;
+    };
+
+export function chartLabelIndexes(length: number, limit = 12): number[] {
+  const count = Math.min(Math.max(0, length), limit);
+  return Array.from({ length: count }, (_, index) =>
+    Math.round((index * (length - 1)) / Math.max(1, count - 1)),
+  );
+}
+
+export function chartCountAxis(value: number): { maximum: number; ticks: number[] } {
+  const rawStep = Math.max(1, value / 4);
+  const power = 10 ** Math.floor(Math.log10(rawStep));
+  const step = ([1, 2, 5, 10].find((candidate) => candidate * power >= rawStep) ?? 10) * power;
+  const maximum = Math.max(step, Math.ceil(value / step) * step);
+  return { maximum, ticks: Array.from({ length: maximum / step + 1 }, (_, index) => index * step) };
+}
 
 interface ChartSeries {
   readonly id: string;
   readonly label: string;
   readonly color: string;
-  readonly values: readonly number[];
-}
-
-function number(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  readonly values: readonly (number | null)[];
+  readonly secondary?: boolean;
+  readonly bars?: boolean;
+  readonly group?: { readonly id: string; readonly label: string };
 }
 
 function MultiLineChart({
@@ -55,119 +116,364 @@ function MultiLineChart({
   description,
   labels,
   series,
+  pointLabels = labels,
+  controls,
+  className = '',
+  primaryUnit,
+  secondaryUnit,
   emptyMessage = 'Новые события за выбранный период пока не зафиксированы.',
 }: {
   readonly title: string;
   readonly description: string;
   readonly labels: readonly string[];
   readonly series: readonly ChartSeries[];
-  readonly emptyMessage?: string;
+  readonly pointLabels?: readonly string[];
+  readonly controls?: ReactNode;
+  readonly className?: string;
+  readonly primaryUnit?: string;
+  readonly secondaryUnit?: string;
+  readonly emptyMessage?: string | undefined;
 }): JSX.Element {
+  const canvas = useRef<HTMLDivElement>(null);
+  const header = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(600);
+  const [readoutSpace, setReadoutSpace] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpId = useId();
   const [visible, setVisible] = useState<ReadonlySet<string>>(
-    () => new Set(series.map((item) => item.id)),
+    () => new Set(series.map((item) => item.group?.id ?? item.id)),
   );
   useEffect(() => {
     setVisible((current) => {
-      const allowed = new Set(series.map((item) => item.id));
+      const allowed = new Set(series.map((item) => item.group?.id ?? item.id));
       const next = new Set([...current].filter((id) => allowed.has(id)));
-      if (next.size === 0) series.forEach((item) => next.add(item.id));
+      if (next.size === 0) allowed.forEach((id) => next.add(id));
       return next;
     });
   }, [series]);
+  useEffect(() => {
+    if (!canvas.current || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(Math.max(120, Math.floor(entry.contentRect.width)));
+    });
+    observer.observe(canvas.current);
+    return () => observer.disconnect();
+  }, []);
 
-  const active = series.filter((item) => visible.has(item.id));
-  const maximum = Math.max(1, ...active.flatMap((item) => item.values));
-  const width = 760;
-  const height = 220;
-  const left = 42;
-  const right = 16;
-  const top = 18;
-  const bottom = 34;
+  const active = series.filter((item) => visible.has(item.group?.id ?? item.id));
+  const legend = new Map(series.map((item) => [item.group?.id ?? item.id, item]));
+  useLayoutEffect(() => {
+    const rowHeader = header.current;
+    const card = rowHeader?.parentElement;
+    if (!rowHeader || !card) return;
+    const headerItems = [...rowHeader.children].filter(
+      (node) => !node.classList.contains('admin-chart-readout'),
+    );
+    const measure = () => {
+      const cardBox = card.getBoundingClientRect();
+      const headerBox = rowHeader.getBoundingClientRect();
+      const gap = Number.parseFloat(getComputedStyle(rowHeader).columnGap) || 0;
+      const boxes = headerItems
+        .map((node) => node.getBoundingClientRect())
+        .filter((box) => box.width > 0 && box.height > 0);
+      let space = { top: 0, left: 0, width: 0, height: 0 };
+      for (const box of boxes) {
+        const row = boxes.filter((other) => other.top < box.bottom && other.bottom > box.top);
+        const top = Math.min(...row.map((other) => other.top));
+        const bottom = Math.max(...row.map((other) => other.bottom));
+        const left = Math.max(...row.map((other) => other.right)) + gap;
+        const width = headerBox.right - left;
+        if (width > space.width) {
+          space = {
+            top: top - cardBox.top - card.clientTop,
+            left: left - cardBox.left - card.clientLeft,
+            width,
+            height: bottom - top,
+          };
+        }
+      }
+      setReadoutSpace(space);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(rowHeader);
+    headerItems.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [controls, legend.size]);
+
+  const maxFor = (secondary: boolean) =>
+    Math.max(
+      0,
+      ...active
+        .filter((item) => Boolean(item.secondary) === secondary)
+        .flatMap((item) => item.values.map((value) => value ?? 0)),
+    );
+  const axis = chartCountAxis(maxFor(false));
+  const rightAxis = active.some((item) => item.secondary) ? chartCountAxis(maxFor(true)) : null;
+  const height = 191;
+  const left = 48;
+  const right = rightAxis ? 48 : 32;
+  const top = primaryUnit || secondaryUnit ? 25 : 12;
+  const bottom = 27;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
-  const path = (values: readonly number[]): string =>
-    values
-      .map((value, index) => {
-        const x = left + (index / Math.max(1, values.length - 1)) * plotWidth;
-        const y = top + plotHeight - (value / maximum) * plotHeight;
-        return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-      })
+  const barWidth = Math.max(2, Math.min(20, (plotWidth / labels.length) * 0.65));
+  const xAt = (index: number) => left + (index / Math.max(1, labels.length - 1)) * plotWidth;
+  const yAt = (value: number, maximum: number) => top + plotHeight - (value / maximum) * plotHeight;
+  const path = (item: ChartSeries): string =>
+    item.values
+      .map((value, index) =>
+        value === null
+          ? ''
+          : `${index === 0 || item.values[index - 1] === null ? 'M' : 'L'}${xAt(index).toFixed(1)},${yAt(value, item.secondary && rightAxis ? rightAxis.maximum : axis.maximum).toFixed(1)}`,
+      )
       .join(' ');
-  const empty = active.every((item) => item.values.every((value) => value === 0));
-  const labelIndexes = [
-    ...new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1]),
-  ].filter((index) => index >= 0);
+  const empty = active.every((item) => item.values.every((value) => value === null || value === 0));
+  const labelIndexes = chartLabelIndexes(
+    labels.length,
+    Math.min(12, Math.floor(plotWidth / 56) + 1),
+  );
+  const cursor = selectedPoint !== null && selectedPoint < labels.length ? selectedPoint : null;
+  const readings =
+    cursor === null
+      ? []
+      : active.map((item) => {
+          const value = item.values[cursor];
+          return {
+            id: item.id,
+            text: `${item.label} ${value == null ? '—' : VALUE.format(value)}`,
+          };
+        });
 
   return (
-    <article className="admin-chart-card">
-      <header>
-        <h3>{title}</h3>
-        <p className="sr-only">{description}</p>
-        <div className="admin-chart-legend" aria-label={`Линии графика «${title}»`}>
-          {series.map((item) => {
-            const selected = visible.has(item.id);
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={selected ? 'active' : ''}
-                aria-pressed={selected}
-                onClick={() =>
-                  setVisible((current) => {
-                    const next = new Set(current);
-                    if (next.has(item.id) && next.size > 1) next.delete(item.id);
-                    else next.add(item.id);
-                    return next;
-                  })
-                }
-              >
-                <span style={{ background: item.color }} aria-hidden="true" />
-                {item.label}
-              </button>
-            );
-          })}
+    <article
+      className={`admin-chart-card ${className}`.trim()}
+      onPointerLeave={() => setSelectedPoint(null)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setSelectedPoint(null);
+      }}
+    >
+      <header ref={header}>
+        <div className="admin-chart-heading">
+          <h3>{title}</h3>
+          <div className="admin-chart-help" data-open={helpOpen}>
+            <button
+              type="button"
+              aria-label={`Как считается «${title}»`}
+              aria-expanded={helpOpen}
+              aria-controls={helpId}
+              onClick={() => setHelpOpen(!helpOpen)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setHelpOpen(false);
+              }}
+            >
+              ?
+            </button>
+            <p id={helpId}>{description}</p>
+          </div>
+        </div>
+        {controls ? <div className="admin-chart-controls">{controls}</div> : null}
+        {legend.size > 1 ? (
+          <div className="admin-chart-legend" aria-label={`Ряды графика «${title}»`}>
+            {[...legend].map(([id, item]) => {
+              const selected = visible.has(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={selected ? 'active' : ''}
+                  aria-pressed={selected}
+                  onClick={() =>
+                    setVisible((current) => {
+                      const next = new Set(current);
+                      if (next.has(id) && next.size > 1) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    })
+                  }
+                >
+                  <span
+                    className={!item.group && item.secondary ? 'dashed' : ''}
+                    style={{ color: item.color }}
+                    aria-hidden="true"
+                  />
+                  {item.group?.label ?? item.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        <div
+          className="admin-chart-readout"
+          style={readoutSpace ?? undefined}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {cursor !== null ? (
+            <div
+              className="admin-chart-readout-content"
+              title={[pointLabels[cursor], ...readings.map((reading) => reading.text)].join('\n')}
+            >
+              <strong>{pointLabels[cursor]}</strong>
+              <div className="admin-chart-readout-values">
+                {readings.map((reading) => (
+                  <span key={reading.id}>{reading.text}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </header>
-      <div className="admin-chart-canvas">
+      <div
+        className="admin-chart-canvas"
+        ref={canvas}
+        tabIndex={0}
+        aria-label={`Значения графика «${title}». Стрелки переключают интервалы.`}
+        onPointerMove={(event) => {
+          const x = event.clientX - event.currentTarget.getBoundingClientRect().left;
+          setSelectedPoint(
+            Math.max(
+              0,
+              Math.min(
+                labels.length - 1,
+                Math.round(((x - left) / plotWidth) * (labels.length - 1)),
+              ),
+            ),
+          );
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          const next =
+            (cursor ?? (event.key === 'ArrowLeft' ? labels.length : -1)) +
+            (event.key === 'ArrowLeft' ? -1 : 1);
+          setSelectedPoint(Math.max(0, Math.min(labels.length - 1, next)));
+        }}
+      >
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}. ${description}`}>
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-            const y = top + plotHeight - ratio * plotHeight;
+          {primaryUnit ? (
+            <text x={left} y={12} className="admin-chart-axis">
+              {primaryUnit}
+            </text>
+          ) : null}
+          {rightAxis && secondaryUnit ? (
+            <text x={width - right} y={12} textAnchor="end" className="admin-chart-axis">
+              {secondaryUnit}
+            </text>
+          ) : null}
+          {axis.ticks.map((value) => {
+            const y = yAt(value, axis.maximum);
             return (
-              <g key={ratio}>
+              <g key={value}>
                 <line x1={left} x2={width - right} y1={y} y2={y} className="admin-chart-grid" />
                 <text x={left - 8} y={y + 4} textAnchor="end" className="admin-chart-axis">
-                  {Math.round(maximum * ratio)}
+                  {value}
                 </text>
               </g>
             );
           })}
-          {active.map((item) => (
-            <path
-              key={item.id}
-              d={path(item.values)}
-              fill="none"
-              stroke={item.color}
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {rightAxis?.ticks.map((value) => (
+            <text
+              key={value}
+              x={width - right + 7}
+              y={yAt(value, rightAxis.maximum) + 4}
+              className="admin-chart-axis"
+            >
+              {value}
+            </text>
+          ))}
+          {labelIndexes.map((index) => (
+            <line
+              key={`time-grid-${index}`}
+              x1={xAt(index)}
+              x2={xAt(index)}
+              y1={top}
+              y2={top + plotHeight}
+              className="admin-chart-grid"
             />
           ))}
+          {active
+            .filter((item) => item.bars)
+            .flatMap((item) =>
+              item.values.map((value, index) => {
+                if (value === null || value <= 0) return null;
+                const y = yAt(value, axis.maximum);
+                return (
+                  <rect
+                    key={`${item.id}:${index}`}
+                    x={xAt(index) - barWidth / 2}
+                    y={y}
+                    width={barWidth}
+                    height={top + plotHeight - y}
+                    rx="2"
+                    fill={item.color}
+                  />
+                );
+              }),
+            )}
+          {active
+            .filter((item) => !item.bars)
+            .map((item) => (
+              <path
+                key={item.id}
+                d={path(item)}
+                fill="none"
+                stroke={item.color}
+                strokeWidth={item.secondary ? '2' : '2.5'}
+                strokeDasharray={item.secondary ? '5 4' : undefined}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+          {active
+            .filter((item) => !item.bars)
+            .flatMap((item) =>
+              item.values.map((value, index) =>
+                value !== null &&
+                (index === 0 || item.values[index - 1] === null) &&
+                (index === item.values.length - 1 || item.values[index + 1] === null) ? (
+                  <circle
+                    key={`${item.id}:${index}`}
+                    cx={xAt(index)}
+                    cy={yAt(value, item.secondary && rightAxis ? rightAxis.maximum : axis.maximum)}
+                    r="3"
+                    fill={item.color}
+                  />
+                ) : null,
+              ),
+            )}
+          {cursor !== null ? (
+            <line
+              x1={xAt(cursor)}
+              x2={xAt(cursor)}
+              y1={top}
+              y2={top + plotHeight}
+              className="admin-chart-cursor"
+            />
+          ) : null}
           {labelIndexes.map((index) => {
-            const x = left + (index / Math.max(1, labels.length - 1)) * plotWidth;
+            const x = xAt(index);
             return (
               <text
                 key={`${index}:${labels[index]}`}
                 x={x}
                 y={height - 8}
-                textAnchor={index === 0 ? 'start' : index === labels.length - 1 ? 'end' : 'middle'}
-                className="admin-chart-axis"
+                textAnchor="middle"
+                className="admin-chart-axis admin-chart-time-label"
               >
                 {labels[index]}
               </text>
             );
           })}
         </svg>
-        {empty ? <p className="admin-chart-empty">{emptyMessage}</p> : null}
+        {cursor === null && empty ? <p className="admin-chart-empty">{emptyMessage}</p> : null}
       </div>
     </article>
   );
@@ -177,14 +483,14 @@ function timeLabels(
   points: readonly { readonly at: string }[],
   range: AdminDashboardRange,
 ): string[] {
-  const formatter = new Intl.DateTimeFormat(
-    'ru-RU',
+  const formatter =
     range === '1h' || range === '6h' || range === '12h' || range === '24h'
-      ? { hour: '2-digit', minute: '2-digit' }
-      : range === '1y'
-        ? { month: 'short' }
-        : { day: '2-digit', month: 'short' },
-  );
+      ? MOSCOW_TIME
+      : new Intl.DateTimeFormat('ru-RU', {
+          day: '2-digit',
+          month: 'short',
+          timeZone: 'Europe/Moscow',
+        });
   return points.map((point) => formatter.format(new Date(point.at)));
 }
 
@@ -196,30 +502,58 @@ export function AdminDashboard({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [range, setRange] = useState<AdminDashboardRange>('24h');
-  const [state, setState] = useState<DashboardState>({ kind: 'loading' });
+  const scopeKind = scope.kind;
+  const scopeId = scope.id;
+  const key = `${scopeKind}:${scopeId ?? ''}:${range}`;
+  const [storedState, setState] = useState<DashboardState>({ kind: 'loading', key });
+  const state: DashboardState = storedState.key === key ? storedState : { kind: 'loading', key };
   const requestVersion = useRef(0);
+  const contextKey = useRef(key);
+  contextKey.current = key;
+  const denied = useRef(onAccessDenied);
+  denied.current = onAccessDenied;
 
-  const load = useCallback(async (): Promise<void> => {
-    const version = ++requestVersion.current;
-    setState({ kind: 'loading' });
-    const result = await adminApi.dashboard({ scope, range });
-    if (version !== requestVersion.current) return;
-    if (!result.ok) {
-      if (result.status === 401 || result.status === 403) {
-        onAccessDenied();
+  const load = useCallback(
+    async (refresh = false): Promise<void> => {
+      const version = ++requestVersion.current;
+      setState((current) =>
+        refresh && current.kind === 'ready' && current.key === key
+          ? { ...current, refreshing: true, refreshError: null }
+          : { kind: 'loading', key },
+      );
+      const result = await adminApi.dashboard({ scope: { kind: scopeKind, id: scopeId }, range });
+      if (version !== requestVersion.current || contextKey.current !== key) return;
+      if (!result.ok) {
+        if (result.status === 401 || result.status === 403) {
+          setState({ kind: 'loading', key });
+          denied.current();
+          return;
+        }
+        const message =
+          result.status === 0
+            ? 'Сервер аналитики недоступен. Проверьте соединение.'
+            : 'Не удалось собрать показатели за выбранный период.';
+        setState((current) =>
+          refresh && current.kind === 'ready' && current.key === key
+            ? { ...current, refreshing: false, refreshError: message }
+            : { kind: 'error', key, message },
+        );
+        return;
+      }
+      if (result.data.range !== range) {
+        setState({ kind: 'error', key, message: 'Сервер вернул другой период. Повторите запрос.' });
         return;
       }
       setState({
-        kind: 'error',
-        message:
-          result.status === 0
-            ? 'Сервер аналитики недоступен. Проверьте соединение.'
-            : 'Не удалось собрать показатели за выбранный период.',
+        kind: 'ready',
+        key,
+        dashboard: result.data,
+        refreshing: false,
+        refreshError: null,
       });
-      return;
-    }
-    setState({ kind: 'ready', dashboard: result.data });
-  }, [onAccessDenied, range, scope]);
+    },
+    [range, scopeKind, scopeId, key],
+  );
 
   useEffect(() => {
     void load();
@@ -234,21 +568,32 @@ export function AdminDashboard({
         Обзор
       </h2>
       <div className="admin-dashboard-toolbar">
-        <div className="admin-range-picker" aria-label="Период дашборда">
-          {RANGE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={range === option.value ? 'active' : ''}
-              aria-pressed={range === option.value}
-              onClick={() => setRange(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <button type="button" className="admin-dashboard-refresh" onClick={() => void load()}>
-          Обновить
+        <label className="admin-range-picker">
+          <span>Период</span>
+          <select
+            aria-label="Период дашборда"
+            value={range}
+            onChange={(event) => setRange(event.target.value as AdminDashboardRange)}
+          >
+            {RANGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {state.kind === 'ready' ? (
+          <p className="admin-range-interval">
+            {moscowInterval(state.dashboard.from, state.dashboard.to)}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="admin-dashboard-refresh"
+          disabled={state.kind === 'ready' && state.refreshing}
+          onClick={() => void load(true)}
+        >
+          {state.kind === 'ready' && state.refreshing ? 'Обновляем…' : 'Обновить'}
         </button>
       </div>
 
@@ -268,191 +613,519 @@ export function AdminDashboard({
           </button>
         </div>
       ) : null}
-      {state.kind === 'ready' ? <DashboardContent dashboard={state.dashboard} /> : null}
+      {state.kind === 'ready' ? (
+        <>
+          {state.refreshing ? (
+            <p role="status">
+              Обновляем показатели. Пока показаны предыдущие данные за выбранный период.
+            </p>
+          ) : null}
+          {state.refreshError ? (
+            <p role="alert">{state.refreshError} Показаны предыдущие данные за выбранный период.</p>
+          ) : null}
+          <div aria-busy={state.refreshing} className="admin-dashboard-content">
+            <TodayAttendance dashboard={state.dashboard} />
+            <DashboardContent
+              dashboard={state.dashboard}
+              canReadErrors={
+                scopeKind === 'platform' &&
+                scope.permissions.includes('administration.operations.read')
+              }
+            />
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function TodayAttendance({
+  dashboard,
+}: {
+  readonly dashboard: AdminProductDashboard;
+}): JSX.Element {
+  const today = dashboard.todayMsk;
+  return (
+    <section className="admin-dashboard-today" aria-labelledby="admin-dashboard-today-title">
+      <div className="admin-today-heading">
+        <h3 id="admin-dashboard-today-title">Посещаемость сегодня</h3>
+        {today ? (
+          <p>
+            <time dateTime={today.from}>{MOSCOW_DAY.format(new Date(today.from))}</time>
+            {' · '}00:00 — {MOSCOW_TIME.format(new Date(today.to))} МСК
+          </p>
+        ) : null}
+      </div>
+      {today ? (
+        <div className="admin-dashboard-kpis">
+          {[
+            ['Активные аккаунты', today.activeAccounts],
+            ['Активные ученики', today.activeStudents],
+            ['Входы по коду класса', today.studentLogins],
+            ['Созданные ученические места', today.newStudents],
+          ].map(([label, value]) => (
+            <article key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p>Сводка за сегодня недоступна.</p>
+      )}
     </section>
   );
 }
 
 function DashboardContent({
   dashboard,
+  canReadErrors,
 }: {
   readonly dashboard: AdminProductDashboard;
+  readonly canReadErrors: boolean;
 }): JSX.Element {
-  const labels = timeLabels(dashboard.timeline, dashboard.range);
-  const moduleKeys = Object.keys(MODULE_LABELS) as Array<keyof typeof MODULE_LABELS>;
-  const modules = useMemo<ChartSeries[]>(
-    () =>
-      moduleKeys.map((moduleKey, index) => ({
-        id: moduleKey,
-        label: MODULE_LABELS[moduleKey],
-        color: ['#0877b3', '#8257c7', '#d4841c', '#16835f'][index] as string,
-        values: dashboard.timeline.map((point) => {
-          const source = dashboard.modules.find(
-            (entry) => entry.at === point.at && entry.moduleKey === moduleKey,
-          );
-          return number(source?.launches);
-        }),
-      })),
-    [dashboard.modules, dashboard.timeline],
+  const [audienceMetric, setAudienceMetric] = useState<'active' | 'logins' | 'time'>('active');
+  const overview = dashboard.overview;
+  const points =
+    overview?.points ??
+    dashboard.timeline.map((point) => ({
+      ...point,
+      from: point.at,
+      to: new Date(
+        Math.min(Date.parse(dashboard.to), Date.parse(point.at) + dashboard.bucketSeconds * 1000),
+      ).toISOString(),
+      accountLogins: point.successfulLogins,
+      studentLogins: point.studentLogins ?? null,
+      accountSeconds: null,
+      studentSeconds: null,
+    }));
+  const labels = timeLabels(points, dashboard.range);
+  const pointLabels = points.map((point) => moscowInterval(point.from, point.to));
+  const axes = { labels, pointLabels };
+  const durations = audienceMetric === 'time';
+  const counts = audienceMetric === 'active';
+  const minutes = (seconds: number | null) => (seconds === null ? null : seconds / 60);
+  const people: ChartSeries[] = [
+    {
+      id: 'accounts',
+      label: 'Аккаунты',
+      color: '#0877b3',
+      values: points.map((point) =>
+        counts
+          ? point.activeAccounts
+          : durations
+            ? minutes(point.accountSeconds)
+            : point.accountLogins,
+      ),
+    },
+    {
+      id: 'students',
+      label: 'Ученики',
+      color: '#16835f',
+      values: points.map((point) =>
+        counts
+          ? point.activeStudents
+          : durations
+            ? minutes(point.studentSeconds)
+            : point.studentLogins,
+      ),
+    },
+  ];
+  const methodCounts = new Map(
+    (overview?.loginMethods ?? dashboard.loginMethods).map((point) => [
+      `${point.at}:${point.method}`,
+      point.successfulLogins,
+    ]),
   );
-  const methods = (
+  const methods: ChartSeries[] = (
     [
       ['password', 'Почта и пароль', '#0877b3'],
       ['organization', 'Организация', '#8257c7'],
-      ['max', 'MAX', '#d4841c'],
+      ['max', 'MAX', '#b96910'],
+      ['telegram', 'Telegram', '#126e9a'],
       ['class_code', 'Код класса', '#16835f'],
-      ['registration', 'Регистрация', '#c54b43'],
     ] as const
   ).map(([method, label, color]) => ({
     id: method,
     label,
     color,
-    values: dashboard.timeline.map((point) =>
-      number(
-        dashboard.loginMethods.find((entry) => entry.at === point.at && entry.method === method)
-          ?.successfulLogins,
-      ),
-    ),
+    values: points.map((point) => methodCounts.get(`${point.at}:${method}`) ?? 0),
   }));
+  const moduleData = new Map(
+    (overview?.modules ?? dashboard.modules).map((point) => [
+      `${point.at}:${point.moduleKey}`,
+      point,
+    ]),
+  );
+  const network = overview?.network;
+  const actions = new Map(
+    (overview?.actions ?? dashboard.actions).map((point) => [point.at, point]),
+  );
 
   return (
-    <>
-      <div className="admin-dashboard-kpis">
-        {[
-          ['Новые аккаунты', dashboard.summary.newAccounts],
-          ['Активные', dashboard.summary.activeAccounts],
-          ['Начатые сессии', dashboard.summary.authenticatedSessions],
-          ['Повторные входы', dashboard.summary.successfulLogins],
-          ['Отклонено попыток', dashboard.summary.rejectedAuthAttempts],
-          ['Незавершённые входы', dashboard.summary.failedLogins],
-          ['Ученики', dashboard.summary.activeStudents],
-          ['Новые ученики', dashboard.summary.newStudents],
-          ['Разные IP', dashboard.summary.distinctIpAddresses],
-          ['Несколько IP', dashboard.summary.accountsWithMultipleIps],
-          ['Локальная сеть', dashboard.summary.localNetworkAccounts],
-          ['Источник неизвестен', dashboard.summary.unclassifiedNetworkEvents],
-        ].map(([label, value]) => (
-          <article key={label}>
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </article>
-        ))}
-      </div>
-
-      <div className="admin-dashboard-grid">
-        <MultiLineChart
-          title="Использование систем"
-          description="Фактические открытия рабочих сред. Повторная загрузка считается новым запуском."
-          labels={labels}
-          series={modules}
-        />
-        <MultiLineChart
-          title="Пользователи и входы"
-          description="Люди и завершённые сценарии входа на одной временной шкале."
-          labels={labels}
-          series={[
-            {
-              id: 'activeAccounts',
-              label: 'Активные',
-              color: '#0877b3',
-              values: dashboard.timeline.map((point) => point.activeAccounts),
-            },
-            {
-              id: 'newAccounts',
-              label: 'Новые',
-              color: '#16835f',
-              values: dashboard.timeline.map((point) => point.newAccounts),
-            },
-            {
-              id: 'authenticatedSessions',
-              label: 'Начали сессию',
-              color: '#8257c7',
-              values: dashboard.timeline.map((point) => point.authenticatedSessions),
-            },
-            {
-              id: 'failedLogins',
-              label: 'Не смогли войти',
-              color: '#c54b43',
-              values: dashboard.timeline.map((point) => point.failedLogins),
-            },
-          ]}
-        />
-        <MultiLineChart
-          title="Активное время в системах"
-          description="Минуты подтверждённой активности. Долгий простой и скрытая вкладка не засчитываются."
-          labels={labels}
-          series={moduleKeys.map((moduleKey, index) => ({
-            id: `time-${moduleKey}`,
-            label: MODULE_LABELS[moduleKey],
-            color: ['#0877b3', '#8257c7', '#d4841c', '#16835f'][index] as string,
-            values: dashboard.timeline.map((point) => {
-              const source = dashboard.modules.find(
-                (entry) => entry.at === point.at && entry.moduleKey === moduleKey,
-              );
-              return Math.round(number(source?.activeSeconds) / 60);
-            }),
-          }))}
-        />
-        <MultiLineChart
-          title="Способы входа"
-          description="Только успешно завершённые входы; продление сессии не учитывается."
-          labels={labels}
-          series={methods}
-        />
-        <MultiLineChart
-          title="Ученики"
-          description="Ученики по коду класса учитываются отдельно от полноценных аккаунтов."
-          labels={labels}
-          series={[
-            {
-              id: 'activeStudents',
-              label: 'Активные',
-              color: '#0877b3',
-              values: dashboard.timeline.map((point) => point.activeStudents),
-            },
-            {
-              id: 'newStudents',
-              label: 'Новые места',
-              color: '#d4841c',
-              values: dashboard.timeline.map((point) => point.newStudents),
-            },
-          ]}
-        />
+    <div className="admin-dashboard-grid">
+      <MultiLineChart
+        className="admin-chart-wide"
+        title="Активные пользователи"
+        description="В каждом интервале аккаунт или ученическое место учитывается один раз по успешному событию или подтверждённой работе в модуле. Входы можно посмотреть отдельно. Время — среднее среди пользователей с замерами в редакторах и играх, без простоя и двойного учёта параллельных вкладок."
+        {...axes}
+        primaryUnit={counts ? 'Пользователи' : durations ? 'Мин / пользователь' : 'Входы'}
+        series={people}
+        emptyMessage={durations ? 'В этом периоде нет замеров активного времени.' : undefined}
+        controls={
+          <>
+            {overview ? (
+              <span
+                className="admin-chart-recent"
+                title="Уникальные аккаунты и ученики с активностью за последние пять минут к моменту обновления."
+              >
+                За 5 мин: <strong>{overview.recentAccounts + overview.recentStudents}</strong>
+              </span>
+            ) : null}
+            <select
+              aria-label="Показатель пользователей"
+              value={audienceMetric}
+              onChange={(event) => setAudienceMetric(event.target.value as typeof audienceMetric)}
+            >
+              <option value="active">Активность</option>
+              <option value="logins">Успешные входы</option>
+              <option value="time" disabled={!overview}>
+                Активное время
+              </option>
+            </select>
+          </>
+        }
+      />
+      {canReadErrors ? <ErrorsChart dashboard={dashboard} points={points} {...axes} /> : null}
+      <ModuleChart
+        title="Учебные инструменты"
+        keys={LEARNING_MODULES}
+        points={points}
+        moduleData={moduleData}
+        {...axes}
+      />
+      <ModuleChart
+        title="Игры"
+        keys={GAME_MODULES}
+        points={points}
+        moduleData={moduleData}
+        {...axes}
+      />
+      <MultiLineChart
+        title="Способы входа"
+        description="Успешные входы по способам. Вход по коду относится к ученикам. Регистрация и продление сессии не входят в этот график."
+        {...axes}
+        primaryUnit="Входы"
+        series={methods}
+      />
+      <MultiLineChart
+        title="Созданные ученические места"
+        description="Места, добавленные в классы и оставшиеся в их списках. Создание места может произойти до того, как ученик зайдёт."
+        {...axes}
+        primaryUnit="Места"
+        controls={
+          <span className="admin-chart-recent">
+            За период: <strong>{dashboard.summary.newStudents}</strong>
+          </span>
+        }
+        series={[
+          {
+            id: 'newStudents',
+            label: 'Созданные места',
+            color: '#b96910',
+            bars: true,
+            values: points.map((point) => point.newStudents),
+          },
+        ]}
+      />
+      <section
+        className="admin-dashboard-network admin-chart-wide"
+        aria-labelledby="admin-dashboard-network-title"
+      >
+        <h3 id="admin-dashboard-network-title">IP-адреса пользователей</h3>
+        <div className="admin-dashboard-kpis">
+          {(
+            [
+              [
+                'Разные IP',
+                network
+                  ? network.resolvedEvents > 0
+                    ? network.addresses
+                    : null
+                  : dashboard.summary.distinctIpAddresses,
+              ],
+              [
+                'С нескольких IP',
+                network
+                  ? network.resolvedEvents > 0
+                    ? network.peopleWithMultipleAddresses
+                    : null
+                  : dashboard.summary.accountsWithMultipleIps,
+              ],
+              [
+                'События без IP',
+                network?.unresolvedEvents ?? dashboard.summary.unclassifiedNetworkEvents,
+              ],
+            ] as const
+          ).map(([label, value]) => (
+            <article key={label}>
+              <span>{label}</span>
+              <strong>{value ?? '—'}</strong>
+            </article>
+          ))}
+        </div>
+        {network?.unresolvedEvents ? (
+          <p>
+            {network.resolvedEvents === 0
+              ? 'За выбранный период исходные адреса пользователей не получены.'
+              : 'Для части событий исходный адрес отсутствует. Счётчики учитывают адреса, подтверждённые сервером.'}
+          </p>
+        ) : null}
+      </section>
+      <details className="admin-dashboard-details admin-chart-wide">
+        <summary>Сводка и действия за период</summary>
+        <div className="admin-dashboard-kpis">
+          {(
+            [
+              ['Новые аккаунты', dashboard.summary.newAccounts],
+              ['Начатые сессии', dashboard.summary.authenticatedSessions],
+              ['Входы в аккаунты', points.reduce((sum, point) => sum + point.accountLogins, 0)],
+              ['Отклонённые попытки', dashboard.summary.rejectedAuthAttempts],
+              ['Незавершённые входы', dashboard.summary.failedLogins],
+              ['Локальная сеть', dashboard.summary.localNetworkAccounts],
+            ] as const
+          ).map(([label, value]) => (
+            <article key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </article>
+          ))}
+        </div>
         <MultiLineChart
           title="Ключевые действия"
-          description="Создание классов, проектов и привязки MAX. Восстановление пароля появится после подключения потока."
-          labels={timeLabels(dashboard.actions, dashboard.range)}
+          description="Создание классов и проектов, а также привязка внешних способов входа."
+          {...axes}
+          primaryUnit="Действия"
           series={[
             {
-              id: 'classesCreated',
+              id: 'classes',
               label: 'Классы',
               color: '#0877b3',
-              values: dashboard.actions.map((point) => point.classesCreated),
+              values: points.map((point) => actions.get(point.at)?.classesCreated ?? 0),
             },
             {
-              id: 'projectsCreated',
+              id: 'projects',
               label: 'Проекты',
               color: '#8257c7',
-              values: dashboard.actions.map((point) => point.projectsCreated),
+              values: points.map((point) => actions.get(point.at)?.projectsCreated ?? 0),
             },
             {
-              id: 'maxLinked',
-              label: 'Привязки MAX',
-              color: '#d4841c',
-              values: dashboard.actions.map((point) => point.maxLinked),
+              id: 'linked',
+              label: 'Привязки входа',
+              color: '#b96910',
+              values: points.map((point) => actions.get(point.at)?.maxLinked ?? 0),
             },
           ]}
         />
-      </div>
-      <p className="admin-dashboard-updated">
-        Обновлено {DATE_TIME.format(new Date(dashboard.generatedAt))}. События использования и входа
-        собираются
-        {dashboard.analyticsStartedAt
-          ? ` с ${DATE_TIME.format(new Date(dashboard.analyticsStartedAt))}`
-          : ' с момента установки этого обновления'}
-        ; более ранняя история для этих линий недоступна.
-      </p>
-    </>
+      </details>
+    </div>
+  );
+}
+
+function ModuleChart({
+  title,
+  keys,
+  points,
+  moduleData,
+  labels,
+  pointLabels,
+}: {
+  readonly title: string;
+  readonly keys: readonly (keyof typeof MODULE_LABELS)[];
+  readonly points: readonly { readonly at: string }[];
+  readonly moduleData: ReadonlyMap<
+    string,
+    { readonly launches: number; readonly activeSeconds: number }
+  >;
+  readonly labels: readonly string[];
+  readonly pointLabels: readonly string[];
+}): JSX.Element {
+  const [metric, setMetric] = useState<'launches' | 'time' | 'both'>('launches');
+  const series = keys.flatMap((key): ChartSeries[] => {
+    const values = points.map((point) => moduleData.get(`${point.at}:${key}`));
+    const base = {
+      label: MODULE_LABELS[key],
+      color: MODULE_COLORS[key],
+      group: { id: key, label: MODULE_LABELS[key] },
+    };
+    const launches: ChartSeries = {
+      ...base,
+      id: `${key}-launches`,
+      label: metric === 'both' ? `${base.label} · запуски` : base.label,
+      values: values.map((point) => point?.launches ?? 0),
+    };
+    const time: ChartSeries = {
+      ...base,
+      id: `${key}-time`,
+      label: metric === 'both' ? `${base.label} · мин` : base.label,
+      secondary: metric === 'both',
+      values: values.map((point) => (point?.activeSeconds ?? 0) / 60),
+    };
+    return metric === 'both' ? [launches, time] : metric === 'time' ? [time] : [launches];
+  });
+  return (
+    <MultiLineChart
+      title={title}
+      description="Запуск — открытие рабочей среды. Время — суммарные минуты подтверждённой работы пользователей; простой и скрытые вкладки исключаются. В совместном режиме пунктир и правая шкала показывают минуты."
+      labels={labels}
+      pointLabels={pointLabels}
+      primaryUnit={metric === 'time' ? 'Активные минуты' : 'Запуски'}
+      secondaryUnit="Активные минуты"
+      series={series}
+      controls={
+        <select
+          aria-label={`Показатель «${title}»`}
+          value={metric}
+          onChange={(event) => setMetric(event.target.value as typeof metric)}
+        >
+          <option value="launches">Запуски</option>
+          <option value="time">Активное время</option>
+          <option value="both">Вместе</option>
+        </select>
+      }
+    />
+  );
+}
+
+const ERROR_SYSTEMS: Readonly<Record<string, string>> = {
+  api: 'API',
+  web: 'Сайт',
+  projects: 'Проекты',
+  classrooms: 'Классы',
+  learning: 'Обучение',
+  courses: 'Курсы',
+  access: 'Доступ и вход',
+  analytics: 'Аналитика',
+  administration: 'Админка',
+  diagnostics: 'Диагностика',
+  storage: 'Хранилище',
+  database: 'База данных',
+  scratch: 'Scratch',
+  electronics: 'Электроника',
+  robotics: 'Робототехника',
+  chess: 'Шахматы',
+  checkers: 'Шашки',
+  'three-d': '3D',
+  ai: 'ИИ',
+  audit: 'Аудит',
+  updates: 'Обновления',
+  backup: 'Копии',
+  network: 'Сеть',
+  host: 'Сервер',
+  metrics: 'Метрики',
+};
+
+function ErrorsChart({
+  dashboard,
+  points,
+  labels,
+  pointLabels,
+}: {
+  readonly dashboard: AdminProductDashboard;
+  readonly points: readonly {
+    readonly at: string;
+    readonly from: string;
+    readonly to: string;
+    readonly activeAccounts: number;
+    readonly activeStudents: number;
+  }[];
+  readonly labels: readonly string[];
+  readonly pointLabels: readonly string[];
+}): JSX.Element {
+  const { from, to, bucketSeconds } = dashboard;
+  const key = `${from}/${to}/${bucketSeconds}`;
+  const [system, setSystem] = useState('all');
+  const [result, setResult] = useState<{ key: string; trend: AdminErrorTrend | null } | null>(null);
+  const resolved = result?.key === key;
+  const trend = resolved ? result.trend : null;
+  const failed = resolved && !trend;
+  useEffect(() => {
+    const request = new AbortController();
+    void adminApi.errorTrend({ from, to, bucketSeconds }, request.signal).then((result) => {
+      if (request.signal.aborted) return;
+      setResult({ key, trend: result.ok ? result.data : null });
+    });
+    return () => request.abort();
+  }, [from, to, bucketSeconds, key, dashboard.generatedAt]);
+
+  if (failed || trend?.coverage === 'unavailable' || !trend) {
+    return (
+      <section className="admin-dashboard-network admin-chart-wide" aria-busy={!failed && !trend}>
+        <h3>Ошибки по системам</h3>
+        <p>
+          {failed
+            ? 'Журнал ошибок недоступен.'
+            : trend
+              ? 'За этот период журнал ошибок недоступен.'
+              : 'Загружаем журнал ошибок…'}
+        </p>
+      </section>
+    );
+  }
+  const byTime = new Map(trend.points.map((point) => [Date.parse(point.at), point.counts]));
+  const systems = [...new Set(trend.points.flatMap((point) => Object.keys(point.counts)))].sort(
+    (a, b) => (ERROR_SYSTEMS[a] ?? a).localeCompare(ERROR_SYSTEMS[b] ?? b, 'ru'),
+  );
+  const selected = systems.includes(system) ? system : 'all';
+  const coverageStart = Date.parse(trend.from!);
+  const coverageEnd = Date.parse(trend.to!);
+  const errorCounts = points.map((point) => {
+    if (Date.parse(point.from) < coverageStart || Date.parse(point.to) > coverageEnd) return null;
+    const counts = byTime.get(Date.parse(point.at)) ?? {};
+    return selected === 'all'
+      ? Object.values(counts).reduce((sum, value) => sum + value, 0)
+      : (counts[selected] ?? 0);
+  });
+  return (
+    <div className="admin-chart-wide admin-error-panel">
+      <MultiLineChart
+        title="Ошибки по системам"
+        description="Количество записей уровня error в собранном журнале. Пунктир — уникальные активные аккаунты и ученики в тех же интервалах, по правой шкале."
+        labels={labels}
+        pointLabels={pointLabels}
+        primaryUnit="Ошибки"
+        secondaryUnit="Пользователи"
+        series={[
+          { id: 'errors', label: 'Ошибки', color: '#ae3b36', values: errorCounts, bars: true },
+          {
+            id: 'people',
+            label: 'Активные пользователи',
+            color: '#0877b3',
+            secondary: true,
+            values: points.map((point) => point.activeAccounts + point.activeStudents),
+          },
+        ]}
+        controls={
+          <select
+            aria-label="Система в журнале ошибок"
+            value={selected}
+            onChange={(event) => setSystem(event.target.value)}
+          >
+            <option value="all">Все системы</option>
+            {systems.map((key) => (
+              <option key={key} value={key}>
+                {ERROR_SYSTEMS[key] ?? key}
+              </option>
+            ))}
+          </select>
+        }
+      />
+      {trend.coverage === 'partial' && trend.from && trend.to ? (
+        <p className="admin-chart-coverage">
+          Доступная часть журнала: {moscowInterval(trend.from, trend.to)}. Возможны пробелы.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -464,6 +1137,7 @@ export function VerificationMethodsSection({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [method, setMethod] = useState<'max' | 'telegram' | 'email'>('max');
   return (
     <section
       className="admin-integrations auth-confirmation-settings"
@@ -485,22 +1159,55 @@ export function VerificationMethodsSection({
       {scope.kind === 'platform' ? (
         <>
           <VerificationPolicyControl refreshKey={refreshKey} onAccessDenied={onAccessDenied} />
-          <div className="auth-admin-providers">
-            <AdminAuthProviderCard
-              provider="max"
-              refreshKey={refreshKey}
-              onAccessDenied={onAccessDenied}
-            />
-            <AdminAuthProviderCard
-              provider="telegram"
-              refreshKey={refreshKey}
-              onAccessDenied={onAccessDenied}
-            />
+          <div className="confirmation-tabs" role="tablist" aria-label="Способ подтверждения">
+            {(['max', 'telegram', 'email'] as const).map((id, index) => (
+              <button
+                key={id}
+                id={`confirmation-tab-${id}`}
+                type="button"
+                role="tab"
+                aria-selected={method === id}
+                aria-controls={`confirmation-panel-${id}`}
+                tabIndex={method === id ? 0 : -1}
+                onClick={() => setMethod(id)}
+                onKeyDown={(e) => {
+                  const ids = ['max', 'telegram', 'email'] as const;
+                  let next: number;
+                  if (e.key === 'ArrowRight') next = (index + 1) % 3;
+                  else if (e.key === 'ArrowLeft') next = (index + 2) % 3;
+                  else if (e.key === 'Home') next = 0;
+                  else if (e.key === 'End') next = 2;
+                  else return;
+                  e.preventDefault();
+                  setMethod(ids[next]!);
+                  document.getElementById(`confirmation-tab-${ids[next]}`)?.focus();
+                }}
+              >
+                {id === 'email' ? 'Почта' : id === 'max' ? 'MAX' : 'Telegram'}
+              </button>
+            ))}
           </div>
-          <p className="auth-email-status">
-            Подтверждение по электронной почте пока недоступно. Пользователям показываются только
-            работающие способы.
-          </p>
+          {(['max', 'telegram', 'email'] as const).map((id) => (
+            <div
+              key={id}
+              id={`confirmation-panel-${id}`}
+              className="confirmation-panel"
+              role="tabpanel"
+              aria-labelledby={`confirmation-tab-${id}`}
+              hidden={method !== id}
+              tabIndex={0}
+            >
+              {id === 'email' ? (
+                <AdminEmailSettings refreshKey={refreshKey} onAccessDenied={onAccessDenied} />
+              ) : (
+                <AdminAuthProviderCard
+                  provider={id}
+                  refreshKey={refreshKey}
+                  onAccessDenied={onAccessDenied}
+                />
+              )}
+            </div>
+          ))}
         </>
       ) : (
         <p role="status">Подключение способов входа доступно администратору платформы.</p>

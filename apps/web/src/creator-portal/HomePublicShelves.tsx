@@ -3,9 +3,8 @@ import { api, type PublicKnowledgeItem } from '../api';
 import { PortalLink } from '../components/PortalLink';
 import { LearningGlyph } from '../components/portal-icons';
 import { publicProjectsApi, type PublicProject } from '../projects-public/api';
-import { publicationHref } from '../projects-public/presentation';
+import { PublicProjectCard } from '../projects-public/PublicProjectCard';
 import { HomeShelf } from './HomeShelf';
-import { homeModuleTitle } from './QuickProjectCreation';
 
 export function KnowledgeCard({
   item,
@@ -99,9 +98,12 @@ export function HomePublicShelves({
     ) : null;
   return (
     <div ref={root} className="home-public-shelves">
-      <section aria-labelledby="home-community-title">
+      <section className="home-community-shelf" aria-labelledby="home-community-title">
         <div className="creator-module-heading">
-          <h2 id="home-community-title">Проекты сообщества</h2>
+          <div className="home-community-heading">
+            <h2 id="home-community-title">Проекты сообщества</h2>
+            <p>Работы пользователей платформы</p>
+          </div>
           <PortalLink href="/#/explore" onNavigate={onGallery}>
             Все <span aria-hidden="true">›</span>
           </PortalLink>
@@ -110,21 +112,12 @@ export function HomePublicShelves({
         {works?.length ? (
           <HomeShelf label="Проекты сообщества">
             {works.map((item) => (
-              <li key={`${item.publicationId}:${item.revisionId}`} className="home-public-card">
-                <PortalLink
-                  href={publicationHref(item.publicationId)}
-                  onNavigate={() => onWork(item.publicationId)}
-                >
-                  {item.preview ? (
-                    <img src={item.preview.url} alt="" loading="lazy" decoding="async" />
-                  ) : (
-                    <span>Предпросмотр недоступен</span>
-                  )}
-                  <strong>{item.title}</strong>
-                  <span>{homeModuleTitle(item.moduleKey)}</span>
-                  <span>{item.authorLabel}</span>
-                </PortalLink>
-              </li>
+              <PublicProjectCard
+                key={`${item.publicationId}:${item.revisionId}`}
+                publication={item}
+                onOpen={onWork}
+                headingLevel={3}
+              />
             ))}
           </HomeShelf>
         ) : null}

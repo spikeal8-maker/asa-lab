@@ -21,8 +21,28 @@ let prior: {
 
 beforeAll(async () => {
   db = new PGlite();
+  let historicalBootstrap = true;
   const adapter = {
     query: async (sql: string, params?: unknown[]) => {
+      // This test deliberately prepares pre-0229 OpenAI history with today's service.
+      // The unrelated read-only Cloud catalogue did not exist in that schema.
+      if (historicalBootstrap && sql === 'SELECT ai_ollama_cloud_catalog_runtime() AS value')
+        return {
+          rows: [
+            {
+              value: {
+                checkedAt: null,
+                models: ['gemma4:31b', 'gpt-oss:120b', 'gpt-oss:20b'].map((model) => ({
+                  id: model,
+                  model,
+                  active: true,
+                  capabilities: ['completion'],
+                })),
+              },
+            },
+          ],
+        };
+
       if (params?.length) return db.query(sql, params);
       const results = await db.exec(sql);
       return { rows: results.at(-1)?.rows ?? [] };
@@ -44,7 +64,7 @@ beforeAll(async () => {
     adapter,
     plan.filter((migration) => migration.version < '0229'),
   );
-  const f = await aiTextFixture(admin, runtime),
+  const f = await aiTextFixture(admin, runtime, true),
     request = randomUUID(),
     regeneration = randomUUID();
   await runtime.query("SELECT ai_text_begin_paid($1,$2,$3,'Сохранённый вопрос',$4)", [
@@ -108,6 +128,17 @@ beforeAll(async () => {
     ).rows,
   };
   await applyPlan(adapter, plan);
+  const seeded = (
+    await runtime.query<{
+      value: { customized: boolean; allowedModels: string[]; defaultModel: string };
+    }>('SELECT ai_generation_policy_runtime() AS value')
+  ).rows[0]!.value;
+  expect(seeded.customized).toBe(true);
+  expect(seeded.defaultModel).toBe('gpt-5-mini');
+  expect([...seeded.allowedModels].sort()).toEqual(
+    ['gpt-6-luna', 'gpt-5-mini', 'gpt-4.1-mini'].sort(),
+  );
+  historicalBootstrap = false;
   expect(f.upstream).not.toHaveBeenCalled();
 }, 30000);
 

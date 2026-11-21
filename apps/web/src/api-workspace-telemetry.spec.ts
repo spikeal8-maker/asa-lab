@@ -76,7 +76,11 @@ describe('product workspace mutation and canonical telemetry proof', () => {
     setTelemetryContext(successor, true, 'home');
     const accepted = telemetryContext();
     stale.resolve(Response.json(session()));
-    expect(await oldRead).toMatchObject({ ok: true, data: session() });
+    expect(await oldRead).toMatchObject({
+      ok: false,
+      status: 0,
+      error: { code: 'request_cancelled' },
+    });
     setTelemetryContext(actor, true, 'home');
     expect(telemetryContext()).toEqual(accepted);
   });
@@ -109,6 +113,28 @@ describe('product workspace mutation and canonical telemetry proof', () => {
       '/api/auth/me',
       '/api/auth/me',
     ]);
+  });
+
+  it('cancels a portal read begun during a successful workspace mutation before it can reach the new UI', async () => {
+    const post = deferred<Response>();
+    const stale = deferred<Response>();
+    transport.mockReturnValueOnce(post.promise).mockReturnValueOnce(stale.promise);
+    const mutation = api.switchWorkspace(successor.workspaceId);
+    const oldRead = api.listProjects();
+    post.resolve(switched());
+    expect(await mutation).toMatchObject({ ok: true });
+    expect(await oldRead).toMatchObject({ ok: false, error: { code: 'request_cancelled' } });
+    transport.mockResolvedValueOnce(Response.json(session(successor)));
+    await api.me();
+    setTelemetryContext(successor, true, 'projects');
+    transport.mockResolvedValueOnce(Response.json({ items: [], nextCursor: null }));
+    const current = api.listProjects();
+    stale.resolve(Response.json({ items: [{ id: 'old-private-project' }] }));
+    expect(await current).toMatchObject({ ok: true, data: { items: [] } });
+    expect(telemetryContext()).toMatchObject({ actor: successor, ready: true });
+    expect(
+      transport.mock.calls.filter(([path]) => String(path).startsWith('/api/projects')),
+    ).toHaveLength(2);
   });
 
   it('returns a refused mutation before one background proof and resumes the unchanged queue', async () => {

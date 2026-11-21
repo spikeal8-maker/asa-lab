@@ -1,3 +1,4 @@
+import { publishFixtureModels } from './ai-model-policy.fixture';
 /** Real PostgreSQL proof for independent local inference.
  * Requires isolated *_test roles, holds the shared AI suite lock, never connects to a GPU.
  * The Ollama HTTP transport is a deterministic local stub.
@@ -81,6 +82,7 @@ beforeAll(async () => {
     },
     randomUUID(),
   );
+  await publishFixtureModels(service, adminPrincipal, ['ollama-local']);
   thread = (await service.createThread(principal)).id;
 }, 60000);
 afterAll(async () => {

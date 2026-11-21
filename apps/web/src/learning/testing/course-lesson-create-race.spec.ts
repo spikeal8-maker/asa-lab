@@ -815,16 +815,17 @@ it.each(['newer revision', 'failed request'] as const)(
       status: 200,
       data: { items: [] },
     });
-    vi.spyOn(api, 'publishCourse').mockResolvedValue({
-      ok: true,
-      status: 200,
-      data: {
-        versionId: 'version-1',
-        versionNumber: 1,
-        publishedAt: '2026-01-01T00:00:00.000Z',
-        reused: false,
+    // A visibility receipt already confirms its new revision, so the author
+    // may save while its older outline is held. Publication has no revision
+    // receipt and now correctly fences writes until its own refresh completes.
+    vi.spyOn(api, 'setCourseLessonHidden').mockImplementation(
+      async (_courseId, _id, hidden, expected) => {
+        expect(expected).toBe(1);
+        savedLesson = { ...savedLesson, hidden };
+        revision = 2;
+        return { ok: true, status: 200, data: { hidden, draftRevision: revision } };
       },
-    });
+    );
     const save = vi
       .spyOn(api, 'saveCourseLesson')
       .mockImplementation(async (_, lessonId, input) => {
@@ -837,8 +838,8 @@ it.each(['newer revision', 'failed request'] as const)(
           };
         }
         savedLesson = { ...savedLesson, title: input.title };
-        revision = 2;
-        return { ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 2 } };
+        revision = 3;
+        return { ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 3 } };
       });
 
     container = document.createElement('div');
@@ -856,7 +857,9 @@ it.each(['newer revision', 'failed request'] as const)(
         ?.click(),
     );
     await act(async () => {
-      button(container!, 'Опубликовать').click();
+      const row = container!.querySelector('.course-outline-section li')!;
+      row.querySelector<HTMLElement>('.course-outline-menu > summary')!.click();
+      button(row as HTMLElement, 'Скрыть').click();
       await flush();
     });
     expect(readOutline).toHaveBeenCalledTimes(2);
@@ -871,9 +874,9 @@ it.each(['newer revision', 'failed request'] as const)(
         ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       await flush();
     });
-    expect(save.mock.calls[0]?.[2].expectedRevision).toBe(1);
+    expect(save.mock.calls[0]?.[2].expectedRevision).toBe(2);
     expect(readOutline).toHaveBeenCalledTimes(3);
-    revision = 3;
+    revision = 4;
     savedLesson = testLesson('Changed remotely');
     await act(async () => {
       oldOutline.resolve(
@@ -898,7 +901,7 @@ it.each(['newer revision', 'failed request'] as const)(
     });
     expect(save.mock.calls[1]?.[2]).toMatchObject({
       title: 'My follow-up edit',
-      expectedRevision: 2,
+      expectedRevision: 3,
     });
     expect(savedLesson.title).toBe('Changed remotely');
     expect(container.textContent).toContain('Remote conflict');

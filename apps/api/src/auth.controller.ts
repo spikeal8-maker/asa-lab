@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import {
   Body,
   Controller,
@@ -1519,7 +1520,7 @@ export class AuthController {
       reason: 'seat_active' | 'refresh_required' | 'stale' | 'invalid' | 'reused' | 'rotated',
     ) => {
       try {
-        process.stdout.write(
+        emitApplicationLog(
           `${JSON.stringify({
             time: new Date().toISOString(),
             kind: 'auth_session_recovery',

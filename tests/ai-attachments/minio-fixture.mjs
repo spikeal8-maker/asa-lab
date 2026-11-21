@@ -147,7 +147,30 @@ export function assertAiAttachmentFixtureRunning(fixture) {
   return inspect(fixture, false, true);
 }
 
-async function start(fixture) {
+async function withinDeadline(operation, timeoutMs, message) {
+  const controller = new AbortController();
+  let timer;
+  const expired = new Promise((_, reject) => {
+    // Unlike AbortSignal.timeout, this timer deliberately keeps the CLI alive
+    // while an awaited fetch/body cancellation has no other active handles.
+    timer = setTimeout(() => {
+      reject(new Error(message));
+      controller.abort();
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => operation(controller.signal)),
+      expired,
+    ]);
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+}
+
+async function start(fixture, startupSignal) {
+  startupSignal.throwIfAborted();
   const imageId = docker(['image', 'inspect', '--format', '{{.Id}}', fixture.imageName]).trim();
   if (!/^sha256:[a-f0-9]{64}$/.test(imageId))
     throw new Error('Build the pinned disposable AI attachment MinIO image first');
@@ -203,15 +226,26 @@ async function start(fixture) {
   const deadline = Date.now() + 30000;
   let ready = false;
   while (Date.now() < deadline) {
+    startupSignal.throwIfAborted();
     try {
-      const response = await fetch(`${fixture.endpoint}/minio/health/ready`, {
-        redirect: 'error',
-        signal: AbortSignal.timeout(Math.min(1000, Math.max(1, deadline - Date.now()))),
-      });
-      ready = response.ok;
-      await response.body?.cancel();
+      ready = await withinDeadline(
+        async (requestSignal) => {
+          const response = await fetch(`${fixture.endpoint}/minio/health/ready`, {
+            redirect: 'error',
+            signal: AbortSignal.any([startupSignal, requestSignal]),
+          });
+          // Readiness uses status only. Cancelling an empty Undici response can
+          // remain pending after its socket is unreferenced; do not await that
+          // disposal promise. withinDeadline always aborts this request on exit.
+          void response.body?.cancel().catch(() => {});
+          return response.ok;
+        },
+        Math.min(1000, Math.max(1, deadline - Date.now())),
+        'Disposable AI attachment readiness request exceeded its deadline',
+      );
       if (ready) break;
     } catch {
+      startupSignal.throwIfAborted();
       // Only this explicitly selected, disposable loopback server is polled.
     }
     await delay(Math.min(250, Math.max(0, deadline - Date.now())));
@@ -234,7 +268,10 @@ async function start(fixture) {
     maxAttempts: 1,
     credentials: { accessKeyId: fixture.accessKeyId, secretAccessKey: fixture.secretAccessKey },
   });
-  const send = (command) => client.send(command, { abortSignal: AbortSignal.timeout(5000) });
+  const send = (command) =>
+    client.send(command, {
+      abortSignal: AbortSignal.any([startupSignal, AbortSignal.timeout(5000)]),
+    });
   try {
     // No ACL or public policy is installed. An existing bucket is an error in
     // this freshly created container; do not silently reuse unknown storage.
@@ -262,6 +299,7 @@ async function start(fixture) {
   } finally {
     client.destroy();
   }
+  startupSignal.throwIfAborted();
   process.stdout.write(
     `AI_ATTACHMENTS_MINIO_READY run=${fixture.runId} sha=${fixture.sha} bucket=${fixture.bucket} image=${imageId}\n`,
   );
@@ -281,19 +319,21 @@ function stop(fixture) {
   );
 }
 
-async function main() {
+async function main(signal) {
   if (process.argv.length !== 3 || !['start', 'stop'].includes(process.argv[2]))
     throw new Error('Usage: node tests/ai-attachments/minio-fixture.mjs start|stop');
   const fixture = readAiAttachmentFixtureEnvironment(process.env);
   if (process.argv[2] === 'stop') stop(fixture);
-  else await start(fixture);
+  else await start(fixture, signal);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch((problem) => {
+  try {
+    await withinDeadline(main, 90000, 'Disposable AI attachment fixture operation exceeded 90s');
+  } catch (problem) {
     process.stderr.write(
       `${problem instanceof Error ? problem.message : 'Disposable AI attachment fixture failed'}\n`,
     );
     process.exitCode = 1;
-  });
+  }
 }

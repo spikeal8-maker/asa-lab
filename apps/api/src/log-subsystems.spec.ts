@@ -8,7 +8,7 @@ import { logFilter } from './admin-logs.controller.js';
 describe('editor log classification contract', () => {
   it('recognizes the real module registry names and keeps source and route authority', () => {
     expect(ANALYTICS_MODULES.map(logEditorModule).sort()).toEqual(
-      ['scratch', 'electronics', 'three-d', 'chess', 'checkers'].sort(),
+      ['scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'].sort(),
     );
     for (const reported of ANALYTICS_MODULES) {
       const module = reported === 'blocks' ? 'scratch' : reported;
@@ -17,21 +17,39 @@ describe('editor log classification contract', () => {
         logSubsystem('api', `/api/${reported}/fixture`, '', 'client_diagnostic', 'electronics'),
       ).toBe(module);
       expect(logModule('api', module, 'electronics', 'portal')).toBe(module);
-      expect(logFilter({ module: reported }).module).toBe(module);
+      expect(logFilter({ module: reported, subsystem: module })).toMatchObject({
+        module,
+        subsystem: module,
+      });
     }
-    expect(logSubsystem('api', '/api/projects/fixture', '', 'http_response', 'chess')).toBe(
-      'projects',
-    );
+    for (const reported of ['chess', 'robotics']) {
+      expect(logSubsystem('api', '/api/projects/fixture', '', 'http_response', reported)).toBe(
+        'projects',
+      );
+      expect(
+        logSubsystem('linux:journal', `/api/${reported}`, '', 'client_diagnostic', reported),
+      ).toBe('host');
+      expect(logModule('linux:journal', reported, reported)).toBe('system');
+      expect(logSubsystem('scratch', `/api/${reported}`, '', 'client_diagnostic', reported)).toBe(
+        'scratch',
+      );
+      expect(logModule('scratch', reported, reported)).toBe('scratch');
+    }
     expect(logSubsystem('api', '', '', 'client_diagnostic', 'unknown')).toBe('api');
     expect(() => logFilter({ module: 'unknown' })).toThrow();
-    expect(logSubsystem('linux:journal', '/api/chess', '', 'client_diagnostic', 'chess')).toBe(
-      'host',
-    );
-    expect(logModule('linux:journal', 'chess', 'chess')).toBe('system');
-    expect(logSubsystem('scratch', '/api/chess', '', 'client_diagnostic', 'chess')).toBe('scratch');
-    expect(logModule('scratch', 'chess', 'chess')).toBe('scratch');
   });
-  it('classifies stdout from the actual server error producer for all five route names', () => {
+  it.each(['unknown', 'robotics-extra', 'robotics.invalid'])(
+    'keeps unregistered module and route %s outside the allowlists',
+    (unregistered) => {
+      expect(logEditorModule(unregistered)).toBeUndefined();
+      expect(
+        logSubsystem('api', `/api/${unregistered}/fixture`, '', 'http_response', 'robotics'),
+      ).toBe('api');
+      expect(() => logFilter({ module: unregistered })).toThrow();
+      expect(() => logFilter({ subsystem: unregistered })).toThrow();
+    },
+  );
+  it('classifies stdout from the actual server error producer for all six route names', () => {
     const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
     try {
       for (const [index, route] of ANALYTICS_MODULES.entries()) {
@@ -44,7 +62,7 @@ describe('editor log classification contract', () => {
         recordServerFailure(new Error('synthetic failure'), request, 500, 'abcdef0', null);
       }
       const rows = out.mock.calls.map((call) => JSON.parse(String(call[0])));
-      expect(rows).toHaveLength(5);
+      expect(rows).toHaveLength(6);
       expect(rows.map((row) => row.subsystem)).toEqual(ANALYTICS_MODULES.map(logEditorModule));
       for (const row of rows) {
         expect(row.kind).toBe('server_error');

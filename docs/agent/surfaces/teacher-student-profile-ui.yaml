@@ -10,6 +10,7 @@ surfaces:
         - apps/web/src/pages/classroom-student.css
         - apps/web/src/components/ClassroomParticipantPanels.tsx
         - apps/web/src/classroom-participants-api.ts
+        - e2e/classroom-participants.spec.ts
     invariants:
       - TSP-IDENTITY-001
       - TSP-AUTH-001
@@ -67,6 +68,7 @@ surfaces:
           - apps/web/src/pages/ClassroomStudentPage.tsx
           - apps/web/src/components/ClassroomParticipantPanels.tsx
           - apps/web/src/classroom-participants-api.ts
+          - e2e/classroom-participants.spec.ts
         commands:
           - role
           - settings

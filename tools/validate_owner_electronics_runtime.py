@@ -174,6 +174,23 @@ def assert_owner_audit_match(
         fail(f"unknown or unaccepted SVG entered runtime: {runtime_url}")
 
 
+def validate_runtime_geometry(item: dict[str, Any], parent: dict[str, Any]) -> None:
+    if (
+        item.get("componentId") != "switch-spst"
+        or item.get("stateContract") != {"type": "spst", "parent": "switch-spdt", "removedPin": "throw-right", "authorizationIssue": 777}
+        or item.get("runtimeGeometrySource") != "apps/web/src/electronics/ProductionComponentVisual.tsx#tinkercad-spst-two-pin"
+        or item.get("referenceAssetOnly") is not True
+        or item.get("pins") != parent["pins"][:2]
+        or item.get("footprint") != {"kind": "inline", "pinOffsetsMm": [[0, 0], [2.54, 0]]}
+        or item.get("stateAssets") != []
+        or any(item.get(key) != parent.get(key) for key in (
+            "physicalWidthMm", "physicalHeightMm", "viewBox", "sourceOwnerArchive",
+            "sourceOwnerPath", "sourceSha256", "runtimePath", "runtimeSha256",
+        ))
+    ):
+        fail("invalid owner-authorized SPST runtime geometry derivation")
+
+
 def validate_catalog(
     manifest: dict[str, Any],
     accepted: set[tuple[str, str, str]],
@@ -228,6 +245,13 @@ def validate_catalog(
     state_count = 0
     enabled = 0
     for item in components:
+        if item.get("provenance") == "owner_authorized_runtime_geometry":
+            parent = next(entry for entry in components if entry.get("componentId") == "switch-spdt")
+            validate_runtime_geometry(item, parent)
+            # Reference SVG remains validated by the unchanged parent contract.
+            # It is never SPST runtime artwork and does not increase the SVG inventory.
+            enabled += item.get("status") == "enabled"
+            continue
         status = item.get("status")
         runtime_eligible = status == "enabled"
         has_owner_art = status in {"enabled", "disabled_missing_model"}

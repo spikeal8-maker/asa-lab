@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import { HttpException, type ArgumentsHost } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
@@ -6,7 +7,7 @@ import { sessionDatabaseDiagnostics } from './session-database-diagnostics.js';
 import { logSubsystem, safeLogPath } from './log-subsystems.js';
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth']);
+const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth', 'chess', 'checkers']);
 export const requestFailures = new WeakMap<object, string>();
 export const requestValidationReasons = new WeakMap<object, string>();
 export interface AdmissionDiagnostics {
@@ -20,6 +21,8 @@ export interface AdmissionDiagnostics {
 export const requestAdmissionDiagnostics = new WeakMap<object, AdmissionDiagnostics>();
 const VALIDATION_REASONS = new Set<string>([
   // Explicit API exposure policy; canonical classification stays in the module.
+  'electronics_annotations',
+  'electronics_annotation_version',
   'electronics_component_id',
   'electronics_component_kind',
   'electronics_component_name',
@@ -53,6 +56,7 @@ const VALIDATION_REASONS = new Set<string>([
   'electronics_wire_color',
   'electronics_wire_position',
   'electronics_wire_vertices',
+  'robotics_document_version',
   'draft_body_invalid',
   'draft_base_revision_invalid',
   'draft_mutation_id_invalid',
@@ -173,7 +177,7 @@ export function recordServerFailure(
   }
   requestFailures.set(request, failure.errorCode);
   if (status >= 500)
-    process.stdout.write(
+    emitApplicationLog(
       `${JSON.stringify({ time: new Date().toISOString(), kind: 'server_error', level: 'error', requestId: request.id, revision: revision, method: request.method, path: safeLogPath(request.raw.url), subsystem: logSubsystem('api', request.raw.url), status, ...failure, ...diagnosticContext(request), sessionDatabase: sessionDatabaseDiagnostics(request), runtime: { rssBytes: process.memoryUsage().rss, heapUsedBytes: process.memoryUsage().heapUsed, cpuMicros: process.cpuUsage(), pool: pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount } : null } })}\n`,
     );
 }

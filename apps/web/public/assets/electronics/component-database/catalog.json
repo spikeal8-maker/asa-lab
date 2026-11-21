@@ -17179,6 +17179,76 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
+      "componentId": "switch-spst",
+      "familyId": "spst-switch",
+      "familyLabelRu": "Выключатель SPST",
+      "familyLabelEn": "SPST slide switch",
+      "variantId": "switch-spst",
+      "variantLabelRu": "SPST · 2 контакта",
+      "variantLabelEn": "SPST · 2 contacts",
+      "category": "input",
+      "subcategoryId": "switches",
+      "catalogOrder": 6.1,
+      "appearsInBasic": true,
+      "searchAliases": ["switch-spst", "SPST", "выключатель", "два контакта"],
+      "displayNameEn": "SPST slide switch",
+      "provenance": "owner_authorized_runtime_geometry",
+      "physicalWidthMm": 7.112,
+      "physicalHeightMm": 3.81,
+      "viewBox": [0, 0, 7.112, 3.81],
+      "pins": [
+        {
+          "id": "throw-left",
+          "xMm": 1.016,
+          "yMm": 3.81,
+          "electricalRole": "throw",
+          "toleranceMm": 0
+        },
+        {
+          "id": "common",
+          "xMm": 3.556,
+          "yMm": 3.81,
+          "electricalRole": "common",
+          "toleranceMm": 0
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [0, 0],
+          [2.54, 0]
+        ]
+      },
+      "states": ["left", "right"],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "simulation_state",
+          "decorativeLoop": false,
+          "channels": ["contact"]
+        }
+      ],
+      "stateContract": {
+        "type": "spst",
+        "parent": "switch-spdt",
+        "removedPin": "throw-right",
+        "authorizationIssue": 777
+      },
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
+      "isDefaultVariant": true,
+      "displayName": "Ползунковый выключатель SPST",
+      "sourceOwnerArchive": "canonical-components-svg",
+      "sourceOwnerPath": "Копмоненты SVG/Переключатель/slide_switch_spdt_3pin_left.svg",
+      "sourceSha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720",
+      "runtimePath": "/assets/electronics/component-database/components/switch/left.svg",
+      "runtimeSha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720",
+      "status": "enabled",
+      "runtimeGeometrySource": "apps/web/src/electronics/ProductionComponentVisual.tsx#tinkercad-spst-two-pin",
+      "referenceAssetOnly": true
+    },
+    {
       "componentId": "battery-3v",
       "familyId": "battery",
       "familyLabelRu": "Батарея 3 В",
@@ -30660,6 +30730,141 @@
       "sourceSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8",
       "runtimePath": "/assets/electronics/component-database/components/instruments/oscilloscope/component.svg",
       "runtimeSha256": "c1e1d8244d3f0e650ccb010cbe8e8e35fc1580264b9615312aa899034f6d66f8"
+    },
+    {
+      "componentId": "l298n-motor-driver",
+      "familyId": "l298n-motor-driver",
+      "familyLabelRu": "Драйвер двигателей L298N",
+      "familyLabelEn": "L298N motor driver",
+      "variantId": "red-43mm",
+      "isDefaultVariant": true,
+      "variantLabelRu": "Красный модуль 43×43 мм",
+      "variantLabelEn": "Red module 43×43mm",
+      "displayName": "Драйвер двигателей L298N",
+      "displayNameEn": "L298N Dual H-bridge Driver",
+      "category": "motors",
+      "subcategoryId": "motors",
+      "catalogOrder": 15.5,
+      "appearsInBasic": false,
+      "searchAliases": [
+        "L298N",
+        "драйвер L298N",
+        "H-мост",
+        "двухканальный драйвер моторов",
+        "Arduino motor driver"
+      ],
+      "catalogTier": "preview",
+      "sourceOwnerArchive": "ASA_LAB_L298N_INTEGRATION_v1_1_TOP_WIRES.zip",
+      "sourceOwnerPath": "assets/l298n-board.display.svg",
+      "sourceSha256": "289c604c4ff4e1e74a733e2d01c18b2beab58721f6b4c5c369de37e34a425498",
+      "runtimePath": "/assets/electronics/component-database/components/drivers/l298n/component.svg",
+      "runtimeSha256": "289c604c4ff4e1e74a733e2d01c18b2beab58721f6b4c5c369de37e34a425498",
+      "provenance": "owner_supplied",
+      "status": "disabled_missing_model",
+      "physicalWidthMm": 43,
+      "physicalHeightMm": 43,
+      "viewBox": [0, 0, 43, 43],
+      "assetFit": "meet",
+      "pins": [
+        {
+          "id": "+12V",
+          "xMm": 5.23,
+          "yMm": 8.38,
+          "electricalRole": "motor_supply",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "GND",
+          "xMm": 5.23,
+          "yMm": 13.46,
+          "electricalRole": "ground",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "+5V",
+          "xMm": 5.23,
+          "yMm": 18.54,
+          "electricalRole": "logic_voltage",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT1",
+          "xMm": 10.85,
+          "yMm": 4.07,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT2",
+          "xMm": 15.93,
+          "yMm": 4.07,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT3",
+          "xMm": 11.7,
+          "yMm": 38.78,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "OUT4",
+          "xMm": 16.78,
+          "yMm": 38.78,
+          "electricalRole": "motor_output",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN1",
+          "xMm": 4.84,
+          "yMm": 24.58,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN2",
+          "xMm": 4.84,
+          "yMm": 27.12,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN3",
+          "xMm": 4.84,
+          "yMm": 29.66,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        },
+        {
+          "id": "IN4",
+          "xMm": 4.84,
+          "yMm": 32.2,
+          "electricalRole": "digital_input",
+          "toleranceMm": 0.25
+        }
+      ],
+      "footprint": null,
+      "states": [],
+      "stateAssets": [],
+      "stateContract": {
+        "type": "l298n_dual_hbridge_v1",
+        "enableJumpers": ["ENA", "ENB"],
+        "regulatorJumper": "5V_EN",
+        "indicatorLed": "logic_5v",
+        "motorChannels": 2,
+        "wireTerminals": 11,
+        "jumperPads": 6
+      },
+      "animations": [
+        {
+          "driver": "simulation_state",
+          "decorativeLoop": false,
+          "channels": ["logic_power_led"]
+        }
+      ],
+      "simulationSupport": "not_implemented_in_domain_solver",
+      "blockReason": "Расчёт L298N ещё не подключён к общему симулятору. Арт и контакты готовы; до включения необходимы доменные тесты."
     }
   ],
   "breadboardPlacementRules": {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { call } from '../api-call';
+import { useClassroomActionFeedback } from './ClassroomActionFeedback';
 import {
   isClassroomAccessSaved,
   isClassroomAccessSettings,
@@ -26,7 +27,9 @@ export function ClassroomAiAccess({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const { notice, setNotice } = useClassroomActionFeedback(
+    JSON.stringify(['ai', classroomId, readOnly]),
+  );
   const [retry, setRetry] = useState<Mutation | null>(null);
   const [filter, setFilter] = useState('');
   const [limit, setLimit] = useState(30);
@@ -64,7 +67,6 @@ export function ClassroomAiAccess({
     setSettings(null);
     setRetry(null);
     setBusy(false);
-    setNotice('');
     setFilter('');
     setLimit(30);
     void load();

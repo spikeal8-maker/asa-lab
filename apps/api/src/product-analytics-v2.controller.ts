@@ -12,11 +12,14 @@ import { clientConnection } from './client-address.js';
 import { type SeatContext, STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { requestReceivedAt } from './request-receipt.js';
+import { parseAcquisitionEnvelope } from './acquisition-envelope.js';
 
 @Controller('api/analytics/v2')
 export class ProductAnalyticsV2Controller {
   constructor(
     @Inject(TOKENS.productAnalytics) private readonly analytics: ProductAnalyticsService,
+    @Inject(TOKENS.acquisitionAnalytics)
+    private readonly acquisitionAnalytics: ProductAnalyticsService,
   ) {}
 
   private async actor(
@@ -45,24 +48,35 @@ export class ProductAnalyticsV2Controller {
   private async persist(
     request: FastifyRequest,
     raw: unknown,
-    route: 'events' | 'module-session' | 'quality',
+    route: 'events' | 'module-session' | 'quality' | 'acquisition',
   ) {
     const receivedAt = requestReceivedAt(request);
-    const envelope = parseAnalyticsEnvelope(raw, route);
+    const envelope =
+      route === 'acquisition' ? parseAcquisitionEnvelope(raw) : parseAnalyticsEnvelope(raw, route);
     const connection = clientConnection(request);
     try {
-      return await this.analytics.authenticatedRequest(
+      const writer = route === 'acquisition' ? this.acquisitionAnalytics : this.analytics;
+      return await writer.authenticatedRequest(
         request.cookies[SESSION_COOKIE],
         request.cookies[STUDENT_SESSION_COOKIE],
-        async (account, student) =>
-          this.analytics.persistOperation(
+        async (account, student) => {
+          const actor = await this.actor(account, student, envelope.actorExpectation);
+          if (route === 'acquisition')
+            return writer.persistAcquisition(
+              envelope.eventId,
+              actor,
+              envelope.semantic,
+              receivedAt,
+            );
+          return this.analytics.persistOperation(
             envelope.eventId,
-            await this.actor(account, student, envelope.actorExpectation),
-            envelope.operation,
+            actor,
+            'operation' in envelope ? envelope.operation : 'acquisition.observed',
             envelope.semantic,
             observationMetadata({ ...connection, userAgent: request.headers['user-agent'] }),
             receivedAt,
-          ),
+          );
+        },
       );
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -95,6 +109,11 @@ export class ProductAnalyticsV2Controller {
   @HttpCode(200)
   events(@Req() request: FastifyRequest, @Body() raw: unknown) {
     return this.persist(request, raw, 'events');
+  }
+  @Post('acquisition')
+  @HttpCode(200)
+  acquisition(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    return this.persist(request, raw, 'acquisition');
   }
   @Post('module-session')
   @HttpCode(200)
