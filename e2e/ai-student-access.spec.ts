@@ -10,6 +10,17 @@ import { exceptionMatchesCode, validClientException } from '../apps/web/src/clie
 import { validRequestDetails } from '../apps/web/src/request-diagnostic-details';
 import { classId, fixture as classroomFixture } from './fixtures/classroom-owner';
 
+async function expectAiFeedback(page: Page): Promise<void> {
+  const message = /Доступ к ИИ сохранён/;
+  const ribbon = page.locator('.system-feedback-ribbon.system-feedback-success');
+  await expect(ribbon).toHaveCount(1);
+  await expect(ribbon).toBeVisible();
+  await expect(ribbon).toContainText(message);
+  const announcement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(announcement).toHaveCount(1);
+  await expect(announcement).toContainText(message);
+  await expect(page.locator('.classroom-ai-access').getByText(message)).toHaveCount(0);
+}
 const SEAT = '40000000-0000-4000-8000-000000000001';
 const ACCOUNT = '20000000-0000-4000-8000-000000000001';
 const WORKSPACE = '30000000-0000-4000-8000-000000000001';
@@ -444,7 +455,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await access.getByRole('button', { name: 'Сохранить правило класса' }).click();
     await expect(access.getByRole('button', { name: 'Повторить сохранение' })).toBeVisible();
     await access.getByRole('button', { name: 'Повторить сохранение' }).click();
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toBeVisible();
+    await expectAiFeedback(page);
     expect(writes[1]).toEqual(writes[0]);
     await access.locator('summary').click();
     await access.getByLabel('Доступ для ' + name).selectOption('allow');
@@ -596,7 +607,16 @@ for (const invalid of ['wrong revision', 'non-JSON'] as const) {
     await expect(access.getByRole('alert')).toContainText(
       'Не удалось подтвердить сохранение доступа к ИИ.',
     );
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-ribbon.system-feedback-success')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-announcement[role="status"]')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
     await expect(access.getByLabel('Правило класса')).toBeDisabled();
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({ kind: 'classroom', mode: 'allow', expectedRevision: 4 });
@@ -610,11 +630,20 @@ for (const invalid of ['wrong revision', 'non-JSON'] as const) {
     await expect.poll(() => reads).toBe(beforeRefresh + 1);
     await expect(access.getByRole('button', { name: 'Повторить сохранение' })).toBeEnabled();
     await expect(access.getByLabel('Правило класса')).toBeDisabled();
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-ribbon.system-feedback-success')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
+    await expect(
+      page
+        .locator('.system-feedback-announcement[role="status"]')
+        .filter({ hasText: /Доступ к ИИ сохранён/ }),
+    ).toHaveCount(0);
     expect(writes).toHaveLength(1);
 
     await access.getByRole('button', { name: 'Повторить сохранение' }).click();
-    await expect(access.getByText(/Доступ к ИИ сохранён/)).toBeVisible();
+    await expectAiFeedback(page);
     await expect(access.getByLabel('Правило класса')).toBeEnabled();
     expect(writes).toHaveLength(2);
     expect(writes[1]).toEqual(writes[0]);

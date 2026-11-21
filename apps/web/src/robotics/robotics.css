@@ -4079,3 +4079,420 @@
     width: 66px;
   }
 }
+
+/* ROBOTICS-FIELD-DOCK-001 — one non-floating inspector and existing forms. */
+.robotics-lab .robotics-field-editor-body {
+  min-width: 0;
+}
+.robotics-lab .robotics-scene-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+  width: 300px;
+  max-width: 100%;
+  background: #fafcfd;
+  border-left: 1px solid #d2e1e9;
+  box-shadow: none;
+}
+.robotics-field-dock-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 -10px 8px;
+  padding: 8px 9px;
+  border-bottom: 1px solid #dae8ef;
+  background: #f8fcfe;
+}
+.robotics-field-dock-tabs [role='tab'] {
+  min-height: 34px;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #496d80;
+  font-size: 11px;
+  cursor: pointer;
+}
+.robotics-field-dock-tabs [role='tab'][aria-selected='true'] {
+  color: #076c93;
+  background: #e6f3f9;
+  border-color: #b5dce9;
+  font-weight: 700;
+}
+.robotics-field-dock-close {
+  display: none;
+}
+.robotics-field-dock-catalog,
+.robotics-field-dock-properties {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.robotics-field-dock-properties {
+  flex: 1 1 auto;
+  padding: 0 0 8px;
+}
+.robotics-field-dock-catalog {
+  flex: 1 1 auto;
+}
+.robotics-field-dock-catalog[hidden],
+.robotics-field-dock-properties[hidden],
+.robotics-field-settings-sheet[hidden] {
+  display: none !important;
+}
+.robotics-field-object-dock {
+  position: static;
+  width: 100%;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #29475d;
+  box-shadow: none;
+}
+.robotics-field-object-dock .robotics-object-flyout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  margin: 0 0 8px;
+  padding: 0 4px;
+  border-bottom: 1px solid #e0eaf0;
+  color: #315772;
+  font-size: 12px;
+}
+.robotics-field-object-dock .robotics-object-flyout-header button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #56758b;
+  font-size: 19px;
+}
+.robotics-field-object-dock .robotics-form-grid {
+  gap: 7px;
+}
+.robotics-field-object-dock .robotics-number-field,
+.robotics-field-object-dock .robotics-select-field {
+  font-size: 11px;
+}
+@media (min-width: 1280px) {
+  .robotics-lab .robotics-field-editor-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+@media (max-width: 1279px) {
+  .robotics-lab .robotics-field-editor-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .robotics-field-dock-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 30px;
+    gap: 2px;
+  }
+  .robotics-field-dock-close {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    min-height: 30px;
+    border: 1px solid #b5cedd;
+    border-radius: 6px;
+    background: #fff;
+    color: #456a7d;
+    cursor: pointer;
+  }
+  .robotics-lab .robotics-field-toolbar .robotics-field-catalog-toggle {
+    display: inline-flex;
+  }
+  .robotics-lab .robotics-field-palette-close {
+    display: inline-grid;
+    place-items: center;
+  }
+  .robotics-lab .robotics-scene-inspector {
+    display: none;
+    position: absolute;
+    z-index: 40;
+    inset: 0 8px auto auto;
+    width: min(300px, calc(100% - 16px));
+    max-height: min(78%, 530px);
+    border: 1px solid #b5cedd;
+    border-radius: 0 0 9px 9px;
+    background: #fafcfd;
+    box-shadow: -5px 5px 22px #173e5838;
+  }
+  .robotics-lab .robotics-field-editor-body[data-properties-open='true'] .robotics-scene-inspector {
+    display: flex;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab .robotics-scene-inspector {
+    max-height: min(72%, 460px);
+  }
+}
+
+.robotics-field-stage {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  background: #243640;
+  color: #e4edf0;
+}
+.robotics-field-stage-toolbar,
+.robotics-field-stage-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 12px;
+  padding: 6px 12px;
+  background: #263943;
+  color: #d0dce1;
+  font-family: Inter, 'Segoe UI', sans-serif;
+}
+.robotics-field-stage-toolbar {
+  z-index: 1;
+  border-bottom: 1px solid #465a64;
+}
+.robotics-field-view-switch {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #4a616d;
+  border-radius: 9px;
+  background: #1d2e37;
+}
+.robotics-field-view-switch button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 11px;
+  background: transparent;
+  color: #d5e2e7;
+  font-size: 12px;
+  font-weight: 560;
+  cursor: pointer;
+}
+.robotics-field-view-switch button:hover {
+  background: #37505c;
+}
+.robotics-field-view-switch button[aria-pressed='true'] {
+  background: #d2eee6;
+  color: #173f3b;
+  font-weight: 680;
+}
+.robotics-field-stage-toolbar :focus-visible,
+.robotics-field-spatial :focus-visible {
+  outline: 2px solid #b7e7d8;
+  outline-offset: 2px;
+}
+.robotics-field-view-purpose {
+  font-size: 11px;
+  text-align: end;
+}
+.robotics-field-stage-status {
+  min-height: 32px;
+  color: #e6edf0;
+  border-top: 1px solid #435761;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.robotics-field-stage-instruction {
+  margin-inline-end: auto;
+  color: #c1cfd5;
+}
+.robotics-field-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.robotics-field-scale > span {
+  display: block;
+  border: 1px solid #e6edf0;
+  border-top: 0;
+  block-size: 5px;
+}
+.robotics-field-viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 40% 36%, #415761 0%, #293c46 62%, #22333d 100%);
+}
+.robotics-field-viewport > .robotics-field-canvas,
+.robotics-field-spatial-viewport {
+  position: absolute;
+  inset: 0;
+}
+.robotics-field-viewport > .robotics-field-canvas {
+  background: transparent;
+}
+.robotics-field-viewport > [hidden] {
+  display: none;
+}
+.robotics-field-stage [data-field-ghost] {
+  opacity: 0.55;
+  pointer-events: none !important;
+}
+.robotics-field-stage [data-field-ghost='invalid'] {
+  filter: sepia(0.9) saturate(5) hue-rotate(319deg);
+}
+.robotics-field-spatial,
+.robotics-field-spatial canvas {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.robotics-field-spatial canvas {
+  touch-action: none;
+}
+.robotics-spatial-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 4px;
+}
+.robotics-spatial-controls button {
+  min-width: 38px;
+  min-height: 38px;
+  padding-inline: 8px;
+  border: 1px solid #5f7783;
+  border-radius: 7px;
+  background: #1d303af0;
+  color: #edf5f7;
+  cursor: pointer;
+}
+.robotics-spatial-controls .robotics-button:hover:not(:disabled),
+.robotics-spatial-controls .robotics-button:focus-visible {
+  background: #385462;
+  color: #edf5f7;
+}
+.robotics-spatial-controls .robotics-button:focus-visible {
+  outline: 2px solid #b7e7d8;
+  outline-offset: 2px;
+}
+.robotics-spatial-notice {
+  position: absolute;
+  z-index: 1;
+  inset: auto 12px 12px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid #647d8b;
+  border-radius: 7px;
+  background: #213640f0;
+  color: #edf5f7;
+  font-size: 12px;
+}
+.robotics-lab .robotics-scene-inspector {
+  padding-inline: 13px;
+  border-color: #c6d5dc;
+  background: #f8fafb;
+}
+.robotics-field-dock-tabs {
+  margin-inline: -13px;
+  padding-inline: 12px;
+  background: #f8fafb;
+  border-color: #d9e4e9;
+}
+.robotics-field-dock-tabs [role='tab'] {
+  color: #46606c;
+  font-size: 12px;
+}
+.robotics-field-dock-tabs [role='tab'][aria-selected='true'] {
+  border-color: #b0d7cc;
+  background: #e2f0ec;
+  color: #17564e;
+}
+.robotics-field-palette-heading strong {
+  color: #233c47;
+  font-size: 14px;
+}
+.robotics-field-palette-section h3 {
+  margin-bottom: 7px;
+  color: #526d7a;
+  font-size: 11px;
+}
+.robotics-field-palette-card {
+  flex-direction: row;
+  justify-content: start;
+  min-height: 54px;
+  height: 54px;
+  gap: 4px;
+  padding: 4px 5px;
+  border-radius: 9px;
+  border-color: #d8e4e9;
+  background: #fff;
+  color: #2c4652;
+}
+.robotics-field-palette-card:hover:not(:disabled),
+.robotics-field-palette-card[aria-pressed='true'] {
+  border-color: #7db5a8;
+  background: #e8f4f0;
+  color: #155a50;
+  box-shadow: none;
+}
+.robotics-field-palette-art {
+  flex-basis: 38px;
+  width: 38px;
+  height: 38px;
+}
+.robotics-field-palette-art svg {
+  width: 38px;
+  height: 32px;
+}
+.robotics-field-palette-card[data-robotics-palette-tool='rectangle'] .robotics-field-palette-art {
+  flex-basis: 28px;
+  width: 28px;
+}
+.robotics-field-palette-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .robotics-field-stage-toolbar,
+  .robotics-field-stage-status {
+    padding-inline: 8px;
+    gap: 7px;
+  }
+  .robotics-field-view-switch button {
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 7px;
+    font-size: 11px;
+  }
+  .robotics-field-view-purpose,
+  .robotics-field-stage-instruction {
+    display: none;
+  }
+  .robotics-field-stage[data-view='side'] .robotics-field-view-purpose,
+  .robotics-field-stage[data-view='orbit'] .robotics-field-view-purpose {
+    display: block;
+    font-size: 10px;
+  }
+  .robotics-spatial-controls button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

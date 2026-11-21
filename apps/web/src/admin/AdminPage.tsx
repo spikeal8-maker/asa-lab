@@ -856,7 +856,11 @@ function UserCrmPanelBody({
         </dl>
       ) : null}
 
-      <div className="admin-user-tabs" role="tablist" aria-label="Карточка пользователя">
+      <div
+        className="admin-user-tabs asa-system-tabs"
+        role="tablist"
+        aria-label="Карточка пользователя"
+      >
         {
           <button
             type="button"

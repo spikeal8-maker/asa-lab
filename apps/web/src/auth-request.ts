@@ -1,4 +1,4 @@
-/** Deadlines apply only to authentication and provider configuration requests. */
+/** Deadlines cover authentication, capability attestation and provider configuration. */
 export const AUTH_REQUEST_TIMEOUT_MS = 15_000;
 
 export class AuthRequestError extends Error {
@@ -29,6 +29,7 @@ export function isAuthRequest(path: string): boolean {
   const pathname = path.split('?')[0]!;
   return (
     pathname.startsWith('/api/auth/') ||
+    /^\/api\/capabilities\/(?:content-author|educator)\/self-attest$/.test(pathname) ||
     pathname.startsWith('/api/admin/v1/auth/email') ||
     /^\/api\/crm\/v1\/users\/account\/[^/]+\/email(?:\/cancel)?$/.test(pathname) ||
     pathname === '/api/admin/v1/auth/verification-policy' ||

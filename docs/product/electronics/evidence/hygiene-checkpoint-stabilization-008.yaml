@@ -1,0 +1,450 @@
+schema: asa-lab.electronics-hygiene-stabilization-008.v1
+controller_task_id: TASK-ELECTRONICS-CONTROL-016
+issue: 1241
+parent_issue: 1238
+checkpoint_reason: Mandatory three-slice checkpoint before U01; the owner expressly assigned its bounded controller
+  handling. This is a seven-category documentation review, with no product cleanup or baseline-cap change.
+reviewed_main_sha: e792998fc418e2210a116051848d76571155efe1
+acceptance_boundary: Prepared evidence is not accepted by its author. The separate controller transition becomes effective
+  only after independent review of the final three-document SHA, exact required CI and protected main integration.
+  No product write before that accepted transition.
+previous_full_checkpoint:
+  evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+  reviewed_main_sha: e04d443360703db98a6d98fbd591dfbbc7823734
+  accepted_main_sha: b318656e9d80ea8ddb40b06159f7c1352c799c7c
+  acceptance_pr: 1120
+  bounded_review_not_reset: PR1179 / issue1177 reviewed two source responsibilities; it did not replace the full checkpoint.
+counted_slice_provenance:
+  authority: Dated accepted current.yaml, issue and PR receipts at reviewed_main_sha. First-parent integrations touching
+    Electronics domain, editor or production assets were all inspected from accepted checkpoint007 through reviewed_main_sha.
+    A merge alone is not technical acceptance.
+  confirmed_count: 8
+  count_is_exhaustive: false
+  production_changing:
+  - issue: 1122
+    pr: 1098
+    merge_sha: c76b51e38af94a308b6fe9080d776d6ee6ada4b4
+    concern: Electronics toolbar fit only; camera and E1 acceptance are separate.
+    acceptance_evidence: https://github.com/spikeal8-maker/asa-lab/issues/1122#issuecomment-6843752622
+  - issue: 1166
+    pr: 1171
+    merge_sha: c6ca7c078f92b96dc1dce5aa9470af2331530d39
+    concern: HC-SR04 accepted trigger geometry barrier.
+    acceptance_evidence: current.yaml robotics-tt-native-drive accepted_source_dependencies; independent PASS and
+      exact required/focused SUCCESS.
+  - issue: 1169
+    pr: 1173
+    merge_sha: 3c57202de8c6accc70503027ad471d30517024d1
+    concern: TT accepted external shaft input.
+    acceptance_evidence: current.yaml robotics-tt-native-drive accepted_source_dependencies; independent PASS and
+      exact required/focused SUCCESS.
+  - issue: 1172
+    pr: 1176
+    merge_sha: 9af20ffb14149b32b13e3551be5ec1bdd4f8e58a
+    concern: TT native drive changes tracked production source even while spatial activation remains TEST_ONLY.
+    acceptance_evidence: current.yaml robotics-tt-native-drive task.technical_acceptance and exact source/review/CI
+      receipts.
+  - issue: 865
+    pr: 1190
+    merge_sha: 66035f48214fdbcf0a5f457408d29fe4d83f0d23
+    concern: Bounded saved Blockly programme preservation; broad Electronics qualification remains separate.
+    acceptance_evidence: current.yaml selected preservation task done, completed issue865 and PR1190 delivery receipt.
+  - issue: 1199
+    slice: L298N P0A
+    pr: 1204
+    merge_sha: 8c23c86fb7df9ff0ddc5627ced2487c52f5a5346
+    concern: Owner SVG and disabled production catalog.
+    acceptance_evidence: current.yaml electronics-l298n-p0 accepted_slices and accepted P0B prerequisite.
+  - issue: 1199
+    slice: L298N P0B
+    pr: 1206
+    merge_sha: df78069c44271609615707b6e38767f276188c4b
+    concern: Production wires-above-PCB and terminal layout.
+    acceptance_evidence: current.yaml electronics-l298n-p0 accepted_slices; exact post-merge required SUCCESS before
+      P1 selection.
+  - issue: 1220
+    pr: 1232
+    merge_sha: 4fc9ca348e0528401602226946d4f095334e61e0
+    concern: Arduino settings visibility and preserved Blockly configuration.
+    acceptance_evidence: https://github.com/spikeal8-maker/asa-lab/pull/1262
+  additional_source_integrations_not_reclassified:
+  - pr: 1131
+    reason: Cold Start has APPROVE_SOURCE_ONLY without a separate canonical acceptance receipt.
+  - pr: 1196
+    reason: Serial Monitor R22 formal acceptance explicitly remains pending.
+  - pr: 1163
+    reason: Source delivery is distinct from formal R23/AC-04 acceptance.
+  checkpoint_due: true
+  excluded: Docs/test-only PR1120/1235, U00, bounded responsibility PR1179, camera-only sources outside Electronics
+    roots, and unaccepted E1 dependency are not new accepted Electronics production slices. The eight confirmed slices
+    prove the trigger without changing any foreign acceptance boundary.
+method:
+  sizes: Exact LF Git blob bytes from git ls-tree -rl and git show at the two pinned sources; unchanged hygiene-baseline
+    reviewed_bytes and floor(1.2 * reviewed_bytes) determine limits.
+  delta: git diff --name-status --find-renames e04d443360703db98a6d98fbd591dfbbc7823734 e792998fc418e2210a116051848d76571155efe1,
+    restricted to the named categories.
+  source_trees:
+    contexts/electronics/domain: 3bb02adf45b1f34e577e9d769e124154d3b3fdf2
+    apps/web/src/electronics: 5fcd43ba08f2e6362a5e5795b7103d2327a0de28
+  measurements: No physical, full-editor, classroom, server or load claim is made by this documentation checkpoint.
+large_sources:
+  class: decomposition-candidate
+  source_roots:
+  - contexts/electronics/domain
+  - apps/web/src/electronics
+  extensions:
+  - .ts
+  - .tsx
+  - .js
+  - .mjs
+  - .css
+  excluded: testing/dist and generated output; same inventory boundary as the routing validator.
+  threshold_bytes: 50000
+  growth_review_percent: 20
+  tracked_production_sources_above_threshold: 9
+  newly_unreviewed_sources: []
+  stale_baseline_entries: []
+  over_twenty_percent_growth: []
+  reviewed:
+  - path: contexts/electronics/domain/arduino-circuit-scheduler.ts
+    class: decomposition-candidate
+    reviewed_bytes: 82679
+    rationale: Canonical clock orchestration owns request validation, accepted continuations, peripheral and physical
+      barrier order, quality-gated commit and fault isolation. Extract only a cohesive clock boundary after whole-return,
+      event-order, suspension, rollback and physical-quality parity. The accepted source and its responsibility are
+      recorded in evidence/robotics-tt-hygiene-1177.md.
+    current_bytes: 89858
+    blob_sha: f12bccc048596fbe2e6b3f64814266791d60880f
+    previous_checkpoint_bytes: 77676
+    maximum_bytes: 99214
+    remaining_bytes: 9356
+    growth_percent: 8.683
+  - path: contexts/electronics/domain/solver.ts
+    class: decomposition-candidate
+    reviewed_bytes: 215516
+    rationale: The shared solver owns topology admission, MNA device stamping and active modes, transient acceptance
+      and electrical observations. Decomposition must follow numerical responsibilities under E-OPT-4 with stamp and
+      observation parity, including transient, unsupported and failed cases. The accepted source and its responsibility
+      are recorded in evidence/robotics-tt-hygiene-1177.md.
+    current_bytes: 220845
+    blob_sha: 2ec443c4a3d6b6eea7dc481324508923cfcac3b2
+    previous_checkpoint_bytes: 215516
+    maximum_bytes: 258619
+    remaining_bytes: 37774
+    growth_percent: 2.4727
+  - path: apps/web/src/electronics/workbench.css
+    class: decomposition-candidate
+    reviewed_bytes: 120669
+    rationale: Active workbench styling spans several editor surfaces; split only with visual/browser evidence and
+      stable ownership boundaries.
+    current_bytes: 143751
+    blob_sha: 777d2f4314f1fccb4a80769317e35e02c64ee5cb
+    previous_checkpoint_bytes: 143648
+    maximum_bytes: 144802
+    remaining_bytes: 1051
+    growth_percent: 19.1284
+  - path: apps/web/src/electronics/WorkbenchSidebars.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 103985
+    rationale: Active sidebar surface contains multiple inspector/library responsibilities and needs bounded responsibility
+      review before further growth.
+    current_bytes: 120323
+    blob_sha: 9f5f222e37959cc4d96524c3a968f5567aeb6de7
+    previous_checkpoint_bytes: 120323
+    maximum_bytes: 124782
+    remaining_bytes: 4459
+    growth_percent: 15.7119
+  - path: apps/web/src/electronics/use-electronics-workbench.ts
+    class: decomposition-candidate
+    reviewed_bytes: 126864
+    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while
+      any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change. The prepared/ready/joint-commit
+      acknowledgement, rollback and lifecycle cleanup boundary is reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md;
+      retaining that atomic boundary does not discharge the existing decomposition debt.
+    current_bytes: 149866
+    blob_sha: 9fdbe38f0647d25480f4ad5bbae449475511866f
+    previous_checkpoint_bytes: 147735
+    maximum_bytes: 152236
+    remaining_bytes: 2370
+    growth_percent: 18.1312
+  - path: contexts/electronics/domain/arduino-program-runtime.ts
+    class: decomposition-candidate
+    reviewed_bytes: 127658
+    rationale: Parsing, typed scopes, prepared instructions, resumable execution and peripheral dispatch remain one
+      programme-state boundary. The accepted do-loop, increment/wait replay journal and private seeded-PRNG growth
+      are reviewed in evidence/runtime-responsibility-20261026.md; the journal remains coupled to source/PC/typed-state
+      validation and ordered effects, while the new helper owns only seed/recurrence arithmetic. Retain decomposition
+      debt; future compiler or journal extraction requires exact old-state/event, JSON-resume, diagnostics, clock
+      and budget parity. Earlier release-baseline and classroom-retained-source-responsibility-641 evidence is preserved;
+      this bounded review does not reset unrelated hygiene checkpoints or change the active legacy bridge retirement
+      condition.
+    current_bytes: 153077
+    blob_sha: ca3f09e042df617ba2687d0cac080b9033217bd6
+    previous_checkpoint_bytes: 153077
+    maximum_bytes: 153189
+    remaining_bytes: 112
+    growth_percent: 19.9118
+  - path: apps/web/src/electronics/ArduinoCodePanel.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 63884
+    rationale: Active code-editor surface is above the review threshold; future extraction must preserve command/editor
+      behavior and tests.
+    current_bytes: 74470
+    blob_sha: 69938b16a34c7fcf3def3fcc92017a003ab1e7a8
+    previous_checkpoint_bytes: 71380
+    maximum_bytes: 76660
+    remaining_bytes: 2190
+    growth_percent: 16.5707
+  - path: apps/web/src/electronics/ProductionComponentVisual.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 89698
+    rationale: Lifecycle and family-render boundaries reviewed in evidence/visual-source-responsibility-518-20261007.md;
+      retain the ordinary-image repair inside its private hook. The bounded native OFF/active/pending resource lifetime,
+      exact readiness leases and protected rollback boundary are also reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md.
+      Shared loading, instrument controls and selection/family dispatch remain decomposition debt; the reviewed candidate
+      ceiling is not product acceptance.
+    current_bytes: 93795
+    blob_sha: f6e3e3011edc8aa8b77a89c6962107583abcca5b
+    previous_checkpoint_bytes: 93795
+    maximum_bytes: 107637
+    remaining_bytes: 13842
+    growth_percent: 4.5675
+  - path: apps/web/src/electronics/WorkbenchStage.tsx
+    class: decomposition-candidate
+    reviewed_bytes: 54879
+    rationale: Active stage rendering/interaction surface is above the threshold and requires browser evidence for
+      any structural split.
+    current_bytes: 64073
+    blob_sha: 04df7ba7833a1f386647d62749c1107bf26fa664
+    previous_checkpoint_bytes: 64025
+    maximum_bytes: 65854
+    remaining_bytes: 1781
+    growth_percent: 16.7532
+  production_delta_counts:
+    A: 1
+    M: 12
+    D: 0
+    R: 0
+  production_delta:
+  - status: M
+    paths:
+    - apps/web/src/electronics/ArduinoCodePanel.tsx
+  - status: M
+    paths:
+    - apps/web/src/electronics/ArduinoSerialMonitor.tsx
+  - status: M
+    paths:
+    - apps/web/src/electronics/WorkbenchHeader.tsx
+  - status: M
+    paths:
+    - apps/web/src/electronics/WorkbenchStage.tsx
+  - status: M
+    paths:
+    - apps/web/src/electronics/arduino-program-state.ts
+  - status: M
+    paths:
+    - apps/web/src/electronics/simulation-failure.ts
+  - status: A
+    paths:
+    - apps/web/src/electronics/simulation-startup-budget.ts
+  - status: M
+    paths:
+    - apps/web/src/electronics/use-electronics-workbench.ts
+  - status: M
+    paths:
+    - apps/web/src/electronics/workbench.css
+  - status: M
+    paths:
+    - contexts/electronics/domain/arduino-circuit-scheduler.ts
+  - status: M
+    paths:
+    - contexts/electronics/domain/models/brushed-motor-transient-model.ts
+  - status: M
+    paths:
+    - contexts/electronics/domain/models/hc-sr04-runtime.ts
+  - status: M
+    paths:
+    - contexts/electronics/domain/solver.ts
+  baseline_path: docs/product/electronics/evidence/hygiene-baseline.yaml
+  baseline_blob_sha: 2f3847b91146cbb4c932fcacbb6082f116e942cf
+  baseline_changed_by_this_task: false
+  disposition: Retain all classifications, reviewed sizes, responsibilities and decomposition debt. No arbitrary split,
+    cleanup or cap increase.
+legacy_bridges:
+- path: apps/web/src/electronics/live-simulation.ts
+  class: compatibility-shim
+  retention_evidence: advanceLiveSimulation has no production call outside its declaration, but still has 13 call
+    sites in testing/live-simulation.spec.ts, one in testing/native-led-diagnostic.spec.ts, two in the browser benchmark
+    and one in the memory benchmark. The negative source assertion in workbench-presentation.spec.ts is not a runtime
+    call. calculateSimulationPreflight remains active in simulation-worker-evaluator.ts, use-electronics-workbench.ts
+    and the retained live helpers.
+  retirement_condition: Separately migrate or explicitly retire every active advance test/tool caller, preserve historical
+    benchmark evidence, and prove no production/import/public/package, supported schema or normative dependency plus
+    replacement/focused/shared gates. Whole-file deletion also requires migrating active preflight helpers.
+  retirement_ready: false
+  inherited_from: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+  blob_sha: e9b54814e427ac18d0988a402f955a5e3477e01e
+  changed_since_previous_checkpoint: false
+- path: contexts/electronics/domain/arduino-program-runtime.ts
+  class: active-legacy-bridge
+  retention_evidence: ArduinoClockProfile and persisted-state validation retain legacy-ms-v1 and instruction-us-v1.
+    advanceArduinoRuntime explicitly selects legacy-ms-v1. Actual production callers remain in contexts/electronics/domain/arduino-model.ts
+    and solver.ts, with an additional internal runtime caller. The canonical scheduler has not retired these stateless/snapshot
+    consumers.
+  retirement_condition: Separately converge every production/stateless/snapshot caller to the canonical clock, migrate
+    public and supported persisted state, and prove replay, physical-state and normative compatibility with no remaining
+    required legacy-ms-v1 or advanceArduinoRuntime dependency before deletion is considered.
+  retirement_ready: false
+  inherited_from: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+  blob_sha: ca3f09e042df617ba2687d0cac080b9033217bd6
+  changed_since_previous_checkpoint: false
+- path: apps/web/src/modules/project-local-draft.ts
+  class: compatibility-shim
+  retention_evidence: Supported schemas remain 1/2/3. Unscoped writes still use schema 2 and unscoped reads accept
+    1/2; identity-scoped reads require matching schema 3/user/identity. Actual unscoped read/write/clear callers remain
+    in use-chess-project.ts and use-checkers-project.ts, both unchanged since 006. The newer Electronics raw-byte
+    acknowledgement fingerprint and verified write do not retire this shared persisted compatibility.
+  retirement_condition: Separately migrate all unscoped Chess/Checkers/public callers and supported persisted schemas
+    1/2 under their data/identity contracts, prove whole recovery and account/seat/project isolation without cross-user
+    adoption, then prove no remaining source/schema/test/normative consumer. This inherits the full 006 obligation,
+    not only the two baseline legacy entries.
+  retirement_ready: false
+  inherited_from: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+  blob_sha: ede6dff79eff135087d00cc481895bd4fe2bbad1
+  changed_since_previous_checkpoint: false
+changed_media_concern:
+  class: canonical-active
+  path: apps/web/src/electronics/ArduinoCodePanel.tsx
+  inherited_from: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-007.yaml
+  changed_since_previous_checkpoint: true
+  pre_initialization: Local absolute media directory is still supplied before ScratchBlocks.inject.
+  late_dom_refresh: The active requestAnimationFrame calls applyScratchMediaAssets(host), then resizeVisibleArduinoWorkspace(workspace,
+    host). This is now a guarded resize helper, not the direct svgResize call described in 006. Cleanup still cancels
+    assetFrame; ResizeObserver also uses the guarded resize. The late consumer therefore remains active.
+  future_removal_condition: Separately prove synchronous creation and later renderer/resize equivalence without this
+    consumer, migrate the source-contract assertion, and prove runtime/public/schema/normative dependencies plus focused/browser/shared
+    gates. Preserve the complete 006 obligation; successful media behavior alone is not deletion proof.
+  removal_authorized: false
+  blob_sha: 69938b16a34c7fcf3def3fcc92017a003ab1e7a8
+routing:
+  class: canonical-active
+  canonical_map: docs/product/electronics/COMPONENT_MAP.yaml
+  map_blob_sha: 890879a3408e9f28b27a13603cbd9c0a8b9d7f1a
+  previous_component_entries: 30
+  component_entries: 30
+  added_component_ids: []
+  deleted_component_ids: []
+  new_component_route_files: []
+  deleted_component_route_files: []
+  updated_component_route_files:
+  - docs/product/electronics/components/arduino-peripherals.yaml
+  - docs/product/electronics/components/ui-assets-persistence.yaml
+  orphaned_routes: []
+  validation_boundary: Full Electronics routing and selected-card validation are required on the controller candidate.
+    No route or component ownership is changed by this checkpoint.
+generated:
+  new_artifacts: []
+  deleted_artifacts: []
+  new_generators: []
+  deleted_generators: []
+  reviewed:
+  - path: docs/product/electronics/generated/component-coverage.json
+    class: generated
+    generator: tools/generate-electronics-component-coverage.mjs
+    stale_output_validator: tools/validate-electronics-component-information.mjs
+    blob_sha: 4ca9ee19154e7fd3772ece1fd5618b3285e18ea8
+    sha256: a3ae95196b7ab8472803acc5f858c2a24793a01a5100110d831b565596377aab
+    changed_since_previous_checkpoint: true
+    generator_changed_since_previous_checkpoint: false
+    validator_changed_since_previous_checkpoint: false
+    generated_from_hashes_checked: 7
+    generated_from_hashes_matching: 7
+    source_hash_evidence:
+    - path: apps/web/public/assets/electronics/component-database/catalog.json
+      expected_sha256: b9222abafee7c5abf907c05ee2f4b904e90c19deeb8316e9f61684301cf62639
+      actual_sha256: b9222abafee7c5abf907c05ee2f4b904e90c19deeb8316e9f61684301cf62639
+      matches: true
+    - path: contexts/electronics/domain/model-identity.ts
+      expected_sha256: 51fefac04f0081a04416e21b357f9e86e62b10c94f6339c4f1274c29b200ec61
+      actual_sha256: 51fefac04f0081a04416e21b357f9e86e62b10c94f6339c4f1274c29b200ec61
+      matches: true
+    - path: contexts/electronics/domain/model-registry.ts
+      expected_sha256: ed2c4c69d3bd20f9d506a8ab36736aa18deecf0bbdc354e32b8a4319ae8d52d3
+      actual_sha256: ed2c4c69d3bd20f9d506a8ab36736aa18deecf0bbdc354e32b8a4319ae8d52d3
+      matches: true
+    - path: apps/web/src/electronics/component-information.ts
+      expected_sha256: b81e94b15c3fb1c0a2b01bd646ae63ea1b8817439c7bb5ac6e508aa4afba414e
+      actual_sha256: b81e94b15c3fb1c0a2b01bd646ae63ea1b8817439c7bb5ac6e508aa4afba414e
+      matches: true
+    - path: apps/web/src/electronics/component-help-content.ts
+      expected_sha256: 629bbcb1863e54600d24baaea7fa12f90cc09a04478593018868c359ec284eb2
+      actual_sha256: 629bbcb1863e54600d24baaea7fa12f90cc09a04478593018868c359ec284eb2
+      matches: true
+    - path: apps/web/src/electronics/testing/component-information.spec.ts
+      expected_sha256: ccb21a5621bf1e55b690a97c14eaaad71a5bf0e9e16948320d2cfe19055c41c3
+      actual_sha256: ccb21a5621bf1e55b690a97c14eaaad71a5bf0e9e16948320d2cfe19055c41c3
+      matches: true
+    - path: e2e/electronics-simulation.spec.ts
+      expected_sha256: 0ffeaa5ed1f22fabea3dd5c2fd23ac3425d7c455f398827e44ba7da08d6cc657
+      actual_sha256: 0ffeaa5ed1f22fabea3dd5c2fd23ac3425d7c455f398827e44ba7da08d6cc657
+      matches: true
+  hand_edited_by_this_task: false
+  regenerated_by_this_task: false
+  u01_dependency: Changing model-identity.ts requires canonical regeneration of this output; controller adds exactly
+    this generated-only ninth path before product authoring.
+historical_and_protected:
+  historical_class: historical-evidence
+  historical_paths:
+  - docs/product/electronics/tasks/**
+  - docs/product/electronics/evidence/**
+  - docs/delivery/evidence/electronics-opt0/**
+  historical_delta_counts:
+    A: 32
+    M: 2
+    D: 0
+    R: 0
+  historical_deletions_or_renames: []
+  historical_evidence_preserved: true
+  previous_checkpoint_preserved: true
+  protected_asset_class: protected-owner-asset
+  protected_trees:
+  - path: apps/web/public/assets/electronics/owner-supplied
+    previous_tree: 1314b45c0c38f9d3bfaa905526e34a0840e67d86
+    current_tree: 1314b45c0c38f9d3bfaa905526e34a0840e67d86
+    unchanged: true
+  - path: apps/web/public/assets/electronics/owner-audit
+    previous_tree: 87b2a4ba91a1bdfbeea0997d5df3a321757f03fe
+    current_tree: 87b2a4ba91a1bdfbeea0997d5df3a321757f03fe
+    unchanged: true
+  protected_owner_assets_preserved: true
+  preservation_evidence: Both protected subtree IDs are identical at the pinned endpoints. This controller change
+    preserves existing historical records except the expressly assigned U01 card clarification; no original owner
+    artwork, backup or project changes.
+actual_removals: []
+removal_evidence: No source, route, generated, historical or protected deletion/rename in the bounded measured delta.
+  No removal is performed or authorized by this checkpoint.
+residual_debt:
+- concern: All nine large sources retain decomposition debt. Arduino runtime has 112 bytes of headroom, CSS 1051,
+    workbench hook2370 and ArduinoCodePanel2190. Solver has37774 bytes; none of these limits is changed.
+  owner_selectable_followup: Select a responsibility review before any source crosses its existing limit; U01 remains
+    only its four product files.
+- concern: Live helpers, dual Arduino clocks, shared draft schemas1/2 and late Arduino media refresh remain actual
+    dependencies.
+  owner_selectable_followup: Keep all inherited concrete retirement proofs; migrate callers/schema/renderer only in
+    a separately selected slice.
+- concern: Three source integrations have distinct pending formal acceptance boundaries.
+  owner_selectable_followup: Their responsible controllers resolve those receipts; this checkpoint reviews the complete
+    current source endpoint without accepting their product claims.
+- concern: U00 historical load/timing/ground/no-echo failures and block-codegen defect remain evidence.
+  owner_selectable_followup: U01 owns only UL-E01, phases and compatibility; U02/U03/U04 and pre-U05A codegen coordination
+    remain separately selected work.
+production_source_changed_by_this_task: false
+test_source_changed_by_this_task: false
+generated_output_changed_by_this_task: false
+protected_asset_changed_by_this_task: false
+baseline_changed_by_this_task: false
+measurements_repeated_by_this_task: false
+independent_review_claimed_by_author: false
+owner_acceptance_claimed: false
+release_or_deployment_claimed: false
+task_selection_authorized_by_this_evidence: false

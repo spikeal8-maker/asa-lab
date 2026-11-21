@@ -12,6 +12,7 @@ import type pg from 'pg';
 import type {
   OwnProgressGroupV1,
   PersonalProgressSummaryV1,
+  GroupRatingPageV1,
 } from '../packages/contracts/src/personal-progress';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
@@ -2047,20 +2048,21 @@ function sp03Number(value: number): string {
 }
 
 async function sp03AssertGroup(page: Page, expected: OwnProgressGroupV1) {
-  // Use the UUID on the article itself; no learner roster names are selectors.
-  const article = page.locator(
-    `[data-testid="own-progress-group"][data-group-id="${expected.groupId}"]`,
-  );
+  const selector = '[data-testid="own-progress-group"][data-group-id="' + expected.groupId + '"]';
+  const article = page.locator(selector);
   await expect(article).toBeVisible();
   await expect(article.getByRole('heading', { level: 3 })).toHaveText(expected.title);
-  await expect(article.locator('header > span')).toHaveText(`${expected.periodDays} дней`);
+  await expect(article.locator('header > span')).toHaveText(String(expected.periodDays) + ' дней');
   for (const [field, testId] of [
     ['rank', 'own-progress-rank'],
     ['score', 'own-progress-score'],
   ] as const) {
-    if (expected.own[field] === null) await expect(article.getByTestId(testId)).toHaveCount(0);
-    else await expect(article.getByTestId(testId)).toHaveText(sp03Number(expected.own[field]));
+    await expect(article.getByTestId(testId)).toHaveText(
+      expected.own[field] === null ? '—' : sp03Number(expected.own[field]),
+    );
   }
+  await expect(article.locator('.personal-progress-self-compact')).toContainText('Вы');
+  await expect(article.locator('.personal-progress-group-avatar')).toHaveCount(0);
   if (expected.own.availability === 'unavailable')
     await expect(article).toContainText('Учебный профиль нужно уточнить у преподавателя.');
   else if (expected.own.score === null && expected.own.rank === null)
@@ -2071,88 +2073,56 @@ async function sp03Geometry(page: Page): Promise<void> {
   await page.evaluate(() => document.fonts.ready);
   const progress = page.getByTestId('personal-progress');
   await expect(progress).not.toContainText(/из\s+\d|\/\s*100|99\+/);
-  const results = await progress.locator('.personal-progress-group').evaluateAll((groups) =>
+  await expect(page.locator('.personal-progress-hero')).toHaveCount(0);
+  const rows = await progress.locator('.personal-progress-group').evaluateAll((groups) =>
     groups.map((group) => {
-      const avatar = group.querySelector<HTMLElement>('.personal-progress-group-avatar')!;
-      const a = avatar.getBoundingClientRect();
-      const g = group.getBoundingClientRect();
-      const styles = getComputedStyle(avatar);
-      const rankRect = group
-        .querySelector('[data-testid="own-progress-rank"]')
-        ?.getBoundingClientRect();
-      const scoreRect = group
-        .querySelector('[data-testid="own-progress-score"]')
-        ?.getBoundingClientRect();
-      // Both badges intentionally overlap the avatar, but never each other.
-      const badgesDisjoint =
-        !rankRect ||
-        !scoreRect ||
-        rankRect.right <= scoreRect.left ||
-        scoreRect.right <= rankRect.left ||
-        rankRect.bottom <= scoreRect.top ||
-        scoreRect.bottom <= rankRect.top;
-      const badges = ['rank', 'score']
-        .map((kind) => {
-          const badge = group.querySelector<HTMLElement>(`[data-testid="own-progress-${kind}"]`);
-          if (!badge) return null;
-          const r = badge.getBoundingClientRect();
-          const range = document.createRange();
-          range.selectNodeContents(badge);
-          const text = range.getBoundingClientRect();
-          return {
-            kind,
-            correctCorner:
-              kind === 'rank'
-                ? r.left + r.width / 2 < a.left + a.width / 2 &&
-                  r.top + r.height / 2 < a.top + a.height / 2
-                : r.left + r.width / 2 > a.left + a.width / 2 &&
-                  r.top + r.height / 2 > a.top + a.height / 2,
-            textInside:
-              text.left >= r.left - 1 &&
-              text.right <= r.right + 1 &&
-              text.top >= r.top - 1 &&
-              text.bottom <= r.bottom + 1,
-            insideGroup:
-              r.left >= g.left && r.right <= g.right && r.top >= g.top && r.bottom <= g.bottom,
-            fontSize: Number.parseFloat(getComputedStyle(badge).fontSize),
-          };
-        })
-        .filter((badge) => badge !== null);
-      const unclipped = [
-        ...group.querySelectorAll('h3,.personal-progress-group-note,.personal-progress-you'),
-      ].every((node) => {
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        return [...range.getClientRects()].every(
-          (r) =>
-            r.left >= g.left - 1 &&
-            r.right <= g.right + 1 &&
-            r.top >= g.top - 1 &&
-            r.bottom <= g.bottom + 1,
-        );
-      });
+      const body = group.querySelector<HTMLElement>('.personal-progress-group-body')!;
+      const self = group.querySelector<HTMLElement>('.personal-progress-self-compact')!;
+      const peers = [
+        ...group.querySelectorAll<HTMLElement>('.personal-progress-peers .personal-progress-peer'),
+      ];
+      const bodyBox = body.getBoundingClientRect();
+      const selfBox = self.getBoundingClientRect();
+      const metrics = [
+        ...group.querySelectorAll<HTMLElement>(
+          '[data-testid="own-progress-rank"],[data-testid="own-progress-score"]',
+        ),
+      ];
       return {
-        badges,
-        badgesDisjoint,
-        unclipped,
-        circle: Math.abs(a.width - a.height) < 1,
-        ring:
-          styles.borderTopColor === 'rgb(8, 119, 179)' &&
-          Number.parseFloat(styles.borderTopWidth) >= 2 &&
-          styles.boxShadow !== 'none',
+        selfWithin: selfBox.left >= bodyBox.left - 1 && selfBox.right <= bodyBox.right + 1,
+        selfFirst:
+          peers.length === 0 || selfBox.right <= peers[0]!.getBoundingClientRect().left + 1,
+        metricsReadable:
+          metrics.length === 2 &&
+          metrics.every(
+            (item) =>
+              item.textContent?.trim() && Number.parseFloat(getComputedStyle(item).fontSize) >= 11,
+          ),
+        widthOverflow: body.scrollWidth > body.clientWidth + 1,
+        count: peers.length,
+        peerCells: peers.map((peer) => {
+          const box = peer.getBoundingClientRect();
+          const avatar = peer.querySelector<HTMLElement>('.personal-progress-peer-avatar');
+          const size = avatar?.getBoundingClientRect().width ?? 0;
+          return {
+            inside: box.left >= bodyBox.left - 1 && box.right <= bodyBox.right + 1,
+            size,
+            label: peer.getAttribute('aria-label') ?? '',
+          };
+        }),
       };
     }),
   );
-  for (const result of results) {
-    expect(result.circle).toBe(true);
-    expect(result.ring).toBe(true);
-    expect(result.badgesDisjoint).toBe(true);
-    expect(result.unclipped).toBe(true);
-    for (const badge of result.badges) {
-      expect(badge.correctCorner).toBe(true);
-      expect(badge.textInside).toBe(true);
-      expect(badge.insideGroup).toBe(true);
-      expect(badge.fontSize).toBeGreaterThanOrEqual(11);
+  for (const row of rows) {
+    expect(row.selfWithin).toBe(true);
+    expect(row.selfFirst).toBe(true);
+    expect(row.metricsReadable).toBe(true);
+    expect(row.widthOverflow).toBe(false);
+    expect(row.count).toBeLessThanOrEqual(20);
+    for (const peer of row.peerCells) {
+      expect(peer.inside).toBe(true);
+      expect(peer.size).toBeGreaterThanOrEqual(32);
+      expect(peer.label).not.toMatch(/studentCode|seatId|displayName|lastActiveAt|teacherRoster/i);
     }
   }
   await expectNoOverflow(page);
@@ -2323,6 +2293,88 @@ test('SP-03 ordinary Account joins three real groups and sees canonical own rank
       expect(grade.value).toMatchObject({ value: 100, revision: 1 });
     const summary = await sp03Summary(page);
     const items = summary.groups.items!;
+
+    // SP-04: one genuine SQL rating for the same authenticated Account/group;
+    // do not assert against mocked JSON, hidden roster or teacher projection.
+    const ratingUrl = `/api/progress/groups/${fractionalGroup.id}/rating`;
+    const bounded = await page.request.get(`${ratingUrl}?view=preview&limit=5`);
+    await ok(bounded);
+    expect(bounded.headers()['cache-control']).toContain('no-store');
+    const previewRating = (await bounded.json()) as GroupRatingPageV1;
+    expect(previewRating.groupId).toBe(fractionalGroup.id);
+    expect(previewRating.own).toEqual({
+      availability: 'available',
+      score: 68.25,
+      rank: 101,
+      isSelf: true,
+    });
+    expect(previewRating.periodDays).toBe(90);
+    expect(previewRating.peers).toHaveLength(5);
+    expect(previewRating.peers.every((peer) => peer.score === 100 && peer.rank === 1)).toBe(true);
+    for (const peer of previewRating.peers) {
+      expect(Object.keys(peer).sort()).toEqual(
+        ['peerKey', 'avatarSrc', 'avatarTicket', 'score', 'rank', 'isSelf'].sort(),
+      );
+      expect(peer.isSelf).toBe(false);
+      expect(peer.peerKey.length).toBe(27);
+      expect(peer.avatarSrc).toMatch(/^\/assets\/avatars\/default\/avatar-\d{2}\.webp$/);
+    }
+    const serialized = JSON.stringify(previewRating);
+    for (const row of peers.rows) expect(serialized).not.toContain(row.id);
+    expect(serialized).not.toMatch(
+      /"(?:displayName|displayLabel|studentCode|email|lastActiveAt|grades|factors|sources|seatId|tenantId|teacherRoster|totalWorks)"\s*:/,
+    );
+    let cursor: string | null = null;
+    const seenPeers = new Set<string>();
+    let pages = 0;
+    let firstFull: GroupRatingPageV1 | null = null;
+    do {
+      const url = `${ratingUrl}?view=all${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const response = await page.request.get(url);
+      await ok(response);
+      expect(response.headers()['cache-control']).toContain('no-store');
+      const next = (await response.json()) as GroupRatingPageV1;
+      firstFull ??= next;
+      expect(next.version).toBe(previewRating.version);
+      expect(next.own.rank).toBe(101);
+      expect(next.peers.length).toBeGreaterThan(0);
+      expect(next.peers.length).toBeLessThanOrEqual(20);
+      for (const peer of next.peers) {
+        expect(seenPeers.has(peer.peerKey)).toBe(false);
+        seenPeers.add(peer.peerKey);
+      }
+      cursor = next.nextCursor;
+      expect(next.hasMore).toBe(cursor !== null);
+      if (cursor) {
+        expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
+        expect(Buffer.from(cursor, 'base64url').toString('utf8')).not.toContain(peers.rows[0]!.id);
+      }
+      pages += 1;
+      expect(pages).toBeLessThanOrEqual(6);
+    } while (cursor);
+    expect(pages).toBe(5);
+    expect(seenPeers.size).toBe(100);
+    expect(firstFull!.peers.map((peer) => peer.peerKey).slice(0, 5)).toEqual(
+      previewRating.peers.map((peer) => peer.peerKey),
+    );
+    const foreignGroup = await page.request.get(
+      `/api/progress/groups/${randomUUID()}/rating?view=preview`,
+    );
+    expect(foreignGroup.status()).toBe(403);
+    const badTicket = await page.request.post(
+      `/api/progress/groups/${fractionalGroup.id}/avatars`,
+      {
+        headers: { origin: origin(page) },
+        data: { tickets: [Buffer.from(peers.rows[0]!.id).toString('base64url')] },
+      },
+    );
+    expect(badTicket.status()).toBe(400);
+    const anonymous = await browser.newContext({ baseURL: origin(page) });
+    try {
+      expect((await anonymous.request.get(`${ratingUrl}?view=preview`)).status()).toBe(401);
+    } finally {
+      await anonymous.close();
+    }
     expect(items[0]!.own).toEqual({ availability: 'available', score: 68.25, rank: 101 });
     expect(sp03Number(items[0]!.own.score!)).toBe('68,25');
     expect(items[1]!.own).toEqual({ availability: 'available', score: 0, rank: 1 });
@@ -2346,6 +2398,43 @@ test('SP-03 ordinary Account joins three real groups and sees canonical own rank
         'Скрытое имя одногруппника',
       );
       await sp03Geometry(page);
+      // SP-04: the initial DOM contains exactly the server-bounded peer slice,
+      // never a hidden 100-person roster or peer names in alt/ARIA/tooltips.
+      const firstGroup = page.locator(
+        `[data-testid="own-progress-group"][data-group-id="${fractionalGroup.id}"]`,
+      );
+      await expect
+        .poll(async () => firstGroup.locator('.personal-progress-peer').count())
+        .toBeGreaterThanOrEqual(width >= 1024 ? 6 : 1);
+      const visiblePeers = await firstGroup.locator('.personal-progress-peer').count();
+      expect(visiblePeers).toBeLessThanOrEqual(20);
+      await expect(page.locator('.personal-progress-hero')).toHaveCount(0);
+      await expect(firstGroup.getByTestId('own-progress-rank')).toHaveText('101');
+      await expect(firstGroup.getByTestId('own-progress-score')).toHaveText('68,25');
+      const peerDom = await firstGroup
+        .locator('.personal-progress-peers')
+        .evaluate((element) => element.outerHTML);
+      expect(peerDom).not.toMatch(
+        /displayName|displayLabel|studentCode|lastActiveAt|seatId|teacherRoster/,
+      );
+      for (const row of peers.rows) expect(peerDom).not.toContain(row.id);
+      await page.screenshot({ path: `${EVIDENCE}/sp04-account-home-${width}.png`, fullPage: true });
+      const allButton = firstGroup.getByRole('button', { name: 'Все', exact: true });
+      await allButton.focus();
+      await page.keyboard.press('Enter');
+      const ratingDialog = page.getByRole('dialog', { name: new RegExp('Рейтинг группы') });
+      await expect(ratingDialog).toBeVisible();
+      await expect(
+        ratingDialog.locator('.personal-progress-rating-items .personal-progress-peer'),
+      ).toHaveCount(20);
+      await expect(ratingDialog.locator('.personal-progress-rating-pinned')).toContainText('101');
+      await expect(ratingDialog).not.toContainText('sp03peer');
+      await ratingDialog.screenshot({ path: `${EVIDENCE}/sp04-account-all-${width}.png` });
+      const closedByKeyboard = width === 320;
+      if (closedByKeyboard) await page.keyboard.press('Escape');
+      else await ratingDialog.getByRole('button', { name: 'Закрыть' }).click();
+      await expect(ratingDialog).toHaveCount(0);
+      await expect(allButton).toBeFocused();
       const shell = await sp03Shell(page);
       const allGroups = page
         .getByTestId('personal-progress')
@@ -2383,18 +2472,19 @@ test('SP-03 ordinary Account joins three real groups and sees canonical own rank
     await expect(page.getByTestId('own-progress-score').first()).toHaveText('68,25');
     for (const width of [380, 381, 520, 521]) {
       await page.getByTestId('personal-progress').evaluate((element, size) => {
-        (element as HTMLElement).style.width = `${size}px`;
+        (element as HTMLElement).style.width = String(size) + 'px';
       }, width);
-      await expect
-        .poll(
-          async () =>
-            (await page.locator('.personal-progress-group-avatar').first().boundingBox())?.width,
-        )
-        .toBe(width <= 380 ? 44 : width <= 520 ? 54 : 68);
+      const peers = page.locator(
+        '[data-testid="own-progress-group"][data-group-id="' +
+          fractionalGroup.id +
+          '"] .personal-progress-peers .personal-progress-peer',
+      );
+      await expect.poll(async () => peers.count()).toBeGreaterThanOrEqual(1);
+      expect(await peers.count()).toBeLessThanOrEqual(20);
       await sp03Geometry(page);
-      await page
-        .getByTestId('personal-progress')
-        .screenshot({ path: `${EVIDENCE}/sp03-progress-container-${width}.png` });
+      await page.getByTestId('personal-progress').screenshot({
+        path: EVIDENCE + '/sp03-progress-container-' + width + '.png',
+      });
     }
     await page.getByTestId('personal-progress').evaluate((element) => {
       (element as HTMLElement).style.removeProperty('width');
@@ -2472,12 +2562,12 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
     expect(empty.groups.items).toEqual([]);
     for (const name of ['everPublishedWorks', 'currentLikes', 'createdCopies'] as const) {
       expect(empty.metrics[name]).toEqual({ availability: 'available', value: 0 });
-      await expect(page.getByTestId(`progress-${name}`).locator('dd')).toHaveText('0');
+      await expect(page.getByTestId(`profile-full-${name}`).locator('span')).toHaveText('0');
     }
     await expect(page.getByTestId('own-progress-group')).toHaveCount(0);
-    await expect(
-      page.getByTestId('personal-progress').getByRole('link', { name: 'Все группы' }),
-    ).toHaveCount(0);
+    await expect(page.getByTestId('personal-progress')).toHaveCount(0);
+    await expect(page.locator('.personal-progress-next')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Все группы' })).toHaveCount(0);
     await sp03Directions(page);
     await page.setViewportSize({ width: 320, height: 900 });
     await page.screenshot({ path: `${EVIDENCE}/sp03-school-free-empty-320.png`, fullPage: true });
@@ -2575,20 +2665,27 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
       ['currentLikes', '1'],
       ['createdCopies', '1'],
     ] as const)
-      await expect(page.getByTestId(`progress-${metric}`).locator('dd')).toHaveText(value);
-    await expect(page.getByTestId('progress-createdCopies').locator('dd')).toHaveAttribute(
+      await expect(page.getByTestId(`profile-full-${metric}`).locator('span')).toHaveText(value);
+    await expect(page.getByTestId('progress-createdCopies')).toHaveAttribute(
       'aria-label',
-      'Копии ваших работ: 1',
+      'Добавили к себе: 1',
     );
-    await expect(page.getByTestId('personal-progress')).not.toContainText(/скачиван/i);
-    await page.getByTestId('personal-progress').getByText('О показателях', { exact: true }).click();
-    await expect(page.getByTestId('personal-progress')).toContainText(
-      'Общий рейтинг ещё не рассчитывается.',
+    // At 320px the sidebar is a closed drawer: expand it before interacting
+    // with the disclosure rather than waiting forever for an invisible summary.
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await expect(page.locator('#portal-sidebar')).toHaveClass(/mobile-open/);
+    await page.getByTestId('profile-metric-strip').locator('summary').click();
+    await expect(page.locator('.portal-sidebar-metric-details')).toBeVisible();
+    await expect(page.locator('.portal-sidebar-metric-details')).toContainText('а не скачивания');
+    await expect(page.locator('.portal-sidebar-metric-details')).toContainText(
+      'Общий личный рейтинг пока не рассчитывается.',
     );
     await page.screenshot({
       path: `${EVIDENCE}/sp03-real-publication-metrics-320.png`,
       fullPage: true,
     });
+    await page.locator('#portal-sidebar .portal-menu-close').click();
+    await expect(page.locator('#portal-sidebar')).not.toHaveClass(/mobile-open/);
     const privateCopy = await reader.page.request.get(`/api/projects/${copied.projectId}`);
     await ok(privateCopy);
     expect((await privateCopy.json()).project.copiedFrom).toMatchObject({
@@ -2631,17 +2728,17 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
     await page.route('**/api/modules', fail);
     await page.route('**/api/projects?*', fail);
     await page.reload();
-    await expect(page.getByTestId('personal-progress')).toContainText(
-      'Не удалось загрузить прогресс.',
+    await expect(page.getByTestId('profile-metric-strip')).toContainText(
+      'Сейчас не удалось получить подтверждённые показатели.',
     );
     for (const metric of ['everPublishedWorks', 'currentLikes', 'createdCopies'])
-      await expect(page.getByTestId(`progress-${metric}`).locator('dd')).toHaveText('—');
+      await expect(page.getByTestId(`profile-full-${metric}`).locator('span')).toHaveText('—');
     await sp03Directions(page);
     await expect(page.locator('.creator-module-section .home-module-error')).toHaveCount(4);
     await expect(page.locator('.creator-module-section .home-create-button:disabled')).toHaveCount(
       4,
     );
-    const fallback = page.locator('.personal-progress-hero-avatar img');
+    const fallback = page.locator('.portal-sidebar-avatar img');
     await expect(fallback).toHaveAttribute('src', /^\/assets\/avatars\/default\/avatar-\d+\.webp$/);
     await expect
       .poll(() =>
@@ -2672,12 +2769,22 @@ test('SP-03 school-free Account sees durable publication feedback, complete copy
     await page.unroute('**/api/progress/summary*', fail);
     await page.unroute('**/api/account/avatar', fail);
     await page.unroute('**/api/modules', fail);
-    await page.getByRole('button', { name: 'Повторить загрузку прогресса', exact: true }).click();
+    // Reload closed the mobile drawer and its disclosure; open both before retry.
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await expect(page.locator('#portal-sidebar')).toHaveClass(/mobile-open/);
+    await page.getByTestId('profile-metric-strip').locator('summary').click();
+    await page
+      .getByTestId('profile-metric-strip')
+      .getByRole('button', { name: 'Повторить загрузку прогресса', exact: true })
+      .click();
+    await expect(page.getByTestId('profile-full-createdCopies').locator('span')).toHaveText('1');
+    await page.locator('#portal-sidebar .portal-menu-close').click();
+    await expect(page.locator('#portal-sidebar')).not.toHaveClass(/mobile-open/);
     await page
       .locator('.portal-create-notice')
       .getByRole('button', { name: 'Повторить', exact: true })
       .click();
-    await expect(page.getByTestId('progress-createdCopies').locator('dd')).toHaveText('1');
+    await expect(page.getByTestId('profile-full-createdCopies').locator('span')).toHaveText('1');
     await expect(
       page.locator('.creator-module-section[data-module="electronics"] .home-create-button'),
     ).toBeEnabled();
@@ -2727,13 +2834,40 @@ test('SP-03 StudentSeat code login shows only Seat progress and preserves existi
     expect(summary.scope).toEqual({ kind: 'seat', seatId, classroomId: group.id });
     expect(summary.groups.items).toHaveLength(1);
     expect(summary.groups.items![0]!.own).toEqual({ availability: 'available', score: 0, rank: 1 });
+    // SP-04: StudentSeat has its own authenticated route and never adopts
+    // linked Account privileges even if the Account owns private publications.
+    const seatRatingResponse = await page.request.get(
+      `/api/class-join/progress/groups/${group.id}/rating?view=preview&limit=5`,
+    );
+    await ok(seatRatingResponse);
+    expect(seatRatingResponse.headers()['cache-control']).toContain('no-store');
+    const seatRating = (await seatRatingResponse.json()) as GroupRatingPageV1;
+    expect(seatRating.groupId).toBe(group.id);
+    expect(seatRating.periodDays).toBe(7);
+    expect(seatRating.own).toEqual({
+      availability: 'available',
+      score: 0,
+      rank: 1,
+      isSelf: true,
+    });
+    expect(seatRating.peers).toEqual([]);
+    expect((await page.request.get(`/api/progress/groups/${group.id}/rating`)).status()).toBe(401);
+    expect(
+      (
+        await page.request.get(
+          `/api/class-join/progress/groups/${randomUUID()}/rating?view=preview`,
+        )
+      ).status(),
+    ).toBe(403);
     for (const name of ['everPublishedWorks', 'currentLikes', 'createdCopies'] as const)
       expect(summary.metrics[name]).toEqual({ availability: 'available', value: 0 });
     for (const width of SP03_WIDTHS) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/#/home');
       await sp03AssertGroup(page, summary.groups.items![0]!);
-      await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('0');
+      await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+        '0',
+      );
       await expect(page.locator('.creator-module-feed')).not.toContainText(
         'Работа только личного аккаунта',
       );
@@ -3015,7 +3149,9 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     );
     await page.goto('/#/home');
     await page.reload();
-    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('1');
+    await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+      '1',
+    );
     await expect(page.locator('.creator-module-feed')).toContainText(title);
     const stamp = randomUUID();
     await page.evaluate((value) => {
@@ -3024,7 +3160,10 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     pending = await sp03HoldPrivateResponses(page);
     await switchWorkspace(page, 'Рабочая группа SP03');
     await pending.ready();
-    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('—');
+    // A pending new-scope request displays loading, never the previous actor's 1.
+    await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+      '…',
+    );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
     await page.screenshot({
       path: `${EVIDENCE}/sp03-workspace-private-pending-1440.png`,
@@ -3034,7 +3173,9 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     pending = null;
     // Account-wide publication history may legitimately survive a workspace
     // switch, but only from a fresh, verified response; project lists may not.
-    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('1');
+    await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+      '1',
+    );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
     await switchWorkspace(page, PERSONAL_WORKSPACE);
     await expect(page.locator('.creator-module-feed')).toContainText(title);
@@ -3045,7 +3186,10 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     expect(
       await page.evaluate(() => (window as Window & { sp03Document?: string }).sp03Document),
     ).toBe(stamp);
-    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('—');
+    // The same account's new identity lifetime must not display cached data.
+    await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+      '…',
+    );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
     await page.screenshot({
       path: `${EVIDENCE}/sp03-same-account-new-lifetime-pending-1440.png`,
@@ -3053,7 +3197,9 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     });
     await pending.release();
     pending = null;
-    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('1');
+    await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+      '1',
+    );
     await expect(page.locator('.creator-module-feed')).toContainText(title);
 
     oldResponse = await sp03HoldOldSummary(page, account.accountId);
@@ -3070,9 +3216,13 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
     // pass unchanged while those actual old bytes remain paused (or are aborted).
     await sp03Logout(page);
     await sp03SignIn(page, other.account!);
-    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('0');
+    await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+      '0',
+    );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
-    await expect(page.locator('.personal-progress-person')).toHaveText('Второй личный автор SP03');
+    await expect(page.locator('.portal-sidebar-profile-copy strong')).toHaveText(
+      'Второй личный автор SP03',
+    );
     const freshSummary = await sp03Summary(page);
     expect(freshSummary.scope).toEqual({ kind: 'account', accountId: other.account!.accountId });
     expect(freshSummary.metrics.everPublishedWorks).toEqual({
@@ -3088,9 +3238,13 @@ test('SP-03 private Home clears across workspace, actor and same-ID logout/relog
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
-    await expect(page.getByTestId('progress-everPublishedWorks').locator('dd')).toHaveText('0');
+    await expect(page.getByTestId('profile-full-everPublishedWorks').locator('span')).toHaveText(
+      '0',
+    );
     await expect(page.locator('.creator-module-feed')).not.toContainText(title);
-    await expect(page.locator('.personal-progress-person')).toHaveText('Второй личный автор SP03');
+    await expect(page.locator('.portal-sidebar-profile-copy strong')).toHaveText(
+      'Второй личный автор SP03',
+    );
     await test.info().attach('sp03-old-summary-retirement', {
       contentType: 'application/json',
       body: Buffer.from(
@@ -3298,8 +3452,9 @@ test('SP-03 next learning action follows real canonical project and quiz states 
         ?.workflowState,
     ).toBe('submitted');
     await page.reload();
-    await expect(next.getByRole('link')).toHaveText('Открыть обучение');
-    await expect(next).not.toContainText(title);
+    await expect(next.getByRole('link')).toHaveCount(0);
+    // The compact Home removes the whole next-action section when no action exists.
+    await expect(next).toHaveCount(0);
     const reviewed = await teacher.page.request.post(
       `/api/classrooms/${group.id}/attempts/${submission.attemptId}/review`,
       {
@@ -3320,7 +3475,7 @@ test('SP-03 next learning action follows real canonical project and quiz states 
         ?.workflowState,
     ).toBe('completed');
     await page.reload();
-    await expect(next.getByRole('link')).toHaveText('Открыть обучение');
+    await expect(next.getByRole('link')).toHaveCount(0);
     expect(await attempts(run.assignmentId)).toBe(1);
 
     const quizTitle = 'Ответить на учебный вопрос SP03';
@@ -3478,8 +3633,9 @@ test('SP-03 next learning action follows real canonical project and quiz states 
       attempt: { attemptId: quizAttemptId, state: 'closed' },
     });
     await expect(next.getByRole('status')).toHaveCount(0);
-    await expect(next.getByRole('link')).toHaveText('Открыть обучение');
-    await expect(next).not.toContainText(quizTitle);
+    await expect(next.getByRole('link')).toHaveCount(0);
+    // The compact Home removes the entire next-action block after quiz completion.
+    await expect(next).toHaveCount(0);
     expect(await attempts(quizRun.assignmentId)).toBe(1);
     await page.screenshot({
       path: `${EVIDENCE}/sp03-completed-quiz-no-repeat-320.png`,

@@ -150,6 +150,7 @@ function LearningWorkspace({
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
   readonly quizDrafts: SeatQuizDraftStore;
 }): JSX.Element {
+  const [overviewEmpty, setOverviewEmpty] = useState(false);
   const requestedTab = learningSection(window.location.hash);
   const destination = useLearningDestination();
   const explicitView = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('view');
@@ -186,8 +187,26 @@ function LearningWorkspace({
     };
   }, [assignment, lookupKey, lookupRetry, seat]);
   const navigation = (
-    <nav aria-label="Разделы моего обучения" className="learning-workspace-nav">
-      {sections.map(([id, title]) => (
+    <nav
+      aria-label="Разделы моего обучения"
+      className="learning-workspace-nav asa-system-tabs"
+      onFocusCapture={(event) => {
+        const anchor = event.target;
+        const rail = event.currentTarget;
+        if (!(anchor instanceof HTMLAnchorElement)) return;
+        const visible = rail.getBoundingClientRect();
+        const focused = anchor.getBoundingClientRect();
+        if (focused.left < visible.left) rail.scrollLeft -= visible.left - focused.left + 4;
+        else if (focused.right > visible.right)
+          rail.scrollLeft += focused.right - visible.right + 4;
+      }}
+    >
+      {(overviewEmpty && !seat && tab === 'overview'
+        ? sections.filter(
+            ([id]) => id === 'overview' || id === 'courses' || id === 'classes' || id === 'self',
+          )
+        : sections
+      ).map(([id, title]) => (
         <a key={id} href={sectionHref(id)} aria-current={tab === id ? 'page' : undefined}>
           {title}
         </a>
@@ -225,7 +244,7 @@ function LearningWorkspace({
             <p role="status">Загружаем задание…</p>
           )
         ) : tab === 'overview' ? (
-          <LearningOverview seat={seat !== null} actor={actor} />
+          <LearningOverview seat={seat !== null} actor={actor} onEmptyChange={setOverviewEmpty} />
         ) : tab === 'self' ? (
           <section className="learning-empty" aria-label="Самостоятельное обучение">
             <h2>Учитесь в своём темпе</h2>
@@ -277,9 +296,11 @@ function LearningWorkspace({
 function LearningOverview({
   seat,
   actor,
+  onEmptyChange,
 }: {
   readonly seat: boolean;
   readonly actor: OwnProgressActor;
+  readonly onEmptyChange: (empty: boolean) => void;
 }): JSX.Element {
   const progress = usePersonalProgress(actor);
   const readAssignments = useCallback(
@@ -301,14 +322,41 @@ function LearningOverview({
   };
   const loading = assignments.loading || courses.loading || results.loading;
   const failed = assignments.error || courses.error || results.error;
+  const settled =
+    assignments.settled && courses.settled && results.settled && progress.summary.settled;
+  const empty =
+    settled &&
+    !loading &&
+    !failed &&
+    !progress.summary.error &&
+    progress.summary.data?.groups.availability === 'available' &&
+    progress.groups.length === 0 &&
+    data.assignments?.length === 0 &&
+    data.courses?.length === 0 &&
+    data.results?.length === 0;
+  useEffect(() => onEmptyChange(Boolean(empty)), [empty, onEmptyChange]);
   const retry = () => {
     if (assignments.error) assignments.reload();
     if (courses.error) courses.reload();
     if (results.error) results.reload();
   };
+  const metricItems = (
+    [
+      ['assignments', 'Выдано заданий', data.assignments],
+      ['courses', 'Курсы', data.courses],
+      ['results', 'Опубликовано результатов', data.results],
+    ] as const
+  ).filter(([, , items]) => (items?.length ?? 0) > 0);
+  const hasAssignments = (data.assignments?.length ?? 0) > 0;
+  const hasResults = (data.results?.length ?? 0) > 0;
+  const hasGroups = progress.groups.length > 0;
   return (
     <>
-      <PersonalProgress actor={actor} progress={progress} mode="learning" />
+      {hasGroups ||
+      progress.summary.error ||
+      progress.summary.data?.groups.availability === 'unavailable' ? (
+        <PersonalProgress actor={actor} progress={progress} mode="learning" />
+      ) : null}
       {loading ? <p role="status">Загружаем обзор обучения…</p> : null}
       {failed ? (
         <p role="alert">
@@ -318,68 +366,86 @@ function LearningOverview({
           </button>
         </p>
       ) : null}
-      <div className="learning-overview-metrics">
-        {(
-          [
-            ['assignments', 'Выдано заданий', data?.assignments],
-            ['courses', 'Курсы', data?.courses],
-            ['results', 'Опубликовано результатов', data?.results],
-          ] as const
-        ).map(([id, title, items]) => (
-          <a key={id} href={sectionHref(id)}>
-            <span>{title}</span>
-            <strong>{items ? items.length : '—'}</strong>
-            <small>Открыть раздел →</small>
-          </a>
-        ))}
-      </div>
-      <div className="learning-overview-columns">
-        <section className="learning-overview-panel" aria-labelledby="learning-overview-work">
-          <header>
-            <h2 id="learning-overview-work">Ваши задания</h2>
-            <a href={sectionHref('assignments')}>Все задания →</a>
-          </header>
-          {data?.assignments?.length === 0 ? <p>Заданий пока нет.</p> : null}
-          {assignments.error ? <p>Не удалось загрузить задания.</p> : null}
-          <ul>
-            {data?.assignments?.slice(0, 3).map((item) => (
-              <li key={item.id}>
-                <a href={assignmentHref(item.id)}>{item.title}</a>
-                {'classroomTitle' in item ? <small>{String(item.classroomTitle)}</small> : null}
-                <span>
-                  {canonicalLearningLabel(item.canonicalState) ??
-                    (item.submittedAt ? 'Сдано' : item.projectId ? 'В работе' : 'Не начато')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section className="learning-overview-panel" aria-labelledby="learning-overview-results">
-          <header>
-            <h2 id="learning-overview-results">Опубликованные результаты</h2>
-            <a href={sectionHref('results')}>Все результаты →</a>
-          </header>
-          {data?.results?.length === 0 ? (
-            <p>Результаты появятся после публикации преподавателем.</p>
+      {empty ? (
+        <section className="learning-overview-empty" aria-label="Обучение без назначений">
+          <p>
+            {seat
+              ? 'В вашем учебном профиле пока нет заданий, курсов и результатов.'
+              : 'Здесь появятся ваши курсы и задания, когда вы начнёте обучение.'}
+          </p>
+          {!seat ? (
+            <a className="btn-secondary" href="#/knowledge">
+              Открыть знания
+            </a>
           ) : null}
-          {results.error ? <p>Не удалось загрузить результаты.</p> : null}
-          <ul>
-            {data?.results?.slice(0, 3).map((item) => (
-              <li key={item.assignmentId}>
-                <strong>{item.assignmentTitle}</strong>
-                <small>
-                  {item.classroomTitle} · попытка {item.attemptNumber}
-                </small>
-                <span>
-                  {(item.canonicalState
-                    ? item.canonicalState.selectedResult?.displayGrade
-                    : item.displayGrade) ?? 'Без оценки'}
-                </span>
-              </li>
-            ))}
-          </ul>
         </section>
-      </div>
+      ) : null}
+      {!empty && settled && !loading && !failed && metricItems.length === 0 && hasGroups ? (
+        <p className="learning-overview-note">
+          Сейчас нет выданных заданий, курсов или опубликованных результатов.
+        </p>
+      ) : null}
+      {metricItems.length > 0 ? (
+        <div className="learning-overview-metrics">
+          {metricItems.map(([id, title, items]) => (
+            <a key={id} href={sectionHref(id)}>
+              <span>{title}</span>
+              <strong>{items!.length}</strong>
+              <small>Открыть раздел →</small>
+            </a>
+          ))}
+        </div>
+      ) : null}
+      {hasAssignments || hasResults ? (
+        <div className="learning-overview-columns">
+          {hasAssignments ? (
+            <section className="learning-overview-panel" aria-labelledby="learning-overview-work">
+              <header>
+                <h2 id="learning-overview-work">Ваши задания</h2>
+                <a href={sectionHref('assignments')}>Все задания →</a>
+              </header>
+              <ul>
+                {data.assignments?.slice(0, 3).map((item) => (
+                  <li key={item.id}>
+                    <a href={assignmentHref(item.id)}>{item.title}</a>
+                    {'classroomTitle' in item ? <small>{String(item.classroomTitle)}</small> : null}
+                    <span>
+                      {canonicalLearningLabel(item.canonicalState) ??
+                        (item.submittedAt ? 'Сдано' : item.projectId ? 'В работе' : 'Не начато')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {hasResults ? (
+            <section
+              className="learning-overview-panel"
+              aria-labelledby="learning-overview-results"
+            >
+              <header>
+                <h2 id="learning-overview-results">Опубликованные результаты</h2>
+                <a href={sectionHref('results')}>Все результаты →</a>
+              </header>
+              <ul>
+                {data.results?.slice(0, 3).map((item) => (
+                  <li key={item.assignmentId}>
+                    <strong>{item.assignmentTitle}</strong>
+                    <small>
+                      {item.classroomTitle} · попытка {item.attemptNumber}
+                    </small>
+                    <span>
+                      {(item.canonicalState
+                        ? item.canonicalState.selectedResult?.displayGrade
+                        : item.displayGrade) ?? 'Без оценки'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
     </>
   );
 }

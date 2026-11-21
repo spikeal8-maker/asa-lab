@@ -100,6 +100,13 @@ const expectedPending = [
   '0319', // Function-local JIT at the measured canonical read boundaries.
   '0320', // Authorized own progress summary; no identity or score writes.
   '0321', // Qualified ordinary Account admission identity, preserving retained history.
+  '0322', // Authorized learner-safe group rank and avatar pages, no scoring rewrite.
+  '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+  '0324', // Classroom merit history and revocation read (canonical main).
+  '0325', // Direct written assignments reuse the academic submission chain.
+  '0326', // Allow large PDF task attachments.
+  '0327', // Expand supported task attachment formats.
+  '0328', // Safe Mode blocks new publications and retroactive public reads.
 ];
 
 interface Identity {
