@@ -50,9 +50,25 @@ describe('BlocksRuntimeBridge', () => {
       relatedRequestId: '10000000-0000-4000-8000-000000000001',
     };
     const event = { source: target, origin: RUNTIME_ORIGIN, data };
-    expect(bridge.acceptChildMessage(event)).toBe(true);
+    for (const failureCode of [
+      'scratch-save-asset',
+      'scratch-save-asset-missing',
+      'scratch-save-asset-invalid',
+      'scratch-save-asset-response',
+      'scratch-save-draft',
+      'scratch-save-prepare',
+      'scratch-save-exit-timeout',
+      'scratch-save-exit-unavailable',
+      'scratch-save-recovery',
+      'scratch-save-recovery-quota',
+      'scratch-save-recovery-media',
+    ])
+      expect(bridge.acceptChildMessage({ ...event, data: { ...data, failureCode } })).toBe(true);
     for (const change of [
       { failureCode: 'private exception text' },
+      { failureCode: 'scratch-save-draft\n' },
+      { failureCode: 'scratch-save-asset-extra' },
+      { failureCode: 'scratch-save-recovery-private' },
       { failureCode: undefined },
       { durationMs: undefined },
       { durationMs: -1 },

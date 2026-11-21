@@ -22,7 +22,7 @@ import {
   criticalDiagnostic,
   DiagnosticOutbox,
   FAILURE_CATEGORIES,
-  FAILURE_CODES,
+  SIMULATION_FAILURE_CODES,
 } from './client-diagnostic-outbox';
 
 export type DiagnosticCode =
@@ -158,7 +158,10 @@ export function reportClientDiagnostic(
       ...(FAILURE_CATEGORIES.includes(detail.category as (typeof FAILURE_CATEGORIES)[number])
         ? { category: detail.category }
         : {}),
-      ...(FAILURE_CODES.includes(detail.failureCode as (typeof FAILURE_CODES)[number])
+      ...(scratchSave ||
+      SIMULATION_FAILURE_CODES.includes(
+        detail.failureCode as (typeof SIMULATION_FAILURE_CODES)[number],
+      )
         ? { failureCode: detail.failureCode }
         : {}),
       ...(detail.script && ASSET_SCRIPT.test(detail.script) ? { script: detail.script } : {}),
