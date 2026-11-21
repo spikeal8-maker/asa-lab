@@ -6,6 +6,7 @@ import type {
   AiWebSearchAdminUpdate,
   AiWebSearchEvidence,
   AiWebSearchMode,
+  AiWebSearchProbeResult,
   AiWebSearchStatus,
 } from '@asa-lab/contracts';
 import {
@@ -209,6 +210,7 @@ export class AiWebSearchService {
   private readonly toolPolicy: AiToolPolicyService;
   private readonly imageReads = new Map<string, { started: number; count: number }>();
   private static activeImageFetches = 0;
+  private static nextProbeAt = 0;
   constructor(
     private readonly pool: pg.Pool,
     private readonly fetchImpl: typeof fetch = fetch,
@@ -278,6 +280,60 @@ export class AiWebSearchService {
       blockedDomains: r.blocked_domains ?? [],
       searchInstructions: r.search_instructions ?? '',
     };
+  }
+  async probe(actor: string): Promise<AiWebSearchProbeResult> {
+    const config = await this.row(actor);
+    if (!config.enabled || config.operations_per_hour < 1)
+      throw new AiWebSearchError('ai_web_probe_disabled', 409, 'Сетевой доступ к поиску выключен.');
+    if (!this.provider.searchBase)
+      throw new AiWebSearchError('ai_web_probe_unconfigured', 503, 'Поисковый сервис не настроен.');
+    const now = Date.now();
+    // This administrator-only check has its own one-minute process-wide cooldown.
+    // It does not create a chat turn or borrow a customer's search allowance.
+    if (now < AiWebSearchService.nextProbeAt)
+      throw new AiWebSearchError('ai_web_probe_limited', 429, 'Повторите проверку через минуту.');
+    AiWebSearchService.nextProbeAt = now + 60_000;
+    const checkedAt = new Date(now).toISOString();
+    const signal = AbortSignal.timeout(12_000);
+    const modes = await Promise.all(
+      (['web', 'images'] as const).map(async (mode) => {
+        const { evidence: result, diagnostics } = await this.indexedEvidence(
+          {
+            schemaVersion: 1,
+            provider: 'searxng',
+            mode,
+            query: mode === 'web' ? 'официальный сайт ЮНЕСКО' : 'Эйфелева башня',
+            retrievedAt: checkedAt,
+            status: 'unavailable',
+            sources: [],
+            images: [],
+            retrievalOptions: {
+              resultsLimit: config.results_limit ?? 8,
+              pagesLimit: 0,
+              pageCharLimit: config.page_char_limit ?? 4500,
+            },
+          },
+          mode === 'images',
+          signal,
+          config,
+        );
+        const count = mode === 'images' ? result.images.length : result.sources.length;
+        const status =
+          result.reason === 'provider_partial_failure'
+            ? 'partial'
+            : result.reason === 'invalid_results'
+              ? 'invalid'
+              : result.reason === 'domains_filtered'
+                ? 'filtered'
+                : result.status === 'ready'
+                  ? 'results'
+                  : result.status === 'empty'
+                    ? 'empty'
+                    : 'unavailable';
+        return { mode, status, count, ...(diagnostics ? { diagnostics } : {}) } as const;
+      }),
+    );
+    return { checkedAt, modes };
   }
   async save(
     actor: string,
@@ -492,15 +548,14 @@ export class AiWebSearchService {
             locationChoices: native.choices,
           };
         else
-          evidence = await this.indexedEvidence(
-            base,
-            false,
-            lookupSignal,
-            config,
-            'weather_unavailable',
-          );
+          evidence = (
+            await this.indexedEvidence(base, false, lookupSignal, config, 'weather_unavailable')
+          ).evidence;
       }
-    } else evidence = await this.indexedEvidence(base, intent === 'images', lookupSignal, config);
+    } else {
+      evidence = (await this.indexedEvidence(base, intent === 'images', lookupSignal, config))
+        .evidence;
+    }
     evidence = boundSearchEvidence(evidence);
     if (!deferFinish) await this.finish(owner, thread, request, evidence);
     return evidence;
@@ -682,7 +737,10 @@ export class AiWebSearchService {
     signal: AbortSignal,
     config: ConfigRow,
     reason?: AiWebSearchEvidence['reason'],
-  ): Promise<AiWebSearchEvidence> {
+  ): Promise<{
+    evidence: AiWebSearchEvidence;
+    diagnostics?: AiWebSearchProbeResult['modes'][number]['diagnostics'];
+  }> {
     try {
       const found = await this.provider.search(
         base.query,
@@ -704,23 +762,30 @@ export class AiWebSearchService {
       const hasUsableResults = found.sources.length > 0 || found.images.length > 0;
       let outcome = reason;
       if (!outcome) {
-        if (found.partial) outcome = 'provider_partial_failure';
+        if (found.engineFailureCount) outcome = 'provider_partial_failure';
         else if (!hasResults && hasUsableResults) outcome = 'domains_filtered';
-        else if (!hasUsableResults && found.reportedResults) outcome = 'invalid_results';
+        else if (!hasUsableResults && found.rawCount > 0) outcome = 'invalid_results';
       }
       return {
-        ...base,
-        sources,
-        images: filteredImages,
-        status: hasResults ? 'ready' : 'empty',
-        ...(outcome ? { reason: outcome } : {}),
+        evidence: {
+          ...base,
+          sources,
+          images: filteredImages,
+          status: hasResults ? 'ready' : 'empty',
+          ...(outcome ? { reason: outcome } : {}),
+        },
+        diagnostics: {
+          rawCount: found.rawCount,
+          validatedCount: images ? found.images.length : found.sources.length,
+          engineFailureCount: found.engineFailureCount,
+        },
       };
     } catch (error) {
       const unavailable =
         error instanceof AiWebProviderError && error.kind === 'invalid_response'
           ? 'invalid_results'
           : 'provider_unavailable';
-      return { ...base, reason: reason ?? unavailable };
+      return { evidence: { ...base, reason: reason ?? unavailable } };
     }
   }
   async evidence(

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { AiWebSearchAdminConfig, AiWebSearchAdminUpdate } from '@asa-lab/contracts';
+import type {
+  AiToolId,
+  AiWebSearchAdminConfig,
+  AiWebSearchAdminUpdate,
+  AiWebSearchProbeResult,
+} from '@asa-lab/contracts';
 import { call } from './admin-api';
 import { InfoHint } from '../components/InfoHint';
-import type { AiToolId } from '@asa-lab/contracts';
 import './ai-web-search-admin.css';
 
 function configShape(value: unknown): value is AiWebSearchAdminConfig {
@@ -23,6 +27,44 @@ function configShape(value: unknown): value is AiWebSearchAdminConfig {
       (Array.isArray(data.blockedDomains) &&
         data.blockedDomains.every((item) => typeof item === 'string'))) &&
     (data.searchInstructions === undefined || typeof data.searchInstructions === 'string')
+  );
+}
+
+const probeOutcomes = {
+  results: 'Найдены результаты',
+  empty: 'Нет совпадений',
+  invalid: 'Некорректная выдача',
+  filtered: 'Результаты отсеял фильтр сайтов',
+  partial: 'Часть поисковых движков не ответила',
+  unavailable: 'Поисковый сервис недоступен',
+} satisfies Record<AiWebSearchProbeResult['modes'][number]['status'], string>;
+
+function probeCount(value: unknown, max: number): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= max;
+}
+
+function probeShape(value: unknown): value is AiWebSearchProbeResult {
+  const data = value as Partial<AiWebSearchProbeResult> | null;
+  return Boolean(
+    data &&
+    typeof data.checkedAt === 'string' &&
+    Number.isFinite(Date.parse(data.checkedAt)) &&
+    Array.isArray(data.modes) &&
+    data.modes.length === 2 &&
+    data.modes.every(
+      (item, index) =>
+        item &&
+        item.mode === (index === 0 ? 'web' : 'images') &&
+        typeof item.status === 'string' &&
+        Object.hasOwn(probeOutcomes, item.status) &&
+        probeCount(item.count, 12) &&
+        (item.diagnostics === undefined ||
+          (item.diagnostics &&
+            probeCount(item.diagnostics.rawCount, 48) &&
+            probeCount(item.diagnostics.validatedCount, Math.min(12, item.diagnostics.rawCount)) &&
+            item.count <= item.diagnostics.validatedCount &&
+            probeCount(item.diagnostics.engineFailureCount, 32))),
+    ),
   );
 }
 
@@ -52,9 +94,14 @@ export function AdminAiWebSearch({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
+  const [probing, setProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<AiWebSearchProbeResult | null>(null);
+  const [probeError, setProbeError] = useState('');
   const inFlight = useRef(false);
   const apply = (data: AiWebSearchAdminConfig) => {
     setConfig(data);
+    setProbeResult(null);
+    setProbeError('');
     setEnabled(data.enabled);
     setWeatherEnabled(data.weatherEnabled);
     setLimit(String(data.operationsPerHour));
@@ -208,6 +255,33 @@ export function AdminAiWebSearch({
   const show = (...ids: AiToolId[]) => selectedTool === undefined || ids.includes(selectedTool);
   const search = show('web_search', 'image_search');
   const pages = show('read_page');
+
+  async function probe() {
+    if (!config?.configured || !config.enabled || dirty || inFlight.current || loading) return;
+    inFlight.current = true;
+    setProbing(true);
+    setProbeError('');
+    setProbeResult(null);
+    try {
+      const reply = await call<unknown>('/api/admin/v1/ai/web-search/probe', {
+        method: 'POST',
+        body: '{}',
+      });
+      if (reply.ok && probeShape(reply.data)) {
+        setProbeResult(reply.data);
+      } else {
+        if (!reply.ok && (reply.status === 401 || reply.status === 403)) onAccessDenied();
+        setProbeError(
+          !reply.ok && reply.status === 429
+            ? 'Повторите проверку через минуту.'
+            : 'Не удалось проверить поисковый сервис.',
+        );
+      }
+    } finally {
+      inFlight.current = false;
+      setProbing(false);
+    }
+  }
 
   const AdvancedSettings = presentation === 'parameters' ? 'details' : 'div';
   return (
@@ -481,7 +555,9 @@ export function AdminAiWebSearch({
             <button
               type="submit"
               className="asa-cloud-apply"
-              disabled={busy || loading || !validLimit || !validPolicy || !validRetrieval}
+              disabled={
+                busy || probing || loading || !validLimit || !validPolicy || !validRetrieval
+              }
             >
               {busy
                 ? 'Сохраняем…'
@@ -496,6 +572,48 @@ export function AdminAiWebSearch({
             ) : null}
           </div>
         </form>
+      ) : null}
+      {config && search && presentation !== 'switches' ? (
+        <section aria-label="Проверка подключения к поиску">
+          <div className="asa-cloud-bottom">
+            <button
+              type="button"
+              className="asa-cloud-apply"
+              disabled={
+                busy || probing || loading || dirty || !config.enabled || !config.configured
+              }
+              onClick={() => void probe()}
+            >
+              {probing ? 'Проверяем…' : 'Проверить поисковый сервис'}
+            </button>
+            <InfoHint label="Как работает проверка поиска">
+              <p>Проверяются сохранённые настройки на двух служебных запросах без вызова модели.</p>
+            </InfoHint>
+          </div>
+          {probeError ? <p role="alert">{probeError}</p> : null}
+          {probeResult ? (
+            <p role="status">
+              <time dateTime={probeResult.checkedAt}>
+                {new Date(probeResult.checkedAt).toLocaleTimeString('ru-RU')}
+              </time>
+              {probeResult.modes.map((item) => (
+                <span key={item.mode}>
+                  {' · '}
+                  {item.mode === 'web' ? 'Сайты' : 'Изображения'}
+                  {' — '}
+                  {probeOutcomes[item.status]} ({item.count})
+                  {item.diagnostics ? (
+                    <small>
+                      {' · '}В выдаче: {item.diagnostics.rawCount}, пригодных:{' '}
+                      {item.diagnostics.validatedCount}, сбоев движков:{' '}
+                      {item.diagnostics.engineFailureCount}.
+                    </small>
+                  ) : null}
+                </span>
+              ))}
+            </p>
+          ) : null}
+        </section>
       ) : null}
     </section>
   );

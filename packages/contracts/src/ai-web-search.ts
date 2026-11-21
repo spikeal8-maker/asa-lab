@@ -91,6 +91,20 @@ export interface AiWebSearchAdminConfig extends AiWebSearchStatus {
   readonly configurationVersion: number;
 }
 
+export interface AiWebSearchProbeResult {
+  readonly checkedAt: string;
+  readonly modes: readonly {
+    readonly mode: 'web' | 'images';
+    readonly status: 'results' | 'empty' | 'invalid' | 'filtered' | 'partial' | 'unavailable';
+    readonly count: number;
+    readonly diagnostics?: {
+      readonly rawCount: number;
+      readonly validatedCount: number;
+      readonly engineFailureCount: number;
+    };
+  }[];
+}
+
 export interface AiWebSearchAdminUpdate {
   readonly resultsLimit?: number;
   readonly pagesLimit?: number;

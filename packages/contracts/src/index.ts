@@ -39,6 +39,7 @@ export type {
   AiWebSearchStatus,
   AiWebSearchAdminConfig,
   AiWebSearchAdminUpdate,
+  AiWebSearchProbeResult,
 } from './ai-web-search.js';
 
 export interface PackageInfo {

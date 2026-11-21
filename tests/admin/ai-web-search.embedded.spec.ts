@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import type { FastifyRequest } from 'fastify';
+import { AiAdminController } from '../../apps/api/src/ai-admin.controller';
 import { AiChatService } from '../../apps/api/src/ai-chat.service';
 import { AiWebSearchService } from '../../apps/api/src/ai-web-search';
 import { aiAttachmentImageFixture } from '../../apps/api/src/ai-attachments/validation.fixture';
@@ -228,6 +230,61 @@ it.each([
     expect(JSON.stringify(receipt)).not.toMatch(/internal engine|private failure/);
   },
 );
+it('probes both modes with fixed public queries and enforces operator access and cooldown', async () => {
+  const stranger = await identity();
+  const fetchImpl = upstream();
+  const web = new AiWebSearchService(pool, fetchImpl);
+  await expect(web.probe(stranger)).rejects.toMatchObject({ code: '42501' });
+  expect(fetchImpl).not.toHaveBeenCalled();
+
+  const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+  const serviceArgs = [
+    { resolve: async () => ({ principalId: admin }) },
+    { resolveAccess: async () => ({ scopes: [{ kind: 'platform', role: 'platform_admin' }] }) },
+    chat,
+  ] as unknown as ConstructorParameters<typeof AiAdminController>;
+  const controller = new AiAdminController(...serviceArgs);
+  const request = {
+    cookies: {},
+    headers: { host: 'asa.test', origin: 'https://asa.test', 'content-type': 'application/json' },
+  } as unknown as FastifyRequest;
+  const foreign = { ...request, headers: { ...request.headers, origin: 'https://other.test' } };
+  await expect(controller.probeWebSearch(foreign, {})).rejects.toMatchObject({ status: 403 });
+  await expect(controller.probeWebSearch(request, { query: 'private' })).rejects.toMatchObject({
+    status: 400,
+  });
+  expect(fetchImpl).not.toHaveBeenCalled();
+
+  const receiptsBefore = await db.query('SELECT count(*) FROM ai_web_search_receipts');
+  const result = await controller.probeWebSearch(request, {});
+  expect(result.modes).toEqual([
+    {
+      mode: 'web',
+      status: 'results',
+      count: 1,
+      diagnostics: { rawCount: 1, validatedCount: 1, engineFailureCount: 0 },
+    },
+    {
+      mode: 'images',
+      status: 'results',
+      count: 1,
+      diagnostics: { rawCount: 1, validatedCount: 1, engineFailureCount: 0 },
+    },
+  ]);
+  expect(
+    fetchImpl.mock.calls.map(([url]) => {
+      const target = new URL(String(url));
+      return [target.hostname, target.searchParams.get('q')];
+    }),
+  ).toEqual([
+    ['search', 'официальный сайт ЮНЕСКО'],
+    ['search', 'Эйфелева башня'],
+  ]);
+  expect(await db.query('SELECT count(*) FROM ai_web_search_receipts')).toEqual(receiptsBefore);
+  expect(JSON.stringify(result)).not.toContain('example.org');
+  await expect(controller.probeWebSearch(request, {})).rejects.toMatchObject({ status: 429 });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+});
 it('keeps image original URLs private and authenticates the same-origin raster proxy', async () => {
   const owner = await identity(),
     stranger = await identity(),

@@ -76,20 +76,20 @@ export function parseSearxResults(
   value: unknown,
   imageMode: boolean,
   limit = 8,
-): { sources: AiWebSource[]; images: AiWebImage[]; reportedResults: boolean; partial: boolean } {
+): { sources: AiWebSource[]; images: AiWebImage[]; rawCount: number; engineFailureCount: number } {
   const data = record(value);
   if (!Array.isArray(data['results'])) throw new AiWebProviderError('invalid_response');
   const engines = data['unresponsive_engines'];
   const metadata = {
-    reportedResults: data['results'].length > 0,
-    partial:
-      Array.isArray(engines) &&
-      engines
-        .slice(0, 32)
-        .some(
-          (engine) =>
-            Array.isArray(engine) && typeof engine[0] === 'string' && engine[0].length > 0,
-        ),
+    rawCount: Math.min(data['results'].length, 48),
+    engineFailureCount: Array.isArray(engines)
+      ? engines
+          .slice(0, 32)
+          .filter(
+            (engine) =>
+              Array.isArray(engine) && typeof engine[0] === 'string' && engine[0].length > 0,
+          ).length
+      : 0,
   };
   const sources: AiWebSource[] = [],
     images: AiWebImage[] = [],

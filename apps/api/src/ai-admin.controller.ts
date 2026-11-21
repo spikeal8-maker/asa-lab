@@ -165,6 +165,17 @@ export class AiAdminController {
     return this.safe(() => this.ai.cloudCatalog(actor, provider, apiKey));
   }
 
+  @Post('web-search/probe')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async probeWebSearch(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).length !== 0)
+      return reject('ai_web_probe_invalid', 'Проверка поиска не принимает параметры.', 400);
+    return this.safe(() => this.ai.probeWebSearch(actor));
+  }
+
   @Put('web-search')
   async saveWebSearch(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
