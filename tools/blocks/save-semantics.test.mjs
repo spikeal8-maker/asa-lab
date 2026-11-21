@@ -8,6 +8,69 @@ import test from 'node:test';
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.tsx', '.css']);
 
+test('draft network timeout still aborts the response body without AbortSignal.any', async () => {
+  const timeoutCallbacks = new Map();
+  const requests = [];
+  const window = {
+    location: new URL('https://asa.example/internal/blocks/'),
+    parent: {},
+    addEventListener() {},
+    setTimeout(callback, ms) {
+      timeoutCallbacks.set(ms, callback);
+      return ms;
+    },
+    clearTimeout(ms) {
+      timeoutCallbacks.delete(ms);
+    },
+    async fetch(_url, options) {
+      requests.push(options);
+      return new globalThis.Response('{}');
+    },
+  };
+  const shell = { dataset: {} };
+  const context = vm.createContext({
+    window,
+    document: {
+      querySelector: (selector) => (selector === '[data-asa-host-shell]' ? shell : null),
+      getElementById: () => ({}),
+      addEventListener() {},
+    },
+    GUI: {
+      EditorState: {},
+      createStandaloneRoot() {},
+      setAppElement() {},
+      ScratchStorage: {},
+      buildDefaultProject() {},
+      setProjectId() {},
+    },
+    AsaBlocksProtocol: { createChildProtocol: () => ({ start() {} }) },
+    AsaBlocksStatus: {},
+    AsaBlocksRecovery: {},
+    AbortController: globalThis.AbortController,
+    AbortSignal: { timeout: globalThis.AbortSignal.timeout },
+    DOMException: globalThis.DOMException,
+    URL,
+    Request: globalThis.Request,
+    performance: globalThis.performance,
+  });
+  vm.runInContext(
+    fs.readFileSync(new URL('../../infra/scratch-editor/host/main.js', import.meta.url), 'utf8'),
+    context,
+  );
+  const url = '/api/blocks/runtime/projects/11111111-1111-4111-8111-111111111111/draft';
+  const caller = new globalThis.AbortController();
+  await window.fetch(url, { method: 'PUT', signal: caller.signal });
+  const effective = requests[0].signal;
+  assert.notEqual(effective, caller.signal);
+  timeoutCallbacks.get(20_000)();
+  assert.equal(effective.reason.name, 'TimeoutError');
+  assert.equal(caller.signal.aborted, false);
+  await window.fetch(url, { method: 'PUT', signal: caller.signal });
+  caller.abort();
+  assert.equal(requests[1].signal.reason.name, 'AbortError');
+  assert.equal(timeoutCallbacks.size, 0);
+});
+
 function sourceFiles(root) {
   const files = [];
   const visit = (directory) => {
@@ -276,47 +339,103 @@ async function storeAsset(storage, value) {
   return storage.scratchStorage.store(type, value.dataFormat, value.bytes, value.assetId);
 }
 
-test('clean VM media without an ASA canonical reference is uploaded before the draft and reused', async () => {
-  const bytes = Uint8Array.of(82, 73, 70, 70, 1, 2, 3, 4);
-  const pop = asset(createHash('md5').update(bytes).digest('hex'), 'wav', bytes);
-  const calls = [];
-  const create = loadStorage(
-    async (url, init) => {
-      calls.push({ url, init });
-      if (url.endsWith('/draft'))
-        return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 }));
-      assert.deepEqual(Array.from(init.body), Array.from(bytes));
-      return new globalThis.Response(JSON.stringify({ status: 'ok', asset: reference(pop) }));
-    },
-    () => '22222222-2222-4222-8222-222222222222',
-  );
-  let live;
-  const storage = create({
+for (const fromRecovery of [false, true]) {
+  test(`clean media from ${fromRecovery ? 'recovery' : 'the VM'} is uploaded before the draft and reused`, async () => {
+    const bytes = Uint8Array.of(82, 73, 70, 70, 1, 2, 3, 4);
+    const pop = asset(createHash('md5').update(bytes).digest('hex'), 'wav', bytes);
+    const calls = [];
+    const create = loadStorage(
+      async (url, init) => {
+        calls.push({ url, init });
+        if (url.endsWith('/draft'))
+          return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 }));
+        assert.deepEqual(Array.from(init.body), Array.from(bytes));
+        return new globalThis.Response(JSON.stringify({ status: 'ok', asset: reference(pop) }));
+      },
+      () => '22222222-2222-4222-8222-222222222222',
+    );
+    let live;
+    const storage = create({
+      projectId: PROJECT_ID,
+      projectJson: project('Existing'),
+      assets: [],
+      draftRevision: 23,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => TOKEN,
+      getProjectAssets: () => [live],
+      getProjectGeneration: () => 1,
+    });
+    live = {
+      assetId: pop.assetId,
+      dataFormat: 'wav',
+      data: fromRecovery ? new Uint8Array(0) : bytes,
+      assetType: storage.scratchStorage.AssetType.Sound,
+      clean: true,
+    };
+
+    if (fromRecovery) {
+      assert.equal(await storage.installRecoveryAssets([pop]), 1);
+      const snapshot = await storage.captureRecoveryAssets(project('Abby', [pop]), [live]);
+      assert.equal(snapshot[0].sha256, pop.sha256);
+    }
+    await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
+    assert.equal(storage.getConfirmedRevision(), 24);
+    assert.equal(calls.length, 2);
+    assert.ok(calls[0].url.endsWith(`/${pop.assetId}.wav`));
+    assert.ok(calls[1].url.endsWith('/draft'));
+    assert.deepEqual(JSON.parse(calls[1].init.body).document.assets, [reference(pop)]);
+    await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
+    assert.equal(calls.length, 2, 'unchanged confirmed media and draft make no writes');
+  });
+}
+
+test('invalid native asset input immediately completes the pending save with a bounded cause', async () => {
+  const failures = [];
+  const storage = loadStorage(async () => assert.fail('invalid input must not make a request'))({
     projectId: PROJECT_ID,
     projectJson: project('Existing'),
     assets: [],
     draftRevision: 23,
     apiOrigin: API_ORIGIN,
     getRuntimeToken: () => TOKEN,
-    getProjectAssets: () => [live],
-    getProjectGeneration: () => 1,
+    getProjectGeneration: () => 2,
+    onSaveFailure: (failure) => failures.push(failure),
   });
-  live = {
-    assetId: pop.assetId,
-    dataFormat: 'wav',
-    data: bytes,
-    assetType: storage.scratchStorage.AssetType.Sound,
-    clean: true,
-  };
+  const waiting = storage.waitForUpstreamSaveAfter(storage.getUpstreamSaveSequence());
+  const native = storage.scratchStorage;
+  await assert.rejects(
+    native.store(native.AssetType.Sound, 'svg', Uint8Array.of(1), 'a'.repeat(32)),
+  );
+  assert.equal((await waiting).reason, 'asset_write_invalid');
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].failureCode, 'scratch-save-asset-invalid');
+  assert.equal(storage.getConfirmedRevision(), 23);
+});
 
-  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
-  assert.equal(storage.getConfirmedRevision(), 24);
-  assert.equal(calls.length, 2);
-  assert.ok(calls[0].url.endsWith(`/${pop.assetId}.wav`));
-  assert.ok(calls[1].url.endsWith('/draft'));
-  assert.deepEqual(JSON.parse(calls[1].init.body).document.assets, [reference(pop)]);
-  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
-  assert.equal(calls.length, 2, 'unchanged confirmed media and draft make no writes');
+test('an aborted save wait does not consume a later durable outcome', async () => {
+  const storage = loadStorage(
+    async () => new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 })),
+    () => '22222222-2222-4222-8222-222222222222',
+  )({
+    projectId: PROJECT_ID,
+    projectJson: project('Existing'),
+    assets: [],
+    draftRevision: 23,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+    getProjectGeneration: () => 2,
+  });
+  const sequence = storage.getUpstreamSaveSequence();
+  const controller = new globalThis.AbortController();
+  const first = storage.waitForUpstreamSaveAfter(sequence, controller.signal);
+  controller.abort();
+  assert.equal((await first).reason, 'save_exit_timeout');
+  const retry = storage.waitForUpstreamSaveAfter(sequence);
+  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Updated')));
+  const confirmation = await retry;
+  assert.equal(confirmation.ok, true);
+  assert.equal(confirmation.revision, 24);
+  assert.equal(confirmation.savedGeneration, 2);
 });
 
 test('failed clean-media acknowledgement cannot write a draft or mark the project durable', async () => {
