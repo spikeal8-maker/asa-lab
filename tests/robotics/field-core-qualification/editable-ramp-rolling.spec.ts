@@ -22,7 +22,8 @@ import {
 const f = fixture;
 type Vec = RampVector;
 type Handle = { delete(): void };
-type Vector<T> = Handle & { size(): number; get(index: number): T | undefined };
+type BorrowedVector<T> = { size(): number; get(index: number): T | undefined };
+type Vector<T> = Handle & BorrowedVector<T>;
 type Model = Handle & {
   [key: string]: unknown;
   nq: number;
@@ -50,7 +51,7 @@ type Data = Handle & {
   nefc: number;
   nJ: number;
   contact: Vector<ContactHandle>;
-  warning: Vector<Handle & { number: number; lastinfo: number }>;
+  warning: BorrowedVector<Handle & { number: number; lastinfo: number }>;
 };
 type BufferHandle = Handle & { GetView(): unknown; GetElementCount(): number };
 type Native = {
@@ -179,24 +180,31 @@ function release(value: Handle, ledger: Ledger) {
   }
 }
 function warnings(data: Data, ledger: Ledger) {
-  const vector = owned(data.warning, ledger);
-  try {
-    requireThat(vector.size() === 7, 'WARNING_WIDTH');
-    for (let i = 0; i < 7; i++) {
-      const got = vector.get(i);
-      requireThat(got, 'WARNING_HANDLE');
-      const item = owned(got, ledger);
-      try {
-        requireThat(item.number === 0 && item.lastinfo === 0, 'NATIVE_WARNING');
-      } finally {
-        release(item, ledger);
-      }
+  // Pinned bindings.cc exposes MjData::warning with reference(), owned by MjData.
+  // In contrast, the contact getter returns a vector by value and capture() releases it.
+  // register_vector.get() returns an owned wrapper copy in both cases.
+  const vector = data.warning;
+  requireThat(vector.size() === 7, 'WARNING_WIDTH');
+  for (let i = 0; i < 7; i++) {
+    const got = vector.get(i);
+    requireThat(got, 'WARNING_HANDLE');
+    const item = owned(got, ledger);
+    try {
+      requireThat(item.number === 0 && item.lastinfo === 0, 'NATIVE_WARNING');
+    } finally {
+      release(item, ledger);
     }
-  } finally {
-    release(vector, ledger);
   }
   requireThat(ledger.cleanupErrors.length === 0, 'WARNING_RESOURCE_ERROR');
 }
+function ensureWorldCleanup(ledger: Ledger, primary?: { error: unknown }) {
+  const complete = ledger.created === ledger.deleted && ledger.cleanupErrors.length === 0;
+  if (!primary && complete) return;
+  const error = primary ? primary.error : new Error('NATIVE_RESOURCE_LEAK');
+  const failure = error instanceof Error ? error : new Error(String(error));
+  throw Object.assign(failure, { nativeLedger: structuredClone(ledger) });
+}
+
 function localPoint(ramp: ReturnType<typeof modelInput>['ramp'], world: Vec): Vec {
   const shifted = sub(world, vec(f.ramp.originMeters));
   return [dot(shifted, ramp.upslope), dot(shifted, ramp.transverse), dot(shifted, ramp.normal)];
@@ -889,7 +897,7 @@ function executeWorld(
   const samples = new Map<number, State>();
   let final: State | undefined;
   let inFlight: Record<string, unknown> | null = null;
-  let runtimeError: unknown;
+  let runtimeFailure: { error: unknown } | undefined;
   let result: ReturnType<typeof accelerationAssessment> | undefined;
   try {
     const model = take(M.MjModel.from_xml_string(input.xml));
@@ -1010,7 +1018,7 @@ function executeWorld(
       ledger,
     });
   } catch (error) {
-    runtimeError = error;
+    runtimeFailure = { error };
     journal.write({
       kind: 'world-error',
       caseId: input.entry.id,
@@ -1024,11 +1032,7 @@ function executeWorld(
     for (const handle of handles) release(handle, ledger);
     journal.write({ kind: 'cleanup', caseId: input.entry.id, repeat, ledger });
   }
-  requireThat(
-    ledger.created === ledger.deleted && ledger.cleanupErrors.length === 0,
-    'NATIVE_RESOURCE_LEAK',
-  );
-  if (runtimeError) throw runtimeError;
+  ensureWorldCleanup(ledger, runtimeFailure);
   requireThat(
     result &&
       ledger.step1 === 2000 &&
@@ -1183,6 +1187,77 @@ it('rejects invalid or unrepresentable geometry and angle edits instead of silen
     }),
   ).toThrow();
 });
+it('borrows the warning vector across reads, owns only copied items, and retains the first error through cleanup failures', () => {
+  const ledger = (): Ledger => ({
+    created: 0,
+    deleted: 0,
+    step1: 0,
+    step1Returned: 0,
+    step2: 0,
+    step2Returned: 0,
+    cleanupErrors: [],
+  });
+  const fake = (width = 7, warningAt = -1, badDelete = false) => {
+    let vectorDeletes = 0,
+      copyDeletes = 0;
+    const vector = {
+      size: () => (vectorDeletes ? 0 : width),
+      get: (index: number) => ({
+        number: Number(index === warningAt),
+        lastinfo: 0,
+        delete: () => {
+          copyDeletes++;
+          if (badDelete) throw new Error('COPY_DELETE_FAILURE');
+        },
+      }),
+      delete: () => {
+        vectorDeletes++;
+      },
+    };
+    return {
+      data: { warning: vector } as unknown as Data,
+      copies: () => copyDeletes,
+      vectors: () => vectorDeletes,
+    };
+  };
+  const repeated = fake(),
+    clean = ledger();
+  warnings(repeated.data, clean);
+  warnings(repeated.data, clean);
+  expect([repeated.vectors(), repeated.copies(), clean.created, clean.deleted]).toEqual([
+    0, 14, 14, 14,
+  ]);
+  expect(() => ensureWorldCleanup(clean)).not.toThrow();
+
+  const wrongWidth = fake(6),
+    unopened = ledger();
+  expect(() => warnings(wrongWidth.data, unopened)).toThrow('WARNING_WIDTH');
+  expect([wrongWidth.vectors(), wrongWidth.copies(), unopened.created]).toEqual([0, 0, 0]);
+
+  const failing = fake(7, 0, true),
+    damaged = ledger();
+  let primary: { error: unknown } | undefined;
+  try {
+    warnings(failing.data, damaged);
+  } catch (error) {
+    primary = { error };
+  }
+  expect(primary?.error).toBeInstanceOf(Error);
+  expect(damaged.cleanupErrors).toEqual(['Error: COPY_DELETE_FAILURE']);
+  expect(failing.vectors()).toBe(0);
+  try {
+    ensureWorldCleanup(damaged, primary);
+    throw new Error('Expected primary native error');
+  } catch (error) {
+    expect(String(error)).toBe('Error: NATIVE_WARNING');
+    expect((error as Error & { nativeLedger: Ledger }).nativeLedger).toEqual(damaged);
+  }
+  expect(() => ensureWorldCleanup(damaged, { error: new Error('WARNING_WIDTH') })).toThrow(
+    'WARNING_WIDTH',
+  );
+  expect(() => ensureWorldCleanup(damaged)).toThrow('NATIVE_RESOURCE_LEAK');
+});
+
 it('pins the required solid sphere, old support/slip thresholds, six-world schedule and unchanged specification', () => {
   expect(hash(readFileSync(resolve(folder, '../../../', f.specification.path)))).toBe(
     f.specification.sha256,
@@ -1322,6 +1397,10 @@ it.skipIf(!nativeEnabled)(
         initialized,
         census,
         error: String(error),
+        nativeLedger:
+          typeof error === 'object' && error !== null && 'nativeLedger' in error
+            ? error.nativeLedger
+            : null,
       });
     } finally {
       journal.finish();
