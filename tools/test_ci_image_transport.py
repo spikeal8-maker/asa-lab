@@ -28,6 +28,7 @@ GENERAL_OVERLAY_NAME = "asa-general-postgres.yaml"
 GENERAL_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + GENERAL_OVERLAY_NAME + '"'
 FOCUSED = ".github/workflows/electronics-r4-m1-focused.yml"
 SCOPED_UI = ".github/workflows/electronics-ui-679-557.yml"
+ARDUINO_GPIO_E2E = ".github/workflows/arduino-settings-native-e2e.yml"
 ELECTRONICS_TRANSPORT = "docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json"
 ELECTRONICS_OVERLAY_NAME = "asa-electronics-postgres.yaml"
 ELECTRONICS_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + ELECTRONICS_OVERLAY_NAME + '"'
@@ -735,8 +736,22 @@ def require_electronics_job(browser_only=False):
               and re.fullmatch(r"[^/\s@]+/[^/\s@]+", repository) is not None
               and re.fullmatch(re.escape(repository + "/" + SCOPED_UI)
                                + r"@refs/heads/[^\s@]+", workflow_ref) is not None)
+    # Restricted extra admission: a PR targeting the canonical main on the
+    # exact workflow path and job. It cannot authorize a local host, a non-PR
+    # dispatch, a foreign repo, or a different job.
+    arduino_native = (
+        os.environ.get("GITHUB_JOB") == "browser"
+        and repository == "spikeal8-maker/asa-lab"
+        and os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+        and os.environ.get("GITHUB_BASE_REF") == "main"
+        and re.fullmatch(
+            re.escape(repository + "/" + ARDUINO_GPIO_E2E + "@")
+            + r"(refs/pull/[1-9][0-9]*/merge|refs/heads/main)",
+            workflow_ref,
+        ) is not None
+    )
     require((os.environ.get("GITHUB_JOB") in jobs and ("/" + FOCUSED + "@") in workflow_ref)
-            or scoped,
+            or scoped or arduino_native,
             "Docker proof is restricted to exact disposable Electronics workflow/job pairs")
 
 
@@ -1266,6 +1281,28 @@ def check_electronics_challenges(receipt):
     ]:
         runtime(name, lambda: prepare_electronics_postgres(effective), False,
                 environment={**scoped_context, **changes})
+
+    arduino_context = {
+        "GITHUB_REPOSITORY": "spikeal8-maker/asa-lab",
+        "GITHUB_WORKFLOW_REF": ("spikeal8-maker/asa-lab/" + ARDUINO_GPIO_E2E
+                                + "@refs/pull/1232/merge"),
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_BASE_REF": "main",
+    }
+    runtime("exact Arduino PR browser overlay", lambda: prepare_electronics_postgres(effective),
+            environment=arduino_context)
+    for name, changes in [
+        ("Arduino wrong job", {"GITHUB_JOB": "review-images"}),
+        ("Arduino wrong event", {"GITHUB_EVENT_NAME": "workflow_dispatch"}),
+        ("Arduino wrong base", {"GITHUB_BASE_REF": "other"}),
+        ("Arduino wrong repository", {"GITHUB_REPOSITORY": "other/repository"}),
+        ("Arduino unknown workflow", {"GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/.github/workflows/other.yml@refs/pull/1232/merge"}),
+        ("Arduino ref suffix spoof", {"GITHUB_WORKFLOW_REF": arduino_context["GITHUB_WORKFLOW_REF"] + "@evil"}),
+        ("Arduino ref prefix spoof", {"GITHUB_WORKFLOW_REF": "evil/" + arduino_context["GITHUB_WORKFLOW_REF"]}),
+        ("Arduino invalid pull ref", {"GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/" + ARDUINO_GPIO_E2E + "@refs/pull/1232/head"}),
+    ]:
+        runtime(name, lambda: prepare_electronics_postgres(effective), False,
+                environment={**arduino_context, **changes})
 
     for name, env, system, architecture in [
         ("outside Actions", {"GITHUB_ACTIONS": "false"}, "Linux", "x86_64"),

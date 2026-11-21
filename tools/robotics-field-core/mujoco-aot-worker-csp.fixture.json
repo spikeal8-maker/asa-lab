@@ -1,0 +1,425 @@
+{
+  "schema": "ASA-MUJOCO-AOT-WORKER-CSP-1",
+  "scope": "TEST_ONLY",
+  "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+  "registration": "672be6ead8e7ed222eeb8246849e225d6ce455a5",
+  "engineVersion": "4.0.0",
+  "link": {
+    "toolchainVersion": "4.0.10-git b7dc6e5747465580df5984e723b9d1f10d8e804b",
+    "buildRoot": "Temp/a1168b-2678fb17/build",
+    "sdkRoot": "Temp/a1168t-be981f4a/sdk/install",
+    "compiler": "Temp/a1168t-be981f4a/sdk/install/emscripten/em++.py",
+    "python": {
+      "path": "Programs/Python/Python313/python.exe",
+      "bytes": 105696,
+      "sha256": "85b71d8c6ec1905935f74be0c9869aae198d00e98f39df699ec66f9c5a84cecd"
+    },
+    "node": {
+      "path": "Programs/nodejs/node-v22.23.3-win-x64/node.exe",
+      "bytes": 86973768,
+      "sha256": "9c9245166b4a8e182e0b797da9c20136117ff24368eaff1fec8343a123c8db0e"
+    },
+    "manifest": [
+      {
+        "path": "Temp/a1168t-be981f4a/sdk/install",
+        "files": 18937,
+        "bytes": 1560318872,
+        "sha256": "1575cbcfcda9494fca1b08a81cc846b461cfafe40e37a44657db40bfb7aea324"
+      },
+      {
+        "path": "Temp/a1168t-be981f4a/cache",
+        "files": 1877,
+        "bytes": 394412848,
+        "sha256": "1f4158a797617e279f45ee9363de8356e75ec3ee3312a5e29cd574a89a349647"
+      },
+      {
+        "path": "Programs/Python/Python313",
+        "files": 5074,
+        "bytes": 162813819,
+        "sha256": "9b83bb14781dca52274f6f912fcb0faa6c0b8de8a38672cfd781279ed7f5b230"
+      }
+    ],
+    "recipe": [
+      {
+        "path": "Temp/a1168b-2678fb17/build/build.ninja",
+        "bytes": 376230,
+        "sha256": "eb39d66333520f63cb2fbd4f9d4d0cbbe4b4b1bc863aee352d6de073983285b6"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/CMakeFiles/rules.ninja",
+        "bytes": 33350,
+        "sha256": "44b93a4ffd899d26a1fd606644bcec9c76cd184e9d645659308aecefdc1b32d7"
+      }
+    ],
+    "originalArtifact": [
+      {
+        "path": "Temp/a1168b-2678fb17/src/wasm/dist/build-receipt.json",
+        "bytes": 6279,
+        "sha256": "59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/src/wasm/dist/mujoco.js",
+        "bytes": 303250,
+        "sha256": "7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/src/wasm/dist/mujoco.wasm",
+        "bytes": 11229000,
+        "sha256": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/src/wasm/dist/mujoco.d.ts",
+        "bytes": 151568,
+        "sha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff"
+      }
+    ],
+    "acquisition": [
+      {
+        "path": "Temp/a1168-3a72ae8c/acquisition.json",
+        "bytes": 2757,
+        "sha256": "8447499abe46fde23c86a0189ab567e1f8389d0354804529a9f62cbb555983c9"
+      },
+      {
+        "path": "Temp/a1168t-be981f4a/extraction.json",
+        "bytes": 1027,
+        "sha256": "57d8b8a830f76b685eac0dff833e324d05d5a48aefe206b187c7c415e79510c5"
+      },
+      {
+        "path": "Temp/a1168t-be981f4a/toolchain-smoke.json",
+        "bytes": 1987,
+        "sha256": "55d7eff8f7a0c8a665185b3bf93d1a41e0532fbc28f09f3c994086777b503bab"
+      },
+      {
+        "path": "Temp/a1168t-be981f4a/declaration-proof.json",
+        "bytes": 2910,
+        "sha256": "40462db9552b899cf68df4bc0807d6f64268c17c619d5bdda8268fb09d9ec4da"
+      }
+    ],
+    "inputs": [
+      {
+        "path": "Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/codegen/generated/bindings.cc.o",
+        "bytes": 3061548,
+        "sha256": "3949561c1a9333d3d2ed28bf4566a71ee9c0748e9016bd48343776a17ee20df7"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/unpack.cc.o",
+        "bytes": 2200,
+        "sha256": "6ee15dfa98944fc77dc92ea43f5ef09fc3c01a526f0614a047a21858ab790ac8"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libmujoco.a",
+        "bytes": 7530098,
+        "sha256": "75d00019baa48eff25c1ee189f9b1eb3494c1c2e2a395d31112532a5b1ab6b68"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libccd.a",
+        "bytes": 28778,
+        "sha256": "9f1142d029705678ede7e2ba1ff3c04233c2f153168405fa3fd978f2c17b5608"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libtinyxml2.a",
+        "bytes": 106432,
+        "sha256": "2d558c7c815d92e8814033428b8b02f49554c013ec3d1952fa90823841e41df3"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libqhullstatic_r.a",
+        "bytes": 594956,
+        "sha256": "03cc84a446e9dfd1049aab3ab39d1208efb2a598147fb5a69318f4fdb3a7dfcc"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libtinyobjloader.a",
+        "bytes": 182248,
+        "sha256": "5c54b2ebb1787029f62896b5e6f45ec042f5659b7ea8a72154809caeb6b84d14"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libminiz.a",
+        "bytes": 100328,
+        "sha256": "07630a753da107ac9edd35e5dae8a270bfb10b13f402851b830e07677bed9e2c"
+      }
+    ],
+    "collisionObject": {
+      "path": "Temp/a1168b-2678fb17/build/CMakeFiles/mujoco.dir/src/engine/engine_collision_gjk.c.o",
+      "bytes": 53584,
+      "sha256": "018025bb9b4aa97263637d38660be5df98fbc3c12f62d45f1c9b1bf36005b5fd"
+    },
+    "patchSha256": "d60b5145ebe52ce5b2ed70f1a5db30448164da0bcabd50e28adfdc4afa74dc67",
+    "licenses": [
+      {
+        "name": "MuJoCo-LICENSE",
+        "path": "Temp/a1168b-2678fb17/src/LICENSE",
+        "bytes": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      {
+        "name": "Emscripten-LICENSE",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/LICENSE",
+        "bytes": 5093,
+        "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86"
+      },
+      {
+        "name": "libc-musl-COPYRIGHT",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/system/lib/libc/musl/COPYRIGHT",
+        "bytes": 6204,
+        "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+      },
+      {
+        "name": "libcxx-LICENSE",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/system/lib/libcxx/LICENSE.TXT",
+        "bytes": 16703,
+        "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+      },
+      {
+        "name": "libcxxabi-LICENSE",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/system/lib/libcxxabi/LICENSE.TXT",
+        "bytes": 16706,
+        "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+      },
+      {
+        "name": "libunwind-LICENSE",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/system/lib/libunwind/LICENSE.TXT",
+        "bytes": 16706,
+        "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+      },
+      {
+        "name": "compiler-rt-LICENSE",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/system/lib/compiler-rt/LICENSE.TXT",
+        "bytes": 16708,
+        "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+      },
+      {
+        "name": "llvm-libc-LICENSE",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/system/lib/llvm-libc/LICENSE.TXT",
+        "bytes": 15140,
+        "sha256": "ebcd9bbf783a73d05c53ba4d586b8d5813dcdf3bbec50265860ccc885e606f47"
+      },
+      {
+        "name": "mimalloc-LICENSE",
+        "path": "Temp/a1168t-be981f4a/sdk/install/emscripten/system/lib/mimalloc/LICENSE",
+        "bytes": 1096,
+        "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+      },
+      {
+        "name": "ccd-BSD-LICENSE",
+        "path": "Temp/a1168b-2678fb17/build/_deps/ccd-src/BSD-LICENSE",
+        "bytes": 2070,
+        "sha256": "b175a981bfccf7e1e6c2f6fbda3fde0827aaa51808a983b10c8c7e6183c44a11"
+      },
+      {
+        "name": "lodepng-LICENSE",
+        "path": "Temp/a1168b-2678fb17/build/_deps/lodepng-src/LICENSE",
+        "bytes": 886,
+        "sha256": "bdafa318b8e637d600ca1b60545e894881977a16a16b74809c95e805701621e3"
+      },
+      {
+        "name": "marchingcubecpp-README.md",
+        "path": "Temp/a1168b-2678fb17/build/_deps/marchingcubecpp-src/README.md",
+        "bytes": 1899,
+        "sha256": "ffeb6411f3030f8fcdf8ac11d3cd957f129bfab35ef624f5566e84e4d0172285"
+      },
+      {
+        "name": "qhull-COPYING.txt",
+        "path": "Temp/a1168b-2678fb17/build/_deps/qhull-src/COPYING.txt",
+        "bytes": 1720,
+        "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d"
+      },
+      {
+        "name": "miniz-LICENSE",
+        "path": "Temp/a1168b-2678fb17/build/_deps/miniz-src/LICENSE",
+        "bytes": 1184,
+        "sha256": "0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3"
+      },
+      {
+        "name": "tinyobjloader-LICENSE",
+        "path": "Temp/a1168b-2678fb17/build/_deps/tinyobjloader-src/LICENSE",
+        "bytes": 1902,
+        "sha256": "19e1b0242709694c6671369609544993a2dfcef8477f1aa19bd30de35ec58caa"
+      },
+      {
+        "name": "tinyxml2-LICENSE.txt",
+        "path": "Temp/a1168b-2678fb17/build/_deps/tinyxml2-src/LICENSE.txt",
+        "bytes": 808,
+        "sha256": "9332252e9b9e46db8285d4a3f0bf25f139bf1dca6781b956d57f2302efca6432"
+      }
+    ],
+    "normalizedArgv": [
+      "-std=c++20",
+      "-O3",
+      "-fexceptions",
+      "-fexceptions",
+      "-O3",
+      "-DNDEBUG",
+      "--bind",
+      "-s",
+      "ASSERTIONS=1",
+      "-s",
+      "ALLOW_MEMORY_GROWTH=1",
+      "-s",
+      "EXPORT_ES6=1",
+      "-s",
+      "MODULARIZE=1",
+      "-s",
+      "FORCE_FILESYSTEM=1",
+      "-s",
+      "EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','MEMFS']",
+      "-s",
+      "EXPORT_NAME=loadMujoco",
+      "-s",
+      "DISABLE_EXCEPTION_CATCHING=0",
+      "-fexceptions",
+      "-gsource-map",
+      "-g",
+      "--emit-tsd",
+      "mujoco.d.ts",
+      "wasm/CMakeFiles/mujoco_wasm.dir/codegen/generated/bindings.cc.o",
+      "wasm/CMakeFiles/mujoco_wasm.dir/unpack.cc.o",
+      "-o",
+      "mujoco.js",
+      "-Llib",
+      "-Wl,--whole-archive",
+      "lib/libmujoco.a",
+      "-Wl,--no-whole-archive",
+      "lib/libccd.a",
+      "lib/libtinyxml2.a",
+      "lib/libqhullstatic_r.a",
+      "-lm",
+      "-lm",
+      "lib/libtinyobjloader.a",
+      "lib/libminiz.a"
+    ],
+    "aotFlags": ["-sDYNAMIC_EXECUTION=0", "-sEMBIND_AOT=1"],
+    "timeoutMs": 180000
+  },
+  "browser": {
+    "origin": "https://asa-aot-worker.invalid",
+    "playwright": {
+      "path": "../../Projects/asa-lab-robotics-shared-motion-20261115/node_modules/.pnpm/playwright@1.55.1/node_modules/playwright/package.json",
+      "bytes": 2012,
+      "sha256": "5cb33bf4a5f7971e28d395f625af147eb42cc14423d204c61e02d14ba9014de8"
+    },
+    "manifest": [
+      {
+        "path": "../../Projects/asa-lab-robotics-shared-motion-20261115/node_modules/.pnpm/playwright@1.55.1/node_modules/playwright",
+        "files": 121,
+        "bytes": 4105843,
+        "sha256": "7b164c5520437cf70116ee77c93e8a08f7d4c33fb950b36786f3f11e0e809fef"
+      },
+      {
+        "path": "../../Projects/asa-lab-robotics-shared-motion-20261115/node_modules/.pnpm/playwright-core@1.55.1/node_modules/playwright-core",
+        "files": 337,
+        "bytes": 8031764,
+        "sha256": "a323258e02c9452bf3be58d4c5b764a4e4201f912943f73e9b5d9f9b4c8ab181"
+      },
+      {
+        "path": "ms-playwright/chromium-1193/chrome-win",
+        "files": 249,
+        "bytes": 359963391,
+        "sha256": "e306b88e54e6201156787ed8df5e11fca5f350d77154f43adb8a0d0198e9f90e"
+      }
+    ],
+    "executable": {
+      "path": "ms-playwright/chromium-1193/chrome-win/chrome.exe",
+      "bytes": 3229184,
+      "sha256": "fe844627cb1b2131d63eaef5c272519c3d03f6caafeebd16d569d6a22a7b793a"
+    },
+    "version": "140.0.7339.186",
+    "playwrightVersion": "1.55.1",
+    "cspSource": "53e6aa3412b734b0828b09b2a0cada60e981d579187c10694c953d018493a389",
+    "legacyModule": {
+      "path": "../../Projects/asa-lab-robotics-field-core-evidence/mujoco-package-4.0.0-20261111/package/mujoco.js",
+      "bytes": 294200,
+      "sha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2"
+    },
+    "legacyWasm": {
+      "path": "../../Projects/asa-lab-robotics-field-core-evidence/mujoco-package-4.0.0-20261111/package/mujoco.wasm",
+      "bytes": 11200612,
+      "sha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+    },
+    "legacyPackage": {
+      "path": "../../Projects/asa-lab-robotics-field-core-evidence/mujoco-package-4.0.0-20261111/package/package.json",
+      "bytes": 1290,
+      "sha256": "a7d2c0108c77aa9826a2df5aa40f79e4812339b218fe237e478f73eb586fc0d9"
+    },
+    "priorDenied": {
+      "path": "Temp/asa-robotics-chromium-worker-proof-e4e7d261-0b90-4976-9a48-2f007bd66935/chromium-worker-perf.json",
+      "bytes": 2517,
+      "sha256": "f86da9f2ab8f65899188ea2da829250b00d6e2a4f8af7875293f0090a87fcf4b"
+    },
+    "priorPermissive": {
+      "path": "Temp/asa-robotics-chromium-worker-r2-proof-c4c97019-fb10-42b0-a8f9-89f7b9bd5259/chromium-worker-perf.json",
+      "bytes": 3589,
+      "sha256": "420e3a1789408dcccaa76bc7d5758ba8cdf31b3afb01996412fb33c989afeea5"
+    },
+    "timeoutMs": 60000
+  },
+  "motion": {
+    "sourceCommit": "b9039f8713173faca93365977ecb2a43a68e949c",
+    "source": {
+      "path": "../../Projects/asa-lab-robotics-shared-motion-20261115/tests/robotics/field-core-qualification/mujoco-shared-motion.spec.ts",
+      "bytes": 31206,
+      "sha256": "8673fb73ca32d96db22dbfb0877d9d4e1fb6727e7286297899c60e613a9482af"
+    },
+    "fixture": {
+      "path": "../../Projects/asa-lab-robotics-shared-motion-20261115/tests/robotics/field-core-qualification/mujoco-shared-motion.fixture.json",
+      "bytes": 3527,
+      "sha256": "08a2e75a4fdd72c6cedfcba56be832eda3e67d54065046d693749c30999f70ed"
+    },
+    "raw": {
+      "path": "Temp/asa-robotics-shared-motion-proof-fd046dfd-79d7-4497-bf88-bd204e268496/native-shared-motion.json",
+      "bytes": 7963163,
+      "sha256": "18be2f71cef23db2160d18d6592e12f9c4f0e72691db8dc844258ffa302a5434"
+    },
+    "xmlSha256": "0bf3f6535cb100d3560e7bbe3606d685f7f770614eb63bc3d6935c54e02aac35",
+    "finalSha256": "894c4d150f2f33ed02cb59be658c81706acf34be01e3c582985277834b7ecea8",
+    "intervals": 12000,
+    "stepUs": 500,
+    "horizonUs": 6000000,
+    "samplePeriodUs": 10000,
+    "samples": 600,
+    "terminalWords": 37
+  },
+  "position": {
+    "sourceCommit": "6cdf7afc91de46f1f186e473da5d4562b7c445fc",
+    "fixtureSha256": "2f6c313dfc0240a4b9bfb2fb0aebae0bae15e92bdd2255c10b057ccfb0a78905",
+    "raw": {
+      "path": "Temp/asa-robotics-fixed-tilt-archive-mwdi52wj/archive/finite-cap-position-only.json",
+      "bytes": 5054041,
+      "sha256": "8841a3bd0f9bcca864b0559a42631cd6011d38b8c9d69439e8887bac8b4d8af7"
+    },
+    "retained": {
+      "path": "Temp/asa-robotics-fixed-tilt-archive-mwdi52wj/archive/a3-retained-401-pre-states.json",
+      "bytes": 462612,
+      "sha256": "6c1002a30a20c238587d9b39cb3253d36fc295d91f069b1e3dc7743de075e54c"
+    },
+    "rolling": {
+      "path": "../../Projects/asa-lab-robotics-field-core-evidence/rolling-r3-main-20261112T023500Z/journal/mujoco-rolling-chassis-a3-2026-11-12T023906497Z.asarollraw",
+      "bytes": 6076628,
+      "sha256": "f4adb0b0556c3d2f85dc7881c1e9f1264350cf6cfd8e5637deede85427349cb8"
+    },
+    "rollingInitialization": {
+      "offset": 491266,
+      "bytes": 17840,
+      "sha256": "4211b058d08056c675ec5ca929b984bfcc1db5a01398bc691550ae9642281d69",
+      "xmlOffset": 12984,
+      "xmlBytes": 4856,
+      "xmlSha256": "8349d687194348337fb142710d9eb6a7dfc4e51552c35746a2387aa8ec78b06a"
+    },
+    "xmlSha256": "a32ac5a022733be866b1ce2ad774e232a6486a037a021a92721b38bae729862e",
+    "witnesses": [
+      {
+        "id": "pre-291475",
+        "tick": 291475,
+        "rampFrame": 148,
+        "pair": 3,
+        "ncon": 11,
+        "nefc": 33
+      },
+      {
+        "id": "immersed-side-crosses-edge",
+        "rampFrame": 212,
+        "pair": 1,
+        "ncon": 9,
+        "nefc": 27
+      }
+    ]
+  }
+}

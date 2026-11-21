@@ -79,7 +79,12 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
   expect(session.activeWorkspace.kind).toBe('personal');
   expect(session.workspaces.every((w: { kind: string }) => w.kind === 'personal')).toBe(true);
   await expect(portalSection(page, 'Классы')).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Открыть знания', exact: true })).toBeVisible();
+  const knowledge = page
+    .locator('.portal-header')
+    .getByRole('link', { name: 'Знания', exact: true });
+  await expect(knowledge).toBeVisible();
+  await expect(knowledge).toHaveAttribute('href', '/#/knowledge');
+  await expect(page.locator('.access-personal-start')).toHaveCount(0);
   await shot(page, 'A-new-personal-account');
   await page.locator('.portal-header .portal-quick-create > summary').click();
   const created = page.waitForResponse(

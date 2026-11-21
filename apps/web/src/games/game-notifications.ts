@@ -38,6 +38,7 @@ let audio: AudioContext | undefined;
 interface NotificationOwner {
   actor: string;
   subscribers: number;
+  setBackground(background: boolean): void;
   stop(): void;
 }
 let owner: NotificationOwner | undefined;
@@ -125,6 +126,7 @@ export function useGameInvitations(): Snapshot {
 function createOwner(actor: string): NotificationOwner {
   const lifetime = new AbortController();
   let activity: GameNotificationActivity = 'paused';
+  let background = false;
   let deliveryVersion = 0;
   const current = (): boolean => owner === entry && !lifetime.signal.aborted;
   const deliver = ({ playerId, incoming }: GameNotificationSnapshot) => {
@@ -166,15 +168,21 @@ function createOwner(actor: string): NotificationOwner {
       }),
     publish: deliver,
   });
+  const updateCadence = () =>
+    coordinator.setActivity(background && activity === 'active' ? 'background' : activity);
   const unobserve = observeGameNotificationActivity((next) => {
     activity = next;
-    coordinator.setActivity(next);
+    updateCadence();
   });
   window.addEventListener('pointerdown', unlockAudio);
   window.addEventListener('keydown', unlockAudio);
   const entry: NotificationOwner = {
     actor,
     subscribers: 0,
+    setBackground(next) {
+      background = next;
+      updateCadence();
+    },
     stop() {
       if (lifetime.signal.aborted) return;
       lifetime.abort();
@@ -192,7 +200,7 @@ function createOwner(actor: string): NotificationOwner {
 }
 
 /** One authenticated App owner, including editors. Navigation never restarts delivery. */
-export function usePortalGameNotifications(actor: string): void {
+export function usePortalGameNotifications(actor: string, background = false): void {
   useEffect(() => {
     if (!actor) {
       owner?.stop();
@@ -211,4 +219,7 @@ export function usePortalGameNotifications(actor: string): void {
       if (!retained.subscribers) retained.stop();
     };
   }, [actor]);
+  useEffect(() => {
+    if (owner?.actor === actor) owner.setBackground(background);
+  }, [actor, background]);
 }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GROUP_RATING_PAGE_LIMIT } from '@asa-lab/contracts';
 import type {
   PersonalProgressSummaryV1,
   OwnProgressGroupV1,
@@ -9,55 +10,19 @@ import type {
 import { api, type ApiResult, type LearnerQuiz, type SeatAssignment } from '../api';
 import { call } from '../api-call';
 import { abortable, lifecycleCancellation } from '../auth-request';
-import { subscribeTelemetry, telemetryContext, type TelemetryContext } from '../telemetry-context';
+import { subscribeTelemetry } from '../telemetry-context';
+import { onPortalMutation } from '../portal-requests';
+import { defaultAvatarForAccount, seatAvatar } from './default-avatars';
+
 import {
-  defaultAvatarForAccount,
-  PROFILE_AVATAR_CHANGED_EVENT,
-  seatAvatar,
-} from './default-avatars';
-
-/** Own UI presentation, never an authentication payload or an access decision. */
-export type OwnProgressActor =
-  | { readonly kind: 'account'; readonly accountId: string; readonly displayName: string }
-  | {
-      readonly kind: 'seat';
-      readonly seatId: string;
-      readonly classroomId: string;
-      readonly displayName: string;
-      readonly avatarKey: string | null;
-    };
-
-function lifetimeKey(actor: OwnProgressActor | null, context: TelemetryContext): string | null {
-  const active = context.actor;
-  if (!actor || !context.ready || !active) return null;
-  const identity =
-    actor.kind === 'account'
-      ? active.kind === 'account' && active.accountId === actor.accountId.toLowerCase()
-        ? `account:${active.accountId}:${active.workspaceId}`
-        : null
-      : active.kind === 'student' &&
-          active.seatId === actor.seatId.toLowerCase() &&
-          active.classId === actor.classroomId.toLowerCase()
-        ? `seat:${active.seatId}:${active.classId}`
-        : null;
-  return identity ? `${identity}:${context.generation}:${context.continuity}` : null;
-}
-
-export interface ProgressLifetime {
-  readonly key: string | null;
-  readonly current: () => string | null;
-}
-
-export function useProgressLifetime(actor: OwnProgressActor | null): ProgressLifetime {
-  const context = useSyncExternalStore(subscribeTelemetry, telemetryContext, telemetryContext);
-  const kind = actor?.kind;
-  const id = actor?.kind === 'account' ? actor.accountId : actor?.seatId;
-  const classroom = actor?.kind === 'seat' ? actor.classroomId : undefined;
-  // Names and avatar choices do not change the ownership of a response.
-  const current = useCallback(() => lifetimeKey(actor, telemetryContext()), [kind, id, classroom]);
-  const key = lifetimeKey(actor, context);
-  return useMemo(() => ({ key, current }), [key, current]);
-}
+  useProgressLifetime,
+  useSharedPersonalRead,
+  useAccountAvatar,
+  type OwnProgressActor,
+  type ProgressLifetime,
+} from './personal-progress-core';
+export { useProgressLifetime } from './personal-progress-core';
+export type { OwnProgressActor, ProgressLifetime } from './personal-progress-core';
 
 type ReadFailure = { readonly status: number; readonly message: string };
 type ReadValue<T> = {
@@ -171,6 +136,39 @@ export async function readPersonalProgress(
   return result;
 }
 
+export const progressNumber = (value: number): string =>
+  new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value);
+
+function changesProgress(path: string): boolean {
+  return (
+    /^\/api\/projects\/[^/]+\/publication(?:\/|$)/.test(path) ||
+    /^\/api\/public-projects\/[^/]+\/(?:like|copy)$/.test(path) ||
+    /^\/api\/gallery(?:\/|$)/.test(path) ||
+    (/^\/api\/(?:class-join|classrooms|learning|courses)(?:\/|$)/.test(path) &&
+      !/^\/api\/(?:learning\/notifications|class-join\/logout$)/.test(path))
+  );
+}
+
+const observeProgressChanges = (invalidate: () => void) =>
+  onPortalMutation((path) => {
+    if (changesProgress(path)) invalidate();
+  });
+
+export function usePersonalSummary(actor: OwnProgressActor) {
+  const lifetime = useProgressLifetime(actor);
+  const kind = actor.kind;
+  const id = actor.kind === 'account' ? actor.accountId : actor.seatId;
+  const classroom = actor.kind === 'seat' ? actor.classroomId : undefined;
+  const read = useCallback(
+    (signal: AbortSignal) => readPersonalProgress(actor, signal),
+    [kind, id, classroom],
+  );
+  return {
+    lifetime,
+    summary: useSharedPersonalRead(lifetime, 'summary', read, observeProgressChanges),
+  };
+}
+
 interface GroupPage {
   readonly key: string;
   readonly source: PersonalProgressSummaryV1;
@@ -181,15 +179,7 @@ interface GroupPage {
 }
 
 export function usePersonalProgress(actor: OwnProgressActor) {
-  const lifetime = useProgressLifetime(actor);
-  const kind = actor.kind;
-  const id = actor.kind === 'account' ? actor.accountId : actor.seatId;
-  const classroom = actor.kind === 'seat' ? actor.classroomId : undefined;
-  const read = useCallback(
-    (signal: AbortSignal) => readPersonalProgress(actor, signal),
-    [kind, id, classroom],
-  );
-  const summary = usePersonalRead(lifetime, read);
+  const { lifetime, summary } = usePersonalSummary(actor);
   const [page, setPage] = useState<GroupPage | null>(null);
   const pending = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -322,10 +312,29 @@ export function limitedGroupRead<T>(signal: AbortSignal, read: () => Promise<T>)
   });
 }
 
-export function groupRatingPreviewLimit(width: number): number {
-  if (width <= 380) return 2;
-  if (width <= 520) return 3;
-  return 5;
+/** The number of real peer slots that fit after the measured own result.
+ * Zero deliberately means no peer fetch in extreme zoom/narrow layouts.
+ * The server cap is shared with the paginated rating API; there is no desktop
+ * constant of five and no hidden full-roster fetch. */
+export function groupRatingPreviewLimit(
+  width: number,
+  ownWidth = 116,
+  peerWidth = 74,
+  gap = 8,
+  peerGap = 5,
+): number {
+  if (!Number.isFinite(width) || width <= 0) return 0;
+  const safeGap = Math.max(0, Number.isFinite(gap) ? gap : 8);
+  const betweenPeers = Math.max(0, Number.isFinite(peerGap) ? peerGap : 5);
+  const own = Math.max(0, Number.isFinite(ownWidth) ? ownWidth : 116);
+  const peer = Math.max(44, Number.isFinite(peerWidth) ? peerWidth : 74);
+  const remaining = width - own - safeGap * 2 - 1;
+  if (remaining < peer) return 0;
+  // The body has two outer gaps; the anonymous peer row has its own smaller gap.
+  return Math.min(
+    GROUP_RATING_PAGE_LIMIT,
+    Math.floor((remaining + betweenPeers) / (peer + betweenPeers)),
+  );
 }
 
 function groupRatingPath(actor: OwnProgressActor, groupId: string): string {
@@ -419,7 +428,7 @@ export function useGroupRatingPreview(
   groupId: string,
   limit: number,
 ) {
-  const valid = GROUP_ID.test(groupId);
+  const valid = GROUP_ID.test(groupId) && limit > 0 && limit <= GROUP_RATING_PAGE_LIMIT;
   const key = lifetime.key && valid ? lifetime.key + ':group:' + groupId : null;
   const current = useCallback(() => {
     const now = lifetime.current();
@@ -641,24 +650,12 @@ export function useOwnAvatar(actor: OwnProgressActor, lifetime: ProgressLifetime
     () => (actor.kind === 'account' ? lifetime : { ...lifetime, key: null }),
     [actor.kind, lifetime],
   );
-  const read = useCallback(() => api.accountAvatar(), []);
-  const avatar = usePersonalRead(accountLifetime, read);
-  const [changed, setChanged] = useState<{ key: string; src: string | null } | null>(null);
-  useEffect(() => {
-    if (actor.kind !== 'account' || !lifetime.key) return;
-    const key = lifetime.key;
-    const update = (event: Event) => {
-      if (lifetime.current() === key)
-        setChanged({ key, src: (event as CustomEvent<string | null>).detail });
-    };
-    window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, update);
-    return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, update);
-  }, [actor.kind, lifetime]);
+  const avatar = useAccountAvatar(accountLifetime);
   const fallback =
     actor.kind === 'seat'
       ? seatAvatar(actor.seatId, actor.avatarKey).src
       : defaultAvatarForAccount(actor.accountId).src;
-  const own = changed?.key === lifetime.key ? changed.src : avatar.data?.avatarDataUrl;
+  const own = avatar.data?.avatarDataUrl;
   return { src: actor.kind === 'seat' ? fallback : own || fallback, fallback };
 }
 
@@ -802,6 +799,3 @@ export function useNextLearningAction(actor: OwnProgressActor, lifetime: Progres
     },
   };
 }
-
-export const progressNumber = (value: number): string =>
-  new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value);
