@@ -127,6 +127,7 @@
 .asa-ai-inline-budget {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   min-width: 0;
 }
@@ -152,7 +153,7 @@
   gap: 6px;
   padding-block: 8px;
 }
-@media (max-width: 800px) {
+@media (max-width: 1100px) {
   .asa-ai-inline-budgets .asa-settings-compact .asa-ai-policy-models > fieldset {
     min-width: 0;
     padding: 0;
