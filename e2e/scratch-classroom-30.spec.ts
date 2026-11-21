@@ -87,11 +87,40 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     phaseMs: {} as Record<string, number>,
     vendorRequests: { cold: 0, warm: 0 },
     vendorBytes: { cold: 0, warm: 0 },
-    faultAttempts: { session: 0, asset: 0 },
+    faultAttempts: { session: 0, asset: 0, expiredPermission: 0 },
+    rotationSessions: 0,
     assetHits: { cold: 0, warm: 0 },
+    databaseActivity: { samples: 0, activePeak: 0, lockWaitPeak: 0, errors: 0 },
     unexpectedApiErrors: [] as { phase: Phase; status: number; operation: string }[],
   };
   const observer = e2eAdminPool();
+  let samplePending: Promise<void> | null = null;
+  let sampler: ReturnType<typeof setInterval> | undefined;
+  const sampleDatabase = () => {
+    if (samplePending) return;
+    samplePending = observer
+      .query<{ active: number; locks: number }>(
+        `
+        SELECT count(*) FILTER (WHERE state='active')::int AS active,
+               count(*) FILTER (WHERE wait_event_type='Lock')::int AS locks
+        FROM pg_stat_activity
+        WHERE datname=current_database() AND pid<>pg_backend_pid()
+      `,
+      )
+      .then(({ rows: [sample] }) => {
+        if (!sample) throw new Error('Empty PostgreSQL activity sample');
+        const activity = evidence.databaseActivity;
+        activity.samples++;
+        activity.activePeak = Math.max(activity.activePeak, sample.active);
+        activity.lockWaitPeak = Math.max(activity.lockWaitPeak, sample.locks);
+      })
+      .catch(() => {
+        evidence.databaseActivity.errors++;
+      })
+      .finally(() => {
+        samplePending = null;
+      });
+  };
   const runPhase = async (name: string, operation: (learner: Learner) => Promise<void>) => {
     const started = Date.now();
     const results = await Promise.allSettled(learners.map(operation));
@@ -113,13 +142,30 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     if (requestPhase === 'cold' || requestPhase === 'warm') {
       if (vendor) evidence.vendorRequests[requestPhase]++;
       if (method === 'GET' && /^\/api\/blocks\/runtime\/projects\/[^/]+\/assets\//.test(route))
-        evidence.assetHits[phase]++;
+        evidence.assetHits[requestPhase]++;
     }
     const firstProject = learners[0]?.projectId;
     const session =
       method === 'POST' && route === `/api/projects/${firstProject}/blocks/runtime-session`;
     const asset =
       method === 'GET' && route.startsWith(`/api/blocks/runtime/projects/${firstProject}/assets/`);
+    const rotationProject = learners[1]?.projectId;
+    if (
+      phase === 'warm' &&
+      method === 'POST' &&
+      route === `/api/projects/${rotationProject}/blocks/runtime-session`
+    )
+      evidence.rotationSessions++;
+    if (
+      phase === 'warm' &&
+      method === 'GET' &&
+      route.startsWith(`/api/blocks/runtime/projects/${rotationProject}/assets/`) &&
+      evidence.faultAttempts.expiredPermission++ === 0
+    ) {
+      outgoing.writeHead(401, { 'cache-control': 'no-store', 'content-type': 'application/json' });
+      outgoing.end('{"error":{"code":"unauthorized"}}');
+      return;
+    }
     if (
       (session && phase === 'cold' && evidence.faultAttempts.session++ === 0) ||
       (asset && phase === 'warm' && evidence.faultAttempts.asset++ === 0)
@@ -276,6 +322,8 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
       });
     }
     expect(new Set(learners.map((learner) => learner.seatId)).size).toBe(PUPILS);
+    sampleDatabase();
+    sampler = setInterval(sampleDatabase, 1_500);
     phase = 'cold';
     await runPhase('coldOpen', async (learner) => {
       await learner.page.goto(editorPath(learner), { waitUntil: 'domcontentloaded' });
@@ -320,6 +368,8 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     expect(evidence.vendorBytes.warm).toBe(0);
     expect(evidence.faultAttempts.session).toBeGreaterThan(1);
     expect(evidence.faultAttempts.asset).toBeGreaterThan(1);
+    expect(evidence.faultAttempts.expiredPermission).toBeGreaterThan(1);
+    expect(evidence.rotationSessions).toBeGreaterThan(1);
     expect(evidence.unexpectedApiErrors).toEqual([]);
 
     phase = 'recovery';
@@ -347,6 +397,18 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     await verifyDraft(first, beforeRecovery);
     evidence.completed.offlineTabRecovery = 1;
 
+    const leaving = learners[1]!;
+    const beforeExit = (await draft(leaving)).revision;
+    await editPosition(leaving, 112);
+    const [exitSave] = await Promise.all([
+      waitForSave(leaving),
+      leaving.page.waitForURL('**/#/home'),
+      editor(leaving).getByRole('button', { name: 'ASA Lab', exact: true }).click(),
+    ]);
+    expect(exitSave.status()).toBe(200);
+    await verifyDraft(leaving, beforeExit);
+    evidence.completed.controlledExit = 1;
+
     const revoked = learners.at(-1)!;
     const removal = await staff.delete(`/api/classrooms/${classId}/seats/${revoked.seatId}`, {
       headers,
@@ -358,7 +420,11 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     );
     expect([401, 403]).toContain(denied.status());
     evidence.completed.revocation = 1;
+    expect(evidence.databaseActivity.samples).toBeGreaterThan(0);
+    expect(evidence.databaseActivity.errors).toBe(0);
   } finally {
+    clearInterval(sampler);
+    await samplePending;
     await Promise.allSettled(contexts.map((context) => context.close()));
     gateway.closeAllConnections();
     await new Promise<void>((resolve) => gateway.close(() => resolve()));
