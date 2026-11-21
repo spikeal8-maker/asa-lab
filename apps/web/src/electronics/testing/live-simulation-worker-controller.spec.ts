@@ -3140,7 +3140,19 @@ describe('ordinary demand near an accepted Arduino wake', () => {
     controller: ElectronicsLiveSimulationWorkerController,
     executor: FakeExecutor,
     checkpoint: number,
+    sketch = source,
   ) {
+    const fixture =
+      sketch === source
+        ? document
+        : {
+            ...document,
+            components: document.components.map((component) =>
+              component.id === 'uno'
+                ? { ...component, stateProperties: { arduinoSource: sketch } }
+                : component,
+            ),
+          };
     let host = 0;
     let defaultPace = true;
     const onFailure = vi.fn();
@@ -3183,11 +3195,11 @@ describe('ordinary demand near an accepted Arduino wake', () => {
       onResult: vi.fn(),
       onFailure,
     };
-    controller.start('acknowledged-wake', document, callbacks);
+    controller.start('acknowledged-wake', fixture, callbacks);
     executor.preflights[0]!.resolve(result(0));
     await flush();
     await advance();
-    const update = (at: number, runtimeDocument = document) => {
+    const update = (at: number, runtimeDocument = fixture) => {
       host = at;
       controller.update(runtimeDocument, at);
     };
@@ -3207,7 +3219,7 @@ describe('ordinary demand near an accepted Arduino wake', () => {
         boards: { loadedSource: string; runtime: { resumeAtMs: number } }[];
       }
     ).boards[0]!;
-    expect(board.loadedSource).toBe(source);
+    expect(board.loadedSource).toBe(sketch);
     return {
       advance,
       evaluate,
@@ -3264,6 +3276,67 @@ describe('ordinary demand near an accepted Arduino wake', () => {
         expect(
           completed.ledTemporal?.components.find((row) => row.componentId === 'led')?.samples,
         ).toContainEqual(expect.objectContaining({ atMicroseconds: fallingEdge, brightness: 0 }));
+      } finally {
+        controller.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each(['advancing cursor', 'held cursor', 'stop'] as const)(
+    'reserves a near wake on the idle short30 ACK with %s',
+    async (condition) => {
+      vi.useFakeTimers();
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      try {
+        const probe = await establishWake(
+          controller,
+          executor,
+          434_000,
+          source.replaceAll('delay(50)', 'delay(30)'),
+        );
+        // The actual short30 request ended 5.439 ms before its fall, just
+        // outside reservation. At its ACK, the fresh horizon was 448.300 ms.
+        probe.update(444_600);
+        probe.setHost(448_300);
+        const checkpoint = await probe.advance();
+        expect(controller.hasPendingAdvance).toBe(false);
+        expect(vi.getTimerCount()).toBe(1);
+        const atCheckpoint = executor.advances.length;
+        await vi.advanceTimersByTimeAsync(2);
+        expect(executor.advances).toHaveLength(atCheckpoint);
+        if (condition === 'stop') {
+          controller.stop();
+          expect(vi.getTimerCount()).toBe(0);
+        }
+        if (condition !== 'held cursor') probe.setHost(451_300);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(vi.getTimerCount()).toBe(0);
+        const dispatched = condition === 'advancing cursor';
+        expect(executor.advances).toHaveLength(atCheckpoint + Number(dispatched));
+        if (!dispatched) {
+          await vi.advanceTimersByTimeAsync(20);
+          expect(executor.advances).toHaveLength(atCheckpoint);
+          return;
+        }
+
+        const call = executor.advances.at(-1)!;
+        expect(call.requestedHorizonMicroseconds).toBe(451_300);
+        expect(call.state).toEqual(checkpoint.state);
+        expect(call.inputEvents).toEqual([]);
+        const captured = await probe.advance();
+        expect(
+          captured.ledTemporal?.components.find((row) => row.componentId === 'led')?.samples,
+        ).toContainEqual(expect.objectContaining({ atMicroseconds: 450_039, brightness: 0 }));
+        const ordinary = await probe.evaluate({ ...call, requestedHorizonMicroseconds: 454_000 });
+        const continued = await probe.evaluate({
+          ...call,
+          state: captured.state,
+          requestedHorizonMicroseconds: 454_000,
+        });
+        expect(continued.state).toEqual(ordinary.state);
+        expect(continued.result).toEqual(ordinary.result);
       } finally {
         controller.dispose();
         vi.useRealTimers();

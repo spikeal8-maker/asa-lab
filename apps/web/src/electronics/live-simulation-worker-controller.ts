@@ -674,6 +674,45 @@ export class ElectronicsLiveSimulationWorkerController {
     this.wakeTimer = timer;
   }
 
+  private reserveIdleArduinoWake(generationId: number): void {
+    const wake = this.acknowledgedWake;
+    const document = this.canonicalDocument;
+    if (
+      wake === null ||
+      document === null ||
+      !sameArduinoSources(this.dispatchedDocument, document)
+    )
+      return;
+    const idle = () =>
+      this.generationId === generationId &&
+      this.canonicalDocument === document &&
+      this.acknowledgedWake === wake &&
+      !this.inFlight &&
+      !this.paused &&
+      !this.resuming &&
+      this.wakeTimer === null &&
+      this.startupTarget === null &&
+      this.inputTarget === null &&
+      this.continuationTarget === null &&
+      this.latestTarget === null &&
+      this.pendingInputEvents.length === 0;
+    if (!idle() || this.callbacks?.isDefaultHostPace?.() !== true) return;
+    const host = this.callbacks.readHostHorizonMicroseconds?.();
+    if (!idle() || typeof host !== 'number' || !Number.isSafeInteger(host)) return;
+    const freshHorizon = host - this.horizonOffsetMicroseconds;
+    const committed = this.committedHorizonMicroseconds;
+    if (
+      freshHorizon > committed &&
+      freshHorizon < wake &&
+      wake - freshHorizon <= ARDUINO_WAKE_RESERVATION_MICROSECONDS &&
+      wake + ARDUINO_WAKE_OBSERVATION_MICROSECONDS <= committed + this.observationWindowMicroseconds
+    ) {
+      // This complete observation used up the last ordinary demand just before
+      // the accepted wake. Catch it without waiting for the next interval tick.
+      this.reserveArduinoWake(generationId, wake, freshHorizon);
+    }
+  }
+
   private pump(wakeTimerElapsed = false): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
@@ -683,7 +722,7 @@ export class ElectronicsLiveSimulationWorkerController {
       generationId === null ||
       !document ||
       this.inFlight ||
-      !pendingTarget ||
+      (!pendingTarget && !wakeTimerElapsed) ||
       this.resuming ||
       (this.paused && pendingTarget !== this.startupTarget)
     )
@@ -708,14 +747,26 @@ export class ElectronicsLiveSimulationWorkerController {
       )
         return;
       freshHorizon = hostHorizon - this.horizonOffsetMicroseconds;
+      const wake = this.acknowledgedWake;
+      // An idle timer owns no retained demand. If the cursor is still held,
+      // leave it idle instead of sending a checkpoint or scheduling a retry.
+      if (
+        !pendingTarget &&
+        (!defaultPace ||
+          wake === null ||
+          freshHorizon < wake + ARDUINO_WAKE_OBSERVATION_MICROSECONDS ||
+          !sameArduinoSources(this.dispatchedDocument, document))
+      )
+        return;
       pendingTarget = {
         requestedHorizonMicroseconds: Math.max(
-          pendingTarget.requestedHorizonMicroseconds,
+          pendingTarget?.requestedHorizonMicroseconds ?? 0,
           freshHorizon,
         ),
       };
       this.latestTarget = pendingTarget;
     }
+    if (!pendingTarget) return;
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     const isStartup = pendingTarget === this.startupTarget;
     // A held presentation cursor is not new electrical work. Preserve equal-time
@@ -972,6 +1023,7 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error('Ready Electronics timed advance omitted its result.'));
       return;
     }
+    const firstPositive = this.firstPositiveObservation;
     if (advance.committedHorizonMicroseconds > 0) this.firstPositiveObservation = false;
     const isStartup = target === this.startupTarget;
     const completedDocument = this.dispatchedDocument;
@@ -1028,6 +1080,12 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     this.publishInputBudget();
     this.pump();
+    if (
+      !isStartup &&
+      !firstPositive &&
+      target.requestedHorizonMicroseconds === advance.committedHorizonMicroseconds
+    )
+      this.reserveIdleArduinoWake(generationId);
   }
 
   private fail(generationId: number, reason: unknown): void {
