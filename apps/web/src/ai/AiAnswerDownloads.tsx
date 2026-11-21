@@ -1,6 +1,7 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AiChatIcon } from './AiChatIcon';
 import { downloadBlob } from './ai-download';
+import { markdownTables } from './ai-markdown-tables';
 
 const FORMATS = [
   ['pdf', 'Документ для просмотра и печати'],
@@ -8,6 +9,12 @@ const FORMATS = [
   ['md', 'Текст с разметкой Markdown'],
   ['txt', 'Обычный текст без оформления'],
 ] as const;
+const TABLE_FORMATS = [
+  ['xlsx', 'Excel · все таблицы отдельными листами'],
+  ['csv', 'Первая таблица · запятая, UTF-8'],
+  ['csv-excel', 'Первая таблица · точка с запятой, BOM'],
+] as const;
+type ExportFormat = (typeof FORMATS)[number][0] | (typeof TABLE_FORMATS)[number][0];
 
 export function AiAnswerDownloads({ content }: { content: string }): JSX.Element {
   const id = useId();
@@ -17,6 +24,8 @@ export function AiAnswerDownloads({ content }: { content: string }): JSX.Element
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const tables = useMemo(() => (open ? markdownTables(content) : []), [content, open]);
+  const formats = tables.length ? [...FORMATS, ...TABLE_FORMATS] : FORMATS;
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -95,14 +104,23 @@ export function AiAnswerDownloads({ content }: { content: string }): JSX.Element
     setOpen(false);
     trigger.current?.focus({ preventScroll: true });
   }
-  async function save(format: (typeof FORMATS)[number][0]): Promise<void> {
+  async function save(format: ExportFormat): Promise<void> {
     if (busy) return;
     setBusy(true);
     setError('');
     try {
-      const { exportAnswer } = await import('./ai-document-export');
-      const blob = await exportAnswer(content, format);
-      downloadBlob(blob, 'asa-answer.' + format);
+      if (format === 'xlsx' || format === 'csv' || format === 'csv-excel') {
+        const firstTable = tables[0];
+        if (!firstTable) return;
+        const { exportCsv, exportXlsx } = await import('./ai-table-export');
+        const blob = format === 'xlsx' ? await exportXlsx(tables) : exportCsv(firstTable, format);
+        const name = format === 'csv-excel' ? 'asa-table-excel.csv' : 'asa-table.' + format;
+        downloadBlob(blob, name);
+      } else {
+        const { exportAnswer } = await import('./ai-document-export');
+        const blob = await exportAnswer(content, format);
+        downloadBlob(blob, 'asa-answer.' + format);
+      }
       if (panel.current?.contains(document.activeElement)) close();
       else setOpen(false);
     } catch {
@@ -147,16 +165,16 @@ export function AiAnswerDownloads({ content }: { content: string }): JSX.Element
           aria-label="Формат ответа"
           aria-busy={busy}
         >
-          {FORMATS.map(([format, description]) => (
+          {formats.map(([format, description]) => (
             <button
               key={format}
               type="button"
-              aria-label={format.toUpperCase()}
+              aria-label={format === 'csv-excel' ? 'CSV Excel' : format.toUpperCase()}
               aria-describedby={id + '-' + format}
               aria-disabled={busy || undefined}
               onClick={() => void save(format)}
             >
-              <strong>{format.toUpperCase()}</strong>
+              <strong>{format === 'csv-excel' ? 'CSV Excel' : format.toUpperCase()}</strong>
               <span id={id + '-' + format}>{description}</span>
             </button>
           ))}

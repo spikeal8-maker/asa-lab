@@ -580,7 +580,7 @@
 }
 .asa-ai-layout .chat-answer-actions .chat-answer-formats button {
   display: grid;
-  grid-template-columns: 3.35em 1fr;
+  grid-template-columns: 6em minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   width: 100%;
@@ -588,6 +588,9 @@
   padding: 4px 8px;
   text-align: left;
   color: var(--ai-text);
+}
+.asa-ai-layout .chat-answer-formats button strong {
+  white-space: nowrap;
 }
 .asa-ai-layout .chat-answer-formats button span {
   color: var(--ai-muted);

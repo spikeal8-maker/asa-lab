@@ -422,7 +422,8 @@ test('AI downloads code and complete answers as real local files', async ({ page
   const answer =
     '# Игра «Змейка»\n\nСохраните страницу и откройте её в браузере.\n\n```html\n' +
     html +
-    '\n```\n\n| Клавиша | Действие |\n| --- | --- |\n| Стрелка | Движение |';
+    '\n```\n\n| Клавиша | Действие |\n| --- | --- |\n| Стрелка | Движение |' +
+    '\n\n```asa-table\n{"rows":[["Артикул","Значение","Сумма","Готово","Дата"],["0007","=1+2",-1.25,true,{"date":"2026-11-14"}]]}\n```';
   const fake = await fixture(page, answer);
   fake.release();
   await page.setViewportSize({ width: 390, height: 850 });
@@ -434,6 +435,10 @@ test('AI downloads code and complete answers as real local files', async ({ page
       .locator('.chat-turn-assistant .chat-message-actions')
       .getByRole('button', { name: 'Копировать', exact: true }),
   ).toHaveAttribute('aria-label', 'Копировать');
+  const excelTable = page.getByRole('region', { name: 'Таблица Excel' });
+  await expect(excelTable.getByRole('columnheader', { name: 'Артикул' })).toBeVisible();
+  await expect(excelTable.getByRole('cell', { name: '0007' })).toBeVisible();
+  await expect(excelTable.getByRole('cell', { name: '2026-11-14' })).toBeVisible();
   const retry = page.getByRole('button', { name: 'Новый вариант ответа', exact: true });
   await expect(retry).toBeVisible();
   await expect(retry).toHaveText('');
@@ -479,6 +484,14 @@ test('AI downloads code and complete answers as real local files', async ({ page
       const composer = (await page.getByRole('textbox', { name: 'Сообщение ИИ' }).boundingBox())!;
       expect(trigger.width).toBeGreaterThanOrEqual(44);
       expect(trigger.height).toBeGreaterThanOrEqual(44);
+      const excelLabel = formats.getByRole('button', { name: 'CSV Excel' }).locator('strong');
+      expect(
+        await excelLabel.evaluate((node) => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return range.getClientRects().length;
+        }),
+      ).toBe(1);
       const formatButton = (await pdfFormat.boundingBox())!;
       expect(formatButton.height).toBeGreaterThanOrEqual(44);
       expect(menu.x).toBeGreaterThanOrEqual(0);
@@ -507,6 +520,25 @@ test('AI downloads code and complete answers as real local files', async ({ page
   await composer.click();
   await expect(formats).toHaveCount(0);
   await expect(composer).toBeFocused();
+  for (const [label, filename] of [
+    ['XLSX', 'asa-table.xlsx'],
+    ['CSV', 'asa-table.csv'],
+    ['CSV Excel', 'asa-table-excel.csv'],
+  ]) {
+    await download.click();
+    pending = page.waitForEvent('download');
+    await formats.getByRole('button', { name: label, exact: true }).click();
+    downloaded = await pending;
+    expect(downloaded.suggestedFilename()).toBe(filename);
+    const bytes = readFileSync((await downloaded.path())!);
+    if (label === 'XLSX') expect(bytes.subarray(0, 2).toString()).toBe('PK');
+    else
+      expect(bytes.toString('utf8')).toContain(
+        label === 'CSV' ? '"Клавиша","Действие"' : '"Клавиша";"Действие"',
+      );
+    await downloaded.saveAs(test.info().outputPath(filename!));
+    await expect(formats).toHaveCount(0);
+  }
   expect(fake.requests).toHaveLength(1);
 });
 
