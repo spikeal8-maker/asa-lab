@@ -5415,6 +5415,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
     }
 
     if (mode === 'text') {
+      const widthHandle = drawer.locator('.arduino-drawer-resize-handle');
       for (const width of widths) {
         const desktop = width > 980;
         const maximum = Math.max(460, width - 420);
@@ -5423,14 +5424,12 @@ for (const { mode, segment, widths } of compactControlSegments) {
           name: desktop ? 'Изменить ширину редактора кода' : 'Изменить высоту редактора кода',
           exact: true,
         });
-        const previousWidth = desktop ? Number(await handle.getAttribute('aria-valuenow')) : null;
+        const previousWidth = Number(await widthHandle.getAttribute('aria-valuenow'));
+        expect(Number.isSafeInteger(previousWidth) && previousWidth > 0).toBe(true);
         await page.setViewportSize({ width, height: 900 });
-        if (previousWidth !== null) {
-          expect(Number.isSafeInteger(previousWidth) && previousWidth > 0).toBe(true);
-          const committedWidth = Math.round(Math.min(maximum, Math.max(minimum, previousWidth)));
-          // Measure after React has committed the normal resize clamp.
-          await expect(handle).toHaveAttribute('aria-valuenow', String(committedWidth));
-        }
+        const committedWidth = Math.round(Math.min(maximum, Math.max(minimum, previousWidth)));
+        // The width clamp still commits on mobile, where the width handle is hidden.
+        await expect(widthHandle).toHaveAttribute('aria-valuenow', String(committedWidth));
         await record(`${width}-stopped`, desktop, false);
         if (width === 981) {
           const nativeMenu = page.locator('.workbench-wire-color');
