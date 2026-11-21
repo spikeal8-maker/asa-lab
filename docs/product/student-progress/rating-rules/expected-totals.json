@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "authority": "fixed_manual_integer_oracle_not_calculator_generated",
+  "candidateVersions": {
+    "A": "SP05-A-1.0.0",
+    "B": "SP05-B-1.0.0",
+    "C": "SP05-C-1.0.0"
+  },
+  "totals": [
+    {
+      "id": "newcomer",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    {
+      "id": "weekly_learner",
+      "A": 100,
+      "B": 100,
+      "C": 100
+    },
+    {
+      "id": "learner_without_publication",
+      "A": 200,
+      "B": 200,
+      "C": 200
+    },
+    {
+      "id": "adult_without_school",
+      "A": 12,
+      "B": 16,
+      "C": 15
+    },
+    {
+      "id": "one_substantive_work",
+      "A": 106,
+      "B": 108,
+      "C": 109
+    },
+    {
+      "id": "technical_duplicates",
+      "A": 106,
+      "B": 108,
+      "C": 109
+    },
+    {
+      "id": "scratch_and_robotics",
+      "A": 200,
+      "B": 200,
+      "C": 200
+    },
+    {
+      "id": "three_d_and_electronics",
+      "A": 118,
+      "B": 124,
+      "C": 120
+    },
+    {
+      "id": "multiple_learning_groups",
+      "A": 100,
+      "B": 100,
+      "C": 100
+    },
+    {
+      "id": "linked_account_seat",
+      "A": 100,
+      "B": 100,
+      "C": 100
+    },
+    {
+      "id": "self_like",
+      "A": 6,
+      "B": 8,
+      "C": 9
+    },
+    {
+      "id": "unlike_then_relike",
+      "A": 6,
+      "B": 8,
+      "C": 9
+    },
+    {
+      "id": "unlike_final",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    {
+      "id": "replayed_reaction",
+      "A": 6,
+      "B": 8,
+      "C": 9
+    },
+    {
+      "id": "republication",
+      "A": 6,
+      "B": 8,
+      "C": 9
+    },
+    {
+      "id": "withdrawn_publication",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    {
+      "id": "corrected_completion",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    {
+      "id": "late_verified_merge",
+      "A": 106,
+      "B": 108,
+      "C": 109
+    },
+    {
+      "id": "known_copy_chain",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    {
+      "id": "incomplete_historical_origin",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    {
+      "id": "per_publication_cap",
+      "A": 30,
+      "B": 40,
+      "C": 38
+    },
+    {
+      "id": "multi_publication_social_storm",
+      "A": 90,
+      "B": 80,
+      "C": 81
+    },
+    {
+      "id": "calendar_break",
+      "A": 100,
+      "B": 100,
+      "C": 100
+    },
+    {
+      "id": "two_distinct_learning_results",
+      "A": 200,
+      "B": 200,
+      "C": 200
+    },
+    {
+      "id": "own_project_copy",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    },
+    {
+      "id": "unverified_external",
+      "A": 0,
+      "B": 0,
+      "C": 0
+    }
+  ]
+}
