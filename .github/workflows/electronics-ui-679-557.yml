@@ -17,14 +17,14 @@ env:
 jobs:
   browser:
     if: github.ref == 'refs/heads/codex/electronics-548-current-diagnostic'
-    name: Permanent AA2 on main, three runs
+    name: Permanent AA2 on #538, three runs
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: 0e0e47db95d7d16f5a67e11ac0561d6a3b00281d
-      ASA_ELECTRONICS_EXPECTED_SHA: 0e0e47db95d7d16f5a67e11ac0561d6a3b00281d
-      ASA_IMAGE_TAG: 0e0e47db95d7d16f5a67e11ac0561d6a3b00281d
+      ASA_BUILD_REVISION: 6200557f5680e3d77556fad42143a50acc0ff371
+      ASA_ELECTRONICS_EXPECTED_SHA: 6200557f5680e3d77556fad42143a50acc0ff371
+      ASA_IMAGE_TAG: 6200557f5680e3d77556fad42143a50acc0ff371
       COMPOSE_PROJECT_NAME: asa-lab-electronics-548-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
