@@ -18793,14 +18793,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_phy01_current_aot_transfer_selected
+      checkpoint: e1_local_biased_cylinder_threshold_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: E1-PHY01-CURRENT-AOT-TRANSFER
+      slice: E1-LOCAL-BIASED-CYLINDER-THRESHOLD
       planned_paths:
-      - tests/robotics/field-core-qualification/mujoco-phy01-current-artifact.fixture.json
-      - tests/robotics/field-core-qualification/mujoco-phy01-current-artifact.spec.ts
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-near-threshold.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-finite-cap-near-threshold.spec.ts
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -19826,7 +19826,7 @@ parallel_lanes:
             not rotate a sphere. Rounding-order angular residual differences remain below
             frozen bounds. This pair has no observed late transfer-sign violation, but the
             archived R5 late GAP_CAUSAL_ALT and parent D01/D02 blockers stay unchanged.
-      selected_acquisition:
+      historical_phy01_current_aot_acquisition:
         id: E1-PHY01-CURRENT-AOT-TRANSFER-01
         scope: TEST_ONLY
         purpose: >-
@@ -19931,6 +19931,180 @@ parallel_lanes:
           Independent complete raw recomputation and applicable protected CI follow. No blind
           retry, old-run substitution, PHY-01 PASS before data, six-scene/D01/D02 closure,
           motor calibration, editor activation or deployment follows from this registration.
+      phy01_current_aot_result:
+        observed_on: '2026-11-22'
+        scope: TEST_ONLY
+        source_commit: bb3ebf534f7f18acafd909ad360b7067d5d28289
+        source_tree: 8c564cc8afb62839582522232850a02a01308b60
+        preservation_ref: refs/heads/codex/robotics-phy01-current-aot-1071
+        fixture: {bytes: 9003, sha256: 182a5843dc591b93b77d2aef2d5927342c3d9567f97fe593c053950f85f47379}
+        spec: {bytes: 59748, sha256: 4f8442e3fb9d0e51ef83a1920237ab518a253eb706398d505816ec975ba35bad}
+        protected_merge: 142f7702bc779b6de5bc1c766b41428a4c860654
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44948830184/job/136990927779
+        raw_binary: {file: mujoco-phy01-current-artifact.bin, bytes: 30720000, sha256: 0d6a30511ac6cd603ca981da8147dfa5cfb336f3366b81c0ffa77d17a2db066f}
+        raw_receipt: {file: mujoco-phy01-current-artifact.jsonl, bytes: 157531, sha256: c0033d24a1c2a8b936765efde6513275805b6acea002133ccad7dde74ad0b639}
+        outcome: {runtime: COMPLETE, physical: PASS, acquisition: CONSUMED, formal_acceptance: D01_D02_OPEN}
+        counts: {worlds: 20, native_advances: 24000, split_advances: 21600, full_advances: 2400, main_samples: 72, reference_samples: 8}
+        independent_recomputation:
+          all_raw_intervals: 24000
+          convergence_groups: 9
+          bitwise_repeat_groups: 6
+          mass_sample_groups: 24
+          every_step_split_full_parities: 2400
+          coarse_max_position_error_m: 0.0009809999999959018
+          refined_max_position_error_m: 0.0004904999999930659
+          refined_to_coarse_error_norm: 0.4999999999960861
+          max_velocity_error_mps: 4.1744385725905886e-14
+          max_mass_position_spread_m: 0
+          max_mass_velocity_spread_mps: 0
+          max_native_clock_error_s: 1.637578961322106e-14
+          max_error_from_semiimplicit_prediction_m: 6.934123414348292e-15
+          min_sphere_floor_clearance_m: 1.194219000000004
+          models_created_and_deleted: 20
+          data_created_and_deleted: 20
+          warning_snapshots_created_and_deleted: 319340
+          interpretation: >-
+            Independent direct LE replay verified both complete raw hashes, header readback,
+            exact source Git/working-byte pins, all PRE/POST continuity, every STEP1 preservation
+            and truthful absent full-mode STEP1 slots. Every native endpoint remained finite,
+            awake, nonrotating, contact/constraint/input-free and warning-free. All 80 analytical
+            samples, original convergence/mass/repeat/split-full gates and resource budgets passed.
+            The semi-implicit error prediction is a diagnostic, not a new allowance. This result
+            covers only contact-free PHY-01 on current d2caf28d/AOT and its shared profile;
+            cylinder/tilt, complete six-scene D01, D02, E2/editor and deployment remain open.
+      selected_acquisition:
+        id: E1-LOCAL-BIASED-CYLINDER-THRESHOLD-01
+        scope: TEST_ONLY
+        purpose: >-
+          One local candidate-only two-rate cylinder threshold witness starting at the already
+          exercised 28-degree factory bias. Do not call it full PHY-06/D01, replace any archived
+          experiment or transfer the old short-sweep candidate PASS into this new threshold test.
+        source_reuse:
+          biased_commit: 5133da7fb97ca106d19abc80e87d6ff282884f08
+          biased_tree: 4ee64c02fc0300d5ad1ebb1227a6e61ce6d50ae7
+          fixture: {path: tests/robotics/field-core-qualification/mujoco-finite-cap-biased-sweep.fixture.json, bytes: 5432, sha256: 8e12e5580deffae69b0462063d2e9b5c08771ee8e4adc080f714b46ae9124a8e}
+          spec: {path: tests/robotics/field-core-qualification/mujoco-finite-cap-biased-sweep.spec.ts, bytes: 65701, sha256: 8df202316f38505e794a94feb161db1a09df3e3410f8fde1f44c9c6599bc1e95}
+          archive_commit: 9a51aff78065244910a82b0f948fe0862e1fdf68
+          cylinder_fixture: {path: tests/robotics/field-core-qualification/mujoco-cylinder.fixture.json, bytes: 15762, sha256: fea819890c357f7d6cc6cccc1b8ff84ab3e60c8910d33f7ab02c4ed0614a1cf5}
+          cylinder_harness: {path: tools/robotics-field-core/mujoco-cylinder.mjs, bytes: 110534, sha256: c3a21764baeff02acd030928a234c2cb58ffbb9811641cdfdfd83b3772c19be0}
+          observer: {path: tools/robotics-field-core/mujoco-contact-observer.mjs, bytes: 43885, sha256: 77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987}
+          time_oracle: {path: tools/robotics-field-core/mujoco-phy01.mjs, bytes: 34587, sha256: 05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99}
+          parent_fixture: {path: tests/robotics/field-core-qualification/mujoco-phy01.fixture.json, bytes: 3924, sha256: a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c}
+          shared_xml_sha256: b39f6f4b2e5cca9c81086faa1a29fb6f25e7f4d103e4900be0aef78fec019e39
+          archive_boundary: >-
+            Verify immutable Git blobs and existing saved raw before source reuse; no archived
+            CLI/test/main/admission invocation or old dynamic acquisition. Reuse verified pure
+            control/window/readback logic under the new bounded registered condition; do not
+            modify archived files or self-authorize through their old execution wrappers.
+            Keep biased_sweep_result and all
+            earlier fixed/refined/moving-top failures unchanged. Its single normal-rate
+            28.00 to 28.24 degree candidate PASS did not exercise a threshold or the slow rate.
+        engine:
+          version: 4.0.0
+          upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+          glue: {bytes: 331846, sha256: 9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8}
+          wasm: {bytes: 11229000, sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241}
+          declarations: {bytes: 151568, sha256: 779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff}
+          build_receipt: {bytes: 15869, sha256: c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9}
+          browser_receipt: {bytes: 449526, sha256: 70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5}
+          license_sha256: cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30
+          profile: >-
+            Reuse unchanged admitted AOT/native d2caf28d and exact biased shared XML/model,
+            implicitfast/Newton/dense/elliptic, iterations100/ls50/noslip20/ccd100,
+            tolerance1e-10/ls0.01/noslip1e-12/ccd1e-8, impratio1, flags65536/32,
+            world gravity[0,0,-9.81], zero wind/fluid/sleep/autoreset. Read back every option.
+            AOT glue differs from historical 7b1d6965 but native WASM is identical. Verify both
+            accepted receipts and their cross-reference, source/artifact/licence pins before
+            initialization. No rebuild, dependency, collision patch or solver changes.
+        model:
+          cylinder: {mass_kg: 0.5, radius_m: 0.033, height_m: 0.115, com_above_base_m: 0.0575, initial_gap_m: 0.0001}
+          deck: {mass_kg: 5, half_extents_m: [0.5, 0.5, 0.025], hinge_axis: [0, 1, 0]}
+          servo: {kp: 25000, kv: 210, gear: 1, force_bounds_n_m: [-32, 32], ctrl_range_rad: [0, 0.6283185307179586], force_arithmetic_allowance_n_m: 9.094947017729282e-13}
+          factory: >-
+            Preserve exact 5133 biased XML, positive physical inertia tensors, closed rigid
+            deck and named asa1168_finite_cap_can/asa1168_finite_top dim3 pair, mu1, original
+            solref/solimp, zero margin/gap/adhesion/rolling/spin losses. Author deck and cylinder
+            R_y(28 degrees) at the existing hinge, can centre R_y(28)*[0,0,0.0575+0.0001],
+            native hinge q=0 and zero velocities. Actual absolute deck angle is 28 degrees
+            plus measured native q; controller targets remain incremental. Native owns all
+            subsequent poses, velocities, clocks and warmstarts; no scripted tilt assignments.
+        schedule:
+          order: [normal, slow]
+          timestep_us: 500
+          settle_us_per_world: 2000000
+          base_angle_deg: 28
+          target_step_deg: 0.24
+          max_target_index: 17
+          max_absolute_target_deg: 32.08
+          stationary_window_us: 100000
+          stationary_window_intervals: 200
+          normal: {transition_us: 250000, hold_us: 1000000, max_actual_speed_radps: 0.039269908169872414, max_horizon_us: 23250000, max_intervals: 46500}
+          slow: {transition_us: 500000, hold_us: 2000000, max_actual_speed_radps: 0.019634954084936207, max_horizon_us: 44500000, max_intervals: 89000}
+          max_worlds_total: 2
+          max_concurrent_worlds: 1
+          max_module_initializations: 1
+          max_native_intervals_total: 135500
+          max_contacts_per_interval: 4
+          max_constraint_rows_per_interval: 12
+          max_step1_calls: 135500
+          max_step2_calls: 135500
+          control: Original left integer-time quintic 10*s^3-15*s^4+6*s^5 and exact native hinge servo; no rate or hold extension.
+        physical_gates: >-
+          Retain the original loaded outward support, finite cylinder/deck witnesses, native
+          row identities and same-world contact-point relative velocity v2+omega2 cross(p-COM2)
+          minus v1+omega1 cross(p-COM1). Before first verified tip, require point slip<=0.001 m/s
+          and cumulative slip<=0.0001 m from ramp start, tracking<=0.05 degrees, stage span<=0.25
+          degrees and each rate's original actual-speed cap. Keep stable100ms tracking<=0.004
+          degrees, floor speed<=0.0001 rad/s, range<=0.001 degrees, full-axis angle<=0.1 degrees
+          and relative omega<=0.005 rad/s. The first accepted tip100ms window must retain loaded
+          downhill-rim support, beta>=2 degrees, relative downhill omega>=0.01 rad/s, uphill
+          rim lift>=0.001 m at every PRE and final POST; beta growth from first PRE to final
+          POST must be>=0.25 degrees. Both actual bracket endpoints, formed from preceding accepted stable
+          window plus all stage PRE/POST through firstConfirmed, must lie within2 degrees of
+          atan(0.033/0.0575)=29.852076269182678 degrees. Two rates' first target indices differ
+          by at most1. Keep original frame/contact tolerances and every native/effective torque
+          bound, derivative branch/algebra budget and signed work diagnostic. No weakened
+          threshold, fitted gravity/COM, trajectory, hidden force or exact-impact substitute.
+        progression_and_failures: >-
+          Each new target requires the preceding accepted stable hold, including initial
+          settling. Preserve the first physics failure separately from any runtime/adapter
+          error. Fully retain a failed current hold unless native/runtime/capacity safety
+          prevents further observation, then stop that world without extension or later
+          target. A stage ending without stable or verified tip is INDETERMINATE and physical
+          qualification FAIL. If first valid tip occurs, freeze its firstConfirmed/bracket and
+          finish only that existing full hold under the original post-event finite/warning/
+          resource/native-and-effective-force guards, then no later target. No tip by target17
+          is an unresolved local threshold, not PASS. The second fresh rate may run independently
+          after first-world physical failure only with safe runtime and complete cleanup.
+          A completed acquisition with either world's physical failure remains FAIL; retained
+          partial/failed data are not a retry or a new acquisition.
+        capture_and_admission:
+          max_interval_record_bytes: 1872
+          metadata_bytes: 4194304
+          first_error_cleanup_bytes: 8388608
+          worst_case_total_bytes: 266238912
+          journal_byte_cap: 268435456
+          requirements: >-
+            Exact two-path preflight follows protected main acceptance. Before any module import
+            freeze source/fixture/model/XML, archived inputs and engine/profile pins, pure
+            geometry/frame/control/oracle/negative tests and a complete <=1872-byte LE interval
+            schema; prove all135500 intervals plus reserved metadata/error/cleanup fit the cap.
+            Retain reconstructible actual PRE/POST native state, contact count/pairs/exclude/
+            row identity, PRE geometry or exact reconstructible transforms, solved force/J
+            evidence, relative point velocities/slip, ctrl/actuator/effective torque/work,
+            actual angles/window/first-event, warnings and dispatch/resource counts for the
+            entire acquired prefix. Never omit mandatory evidence to meet the byte cap.
+            Default tests are pure/native skipped; strict typing/lint/format and independent
+            exact-source HIGH review precede one controller-authorized two-world acquisition
+            in exclusive external files. Enforce capacity before advance, preserve first error
+            and cleanup evidence, independently replay full saved raw without native, and keep
+            exact source/receipt hashes. No automatic retry, reacquisition or postdata tuning.
+        acceptance_boundary: >-
+          This is a LOCAL biased candidate-only threshold witness at one native timestep and
+          two rates, not the original full zero-start/repeated/dt-refined PHY-06 programme.
+          Preserve all archived physical FAILs and the short biased candidate PASS. Neither
+          full PHY-06, 60s PHY-03, all six D01 scenes, D02, calibrated hardware, E2/editor,
+          adjustable ramp/platform/bridge integration, owner acceptance nor deployment closes.
       downstream_user_outcomes: >-
         Owner's latest field request includes adjustable ramp rise, width and slope, holding
         horizontal projected L fixed for angle edits with H=L*tan(theta), and recomputing
@@ -19938,9 +20112,13 @@ parallel_lanes:
         attach/snap platforms with real support, clearance and continuous wheel transitions.
         An optional bridge is a separate volumetric solid with declared span, thickness,
         supports and under-clearance, not a visual overlay. Current selected source is only
-        the two TEST_ONLY freefall files; editing, saved schemas and production spatial
+        the two TEST_ONLY local cylinder files; editing, saved schemas and production spatial
         integration need later canonical selection and unchanged D01/D02 acceptance blockers.
-        Preserve all archived sphere/ramp/R5 sources, results and failures.
+        Keep the whole bottom-level field floor continuous beneath authored terrain and
+        distinguish ramp/platform top, side and bottom solids from an optional bridge span;
+        validate footprint overlap, underside/robot clearance and supported transitions instead
+        of hiding geometry or assigning body height. Preserve all archived sphere/ramp/R5 sources,
+        results and failures.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
