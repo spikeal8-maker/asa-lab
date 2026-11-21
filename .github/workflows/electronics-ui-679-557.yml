@@ -22,9 +22,9 @@ jobs:
     timeout-minutes: 50
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: 9b1c301baae0f6dd0f6663123f2f6ee58ad27dff
-      ASA_ELECTRONICS_EXPECTED_SHA: 9b1c301baae0f6dd0f6663123f2f6ee58ad27dff
-      ASA_IMAGE_TAG: 9b1c301baae0f6dd0f6663123f2f6ee58ad27dff
+      ASA_BUILD_REVISION: 6200557f5680e3d77556fad42143a50acc0ff371
+      ASA_ELECTRONICS_EXPECTED_SHA: 6200557f5680e3d77556fad42143a50acc0ff371
+      ASA_IMAGE_TAG: 6200557f5680e3d77556fad42143a50acc0ff371
       COMPOSE_PROJECT_NAME: asa-lab-electronics-548-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
