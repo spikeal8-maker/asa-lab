@@ -18793,15 +18793,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
-      checkpoint: e1_editable_ramp_geometry_sphere_rolling_selected
+      checkpoint: e1_arduino_free_sphere_push_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
-      slice: E1-EDITABLE-RAMP-SPHERE-ROLLING
+      slice: E1-ARDUINO-FREE-SPHERE-PUSH
       planned_paths:
-      - tests/robotics/field-core-qualification/editable-ramp-geometry.ts
-      - tests/robotics/field-core-qualification/editable-ramp-rolling.fixture.json
-      - tests/robotics/field-core-qualification/editable-ramp-rolling.spec.ts
+      - tests/robotics/field-core-qualification/arduino-tt-sphere-push.fixture.json
+      - tests/robotics/field-core-qualification/arduino-tt-sphere-push.spec.ts
       owner_authorization: "Owner on 2026-11-11 explicitly instructed: «Сделай всё это и подготовь», after
         readiness review identifying spec adoption, new canonical selection, E0 preservation and bounded
         E1 qualification. Authorizes this documentation-only registration, ordinary protected
@@ -19424,7 +19423,7 @@ parallel_lanes:
           Dated acquired live-stand TEST_ONLY evidence. Exact source, bundle and raw are preserved;
           this record does not assert present stand availability, integration into the ordinary field,
           full energy acceptance, D01/D02 closure, owner acceptance or deployment.
-      selected_acquisition:
+      historical_sphere_rolling_acquisition:
         scope: TEST_ONLY
         owner_request: >-
           Owner requests a working field with visibly rotating balls, a robot on an incline and
@@ -19631,6 +19630,143 @@ parallel_lanes:
           and physical PASS, its late causal GAP, all historical failures and the parent D01/D02
           acceptance blocker. No UI/product integration, schema migration, native actuator rewrite,
           engine rebuild, actual browser/stand mount, deployment, owner acceptance or D01/D02 closure.
+      sphere_rolling_result:
+        observed_on: '2026-11-21'
+        source_commit: 7d7fa52c74c9d6892ffde2c953e0eefc2f590565
+        integrated_head: a42221d966fb33ff192ab3b69f8008d23fdc20ae
+        protected_merge: 33710abaf9b4c3decce8ccfdccbced5fb73a52c1
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44926053036/job/136920424466
+        geometry_sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848
+        fixture_sha256: a19ee99f42914311771ef54c5c69fedde0a403b5a9dec9224b3e71bf5ba2a83a
+        spec_sha256: d7a08dd2e0fe7aa6e561b923d20463ef249a17e4962e177de1e6c287a284ab06
+        raw: {file: editable-ramp-rolling.jsonl, bytes: 15417364, sha256: af6a31872afb2f56c5d7b785a0618bafe29af966ec116959c4933481a5d0225f}
+        outcome: {runtime: COMPLETE, physical: PASS, worlds: 6, native_intervals: 12000}
+        independent_replay: >-
+          Independently decoded all retained PRE/POST and force records, verified native clocks,
+          finite-face contact and row identities, signed forces, quaternion/world-omega mapping,
+          no-slip and each registered acceleration sample difference. Each pair of 2000-interval
+          worlds matched byte-for-byte. Every world returned all dispatched steps and released
+          all 22008 owned handles. The original adapter ERROR remains in the historical selection.
+        measured:
+          - {angle_deg: 5, heading_deg: 45, acceleration_mps2: 0.610707273871044, angular_acceleration_radps2: 12.214336464107896, max_slip_mps: 0.000009549332511752792, stream_sha256: b7288f42431016663e55856612a0d6047da279fe62cb69ae29cdf4f5de5fbd16}
+          - {angle_deg: 10, heading_deg: 0, acceleration_mps2: 1.2167668040396888, angular_acceleration_radps2: 24.335712251100308, max_slip_mps: 0.00001880851174776187, stream_sha256: 65e1bdacfe9a16ba3f71006ab4e9d2084773d0458e6e2a823f7ba3c34fb461b5}
+          - {angle_deg: 15, heading_deg: -90, acceleration_mps2: 1.8135662768793634, angular_acceleration_radps2: 36.27187546172213, max_slip_mps: 0.000027496201613124542, stream_sha256: 8391f46a94efe41b4cbf8948d122722e0ca80f13d4800e9d19d51933042f016f}
+        maxima: {linear_acceleration_relative_error: 0.000008950824013459767, angular_acceleration_relative_error: 0.000006685552623254445, absolute_clearance_m: 0.000001565106765216706, absolute_normal_speed_mps: 0.000000009127892663940429, compiled_vertex_error_m: 0.00000006623778982338805}
+        energy_diagnostic: >-
+          Whole-second changes in kinetic plus gravitational energy at 5/10/15 degrees were
+          -0.000014604086751524026/-0.000053404272747081816/-0.00011673700343062254 J.
+          Independently measured midpoint contact work plus the semi-implicit gravity displacement
+          term reconciled the balance within 4.17e-16 J. This is a diagnostic, not an added gate.
+          PASS covers only the registered finite-ramp/solid-sphere PHY-05 witness; parent
+          D01/D02, product integration and the archived R5 causal GAP remain open.
+      selected_acquisition:
+        id: E1-ARDUINO-FREE-SPHERE-PUSH-01
+        scope: TEST_ONLY
+        owner_request: >-
+          Continue the existing #1071 programme from measured gravity-driven rolling to a real
+          Arduino-driven rover starting a free sphere through native contact. Select one powered
+          world and one matched LOW control, using the existing public electrical/shaft session.
+        source_reuse: >-
+          Preserve R5 source cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42 and the exact acquired
+          browser source/result in r5_browser_live_result. Reuse its canonical Uno/battery/FET/
+          flyback/TT circuit, powered and LOW programmes, one measured driven axle, original rover
+          geometry, masses, full inertial tensor, wheel joints and rotor armature exactly once.
+          Use createElectronicsTtNativeDriveTestSession and existing production APIs without
+          importing an executable archived test or Worker. Reuse the accepted sphere observers
+          and borrowed-warning ownership from sphere_rolling_result; trace copied private
+          observation logic to its exact source. The former R5 model is a provenance comparison,
+          not a new acquisition or an identical-state prefix for this different scene.
+        scene:
+          floor: {origin_m: [-1, 0, 0], horizontal_length_m: 20, width_m: 1, rise_m: 0, heading_rad: 0, thickness_m: 0.05}
+          sphere: {radius_m: 0.075, mass_kg: 0.1, principal_inertia_kg_m2: 0.000225, initial_center_m: [0.8, 0, 0.075]}
+          sphere_model: >-
+            This is an explicit 15 cm homogeneous solid-sphere analogue, with central COM and
+            I=2*m*r*r/5. The previous 5 cm PHY-05 sphere stays exact in its archived result.
+          geometry: >-
+            Construct the finite level plate with the accepted common ramp geometry at H=0.
+            Read back its transformed vertices/top and the actual R5 assembly, mass/inertia and
+            sphere radius/COM/inertia before stepping. Pure geometry checks must establish
+            separated initial solids and a forward leading bumper intersection with the centred
+            sphere, allowing for its real contact height; do not move a body to force a hit.
+          contact: >-
+            Keep R5 floor-to-rover friction 0.8, set floor-to-sphere friction 0.5 and all
+            rover-to-sphere pairs to 0.2, with condim=3, zero rolling/spin losses, margin/gap,
+            damping and adhesion. Preserve the accepted solref/solimp, native friction clamps
+            and full nativeCCD profile. Explicitly include the plate against chassis, bumper,
+            every wheel and sphere, and sphere against every rover collider. No filtered-away
+            assembly impact, hidden constraint, imposed sphere rotation or scripted velocity.
+        schedule:
+          horizon_us: 10000000
+          max_native_step_us: 500
+          max_worlds_total: 2
+          max_concurrent_worlds: 1
+          max_intervals_per_world: 22000
+          max_session_calls_per_world: 24000
+          max_contacts_per_interval: 132
+          max_constraint_rows_per_interval: 396
+          max_contacts_per_world: 450000
+          max_external_raw_bytes: 268435456
+        electrical_and_time: >-
+          Freeze the original R5 powered/LOW sketch and pure Uno event streams before native.
+          Keep the unchanged 6 V circuit, MNA/winding and R5 legacy startup through 250003 us;
+          afterward retain its named lower-loss transfer model, forward canonical effort and
+          measured reverse effort. Native alone owns qpos/qvel and receives one shaft effort.
+          Every interval respects the actual electrical barrier: native STEP1 freezes PRE
+          geometry, STEP2 solves once, the native endpoint reply precedes electrical commit.
+          The two new worlds must have exact common native states and left-held electrical
+          inputs through the accepted native endpoint at 250003 us, including [250000,250003).
+          D5 outputs differ at that edge and affect the following native interval. Retain the actual final LOW
+          at 4340082 us and flyback observation, plus the whole 10 s after any deciding window.
+        physical_acceptance: >-
+          Require at least 50 ms of native loaded rest immediately before the first actual positive bumper
+          impulse, then actual positive forward impulse, sphere COM displacement at least one
+          radius and accumulated shortest native quaternion rotation at least 1 rad. Decompose
+          normal/tangent impulses and moments from bumper and floor about the actual sphere COM.
+          A radial normal impulse may correctly have zero moment; do not impose immediate spin
+          or omega=v/r during transient slip. Retain every signed native impulse and full motion.
+          After the first bumper impulse, require one continuous 100 ms same-clock window with
+          positively loaded finite top-face floor support, no loaded/penetrating rover contact
+          and positive swept clearance from every rover collider. Actual COM progress and
+          rotation in that window must exceed the propagated numerical resolution. At every
+          PRE/POST of the window require tangent magnitude of v+omega cross(-r*n)<=0.001 m/s,
+          absolute normal velocity<=0.001 m/s, absolute signed clearance<=0.001 m and the existing
+          0.00003 normal-vector-distance bound. The window may precede final LOW; final LOW,
+          any continued contact, later recontact and full-horizon plate boundaries remain observed.
+        momentum_and_energy: >-
+          For every actual native interval independently reconstruct Delta p from all signed
+          sphere contact impulses plus m*g*h and Delta L from the sum of PRE contact-point
+          moments about its central COM. Compare against measured m*Delta v and I*Delta omega
+          in world axes. Use actual model-readback m, I and r, inherited point-speed resolution
+          delta_v=1e-9 m/s and IEEE double epsilon. Fixed bounds are Bp=m*delta_v+128*epsilon*
+          (norm(p_PRE)+norm(p_POST)+sum norm(J_contact)+m*g*h), and
+          BL=(I/r)*delta_v+128*epsilon*(norm(L_PRE)+norm(L_POST)+sum norm(r_contact cross J_contact)).
+          These nominal floors are 1e-10 N s and 3e-12 N m s; forces and moments retain their
+          signs. Reconstruct sphere potential/translational/rotational energy and native total
+          assembly energy with armature once. Retain the R5 signed source, winding, shaft,
+          contact-work and transmission ledgers, first-order PRE tangent/chord distinction,
+          derived numerical remainder and 1 percent/0.0001 J energy bounds. No positive contact
+          work or negative dissipation can credit unexplained creation. Record actual left-held
+          reversal/gear sign gaps separately, including late events, and preserve the archived
+          R5 GAP_CAUSAL_ALT; physical sphere motion does not establish motor calibration or D02.
+        low_control: >-
+          The matched LOW world uses the same sphere/plate/assembly and logical schedule with
+          no D5 HIGH and no rotor source invented outside the circuit. After its initial 50 ms
+          settle, sphere COM drift must stay <=0.001 m, orientation drift <=0.5 degrees, speed
+          <=0.001 m/s and radius*angular-speed<=0.001 m/s; it must not contact the rover.
+          Retain the original R5 <=0.02 m control-rover travel limit and its signed electrical
+          diagnostics. Separate these rest checks from per-step momentum consistency.
+        admission_and_evidence: >-
+          This selection takes effect after protected main acceptance and a fresh exact two-path
+          preflight. Freeze the fixture, XML, actual part readbacks, source/artifact/licence pins,
+          pure programme traces, numerical bounds and raw capacity before native. Default tests
+          remain pure with native skipped. Require focused TS/lint/format, meaningful geometry,
+          phase/sign/momentum regression probes and independent exact-source HIGH review.
+          The controller may then acquire one fresh powered/LOW pair in a unique exclusive
+          external receipt. Keep all native/electrical PRE/POST, force rows, quaternion/omega,
+          signed work, clocks, contact census and cleanup, retaining the first error and every
+          physical failure. No automatic retry, post-data threshold tuning or old run replay
+          can substitute for this pair. Independently recompute raw before recording its outcome.
+          Preserve the existing hardware/stand, product route, D01/D02 blockers and all archives.
       context_hints:
         - docs/product/robotics/FIELD_CORE_START.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
