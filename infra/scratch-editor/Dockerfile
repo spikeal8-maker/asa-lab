@@ -85,6 +85,8 @@ RUN set -eux; \
     test -f /usr/share/nginx/html/vendor/scratch/scratch-gui-standalone.js; \
     ! grep -F "Scratch 3.0 GUI" /usr/share/nginx/html/index.html
 
+RUN nginx -t
+
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/asa-scratch-start"]
 

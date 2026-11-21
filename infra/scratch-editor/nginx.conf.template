@@ -1,3 +1,6 @@
+# A 64-character SHA-256 key plus nginx hash metadata exceeds the default bucket.
+map_hash_bucket_size 128;
+
 map $arg_v $scratch_standalone_cache_control {
     default "";
     "" "no-cache";
