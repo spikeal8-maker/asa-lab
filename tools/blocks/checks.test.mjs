@@ -208,3 +208,79 @@ test('static precompression preserves bytes and excludes HTML and binary media',
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('source and repacked Scratch entries address the actual standalone bytes', async () => {
+  const { configureArtifact, configureStandaloneCache } =
+    await import('../../infra/scratch-editor/configure-artifact.mjs');
+  const { createHash } = await import('node:crypto');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = fs.mkdtempSync(join(tmpdir(), 'asa-scratch-cache-'));
+  const vendor = join(root, 'vendor', 'scratch');
+  const entry = join(root, 'index.html');
+  const bundle = join(vendor, 'scratch-gui-standalone.js');
+  const cache = join(vendor, 'asa-standalone-cache.conf');
+  const revision = 'a'.repeat(40);
+  const marker = '<meta name="asa-parent-origin" content="" />';
+  const origin = 'https://scratch-test.invalid';
+  const fixtureFiles = [
+    'main.js',
+    'editor.js',
+    'recovery.js',
+    'storage.js',
+    'protocol.js',
+    'library-assets/library-assets-manifest.json',
+    'licenses/scratch-editor-upstream.env',
+    'asa-lab-scratch-wordmark.svg',
+  ];
+  try {
+    fs.mkdirSync(vendor, { recursive: true });
+    fs.mkdirSync(join(root, 'library-assets'));
+    fs.mkdirSync(join(root, 'licenses'));
+    for (const file of fixtureFiles) fs.writeFileSync(join(root, file), 'fixture');
+    fs.writeFileSync(join(root, 'asa-commit.txt'), revision);
+    fs.writeFileSync(entry, read('infra/scratch-editor/host/index.html'));
+
+    const first = 'window.GUI = {};';
+    fs.writeFileSync(bundle, first);
+    const firstSha = createHash('sha256').update(first).digest('hex');
+    assert.deepEqual(configureStandaloneCache(vendor, entry), { standaloneSha256: firstSha });
+    assert.ok(fs.readFileSync(entry, 'utf8').includes(`scratch-gui-standalone.js?v=${firstSha}"`));
+    assert.ok(fs.readFileSync(entry, 'utf8').includes(marker));
+    assert.equal(
+      fs.readFileSync(cache, 'utf8'),
+      `${firstSha} "public, max-age=31536000, immutable";\n`,
+    );
+    assert.equal(fs.readFileSync(bundle, 'utf8'), first);
+
+    const second = 'window.GUI = { updated: true };';
+    const secondSha = createHash('sha256').update(second).digest('hex');
+    fs.writeFileSync(bundle, second);
+    assert.deepEqual(configureArtifact(root, revision, origin), { revision, parentOrigin: origin });
+    assert.equal(
+      fs.readFileSync(cache, 'utf8'),
+      `${secondSha} "public, max-age=31536000, immutable";\n`,
+    );
+    assert.ok(fs.readFileSync(entry, 'utf8').includes(`scratch-gui-standalone.js?v=${secondSha}"`));
+    assert.ok(fs.readFileSync(entry, 'utf8').includes(`content="${origin}"`));
+    assert.equal(fs.readFileSync(bundle, 'utf8'), second);
+    assert.ok(!fs.readFileSync(entry, 'utf8').includes(firstSha));
+
+    const packaged = read('infra/scratch-editor/Dockerfile.artifact');
+    assert.ok(packaged.includes('/usr/share/nginx/html/index.html'));
+  } finally {
+    for (const file of [...fixtureFiles, 'index.html', 'asa-commit.txt']) {
+      fs.rmSync(join(root, file), { force: true });
+    }
+    for (const file of [bundle, cache]) fs.rmSync(file, { force: true });
+    for (const directory of [
+      vendor,
+      join(root, 'vendor'),
+      join(root, 'library-assets'),
+      join(root, 'licenses'),
+      root,
+    ]) {
+      if (fs.existsSync(directory)) fs.rmdirSync(directory);
+    }
+  }
+});

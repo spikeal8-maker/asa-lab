@@ -12,6 +12,9 @@ FROM nginx:1.27.5-alpine
 ARG ASA_BUILD_REVISION
 LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# configure-artifact sets the exact parent origin at build time. This image
+# serves that entry directly so a fresh read-only runtime needs no tmpfs copy.
+RUN sed -i 's#/var/cache/nginx/asa-index\.html#/usr/share/nginx/html/index.html#' /etc/nginx/conf.d/default.conf
 COPY --from=prepared /artifact/standalone/ /usr/share/nginx/html/
 USER 101:101
 EXPOSE 8080
