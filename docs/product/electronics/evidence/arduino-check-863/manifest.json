@@ -1,0 +1,399 @@
+{
+  "baseline": "34df8d8163ba62fe3301ddb65f97b1741fe9e944",
+  "beforePublication": "766912728c7e5928f69dbfeb39c8d07050eccf05",
+  "excludes": "This manifest only; hashes cover actual candidate source/tests/evidence, Git-LF and raw bytes",
+  "files": [
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "rawBytes": 61406,
+      "rawSha256": "154a7087eee2fd9e896f6ea056156c34a0be84f55f18b1ec31ba64fa0505a3e7",
+      "gitLfBytes": 61406,
+      "gitLfSha256": "154a7087eee2fd9e896f6ea056156c34a0be84f55f18b1ec31ba64fa0505a3e7",
+      "gitBlob": "61cef66b704d3d9f8e4c0925c6acc06fc32c6c9d"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/arduino-check-messages.browser.mjs",
+      "rawBytes": 13087,
+      "rawSha256": "b8d067dd6514bf094eeaa119e6a36c31d88bd44d1f856eb54e3bdd246ae5defd",
+      "gitLfBytes": 13087,
+      "gitLfSha256": "b8d067dd6514bf094eeaa119e6a36c31d88bd44d1f856eb54e3bdd246ae5defd",
+      "gitBlob": "9caea994c2be23ff5abfb95691f848c47b209a7b"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/arduino-code-contract.spec.ts",
+      "rawBytes": 20654,
+      "rawSha256": "4a3a63de66aa4830b5e9870efcb14069c3988ee3ff4fa75bf81bc7ddf029ddda",
+      "gitLfBytes": 20654,
+      "gitLfSha256": "4a3a63de66aa4830b5e9870efcb14069c3988ee3ff4fa75bf81bc7ddf029ddda",
+      "gitBlob": "f19c85726936642b55e56df5fde5eb72f8ff22df"
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "rawBytes": 26245,
+      "rawSha256": "cfdb9a4d0c630816e1b13cded5a794bb053e01f41e336f1246c242724876d1ef",
+      "gitLfBytes": 26245,
+      "gitLfSha256": "cfdb9a4d0c630816e1b13cded5a794bb053e01f41e336f1246c242724876d1ef",
+      "gitBlob": "492238f72e409e108ba9a37bd8c60662e6e95f77"
+    },
+    {
+      "path": "contexts/electronics/testing/arduino-check-messages.spec.ts",
+      "rawBytes": 2091,
+      "rawSha256": "e8958b2bce958efbee0ea69a8123d8ab1497ed7e1349998e2c9adce63df3c123",
+      "gitLfBytes": 2091,
+      "gitLfSha256": "e8958b2bce958efbee0ea69a8123d8ab1497ed7e1349998e2c9adce63df3c123",
+      "gitBlob": "4bce3585d3411c69284a29210e992f07f0579ab3"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/README.md",
+      "rawBytes": 4821,
+      "rawSha256": "87b8f2bf89086b5dedbb983f6de09e2552772327e4f963c2042bee5411bde0da",
+      "gitLfBytes": 4821,
+      "gitLfSha256": "87b8f2bf89086b5dedbb983f6de09e2552772327e4f963c2042bee5411bde0da",
+      "gitBlob": "d414707225aa25694461d59cc314022e6f8e9b5e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/loops-1440.png",
+      "rawBytes": 44381,
+      "rawSha256": "b4190767cd4d6a4a2960c7de33ccceff164ede353db5904362c1d3e60aba1ed6",
+      "gitLfBytes": 44381,
+      "gitLfSha256": "b4190767cd4d6a4a2960c7de33ccceff164ede353db5904362c1d3e60aba1ed6",
+      "gitBlob": "911add750fd7b1af1647c577b90b8b67053572c7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/loops-390.png",
+      "rawBytes": 30825,
+      "rawSha256": "496a699f06a105520111145a4850a0a3fe46a14cb2f64d6309bde8d4fd7ea545",
+      "gitLfBytes": 30825,
+      "gitLfSha256": "496a699f06a105520111145a4850a0a3fe46a14cb2f64d6309bde8d4fd7ea545",
+      "gitBlob": "4840a8de3fba4f11efd184c7a47f2fe2e5a24959"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/message-deltas.json",
+      "rawBytes": 13312,
+      "rawSha256": "dfbdd1e74c1b077adec2066b398056a019dfd8983304179a7a04371fd1b0d63f",
+      "gitLfBytes": 13312,
+      "gitLfSha256": "dfbdd1e74c1b077adec2066b398056a019dfd8983304179a7a04371fd1b0d63f",
+      "gitBlob": "6a69b925b38ff7c98ec5e7fdde53af392775ff21"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/native.json",
+      "rawBytes": 23585,
+      "rawSha256": "4951f16b98da8271a069295c85f6c6da07a2bf11c4b750d17893810a1d324efd",
+      "gitLfBytes": 23585,
+      "gitLfSha256": "4951f16b98da8271a069295c85f6c6da07a2bf11c4b750d17893810a1d324efd",
+      "gitBlob": "f1431e18dba3acef8233b27137528642fa240b04"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/positions-existing/diagnostic-1440.png",
+      "rawBytes": 59200,
+      "rawSha256": "a1b289002f443ca02099e0708dfe171d64ac9fec9a188816f65b117dbd9825b2",
+      "gitLfBytes": 59200,
+      "gitLfSha256": "a1b289002f443ca02099e0708dfe171d64ac9fec9a188816f65b117dbd9825b2",
+      "gitBlob": "92a8d99c22531e3d598ecd572728b32c9461dda7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/positions-existing/diagnostic-390.png",
+      "rawBytes": 35022,
+      "rawSha256": "2f17a93810c1659a7e1ea7cab3d3b5352f3b479d84384a66d689e88e6b1d4d14",
+      "gitLfBytes": 35022,
+      "gitLfSha256": "2f17a93810c1659a7e1ea7cab3d3b5352f3b479d84384a66d689e88e6b1d4d14",
+      "gitBlob": "62c6eed2f41623faea5974f1ebada91052ddd1bc"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/positions-existing/receipts.json",
+      "rawBytes": 901,
+      "rawSha256": "bb443149a8c913a736c5d96bdd79488d705d5d17b88f8d5ed50e4a9cc58a36ce",
+      "gitLfBytes": 901,
+      "gitLfSha256": "bb443149a8c913a736c5d96bdd79488d705d5d17b88f8d5ed50e4a9cc58a36ce",
+      "gitBlob": "3075f1debade4cd1f4964e311be5b662d8eaca2a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/serial-1440.png",
+      "rawBytes": 46325,
+      "rawSha256": "12c9f7c44c67d4c73011418676bb711ea487475c9ef386c2bf9da8fbd4eb17e6",
+      "gitLfBytes": 46325,
+      "gitLfSha256": "12c9f7c44c67d4c73011418676bb711ea487475c9ef386c2bf9da8fbd4eb17e6",
+      "gitBlob": "efac31ab5f087f9c3ecc129fff50c492f541d427"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/serial-390.png",
+      "rawBytes": 30362,
+      "rawSha256": "fdc23bfead5639a8f474bfca527dabab03fdcc3f0862f531257d3ac2959073c8",
+      "gitLfBytes": 30362,
+      "gitLfSha256": "fdc23bfead5639a8f474bfca527dabab03fdcc3f0862f531257d3ac2959073c8",
+      "gitBlob": "2079ffc7a9c12339fd2230fd02386cb20cd49100"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/servo-1440.png",
+      "rawBytes": 54357,
+      "rawSha256": "86985505f44e2249deea5b37c697cfe1f53757498c513217b4efa88a2e6c0a77",
+      "gitLfBytes": 54357,
+      "gitLfSha256": "86985505f44e2249deea5b37c697cfe1f53757498c513217b4efa88a2e6c0a77",
+      "gitBlob": "513e4d9bd89150a961008ea85dac9d709f18faad"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/servo-390.png",
+      "rawBytes": 31648,
+      "rawSha256": "8157214eb8ea0a917a8a99041e61edf261860eeb3c1952573d7905544f65cb7a",
+      "gitLfBytes": 31648,
+      "gitLfSha256": "8157214eb8ea0a917a8a99041e61edf261860eeb3c1952573d7905544f65cb7a",
+      "gitBlob": "3b2c71c6ecaa4042a75fa2c05d3801202ce16391"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/source-copy-proof.json",
+      "rawBytes": 20288,
+      "rawSha256": "5261e163ae16715227a57673e0fd5e95fcc303fd4e5cd6798aa759d74f35d004",
+      "gitLfBytes": 20288,
+      "gitLfSha256": "5261e163ae16715227a57673e0fd5e95fcc303fd4e5cd6798aa759d74f35d004",
+      "gitBlob": "93bc0dad4df801ae85d81145be1c5294afb73e8e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/structures.json",
+      "rawBytes": 61622,
+      "rawSha256": "1718e13727a65aa2d03e93e80f78abd856d2ec9a9f66b0789db8e3350cc8cdae",
+      "gitLfBytes": 61622,
+      "gitLfSha256": "1718e13727a65aa2d03e93e80f78abd856d2ec9a9f66b0789db8e3350cc8cdae",
+      "gitBlob": "b80272f9a34914472930cf7eac1af611bf728d77"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/supported-1440.png",
+      "rawBytes": 36904,
+      "rawSha256": "0d2b3c7185e9b44f9ba4077ed41a48363c46c0a0c2e03ef9701820fc14f69be5",
+      "gitLfBytes": 36904,
+      "gitLfSha256": "0d2b3c7185e9b44f9ba4077ed41a48363c46c0a0c2e03ef9701820fc14f69be5",
+      "gitBlob": "b8b89c484a68e329d1452e8e1c19a12db7a90885"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/supported-390.png",
+      "rawBytes": 27371,
+      "rawSha256": "bfe1759a003678fc0104d6b7be33ef0a4bd018b99af2a24a5932607760a8c644",
+      "gitLfBytes": 27371,
+      "gitLfSha256": "bfe1759a003678fc0104d6b7be33ef0a4bd018b99af2a24a5932607760a8c644",
+      "gitBlob": "881edbb332d1da106ad9bbbc22654c2416d5ba82"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/syntax-1440.png",
+      "rawBytes": 42719,
+      "rawSha256": "44e13cb2e8e583c3af442a27f2daea0baab66f91e8e1bd303992a41265397780",
+      "gitLfBytes": 42719,
+      "gitLfSha256": "44e13cb2e8e583c3af442a27f2daea0baab66f91e8e1bd303992a41265397780",
+      "gitBlob": "e2d903ed7adc8adc0b2e0e10c8d65a9d5192c0b8"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/syntax-390.png",
+      "rawBytes": 33686,
+      "rawSha256": "36ce1d1617b3f527a814257fa9dd898f9a805c186d202d1eac1e955c21ee7504",
+      "gitLfBytes": 33686,
+      "gitLfSha256": "36ce1d1617b3f527a814257fa9dd898f9a805c186d202d1eac1e955c21ee7504",
+      "gitBlob": "581cee94361510f97bd0fed1c955988cb1b51529"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/timeIncrement-1440.png",
+      "rawBytes": 49046,
+      "rawSha256": "701e9a6c34b94abe29486b9693580725aafc2176167757fdaa8cd78760089e4a",
+      "gitLfBytes": 49046,
+      "gitLfSha256": "701e9a6c34b94abe29486b9693580725aafc2176167757fdaa8cd78760089e4a",
+      "gitBlob": "85e7a5f51985a210fd376c3310a3fc5a7a12a767"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/timeIncrement-390.png",
+      "rawBytes": 32076,
+      "rawSha256": "a765386f7f86f941ec9600ec1ad6280d8f6104a09ced734e7704db19a28196bd",
+      "gitLfBytes": 32076,
+      "gitLfSha256": "a765386f7f86f941ec9600ec1ad6280d8f6104a09ced734e7704db19a28196bd",
+      "gitBlob": "da93fbfad573aca48b5f89838b648e80bf8e3525"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/tonePwm-1440.png",
+      "rawBytes": 44844,
+      "rawSha256": "141c7cb03f4101d9f7961fa13a5ac211ddf551765caf359f98556479c660a511",
+      "gitLfBytes": 44844,
+      "gitLfSha256": "141c7cb03f4101d9f7961fa13a5ac211ddf551765caf359f98556479c660a511",
+      "gitBlob": "fc5161c0496fc553defaf41b28fa8a06a47adc1c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/tonePwm-390.png",
+      "rawBytes": 30849,
+      "rawSha256": "3517930dd251ccfda8b23e3c2e7587f067f255698b580a4661ae49d6b53322cd",
+      "gitLfBytes": 30849,
+      "gitLfSha256": "3517930dd251ccfda8b23e3c2e7587f067f255698b580a4661ae49d6b53322cd",
+      "gitBlob": "60d60975120e788a408db0866e585539f158f5f6"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/unsupported-1440.png",
+      "rawBytes": 48493,
+      "rawSha256": "b9b78599338906983c889fdebbbdb61d8ce1fb286963863e700eac550886ff7c",
+      "gitLfBytes": 48493,
+      "gitLfSha256": "b9b78599338906983c889fdebbbdb61d8ce1fb286963863e700eac550886ff7c",
+      "gitBlob": "d9497695cf3f242eef20e38f181840f889826365"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/unsupported-390.png",
+      "rawBytes": 38104,
+      "rawSha256": "298a9d70ca098724af927f6fa711b09b0b3e4a86d38e35e2ca946c4c9134d975",
+      "gitLfBytes": 38104,
+      "gitLfSha256": "298a9d70ca098724af927f6fa711b09b0b3e4a86d38e35e2ca946c4c9134d975",
+      "gitBlob": "fddb19af16bdb17e8fe83abc623376b51fc49613"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/after/worktree-overlap.json",
+      "rawBytes": 7072,
+      "rawSha256": "35497707d02bc889b07efe47ea22e7709fb4d01e634925cb80a7edf04ee483ed",
+      "gitLfBytes": 7072,
+      "gitLfSha256": "35497707d02bc889b07efe47ea22e7709fb4d01e634925cb80a7edf04ee483ed",
+      "gitBlob": "b0d2ae19bcb23bd4262a407fb0ec8c29743f6dc0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/loops-1440.png",
+      "rawBytes": 47808,
+      "rawSha256": "eb1c649304ccae68bddd81d60a61ee55f43e02e156664d61cd382d100ca3a072",
+      "gitLfBytes": 47808,
+      "gitLfSha256": "eb1c649304ccae68bddd81d60a61ee55f43e02e156664d61cd382d100ca3a072",
+      "gitBlob": "0299e99371c1f90a04238ee4070883f7e2513375"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/loops-390.png",
+      "rawBytes": 32382,
+      "rawSha256": "34b4670d9e65bb9fc8371c09ea3adf65ad9c3455d0d45b6d969484f5590f01a2",
+      "gitLfBytes": 32382,
+      "gitLfSha256": "34b4670d9e65bb9fc8371c09ea3adf65ad9c3455d0d45b6d969484f5590f01a2",
+      "gitBlob": "86687657a5ee5731dcd1395057ef861c665296f9"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/manifest.json",
+      "rawBytes": 2416,
+      "rawSha256": "df9a3fc1637b8bf2c7856804a5f8133e216c8f8a63c6fb28a6671673feaa9d8d",
+      "gitLfBytes": 2416,
+      "gitLfSha256": "df9a3fc1637b8bf2c7856804a5f8133e216c8f8a63c6fb28a6671673feaa9d8d",
+      "gitBlob": "57489c6b9a4e51899734fbecf3d9f033fb85504c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/native.json",
+      "rawBytes": 24197,
+      "rawSha256": "675146eceff97b5ea27c994de6574ff7762392fb169d8e3e027882e4af205804",
+      "gitLfBytes": 24197,
+      "gitLfSha256": "675146eceff97b5ea27c994de6574ff7762392fb169d8e3e027882e4af205804",
+      "gitBlob": "1332f9c431ec4ebef5e067c1e1416ec4f0f39fed"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/serial-1440.png",
+      "rawBytes": 45751,
+      "rawSha256": "89349c588d15820359b31f2fe06aabd22c075e411dddc2ed9659113ab046ba44",
+      "gitLfBytes": 45751,
+      "gitLfSha256": "89349c588d15820359b31f2fe06aabd22c075e411dddc2ed9659113ab046ba44",
+      "gitBlob": "cd5267ef9c4c3fb5dc63469babc08e87530df158"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/serial-390.png",
+      "rawBytes": 30407,
+      "rawSha256": "197787c1c5177f4c950e496f018f3314a3a7c6f7b5fbb7f6e82d3111b7f0475f",
+      "gitLfBytes": 30407,
+      "gitLfSha256": "197787c1c5177f4c950e496f018f3314a3a7c6f7b5fbb7f6e82d3111b7f0475f",
+      "gitBlob": "6171223f3f4da2b2795698c1965e06afcb6886e3"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/servo-1440.png",
+      "rawBytes": 54293,
+      "rawSha256": "d9c214f73569a396f6c984914f5093320894531464ce4a61e8457177748c0af8",
+      "gitLfBytes": 54293,
+      "gitLfSha256": "d9c214f73569a396f6c984914f5093320894531464ce4a61e8457177748c0af8",
+      "gitBlob": "372ccc75ff2c0b4848650774e6cd68454a6a96ad"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/servo-390.png",
+      "rawBytes": 32197,
+      "rawSha256": "bc790c49cde90fb35868717b4e34941047ba0cb44a48fac3ec0bd35ffec0341b",
+      "gitLfBytes": 32197,
+      "gitLfSha256": "bc790c49cde90fb35868717b4e34941047ba0cb44a48fac3ec0bd35ffec0341b",
+      "gitBlob": "4ebe6f1ac447adec4f9235abf357cd106672e6d7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/structures.json",
+      "rawBytes": 62103,
+      "rawSha256": "be1725562ccdbae9d3b22b6c8e4d75d45fbb8bc4b84fab5c1e6b24834d25f2e9",
+      "gitLfBytes": 62103,
+      "gitLfSha256": "be1725562ccdbae9d3b22b6c8e4d75d45fbb8bc4b84fab5c1e6b24834d25f2e9",
+      "gitBlob": "fb17d719d01e27fcf137c75596684aa9266cb8dd"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/supported-1440.png",
+      "rawBytes": 38102,
+      "rawSha256": "bda2f9840676c8e553e0770a9992bedfd1d61133ff09e6a092061b85d51dd1be",
+      "gitLfBytes": 38102,
+      "gitLfSha256": "bda2f9840676c8e553e0770a9992bedfd1d61133ff09e6a092061b85d51dd1be",
+      "gitBlob": "448394302a5d6fc7b36f5de435854e0fe67a6576"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/supported-390.png",
+      "rawBytes": 28756,
+      "rawSha256": "284ba49fa610d115b9146068c99ed8ef20b0bdd699bc8279f02be44522f51013",
+      "gitLfBytes": 28756,
+      "gitLfSha256": "284ba49fa610d115b9146068c99ed8ef20b0bdd699bc8279f02be44522f51013",
+      "gitBlob": "c5e0aa8b85d689dafe6df9dd137fd5999450933a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/syntax-1440.png",
+      "rawBytes": 42090,
+      "rawSha256": "e819c09adc150bd2d1251a69d031adbc2b8f21ff1cfe8d60a8b02f98f7724cfa",
+      "gitLfBytes": 42090,
+      "gitLfSha256": "e819c09adc150bd2d1251a69d031adbc2b8f21ff1cfe8d60a8b02f98f7724cfa",
+      "gitBlob": "b3d4864046fdd90feea6da99a2553d207879f05b"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/syntax-390.png",
+      "rawBytes": 33881,
+      "rawSha256": "33cddff67f7e6fc04c51437afb570e48dd069a07ed72f1f065b9637d916d1f0b",
+      "gitLfBytes": 33881,
+      "gitLfSha256": "33cddff67f7e6fc04c51437afb570e48dd069a07ed72f1f065b9637d916d1f0b",
+      "gitBlob": "5c101bdda7e531439bf2df222c5098280c8c6373"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/timeIncrement-1440.png",
+      "rawBytes": 51258,
+      "rawSha256": "8133dada99e21c495cefd91066e47e01af24bbfdf351b41dcc3a08d39b5768ef",
+      "gitLfBytes": 51258,
+      "gitLfSha256": "8133dada99e21c495cefd91066e47e01af24bbfdf351b41dcc3a08d39b5768ef",
+      "gitBlob": "614e7145c97acbe4cdc68b3352fc76a99e6e0211"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/timeIncrement-390.png",
+      "rawBytes": 31719,
+      "rawSha256": "e3eee3cca0065e70ccf160b0f84bf8818e57085667f1ca929b797c595bb981f3",
+      "gitLfBytes": 31719,
+      "gitLfSha256": "e3eee3cca0065e70ccf160b0f84bf8818e57085667f1ca929b797c595bb981f3",
+      "gitBlob": "d3644629e3a7a3c88cd42bd4d41f73ffcf91af69"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/tonePwm-1440.png",
+      "rawBytes": 43311,
+      "rawSha256": "e4b80032a065b4ee526217af7ea2f008517b05bddaf64ed34487380081a6ff95",
+      "gitLfBytes": 43311,
+      "gitLfSha256": "e4b80032a065b4ee526217af7ea2f008517b05bddaf64ed34487380081a6ff95",
+      "gitBlob": "c425158f6012dbbe2f588c6ab85c2f78491d78b4"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/tonePwm-390.png",
+      "rawBytes": 31871,
+      "rawSha256": "944d5f014288a86d7028ed1ab029be49e65568157482f716bfea15f3362ea23f",
+      "gitLfBytes": 31871,
+      "gitLfSha256": "944d5f014288a86d7028ed1ab029be49e65568157482f716bfea15f3362ea23f",
+      "gitBlob": "52b571a8ffa25e0486eb425d2b394a34216caf7c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/unsupported-1440.png",
+      "rawBytes": 48731,
+      "rawSha256": "c1abc4e25d7642288368b41c0c2e19c4ab974ecb7df10462bd49e0f0523d7af2",
+      "gitLfBytes": 48731,
+      "gitLfSha256": "c1abc4e25d7642288368b41c0c2e19c4ab974ecb7df10462bd49e0f0523d7af2",
+      "gitBlob": "68e530e7a7b95d093fde570b48882ef097c77ea4"
+    },
+    {
+      "path": "docs/product/electronics/evidence/arduino-check-863/before/unsupported-390.png",
+      "rawBytes": 39206,
+      "rawSha256": "37cee002e4e01e93e8d58d788cef99408faf9118ed95c163e2d73c3c91be0f01",
+      "gitLfBytes": 39206,
+      "gitLfSha256": "37cee002e4e01e93e8d58d788cef99408faf9118ed95c163e2d73c3c91be0f01",
+      "gitBlob": "f38aa957de49afa7bf786e342efac0adca3e79bc"
+    }
+  ]
+}

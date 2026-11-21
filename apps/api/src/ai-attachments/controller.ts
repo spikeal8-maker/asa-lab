@@ -239,7 +239,7 @@ export class AiAttachmentController {
           void reply
             .header(
               'Content-Type',
-              result.receipt.kind === 'text'
+              result.receipt.kind === 'text' && !result.receipt.mediaType.startsWith('application/')
                 ? 'text/plain; charset=utf-8'
                 : result.receipt.mediaType,
             )

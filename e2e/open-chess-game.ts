@@ -13,5 +13,5 @@ export async function openChessGame(page: Page, title: string): Promise<void> {
   await page.goto('/#/games');
   await expect(page.getByRole('heading', { name: 'Игры', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
-  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
 }

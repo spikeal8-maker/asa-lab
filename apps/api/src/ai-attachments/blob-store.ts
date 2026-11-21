@@ -13,6 +13,8 @@ import type { BlocksObjectStorageConfig } from '../blocks-asset-storage.js';
 import { AI_ATTACHMENT_LIMITS, attachmentId } from './contracts.js';
 
 export interface AiAttachmentObject {
+  /** Server-generated outputs use their own namespace; never an upload receipt. */
+  purpose?: 'generated';
   ownerId: string;
   uploadId: string;
   sha256: string;
@@ -49,7 +51,7 @@ export function aiAttachmentObjectKey(input: AiAttachmentObject): string {
     input.sizeBytes > 8 * 1024 * 1024
   )
     throw new AiAttachmentStorageError('integrity');
-  return `ai/private/v1/owners/${owner}/uploads/${upload}/${input.sha256}`;
+  return `ai/private/v1/owners/${owner}/${input.purpose === 'generated' ? 'generated' : 'uploads'}/${upload}/${input.sha256}`;
 }
 
 function status(problem: unknown): number | undefined {

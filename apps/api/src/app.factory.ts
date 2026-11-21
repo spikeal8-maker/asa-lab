@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { observeHttpTerminal, type HttpTerminalOutcome } from './http-observation.js';
@@ -18,6 +19,7 @@ import { SeatContextUseCase } from './seat-context.js';
 import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
+import { AnalyticsDeliveryQueue } from './analytics-delivery-queue.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
 import {
   runSessionDatabaseScope,
@@ -44,6 +46,7 @@ import {
 } from './origin-policy.js';
 import { createMutationSessionResolver, MutationAbuseProtection } from './abuse-protection.js';
 import { requestMutationAdmission } from './mutation-session-proof.js';
+import { registerLearningFileTransport } from './learning-file-transport.js';
 import { registerAiAttachmentTransport } from './ai-attachments/transport.js';
 import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
@@ -89,7 +92,7 @@ const SECURITY_HEADERS = {
     "worker-src 'self' blob:",
     "manifest-src 'self'",
   ].join('; '),
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=()',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   'X-Content-Type-Options': 'nosniff',
@@ -163,6 +166,8 @@ export interface ApiFactoryOptions {
   readonly pool?: pg.Pool | null;
   /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
   readonly analyticsPool?: pg.Pool | null;
+  /** Independent optional intake; injected compositions default disabled rather than sharing critical pools. */
+  readonly acquisitionPool?: pg.Pool | null;
   /** Directory with the built web SPA; defaults to apps/web/dist. */
   readonly webDist?: string | null;
   /** Canonical browser origin allowed to call mutation endpoints. */
@@ -242,12 +247,18 @@ export async function createApiApp(
   let createdApp: NestFastifyApplication | undefined;
   let metrics: ReturnType<typeof createRuntimeMetrics> | undefined;
   let analytics: ProductAnalyticsService | undefined;
+  let acquisition: ProductAnalyticsService | undefined;
   let cleanupPromise: Promise<void> | undefined;
   const cleanup = (): Promise<void> =>
     (cleanupPromise ??= (async () => {
       const errors: unknown[] = [];
       try {
         if (analytics) await boundedClose(() => analytics!.shutdown(), 6000);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        if (acquisition) await boundedClose(() => acquisition!.shutdown(), 6000);
       } catch (error) {
         errors.push(error);
       }
@@ -278,10 +289,40 @@ export async function createApiApp(
               })
             : null;
     owned.track(analyticsPool, 'analytics');
+    const acquisitionPool =
+      options.acquisitionPool !== undefined
+        ? options.acquisitionPool
+        : options.pool !== undefined || options.analyticsPool === null
+          ? null
+          : process.env['APP_DATABASE_URL']
+            ? new pg.Pool({
+                connectionString: process.env['APP_DATABASE_URL'],
+                ...analyticsPoolSettings(),
+              })
+            : null;
+    owned.track(acquisitionPool, 'acquisition');
+    if (!pool && acquisitionPool) throw new Error('acquisition_requires_main_database');
     assertTrustedProxyConfiguration();
     if (!pool && analyticsPool) throw new Error('analytics_requires_main_database');
-    metrics = createRuntimeMetrics();
+    const logRevision = runtimeBuildMetadata().revision;
+    const alertRevision =
+      /^[a-f0-9]{7,40}$/i.test(logRevision) || logRevision === 'development'
+        ? logRevision
+        : 'unknown';
+    metrics = createRuntimeMetrics((event) => {
+      emitApplicationLog(
+        `${JSON.stringify({ time: new Date().toISOString(), revision: alertRevision, ...event })}\n`,
+      );
+    });
     analytics = new ProductAnalyticsService(analyticsPool);
+    acquisition = new ProductAnalyticsService(
+      acquisitionPool,
+      new AnalyticsDeliveryQueue(acquisitionPool !== null, Date.now, (value) => {
+        emitApplicationLog(
+          `${JSON.stringify({ ...value, pipeline: 'acquisition-observations' })}\n`,
+        );
+      }),
+    );
     const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
     const allowedLocalApiOrigin = resolveLocalApiOrigin(
       options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
@@ -300,6 +341,7 @@ export async function createApiApp(
     const app = await NestFactory.create<NestFastifyApplication>(
       AppModule.forPool(pool, {
         productAnalytics: analytics,
+        acquisitionAnalytics: acquisition,
         runtimeMetrics: metrics,
         ...(options.authProviderOptions
           ? { authProviderOptions: options.authProviderOptions }
@@ -338,6 +380,7 @@ export async function createApiApp(
     const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
     registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
     registerAiAttachmentTransport(fastify);
+    registerLearningFileTransport(fastify);
     await fastify.register(fastifyCookie);
 
     fastify.addHook('onSend', async (request, reply, payload) => {
@@ -366,7 +409,6 @@ export async function createApiApp(
 
     const runtimeMetrics = metrics;
     const logRequests = shouldLogRequests(options.logRequests);
-    const logRevision = runtimeBuildMetadata().revision;
     app.useGlobalFilters(new ServerDiagnosticsFilter(app.getHttpAdapter(), logRevision, pool));
     fastify.addHook('onError', async (request, _reply, error) => {
       if (!requestFailures.has(request))
@@ -395,7 +437,7 @@ export async function createApiApp(
       const addressResolution = clientAddressDiagnostics(request);
       if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client') {
         try {
-          process.stdout.write(
+          emitApplicationLog(
             `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), addressResolution, ...diagnosticContext(request) })}\n`,
           );
         } catch {
@@ -418,7 +460,7 @@ export async function createApiApp(
               (sessionDatabase.failures > 0 ||
                 sessionDatabase.poolAcquireMs >= 250 ||
                 sessionDatabase.queryRoundTripMs >= 250);
-            process.stdout.write(
+            emitApplicationLog(
               `${JSON.stringify({
                 time: new Date().toISOString(),
                 kind: outcome === 'response' ? 'http_response' : 'http_request_ended',

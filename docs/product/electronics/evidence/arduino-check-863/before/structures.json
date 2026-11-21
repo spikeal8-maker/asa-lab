@@ -1,0 +1,2033 @@
+{
+  "cases": {
+    "supported": {
+      "source": "void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(100);}",
+      "diagnostics": [],
+      "syntax": [],
+      "blocked": false,
+      "runtime": {
+        "executionStatus": "ready",
+        "setupActions": [
+          {
+            "kind": "pin-mode",
+            "terminal": "d13",
+            "mode": "OUTPUT"
+          }
+        ],
+        "loopActions": [
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "delay",
+            "durationMs": 100
+          }
+        ],
+        "events": [
+          {
+            "kind": "pin-mode-change",
+            "terminal": "d13",
+            "mode": "OUTPUT",
+            "sequence": 0,
+            "atMicroseconds": 0
+          },
+          {
+            "kind": "output-change",
+            "terminal": "d13",
+            "voltage": 0,
+            "sequence": 1,
+            "atMicroseconds": 0
+          },
+          {
+            "kind": "output-change",
+            "terminal": "d13",
+            "voltage": 5,
+            "sequence": 2,
+            "atMicroseconds": 2
+          }
+        ],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-80-25c97a40-94c56c88",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 100.004,
+          "phase": "loop",
+          "programCounter": 2,
+          "loopIterationActive": true,
+          "loopStartedAtMs": 0.002,
+          "loopIterations": 1,
+          "nextEventSequence": 3,
+          "eventQueue": [
+            {
+              "kind": "pin-mode-change",
+              "terminal": "d13",
+              "mode": "OUTPUT",
+              "sequence": 0,
+              "atMicroseconds": 0
+            },
+            {
+              "kind": "output-change",
+              "terminal": "d13",
+              "voltage": 0,
+              "sequence": 1,
+              "atMicroseconds": 0
+            },
+            {
+              "kind": "output-change",
+              "terminal": "d13",
+              "voltage": 5,
+              "sequence": 2,
+              "atMicroseconds": 2
+            }
+          ],
+          "variables": {},
+          "locals": {},
+          "scopes": [
+            {},
+            {}
+          ],
+          "faults": [],
+          "pinModes": {
+            "d13": "OUTPUT"
+          },
+          "outputVoltages": {
+            "d13": 5
+          },
+          "tones": {}
+        },
+        "diagnostics": []
+      }
+    },
+    "loops": {
+      "source": "void loop(){for(int i=0;i<3;i++){digitalWrite(13,HIGH);}while(false){delay(1);}}",
+      "diagnostics": [
+        {
+          "code": "bounded-control-flow",
+          "status": "limited",
+          "start": 12,
+          "length": 4,
+          "message": "Цикл исполняется по условию в пределах защитного лимита операций.",
+          "line": 1,
+          "column": 13
+        },
+        {
+          "code": "increment",
+          "status": "limited",
+          "start": 29,
+          "length": 2,
+          "message": "Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.",
+          "line": 1,
+          "column": 30
+        },
+        {
+          "code": "bounded-control-flow",
+          "status": "limited",
+          "start": 56,
+          "length": 6,
+          "message": "Цикл исполняется по условию в пределах защитного лимита операций.",
+          "line": 1,
+          "column": 57
+        }
+      ],
+      "syntax": [],
+      "blocked": false,
+      "runtime": {
+        "executionStatus": "ready",
+        "setupActions": [],
+        "loopActions": [
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          },
+          {
+            "kind": "write",
+            "terminal": "d13",
+            "targetVoltage": 5
+          }
+        ],
+        "events": [
+          {
+            "kind": "pin-mode-change",
+            "terminal": "d13",
+            "mode": "INPUT_PULLUP",
+            "sequence": 0,
+            "atMicroseconds": 5
+          },
+          {
+            "kind": "output-change",
+            "terminal": "d13",
+            "voltage": 5,
+            "sequence": 1,
+            "atMicroseconds": 5
+          }
+        ],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-80-a0d9ac52-48bd6fa8",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 1.001,
+          "phase": "loop",
+          "programCounter": 4,
+          "loopIterationActive": true,
+          "loopStartedAtMs": 0.985,
+          "loopIterations": 42,
+          "nextEventSequence": 2,
+          "eventQueue": [
+            {
+              "kind": "pin-mode-change",
+              "terminal": "d13",
+              "mode": "INPUT_PULLUP",
+              "sequence": 0,
+              "atMicroseconds": 5
+            },
+            {
+              "kind": "output-change",
+              "terminal": "d13",
+              "voltage": 5,
+              "sequence": 1,
+              "atMicroseconds": 5
+            }
+          ],
+          "variables": {},
+          "locals": {
+            "i": 2
+          },
+          "scopes": [
+            {},
+            {},
+            {
+              "i": {
+                "type": "int",
+                "constant": false,
+                "value": 2
+              }
+            },
+            {}
+          ],
+          "faults": [],
+          "pinModes": {
+            "d13": "INPUT_PULLUP"
+          },
+          "outputVoltages": {
+            "d13": 5
+          },
+          "tones": {}
+        },
+        "diagnostics": []
+      }
+    },
+    "servo": {
+      "source": "#include <Servo.h>\nServo arm;\nvoid setup(){arm.attach(9);}\nvoid loop(){arm.write(90);int angle=arm.read();arm.detach();}",
+      "diagnostics": [
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 0,
+          "length": 18,
+          "message": "Подключает встроенный адаптер Servo.",
+          "line": 1,
+          "column": 1
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 43,
+          "length": 10,
+          "message": "Подключает объект Servo к выводу и запускает импульсы 50 Гц.",
+          "line": 3,
+          "column": 14
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 71,
+          "length": 9,
+          "message": "Задаёт угол через длительность импульса.",
+          "line": 4,
+          "column": 13
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 95,
+          "length": 8,
+          "message": "Возвращает заданный угол Servo.",
+          "line": 4,
+          "column": 37
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 106,
+          "length": 10,
+          "message": "Отключает Servo и оставляет вывод LOW.",
+          "line": 4,
+          "column": 48
+        }
+      ],
+      "syntax": [],
+      "blocked": false,
+      "runtime": {
+        "executionStatus": "ready",
+        "setupActions": [
+          {
+            "kind": "pin-mode",
+            "terminal": "d9",
+            "mode": "OUTPUT"
+          }
+        ],
+        "loopActions": [
+          {
+            "kind": "write",
+            "terminal": "d9",
+            "targetVoltage": 0,
+            "enableOutput": true
+          }
+        ],
+        "events": [
+          {
+            "kind": "pin-mode-change",
+            "terminal": "d9",
+            "mode": "OUTPUT",
+            "sequence": 0,
+            "atMicroseconds": 0
+          },
+          {
+            "kind": "output-change",
+            "terminal": "d9",
+            "voltage": 0,
+            "sequence": 1,
+            "atMicroseconds": 0
+          }
+        ],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-120-9fdd7802-55bd3ace",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 1.001,
+          "phase": "loop",
+          "programCounter": 3,
+          "loopIterationActive": true,
+          "loopStartedAtMs": 0.998,
+          "loopIterations": 250,
+          "nextEventSequence": 2,
+          "eventQueue": [
+            {
+              "kind": "pin-mode-change",
+              "terminal": "d9",
+              "mode": "OUTPUT",
+              "sequence": 0,
+              "atMicroseconds": 0
+            },
+            {
+              "kind": "output-change",
+              "terminal": "d9",
+              "voltage": 0,
+              "sequence": 1,
+              "atMicroseconds": 0
+            }
+          ],
+          "servo": {
+            "version": 1,
+            "objects": {
+              "arm": {
+                "attached": false,
+                "commandedAngle": 90,
+                "pulseWidthMicroseconds": 1472
+              }
+            }
+          },
+          "variables": {},
+          "locals": {
+            "angle": 90
+          },
+          "scopes": [
+            {},
+            {
+              "angle": {
+                "type": "int",
+                "constant": false,
+                "value": 90
+              }
+            }
+          ],
+          "faults": [],
+          "pinModes": {
+            "d9": "OUTPUT"
+          },
+          "outputVoltages": {
+            "d9": 0
+          },
+          "tones": {}
+        },
+        "diagnostics": []
+      }
+    },
+    "tonePwm": {
+      "source": "void loop(){analogWrite(9,128);tone(8,440,100);delay(100);noTone(8);}",
+      "diagnostics": [
+        {
+          "code": "averaged-pwm",
+          "status": "limited",
+          "start": 12,
+          "length": 12,
+          "message": "ШИМ представлен средним постоянным напряжением.",
+          "line": 1,
+          "column": 13
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 31,
+          "length": 5,
+          "message": "tone/noTone используют canonical timed waveform без AVR timer accuracy.",
+          "line": 1,
+          "column": 32
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 58,
+          "length": 7,
+          "message": "tone/noTone используют canonical timed waveform без AVR timer accuracy.",
+          "line": 1,
+          "column": 59
+        }
+      ],
+      "syntax": [],
+      "blocked": false,
+      "runtime": {
+        "executionStatus": "ready",
+        "setupActions": [],
+        "loopActions": [
+          {
+            "kind": "write",
+            "terminal": "d9",
+            "targetVoltage": 2.5098039215686274,
+            "enableOutput": true
+          },
+          {
+            "kind": "tone",
+            "terminal": "d8",
+            "frequencyHz": 440,
+            "durationMs": 100
+          },
+          {
+            "kind": "delay",
+            "durationMs": 100
+          }
+        ],
+        "events": [
+          {
+            "kind": "pin-mode-change",
+            "terminal": "d9",
+            "mode": "OUTPUT",
+            "sequence": 0,
+            "atMicroseconds": 1
+          },
+          {
+            "kind": "output-change",
+            "terminal": "d9",
+            "voltage": 0,
+            "sequence": 1,
+            "atMicroseconds": 1
+          },
+          {
+            "kind": "output-change",
+            "terminal": "d9",
+            "voltage": 2.5098039215686274,
+            "sequence": 2,
+            "atMicroseconds": 1
+          },
+          {
+            "kind": "pin-mode-change",
+            "terminal": "d8",
+            "mode": "OUTPUT",
+            "sequence": 3,
+            "atMicroseconds": 2
+          },
+          {
+            "kind": "output-change",
+            "terminal": "d8",
+            "voltage": 0,
+            "sequence": 4,
+            "atMicroseconds": 2
+          },
+          {
+            "kind": "tone-start",
+            "terminal": "d8",
+            "frequencyHz": 440,
+            "sequence": 5,
+            "atMicroseconds": 2
+          }
+        ],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-69-2c196827-b8fc64f7",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 100.004,
+          "phase": "loop",
+          "programCounter": 3,
+          "loopIterationActive": true,
+          "loopStartedAtMs": 0.001,
+          "loopIterations": 1,
+          "nextEventSequence": 6,
+          "eventQueue": [
+            {
+              "kind": "pin-mode-change",
+              "terminal": "d9",
+              "mode": "OUTPUT",
+              "sequence": 0,
+              "atMicroseconds": 1
+            },
+            {
+              "kind": "output-change",
+              "terminal": "d9",
+              "voltage": 0,
+              "sequence": 1,
+              "atMicroseconds": 1
+            },
+            {
+              "kind": "output-change",
+              "terminal": "d9",
+              "voltage": 2.5098039215686274,
+              "sequence": 2,
+              "atMicroseconds": 1
+            },
+            {
+              "kind": "pin-mode-change",
+              "terminal": "d8",
+              "mode": "OUTPUT",
+              "sequence": 3,
+              "atMicroseconds": 2
+            },
+            {
+              "kind": "output-change",
+              "terminal": "d8",
+              "voltage": 0,
+              "sequence": 4,
+              "atMicroseconds": 2
+            },
+            {
+              "kind": "tone-start",
+              "terminal": "d8",
+              "frequencyHz": 440,
+              "sequence": 5,
+              "atMicroseconds": 2
+            }
+          ],
+          "variables": {},
+          "locals": {},
+          "scopes": [
+            {},
+            {}
+          ],
+          "faults": [],
+          "pinModes": {
+            "d8": "OUTPUT",
+            "d9": "OUTPUT"
+          },
+          "outputVoltages": {
+            "d8": 0,
+            "d9": 2.5098039215686274
+          },
+          "tones": {
+            "d8": {
+              "startedAtMicroseconds": 2,
+              "frequencyHz": 440,
+              "dutyNumerator": 1,
+              "dutyDenominator": 2,
+              "edgeIndex": 0,
+              "endAtMicroseconds": 100002
+            }
+          }
+        },
+        "diagnostics": []
+      }
+    },
+    "serial": {
+      "source": "void setup(){Serial.begin(9600);}\nvoid loop(){Serial.println(\"<img onerror=alert(1)>😀\");int n=Serial.available();int b=Serial.read();delay(100);}",
+      "diagnostics": [
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 13,
+          "length": 12,
+          "message": "Задаёт скорость для виртуального монитора порта.",
+          "line": 1,
+          "column": 14
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 46,
+          "length": 14,
+          "message": "Выводит значение с переводом строки.",
+          "line": 2,
+          "column": 13
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 95,
+          "length": 16,
+          "message": "Возвращает число входящих байтов.",
+          "line": 2,
+          "column": 62
+        },
+        {
+          "code": "bounded-timing",
+          "status": "limited",
+          "start": 120,
+          "length": 11,
+          "message": "Читает первый входящий байт или −1, если очередь пуста.",
+          "line": 2,
+          "column": 87
+        }
+      ],
+      "syntax": [],
+      "blocked": false,
+      "runtime": {
+        "executionStatus": "ready",
+        "setupActions": [],
+        "loopActions": [
+          {
+            "kind": "delay",
+            "durationMs": 100
+          }
+        ],
+        "events": [],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-146-b183ca46-cc51c590",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 100.006,
+          "phase": "loop",
+          "programCounter": 4,
+          "loopIterationActive": true,
+          "loopStartedAtMs": 0.002,
+          "loopIterations": 1,
+          "nextEventSequence": 0,
+          "eventQueue": [],
+          "serial": {
+            "version": 1,
+            "begun": true,
+            "nextTxSequence": 1,
+            "tx": [
+              {
+                "sequence": 0,
+                "atMicroseconds": 2,
+                "text": "<img onerror=alert(1)>😀\n"
+              }
+            ],
+            "nextRxSequence": 0,
+            "rx": [],
+            "baudRate": 9600
+          },
+          "variables": {},
+          "locals": {
+            "b": -1,
+            "n": 0
+          },
+          "scopes": [
+            {},
+            {
+              "b": {
+                "type": "int",
+                "constant": false,
+                "value": -1
+              },
+              "n": {
+                "type": "int",
+                "constant": false,
+                "value": 0
+              }
+            }
+          ],
+          "faults": [],
+          "pinModes": {},
+          "outputVoltages": {},
+          "tones": {}
+        },
+        "diagnostics": []
+      }
+    },
+    "timeIncrement": {
+      "source": "int count=0;\nvoid loop(){unsigned long a=millis();unsigned long b=micros();count++;--count;}",
+      "diagnostics": [
+        {
+          "code": "runtime-clock",
+          "status": "limited",
+          "start": 41,
+          "length": 7,
+          "message": "millis()/micros() возвращают детерминированное время текущего шага симуляции.",
+          "line": 2,
+          "column": 29
+        },
+        {
+          "code": "runtime-clock",
+          "status": "limited",
+          "start": 66,
+          "length": 7,
+          "message": "millis()/micros() возвращают детерминированное время текущего шага симуляции.",
+          "line": 2,
+          "column": 54
+        },
+        {
+          "code": "increment",
+          "status": "limited",
+          "start": 80,
+          "length": 2,
+          "message": "Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.",
+          "line": 2,
+          "column": 68
+        },
+        {
+          "code": "increment",
+          "status": "limited",
+          "start": 83,
+          "length": 2,
+          "message": "Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.",
+          "line": 2,
+          "column": 71
+        }
+      ],
+      "syntax": [],
+      "blocked": false,
+      "runtime": {
+        "executionStatus": "ready",
+        "setupActions": [],
+        "loopActions": [],
+        "events": [],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-92-db1cbc2a-2d6ad3d2",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 1.001,
+          "phase": "loop",
+          "programCounter": 0,
+          "loopIterationActive": false,
+          "loopStartedAtMs": 0.996,
+          "loopIterations": 200,
+          "nextEventSequence": 0,
+          "eventQueue": [],
+          "variables": {
+            "count": 0
+          },
+          "locals": {},
+          "scopes": [
+            {
+              "count": {
+                "type": "int",
+                "constant": false,
+                "value": 0
+              }
+            },
+            {}
+          ],
+          "faults": [],
+          "pinModes": {},
+          "outputVoltages": {},
+          "tones": {}
+        },
+        "diagnostics": []
+      }
+    },
+    "unsupported": {
+      "source": "// 😀 source coordinates\nvoid setup(){}\nvoid loop(){\n  shiftOut(2,3,1,42);\n  mystery(1);\n}",
+      "diagnostics": [
+        {
+          "code": "syntax-error",
+          "status": "unsupported",
+          "start": 55,
+          "length": 18,
+          "message": "Ошибка программы Arduino: Команда «shiftOut» не поддерживается в этом выражении.",
+          "line": 4,
+          "column": 3
+        },
+        {
+          "code": "unsupported-call",
+          "status": "unsupported",
+          "start": 55,
+          "length": 8,
+          "message": "shiftOut() ещё не исполняется.",
+          "line": 4,
+          "column": 3
+        },
+        {
+          "code": "unknown-call",
+          "status": "unsupported",
+          "start": 77,
+          "length": 7,
+          "message": "mystery() не входит в подтверждённый Arduino-рантайм ASA Lab.",
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "syntax": [
+        {
+          "code": "compile_error",
+          "severity": "error",
+          "message": "Ошибка программы Arduino: Команда «shiftOut» не поддерживается в этом выражении.",
+          "start": 55,
+          "length": 18,
+          "line": 4,
+          "column": 3
+        }
+      ],
+      "blocked": true,
+      "runtime": {
+        "executionStatus": "fault",
+        "setupActions": [],
+        "loopActions": [],
+        "events": [],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-90-7cdb39ab-47fc7a1d",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 1,
+          "phase": "setup",
+          "programCounter": 0,
+          "loopIterationActive": false,
+          "loopStartedAtMs": 1,
+          "loopIterations": 0,
+          "nextEventSequence": 0,
+          "eventQueue": [],
+          "variables": {},
+          "locals": {},
+          "scopes": [
+            {},
+            {}
+          ],
+          "faults": [
+            {
+              "code": "compile_error",
+              "severity": "error",
+              "message": "Ошибка программы Arduino: Команда «shiftOut» не поддерживается в этом выражении.",
+              "start": 55,
+              "length": 18,
+              "line": 4,
+              "column": 3
+            }
+          ],
+          "pinModes": {},
+          "outputVoltages": {},
+          "tones": {}
+        },
+        "diagnostics": [
+          {
+            "code": "compile_error",
+            "severity": "error",
+            "message": "Ошибка программы Arduino: Команда «shiftOut» не поддерживается в этом выражении.",
+            "start": 55,
+            "length": 18,
+            "line": 4,
+            "column": 3
+          }
+        ]
+      }
+    },
+    "syntax": {
+      "source": "// 😀 source coordinates\nvoid setup(){}\nvoid loop(){\n  /* 😀 */ digitalWrite(13);\n}",
+      "diagnostics": [
+        {
+          "code": "syntax-error",
+          "status": "unsupported",
+          "start": 64,
+          "length": 16,
+          "message": "Ошибка программы Arduino: Неверное число аргументов digitalWrite().",
+          "line": 4,
+          "column": 12
+        }
+      ],
+      "syntax": [
+        {
+          "code": "compile_error",
+          "severity": "error",
+          "message": "Ошибка программы Arduino: Неверное число аргументов digitalWrite().",
+          "start": 64,
+          "length": 16,
+          "line": 4,
+          "column": 12
+        }
+      ],
+      "blocked": true,
+      "runtime": {
+        "executionStatus": "fault",
+        "setupActions": [],
+        "loopActions": [],
+        "events": [],
+        "state": {
+          "version": 7,
+          "clockProfile": "instruction-us-v1",
+          "programFingerprint": "arduino-v1-83-a1a698d9-a182ca8d",
+          "virtualTimeMs": 1,
+          "resumeAtMs": 1,
+          "phase": "setup",
+          "programCounter": 0,
+          "loopIterationActive": false,
+          "loopStartedAtMs": 1,
+          "loopIterations": 0,
+          "nextEventSequence": 0,
+          "eventQueue": [],
+          "variables": {},
+          "locals": {},
+          "scopes": [
+            {},
+            {}
+          ],
+          "faults": [
+            {
+              "code": "compile_error",
+              "severity": "error",
+              "message": "Ошибка программы Arduino: Неверное число аргументов digitalWrite().",
+              "start": 64,
+              "length": 16,
+              "line": 4,
+              "column": 12
+            }
+          ],
+          "pinModes": {},
+          "outputVoltages": {},
+          "tones": {}
+        },
+        "diagnostics": [
+          {
+            "code": "compile_error",
+            "severity": "error",
+            "message": "Ошибка программы Arduino: Неверное число аргументов digitalWrite().",
+            "start": 64,
+            "length": 16,
+            "line": 4,
+            "column": 12
+          }
+        ]
+      }
+    }
+  },
+  "registries": {
+    "blocks": {
+      "asa_pin": {
+        "status": "supported",
+        "summary": "Номер цифрового вывода, включая A0–A5 в цифровом режиме."
+      },
+      "asa_pwm_pin": {
+        "status": "supported",
+        "summary": "Номер аппаратного ШИМ-вывода Uno."
+      },
+      "asa_analog_pin": {
+        "status": "supported",
+        "summary": "Номер аналогового входа Uno."
+      },
+      "asa_setup": {
+        "status": "limited",
+        "summary": "setup() выполняется один раз на Reset в пределах поддерживаемого подмножества."
+      },
+      "asa_loop": {
+        "status": "limited",
+        "summary": "loop() моделируется ограниченным циклом, а не полным AVR-рантаймом."
+      },
+      "asa_wait": {
+        "status": "supported",
+        "summary": "Задержка управляет фазой виртуального времени симуляции."
+      },
+      "asa_repeat": {
+        "status": "limited",
+        "summary": "Цикл исполняется по условию в пределах лимита операций."
+      },
+      "asa_forever": {
+        "status": "limited",
+        "summary": "Бесконечный цикл останавливается защитным лимитом операций."
+      },
+      "asa_if": {
+        "status": "supported",
+        "summary": "Условие вычисляется электрическим рантаймом."
+      },
+      "asa_if_else": {
+        "status": "supported",
+        "summary": "Одна из ветвей выбирается по вычисленному условию."
+      },
+      "asa_while": {
+        "status": "limited",
+        "summary": "Условие повторяется в пределах защитного лимита операций."
+      },
+      "asa_for": {
+        "status": "limited",
+        "summary": "Заголовок и тело повторяются в пределах защитного лимита операций."
+      },
+      "asa_builtin_led": {
+        "status": "supported",
+        "summary": "Управляет цифровым выводом D13."
+      },
+      "asa_digital_write": {
+        "status": "supported",
+        "summary": "Устанавливает цифровой уровень на D0–D13 и A0–A5."
+      },
+      "asa_analog_write": {
+        "status": "limited",
+        "summary": "ШИМ представлен средним постоянным напряжением."
+      },
+      "asa_servo_write": {
+        "status": "limited",
+        "summary": "Servo.write() управляет canonical 50 Hz waveform на attached GPIO."
+      },
+      "asa_tone": {
+        "status": "limited",
+        "summary": "Формирует canonical timed 0/5 V waveform без AVR timer accuracy."
+      },
+      "asa_play_note": {
+        "status": "limited",
+        "summary": "Формирует canonical timed tone waveform без AVR timer accuracy."
+      },
+      "asa_no_tone": {
+        "status": "limited",
+        "summary": "Немедленно останавливает canonical tone waveform."
+      },
+      "asa_serial_print": {
+        "status": "limited",
+        "summary": "Передаёт детерминированный Serial TX в bounded runtime history без UI Monitor и UART bit timing."
+      },
+      "asa_rgb_write": {
+        "status": "limited",
+        "summary": "Три ШИМ-канала представлены средними постоянными напряжениями."
+      },
+      "asa_lcd_setup": {
+        "status": "unsupported",
+        "summary": "ЖК-экран ещё не связан с Arduino-рантаймом."
+      },
+      "asa_lcd_print": {
+        "status": "unsupported",
+        "summary": "ЖК-экран ещё не связан с Arduino-рантаймом."
+      },
+      "asa_lcd_cursor": {
+        "status": "unsupported",
+        "summary": "ЖК-экран ещё не связан с Arduino-рантаймом."
+      },
+      "asa_lcd_clear": {
+        "status": "unsupported",
+        "summary": "ЖК-экран ещё не связан с Arduino-рантаймом."
+      },
+      "asa_lcd_i2c_setup": {
+        "status": "unsupported",
+        "summary": "I2C и библиотека ЖК-экрана ещё не исполняются."
+      },
+      "asa_7seg_setup": {
+        "status": "unsupported",
+        "summary": "Библиотека семисегментного индикатора ещё не исполняется."
+      },
+      "asa_7seg_print": {
+        "status": "unsupported",
+        "summary": "Библиотека семисегментного индикатора ещё не исполняется."
+      },
+      "asa_7seg_clear": {
+        "status": "unsupported",
+        "summary": "Библиотека семисегментного индикатора ещё не исполняется."
+      },
+      "asa_neopixel_setup": {
+        "status": "unsupported",
+        "summary": "Библиотека NeoPixel ещё не исполняется."
+      },
+      "asa_neopixel_set": {
+        "status": "unsupported",
+        "summary": "Библиотека NeoPixel ещё не исполняется."
+      },
+      "asa_digital_read": {
+        "status": "supported",
+        "summary": "Считывает электрический уровень с D0–D13 и A0–A5."
+      },
+      "asa_analog_read": {
+        "status": "supported",
+        "summary": "Считывает напряжение A0–A5 как значение 0–1023."
+      },
+      "asa_ultrasonic": {
+        "status": "limited",
+        "summary": "Поддержан exact adapter readUltrasonicCm(triggerPin, echoPin) поверх canonical GPIO/delay/pulseIn."
+      },
+      "asa_pulse_in": {
+        "status": "limited",
+        "summary": "Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy."
+      },
+      "asa_millis": {
+        "status": "limited",
+        "summary": "Возвращает детерминированное время текущего шага симуляции."
+      },
+      "asa_temperature": {
+        "status": "supported",
+        "summary": "Преобразует поддерживаемое analogRead() по формуле TMP36."
+      },
+      "asa_servo_read": {
+        "status": "limited",
+        "summary": "Servo.read() возвращает последний commanded angle Servo object."
+      },
+      "asa_serial_available": {
+        "status": "limited",
+        "summary": "Возвращает число pending Serial RX bytes без UI Monitor."
+      },
+      "asa_serial_read": {
+        "status": "limited",
+        "summary": "Читает один pending Serial RX byte или -1 без UI Monitor."
+      },
+      "asa_ir_read": {
+        "status": "unsupported",
+        "summary": "Протокол ИК-приёмника ещё не декодируется."
+      },
+      "asa_number": {
+        "status": "supported",
+        "summary": "Числовой литерал поддерживается."
+      },
+      "asa_text": {
+        "status": "unsupported",
+        "summary": "Строковые значения ещё не исполняются электрическим рантаймом."
+      },
+      "asa_math_add": {
+        "status": "supported",
+        "summary": "Сложение поддерживается."
+      },
+      "asa_math_minus": {
+        "status": "supported",
+        "summary": "Вычитание поддерживается."
+      },
+      "asa_math_multiply": {
+        "status": "supported",
+        "summary": "Умножение поддерживается."
+      },
+      "asa_math_divide": {
+        "status": "supported",
+        "summary": "Целочисленное деление усекается к нулю; деление на ноль останавливает расчёт с ошибкой."
+      },
+      "asa_math_modulo": {
+        "status": "supported",
+        "summary": "Остаток от деления поддерживается."
+      },
+      "asa_compare_lt": {
+        "status": "supported",
+        "summary": "Сравнение поддерживается."
+      },
+      "asa_compare_eq": {
+        "status": "supported",
+        "summary": "Сравнение поддерживается."
+      },
+      "asa_compare_gt": {
+        "status": "supported",
+        "summary": "Сравнение поддерживается."
+      },
+      "asa_logic_and": {
+        "status": "supported",
+        "summary": "Логическое И поддерживается."
+      },
+      "asa_logic_or": {
+        "status": "supported",
+        "summary": "Логическое ИЛИ поддерживается."
+      },
+      "asa_logic_not": {
+        "status": "supported",
+        "summary": "Логическое НЕ поддерживается."
+      },
+      "asa_random": {
+        "status": "supported",
+        "summary": "Повторяемый AVR random; верхняя граница блока включена."
+      },
+      "asa_map": {
+        "status": "supported",
+        "summary": "map() поддерживается."
+      },
+      "asa_constrain": {
+        "status": "supported",
+        "summary": "constrain() поддерживается."
+      },
+      "asa_abs": {
+        "status": "supported",
+        "summary": "abs() поддерживается."
+      },
+      "asa_level": {
+        "status": "supported",
+        "summary": "HIGH и LOW поддерживаются."
+      },
+      "asa_var_get": {
+        "status": "limited",
+        "summary": "Числовые переменные сохраняют тип и значение между тиками; сложные типы пока не поддерживаются."
+      },
+      "asa_var_set": {
+        "status": "limited",
+        "summary": "Присваивание преобразует число к объявленному типу Uno и сохраняет его между тиками."
+      },
+      "asa_var_change": {
+        "status": "limited",
+        "summary": "Изменение учитывает объявленный тип Uno; знаковое переполнение даёт ошибку."
+      },
+      "asa_comment": {
+        "status": "supported",
+        "summary": "Комментарий сохраняется и не влияет на расчёт."
+      }
+    },
+    "commands": {
+      "setup": {
+        "status": "limited",
+        "summary": "Точка входа поддерживается ограниченным runtime state."
+      },
+      "loop": {
+        "status": "limited",
+        "summary": "Цикл моделируется в пределах детерминированного шага."
+      },
+      "pinMode": {
+        "status": "supported",
+        "summary": "Поддерживаются INPUT, INPUT_PULLUP и OUTPUT на D0–D13 и A0–A5."
+      },
+      "digitalWrite": {
+        "status": "supported",
+        "summary": "Устанавливает цифровой уровень на D0–D13 и A0–A5."
+      },
+      "digitalRead": {
+        "status": "supported",
+        "summary": "Считывает электрический уровень с D0–D13 и A0–A5."
+      },
+      "analogRead": {
+        "status": "supported",
+        "summary": "Считывает A0–A5 как значение 0–1023."
+      },
+      "analogWrite": {
+        "status": "limited",
+        "summary": "ШИМ представлен средним постоянным напряжением."
+      },
+      "delay": {
+        "status": "supported",
+        "summary": "Задержка управляет виртуальным временем симуляции."
+      },
+      "delayMicroseconds": {
+        "status": "supported",
+        "summary": "Задержка управляет виртуальным временем симуляции."
+      },
+      "tone": {
+        "status": "limited",
+        "summary": "Формирует canonical timed 0/5 V waveform без AVR timer accuracy."
+      },
+      "noTone": {
+        "status": "limited",
+        "summary": "Немедленно останавливает canonical tone waveform."
+      },
+      "Servo.h": {
+        "status": "limited",
+        "summary": "Подключает встроенный адаптер Servo."
+      },
+      "Servo.attach": {
+        "status": "limited",
+        "summary": "Подключает объект Servo к выводу и запускает импульсы 50 Гц."
+      },
+      "Servo.write": {
+        "status": "limited",
+        "summary": "Задаёт угол через длительность импульса."
+      },
+      "Servo.read": {
+        "status": "limited",
+        "summary": "Возвращает заданный угол Servo."
+      },
+      "Servo.detach": {
+        "status": "limited",
+        "summary": "Отключает Servo и оставляет вывод LOW."
+      },
+      "map": {
+        "status": "supported",
+        "summary": "Целочисленный map Arduino: аргументы и результат long; деление усекается к нулю."
+      },
+      "constrain": {
+        "status": "supported",
+        "summary": "Числовое ограничение диапазона поддерживается."
+      },
+      "abs": {
+        "status": "supported",
+        "summary": "Абсолютное значение поддерживается."
+      },
+      "min": {
+        "status": "supported",
+        "summary": "Минимум поддерживается."
+      },
+      "max": {
+        "status": "supported",
+        "summary": "Максимум поддерживается."
+      },
+      "millis": {
+        "status": "limited",
+        "summary": "Возвращает время текущего шага симуляции."
+      },
+      "micros": {
+        "status": "limited",
+        "summary": "Возвращает виртуальное время в микросекундах."
+      },
+      "pulseIn": {
+        "status": "limited",
+        "summary": "Измеряет длительность HIGH/LOW импульса."
+      },
+      "readUltrasonicCm": {
+        "status": "limited",
+        "summary": "Exact built-in adapter для ASA Lab: trigger/echo последовательность поверх pinMode(), digitalWrite(), delayMicroseconds() и pulseIn()."
+      },
+      "random": {
+        "status": "supported",
+        "summary": "AVR 1.8.6: повторяемая последовательность; max исключён."
+      },
+      "randomSeed": {
+        "status": "supported",
+        "summary": "Начальное состояние random; ноль сохраняет последовательность."
+      },
+      "Serial.begin": {
+        "status": "limited",
+        "summary": "Задаёт скорость для виртуального монитора порта."
+      },
+      "Serial.print": {
+        "status": "limited",
+        "summary": "Выводит число или текст в монитор порта."
+      },
+      "Serial.println": {
+        "status": "limited",
+        "summary": "Выводит значение с переводом строки."
+      },
+      "Serial.available": {
+        "status": "limited",
+        "summary": "Возвращает число входящих байтов."
+      },
+      "Serial.read": {
+        "status": "limited",
+        "summary": "Читает первый входящий байт или −1, если очередь пуста."
+      },
+      "HIGH": {
+        "status": "supported",
+        "summary": "Высокий логический уровень поддерживается."
+      },
+      "LOW": {
+        "status": "supported",
+        "summary": "Низкий логический уровень поддерживается."
+      },
+      "INPUT": {
+        "status": "supported",
+        "summary": "Режим цифрового входа поддерживается."
+      },
+      "INPUT_PULLUP": {
+        "status": "supported",
+        "summary": "Внутренняя подтяжка моделируется как 20 кОм."
+      },
+      "OUTPUT": {
+        "status": "supported",
+        "summary": "Режим цифрового выхода поддерживается."
+      },
+      "LED_BUILTIN": {
+        "status": "supported",
+        "summary": "Соответствует цифровому выводу D13."
+      }
+    },
+    "language": {
+      "comment": {
+        "status": "supported",
+        "summary": "Однострочные и блочные комментарии игнорируются при расчёте."
+      },
+      "statement": {
+        "status": "supported",
+        "summary": "Простые команды с точкой с запятой и тела поддерживаемых функций и условий исполняются."
+      },
+      "type-int": {
+        "status": "supported",
+        "summary": "int — 16 бит; unsigned int — 16 бит без знака. Знаковое переполнение останавливает расчёт с ошибкой."
+      },
+      "type-long": {
+        "status": "supported",
+        "summary": "long — 32 бита; unsigned long — 32 бита с переходом через ноль при переполнении."
+      },
+      "type-float": {
+        "status": "limited",
+        "summary": "float и double округляются до 32 бит как у Uno; нечисловые и бесконечные результаты останавливают расчёт."
+      },
+      "type-bool": {
+        "status": "supported",
+        "summary": "bool и boolean хранят true/false; числовое преобразование даёт 1/0."
+      },
+      "type-byte": {
+        "status": "supported",
+        "summary": "byte — 8 бит без знака; присваивание целого выполняется по модулю 256."
+      },
+      "type-text": {
+        "status": "unsupported",
+        "summary": "char, String и строковые операции не исполняются; quoted literal разрешён только как аргумент Serial.print/println."
+      },
+      "constant": {
+        "status": "supported",
+        "summary": "const требует начального значения и запрещает последующие присваивания и инкремент."
+      },
+      "assignment": {
+        "status": "limited",
+        "summary": "Типизированные globals и вложенные locals сохраняются через паузы; локальные имена исчезают при выходе из области. Сложные типы пока не поддерживаются."
+      },
+      "if": {
+        "status": "supported",
+        "summary": "Условие вычисляется, и исполняется подходящая ветвь."
+      },
+      "if-else": {
+        "status": "supported",
+        "summary": "Исполняется ровно одна ветвь if/else."
+      },
+      "for": {
+        "status": "limited",
+        "summary": "Заголовок и тело for исполняются по условию в пределах защитного лимита операций."
+      },
+      "while": {
+        "status": "limited",
+        "summary": "Условие while повторяется в пределах защитного лимита операций."
+      },
+      "switch": {
+        "status": "limited",
+        "summary": "Целочисленные switch/case/default; объявления ветвей — в блоках."
+      },
+      "do-while": {
+        "status": "limited",
+        "summary": "Тело выполняется до проверки условия; действует защитный лимит операций."
+      },
+      "comparison": {
+        "status": "supported",
+        "summary": "Поддерживаются <, <=, > и >=."
+      },
+      "equality": {
+        "status": "supported",
+        "summary": "Поддерживаются == и !=."
+      },
+      "logical-and": {
+        "status": "supported",
+        "summary": "Логическое И &&: правая часть не вычисляется при ложной левой."
+      },
+      "logical-or": {
+        "status": "supported",
+        "summary": "Логическое ИЛИ ||: правая часть не вычисляется при истинной левой."
+      },
+      "logical-not": {
+        "status": "supported",
+        "summary": "Логическое НЕ ! поддерживается."
+      },
+      "arithmetic": {
+        "status": "supported",
+        "summary": "Арифметика учитывает типы Uno и целочисленное деление; деление на ноль и знаковое переполнение дают явную ошибку."
+      }
+    }
+  }
+}

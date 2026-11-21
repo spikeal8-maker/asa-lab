@@ -1,4 +1,4 @@
-export type AiProvider = 'openai' | 'deepseek';
+export type AiProvider = 'openai' | 'deepseek' | 'ollama-cloud' | 'polza';
 
 export interface AiModelOption {
   readonly id: string;
@@ -7,6 +7,7 @@ export interface AiModelOption {
   readonly inputModalities: readonly ('text' | 'image')[];
   readonly outputModalities: readonly ('text' | 'image')[];
   readonly streaming: boolean;
+  readonly adapterCompatible?: boolean;
   readonly shutdownDate: string | null;
   readonly selectable: boolean;
   readonly lifecycle: 'active' | 'deprecated' | 'retired';
@@ -15,6 +16,8 @@ export interface AiModelOption {
 export interface AiProviderConfiguration {
   readonly provider: AiProvider;
   readonly model: string;
+  readonly enabled: boolean;
+  readonly revision: number;
   readonly apiKeyConfigured: boolean;
   readonly keyFingerprint: string | null;
   readonly updatedAt: string | null;
@@ -56,7 +59,9 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function provider(value: unknown): value is AiProvider {
-  return value === 'openai' || value === 'deepseek';
+  return (
+    value === 'openai' || value === 'deepseek' || value === 'ollama-cloud' || value === 'polza'
+  );
 }
 
 function nullableText(value: unknown): boolean {
@@ -76,10 +81,11 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     typeof catalog['revision'] !== 'string' ||
     !Array.isArray(models) ||
     !models.length ||
+    models.length > 2400 ||
     !Array.isArray(providers) ||
-    providers.length !== 2 ||
+    ![2, 3, 4].includes(providers.length) ||
     !Array.isArray(slots) ||
-    slots.length !== 2 ||
+    slots.length !== providers.length ||
     !record(features) ||
     !['textChat', 'streaming', 'imageInput', 'fileAttachments', 'imageGeneration'].every(
       (key) => typeof features[key] === 'boolean',
@@ -101,7 +107,10 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
         ['inputModalities', 'outputModalities'].every(
           (key) =>
             Array.isArray(model[key]) &&
-            model[key].length > 0 &&
+            (model[key].length > 0 ||
+              (model['adapterCompatible'] === false &&
+                model['selectable'] === false &&
+                model['streaming'] === false)) &&
             model[key].every((item: unknown) => item === 'text' || item === 'image'),
         ),
     )
@@ -109,22 +118,33 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     return false;
   const hasModel = (id: unknown, owner: unknown): boolean =>
     models.some((model) => model.id === id && model.provider === owner);
+  const hasSlotModel = (id: unknown, owner: unknown): boolean =>
+    hasModel(id, owner) || (owner === 'polza' && id === 'polza/unconfigured');
   if (
     new Set(models.map((model) => model.id)).size !== models.length ||
-    new Set(providers.map((item) => (record(item) ? item['id'] : null))).size !== 2 ||
+    ![2, 3, 4].includes(providers.length) ||
+    !providers.some((item) => record(item) && item['id'] === 'openai') ||
+    !providers.some((item) => record(item) && item['id'] === 'deepseek') ||
+    new Set(providers.map((item) => (record(item) ? item['id'] : null))).size !==
+      providers.length ||
     !providers.every(
       (item) =>
         record(item) &&
         provider(item['id']) &&
         typeof item['label'] === 'string' &&
-        hasModel(item['defaultModel'], item['id']),
+        hasSlotModel(item['defaultModel'], item['id']),
     ) ||
-    new Set(slots.map((item) => (record(item) ? item['provider'] : null))).size !== 2 ||
+    slots.length !== providers.length ||
+    new Set(slots.map((item) => (record(item) ? item['provider'] : null))).size !==
+      providers.length ||
     !slots.every(
       (item) =>
         record(item) &&
         provider(item['provider']) &&
-        hasModel(item['model'], item['provider']) &&
+        hasSlotModel(item['model'], item['provider']) &&
+        typeof item['enabled'] === 'boolean' &&
+        Number.isSafeInteger(item['revision']) &&
+        Number(item['revision']) > 0 &&
         typeof item['apiKeyConfigured'] === 'boolean' &&
         nullableText(item['keyFingerprint']) &&
         nullableText(item['updatedAt']),

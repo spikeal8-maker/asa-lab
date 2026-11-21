@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import type { LearningNotification } from '../apps/web/src/api';
 import { telemetryReceipt } from './fixtures/telemetry-receipts';
+import { openAccountSettings, openPortalSection } from './portal-navigation';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
 const r3Evidence = 'reports/playwright/portal-compact-settings-r3-20261008';
@@ -2010,6 +2011,164 @@ test('unknown MAX is not disconnected; teaching is a separate explicit action', 
   expect(state.mutations).not.toContain('/api/account/role');
 });
 
+for (const destination of ['home', 'learning'] as const)
+  test(`session self-attest deadline releases personal reads after Settings to ${destination}`, async ({
+    page,
+  }) => {
+    await fixture(page);
+    const selfAttestPath = '/api/capabilities/educator/self-attest';
+    const reads: string[] = [];
+    const writes: string[] = [];
+    const failures: string[] = [];
+    const errors: string[] = [];
+    let documents = 0;
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('request', (request) => {
+      if (request.resourceType() === 'document') documents += 1;
+      const path = new URL(request.url()).pathname;
+      if (!path.startsWith('/api/')) return;
+      if (request.method() === 'GET') reads.push(path);
+      else writes.push(path);
+    });
+    page.on('requestfailed', (request) => {
+      if (new URL(request.url()).pathname === selfAttestPath)
+        failures.push(request.failure()?.errorText ?? 'request failed');
+    });
+    const counts = () => {
+      const count = (path: string) => reads.filter((entry) => entry === path).length;
+      return {
+        summary: count('/api/progress/summary'),
+        avatar: count('/api/account/avatar'),
+        assignments: count('/api/class-join/account/assignments'),
+        courses: count('/api/class-join/account/course-runs'),
+        results: count('/api/class-join/account/results'),
+        session: count('/api/auth/me'),
+        profile: count('/api/account/profile'),
+      };
+    };
+    let published = 3;
+    await page.route('**/api/progress/summary', (route) =>
+      route.fulfill({
+        json: {
+          scope: { kind: 'account', accountId: '20000000-0000-4000-8000-000000000001' },
+          asOf: '2026-11-18T10:00:00Z',
+          availability: 'available',
+          metrics: {
+            everPublishedWorks: { availability: 'available', value: published },
+            currentLikes: { availability: 'available', value: 0 },
+            createdCopies: { availability: 'available', value: 0 },
+            activePublicWorks: { availability: 'available', value: published },
+          },
+          coverage: Object.fromEntries(
+            [
+              ['everPublishedWorks', 'confirmed_publication_revisions'],
+              ['currentLikes', 'current_publication_likes'],
+              ['createdCopies', 'durable_publication_copy_receipts'],
+              ['activePublicWorks', 'current_catalog_visibility'],
+            ].map(([name, basis]) => [
+              name,
+              { basis, completeness: 'complete', knownSince: null, limitations: [] },
+            ]),
+          ),
+          personalRating: { availability: 'not_enabled', value: null },
+          groups: { availability: 'available', items: [], hasMore: false, nextCursor: null },
+        },
+      }),
+    );
+    await page.goto('/#/home');
+    const originalDocument = await page.evaluateHandle(() => document);
+    const publicationCount = page.getByTestId('profile-full-everPublishedWorks').locator('span');
+    await expect(publicationCount).toHaveText('3');
+    await expect.poll(() => counts().avatar).toBe(1);
+    const initial = counts();
+    expect(initial.summary).toBe(1);
+    await openAccountSettings(page);
+    await panel(page, 'Материалы и классы').click();
+    await expect(page.getByRole('button', { name: 'Подключить', exact: true })).toBeEnabled();
+    // Settings has its own editable avatar resource, separate from the Header.
+    await expect.poll(() => counts().avatar).toBe(initial.avatar + 1);
+    const beforeMutation = counts();
+    let release!: () => void;
+    let responseHandled!: () => void;
+    const held = new Promise<void>((resolveHeld) => {
+      release = resolveHeld;
+    });
+    const handled = new Promise<void>((resolveHandled) => {
+      responseHandled = resolveHandled;
+    });
+    await page.route(`**${selfAttestPath}`, async (route) => {
+      await held;
+      try {
+        await route.fulfill({
+          status: 201,
+          json: { capability: 'educator', state: 'provisional', created: true },
+        });
+      } catch (error) {
+        if (!route.request().failure()) throw error;
+      } finally {
+        responseHandled();
+      }
+    });
+    await page.clock.install({ time: new Date('2026-11-18T10:00:00Z') });
+    await page.clock.pauseAt(new Date('2026-11-18T10:00:01Z'));
+    try {
+      // The actual Account action calls api.selfAttestEducator() without a signal.
+      await page.getByRole('button', { name: 'Подключить', exact: true }).click();
+      await expect.poll(() => writes.filter((path) => path === selfAttestPath).length).toBe(1);
+      await expect(page.getByRole('button', { name: 'Подключаем…', exact: true })).toBeDisabled();
+      await openPortalSection(page, destination === 'home' ? 'Главная' : 'Моё обучение');
+      await expect(page).toHaveURL(new RegExp('#/' + destination + '$'));
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Настройки', exact: true })).toHaveCount(0);
+      // The existing shell attention dot reads once on each route change.
+      // Its independent request is not the paused Home/Learning personal read.
+      await expect
+        .poll(counts)
+        .toEqual({ ...beforeMutation, assignments: beforeMutation.assignments + 1 });
+      const duringHold = counts();
+      await page.clock.fastForward(14_999);
+      expect(counts()).toEqual(duringHold);
+      expect(failures).toEqual([]);
+      published = 7;
+      await page.clock.fastForward(1);
+      await expect.poll(() => failures.length).toBe(1);
+      await expect(publicationCount).toHaveText('7');
+      const expected = {
+        ...duringHold,
+        summary: duringHold.summary + 1,
+        avatar: duringHold.avatar + 1,
+        assignments: duringHold.assignments + 1,
+        courses: duringHold.courses + (destination === 'learning' ? 1 : 0),
+        results: duringHold.results + (destination === 'learning' ? 1 : 0),
+      };
+      await expect.poll(counts).toEqual(expected);
+      const afterTimeout = counts();
+      // A delayed successful response must not resume the retired Settings action
+      // or produce a second refresh; the uncertain POST is never sent again.
+      release();
+      await handled;
+      await page.evaluate(() => new Promise<void>((resolve) => queueMicrotask(resolve)));
+      expect(counts()).toEqual(afterTimeout);
+      expect(writes.filter((path) => path === selfAttestPath)).toHaveLength(1);
+      expect(documents).toBe(1);
+      expect(await originalDocument.evaluate((original) => original === document)).toBe(true);
+      expect(errors).toEqual([]);
+      mkdirSync(test.info().outputDir, { recursive: true });
+      writeFileSync(
+        test.info().outputPath('session-self-attest-lifecycle.json'),
+        JSON.stringify(
+          { destination, initial, beforeMutation, duringHold, afterTimeout, failures, documents },
+          null,
+          2,
+        ),
+      );
+      await page.screenshot({ path: test.info().outputPath('personal-reads-resumed.png') });
+    } finally {
+      release();
+      await originalDocument.dispose();
+    }
+  });
+
 for (const width of [1440, 1024, 390, 320])
   test(`six account panels fit ${width}px without horizontal overflow`, async ({ page }) => {
     await fixture(page);
@@ -2427,23 +2586,38 @@ for (const width of [
       const order = await sidebar.evaluate((element) => {
         const nav = element.querySelector('.portal-nav')!,
           footer = element.querySelector('.portal-sidebar-footer')!;
-        const links = [...footer.querySelectorAll('a, button')].map((child) => {
+        const bounds = (child: Element) => {
           const r = child.getBoundingClientRect();
-          return { top: r.top, bottom: r.bottom, height: r.height };
-        });
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height };
+        };
+        const links = [...footer.querySelectorAll('a, button')].map(bounds);
+        const rows = [...footer.children].map(bounds);
+        const help = footer.querySelector('.portal-sidebar-help-row > .portal-nav-item');
+        const vk = footer.querySelector('.portal-sidebar-help-row > .portal-sidebar-vk');
+        if (!help || !vk) throw new Error('Help and VK controls must both be in the footer');
         return {
           navBottom: nav.getBoundingClientRect().bottom,
           links,
+          rows,
+          help: bounds(help),
+          vk: bounds(vk),
+          footerRight: footer.getBoundingClientRect().right,
           navOrder: getComputedStyle(nav).order,
           footerBottomMargin: getComputedStyle(footer).marginBottom,
         };
       });
       expect(order.navOrder).toBe('0');
       expect(order.footerBottomMargin).toBe('0px');
-      expect(order.links[0]!.top).toBeGreaterThanOrEqual(order.navBottom);
-      for (let i = 1; i < order.links.length; i++)
-        expect(order.links[i]!.top).toBeGreaterThanOrEqual(order.links[i - 1]!.bottom);
+      expect(order.rows[0]!.top).toBeGreaterThanOrEqual(order.navBottom);
+      for (let i = 1; i < order.rows.length; i++)
+        expect(order.rows[i]!.top).toBeGreaterThanOrEqual(order.rows[i - 1]!.bottom);
       for (const link of order.links) expect(link.height).toBeGreaterThanOrEqual(44);
+      // Help and VK intentionally share one row. Keep distinct 44px targets
+      // without weakening the vertical separation of the surrounding footer rows.
+      expect(order.help.right).toBeLessThanOrEqual(order.vk.left);
+      expect(order.help.top).toBeLessThanOrEqual(order.vk.bottom);
+      expect(order.vk.top).toBeLessThanOrEqual(order.help.bottom);
+      expect(order.vk.right).toBeLessThanOrEqual(order.footerRight + 1);
       await page.screenshot({ path: `${shellEvidence}/drawer-${width}-short.png` });
       const exit = sidebar.getByRole('button', { name: 'Выход', exact: true });
       await exit.scrollIntoViewIfNeeded();
@@ -2607,17 +2781,19 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
       '/#/explore',
     );
     await expect(page.getByTestId('public-projects-empty')).toBeVisible();
-    for (const hash of [
-      'home',
-      'projects',
-      'explore',
-      'knowledge',
-      'learning',
-      'help',
-      'account',
-    ]) {
+    for (const [hash, destination] of [
+      ['home', page.getByRole('main', { name: 'Главная', exact: true })],
+      ['projects', page.getByRole('heading', { name: 'Мои проекты', level: 1, exact: true })],
+      ['explore', page.getByTestId('public-project-catalog')],
+      ['knowledge', page.getByRole('heading', { name: 'Знания', level: 1, exact: true })],
+      ['learning', page.getByRole('heading', { name: 'Моё обучение', level: 1, exact: true })],
+      ['help', page.getByRole('heading', { name: 'Помощь', level: 1, exact: true })],
+      ['account', page.locator('main.account-settings-page')],
+    ] as const) {
       await page.goto(`/#/${hash}`);
       await expect(page.getByLabel('Разделы ASA Lab').getByRole('link')).toHaveCount(3);
+      // The persistent header can be ready while the destination's lazy chunk is pending.
+      await expect(destination).toBeVisible();
       await assertShellGeometry(page, width);
       const active = page.locator('.portal-global-nav [aria-current="page"]');
       await expect(active).toHaveCount(['explore', 'knowledge'].includes(hash) ? 1 : 0);
@@ -5077,12 +5253,21 @@ for (const width of [1440, 1024, 390, 320])
     await page.goto('/#/home');
     const main = page.getByRole('main', { name: 'Главная', exact: true });
     await expect(main).toBeVisible();
-    await expect(main.locator('.creator-module-section')).toHaveCount(3);
+    // SP-03 keeps all four module directions visible; an unavailable module is disabled.
+    await expect(main.locator('.creator-module-section')).toHaveCount(4);
     await expect(main.getByRole('heading', { name: 'Главная', exact: true })).toHaveCount(0);
     await expect(
       main.locator('.home-mobile-create,.home-empty-create,.portal-quick-create'),
     ).toHaveCount(0);
-    await expect(main.locator('.home-create-button')).toHaveCount(3);
+    await expect(main.locator('.home-create-button')).toHaveCount(4);
+    await expect(
+      main.locator('.creator-module-section[data-module="robotics"] .home-create-button'),
+    ).toBeDisabled();
+    for (const module of ['three-d', 'electronics', 'blocks']) {
+      await expect(
+        main.locator(`.creator-module-section[data-module="${module}"] .home-create-button`),
+      ).toBeEnabled();
+    }
     const actionGeometry = async () => {
       const boxes = await main.locator('.home-create-button').evaluateAll((buttons) =>
         buttons.map((button) => {
@@ -5110,9 +5295,14 @@ for (const width of [1440, 1024, 390, 320])
     };
     const normalGeometry = await actionGeometry();
 
-    await expect(main.locator('.home-module-empty')).toHaveCount(3);
+    await expect(main.locator('.home-module-empty')).toHaveCount(4);
     await expect(page.locator('.portal-header .portal-quick-create > summary')).toBeVisible();
-    await expect(main.getByRole('link', { name: 'Открыть знания', exact: true })).toBeVisible();
+    const knowledge = page
+      .locator('.portal-header')
+      .getByRole('link', { name: 'Знания', exact: true });
+    await expect(knowledge).toBeVisible();
+    await expect(knowledge).toHaveAttribute('href', '/#/knowledge');
+    await expect(main.locator('.access-personal-start')).toHaveCount(0);
     await assertShellGeometry(page, width);
     expect(notifications).toBe(0);
     expect(attention).toBe(0);
@@ -5315,16 +5505,20 @@ test('R2 Home module creation preserves server projection, busy and idempotent r
   await page.goto('/#/home');
   const button = page.getByRole('button', { name: 'Создать цепь', exact: true });
   await expect(button).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Создать модель', exact: true })).toHaveCount(0);
+  // The Home contract keeps unavailable directions visible, but forbids creation.
+  const unavailableModel = page.getByRole('button', { name: 'Создать модель', exact: true });
+  await expect(unavailableModel).toBeVisible();
+  await expect(unavailableModel).toBeDisabled();
+  await expect(page.locator('.creator-module-section[data-module="three-d"]')).toContainText(
+    'Сейчас недоступно',
+  );
   await button.click();
   await expect(button).toBeDisabled();
   release();
-  await expect(page.getByRole('alert')).toContainText('Создание временно недоступно');
+  const createAlert = page.locator('.portal-create-notice[role="alert"]');
+  await expect(createAlert).toContainText('Создание временно недоступно');
   await expect(button).toBeEnabled();
-  await page
-    .getByRole('alert')
-    .getByRole('button', { name: 'Продолжить создание', exact: true })
-    .click();
+  await createAlert.getByRole('button', { name: 'Продолжить создание', exact: true }).click();
   await expect.poll(() => keys.length).toBe(2);
   expect(keys[0]).toBe(keys[1]);
   expect(bodies[0]).toEqual(bodies[1]);

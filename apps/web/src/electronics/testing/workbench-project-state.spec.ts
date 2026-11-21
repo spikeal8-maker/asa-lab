@@ -221,6 +221,56 @@ async function advance(milliseconds: number) {
   });
 }
 
+describe('annotation persistence uses the project document authority', () => {
+  it('preserves schema 5 through normalization, offline recovery and history without removing old circuit fields', async () => {
+    await mountProject();
+    const annotation = {
+      id: 'text-1',
+      text: 'Текст 😀',
+      position: { x: 12, y: 34 },
+      size: { width: 240, height: 96 },
+      fontSize: 18,
+    };
+    const annotated: SchematicDocument = {
+      ...state().document!,
+      schemaVersion: 5,
+      annotations: [annotation],
+    };
+    expect(normalizeLoadedDocument(annotated)).toEqual(annotated);
+    act(() => state().commitDocument(annotated));
+    expect(
+      readLocalProjectDraft<SchematicDocument>(
+        window.localStorage,
+        projectId,
+        'electronics',
+        userId,
+        'account',
+      )?.document,
+    ).toEqual(annotated);
+    act(() => state().undo());
+    expect(state().document).toEqual({ ...initialDocument, schemaVersion: 5, annotations: [] });
+    act(() => state().redo());
+    expect(state().document).toEqual(annotated);
+    vi.mocked(api.saveDraft).mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'offline' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    await act(async () => state().saveNow());
+    expect(state().saveStatus).toBe('error');
+    expect(
+      readLocalProjectDraft<SchematicDocument>(
+        window.localStorage,
+        projectId,
+        'electronics',
+        userId,
+        'account',
+      )?.document.annotations,
+    ).toEqual([annotation]);
+    expect(parseElectronicsDocument(JSON.parse(JSON.stringify(state().document))).ok).toBe(true);
+  });
+});
+
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
   root = null;

@@ -1,0 +1,139 @@
+{
+  "sourceSha": "a5157af1265ac02965bb5f8a6711a305ceb8332f",
+  "files": {
+    "build.mjs": {
+      "bytes": 721,
+      "sha256": "0d19be906ea9c360be5cfd78b8f38f5c2be6f98213d3652808b396f37f596f73"
+    },
+    "bundle.mjs": {
+      "bytes": 1662238,
+      "sha256": "b250f2f984676fdcce28c2a1c541722f3015292fa0bef6159169c89a54c59f17"
+    },
+    "bundle.mjs.map": {
+      "bytes": 2802339,
+      "sha256": "782b315a14e583b850a440646d67c7bdd4e2883434d7a2a6db8786f1c0d15bc8"
+    },
+    "coverage.json": {
+      "bytes": 294020,
+      "sha256": "fb1195107aa110d4887e9c7119787f414e456ebd027db89889dc831a5b7d2c09"
+    },
+    "entry.mjs": {
+      "bytes": 4937,
+      "sha256": "ca9ee96b34c0ebc7be7ced80901784cbc0b239c19b8825f249a7d44a4108ca0c"
+    },
+    "inputs.json": {
+      "bytes": 72999,
+      "sha256": "9566f01fcae9849a6e3ecddbef850baac80819e8158ffc4402475018265e4476"
+    },
+    "millis-0-0.response.json": {
+      "bytes": 13921,
+      "sha256": "80a647b068d1fa0634afe3b528fb638129e00667a418c507833e2f49d022e0ec"
+    },
+    "millis-0-1.response.json": {
+      "bytes": 13921,
+      "sha256": "fcdbd824e9afb393d4d7ae5e1c6cb8fdaf391b057fbb5063ae506a554caa46a5"
+    },
+    "millis-1-0.response.json": {
+      "bytes": 15872,
+      "sha256": "043572e625e09921906f3498a1b436c5fc50aff8f716b200213e65a6c1252aaa"
+    },
+    "millis-1-1.response.json": {
+      "bytes": 15873,
+      "sha256": "41a8574084c1ec2e80715f51339861b986462211177898ed7f037b2d34bec3f7"
+    },
+    "millis-2-0.response.json": {
+      "bytes": 15775,
+      "sha256": "4f68c9d569951f31497beb61c13c4350f81f50daa67e4a9646b54b564d2c5dfe"
+    },
+    "millis-2-1.response.json": {
+      "bytes": 15774,
+      "sha256": "26bddbc0c17959d4b197d492cd1546c02cca51a2434d049a119ba0b47308cd27"
+    },
+    "millis-3-0.response.json": {
+      "bytes": 15675,
+      "sha256": "688f30bd82ede2b8d09e3384b9e5345220a83fee2b7346fbc63b23a9e822a259"
+    },
+    "millis-3-1.response.json": {
+      "bytes": 15673,
+      "sha256": "41b9c229e1ebadf17ff142789de05996187672c25dfc757f5d33eb82203fd8f2"
+    },
+    "no-delay-0-0.response.json": {
+      "bytes": 12979,
+      "sha256": "395f4c85257b1b2961d514ab3f076d0c45e1b61c967b4289b2e4326fc2d840c0"
+    },
+    "no-delay-0-1.response.json": {
+      "bytes": 12980,
+      "sha256": "0fac80f22a0fdab14cfbc8a9974cec1836176b0bc15ec669854e1ee2864313e8"
+    },
+    "no-delay-1-0.response.json": {
+      "bytes": 15375,
+      "sha256": "bddbb862355421cfc63d3382c63d44bb600195201f75cf883c2fca340a7084a5"
+    },
+    "no-delay-1-1.response.json": {
+      "bytes": 15376,
+      "sha256": "47f969bc07bdaa5c2f875101b9937c7f884aab61190927bda7bc34cc22af5588"
+    },
+    "no-delay-2-0.response.json": {
+      "bytes": 15221,
+      "sha256": "b756e5ef8e79355ecd51fff8353b3e112f33aa300837ab963d17a7d0f131ab31"
+    },
+    "no-delay-2-1.response.json": {
+      "bytes": 15221,
+      "sha256": "9aeb62741288f57e8233f88620df36833338830ecae5dc59c4b51d56c9fea4e0"
+    },
+    "no-delay-3-0.response.json": {
+      "bytes": 15230,
+      "sha256": "cfb871cf3d1df781e53b4f32b49d6f396bf590ea03a1ab3ae0f7d3e34b756ae4"
+    },
+    "no-delay-3-1.response.json": {
+      "bytes": 15230,
+      "sha256": "37410651e1469551aa0247f88c7113b22112a37d05dc713016ab7acc7a17a76f"
+    },
+    "profile.cpuprofile": {
+      "bytes": 79008,
+      "sha256": "4278a192f9add43650763faf38a68e45484e9a8c72f122e8b212528d97301d69"
+    },
+    "receipt.json": {
+      "bytes": 13455,
+      "sha256": "929f36901de9cd16af4b9f0ab4be8e6fa65e3abfcd7f72115cb3045d5d846a80"
+    },
+    "summary.json": {
+      "bytes": 12106,
+      "sha256": "298c38bb95e5251abefe41c588d5648cf79641d6741680aec67c789fc26addfd"
+    }
+  },
+  "profileFunctionsAggregated": {
+    "evaluateSimulationWorkerRequestBatched": {
+      "selfMs": 0.0,
+      "inclusiveMs": 432.189
+    },
+    "createElectronicsAdvanceSession": {
+      "selfMs": 1.774,
+      "inclusiveMs": 1.774
+    },
+    "advanceArduinoCircuitClock": {
+      "selfMs": 14.07,
+      "inclusiveMs": 369.084
+    },
+    "advanceRuntime": {
+      "selfMs": 73.992,
+      "inclusiveMs": 168.743
+    },
+    "advance": {
+      "selfMs": 22.318,
+      "inclusiveMs": 186.842
+    },
+    "solveCircuitBase": {
+      "selfMs": 15.967,
+      "inclusiveMs": 55.173
+    },
+    "simulationInputDigest": {
+      "selfMs": 5.288,
+      "inclusiveMs": 15.367
+    },
+    "expireTones": {
+      "selfMs": 8.022,
+      "inclusiveMs": 8.022
+    }
+  }
+}

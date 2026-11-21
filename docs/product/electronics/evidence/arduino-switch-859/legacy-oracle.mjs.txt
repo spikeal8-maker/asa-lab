@@ -1,0 +1,88 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import process from 'node:process';
+const require = createRequire(import.meta.url);
+const { build } = createRequire(require.resolve('vite'))('esbuild');
+const out = resolve('test-results/switch-case-859');
+await mkdir(out, { recursive: true });
+const file = resolve('contexts/electronics/domain/arduino-program-runtime.ts');
+const runtimeSource = await readFile(file, 'utf8');
+await build({ stdin: { contents: runtimeSource + '\nexport {compileArduinoProgram as oracleCompile};', resolveDir: dirname(file), loader: 'ts' }, bundle: true, platform: 'node', format: 'esm', outfile: resolve(out, 'oracle-runtime.mjs') });
+const runtime = await import(pathToFileURL(resolve(out, 'oracle-runtime.mjs')).href + '?t=' + Date.now());
+const ultra = `float readUltrasonicCm(int triggerPin, int echoPin) {
+  pinMode(triggerPin, OUTPUT);
+  digitalWrite(triggerPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(triggerPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(triggerPin, LOW);
+  pinMode(echoPin, INPUT);
+  return pulseIn(echoPin, HIGH) * 0.01723;
+}`;
+const cases = [
+'int g=2;void f(int n){g+=n;delayMicroseconds(3);}void loop(){int g=99;f(3);}',
+'int n=0;void f(int x){if(x>1)return;n+=x;}void g(int x){f(x);delayMicroseconds(2);}void loop(){g(1);g(2);}',
+'int n=1;void f(int x,int y){n=x+y;}void loop(){f(n++,pulseIn(3,HIGH,10));}',
+'int n=0;void f(int x){for(int i=0;i<x;i++){if(i==1)continue;n+=i;}delay(1);}void loop(){f(3);}',
+'void show(int n){digitalWrite(4,n%2);delayMicroseconds(2);}void setup(){pinMode(4,OUTPUT);}void loop(){show(1);show(0);}',
+
+  '',
+  'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);digitalWrite(13,LOW);delay(1);}',
+  'int v=0;void loop(){v++;if(v>=10)v=0;digitalWrite(4,v>3);delay(1);}',
+  'unsigned long v=4294967295UL;void loop(){v=v+1;delay(1);}',
+  'byte v=255;void loop(){v++;v--;delay(1);}',
+  'int v=0;void loop(){for(int i=0;i<3;i++){if(i==1)continue;v+=i;}delay(1);}',
+  'int v=0;void loop(){int i=0;while(i<3){i++;if(i==2)break;v+=i;}delay(1);}',
+  'int v=0;void loop(){int i=0;do{i++;v+=i;}while(i<2);delay(1);}',
+  'int v=0;void loop(){v=true?++v:99;delay(1);}',
+  'long v=0;void setup(){randomSeed(123);}void loop(){v=random(-10,10);delay(1);}',
+  '#define PIN 13\nconst int d=2;void setup(){pinMode(PIN,OUTPUT);}void loop(){digitalWrite(PIN,HIGH);delay(d);}',
+  'void setup(){Serial.begin(9600);}void loop(){Serial.println("{?}: void fake(int n) { }");delay(1);}',
+  '#include <Servo.h>\nServo motor;void setup(){motor.attach(9);}void loop(){motor.write(90);delay(1);}',
+  'int v=0;void setup(){Serial.begin(9600);}void loop(){v=Serial.available();Serial.println(v);delay(1);}',
+  'int v=0;void loop(){v=analogRead(A0);digitalWrite(2,v>500);delay(1);}',
+  'int v=0;void loop(){v=pulseIn(3,HIGH,10);delayMicroseconds(3);}',
+  'int n=3;long v=0;void loop(){v=pulseIn(n++,HIGH,10);delayMicroseconds(3);}',
+  ultra+'\nfloat v=0;void loop(){v=readUltrasonicCm(7,8);delay(1);}',
+  'int v=0;void loop(){int z=0;v=1/z;}',
+  'void loop(){missing(1);}',
+];
+const reader = s => ({ a0: 2.5, d3: s.simulationTimeMs >= 0.006 && s.simulationTimeMs < 0.009 ? 5 : 0, d8: 0 });
+const results = [];
+for (const source of cases) {
+  const entry = { source, compilation: JSON.parse(JSON.stringify(runtime.oracleCompile(source))), runs: [] };
+  for (const budget of [1, 2, 7]) {
+    let state;
+    const ticks = [];
+    for (const horizon of [0, 0.02, 0.12]) {
+      const advances = [];
+      for (let step = 0; step < 1000; step++) {
+        const next = runtime.advanceClockedArduinoRuntime(source, {}, horizon, state, reader, { instructionBudget: budget, pulseInputSample: true });
+        advances.push(JSON.parse(JSON.stringify(next)));
+        state = JSON.parse(JSON.stringify(next.state));
+        if (next.executionStatus !== 'yielded') break;
+        if (step === 999) throw new Error('Oracle bounded step limit');
+      }
+      ticks.push({ horizon, advances });
+    }
+    entry.runs.push({ profile: 'instruction-us-v1', budget, ticks });
+  }
+  let legacy;
+  entry.runs.push({ profile: 'legacy-ms-v1', ticks: [0, 1, 2].map(horizon => {
+    const next = runtime.advanceArduinoRuntime(source, {}, horizon, legacy, reader);
+    legacy = JSON.parse(JSON.stringify(next.state));
+    return { horizon, advance: JSON.parse(JSON.stringify(next)) };
+  }) });
+  entry.compilationAfter = JSON.parse(JSON.stringify(runtime.oracleCompile(source)));
+  results.push(entry);
+}
+const bytes = Buffer.from(JSON.stringify(results));
+const label = process.argv[2] ?? 'before';
+await writeFile(resolve(out, label+'.json.gz'), gzipSync(bytes, { mtime: 0 }));
+const receipt = { cases: results.length, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), runtimeSha256: createHash('sha256').update(runtimeSource).digest('hex') };
+await writeFile(resolve(out, label+'-receipt.json'), JSON.stringify(receipt,null,2)+'\n');
+console.log(JSON.stringify(receipt));

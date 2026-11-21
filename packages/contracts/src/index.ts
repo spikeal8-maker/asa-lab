@@ -1,5 +1,45 @@
 /** Foundation surface for the contracts package. OpenAPI/JSON Schema and event contract types. */
 export const PACKAGE_NAME = '@asa-lab/contracts';
+export { AI_TOOL_IDS, AI_TOOL_LABELS, AI_TOOL_DEPENDENCIES } from './ai-tools.js';
+export type { AiToolId } from './ai-tools.js';
+export { PUBLIC_ARTIFACT_V1_LIMITS, validatePublicArtifact } from './public-artifact.js';
+export type {
+  PublicArtifact,
+  PublicArtifactProvenance,
+  PublicArtifactViewerFamily,
+  PublicArtifactCapabilities,
+  PublicArtifactValidation,
+} from './public-artifact.js';
+export type {
+  AiImageSize,
+  AiImageJobState,
+  AiGeneratedImage,
+  AiImageGenerationStatus,
+  AiImageGenerationRequest,
+  AiImageGenerationJob,
+  AiImageGenerationAdminConfig,
+  AiImageGenerationAdminUpdate,
+} from './ai-image-generation.js';
+export type {
+  AiPromptVariable,
+  AiGenerationModel,
+  AiModelPreference,
+  AiCatalogObservation,
+  AiCloudCatalogModel,
+  AiGenerationPolicy,
+  AiGenerationPolicyUpdate,
+} from './ai-generation-policy.js';
+export type { AiUsageOverview, AiUsageTokenTotal } from './ai-usage-overview.js';
+export type {
+  AiWebSearchMode,
+  AiWebSource,
+  AiWebImage,
+  AiWebWeather,
+  AiWebSearchEvidence,
+  AiWebSearchStatus,
+  AiWebSearchAdminConfig,
+  AiWebSearchAdminUpdate,
+} from './ai-web-search.js';
 
 export interface PackageInfo {
   readonly name: string;
@@ -9,3 +49,124 @@ export interface PackageInfo {
 export function packageInfo(): PackageInfo {
   return { name: PACKAGE_NAME, stable: false };
 }
+
+export {
+  ELECTRONICS_DISPLAY_LIMITS,
+  PUBLIC_ELECTRONICS_PROPERTIES,
+  PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
+  validatePublicProjectDisplayArtifact,
+} from './public-project-display-artifact.js';
+export type {
+  ElectronicsDisplayArtifact,
+  ElectronicsSimulationArtifact,
+  PublicSimulationComponent,
+  PublicProjectDisplayArtifact,
+  PublicDisplayComponent,
+  PublicDisplayConnection,
+  PublicDisplayPoint,
+  PublicDisplayComponentKind,
+  PublicDisplayVisualProperties,
+} from './public-project-display-artifact.js';
+export type { PublicScratchPlayerBootstrap } from './public-scratch-player';
+export {
+  validatePublicThreeDArtifact,
+  PUBLIC_THREE_D_NODE_FIELDS,
+  PUBLIC_THREE_D_LIMITS,
+  PUBLIC_THREE_D_PRIMITIVES,
+} from './public-three-d-artifact.js';
+export type { PublicThreeDArtifact, PublicThreeDNode } from './public-three-d-artifact.js';
+export {
+  validatePublicRoboticsArtifact,
+  PUBLIC_ROBOTICS_ROBOT_FIELDS,
+  PUBLIC_ROBOTICS_LIMITS,
+} from './public-robotics-artifact.js';
+export {
+  validatePublicRoboticsArtifactV6,
+  PUBLIC_ROBOTICS_V6_LIMITS,
+} from './public-robotics-artifact-v6.js';
+export type {
+  PublicRoboticsArtifactV6,
+  PublicRoboticsWorldV6,
+  PublicRoboticsFieldV6,
+  PublicRoboticsBodyV6,
+  PublicRoboticsFloorMarkV6,
+} from './public-robotics-artifact-v6.js';
+export type {
+  PublicRoboticsArtifact,
+  PublicRoboticsWorld,
+  PublicRoboticsField,
+  PublicRoboticsRobot,
+  PublicRoboticsPoint,
+  PublicRoboticsPose,
+  PublicRoboticsWall,
+  PublicRoboticsBall,
+  PublicRoboticsFloorMark,
+} from './public-robotics-artifact.js';
+
+export type {
+  AiOllamaCloudModel,
+  AiOllamaCloudAccount,
+  AiOllamaCloudInspection,
+  AiOllamaCloudKey,
+  AiOllamaCloudPool,
+  AiOllamaCloudKeyUpdate,
+} from './ai-ollama-cloud.js';
+export type {
+  AiTokenBudgetLimit,
+  AiTokenBudgetAdmin,
+  AiTokenBudgetUpdate,
+  AiTokenBudgetsOwn,
+} from './ai-token-budgets.js';
+
+export {
+  AI_IMAGE_PRESETS,
+  aiImagePreset,
+  aiImageDimensions,
+  isAiImageSize,
+  aiImageSizeLabel,
+} from './ai-image-generation.js';
+export type { AiImageStoredSize } from './ai-image-generation.js';
+
+export { AI_IMAGE_RECIPES } from './ai-image-generation.js';
+export type { AiImageRecipe } from './ai-image-generation.js';
+export {
+  AI_TEXT_UNAVAILABLE,
+  AI_IMAGE_UNAVAILABLE,
+  AI_SEARCH_UNAVAILABLE,
+  aiPublicErrorMessage,
+  AI_CHAT_TOOLS,
+  AI_TOOL_ACTIVITY_LABELS,
+  isAiToolActivity,
+} from './ai-chat-feedback.js';
+export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
+
+export { publicArduinoBlocks } from './public-arduino-blocks.js';
+
+export type {
+  ChessNetworkScope,
+  ChessNetworkPolicy,
+  ChessNetworkAccess,
+  ChessNetworkLobby,
+  ChessLobbyPlayer,
+  ChessNetworkInvite,
+  ChessNetworkMatch,
+  ChessNetworkAction,
+} from './chess-network.js';
+
+export type { CheckersNetworkMatch, CheckersNetworkPosition } from './checkers-network.js';
+
+export { PERSONAL_PROGRESS_GROUP_LIMIT, GROUP_RATING_PAGE_LIMIT } from './personal-progress.js';
+export type {
+  GroupRatingPeerV1,
+  GroupRatingOwnV1,
+  GroupRatingPageV1,
+  GroupRatingAvatarBatchV1,
+  ProgressAvailabilityV1,
+  ProgressScopeV1,
+  ProgressMetricNameV1,
+  ProgressCounterV1,
+  ProgressCoverageV1,
+  OwnGroupResultV1,
+  OwnProgressGroupV1,
+  PersonalProgressSummaryV1,
+} from './personal-progress.js';

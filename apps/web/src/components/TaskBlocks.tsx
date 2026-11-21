@@ -22,18 +22,43 @@ function catalogueMedia(value: string | undefined): value is string {
   );
 }
 
+function essayMedia(value: string | undefined, role: 'image' | 'file'): value is string {
+  return (
+    typeof value === 'string' &&
+    new RegExp('^/api/learning/essay/runs/[0-9a-f-]{36}/media/' + role + '/[0-9a-f]{64}$').test(
+      value,
+    )
+  );
+}
+
 export interface TaskImageSelection {
   readonly src: string;
   readonly alt: string;
 }
 
+const taskFileTypes: Readonly<Record<string, string>> = {
+  pdf: 'application/pdf',
+  txt: 'text/plain',
+  ino: 'text/plain',
+  csv: 'text/csv',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  zip: 'application/zip',
+  sb3: 'application/x.scratch.sb3',
+  stl: 'model/stl',
+};
+
 function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'file' }> }) {
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
+  const extension = block.name.split('.').at(-1)?.toLowerCase() ?? '';
+  const isPdf = extension === 'pdf';
   const src =
     block.src?.startsWith('/api/learning/activities/') === true ||
     block.src?.startsWith('/api/class-join/course-runs/') === true ||
-    catalogueMedia(block.src)
+    catalogueMedia(block.src) ||
+    essayMedia(block.src, 'file')
       ? block.src
       : `/api/assignments/task-files/${encodeURIComponent(block.contentHash)}`;
   useEffect(() => setUnavailable(false), [src]);
@@ -42,7 +67,8 @@ function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'f
     setUnavailable(false);
     try {
       const response = await fetch(src, { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok || response.headers.get('content-type')?.split(';')[0] !== 'application/pdf')
+      const contentType = response.headers.get('content-type')?.split(';')[0];
+      if (!response.ok || !contentType || contentType !== taskFileTypes[extension])
         throw new Error('file unavailable');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -62,14 +88,14 @@ function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'f
   return (
     <div className="task-block-file">
       <span className="task-block-file-name">{block.name}</span>
-      <span className="account-hint">PDF</span>
+      <span className="account-hint">{extension.toUpperCase()}</span>
       <button
         type="button"
         disabled={loading}
         onClick={() => void download()}
-        aria-label={`Скачать PDF: ${block.name}`}
+        aria-label={`Скачать ${isPdf ? 'PDF' : 'файл'}: ${block.name}`}
       >
-        {loading ? 'Загрузка…' : 'Скачать PDF'}
+        {loading ? 'Загрузка…' : isPdf ? 'Скачать PDF' : 'Скачать файл'}
       </button>
       {unavailable ? (
         <p role="alert">Файл задания недоступен. Обновите задание и попробуйте снова.</p>
@@ -87,18 +113,22 @@ function TaskImage({
 }) {
   const [unavailable, setUnavailable] = useState(false);
   const [zoomed, setZoomed] = useState(false);
+  const [actualSize, setActualSize] = useState(false);
   const [pinned, setPinned] = useState(false);
   const zoomTrigger = useRef<HTMLButtonElement>(null);
   const zoomClose = useRef<HTMLButtonElement>(null);
   const src =
     block.src?.startsWith('/api/learning/activities/') === true ||
     block.src?.startsWith('/api/class-join/course-runs/') === true ||
-    catalogueMedia(block.src)
+    catalogueMedia(block.src) ||
+    essayMedia(block.src, 'image')
       ? block.src
       : `/api/assignments/task-images/${encodeURIComponent(block.contentHash)}`;
+  const preview = (width: number) => src + (src.includes('?') ? '&' : '?') + 'preview=' + width;
   useEffect(() => {
     setUnavailable(false);
     setZoomed(false);
+    setActualSize(false);
     setPinned(false);
   }, [src]);
 
@@ -106,10 +136,6 @@ function TaskImage({
     if (!zoomed) return;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') closeZoom();
-      if (event.key === 'Tab') {
-        event.preventDefault();
-        zoomClose.current?.focus();
-      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -117,6 +143,7 @@ function TaskImage({
 
   function closeZoom(): void {
     setZoomed(false);
+    setActualSize(false);
     zoomTrigger.current?.focus();
   }
 
@@ -139,7 +166,17 @@ function TaskImage({
             aria-label={`Открыть крупно: ${block.alt}`}
             onClick={() => setZoomed(true)}
           >
-            <img src={src} alt={block.alt} onError={imageUnavailable} />
+            <picture>
+              <source media="(max-width: 600px)" srcSet={preview(640)} />
+              <source srcSet={preview(1280)} />
+              <img
+                src={src}
+                alt={block.alt}
+                loading="lazy"
+                decoding="async"
+                onError={imageUnavailable}
+              />
+            </picture>
           </button>
           <div className="task-block-image-actions">
             <button
@@ -160,11 +197,26 @@ function TaskImage({
               role="dialog"
               aria-modal="true"
               aria-label={`Изображение задания: ${block.alt}`}
+              onKeyDown={(event) => {
+                if (event.key !== 'Tab') return;
+                const controls = Array.from(event.currentTarget.querySelectorAll('button'));
+                const index = controls.indexOf(document.activeElement as HTMLButtonElement);
+                const direction = event.shiftKey ? -1 : 1;
+                controls[(index + direction + controls.length) % controls.length]?.focus();
+                event.preventDefault();
+              }}
             >
-              <button ref={zoomClose} type="button" autoFocus onClick={closeZoom}>
-                Закрыть
-              </button>
-              <img src={src} alt={block.alt} onError={imageUnavailable} />
+              <div className="task-block-image-zoom-actions">
+                <button type="button" onClick={() => setActualSize((value) => !value)}>
+                  {actualSize ? 'По размеру экрана' : 'Показать в полном размере'}
+                </button>
+                <button ref={zoomClose} type="button" autoFocus onClick={closeZoom}>
+                  Закрыть
+                </button>
+              </div>
+              <div className={actualSize ? 'task-block-image-full-size' : 'task-block-image-fit'}>
+                <img src={src} alt={block.alt} onError={imageUnavailable} />
+              </div>
             </div>,
             document.body,
           )

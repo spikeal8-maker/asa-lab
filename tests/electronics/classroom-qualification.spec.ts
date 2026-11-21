@@ -2238,7 +2238,7 @@ describe('v3 preserves real functional publication and native observations', () 
       new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
     );
     expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
-      '42e5541fe9e55284e6e502c822f284af622a8e6fac38de1bf6f0e02a847f349c',
+      'd57a2e224764c7fa466d0c56ec1a3b363dce1dbe9d573e1ed50dae78ea658136',
     );
     expect(readyCompact).toContain(
       "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
@@ -3694,5 +3694,357 @@ describe('Issue 682 native pointer receipt', () => {
     emit('pointerup', null, 8);
     expect(rows).toHaveLength(1);
     expect(check(rows)).toBe(false);
+  });
+});
+
+// Execute the native pixel classifier and phase-credit seam from the canonical
+// browser test, within this already-gated adversarial qualification suite.
+const nativeText = readFileSync(
+  new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
+  'utf8',
+);
+const nativeSource = ts.createSourceFile('native.ts', nativeText, ts.ScriptTarget.Latest, true);
+const nativeDeclarations = nativeSource.statements.filter(
+  (node) =>
+    ts.isFunctionDeclaration(node) &&
+    node.name &&
+    ['classifyNativePng', 'qualifyNativeObservedPhase', 'nativeSamples'].includes(node.name.text),
+);
+if (nativeDeclarations.length !== 3) throw new Error('Missing actual native qualification seam');
+function nativeQualificationOracle(globals: Record<string, unknown> = {}) {
+  return runInNewContext(
+    ts.transpileModule(
+      nativeDeclarations.map((node) => node.getText(nativeSource)).join('\n') +
+        '\n({ classify: classifyNativePng, qualify: qualifyNativeObservedPhase, samples: nativeSamples })',
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+    ).outputText,
+    globals,
+  );
+}
+const nativeOracle = nativeQualificationOracle();
+function nativeFixture() {
+  const rect = { x: 1, y: 1, width: 20, height: 20 };
+  const paint = {
+    at: 100,
+    previousAt: 90,
+    stable: true,
+    assetsReady: true,
+    ledLit: true,
+    lActive: true,
+    led: { rect },
+    board: { rect },
+    lRect: rect,
+  };
+  const expected = {
+    epoch: 3,
+    source: 'canonical sketch',
+    workerId: 3,
+    generationId: 5,
+    projectSessionId: 'same-session',
+  };
+  const frame = {
+    at: 120,
+    status: 'ready',
+    solved: true,
+    quality: { passed: true },
+    source: expected.source,
+    loadedSource: expected.source,
+    workerId: 3,
+    generationId: 5,
+    requestedGenerationId: 5,
+    projectSessionId: expected.projectSessionId,
+    committedUs: 100000,
+    requestedUs: 100000,
+    continuationUs: 100000,
+    d13Voltage: 0 as number | null,
+    components: [
+      {
+        componentId: 'led0',
+        voltageDrop: 0,
+        current: 0,
+        brightness: 0,
+        terminalVoltages: {} as Record<string, number>,
+      },
+      {
+        componentId: 'uno',
+        voltageDrop: 0,
+        current: 0,
+        terminalVoltages: { d13: 0 } as Record<string, number>,
+      },
+    ],
+  };
+  const highFrame = {
+    ...frame,
+    at: 260,
+    committedUs: 200000,
+    requestedUs: 200000,
+    continuationUs: 200000,
+    d13Voltage: 5,
+    components: [
+      { ...frame.components[0]!, current: 0.01, brightness: 100 },
+      { ...frame.components[1]!, terminalVoltages: { d13: 5 } },
+    ],
+  };
+  const capture = {
+    epoch: 3,
+    source: expected.source,
+    capturedAt: 400,
+    frames: [frame, highFrame],
+    paints: [
+      { ...paint, at: 160, previousAt: 140, ledLit: false, lActive: false },
+      { ...paint, at: 300, previousAt: 280 },
+    ],
+    errors: [] as object[],
+    observerErrors: [] as string[],
+    clicks: [] as object[],
+  };
+  const points = [0, 1, 2, 3].map((x) => ({ x, y: 0, low: [0, 0, 0], high: [200, 200, 200] }));
+  const references = { width: 4, height: 1, led: points, l: points };
+  const png = (active: boolean) => ({
+    width: 4,
+    height: 1,
+    data: Buffer.from(
+      Array.from({ length: 4 }, () => (active ? [200, 200, 200, 255] : [0, 0, 0, 255])).flat(),
+    ),
+  });
+  return { paint, expected, capture, references, png };
+}
+describe('native photographed phase qualification', () => {
+  it('credits exact LOW under a HIGH request and requires HIGH and LOW across the set', () => {
+    const f = nativeFixture();
+    const observed = new Set<string>();
+    for (const active of [false, true]) {
+      const pixels = nativeOracle.classify(f.png(active), f.references);
+      const phase = nativeOracle.qualify(
+        pixels.observedPhase,
+        f.paint,
+        f.capture,
+        f.expected,
+        true,
+      );
+      if (phase) observed.add(phase);
+    }
+    expect([...observed]).toEqual(['LOW', 'HIGH']);
+    expect(nativeText).toContain('observedPhases.add(qualifiedObservedPhase)');
+    expect(nativeText).toContain('if (!observedPhases.has(required))');
+    expect(nativeText).not.toContain('pixels.observedPhase === requestedPhase');
+  });
+  it('runs the actual capture-set caller with LOW under HIGH request and HIGH under LOW requests', async () => {
+    const f = nativeFixture();
+    const reports: Array<Record<string, unknown>> = [];
+    let shots = 0;
+    const browserProbe = {
+      ...f.capture,
+      paints: [f.paint],
+      frames: f.capture.frames.map((frame) => JSON.stringify(frame)),
+    };
+    const oracle = nativeQualificationOracle({
+      window: { __classroomD13: browserProbe },
+      performance: { now: () => 400 },
+      nativeAssetBasis: () => ({}),
+      nativeReferences: async () => f.references,
+      PNG: { sync: { read: (png: unknown) => png } },
+      artifactRoot: 'artifacts',
+      resolve: (...parts: string[]) => parts.join('/'),
+      persist: (_name: string, report: Record<string, unknown>) => reports.push(report),
+      test: { info: () => ({ attach: async () => {} }) },
+    });
+    const page = {
+      waitForFunction: async () => {
+        browserProbe.paints = [f.paint];
+        browserProbe.frames = [];
+      },
+      evaluate: async (read: (argument?: unknown) => unknown, argument?: unknown) => read(argument),
+      screenshot: async () => {
+        browserProbe.paints = f.capture.paints;
+        browserProbe.frames = f.capture.frames.map((frame) => JSON.stringify(frame));
+        return f.png(shots++ !== 0);
+      },
+    };
+    expect(
+      await oracle.samples(page, 'matrix-300', { ...f.capture, frames: f.capture.frames }),
+    ).toEqual([]);
+    expect(shots).toBe(5); // Same original per-request three-attempt budget.
+    expect(reports[0]).toMatchObject({
+      requestedPhase: 'HIGH',
+      qualifiedObservedPhase: 'LOW',
+      unambiguousPhase: true,
+    });
+    expect(reports[2]).toMatchObject({
+      requestedPhase: 'LOW',
+      qualifiedObservedPhase: 'HIGH',
+      unambiguousPhase: true,
+    });
+    shots = 1;
+
+    expect(
+      await oracle.samples(page, 'only-high', { ...f.capture, frames: f.capture.frames }),
+    ).toEqual(['native image never captured an unambiguous LOW phase']);
+    // LOW pixels and LOW DOM still cannot qualify when every electrical receipt is HIGH.
+    f.capture.frames[0] = { ...f.capture.frames[1]!, at: 120 };
+    shots = 0;
+    expect(
+      await oracle.samples(page, 'runtime-only-high', { ...f.capture, frames: f.capture.frames }),
+    ).toEqual(['native image never captured an unambiguous LOW phase']);
+  });
+  it.each(['UNKNOWN', 'MISMATCH'])('rejects %s regardless of stable DOM witnesses', (phase) => {
+    const f = nativeFixture();
+    expect(nativeOracle.qualify(phase, f.paint, f.capture, f.expected, true)).toBeNull();
+  });
+  it.each([
+    'missing LOW witness',
+    'unstable witness',
+    'unready assets',
+    'witness before interval',
+    'witness after interval',
+    'previous witness outside interval',
+    'epoch',
+    'source',
+    'worker',
+    'generation',
+    'requested generation',
+    'session',
+    'loaded source',
+    'frame source',
+    'failed electrical quality',
+    'unsolved',
+    'non-ready',
+    'no frames',
+    'frame before interval',
+    'frame after interval',
+    'error',
+    'observer error',
+    'new action',
+    'geometry',
+    'opposite runtime phase',
+    'missing LED',
+    'missing Uno',
+    'missing runtime D13',
+    'missing board D13',
+    'missing brightness',
+    'invalid forward current',
+    'incomplete model horizon',
+  ])('rejects invalid evidence: %s', (defect) => {
+    const f = nativeFixture();
+    const low = f.capture.paints[0]!;
+    const frame = f.capture.frames[0]!;
+    switch (defect) {
+      case 'opposite runtime phase':
+        f.capture.frames[0] = { ...f.capture.frames[1]!, at: frame.at };
+        break;
+      case 'missing LED':
+        frame.components = frame.components.filter((component) => component.componentId !== 'led0');
+        break;
+      case 'missing Uno':
+        frame.components = frame.components.filter((component) => component.componentId !== 'uno');
+        break;
+      case 'missing runtime D13':
+        frame.d13Voltage = null;
+        break;
+      case 'missing board D13':
+        frame.components[1]!.terminalVoltages = {};
+        break;
+      case 'missing brightness':
+        delete frame.components[0]!.brightness;
+        break;
+      case 'invalid forward current':
+        frame.components[0]!.current = 0.01;
+        break;
+      case 'incomplete model horizon':
+        frame.continuationUs--;
+        break;
+      case 'missing LOW witness':
+        low.ledLit = true;
+        break;
+      case 'unstable witness':
+        low.stable = false;
+        break;
+      case 'unready assets':
+        low.assetsReady = false;
+        break;
+      case 'witness before interval':
+        low.at = 99;
+        break;
+      case 'witness after interval':
+        low.at = 401;
+        break;
+      case 'previous witness outside interval':
+        low.previousAt = 99;
+        break;
+      case 'epoch':
+        f.capture.epoch++;
+        break;
+      case 'source':
+        f.capture.source = 'stale';
+        break;
+      case 'worker':
+        frame.workerId++;
+        break;
+      case 'generation':
+        frame.generationId++;
+        break;
+      case 'requested generation':
+        frame.requestedGenerationId++;
+        break;
+      case 'session':
+        frame.projectSessionId = 'stale';
+        break;
+      case 'loaded source':
+        frame.loadedSource = 'stale';
+        break;
+      case 'frame source':
+        frame.source = 'stale';
+        break;
+      case 'failed electrical quality':
+        frame.quality.passed = false;
+        break;
+      case 'unsolved':
+        frame.solved = false;
+        break;
+      case 'non-ready':
+        frame.status = 'failed';
+        break;
+      case 'no frames':
+        f.capture.frames = [];
+        break;
+      case 'frame before interval':
+        frame.at = 99;
+        break;
+      case 'frame after interval':
+        frame.at = 401;
+        break;
+      case 'error':
+        f.capture.errors.push({});
+        break;
+      case 'observer error':
+        f.capture.observerErrors.push('observer failed');
+        break;
+      case 'new action':
+        f.capture.clicks.push({});
+        break;
+    }
+    expect(
+      nativeOracle.qualify('LOW', f.paint, f.capture, f.expected, defect !== 'geometry'),
+    ).toBeNull();
+  });
+  it.each([
+    'dimensions',
+    'transparent pixels',
+    'ambiguous pixels',
+    'reference separation',
+    'reference coordinates',
+  ])('rejects invalid PNG/reference proof: %s', (defect) => {
+    const f = nativeFixture();
+    const png = f.png(false);
+    if (defect === 'dimensions') f.references.width++;
+    if (defect === 'transparent pixels') png.data[3] = 0;
+    if (defect === 'ambiguous pixels') png.data.fill(100);
+    if (defect === 'reference separation')
+      for (const point of f.references.led) point.high = point.low;
+    if (defect === 'reference coordinates') f.references.led[0]!.x = -1;
+    const pixels = nativeOracle.classify(png, f.references);
+    expect(
+      nativeOracle.qualify(pixels.observedPhase, f.paint, f.capture, f.expected, true),
+    ).toBeNull();
   });
 });

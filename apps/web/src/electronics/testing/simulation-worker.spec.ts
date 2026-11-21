@@ -3,6 +3,8 @@ import {
   analyseElectronicsSnapshot,
   createElectronicsAdvanceSession,
   resetElectronicsTimedState,
+  pauseElectronicsTimedState,
+  resumeElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as electronicsEngine from '@asa-lab/electronics/engine';
@@ -926,3 +928,160 @@ describe('actual LED optical observation through the production Worker evaluator
     }
   });
 });
+
+describe('increment expressions through the production Worker evaluator', () => {
+  const source = `int checks=0;int total=0;int pin=12;
+    void setup(){pinMode(12,OUTPUT);pinMode(13,OUTPUT);Serial.begin(9600);
+      while(++checks<3 && total<3){Serial.println(total++);digitalWrite(pin++,HIGH);delayMicroseconds(3);}
+      Serial.println(checks);Serial.println(pin);int skipped=false && ++pin;
+      Serial.println(pin--);Serial.println(++pin);delay(1);}
+    void loop(){delay(100);}`;
+  function request(code = source) {
+    return {
+      ...preflightRequest('increment-expression'),
+      kind: 'advance' as const,
+      document: {
+        ...arduinoCircuit,
+        components: [
+          { ...arduinoCircuit.components[0]!, stateProperties: { arduinoSource: code } },
+        ],
+      },
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: 2000,
+    };
+  }
+  it('matches full direct JSON budget-one continuation, Serial values and GPIO for executable source', async () => {
+    const input = request();
+    const response = await evaluateSimulationWorkerRequestBatched(input, () => true);
+    if (!response?.ok || response.kind !== 'advance') throw new Error('Missing increment advance');
+    expect(response.advance.executionStatus).toBe('ready');
+    expect(response.advance.serial[0]?.tx.map((entry) => entry.text)).toEqual([
+      '0\n',
+      '1\n',
+      '3\n',
+      '14\n',
+      '14\n',
+      '14\n',
+    ]);
+    let state = input.state;
+    let direct;
+    for (let slice = 0; slice < 10000; slice++) {
+      direct = advanceElectronicsToHorizon(input.document, {
+        state,
+        requestedHorizonMicroseconds: 2000,
+        maxEvents: 1,
+      });
+      if (direct.executionStatus !== 'yielded') break;
+      state = JSON.parse(JSON.stringify(direct.state));
+    }
+    expect(direct?.executionStatus).toBe('ready');
+    expect(response.advance.state).toStrictEqual(direct?.state);
+    expect(response.advance.result?.components).toStrictEqual(direct?.observation?.components);
+    const clock = JSON.parse(response.advance.state.continuation!.serializedState);
+    expect(clock.boards[0].runtime.variables).toMatchObject({ checks: 3, total: 2, pin: 14 });
+    expect(clock.boards[0].runtime.outputVoltages).toMatchObject({ d12: 5, d13: 5 });
+    const paused = pauseElectronicsTimedState(response.advance.state);
+    const stopped = evaluateSimulationWorkerRequest({
+      ...input,
+      state: paused,
+      requestedHorizonMicroseconds: 3000,
+    });
+    expect(stopped).toMatchObject({ ok: true, advance: { state: paused } });
+    const resumed = await evaluateSimulationWorkerRequestBatched(
+      { ...input, state: resumeElectronicsTimedState(paused), requestedHorizonMicroseconds: 3000 },
+      () => true,
+    );
+    expect(resumed).toMatchObject({ ok: true, advance: { executionStatus: 'ready' } });
+    const reset = await evaluateSimulationWorkerRequestBatched(
+      { ...input, state: resetElectronicsTimedState() },
+      () => true,
+    );
+    if (!reset?.ok || reset.kind !== 'advance') throw new Error('Missing reset advance');
+    expect(reset.advance).toStrictEqual(response.advance);
+    const edited = request(source.replace('checks<3', 'checks<2'));
+    const changed = await evaluateSimulationWorkerRequestBatched(
+      { ...edited, generationId: 2, state: resetElectronicsTimedState() },
+      () => true,
+    );
+    if (!changed?.ok || changed.kind !== 'advance') throw new Error('Missing edited advance');
+    expect(changed.advance.serial[0]?.tx.map((entry) => entry.text)).toEqual([
+      '0\n',
+      '2\n',
+      '13\n',
+      '13\n',
+      '13\n',
+    ]);
+  });
+  it('discards increment work when a Stop or source edit supersedes a private batch', async () => {
+    const input = request(
+      'int n=0;void setup(){Serial.begin(9600);}void loop(){Serial.println(n++);digitalWrite(13,++n%2);}',
+    );
+    let current = true,
+      clock = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const result = await evaluateSimulationWorkerRequestBatched(
+        input,
+        () => current,
+        async () => {
+          current = false;
+        },
+      );
+      expect(result).toBeNull();
+      expect(input.state).toEqual(resetElectronicsTimedState());
+    } finally {
+      timer.mockRestore();
+    }
+  });
+});
+
+it.each([
+  ['value=pulseIn(n++,HIGH,5);', 3, 0, 2000],
+  ['value=n++ +pulseIn(4,HIGH,5);', 3, 2, 2000],
+  ['digitalWrite(n++,pulseIn(4,HIGH,5));', 3, -1, 2000],
+  ['value=pulseIn(n++,HIGH,5)+pulseIn(n++,HIGH,7);', 4, 0, 2000],
+  ['value=readUltrasonicCm(n++,4);', 3, 0, 1100000],
+])(
+  'resumes increment-containing blocking calls through production Worker: %s',
+  async (body, n, value, horizon) => {
+    const source = `int n=2;long value=-1;void setup(){pinMode(2,OUTPUT);Serial.begin(9600);${body}Serial.println(n);Serial.println(value);}void loop(){delay(100);}`;
+    const document = {
+      ...arduinoCircuit,
+      components: [
+        { ...arduinoCircuit.components[0]!, stateProperties: { arduinoSource: source } },
+      ],
+    };
+    const request = {
+      ...preflightRequest('waiting-increment'),
+      kind: 'advance' as const,
+      document,
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: horizon,
+    };
+    const response = await evaluateSimulationWorkerRequestBatched(request, () => true);
+    if (!response?.ok || response.kind !== 'advance') throw new Error('No waiting response');
+    expect(response.advance.executionStatus).toBe('ready');
+    expect(response.advance.diagnostics).toEqual([]);
+    expect(response.advance.serial[0]?.tx.map((entry) => entry.text)).toEqual([
+      `${n}\n`,
+      `${value}\n`,
+    ]);
+    let state = request.state;
+    let direct;
+    for (let slice = 0; slice < 10000; slice++) {
+      direct = advanceElectronicsToHorizon(document, {
+        state,
+        requestedHorizonMicroseconds: horizon,
+        maxEvents: 1,
+      });
+      if (direct.executionStatus !== 'yielded') break;
+      state = JSON.parse(JSON.stringify(direct.state));
+    }
+    expect(direct?.executionStatus).toBe('ready');
+    expect(response.advance.state).toStrictEqual(direct?.state);
+    const runtime = JSON.parse(response.advance.state.continuation!.serializedState).boards[0]
+      .runtime;
+    expect(runtime.variables).toMatchObject({ n, value });
+    expect(runtime.pendingEvaluation).toBeUndefined();
+  },
+);

@@ -342,7 +342,7 @@ describe('Electronics owner SVG foundation', () => {
       '/assets/electronics/component-database/components/led/blue/led_blue_i000.svg',
     );
     expect(visualAsset(led!, component, 'reverse')).toBe(
-      '/assets/electronics/component-database/components/led/special/led_red_reverse_polarity.svg',
+      '/assets/electronics/component-database/components/led/blue/led_blue_i000.svg',
     );
     expect(
       visualAsset(
@@ -376,6 +376,15 @@ describe('Electronics owner SVG foundation', () => {
         );
         expect(existsSync(runtimePath(asset)), asset).toBe(true);
       }
+    }
+    // Reversed LEDs do not emit and retain the pupil's chosen body colour.
+    // This also holds for a direct asset lookup with stale positive brightness.
+    for (const colour of ['blue', 'green', 'orange', 'red', 'white', 'yellow'] as const) {
+      const reversed = ordinaryLedAsset(ordinaryLedState(colour, 75, 'reverse'));
+      expect(reversed).toBe(
+        `/assets/electronics/component-database/components/led/${colour}/led_${colour}_i000.svg`,
+      );
+      expect(existsSync(runtimePath(reversed)), reversed).toBe(true);
     }
     for (const fault of ['reverse', 'overcurrent', 'burned'] as const) {
       expect(existsSync(runtimePath(ordinaryLedAsset(ordinaryLedState('red', 50, fault))))).toBe(

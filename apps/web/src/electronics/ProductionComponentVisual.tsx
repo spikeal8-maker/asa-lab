@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
-import { visualAsset } from './component-catalog';
+import { visualAsset, SPST_COMPONENT_TYPE } from './component-catalog';
 import { OwnerServoVisual } from './OwnerServoVisual';
 import {
   subscribeSharedQuietAssetRecovery,
@@ -35,6 +35,7 @@ import {
   vibrationMotorRuntimeMarkup,
   vibrationMotorVisualMotion,
   WORLD_UNITS_PER_MM,
+  instrumentReadoutStyle,
   type RgbCommonMode,
   type ResistorTolerancePercent,
   type SevenSegmentColour,
@@ -86,6 +87,7 @@ interface Props {
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
   readonly effectiveArduinoLActive?: boolean | undefined;
+  readonly effectiveSevenSegmentBrightness?: Readonly<Record<string, number>> | undefined;
   readonly preparedLedAsset?: LedAssetPreparation | undefined;
   readonly committedLedAsset?: LedAssetReadiness | undefined;
   readonly rollbackLedAsset?: LedAssetReadiness | undefined;
@@ -99,6 +101,7 @@ interface Props {
   readonly onArduinoReset?: (() => void) | undefined;
   readonly onMultimeterModeChange?:
     ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
+  readonly onSupplySwitchAvailability?: ((id: string, available: boolean) => void) | undefined;
   readonly onRegulatedPowerSupplyChange?:
     | ((patch: {
         readonly voltageSetpointVolt?: number;
@@ -384,6 +387,7 @@ function recoverOwnerImage(asset: string): Promise<string> {
 
 function useOwnerImageHref(asset: string): {
   readonly href: string;
+  readonly mountHref: (element: SVGImageElement | null) => void;
   readonly failed: boolean;
   readonly onError: () => void;
   readonly onLoad: () => void;
@@ -395,6 +399,10 @@ function useOwnerImageHref(asset: string): {
   const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
   useEffect(() => {
     let active = true;
+    const existingRecovery = recoveredOwnerImages.get(asset);
+    const existingCycle = ownerImageCycles.get(asset);
+    let ownEventReceived = false;
+    let observerFailed = false;
     let pending: Promise<boolean> | null = null;
     const load = (): Promise<boolean> => {
       if (pending) return pending;
@@ -456,7 +464,12 @@ function useOwnerImageHref(asset: string): {
         });
         return;
       }
-      if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
+      if (
+        current.current.asset === asset &&
+        current.current.failed &&
+        failedOwnerImages.has(asset) &&
+        !observerFailed
+      )
         return;
       if (
         current.current.asset === asset &&
@@ -474,9 +487,20 @@ function useOwnerImageHref(asset: string): {
     };
     const mountedHandlers = {
       asset,
-      error: recover,
+      error: () => {
+        ownEventReceived = true;
+        recover();
+        observerFailed = false;
+      },
       load: () => {
-        if (active && current.current.asset === asset) recovery.recovered();
+        ownEventReceived = true;
+        if (active && current.current.asset === asset) {
+          if (observerFailed) {
+            observerFailed = false;
+            setLoaded({ ...current.current, failed: false });
+          }
+          recovery.recovered();
+        }
       },
     };
     handlers.current = mountedHandlers;
@@ -487,6 +511,21 @@ function useOwnerImageHref(asset: string): {
       earlyEvent.current = null;
       mountedHandlers[kind]();
     }
+    // A late same-asset consumer may never receive its own native error.
+    // Observe only work already started elsewhere; native events own newer proof.
+    const observeExistingFailure = (): void => {
+      if (
+        active &&
+        !ownEventReceived &&
+        ownerImageCycles.get(asset) === existingCycle &&
+        failedOwnerImages.has(asset)
+      ) {
+        observerFailed = true;
+        setLoaded({ asset, href: asset, failed: true });
+      }
+    };
+    if (existingRecovery) void existingRecovery.catch(observeExistingFailure);
+    else observeExistingFailure();
     const retry = (): void => {
       if (failedOwnerImages.has(asset)) start();
     };
@@ -510,8 +549,17 @@ function useOwnerImageHref(asset: string): {
     if (handlers.current?.asset === asset) handlers.current[kind]();
     else earlyEvent.current = { asset, kind };
   };
+  const href = loaded.asset === asset ? loaded.href : asset;
+  const mountHref = useCallback(
+    (element: SVGImageElement | null) => {
+      // A detached SVG image can fail before its error reaches the React root.
+      if (element && element.getAttribute('href') !== href) element.setAttribute('href', href);
+    },
+    [href],
+  );
   return {
-    href: loaded.asset === asset ? loaded.href : asset,
+    href,
+    mountHref,
     failed: loaded.asset === asset && loaded.failed,
     onError: () => notify('error'),
     onLoad: () => notify('load'),
@@ -1051,6 +1099,7 @@ function OwnerMultimeterVisual({
       {displayValue ? (
         <text
           className="workbench-multimeter-reading"
+          style={instrumentReadoutStyle}
           x="218.5"
           y="108"
           fontSize="58"
@@ -1200,6 +1249,7 @@ function OwnerRegulatedPowerSupplyVisual({
   result,
   simulationRunning,
   onChange,
+  onSwitchAvailability,
 }: {
   readonly asset: string;
   readonly width: number;
@@ -1208,6 +1258,7 @@ function OwnerRegulatedPowerSupplyVisual({
   readonly result?: ComponentResult | undefined;
   readonly simulationRunning: boolean;
   readonly onChange?: Props['onRegulatedPowerSupplyChange'];
+  readonly onSwitchAvailability?: Props['onSupplySwitchAvailability'];
 }): JSX.Element {
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
@@ -1257,6 +1308,30 @@ function OwnerRegulatedPowerSupplyVisual({
       voltageSetpointVolt,
     ],
   );
+  const runtimeRef = useRef<SVGSVGElement>(null);
+  const hasLiveMarkup = Boolean(markup);
+  useLayoutEffect(() => {
+    const runtime = runtimeRef.current;
+    const track = runtime?.querySelector<SVGRectElement>(
+      'rect.workbench-regulated-supply-power-switch:not(.workbench-regulated-supply-power-slider)',
+    );
+    const available = Boolean(
+      hasLiveMarkup &&
+      runtime?.isConnected &&
+      track &&
+      runtime.getAttribute('viewBox') === '0 0 294 237' &&
+      !track.hasAttribute('transform') &&
+      [
+        ['x', 14],
+        ['y', 202],
+        ['width', 67],
+        ['height', 26],
+        ['rx', 13],
+      ].every(([name, value]) => Number(track.getAttribute(String(name))) === value),
+    );
+    onSwitchAvailability?.(component.id, available);
+    return () => onSwitchAvailability?.(component.id, false);
+  }, [component.id, hasLiveMarkup, ownerSvg, onSwitchAvailability]);
   const updateKnob = (
     event: ReactPointerEvent<SVGSVGElement>,
     knob: 'voltage' | 'current',
@@ -1285,6 +1360,7 @@ function OwnerRegulatedPowerSupplyVisual({
     );
   return (
     <svg
+      ref={runtimeRef}
       className="workbench-regulated-supply-runtime"
       data-testid="regulated-power-supply-runtime"
       data-output-enabled={String(outputEnabled)}
@@ -1767,6 +1843,7 @@ export function ProductionComponentVisual({
   height,
   visualState,
   effectiveBrightness,
+  effectiveSevenSegmentBrightness,
   effectiveArduinoLActive,
   preparedLedAsset,
   committedLedAsset,
@@ -1781,6 +1858,7 @@ export function ProductionComponentVisual({
   onArduinoReset,
   onMultimeterModeChange,
   onRegulatedPowerSupplyChange,
+  onSupplySwitchAvailability,
   onSignalGeneratorChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
@@ -1879,6 +1957,7 @@ export function ProductionComponentVisual({
     entry.key === 'resistor-axial'
       ? resistorBandState(Math.max(0.1, Number(component.value ?? 220)), tolerance).bands
       : null;
+  const selectionModelRadius = selectionOffset / TINKERCAD_MODEL_TO_WORLD;
   const selectionFilterId = `component-selection-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const arduinoGlowFilterId = `arduino-led-glow-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const imageFit = entry.assetFit === 'stretch' ? 'none' : 'xMidYMid meet';
@@ -1934,11 +2013,9 @@ export function ProductionComponentVisual({
   // Canonical selection contract: docs/product/electronics/README.md, section 7.
   // The rendered asset and its alpha-silhouette outline MUST share one transform;
   // per-component rectangle/capsule bounds are intentionally forbidden.
-  const usesMeasuredTinkercadGeometry = [
-    'resistor-axial',
-    'button-tactile-6mm',
-    'switch-spdt',
-  ].includes(entry.key);
+  const twoPinSwitch = entry.key === SPST_COMPONENT_TYPE;
+  const usesMeasuredTinkercadGeometry =
+    entry.kind === 'switch' || ['resistor-axial', 'button-tactile-6mm'].includes(entry.key);
   return (
     <svg
       className={`workbench-production-visual${
@@ -1967,7 +2044,11 @@ export function ProductionComponentVisual({
       data-piezo-frequency={entry.familyId === 'piezo' ? piezoFrequencyHz : undefined}
       data-piezo-sounding={entry.familyId === 'piezo' ? String(piezoActive) : undefined}
       style={
-        rgbIsLit ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties) : undefined
+        {
+          ...(rgbIsLit ? { '--workbench-rgb-led-glow': rgbDisplayColour } : {}),
+          '--workbench-readout-mirror-x': properties['mirrorX'] === true ? -1 : 1,
+          '--workbench-readout-mirror-y': properties['mirrorY'] === true ? -1 : 1,
+        } as CSSProperties
       }
       role="presentation"
     >
@@ -2011,7 +2092,7 @@ export function ProductionComponentVisual({
             </g>
           ) : (
             <image
-              href={ownerImage.href}
+              ref={ownerImage.mountHref}
               onError={ownerImage.onError}
               onLoad={ownerImage.onLoad}
               y={ownerAssetY}
@@ -2029,15 +2110,6 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pitch"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          <line
-            x1="0"
-            y1="-20"
-            x2="0"
-            y2="20"
-            stroke="#8c8c8c"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
           {selected ? (
             <g className="workbench-tinkercad-selection" pointerEvents="none">
               <line
@@ -2047,7 +2119,7 @@ export function ProductionComponentVisual({
                 y2="20"
                 fill="none"
                 stroke="#3b8ed7"
-                strokeWidth="2"
+                strokeWidth={2 + 2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -2055,12 +2127,21 @@ export function ProductionComponentVisual({
                 d={TINKERCAD_RESISTOR_BODY}
                 fill="#3b8ed7"
                 stroke="#3b8ed7"
-                strokeWidth="3.5"
+                strokeWidth={2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </g>
           ) : null}
+          <line
+            x1="0"
+            y1="-20"
+            x2="0"
+            y2="20"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
           <path d={TINKERCAD_RESISTOR_BODY} fill="#d9b477" />
           {resistorBands ? (
             <g data-testid="resistor-colour-bands">
@@ -2087,6 +2168,38 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pin-6x6"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="-10"
+                y1="-15"
+                x2="-10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <line
+                x1="10"
+                y1="-15"
+                x2="10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <rect
+                x="-12"
+                y="-12"
+                width="24"
+                height="24"
+                rx="1"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth={2 * selectionModelRadius}
+              />
+            </g>
+          ) : null}
           <line
             x1="-10"
             y1="-15"
@@ -2105,38 +2218,6 @@ export function ProductionComponentVisual({
             strokeWidth="2"
             strokeLinecap="round"
           />
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              <line
-                x1="-10"
-                y1="-15"
-                x2="-10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <line
-                x1="10"
-                y1="-15"
-                x2="10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <rect
-                x="-12"
-                y="-12"
-                width="24"
-                height="24"
-                rx="1"
-                fill="none"
-                stroke="#3b8ed7"
-                strokeWidth="3"
-              />
-            </g>
-          ) : null}
           <rect x="-12" y="-12" width="24" height="24" rx="1" fill="#bfbfbf" />
           <path d={TINKERCAD_BUTTON_FRAME} fill="#a3a3a3" />
           {[
@@ -2151,35 +2232,22 @@ export function ProductionComponentVisual({
           <circle cx="0" cy="0" r="6.99" fill="#333333" />
           <path d={TINKERCAD_BUTTON_RIM} fill="#f4f4f4" opacity="0.2" />
         </g>
-      ) : entry.key === 'switch-spdt' ? (
+      ) : entry.kind === 'switch' ? (
         <g
           className="workbench-tinkercad-switch"
-          data-visual-contract="tinkercad-spdt-three-pin"
+          data-visual-contract={`tinkercad-sp${twoPinSwitch ? 'st-two' : 'dt-three'}-pin`}
           transform={`translate(${width / 2} ${height}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          {[-10, 0, 10].map((x) => (
-            <line
-              key={`pin-${x}`}
-              x1={x}
-              y1="0"
-              x2={x}
-              y2="-5"
-              stroke="#8c8c8c"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          ))}
           {selected ? (
             <g className="workbench-tinkercad-selection" pointerEvents="none">
-              {[-10, 0, 10].map((x) => (
+              {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
                 <line
-                  key={`selected-${x}`}
+                  key={x}
                   x1={x}
-                  y1="0"
                   x2={x}
                   y2="-5"
                   stroke="#3b8ed7"
-                  strokeWidth="2"
+                  strokeWidth={2 + 2 * selectionModelRadius}
                   strokeLinecap="round"
                 />
               ))}
@@ -2191,10 +2259,21 @@ export function ProductionComponentVisual({
                 rx="1"
                 fill="#3b8ed7"
                 stroke="#3b8ed7"
-                strokeWidth="3.5"
+                strokeWidth={2 * selectionModelRadius}
               />
             </g>
           ) : null}
+          {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
+            <line
+              key={x}
+              x1={x}
+              x2={x}
+              y2="-5"
+              stroke="#8c8c8c"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          ))}
           <g
             data-testid="spdt-actuator"
             transform="translate(0 -10)"
@@ -2284,6 +2363,7 @@ export function ProductionComponentVisual({
               result={result}
               simulationRunning={simulationRunning}
               onChange={onRegulatedPowerSupplyChange}
+              onSwitchAvailability={onSupplySwitchAvailability}
             />
           ) : entry.key === 'signal-generator' ? (
             <OwnerSignalGeneratorVisual
@@ -2323,7 +2403,7 @@ export function ProductionComponentVisual({
             <>
               <image
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
-                href={ownerImage.href}
+                ref={ownerImage.mountHref}
                 onError={ownerImage.onError}
                 onLoad={ownerImage.onLoad}
                 data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
@@ -2479,7 +2559,17 @@ export function ProductionComponentVisual({
           <g transform={`scale(${width / 12.7} ${height / 19.05})`}>
             {SEGMENT_IDS.map((segment) => {
               const brightness = simulationRunning
-                ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.[segment] ?? 0)))
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      Number(
+                        effectiveSevenSegmentBrightness?.[segment] ??
+                          result?.branchBrightness?.[segment] ??
+                          0,
+                      ),
+                    ),
+                  )
                 : 0;
               const opacity = brightness / 100;
               return segment === 'dp' ? (

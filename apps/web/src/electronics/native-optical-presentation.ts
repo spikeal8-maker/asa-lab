@@ -53,6 +53,7 @@ export class NativeOpticalPresentation {
   }
   private barrier: ((snapshot: NativeOpticalSnapshot) => void) | null = null;
   readonly getSnapshot = () => this.snapshot;
+  readonly getCommittedSnapshot = () => this.snapshot.committed;
   readonly subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {
@@ -96,9 +97,11 @@ export class NativeOpticalPresentation {
     const frame = snapshot.observation?.frame;
     if (
       frame &&
-      [...snapshot.observation!.ledAssets.keys(), ...frame.arduinoLStates.keys()].some(
-        (id) => this.layouts.get(id) !== snapshot,
-      )
+      [
+        ...snapshot.observation!.ledAssets.keys(),
+        ...frame.arduinoLStates.keys(),
+        ...(frame.sevenSegmentBrightness?.keys() ?? []),
+      ].some((id) => this.layouts.get(id) !== snapshot)
     )
       return;
     this.barrier?.(snapshot);

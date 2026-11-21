@@ -1,7 +1,9 @@
+import { useGameInvitations } from '../games/game-notifications';
+import { GameInvitationBadge } from '../games/GameInvitationBadge';
 import { usePresentation } from './PresentationPreferences';
 import './portal-ai-navigation.css';
 import { hasSettingsDraft } from './settings-navigation';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { requestSettingsNavigation } from './settings-navigation';
 import { api, type ClassroomStudentSession, type SessionPayload } from '../api';
 import { AvatarDialog } from './AvatarDialog';
@@ -9,14 +11,17 @@ import { useAvatarSave } from './use-avatar-save';
 import { OPEN_AVATAR_CHOOSER_EVENT, type AvatarActor } from './avatar-chooser-events';
 import type { AdminNavigationItem, AdminSection } from '../admin/admin-navigation';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
-import {
-  defaultAvatarForAccount,
-  PROFILE_AVATAR_CHANGED_EVENT,
-} from '../creator-portal/default-avatars';
+import { defaultAvatarForAccount } from '../creator-portal/default-avatars';
 import { portalNavigation, type CreatorPortalSection } from '../creator-portal/navigation';
 import { QuickCreateMenu } from '../creator-portal/QuickProjectCreation';
 import { classAttention } from '../creator-portal/attention';
 import { PortalLink } from './PortalLink';
+import { portalSessionBinding, subscribePortalSession } from '../portal-requests';
+import {
+  useAccountAvatar,
+  useProgressLifetime,
+  type OwnProgressActor,
+} from '../creator-portal/personal-progress-core';
 import {
   ChevronIcon,
   CloseIcon,
@@ -32,6 +37,7 @@ import {
   GalleryGlyph,
   HelpGlyph,
   HomeGlyph,
+  BrainGlyph,
   LearningGlyph,
   ProjectsGlyph,
   SchoolGlyph,
@@ -41,6 +47,11 @@ import {
 export type PortalSection = CreatorPortalSection;
 const sectionHref = (section: PortalSection): string =>
   `/#/${section === 'classes' ? 'classrooms' : section === 'gallery' ? 'explore' : section}`;
+const publicSections = [
+  ['gallery', 'Проекты'],
+  ['knowledge', 'Знания'],
+  ['ai', 'ИИ'],
+] as const;
 
 // Compact VK mark: original path from Simple Icons (CC0, simpleicons.org/icons/vk).
 // One community destination shared by the sidebar and the account dropdown.
@@ -104,7 +115,7 @@ function sectionIcon(section: PortalSection): JSX.Element {
   if (section === 'classes') return <ClassesGlyph />;
   if (section === 'projects') return <ProjectsGlyph />;
   if (section === 'games') return <span className="portal-games-glyph">♟</span>;
-  if (section === 'ai') return <span className="portal-games-glyph">✦</span>;
+  if (section === 'ai') return <BrainGlyph />;
   if (section === 'collections') return <CollectionsGlyph />;
   if (section === 'gallery') return <GalleryGlyph />;
   if (section === 'learning') return <LearningGlyph />;
@@ -123,8 +134,15 @@ function AvatarVisual({
   return avatarDataUrl ? <img src={avatarDataUrl} alt="" /> : <span>{initials}</span>;
 }
 
+const SidebarProfileMetrics = lazy(() =>
+  import('../creator-portal/PersonalProgress').then((module) => ({
+    default: module.SidebarProfileMetrics,
+  })),
+);
+
 export function PortalHeader({
   session,
+  progressActor,
   active,
   canTeach,
   seatLearner = false,
@@ -141,6 +159,7 @@ export function PortalHeader({
   onLoggedOut,
 }: {
   session: SessionPayload;
+  progressActor?: OwnProgressActor;
   active: PortalSection;
   canTeach: boolean;
   /** The picture a class seat chose; an account has none and uploads instead. */
@@ -176,22 +195,39 @@ export function PortalHeader({
 }): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
-  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const binding = useSyncExternalStore(
+    subscribePortalSession,
+    portalSessionBinding,
+    portalSessionBinding,
+  );
+  useEffect(() => {
+    setBusy((value) => (value === 'logout' ? null : value));
+  }, [binding]);
+  const avatarLifetime = useProgressLifetime(
+    seatLearner || progressActor?.kind === 'seat'
+      ? null
+      : (progressActor ?? {
+          kind: 'account',
+          accountId: session.user.id,
+          displayName: session.user.displayName,
+        }),
+  );
+  const avatar = useAccountAvatar(avatarLifetime);
+  const avatarDataUrl = avatar.data?.avatarDataUrl ?? null;
+  const avatarLoaded = avatar.data !== null;
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarOpenRef = useRef(false);
   const avatarReturnFocus = useRef<HTMLElement | null>(null);
-  const avatarVersion = useRef(0);
   const avatarActor: AvatarActor = { kind: seatLearner ? 'seat' : 'account', id: session.user.id };
   const avatarActorKey = `${avatarActor.kind}:${avatarActor.id}`;
+  const gameInvitations = useGameInvitations();
+  const gameCount = gameInvitations.incoming.length;
   const currentActorKey = useRef(avatarActorKey);
   currentActorKey.current = avatarActorKey;
   const avatarSave = useAvatarSave({
     actor: avatarActor,
     onAccountSaved: (url) => {
-      avatarVersion.current += 1;
-      setAvatarDataUrl(url);
-      setAvatarLoaded(true);
+      avatar.replace({ avatarDataUrl: url });
     },
     onSeatSaved: onSeatChanged,
   });
@@ -238,7 +274,9 @@ export function PortalHeader({
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
     const background = [
-      ...document.querySelectorAll<HTMLElement>('.portal-shell > main, .portal-header'),
+      ...document.querySelectorAll<HTMLElement>(
+        '.portal-shell > main, .portal-shell > .asa-chess-portal-content, .portal-header',
+      ),
     ];
     const previousInert = background.map((element) => element.inert);
     background.forEach((element) => {
@@ -316,41 +354,6 @@ export function PortalHeader({
   }, [session.activeWorkspace.workspaceId]);
 
   useEffect(() => {
-    // A seat has no account and therefore no uploaded picture; asking for one
-    // is a guaranteed 401. The generated avatar below covers it.
-    if (seatLearner) return;
-    let cancelled = false;
-    const version = avatarVersion.current;
-    setAvatarLoaded(false);
-    void api
-      .accountAvatar()
-      .then((result) => {
-        if (!cancelled && version === avatarVersion.current && result.ok) {
-          setAvatarDataUrl(result.data.avatarDataUrl);
-          setAvatarLoaded(true);
-        }
-      })
-      .catch(() => {
-        /* The chooser offers an explicit retry. */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [seatLearner, session.user.id]);
-
-  useEffect(() => {
-    function updateAvatarFromPage(event: Event): void {
-      if (seatLearner) return;
-      avatarVersion.current += 1;
-      setAvatarDataUrl((event as CustomEvent<string | null>).detail);
-      setAvatarLoaded(true);
-    }
-
-    window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
-    return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
-  }, [seatLearner]);
-
-  useEffect(() => {
     function openRequested(event: Event): void {
       const actor = (event as CustomEvent<AvatarActor>).detail;
       if (actor?.kind === avatarActor.kind && actor.id === avatarActor.id) openAvatar();
@@ -422,6 +425,7 @@ export function PortalHeader({
     // A seat's session is a different cookie with a different lifetime; ending
     // it is the same act for the learner and a different call here.
     const result = seatLearner ? await api.classroomStudentLogout() : await api.logout();
+    if (!result.ok && result.error.code === 'request_cancelled') return;
     setBusy(null);
     if (result.ok) {
       closeAccountMenu();
@@ -464,19 +468,33 @@ export function PortalHeader({
 
   return (
     <>
+      <span className="portal-game-announcement" aria-live="polite">
+        {gameCount ? `Вас приглашают играть. Приглашений: ${gameCount}. Откройте Игры.` : ''}
+      </span>
       <header className="portal-header portal-header-ai-navigation">
         <button
           ref={menuButton}
           type="button"
           className="portal-menu-toggle"
           aria-label="Открыть меню"
-          aria-description={attention ? `Классы — ${attention}` : undefined}
+          aria-description={
+            [
+              attention ? `Классы — ${attention}` : null,
+              gameCount ? `Приглашений в игры: ${gameCount}` : null,
+            ]
+              .filter(Boolean)
+              .join('. ') || undefined
+          }
           aria-expanded={mobileOpen}
           aria-controls="portal-sidebar"
           onClick={() => setMobileOpen(true)}
         >
           <span aria-hidden="true">☰</span>
-          {attention ? <span className="portal-attention-dot" aria-hidden="true" /> : null}
+          {gameCount ? (
+            <GameInvitationBadge count={gameCount} pulse={gameInvitations.pulse} />
+          ) : attention ? (
+            <span className="portal-attention-dot" aria-hidden="true" />
+          ) : null}
         </button>
         <button
           type="button"
@@ -490,35 +508,24 @@ export function PortalHeader({
           ) : null}
         </button>
         <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
-          <PortalLink
-            href={sectionHref('gallery')}
-            aria-label="Проекты"
-            aria-current={active === 'gallery' ? 'page' : undefined}
-            onNavigate={() => onNavigate('gallery')}
-          >
-            <GalleryGlyph />
-            <span>Проекты</span>
-          </PortalLink>
-          <PortalLink
-            href={sectionHref('knowledge')}
-            aria-label="Знания"
-            aria-current={active === 'knowledge' ? 'page' : undefined}
-            onNavigate={() => onNavigate('knowledge')}
-          >
-            <LearningGlyph />
-            <span>Знания</span>
-          </PortalLink>
-          <PortalLink
-            href={sectionHref('ai')}
-            aria-label="ИИ"
-            aria-current={aiLayout ? 'page' : undefined}
-            onNavigate={() => go('ai')}
-          >
-            <b className="portal-ai-glyph" aria-hidden="true">
-              ✦
-            </b>
-            <span>ИИ</span>
-          </PortalLink>
+          {publicSections.map(([section, label]) => (
+            <PortalLink
+              key={section}
+              href={sectionHref(section)}
+              aria-label={label}
+              aria-current={(section === 'ai' ? aiLayout : active === section) ? 'page' : undefined}
+              onNavigate={() => (section === 'ai' ? go(section) : onNavigate(section))}
+            >
+              {section === 'ai' ? (
+                <b className="portal-ai-glyph" aria-hidden="true">
+                  <BrainGlyph width={20} height={20} />
+                </b>
+              ) : (
+                sectionIcon(section)
+              )}
+              <span>{label}</span>
+            </PortalLink>
+          ))}
         </nav>
         <QuickCreateMenu />
         <details
@@ -578,39 +585,26 @@ export function PortalHeader({
                   <span>Подтвердить аккаунт через MAX</span>
                 </button>
               ) : null}
-              <button
-                type="button"
-                className="portal-account-item"
-                onClick={() => navigateFromAccount('projects')}
-              >
-                <span className="portal-account-item-icon" aria-hidden="true">
-                  <ProjectsGlyph />
-                </span>
-                <span>Мои проекты</span>
-              </button>
-              {/* A seat has settings too — fewer of them. It owns its picture,
-                  which is the one thing about themselves a learner should not
-                  have to ask a teacher for. */}
-              <button
-                type="button"
-                className="portal-account-item"
-                onClick={() => navigateFromAccount('account')}
-              >
-                <span className="portal-account-item-icon" aria-hidden="true">
-                  <SettingsGlyph />
-                </span>
-                <span>Настройки</span>
-              </button>
-              <button
-                type="button"
-                className="portal-account-item"
-                onClick={() => navigateFromAccount('help')}
-              >
-                <span className="portal-account-item-icon" aria-hidden="true">
-                  <HelpGlyph />
-                </span>
-                <span>Помощь и сообщество</span>
-              </button>
+              {/* Seat settings include the learner's own avatar. */}
+              {(
+                [
+                  ['projects', 'Мои проекты', ProjectsGlyph],
+                  ['account', 'Настройки', SettingsGlyph],
+                  ['help', 'Помощь и сообщество', HelpGlyph],
+                ] as const
+              ).map(([section, label, Icon]) => (
+                <button
+                  key={section}
+                  type="button"
+                  className="portal-account-item"
+                  onClick={() => navigateFromAccount(section)}
+                >
+                  <span className="portal-account-item-icon" aria-hidden="true">
+                    <Icon />
+                  </span>
+                  <span>{label}</span>
+                </button>
+              ))}
               <a
                 href={ASA_LAB_VK_COMMUNITY}
                 className="portal-account-item portal-account-vk"
@@ -622,7 +616,9 @@ export function PortalHeader({
                   <VkBrandGlyph />
                 </span>
                 <span>ASA Lab ВКонтакте</span>
-                <span className="portal-account-vk-external" aria-hidden="true">↗</span>
+                <span className="portal-account-vk-external" aria-hidden="true">
+                  ↗
+                </span>
               </a>
             </div>
 
@@ -732,15 +728,28 @@ export function PortalHeader({
           Закрыть <span aria-hidden="true">×</span>
         </button>
         <div className="portal-sidebar-profile">
-          <button
-            type="button"
-            className="portal-sidebar-avatar"
-            aria-label="Выбрать аватар в меню"
-            title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
-            onClick={openAvatar}
-          >
-            <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
-          </button>
+          <div className="portal-sidebar-profile-top">
+            {progressActor ? (
+              <Suspense
+                fallback={
+                  <span className="portal-sidebar-metric-help" role="status">
+                    …
+                  </span>
+                }
+              >
+                <SidebarProfileMetrics actor={progressActor} active={active} />
+              </Suspense>
+            ) : null}
+            <button
+              type="button"
+              className="portal-sidebar-avatar"
+              aria-label="Выбрать аватар в меню"
+              title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
+              onClick={openAvatar}
+            >
+              <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
+            </button>
+          </div>
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
             <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
@@ -760,6 +769,9 @@ export function PortalHeader({
                 {sectionIcon(item.section)}
               </span>
               <span className="portal-nav-label">{item.label}</span>
+              {item.section === 'games' ? (
+                <GameInvitationBadge count={gameCount} pulse={gameInvitations.pulse} />
+              ) : null}
               {/* Одна и та же отметка о невыполненном: учащемуся — сколько он
                   не сдал, преподавателю — сколько работ ждёт его ответа. */}
               {item.section === 'classes' && classAttention(0, classroomBadge ?? 0) ? (
@@ -775,7 +787,7 @@ export function PortalHeader({
             </PortalLink>
           ))}
           <div className="portal-mobile-public">
-            {(['gallery', 'knowledge', 'ai'] as const).map((section) => (
+            {publicSections.map(([section, label]) => (
               <PortalLink
                 key={section}
                 href={sectionHref(section)}
@@ -786,9 +798,7 @@ export function PortalHeader({
                 <span className="portal-nav-glyph" aria-hidden="true">
                   {sectionIcon(section)}
                 </span>
-                <span className="portal-nav-label">
-                  {section === 'gallery' ? 'Проекты' : section === 'knowledge' ? 'Знания' : 'ИИ'}
-                </span>
+                <span className="portal-nav-label">{label}</span>
               </PortalLink>
             ))}
           </div>
@@ -938,9 +948,7 @@ export function PortalHeader({
           onClearSaveError={avatarSave.clearError}
           isCurrent={() => avatarOpenRef.current && currentActorKey.current === avatarActorKey}
           onAccountLoaded={(url) => {
-            avatarVersion.current += 1;
-            setAvatarDataUrl(url);
-            setAvatarLoaded(true);
+            avatar.replace({ avatarDataUrl: url });
           }}
           onClose={closeAvatar}
           returnFocus={avatarReturnFocus.current}

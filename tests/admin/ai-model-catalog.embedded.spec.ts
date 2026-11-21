@@ -163,14 +163,11 @@ describe('0227 forward upgrade from the published configuration', () => {
         code: 'ai_config_changed',
       });
       expect(await used(upgrade)).toBe(1);
-      const checked = await service.testConnection(administrator, 8);
-      expect(checked).toMatchObject({
-        provider: 'deepseek',
-        model: 'deepseek-flash',
-        configurationVersion: 8,
+      await expect(service.testConnection(administrator, 8)).rejects.toMatchObject({
+        code: 'ai_disabled',
       });
-      expect(fetchImpl).toHaveBeenCalledTimes(1);
-      expect(await used(upgrade)).toBe(2);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(await used(upgrade)).toBe(1);
       expect(await service.status()).toMatchObject({ enabled: false });
       expect(await applyPlan(client(upgrade), plan)).toBe(0);
       expect((await service.adminConfig(administrator)).configurationVersion).toBe(8);
@@ -229,6 +226,152 @@ beforeAll(async () => {
 afterAll(async () => db?.close());
 
 describe('0227 credential isolation and persistence guards', () => {
+  it('keeps cloud Ollama keys private and uses the existing paid owner journal for JSON, SSE and replay', async () => {
+    // Separate database: expected SQL denials must not abort a surrounding transaction.
+    const db = new PGlite();
+    await applyPlan(client(db), plan);
+    const administrator = await identity(db, true);
+    try {
+      const setup = serviceFor(db, vi.fn());
+      await setup.saveAdminConfig(
+        administrator,
+        {
+          enabled: false,
+          provider: 'openai',
+          model: 'gpt-6-luna',
+          apiKey: 'test-preserve-openai-key',
+        },
+        randomUUID(),
+      );
+      await setup.saveAdminConfig(
+        administrator,
+        {
+          enabled: false,
+          provider: 'deepseek',
+          model: 'deepseek-flash',
+          apiKey: 'test-preserve-deepseek-key',
+        },
+        randomUUID(),
+      );
+      const previous = (
+        await db.query(
+          "SELECT * FROM ai_provider_settings WHERE provider IN ('openai','deepseek') ORDER BY provider",
+        )
+      ).rows;
+      const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
+        expect(url).toBe('https://ollama.com/v1/chat/completions');
+        expect(options?.redirect).toBe('error');
+        expect(new Headers(options?.headers).get('authorization')).toBe(
+          'Bearer test-private-ollama-cloud-key',
+        );
+        return JSON.parse(String(options?.body)).stream
+          ? new Response(
+              'data: {"model":"gemma4:31b","choices":[{"delta":{"content":"Cloud stream"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":2}}\n\ndata: [DONE]\n\n',
+              { headers: { 'content-type': 'text/event-stream' } },
+            )
+          : new Response(
+              JSON.stringify({
+                model: 'gemma4:31b',
+                choices: [{ message: { content: 'Cloud answer' }, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 8, completion_tokens: 2 },
+              }),
+            );
+      });
+      const service = serviceFor(db, fetchImpl);
+      const configured = await service.saveAdminConfig(
+        administrator,
+        {
+          enabled: true,
+          provider: 'ollama-cloud',
+          model: 'gemma4:31b',
+          apiKey: 'test-private-ollama-cloud-key',
+          paidOperationsPerHour: 100,
+        },
+        randomUUID(),
+      );
+      expect(JSON.stringify(configured)).not.toContain('test-private-ollama-cloud-key');
+      const secret = (
+        await db.query(
+          "SELECT api_key_ciphertext FROM ai_provider_settings WHERE provider='ollama-cloud'",
+        )
+      ).rows[0]!;
+      expect(secret['api_key_ciphertext']).toBeTruthy();
+      expect(secret['api_key_ciphertext']).not.toContain('test-private-ollama-cloud-key');
+      expect(
+        (
+          await db.query(
+            "SELECT * FROM ai_provider_settings WHERE provider IN ('openai','deepseek') ORDER BY provider",
+          )
+        ).rows,
+      ).toEqual(previous);
+      const policy = await service.generationPolicy(administrator);
+      await service.saveGenerationPolicy(administrator, {
+        configurationVersion: policy.configurationVersion,
+        systemPrompt: policy.systemPrompt,
+        allowedModels: ['gemma4:31b'],
+        defaultModel: 'gemma4:31b',
+        requestId: randomUUID(),
+      });
+      const owner = await identity(db),
+        foreign = await identity(db);
+      const thread = await service.createThread(owner);
+      const request = randomUUID();
+      expect(
+        (await service.send(owner, thread.id, 'Cloud question', request)).messages.some(
+          (message) => message.content === 'Cloud answer',
+        ),
+      ).toBe(true);
+      expect((await service.send(owner, thread.id, 'Cloud question', request)).replayed).toBe(true);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      await expect(service.send(foreign, thread.id, 'Foreign', randomUUID())).rejects.toBeTruthy();
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const streamed = randomUUID();
+      await service.sendStream(
+        owner,
+        thread.id,
+        'Stream question',
+        streamed,
+        () => undefined,
+        new AbortController().signal,
+        'gemma4:31b',
+      );
+      const journal = (
+        await db.query(
+          'SELECT provider,status,input_tokens,output_tokens FROM ai_usage_journal WHERE owner_principal_id=$1 ORDER BY admitted_at',
+          [owner],
+        )
+      ).rows;
+      expect(journal).toHaveLength(2);
+      expect(
+        journal.every((row) => row['provider'] === 'ollama-cloud' && row['status'] === 'succeeded'),
+      ).toBe(true);
+      expect(journal.map((row) => Number(row['input_tokens'])).sort((a, b) => a - b)).toEqual([
+        8, 9,
+      ]);
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      await service.saveAdminConfig(
+        administrator,
+        { enabled: false, provider: 'ollama-cloud', model: 'gemma4:31b', clearApiKey: true },
+        randomUUID(),
+      );
+      expect(
+        (
+          await db.query(
+            "SELECT api_key_ciphertext FROM ai_provider_settings WHERE provider='ollama-cloud'",
+          )
+        ).rows[0]?.['api_key_ciphertext'],
+      ).toBeNull();
+      expect(
+        (
+          await db.query(
+            "SELECT * FROM ai_provider_settings WHERE provider IN ('openai','deepseek') ORDER BY provider",
+          )
+        ).rows,
+      ).toEqual(previous);
+    } finally {
+      await db.close();
+    }
+  }, 30000);
   it('uses current defaults only for a new installation and keeps paid operations closed', async () => {
     const config = (await runtime(db, 'SELECT * FROM ai_admin_get_config($1)', [administrator]))
       .rows[0];
@@ -248,7 +391,9 @@ describe('0227 credential isolation and persistence guards', () => {
       ).rows,
     ).toEqual([
       { provider: 'deepseek', model: 'deepseek-flash', api_key_ciphertext: null },
+      { provider: 'ollama-cloud', model: 'gemma4:31b', api_key_ciphertext: null },
       { provider: 'openai', model: 'gpt-6-luna', api_key_ciphertext: null },
+      { provider: 'polza', model: 'polza/unconfigured', api_key_ciphertext: null },
     ]);
   });
 
@@ -267,7 +412,7 @@ describe('0227 credential isolation and persistence guards', () => {
       '2027-01-13T23:59:59.999Z',
       '2027-01-14T00:00:00Z',
     ]) {
-      for (const provider of ['openai', 'deepseek', 'unknown', null]) {
+      for (const provider of ['openai', 'deepseek', 'ollama-cloud', 'unknown', null]) {
         for (const model of models) {
           const result = await db.query<{ valid: boolean }>(
             'SELECT ai_model_available($1::varchar,$2::varchar,$3::timestamptz) AS valid',
@@ -383,18 +528,32 @@ describe('0227 credential isolation and persistence guards', () => {
       apiKey: credentials.openai,
       enabled: false,
     });
+    await expect(
+      service.testConnection(administrator, openai.configurationVersion),
+    ).rejects.toMatchObject({ code: 'ai_disabled' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const readyOpenai = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: true });
+    await expect(
+      service.testConnection(
+        administrator,
+        readyOpenai.configurationVersion,
+        'openai',
+        readyOpenai.providerConfigurations.find((s) => s.provider === 'openai')!.revision,
+      ),
+    ).rejects.toMatchObject({ code: 'ai_platform_quota_exhausted' });
+    const disabledOpenai = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: false });
     const storedOpenai = (
       await db.query("SELECT * FROM ai_provider_settings WHERE provider = 'openai'")
     ).rows[0];
     await expect(
-      service.testConnection(administrator, openai.configurationVersion),
-    ).rejects.toMatchObject({ code: 'ai_platform_quota_exhausted' });
+      service.testConnection(administrator, disabledOpenai.configurationVersion),
+    ).rejects.toMatchObject({ code: 'ai_disabled' });
     expect(fetchImpl).not.toHaveBeenCalled();
     const deepseek = await save({
       provider: 'deepseek',
       model: 'deepseek-v4-pro',
       apiKey: credentials.deepseek,
-      enabled: false,
+      enabled: true,
       paidOperationsPerHour: 4,
     });
     const storedDeepseek = (
@@ -403,11 +562,29 @@ describe('0227 credential isolation and persistence guards', () => {
     expect(
       (await db.query("SELECT * FROM ai_provider_settings WHERE provider = 'openai'")).rows[0],
     ).toEqual(storedOpenai);
-    expect(deepseek.providerConfigurations.every((slot) => slot.apiKeyConfigured)).toBe(true);
+    expect(
+      deepseek.providerConfigurations
+        .filter((slot) => slot.provider === 'openai' || slot.provider === 'deepseek')
+        .every((slot) => slot.apiKeyConfigured),
+    ).toBe(true);
+    expect(
+      deepseek.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud')
+        ?.apiKeyConfigured,
+    ).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
-    await service.testConnection(administrator, deepseek.configurationVersion);
-    const switched = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: false });
-    await service.testConnection(administrator, switched.configurationVersion);
+    await service.testConnection(
+      administrator,
+      deepseek.configurationVersion,
+      'deepseek',
+      deepseek.providerConfigurations.find((s) => s.provider === 'deepseek')!.revision,
+    );
+    const switched = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: true });
+    await service.testConnection(
+      administrator,
+      switched.configurationVersion,
+      'openai',
+      switched.providerConfigurations.find((s) => s.provider === 'openai')!.revision,
+    );
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(
       (await db.query("SELECT * FROM ai_provider_settings WHERE provider = 'deepseek'")).rows[0],
@@ -449,7 +626,7 @@ describe('0227 credential isolation and persistence guards', () => {
       key_fingerprint: null,
     });
     const back = await save({ provider: 'deepseek', model: 'deepseek-v4-pro', enabled: false });
-    expect(back).toMatchObject({
+    expect(back.providerConfigurations.find((slot) => slot.provider === 'deepseek')).toMatchObject({
       model: 'deepseek-v4-pro',
       apiKeyConfigured: true,
       keyFingerprint: storedDeepseek!['key_fingerprint'],
@@ -462,7 +639,7 @@ describe('0227 credential isolation and persistence guards', () => {
         "SELECT * FROM administrative_audit_events WHERE action = 'administration.ai_configuration.update'",
       )
     ).rows;
-    expect(audit).toHaveLength(5);
+    expect(audit).toHaveLength(7);
     expect(JSON.stringify(audit)).not.toContain(credentials.openai);
     expect(JSON.stringify(audit)).not.toContain(storedDeepseek!['api_key_ciphertext'] as string);
   });

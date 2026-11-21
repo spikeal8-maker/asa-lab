@@ -281,3 +281,38 @@ Presentation summaries may differ with request partition and are excluded only
 as allowed by section 6. Equal horizons, input traces and initial states still
 require identical physical results and continuation with capture enabled or
 disabled, across budgets, JSON resumes and irregular UI partitions.
+
+## Raw seven-segment temporal observation opt-in
+
+The additive `observeSevenSegmentTemporal` advance-session option captures each
+raw display's eight actual solved brightness/current channels in the optional
+`sevenSegments` metadata array. It works independently of `observeLedTemporal`.
+Neither option changes continuation or Worker protocol versions. Legacy callers
+that request only ordinary LED capture retain their existing output bytes.
+
+Raw generic clock routes do not have the ordinary LED event-profile observer.
+Their explicit opt-in therefore takes a pure electrical observation at the
+request's initial committed horizon, existing pre-update boundaries, settled
+same-time GPIO changes and ready endpoint. Such reads never assign a physical
+checkpoint, add a canonical event, advance thermal state or change the execution
+budget. Capture-on/off physical results and complete serialized continuation
+remain byte-identical, including RC/thermal circuits and JSON continuation.
+An invalid optical-only read discards metadata, not the canonical execution.
+
+All eight channels, including dark DP, must form a complete finite history whose
+endpoint agrees with the electrical result. They use the existing bounded held
+sample and fast-cycle optical policy at one acknowledged cursor. Per-display
+segment maps are render-only overrides; electrical result currents and quality
+remain untouched. Every proposed display vector must render before the joint
+native acknowledgment. Missing, duplicate or stale channels cannot establish a
+complete averaged vector. Source/generation changes, Reset and Stop discard it.
+
+The existing whole-display thermal failure overlay reports all channels open
+and zero. Capture records the first actual failed-health sample timestamp in
+`failedAtMicroseconds`; it must not infer failure from an earlier normal dark
+scan edge. At that reported failure boundary an earlier healthy-cycle mean must
+not survive; earlier cursors and unaffected neighboring displays retain their
+legitimate physical histories.
+A normal dark segment alone does not imply unreported damage, and constant-zero
+history expires any earlier fast-cycle mean. This projection proves optical
+correctness, not realtime throughput or support for additional Arduino syntax.

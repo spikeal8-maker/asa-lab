@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
@@ -154,7 +155,7 @@ async function assignFromUi(
   page: Page,
   input: { title: string; due: string; students?: string[] },
 ): Promise<void> {
-  await page.getByRole('button', { name: 'Назначить задание', exact: true }).click();
+  await page.getByRole('button', { name: 'Выдать задание', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Назначить задание' });
   await dialog.getByLabel('Задание').selectOption({ label: input.title });
   if (input.students) {
@@ -344,7 +345,12 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   const title = `Exact learner image ${token}`;
   const imageA = solidPng(205, 45, 45);
   const imageB = solidPng(40, 75, 210);
-  const taskImage = solidPng(60, 130, 180, 240, 120);
+  const taskImage = PNG.sync.write({
+    width: 1440,
+    height: 800,
+    data: randomBytes(1440 * 800 * 4),
+  } as PNG);
+  expect(taskImage.length).toBeGreaterThan(400_000);
 
   await loginWithOrganization(page, teacher);
   await openNewAssignmentEditor(page);
@@ -435,6 +441,39 @@ test('learner exact published task image stays pinned across v1 and v2', async (
     new URL(orderedSource!, learnerA.page.url()).toString(),
   );
   expect(Buffer.compare(await orderedBytes.body(), taskImage)).toBe(0);
+  const desktopViewport = learnerA.page.viewportSize()!;
+  const previewUrl = new URL(orderedSource!, learnerA.page.url());
+  for (const [width, expected] of [
+    [1440, 1280],
+    [390, 640],
+  ] as const) {
+    await learnerA.page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() =>
+        orderedImage.evaluate((img: HTMLImageElement) => ({
+          url: new URL(img.currentSrc || img.src).searchParams.get('preview'),
+          width: img.naturalWidth,
+        })),
+      )
+      .toEqual({ url: String(expected), width: expected });
+    previewUrl.searchParams.set('preview', String(expected));
+    const reduced = await learnerA.page.request.get(previewUrl.href);
+    expect(reduced.headers()['content-type']).toContain('image/webp');
+    expect((await reduced.body()).length).toBeLessThan(taskImage.length);
+    await brief.getByRole('button', { name: 'Открыть крупно: Опубликованная схема' }).click();
+    const zoom = learnerA.page.getByRole('dialog', {
+      name: 'Изображение задания: Опубликованная схема',
+    });
+    const fullImage = zoom.getByRole('img', { name: 'Опубликованная схема' });
+    await expect
+      .poll(() => fullImage.evaluate((img: HTMLImageElement) => img.naturalWidth))
+      .toBe(1440);
+    await zoom.getByRole('button', { name: 'Показать в полном размере' }).click();
+    await expect(zoom.getByRole('button', { name: 'По размеру экрана' })).toBeVisible();
+    await learnerA.page.screenshot({ path: `${evidenceDir}/task-image-original-${width}.png` });
+    await zoom.getByRole('button', { name: 'Закрыть' }).click();
+  }
+  await learnerA.page.setViewportSize(desktopViewport);
   await brief.getByRole('button', { name: 'Открыть крупно: Опубликованная схема' }).click();
   const orderedZoom = learnerA.page.getByRole('dialog', {
     name: 'Изображение задания: Опубликованная схема',
@@ -558,8 +597,27 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   const token = ++sequence;
   const title = `Exact PDF material ${token}`;
-  const pdfA = Buffer.from('%PDF-1.4\nA6 learner file A\n%%EOF');
-  const pdfB = Buffer.from('%PDF-1.4\nA6 learner file B\n%%EOF');
+  const content = 'BT /F1 18 Tf 72 720 Td (Learning material) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+  let document = '%PDF-1.4\n' + ('%' + ' '.repeat(99) + '\n').repeat(4100);
+  const offsets = objects.map((object, index) => {
+    const offset = document.length;
+    document += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    return offset;
+  });
+  const xref = document.length;
+  document += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) document += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  document += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  const pdfA = Buffer.from(document);
+  expect(pdfA.length).toBeGreaterThan(400_000);
+  const textB = Buffer.from('Schematic notes and instructions.\n');
 
   await loginWithOrganization(page, teacher);
   await openNewAssignmentEditor(page);
@@ -570,7 +628,9 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const fileUpload = page.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&
-      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+      /\/api\/learning\/activities\/[^/]+\/draft-task-pdf\/\d+$/.test(
+        new URL(response.url()).pathname,
+      ),
   );
   await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
   await page.getByLabel('PDF файл задания').setInputFiles({
@@ -664,12 +724,14 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const replacement = page.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&
-      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+      /\/api\/learning\/activities\/[^/]+\/draft-task-attachment\/\d+$/.test(
+        new URL(response.url()).pathname,
+      ),
   );
   await page.getByLabel('Заменить PDF блока 1').setInputFiles({
-    name: 'guide-b.pdf',
-    mimeType: 'application/pdf',
-    buffer: pdfB,
+    name: 'guide-b.txt',
+    mimeType: 'text/plain',
+    buffer: textB,
   });
   const uploadedB = await replacement;
   expect(uploadedB.ok()).toBe(true);
@@ -739,11 +801,12 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
     .locator('li')
     .filter({ hasText: title });
   await rowB.getByRole('button', { name: title, exact: true }).click();
-  await expect(rowB.getByRole('button', { name: 'Скачать PDF: guide-b.pdf' })).toBeVisible();
+  await expect(rowB.getByRole('button', { name: 'Скачать файл: guide-b.txt' })).toBeVisible();
   const learnerBytesB = await learnerB.page.request.get(
     new URL(`/api/assignments/task-files/${hashB}`, learnerB.page.url()).toString(),
   );
-  expect(Buffer.compare(await learnerBytesB.body(), pdfB)).toBe(0);
+  expect(learnerBytesB.headers()['content-type']).toContain('text/plain');
+  expect(Buffer.compare(await learnerBytesB.body(), textB)).toBe(0);
   const deniedA = await learnerB.page.request.get(
     new URL(`/api/assignments/task-files/${hashA}`, learnerB.page.url()).toString(),
   );

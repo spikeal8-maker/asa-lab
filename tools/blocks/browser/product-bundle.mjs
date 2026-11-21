@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { URL, fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { runtimeUrl } from './protocol.mjs';
+import { productAliases } from './product-aliases.mjs';
 
 let pending;
 export function productBundle() {
@@ -11,6 +12,7 @@ export function productBundle() {
     publicDir: false,
     logLevel: 'error',
     esbuild: { jsx: 'automatic' },
+    resolve: { alias: productAliases },
     define: {
       __ASA_BLOCKS_PREVIEW__: 'false',
       __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(runtimeUrl),
@@ -29,7 +31,21 @@ export function productBundle() {
       .map((file) => file.source)
       .join('\n');
     if (!js || !css) throw new Error('Shipping BlocksEditor fixture build incomplete');
-    return { js, css };
+    // Shared project previews now introduce real lazy chunks. Serve the emitted
+    // graph as well as its entry, rather than returning imports to missing URLs.
+    const files = output.map((file) => [
+      `/${file.fileName}`,
+      {
+        type:
+          file.type === 'chunk' || file.fileName.endsWith('.js')
+            ? 'text/javascript'
+            : file.fileName.endsWith('.css')
+              ? 'text/css'
+              : 'application/octet-stream',
+        body: file.type === 'chunk' ? file.code : file.source,
+      },
+    ]);
+    return { js, css, files };
   });
   return pending;
 }
@@ -41,6 +57,7 @@ export async function productFiles() {
   );
   const avatarDataUrl = `data:image/webp;base64,${avatarBytes.toString('base64')}`;
   const files = new Map([
+    ...bundle.files,
     [
       '/product',
       {

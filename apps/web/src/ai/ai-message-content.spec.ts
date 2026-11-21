@@ -10,6 +10,34 @@ function render(content: string): string {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AI mathematical Markdown', () => {
+  it('isolates completed HTML and SVG previews and keeps streamed code literal', () => {
+    for (const language of ['html', 'svg']) {
+      const html = render(
+        '```' +
+          language +
+          '\n' +
+          (language === 'svg' ? '<svg><circle r="8"/></svg>' : '<h1>Preview</h1>') +
+          '\n```',
+      );
+      expect(html).toContain(language === 'html' ? 'sandbox="allow-scripts"' : 'sandbox=""');
+      if (language === 'svg') expect(html).not.toContain('allow-scripts');
+      expect(html).not.toContain('allow-same-origin');
+      expect(html).toContain('referrerPolicy="no-referrer"');
+      expect(html).toContain('Предпросмотр');
+    }
+    const pending = renderToStaticMarkup(
+      createElement(AiMessageContent, { content: '```html\n<h1>Partial', pending: true }),
+    );
+    expect(pending).not.toContain('<iframe');
+    expect(pending).toContain('&lt;h1&gt;Partial');
+  });
+  it('does not download incomplete streamed code', () => {
+    const html = renderToStaticMarkup(
+      createElement(AiMessageContent, { content: '```html\n<!doctype html>\n```', pending: true }),
+    );
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Скачать код: index.html"/);
+    expect(render('```html\n<!doctype html>\n```')).not.toContain('disabled=""');
+  });
   it('renders inline and block formulae with accessible MathML', () => {
     const html = render('Энергия $E = mc^2$.\n\n$$\n\\frac{a+b}{2} = \\sqrt{x}\n$$');
     expect(html).toContain('class="katex"');

@@ -45,6 +45,39 @@ function profile(permissions: string[]) {
 }
 
 async function json(route: Route, body: unknown) {
+  if (new URL(route.request().url()).pathname === '/api/admin/v1/users') {
+    const page = body as { items: Record<string, unknown>[]; next: null };
+    body = {
+      ...page,
+      asOf: '2026-10-25T12:00:00Z',
+      studentCoverage: { state: 'unavailable', reason: 'organization_class_mapping_unavailable' },
+      items: page.items.map((account) => ({
+        kind: 'account',
+        id: account.accountId,
+        actorKey: `account:${account.accountId}`,
+        principalId: account.principalId,
+        displayName: account.displayName,
+        login: account.username,
+        email: account.email,
+        status: account.status,
+        normalizedStatus: account.status === 'active' ? 'active' : 'inactive',
+        createdAt: account.createdAt,
+        lastSeenAt: account.lastSeenAt,
+        lastActivityAt: account.lastSeenAt,
+        recentActivityCount: account.recentActivityCount,
+        lastIpAddress: account.lastIpAddress,
+        lastNetworkKind: account.lastNetworkKind ?? null,
+        lastDevice: account.lastDevice,
+        browser: null,
+        operatingSystem: null,
+        deviceCategory: null,
+        classId: null,
+        classTitle: null,
+        classStatus: null,
+        account,
+      })),
+    };
+  }
   await route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -181,7 +214,7 @@ async function mockAuthenticatedAdmin(page: Page, permissions: string[]): Promis
     const range = new URL(route.request().url()).searchParams.get('range') ?? '24h';
     return json(route, dashboard(range));
   });
-  await page.route('**/api/admin/v1/accounts?**', async (route) => {
+  await page.route('**/api/admin/v1/users?**', async (route) => {
     directoryRequests.push(route.request().url());
     await json(route, {
       items: [
@@ -502,7 +535,7 @@ test('platform administrator can manage a user and revoke a foreign session with
       ],
     }),
   );
-  await page.route('**/api/admin/v1/accounts?**', (route) =>
+  await page.route('**/api/admin/v1/users?**', (route) =>
     json(route, {
       items: [
         {

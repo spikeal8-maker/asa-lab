@@ -77,6 +77,7 @@ describe('Compact AI cloud paid quota', () => {
         configurationVersion: 1,
         elapsedMs: 450,
         testedAt: '2026-10-24T00:01:00Z',
+        providerConfigurationVersion: 1,
       },
     });
     await act(async () => {
@@ -86,7 +87,12 @@ describe('Compact AI cloud paid quota', () => {
     });
     expect(call).toHaveBeenLastCalledWith('/api/admin/v1/ai/test', {
       method: 'POST',
-      body: JSON.stringify({ acknowledgePaidRequest: true, configurationVersion: 1 }),
+      body: JSON.stringify({
+        acknowledgePaidRequest: true,
+        configurationVersion: 1,
+        provider: 'openai',
+        providerConfigurationVersion: 1,
+      }),
     });
     expect(host.textContent).toContain('Подключено · OpenAI · 0.5 с');
   });

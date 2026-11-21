@@ -18,6 +18,11 @@ const REQUIRED_FILES = [
   ...new Set(Object.values(OVERLAYS).flat()),
   'Dockerfile.api',
   'Dockerfile.web',
+  'infra/search/Dockerfile',
+  'infra/search/settings.json',
+  'infra/search/start.py',
+  'infra/search/asa_search_app.py',
+  'tools/deployment/search_secret.py',
   '.dockerignore',
   '.env.docker.example',
   'docker/api-entrypoint.sh',
@@ -42,7 +47,7 @@ const EXPECTED_PORTS = {
   dev: [4610, 4611, 4613],
   test: [4612, 4613],
   staging: [4610, 4613],
-  production: [4610, 4613],
+  production: [4610, 4613, 4615],
 };
 const errors = [];
 
@@ -136,7 +141,7 @@ const guardedUpdaterSources = [
       'backup_database "$backup_path"',
       'git pull --ff-only origin main',
       'ASA_BUILD_REVISION=$new_revision',
-      'for service in minio scratch api web',
+      'for service in minio search scratch api web',
       'compose up -d --no-build',
       '&& wait_exact_readiness',
     ],
@@ -153,7 +158,7 @@ const guardedUpdaterSources = [
       'New-DatabaseBackup $backupPath',
       'Invoke-Native git pull --ff-only origin main',
       '$env:ASA_BUILD_REVISION = $newRevision',
-      "foreach ($service in @('minio', 'scratch', 'api', 'web'))",
+      "foreach ($service in @('minio', 'search', 'scratch', 'api', 'web'))",
       "Invoke-Compose -Arguments @('up', '-d', '--no-build')",
       '[void](Wait-ExactReadiness',
     ],
@@ -286,7 +291,16 @@ if (
   errors.push('Scratch runtime must not share API/database networks');
 if (baseServices.web?.depends_on?.scratch?.condition !== 'service_healthy')
   errors.push('Web startup must wait for healthy Scratch');
-const expectedServices = ['api', 'migration', 'minio', 'minio-init', 'postgres', 'scratch', 'web'];
+const expectedServices = [
+  'api',
+  'migration',
+  'minio',
+  'minio-init',
+  'postgres',
+  'scratch',
+  'search',
+  'web',
+];
 if (JSON.stringify(serviceNames) !== JSON.stringify(expectedServices)) {
   errors.push(
     `base services must be exactly ${expectedServices.join(', ')}, got ${serviceNames.join(', ')}`,
@@ -336,6 +350,21 @@ if ((baseServices.postgres?.ports ?? []).length > 0) {
 if ((baseServices.api?.ports ?? []).length > 0) {
   errors.push('base/staging API must remain internal; publish it only in compose.dev.yaml');
 }
+if (
+  (baseServices.search?.ports ?? []).length > 0 ||
+  JSON.stringify(baseServices.search?.networks) !== JSON.stringify(['application'])
+) {
+  errors.push('Search must stay private on the application network, with no host port');
+}
+if (baseServices.api?.depends_on?.search) {
+  errors.push('Search availability must not prevent ordinary API/chat startup');
+}
+if (
+  baseServices.api?.environment?.ASA_SEARCH_SECRET !== undefined ||
+  baseServices.web?.environment?.ASA_SEARCH_SECRET !== undefined
+) {
+  errors.push('Dedicated search signing secret must not be passed to API/Web');
+}
 
 // `docker compose config` needs a Docker CLI. It is always present in CI; on a
 // developer machine it may not be (for example a WSL distro without Docker
@@ -374,6 +403,8 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       COMPOSE_PROJECT_NAME: `asa-lab-validate-${profile}`,
       ASA_WEB_PORT: '4610',
       ASA_API_PORT: '4611',
+      ASA_PANEL_INGRESS_PORT: '4615',
+      ASA_PANEL_INGRESS_PEER: '172.19.0.1',
       POSTGRES_PASSWORD: 'compose-validation-admin-password',
       ASA_APP_DB_PASSWORD: 'compose-validation-runtime-password',
       DATABASE_URL: 'postgres://wrong-generic:wrong@elsewhere:5432/asalab',
@@ -437,6 +468,17 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
     }
     if (!config.services?.api?.environment?.ASA_PUBLIC_WEB_ORIGINS) {
       errors.push('production/api: public browser origins must be configured');
+    }
+    const panel = config.services?.web?.ports?.filter((port) => Number(port.target) === 8081) ?? [];
+    if (
+      panel.length !== 1 ||
+      Number(panel[0].published) !== 4615 ||
+      (panel[0].host_ip ?? panel[0].hostIp) !== '127.0.0.1' ||
+      config.services?.web?.environment?.ASA_PANEL_INGRESS_PEER !== '172.19.0.1'
+    ) {
+      errors.push(
+        'production/web: the 1Panel ingress must have its own loopback listener and peer',
+      );
     }
   }
   const published = [];

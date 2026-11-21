@@ -1,0 +1,65 @@
+name: AI Image Durable Queue
+on:
+  push:
+    branches: [main, fix/ai-image-durable-queue-20261102]
+    paths:
+      - 'apps/api/src/ai-image*'
+      - 'apps/web/src/ai/AiImageGeneration.tsx'
+      - 'apps/web/src/ai/ai-image-generation.spec.ts'
+      - 'packages/contracts/src/ai-image-generation.ts'
+      - 'migrations/*_ai_image_*.sql'
+      - 'tests/admin/ai-image*.ts'
+      - 'tools/ai-image-queue-gate.mjs'
+      - '.github/workflows/ai-image-queue.yml'
+  pull_request:
+    paths:
+      - 'apps/api/src/ai-image*'
+      - 'apps/web/src/ai/AiImageGeneration.tsx'
+      - 'apps/web/src/ai/ai-image-generation.spec.ts'
+      - 'packages/contracts/src/ai-image-generation.ts'
+      - 'migrations/*_ai_image_*.sql'
+      - 'tests/admin/ai-image*.ts'
+      - 'tools/ai-image-queue-gate.mjs'
+      - '.github/workflows/ai-image-queue.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: image-queue-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  queue:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        env:
+          POSTGRES_DB: asa_image_queue_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: image-queue-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_image_queue_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_IMAGE_QUEUE_TEST: '1'
+      TEST_DATABASE_URL: postgresql://postgres:image-queue-ci-only@127.0.0.1:5432/asa_image_queue_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:image-queue-ci-only@127.0.0.1:5432/asa_image_queue_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Same focused code and real PostgreSQL gate as an owner runner
+        run: pnpm gate:ai-image-queue

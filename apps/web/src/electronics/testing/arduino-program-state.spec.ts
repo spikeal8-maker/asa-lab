@@ -4,6 +4,17 @@ import { DEFAULT_ARDUINO_SOURCE, readArduinoProgramState } from '../arduino-prog
 describe('Arduino saved program ownership', () => {
   const source = 'void setup() {} void loop() { analogWrite(9, analogRead(A0) / 4); }';
 
+  it('preserves per-board input lists and defaults old projects without changing text', () => {
+    expect(readArduinoProgramState({ arduinoSource: source }).inputPins).toEqual([]);
+    expect(
+      readArduinoProgramState({
+        arduinoCodeMode: 'text',
+        arduinoSource: source,
+        arduinoInputPins: ['2', 'A0', 'A5'],
+      }),
+    ).toMatchObject({ source, inputPins: ['2', 'A0', 'A5'] });
+  });
+
   it('opens a source-only imported sketch as text, without generating blocks over it', () => {
     expect(readArduinoProgramState({ arduinoSource: source })).toMatchObject({
       mode: 'text',
@@ -18,6 +29,30 @@ describe('Arduino saved program ownership', () => {
       source: DEFAULT_ARDUINO_SOURCE,
     });
   });
+
+  it.each(['', '  ', '// owner\r\nvoid setup(){}\r\nvoid loop(){}\r\n'])(
+    'preserves source-only text exactly, including explicit empty text: %j',
+    (savedSource) => {
+      expect(readArduinoProgramState({ arduinoSource: savedSource })).toMatchObject({
+        mode: 'text',
+        source: savedSource,
+        workspaceJson: '',
+      });
+    },
+  );
+
+  it.each(['', '{invalid-json', '{}', '{"blocks":{"blocks":[]}}'])(
+    'preserves explicit saved workspace bytes without substituting defaults: %j',
+    (workspaceJson) => {
+      expect(
+        readArduinoProgramState({ arduinoSource: '', arduinoWorkspace: workspaceJson }),
+      ).toMatchObject({
+        mode: 'blocks',
+        source: '',
+        workspaceJson,
+      });
+    },
+  );
 
   it.each(['blocks', 'blocks-text', 'text'] as const)('respects an explicit %s choice', (mode) => {
     expect(readArduinoProgramState({ arduinoCodeMode: mode, arduinoSource: source }).mode).toBe(

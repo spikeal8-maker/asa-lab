@@ -50,6 +50,7 @@ test('project hub supports duplicate, archive, trash and restore journeys', asyn
     '3D модель',
     'Электрическая цепь',
     'Программа Scratch',
+    'Робототехника',
   ]);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.keyboard.press('Escape');

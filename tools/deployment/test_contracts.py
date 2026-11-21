@@ -14,12 +14,12 @@ from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, a
                                   validate_release, verify_backup, verify_embedded_entry_http)
 from deployment.backup import recovery_configuration
 from deployment.system import Installation, operation_lock, run
-from deployment.releases import assert_ci, validate_resolved_images
+from deployment.releases import assert_ci, assert_general_ci, validate_resolved_images
 import asa_manager
 
 
 def release():
-    return {"format": "asa-deployment-v1", "repository": "spikeal8-maker/asa-lab",
+    return {"format": "asa-deployment-v2", "repository": "spikeal8-maker/asa-lab",
             "revision": "a" * 40, "schema": 159, "platform": "linux/amd64", "publicationRunId": 12,
             "images": {name: f"{REGISTRY}/{name}@sha256:" + "b" * 64 for name in SERVICES}}
 
@@ -38,6 +38,37 @@ class ProxyPolicyTests(unittest.TestCase):
         attest_proxy_policy({})
         attest_proxy_policy({'ASA_TRUSTED_PROXY_CIDRS': '172.16.0.0/12,fd00::/64',
                              'ASA_INGRESS_TRUSTED_PROXY_CIDRS': '192.0.2.7/32 2001:db8::7/128'})
+
+    def test_panel_ingress_requires_one_host_and_its_own_port(self):
+        panel = {'ASA_PANEL_INGRESS_PEER': '172.19.0.1', 'ASA_PANEL_INGRESS_PORT': '4615'}
+        attest_proxy_policy(panel)
+        diagnostic = proxy_provenance_diagnostic(panel)
+        self.assertEqual(diagnostic['state'], 'external_policy_unverified')
+        self.assertEqual(diagnostic['panelIngressPeer'], '172.19.0.1')
+        for overrides in (
+            {'ASA_PANEL_INGRESS_PEER': '172.19.0.0/16'},
+            {'ASA_PANEL_INGRESS_PEER': '127.0.0.1\nservers'},
+            {'ASA_PANEL_INGRESS_PEER': '0.0.0.0'},
+            {'ASA_PANEL_INGRESS_PEER': '224.0.0.1'},
+            {'ASA_PANEL_INGRESS_PORT': '0'},
+            {'ASA_PANEL_INGRESS_PORT': '04610'},
+            {'ASA_PANEL_INGRESS_PEER': '127.0.0.1', 'ASA_PANEL_INGRESS_PORT': '4610'},
+            {'ASA_BLOCKS_PORT': '4615'},
+            {'ASA_API_PORT': '4615'},
+            {'ASA_PANEL_INGRESS_PORT': '65536'},
+        ):
+            with self.subTest(overrides=overrides), self.assertRaises(Blocked) as failure:
+                attest_proxy_policy(panel | overrides)
+            self.assertEqual(failure.exception.code, 'PROXY_POLICY')
+
+    def test_only_production_reserves_the_default_panel_ingress_port(self):
+        env = {'ASA_WEB_PORT': '4615'}
+        attest_proxy_policy(env, profile='dev')
+        with self.assertRaises(Blocked):
+            attest_proxy_policy(env, profile='production')
+        attest_proxy_policy(env | {'ASA_PANEL_INGRESS_PORT': '4616'}, profile='production')
+        with self.assertRaises(Blocked):
+            attest_proxy_policy({'ASA_PANEL_INGRESS_PEER': '172.19.0.1'}, profile='production')
 
     def test_malformed_unbounded_and_injected_policies_block_before_operations(self):
         for key in ('ASA_TRUSTED_PROXY_CIDRS', 'ASA_INGRESS_TRUSTED_PROXY_CIDRS'):
@@ -164,6 +195,139 @@ class WindowTests(unittest.TestCase):
 
 
 class ReleaseTests(unittest.TestCase):
+    @staticmethod
+    def ci_fixture():
+        revision = "a" * 40
+        general = {"id": 11, "name": "ASA Lab Governance and Code Gates", "path": ".github/workflows/spec-validation.yml",
+                   "head_sha": revision, "head_branch": "main", "status": "completed", "conclusion": "success",
+                   "run_number": 1, "run_attempt": 1, "event": "push"}
+        publication = {"id": 12, "name": "ASA Portable Release", "path": ".github/workflows/portable-release.yml",
+                       "display_title": "Release " + revision, "head_sha": "b" * 40, "head_branch": "main",
+                       "status": "completed", "conclusion": "success", "run_attempt": 1, "event": "workflow_run"}
+        names = ["Governance contracts", "Format lint types contracts build", "PostgreSQL tests and RLS",
+                 "Access A real browser journeys", "ASA / required"]
+        publication_names = ["gate", "contracts (ubuntu-latest)", "contracts (windows-latest)", "publish",
+                             "build (api, Dockerfile.api, runtime)", "build (web, Dockerfile.web, runtime)",
+                             "build (scratch, infra/scratch-editor/Dockerfile)", "build (minio, infra/minio/Dockerfile)",
+                             "build (search, infra/search/Dockerfile)"]
+        def jobs(run, labels):
+            return [{"id": run["id"] * 100 + n, "run_id": run["id"], "run_attempt": 1, "name": name,
+                     "head_sha": run["head_sha"], "status": "completed", "conclusion": "success", "runner_id": 100,
+                     "started_at": "2026-11-02T10:00:00Z", "completed_at": "2026-11-02T10:01:00Z"}
+                    for n, name in enumerate(labels)]
+        return {"general": general, "publication": publication,
+                "general_jobs": jobs(general, names), "publication_jobs": jobs(publication, publication_names)}
+
+    @staticmethod
+    def ci_response(fixture):
+        def respond(request, **kwargs):
+            path = request.full_url.split("/actions/runs", 1)[1]
+            if path.startswith("?"):
+                payload = {"total_count": len(fixture.get("runs", [fixture["general"]])),
+                           "workflow_runs": fixture.get("runs", [fixture["general"]])}
+            elif "/jobs?" in path:
+                kind = "general" if path.startswith("/11/") else "publication"
+                rows = fixture[kind + "_jobs"]
+                payload = {"total_count": len(rows), "jobs": rows}
+            else:
+                payload = fixture["general" if path == "/11" else "publication"]
+            return io.BytesIO(json.dumps(payload).encode())
+        return respond
+
+    @classmethod
+    def ci_retry_fixture(cls, kind):
+        fixture = cls.ci_fixture()
+        fixture[kind]["run_attempt"] = 2
+        name = "PostgreSQL tests and RLS" if kind == "general" else "publish"
+        previous = next(job for job in fixture[kind + "_jobs"] if job["name"] == name)
+        retried = {**previous, "id": 9999, "run_attempt": 2,
+                   "started_at": "2026-11-02T10:02:00Z", "completed_at": "2026-11-02T10:03:00Z"}
+        fixture[kind + "_jobs"].append(retried)
+        return fixture, previous, retried
+
+    def test_partial_retry_retains_actual_same_source_successes(self):
+        for kind in ("general", "publication"):
+            for reverse in (False, True):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                previous["conclusion"] = "failure"
+                if reverse:
+                    fixture[kind + "_jobs"].reverse()
+                with self.subTest(kind=kind, reverse=reverse), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)):
+                    assert_ci(release())
+
+    def test_newer_nonpassing_retry_overrides_previous_success(self):
+        for kind in ("general", "publication"):
+            for result in ("failure", "cancelled", "skipped", "timed_out", "neutral", "queued", "in_progress", "waiting"):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                if result in ("queued", "in_progress", "waiting"):
+                    retried.update(status=result, conclusion=None, started_at=None, completed_at=None, runner_id=0)
+                else:
+                    retried["conclusion"] = result
+                self.assertEqual(previous["conclusion"], "success")
+                with self.subTest(kind=kind, result=result), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                    assert_ci(release())
+
+    def test_every_retry_row_is_source_bound_and_unambiguous(self):
+        for kind in ("general", "publication"):
+            for row in ("previous", "retried"):
+                for change in ({"run_id": 77}, {"head_sha": "c" * 40}, {"run_attempt": 0}, {"run_attempt": 3},
+                               {"run_attempt": True}, {"run_attempt": "2"}, {"name": None}, {"name": ""},
+                               {"status": "unknown"}, {"conclusion": None}):
+                    fixture, previous, retried = self.ci_retry_fixture(kind)
+                    (previous if row == "previous" else retried).update(change)
+                    with self.subTest(kind=kind, row=row, change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                        assert_ci(release())
+            for duplicate_id in (False, True):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                fixture[kind + "_jobs"].append({**retried, "id": retried["id"] if duplicate_id else 9998})
+                with self.subTest(kind=kind, duplicate_id=duplicate_id), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                    assert_ci(release())
+
+    def test_partial_retry_cannot_hide_missing_job_or_current_attempt(self):
+        for kind in ("general", "publication"):
+            for missing in ("required", "current_attempt"):
+                fixture, previous, retried = self.ci_retry_fixture(kind)
+                name = "Governance contracts" if kind == "general" else "gate"
+                if missing == "required":
+                    fixture[kind + "_jobs"] = [job for job in fixture[kind + "_jobs"] if job["name"] != name]
+                else:
+                    fixture[kind + "_jobs"] = [job for job in fixture[kind + "_jobs"] if job["run_attempt"] < 2]
+                with self.subTest(kind=kind, missing=missing), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                    assert_ci(release())
+
+    def test_aggregate_newer_failure_overrides_older_success(self):
+        fixture, previous, retried = self.ci_retry_fixture("general")
+        aggregate = next(job for job in fixture["general_jobs"] if job["name"] == "ASA / required")
+        fixture["general_jobs"].append({**aggregate, "id": 9998, "run_attempt": 2, "conclusion": "failure"})
+        with patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+            assert_ci(release())
+
+    def test_partial_retry_job_pages_cannot_be_truncated(self):
+        for kind in ("general", "publication"):
+            fixture, previous, retried = self.ci_retry_fixture(kind)
+            base = self.ci_response(fixture)
+            def truncated(request, **kwargs):
+                if f"/{fixture[kind]['id']}/jobs?" in request.full_url:
+                    return io.BytesIO(json.dumps({"total_count": 99, "jobs": fixture[kind + "_jobs"]}).encode())
+                return base(request, **kwargs)
+            with self.subTest(kind=kind), patch("deployment.releases.urllib.request.urlopen", side_effect=truncated), self.assertRaises(Blocked) as denied:
+                assert_ci(release())
+            self.assertEqual(denied.exception.code, "CI_UNAVAILABLE")
+
+    def test_overall_success_cannot_hide_skipped_general_job(self):
+        fixture = self.ci_fixture()
+        fixture["general_jobs"][2]["conclusion"] = "skipped"
+        with patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+            assert_ci(release())
+
+    def test_overall_success_cannot_hide_skipped_publication(self):
+        fixture = self.ci_fixture()
+        for job in fixture["publication_jobs"]:
+            if job["name"] == "publish":
+                job["conclusion"] = "skipped"
+        with patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+            assert_ci(release())
+
     def test_minio_init_must_use_the_verified_server_image(self):
         from unittest.mock import MagicMock
         candidate = release()
@@ -182,27 +346,257 @@ class ReleaseTests(unittest.TestCase):
                 validate_resolved_images(install, candidate)
 
     def test_publication_and_general_ci_must_both_match(self):
-        publication = {"name": "Release " + "a" * 40, "path": ".github/workflows/portable-release.yml",
-                       "display_title": "Release " + "a" * 40, "head_branch": "main",
-                       "status": "completed", "conclusion": "success"}
-        general = {"name": "ASA Lab Governance and Code Gates", "head_sha": "a" * 40,
-                   "head_branch": "main", "status": "completed", "conclusion": "success", "run_number": 1}
-        for change in ({}, {"name": "ASA Portable Release"}, {"name": "Unrelated workflow"},
+        for change in ({}, {"name": "Release " + "a" * 40}, {"name": "Unrelated workflow"},
                        {"path": ".github/workflows/other.yml"}, {"status": "in_progress"},
-                       {"conclusion": "failure"}, {"head_branch": "feature"}, {"display_title": "Release " + "b" * 40}):
-            responses = [io.BytesIO(json.dumps({"workflow_runs": [general]}).encode()),
-                         io.BytesIO(json.dumps({**publication, **change}).encode())]
-            with self.subTest(change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=responses):
-                if change and change != {"name": "ASA Portable Release"}:
+                       {"conclusion": "failure"}, {"head_branch": "feature"}, {"display_title": "Release " + "b" * 40},
+                       {"id": 13}, {"event": "pull_request"}):
+            fixture = self.ci_fixture()
+            fixture["publication"].update(change)
+            with self.subTest(change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)):
+                if (change and "name" not in change) or change.get("name") == "Unrelated workflow":
                     with self.assertRaises(Blocked):
                         assert_ci(release())
                 else:
                     assert_ci(release())
-        newer_red = {**general, "run_number": 2, "conclusion": "failure"}
-        responses = [io.BytesIO(json.dumps({"workflow_runs": [general, newer_red]}).encode()),
-                     io.BytesIO(json.dumps(publication).encode())]
-        with patch("deployment.releases.urllib.request.urlopen", side_effect=responses), self.assertRaises(Blocked):
+        fixture = self.ci_fixture()
+        fixture["runs"] = [fixture["general"], {**fixture["general"], "id": 13, "run_number": 2, "conclusion": "failure"}]
+        with patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
             assert_ci(release())
+
+    def test_full_and_legacy_general_have_actual_successful_jobs(self):
+        for legacy in (False, True):
+            fixture = self.ci_fixture()
+            if legacy:
+                fixture["general_jobs"].pop()
+            with self.subTest(legacy=legacy), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)):
+                publish = next(job for job in fixture["publication_jobs"] if job["name"] == "publish")
+                self.assertEqual(assert_ci(release()), publish["completed_at"])
+                assert_general_ci("a" * 40)
+
+    def test_every_required_job_must_be_present_and_successful(self):
+        for kind in ("general", "publication"):
+            for index in range(len(self.ci_fixture()[kind + "_jobs"])):
+                for result in ("missing", "skipped", "failure", "cancelled", "not_applicable", "neutral"):
+                    fixture = self.ci_fixture()
+                    jobs = fixture[kind + "_jobs"]
+                    # The aggregate is optional only for genuine pre-aggregate releases.
+                    if kind == "general" and index == 4 and result == "missing":
+                        continue
+                    if result == "missing":
+                        jobs.pop(index)
+                    else:
+                        jobs[index]["conclusion"] = result
+                    with self.subTest(kind=kind, index=index, result=result), \
+                            patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                        assert_ci(release())
+
+    def test_jobs_cannot_use_stale_source_attempt_or_synthetic_success(self):
+        for kind in ("general", "publication"):
+            for change in ({"run_id": 99}, {"run_id": True}, {"run_attempt": 2}, {"run_attempt": True}, {"head_sha": "c" * 40},
+                           {"status": "in_progress"}, {"runner_id": 0}, {"runner_id": True},
+                           {"started_at": None}, {"completed_at": "2026-11-01T00:00:00Z"}):
+                fixture = self.ci_fixture()
+                fixture[kind + "_jobs"][0].update(change)
+                with self.subTest(kind=kind, change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                    assert_ci(release())
+            fixture = self.ci_fixture()
+            fixture[kind + "_jobs"].append({**fixture[kind + "_jobs"][0], "id": 9999})
+            with self.subTest(kind=kind, duplicate=True), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                assert_ci(release())
+
+    def test_general_identity_is_exact_and_newest_attempt_is_required(self):
+        for change in ({"path": ".github/workflows/other.yml"}, {"head_sha": "c" * 40}, {"head_branch": "feature"},
+                       {"event": "pull_request"}, {"status": "in_progress"}, {"conclusion": "cancelled"},
+                       {"run_attempt": 2}, {"run_attempt": True}, {"run_number": None}):
+            fixture = self.ci_fixture()
+            fixture["general"].update(change)
+            with self.subTest(change=change), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)), self.assertRaises(Blocked):
+                assert_ci(release())
+
+    def test_paginated_general_and_jobs_are_complete_and_bound(self):
+        fixture = self.ci_fixture()
+        general = fixture["general"]
+        runs = [{**general, "id": 2000 + i, "name": "Other workflow"} for i in range(100)] + [general]
+        jobs = fixture["general_jobs"] + [{**fixture["general_jobs"][0], "id": 3000 + i, "name": f"Other {i}"} for i in range(100)]
+        base = self.ci_response(fixture)
+        seen = []
+        def paginated(request, **kwargs):
+            from urllib.parse import parse_qs, urlsplit
+            parsed = urlsplit(request.full_url)
+            page = int(parse_qs(parsed.query).get("page", ["1"])[0])
+            seen.append(parsed.path + "?" + parsed.query)
+            if parsed.path.endswith("/actions/runs"):
+                rows, key = runs, "workflow_runs"
+            elif parsed.path.endswith("/11/jobs"):
+                self.assertEqual(parse_qs(parsed.query)["filter"], ["all"])
+                rows, key = jobs, "jobs"
+            else:
+                return base(request, **kwargs)
+            return io.BytesIO(json.dumps({"total_count": len(rows), key: rows[(page - 1) * 100:page * 100]}).encode())
+        with patch("deployment.releases.urllib.request.urlopen", side_effect=paginated):
+            assert_ci(release())
+        self.assertTrue(any("/11/jobs?filter=all&per_page=100&page=2" in path for path in seen))
+        self.assertTrue(any("head_sha=" in path and "page=2" in path for path in seen))
+
+    def test_truncated_duplicate_and_oversized_api_listings_block(self):
+        fixture = self.ci_fixture()
+        for payload in ({"total_count": 2, "workflow_runs": [fixture["general"]]},
+                        {"total_count": 2, "workflow_runs": [fixture["general"], fixture["general"]]},
+                        {"total_count": 1001, "workflow_runs": []}, {"workflow_runs": []},
+                        {"total_count": True, "workflow_runs": []}, {"total_count": 1, "workflow_runs": [None]}):
+            base = self.ci_response(fixture)
+            def respond(request, **kwargs):
+                if "/actions/runs?" in request.full_url:
+                    return io.BytesIO(json.dumps(payload).encode())
+                return base(request, **kwargs)
+            with self.subTest(payload=payload), patch("deployment.releases.urllib.request.urlopen", side_effect=respond), self.assertRaises(Blocked):
+                assert_ci(release())
+
+    def test_run_or_attempt_changes_during_verification_block(self):
+        for kind in ("general", "publication"):
+            fixture = self.ci_fixture()
+            base = self.ci_response(fixture)
+            identity = fixture[kind]["id"]
+            def respond(request, **kwargs):
+                if request.full_url.endswith(f"/actions/runs/{identity}"):
+                    return io.BytesIO(json.dumps({**fixture[kind], "run_attempt": 2}).encode())
+                return base(request, **kwargs)
+            with self.subTest(kind=kind), patch("deployment.releases.urllib.request.urlopen", side_effect=respond), self.assertRaises(Blocked):
+                assert_ci(release())
+        fixture = self.ci_fixture()
+        base = self.ci_response(fixture)
+        listings = 0
+        def new_general(request, **kwargs):
+            nonlocal listings
+            if "/actions/runs?" in request.full_url:
+                listings += 1
+                if listings == 2:
+                    newest = {**fixture["general"], "id": 13, "run_number": 2}
+                    return io.BytesIO(json.dumps({"total_count": 1, "workflow_runs": [newest]}).encode())
+            return base(request, **kwargs)
+        with patch("deployment.releases.urllib.request.urlopen", side_effect=new_general), self.assertRaises(Blocked):
+            assert_ci(release())
+
+    def assert_publication_concurrency(self, workflow):
+        # Pin this small workflow contract without adding a YAML dependency.
+        start, end = "\nconcurrency:\n", "\njobs:\n"
+        self.assertEqual(workflow.count(start), 1)
+        self.assertEqual(workflow.count(end), 1)
+        self.assertLess(workflow.index(start), workflow.index(end))
+        self.assertEqual(workflow.split(start, 1)[1].split(end, 1)[0],
+                         "  group: asa-stable-release\n  cancel-in-progress: false\n  queue: max\n")
+
+    def test_publication_retains_pending_candidates_and_protects_running_release(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        self.assert_publication_concurrency(workflow)
+
+    def test_publication_concurrency_rejects_candidate_loss_or_split_publication(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        for old, new in (("  queue: max\n", ""), ("  queue: max\n", "  queue: single\n"),
+                         ("  cancel-in-progress: false\n", "  cancel-in-progress: true\n"),
+                         ("  group: asa-stable-release\n", "  group: release-${{ github.sha }}\n")):
+            with self.subTest(replacement=new), self.assertRaises(AssertionError):
+                self.assert_publication_concurrency(workflow.replace(old, new))
+
+    def publication_gate_script(self, workflow=None):
+        # This single reviewed heredoc is tested in stdlib-only deployment CI.
+        # Exact layout bounds deliberately reject drift instead of parsing YAML.
+        if workflow is None:
+            workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        start, end = "\n  gate:\n", "\n  build:\n"
+        self.assertEqual(workflow.count(start), 1)
+        self.assertEqual(workflow.count(end), 1)
+        self.assertLess(workflow.index(start), workflow.index(end))
+        gate = workflow.split(start, 1)[1].split(end, 1)[0]
+        source_marker = "      - id: source\n"
+        checkout = ("    steps:\n      - uses: actions/checkout@v4\n        with:\n"
+                    "          ref: ${{ github.workflow_sha }}\n"
+                    "          fetch-depth: 0\n          persist-credentials: false\n")
+        self.assertEqual(gate.count(checkout), 1)
+        self.assertEqual(gate.count(source_marker), 1)
+        source = gate.split(source_marker, 1)[1]
+        opening, closing = "        run: |\n          python -P - <<'PY'\n", "\n          PY"
+        self.assertEqual(source.count(opening), 1)
+        body = source.split(opening, 1)[1]
+        self.assertEqual(body.count(closing), 1)
+        body, tail = body.split(closing, 1)
+        self.assertEqual(tail, "")
+        self.assertTrue(body and all(line.startswith(" " * 10) for line in body.splitlines()))
+        return "\n".join(line[10:] for line in body.splitlines())
+
+    def run_publication_gate(self, remote, revision="a" * 40, general_error=None, ancestor=True):
+        script = self.publication_gate_script()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            environment = {"GITHUB_OUTPUT": str(output)}
+            if revision is not None:
+                environment["REVISION"] = revision
+            order = []
+            def current_main(*args, **kwargs):
+                order.append("main")
+                self.assertFalse(output.exists())
+                if isinstance(remote, Exception):
+                    raise remote
+                return remote
+            def general(candidate):
+                order.append("general")
+                self.assertEqual(candidate, revision)
+                self.assertFalse(output.exists())
+                if general_error:
+                    raise general_error
+            def check_ancestor(candidate, main):
+                order.append("ancestry")
+                self.assertEqual((candidate, main), (revision, remote))
+                self.assertFalse(output.exists())
+                return ancestor
+            failure = None
+            with patch.dict(os.environ, environment, clear=True), \
+                    patch("deployment.publication.canonical_main", side_effect=current_main), \
+                    patch("deployment.publication.is_ancestor", side_effect=check_ancestor), \
+                    patch("deployment.releases.assert_general_ci", side_effect=general):
+                try:
+                    exec(compile(script, "portable-release-gate", "exec"), {})
+                except Blocked as problem:
+                    failure = problem
+            return failure, output.read_text() if output.exists() else "", order
+
+    def test_publication_gate_executes_the_same_full_general_verifier(self):
+        failure, output, order = self.run_publication_gate("b" * 40)
+        self.assertIsNone(failure)
+        self.assertEqual(order, ["main", "ancestry", "general"])
+        self.assertEqual(output, "revision=" + "a" * 40 + "\n")
+
+    def test_publication_gate_rejects_foreign_revision_before_general_and_output(self):
+        failure, output, order = self.run_publication_gate("b" * 40, ancestor=False)
+        self.assertEqual(failure.code, "RELEASE_SOURCE")
+        self.assertEqual((output, order), ("", ["main", "ancestry"]))
+        for revision in (None, "", "a" * 39, "g" * 40, "a" * 40 + "\n"):
+            with self.subTest(revision=revision):
+                failure, output, order = self.run_publication_gate("a" * 40, revision)
+                self.assertEqual(failure.code, "RELEASE_SOURCE")
+                self.assertEqual((output, order), ("", []))
+
+    def test_publication_gate_tool_or_incomplete_general_failure_emits_no_revision(self):
+        problem = Blocked("COMMAND", "canonical main fetch failed", "retry")
+        failure, output, order = self.run_publication_gate(problem)
+        self.assertIs(failure, problem)
+        self.assertEqual((output, order), ("", ["main"]))
+        problem = Blocked("CI_BLOCKED", "partial", "wait")
+        failure, output, order = self.run_publication_gate("b" * 40, general_error=problem)
+        self.assertIs(failure, problem)
+        self.assertEqual((output, order), ("", ["main", "ancestry", "general"]))
+
+    def test_only_a_guarded_normal_build_can_publish_stable(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        self.assertIn("\n  contracts:\n    needs: gate\n", workflow)
+        self.assertIn("\n  build:\n    needs: [gate, contracts]\n", workflow)
+        self.assertIn("\n  publish:\n    needs: [gate, build]\n", workflow)
+        promotion = ("        run: python -P -m deployment.publication\n"
+                     "      - uses: docker/build-push-action@v6\n"
+                     "        if: steps.promotion.outputs.promote == 'true'\n")
+        self.assertEqual(workflow.count(promotion), 1)
+        self.assertEqual(workflow.count("/deployment:stable"), 1)
+        self.assertIn("/deployment:stable", workflow.split(promotion, 1)[1])
 
     def test_pinned_set(self):
         self.assertEqual(validate_release(release())["schema"], 159)
@@ -387,6 +781,32 @@ class IdentityTests(unittest.TestCase):
 
 
 class UpdateBoundaryTests(unittest.TestCase):
+    def test_changed_release_prepares_optional_host_only_after_native_source_selection(self):
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as root:
+            install = MagicMock(root=Path(root), state=Path(root), settings={}, profile='dev')
+            install.readiness.return_value = {'revision': release()['revision'], 'schema': release()['schema']}
+            install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
+            order = []
+            def prepare(selected):
+                self.assertEqual(order, ['native-source'])
+                order.append('prepare')
+                return {'state': 'degraded', 'readerGroupChanged': False, 'applicationCollection': 'embedded'}
+            with patch.object(asa_manager, 'doctor'), patch.object(asa_manager, 'clean_checkout'), \
+                    patch.object(asa_manager, 'discover_release', return_value=release()), \
+                    patch.object(asa_manager, 'prepare_collector', side_effect=prepare), \
+                    patch.object(asa_manager, 'assert_ci'), patch.object(asa_manager, 'fetch_images'), \
+                    patch.object(asa_manager, 'selected_source', side_effect=lambda *args, **kwargs: order.append('native-source')), \
+                    patch.object(asa_manager, 'Installation', return_value=install), \
+                    patch.object(asa_manager, 'apply_release_environment'), patch.object(asa_manager, 'validate_resolved_images'), \
+                    patch.object(asa_manager, 'check_resources', side_effect=Blocked('TEST_STOP', 'stop before data actions', 'test')), \
+                    self.assertRaises(Blocked) as caught:
+                asa_manager.update(install)
+            self.assertEqual(caught.exception.code, 'TEST_STOP')
+            self.assertEqual(order, ['native-source', 'prepare'])
+
     def test_acknowledge_recovers_only_known_switch_phases_and_recorded_runtime(self):
         from unittest.mock import MagicMock
         for phase in ('switch', 'verify_entry', 'backup'):
@@ -455,6 +875,11 @@ class UpdateBoundaryTests(unittest.TestCase):
             switch.assert_not_called()
             install.compose.assert_not_called()
             collector.assert_called_once_with(install)
+            event = json.loads((install.root/'.asa/operations/events.jsonl').read_text())
+            self.assertEqual(event['status'], 'succeeded')
+            self.assertEqual(event['phase'], 'verify_entry')
+            self.assertEqual(event['revision'], candidate['revision'])
+            self.assertNotIn('archiveSha256', event)
 
     def test_backup_failure_never_switches_running_services(self):
         from unittest.mock import MagicMock
@@ -479,7 +904,7 @@ class UpdateBoundaryTests(unittest.TestCase):
                 asa_manager.update(install)
             self.assertFalse(any(call.args[0] in ("up", "stop") for call in install.compose.call_args_list))
             self.assertFalse((install.state / "installed-release.json").exists())
-            backup.assert_called_once_with(install)
+            backup.assert_called_once_with(install, trigger='manual')
 
     def test_outside_window_does_not_touch_docker_or_network(self):
         from unittest.mock import MagicMock

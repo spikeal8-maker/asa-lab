@@ -1,13 +1,124 @@
 import { describe, expect, it, vi } from 'vitest';
+import { nativeTools } from './ai-native-tools';
+import { workingFileTools } from './ai-working-files';
 import {
   OllamaError,
   ollamaBaseUrl,
   validOllamaModel,
   discoverOllama,
+  describeOllamaModel,
   streamOllamaText,
 } from './ai-ollama';
 
+it.each(['valid', 'escaped', 'file_limit', 'frame_limit'] as const)(
+  'admits bounded working-file envelopes without weakening file validation: %s',
+  async (kind) => {
+    const content =
+      kind === 'valid'
+        ? '<main>' + 'Котики '.repeat(7000) + '</main>'
+        : kind === 'escaped'
+          ? '\t'.repeat(96_000)
+          : kind === 'file_limit'
+            ? 'x'.repeat(96_001)
+            : 'x'.repeat(1024 * 1024);
+    const payload =
+      JSON.stringify({
+        message: {
+          tool_calls: [
+            {
+              function: { name: 'create_working_file', arguments: { name: 'cats.html', content } },
+            },
+          ],
+        },
+        done: true,
+      }) + '\n';
+    const request = streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'fixture:8b',
+      context: [],
+      instructions: '',
+      tools: workingFileTools(),
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      fetchImpl: async () => new Response(payload),
+    });
+    if (kind === 'valid' || kind === 'escaped')
+      expect((await request).toolCalls?.[0]?.arguments.content).toBe(content);
+    else
+      await expect(request).rejects.toMatchObject({
+        code: kind === 'file_limit' ? 'ai_tool_call_invalid' : 'ai_ollama_invalid',
+      });
+  },
+);
+
+it.each(['images', 'mixed', 'overflow', 'invalid'] as const)(
+  'bounds Qwen multi-frame tool announcements: %s',
+  async (mode) => {
+    const calls = Array.from({ length: mode === 'overflow' ? 5 : 2 }, (_, i) => ({
+      function: {
+        name: mode === 'mixed' && i ? 'web_search' : 'image_search',
+        arguments: mode === 'invalid' && i ? { query: 2 } : { query: 'cats ' + i },
+      },
+    }));
+    const task = streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'fixture:8b',
+      context: [],
+      instructions: '',
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      tools: nativeTools({ search: true, weather: false }),
+      fetchImpl: vi.fn(
+        async () =>
+          new Response(
+            calls.map((call) => JSON.stringify({ message: { tool_calls: [call] } })).join('\n') +
+              '\n' +
+              JSON.stringify({ done: true }) +
+              '\n',
+          ),
+      ),
+    });
+    if (mode === 'images')
+      expect((await task).toolCalls?.map((call) => call.arguments.query)).toEqual([
+        'cats 0',
+        'cats 1',
+      ]);
+    else await expect(task).rejects.toMatchObject({ code: 'ai_tool_call_invalid' });
+  },
+);
+
 describe('Ollama private network boundary', () => {
+  it.each(['stop', 'length'])('preserves long code and honors done_reason=%s', async (reason) => {
+    const part = 'const step = () => {};\n'.repeat(150);
+    const code = part.repeat(4);
+    const payload =
+      Array.from({ length: 4 }, () =>
+        JSON.stringify({ message: { content: part }, done: false }),
+      ).join('\n') +
+      '\n' +
+      JSON.stringify({ done: true, done_reason: reason }) +
+      '\n';
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(payload));
+    const deltas: string[] = [];
+    const result = await streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'test:7b',
+      context: [],
+      instructions: '',
+      signal: new AbortController().signal,
+      onDelta: (text) => deltas.push(text),
+      fetchImpl,
+    });
+    expect(code.length).toBeGreaterThan(8192);
+    expect(result).toEqual({ text: code, stopped: reason === 'length' });
+    expect(deltas.join('')).toBe(code);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      think: false,
+      keep_alive: -1,
+      options: { num_ctx: 120000, num_predict: -1 },
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
   it.each([
     'http://127.0.0.1:11434',
     'http://192.168.1.22:11434',
@@ -235,5 +346,65 @@ describe('Ollama live HTTP protocol with deterministic fake transport', () => {
       }),
     ).rejects.toMatchObject({ code: 'ai_ollama_url_denied' });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('Ollama actual image capabilities and payload', () => {
+  it('confirms vision only from POST /api/show and forwards no credentials', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ capabilities: ['completion', 'vision', 'tools'] })),
+    );
+    await expect(
+      describeOllamaModel('http://127.0.0.1:11434', 'gemma3:12b', fetchImpl),
+    ).resolves.toEqual(['completion', 'vision', 'tools']);
+    const [url, options] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('http://127.0.0.1:11434/api/show');
+    expect(options).toMatchObject({ method: 'POST', redirect: 'error' });
+    expect(JSON.parse(String(options?.body))).toEqual({ model: 'gemma3:12b' });
+    expect(JSON.stringify(options)).not.toContain('authorization');
+  });
+
+  it('fails closed when capability metadata is missing', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ details: { parameter_size: '12B' } })),
+    );
+    await expect(
+      describeOllamaModel('http://127.0.0.1:11434', 'gemma3:12b', fetchImpl),
+    ).rejects.toMatchObject({ code: 'ai_ollama_capability_unknown', status: 503 });
+  });
+
+  it('sends actual base64 only on the current user message, never in system instructions', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({ message: { content: 'Вижу красный диод.' }, done: true }) + '\n',
+        ),
+    );
+    await expect(
+      streamOllamaText({
+        baseUrl: 'http://127.0.0.1:11434',
+        model: 'gemma3:12b',
+        context: [
+          { role: 'user', content: 'Контекст' },
+          { role: 'assistant', content: 'Хорошо' },
+          { role: 'user', content: 'Что на схеме?' },
+        ],
+        images: ['aW1hZ2U='],
+        instructions: 'Учебный помощник',
+        signal: new AbortController().signal,
+        onDelta: () => undefined,
+        fetchImpl,
+      }),
+    ).resolves.toMatchObject({ text: 'Вижу красный диод.' });
+    const request = JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body)) as {
+      messages: Array<{ role: string; content: string; images?: string[] }>;
+    };
+    expect(request.messages).toEqual([
+      { role: 'system', content: 'Учебный помощник' },
+      { role: 'user', content: 'Контекст' },
+      { role: 'assistant', content: 'Хорошо' },
+      { role: 'user', content: 'Что на схеме?', images: ['aW1hZ2U='] },
+    ]);
+    expect(request.messages[0]!.images).toBeUndefined();
   });
 });

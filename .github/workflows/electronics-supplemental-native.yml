@@ -1,0 +1,109 @@
+name: Electronics supplemental native qualification
+run-name: Supplemental mobile and pin setup — candidate ${{ inputs.candidate_revision }} — workflow ${{ github.workflow_sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_revision:
+        description: Full immutable SHA already in canonical main history
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: electronics-supplemental-${{ inputs.candidate_revision }}-${{ github.run_id }}
+  cancel-in-progress: false
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+      ASA_SUPPLEMENTAL_WORKFLOW_REVISION: ${{ github.workflow_sha }}
+      COMPOSE_PROJECT_NAME: asa-supplemental-${{ github.run_id }}-${{ github.run_attempt }}
+      ASA_TEST_UID: '1000'
+      ASA_TEST_GID: '1000'
+    steps:
+      - name: Checkout trusted workflow source separately
+        uses: actions/checkout@v4
+        with:
+          repository: spikeal8-maker/asa-lab
+          ref: ${{ github.workflow_sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Authorize immutable canonical candidate before checkout or execution
+        run: python3 -B control/tools/electronics_supplemental_ci.py authorize
+      - name: Checkout exact authorized candidate without transplanting helpers
+        uses: actions/checkout@v4
+        with:
+          repository: spikeal8-maker/asa-lab
+          ref: ${{ inputs.candidate_revision }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Offline transport and encrypted-envelope contracts
+        run: |
+          python3 -B control/tools/test_electronics_supplemental_ci.py
+          node --test control/tools/test-electronics-supplemental-native.mjs
+      - name: Verify source and export exact schema before writable preparation
+        run: python3 -B control/tools/electronics_supplemental_ci.py prepare
+      - name: Prepare existing isolated writable evidence contract
+        working-directory: candidate
+        run: |
+          mkdir -p e2e/artifacts/electronics-simulation reports
+          chmod -R 0777 e2e/artifacts reports
+      - name: Verify unchanged image-only Compose model
+        run: python3 -B control/tools/electronics_supplemental_ci.py models
+      - name: Build exact candidate isolated images
+        working-directory: candidate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+      - name: Verify and retain original image roots and exact revision labels
+        run: python3 -B control/tools/electronics_supplemental_ci.py images
+      - name: Start isolated PostgreSQL
+        working-directory: candidate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 120 postgres
+      - name: Verify and retain original PostgreSQL identity
+        run: python3 -B control/tools/electronics_supplemental_ci.py postgres
+      - name: Apply isolated migrations
+        working-directory: candidate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps migration
+      - name: Start exact API and Web without unrelated media services
+        working-directory: candidate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 240 --no-deps api web
+      - name: Discover and execute only the two original supplemental files
+        working-directory: candidate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_SUPPLEMENTAL_WORKFLOW_REVISION
+          -v "$GITHUB_WORKSPACE/control/tools/run-electronics-supplemental-native.mjs:/workspace/tools/run-electronics-supplemental-native.mjs:ro"
+          test-runner node tools/run-electronics-supplemental-native.mjs
+      - name: Seal private evidence to existing owner public recipient
+        if: always()
+        run: node control/tools/electronics-supplemental-envelope.mjs seal
+      - name: Upload encrypted evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-supplemental-encrypted-${{ inputs.candidate_revision }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/asa-electronics-supplemental.encrypted.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove only this disposable stack
+        if: always()
+        working-directory: candidate
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          down -v --remove-orphans

@@ -66,6 +66,27 @@ describe('Arduino real Serial Monitor', () => {
     expect(host!.textContent).toContain('Подключён');
   });
 
+  it('uses stream newlines to form rows across TX chunks', () => {
+    renderMonitor({
+      serial: projection('a', ['12', '34\n', '\n', 'hello', 'world\nlast', ' bit']),
+    });
+    const output = host!.querySelector('.arduino-serial-output')!;
+    expect(Array.from(output.children, (row) => row.textContent)).toEqual([
+      '1234\n',
+      '\n',
+      'helloworld\nlast bit',
+    ]);
+  });
+
+  it('keeps the DOM bounded for a full history of multiline TX entries', () => {
+    const chunk = '\n'.repeat(1024);
+    const texts = Array<string>(256).fill(chunk);
+    renderMonitor({ serial: projection('a', texts) });
+    const output = host!.querySelector('.arduino-serial-output')!;
+    expect(output.children).toHaveLength(texts.length);
+    expect(output.textContent).toBe(texts.join(''));
+  });
+
   it('sends RX without echoing user input into TX output', () => {
     const props = renderMonitor({ serial: projection('a', []) });
     const input = host!.querySelector(
@@ -108,4 +129,72 @@ describe('Arduino real Serial Monitor', () => {
     renderMonitor({ running: true, serial: projection('a', [], false) });
     expect(host!.textContent).toContain('Ожидает Serial.begin');
   });
+});
+
+it('shows new TX after Clear then stopped/reset runtime and Run', () => {
+  renderMonitor();
+  act(() =>
+    Array.from(host!.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Очист.')!
+      .click(),
+  );
+  renderMonitor({ running: false, serial: undefined });
+  renderMonitor({ serial: projection('a', ['512\n']) });
+  expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('512\n');
+});
+
+it.each([1, 2])(
+  'distinguishes identical reset/source generations after clearing %i TX entries',
+  (count) => {
+    const tx = projection('a', Array(count).fill('512\n'));
+    renderMonitor({ serial: { ...tx, streamGeneration: 'project:1' } });
+    act(() =>
+      Array.from(host!.querySelectorAll('button'))
+        .find((b) => b.textContent === 'Очист.')!
+        .click(),
+    );
+    renderMonitor({ running: false, serial: { ...tx, streamGeneration: 'project:1' } });
+    expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('');
+    renderMonitor({ open: false, serial: { ...tx, streamGeneration: 'project:1' } });
+    renderMonitor({ open: true, serial: { ...tx, streamGeneration: 'project:1' } });
+    expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('');
+    // Reset/source replay has exactly the same sequence, time and text; no empty render.
+    renderMonitor({ serial: { ...tx, streamGeneration: 'project:2' } });
+    expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('512\n'.repeat(count));
+  },
+);
+
+it.each([
+  { name: 'missing projection', running: true, serial: undefined },
+  { name: 'waiting for begin', running: true, serial: projection('a', [], false) },
+  { name: 'stopped initialized port', running: false, serial: projection('a', []) },
+])('retains unsent input while $name and sends once after connection', (patch) => {
+  const props = renderMonitor(patch);
+  const input = host!.querySelector(
+    'input[aria-label="Сообщение в последовательный порт"]',
+  ) as HTMLInputElement;
+  const send = host!.querySelector('button[type="submit"]') as HTMLButtonElement;
+  const form = host!.querySelector('form')!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  act(() => {
+    setter.call(input, 'A');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(send.disabled).toBe(true);
+  expect(input.disabled).toBe(!patch.running);
+  // A forced submit also covers Enter/programmatic submission bypassing the disabled button.
+  act(() => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(props.onSend).not.toHaveBeenCalled();
+  expect(input.value).toBe('A');
+  expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('');
+
+  renderMonitor({ running: true, serial: projection('a', []), onSend: props.onSend });
+  expect(input.value).toBe('A');
+  expect(send.disabled).toBe(false);
+  act(() => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(props.onSend).toHaveBeenCalledExactlyOnceWith('a', 'A');
+  expect(input.value).toBe('');
+  expect(send.disabled).toBe(true);
+  act(() => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(props.onSend).toHaveBeenCalledTimes(1);
 });

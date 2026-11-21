@@ -13,9 +13,11 @@ const firstSelectors = [
 ];
 const secondSelectors = [
   'e2e/learning-learner-submits-project-assignment.spec.ts',
+  'e2e/learning-quiz-course.spec.ts',
   'e2e/learning-surface-convergence.spec.ts',
   'e2e/learning-teacher-assigns-activity.spec.ts',
 ];
+const fileSelectors = ['e2e/learning-file-course.spec.ts'];
 
 // Fixed identities and order; locations must come from this checkout's CLI.
 // Exact title equality here is metadata validation, never a text-grep selector.
@@ -52,6 +54,7 @@ const manifest = {
     'Course Builder persists informational block structural controls into future versions only',
     'private authored course → approved Account → theory and real electronics submission → exact review',
     'private authored course → approved Account → theory and real three-d submission → exact review',
+    'Written Course response: compact author, Seat and Account drafts, immutable rework and exact journal grade',
     'Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes',
     'Course Builder corrects the exact second prepublish block and preserves later edits and published history',
     'Course archive rejects a stale assignment dialog, keeps exact replay and old learning, then restores assignment',
@@ -68,7 +71,11 @@ const manifest = {
     'A0 Blocks keeps anchor and panel topmost over fullscreen Scratch',
     'A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 and 320',
   ],
+  'learning-quiz-course.spec.ts': [
+    'Complete Quiz Course: inline eight-type author, exact versions, Seat and Account saved answers, automatic and manual journal at four widths',
+  ],
   'learning-surface-convergence.spec.ts': [
+    'teacher issues the first assignment from the class on a small screen and finds it in the journal',
     'legacy, revision and selected-result semantics stay equal across learner and teacher surfaces',
   ],
   'learning-teacher-assigns-activity.spec.ts': [
@@ -77,6 +84,9 @@ const manifest = {
     'teacher selects two learners and the third learner cannot see the assignment',
     'learner exact published task image stays pinned across v1 and v2',
     'A6 PDF material stays readable through exact direct assignment versions',
+  ],
+  'learning-file-course.spec.ts': [
+    'File answers: shared authoring, mixed Course, exact Seat uploads and frozen teacher downloads at four widths',
   ],
 };
 const root = process.cwd();
@@ -361,16 +371,17 @@ function execution(report, destination, expected) {
 }
 
 function main() {
-  // CI executes the complete 31 + 15 identity matrix in two isolated jobs.
+  // CI executes the complete 32 + 17 + 1 identity matrix in three isolated jobs.
   // Local invocation without a phase retains the exact original all-cases behavior.
   const phase = process.env.LEARNING_E1_BATCH ?? 'all';
   check(
-    phase === 'all' || phase === 'first' || phase === 'second',
-    'Learning E1 phase must be all, first or second.',
+    phase === 'all' || phase === 'first' || phase === 'second' || phase === 'file',
+    'Learning E1 phase must be all, first, second or file.',
   );
   const expectedScript =
     `playwright test ${firstSelectors.join(' ')} --workers=1 && ` +
-    `playwright test ${secondSelectors.join(' ')} --workers=1`;
+    `playwright test ${secondSelectors.join(' ')} --workers=1 && ` +
+    `playwright test ${fileSelectors.join(' ')} --workers=1`;
   check(
     read('package.json').scripts?.['e2e:learning-e1'] === expectedScript,
     'Learning E1 package script changed: review the complete batch matrix before running.',
@@ -383,9 +394,11 @@ function main() {
   const evidence = fs.mkdtempSync(path.join(parent, 'run-'));
   const first = discover(firstSelectors, path.join(evidence, 'discovery/full-first'));
   const second = discover(secondSelectors, path.join(evidence, 'discovery/full-second'));
+  const file = discover(fileSelectors, path.join(evidence, 'discovery/file-course'));
   const files = Object.keys(manifest);
   approved(first, files.slice(0, 3));
-  approved(second, files.slice(3));
+  approved(second, files.slice(3, -1));
+  approved(file, files.slice(-1));
   const course = first.filter(({ file }) => file === 'learning-course-01.spec.ts');
   const groups = [];
   for (const entry of course) {
@@ -395,11 +408,11 @@ function main() {
   }
   equal(
     groups.map((group) => group.length),
-    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1],
     'Review changed course declarations or either parameterized pair.',
   );
   check(
-    new Set(groups.map(([entry]) => `${entry.line}:${entry.column}`)).size === 16,
+    new Set(groups.map(([entry]) => `${entry.line}:${entry.column}`)).size === 17,
     'A declaration cannot appear in multiple groups.',
   );
   const firstBatches = files.slice(0, 2).map((file, index) => ({
@@ -417,23 +430,24 @@ function main() {
       cases: group,
     }),
   );
-  const secondBatch = { name: '19-second-batch', selectors: secondSelectors, cases: second };
+  const secondBatch = { name: '20-second-batch', selectors: secondSelectors, cases: second };
+  const fileBatch = { name: '21-file-course', selectors: fileSelectors, cases: file };
   const verified = [];
   // Pre-discover every actual invocation before any browser/server starts.
-  for (const batch of [...firstBatches, secondBatch]) {
+  for (const batch of [...firstBatches, secondBatch, fileBatch]) {
     const selected = discover(batch.selectors, path.join(evidence, 'discovery', batch.name));
     equal(
       selected,
       batch.cases,
       `${batch.name}: selector does not select exactly its approved group.`,
     );
-    if (batch !== secondBatch) verified.push(...selected);
+    if (firstBatches.includes(batch)) verified.push(...selected);
   }
-  equal(verified, first, 'Ordered first-batch union must be all 31 cases exactly once.');
+  equal(verified, first, 'Ordered first-batch union must be all 32 cases exactly once.');
   equal(
     firstBatches.slice(2).flatMap((batch) => batch.cases),
     course,
-    'Ordered declaration union must be all 18 course cases exactly once.',
+    'Ordered declaration union must be all 19 course cases exactly once.',
   );
   write(path.join(evidence, 'plan.json'), {
     playwright: '1.55.1',
@@ -444,6 +458,7 @@ function main() {
     },
     first: firstBatches,
     second: secondBatch,
+    file: fileBatch,
   });
 
   const receipts = [];
@@ -529,8 +544,9 @@ function main() {
     // Preserve the process exit even if reporting or copying also failed.
     return receipt.testExitCode || receipt.coverageExitCode || receipt.evidenceExitCode;
   }
-  const runFirst = phase !== 'second';
-  const runSecond = phase !== 'first';
+  const runFirst = phase === 'all' || phase === 'first';
+  const runSecond = phase === 'all' || phase === 'second';
+  const runFile = phase === 'all' || phase === 'file';
   let firstExitCode = null;
   if (runFirst) {
     firstExitCode = 0;
@@ -543,19 +559,30 @@ function main() {
   if (runSecond && (!runFirst || firstExitCode === 0)) secondExitCode = run(secondBatch);
   else if (runSecond)
     console.log('First Learning E1 batch failed; the original second batch is NOT_RUN.');
-  const exitCode = (firstExitCode ?? 0) || (secondExitCode ?? 0);
+  // CI's File partition owns its own API, database and private storage. It must
+  // not add synthetic classroom/project history to either existing partition.
+  let fileExitCode = null;
+  if (runFile && (!runFirst || (firstExitCode === 0 && secondExitCode === 0)))
+    fileExitCode = run(fileBatch);
+  else if (runFile) console.log('An earlier Learning E1 batch failed; File is NOT_RUN.');
+  const exitCode = (firstExitCode ?? 0) || (secondExitCode ?? 0) || (fileExitCode ?? 0);
   try {
     write(path.join(evidence, 'summary.json'), {
       phase,
       first: {
-        cases: 31,
+        cases: 32,
         exitCode: firstExitCode,
         status: firstExitCode === null ? 'NOT_RUN' : firstExitCode ? 'FAIL' : 'PASS',
       },
       second: {
-        cases: 15,
+        cases: second.length,
         exitCode: secondExitCode,
         status: secondExitCode === null ? 'NOT_RUN' : secondExitCode ? 'FAIL' : 'PASS',
+      },
+      file: {
+        cases: 1,
+        exitCode: fileExitCode,
+        status: fileExitCode === null ? 'NOT_RUN' : fileExitCode ? 'FAIL' : 'PASS',
       },
       invocations: receipts,
     });

@@ -1,3 +1,4 @@
+import { SPST_COMPONENT_TYPE } from './component-catalog';
 import type { CatalogEntry } from './component-catalog';
 
 interface Point {
@@ -228,6 +229,8 @@ export function componentAssetVisibleBounds(
   width: number,
   height: number,
 ): ComponentVisibleBounds | null {
+  if (entry.key === SPST_COMPONENT_TYPE)
+    return { minX: 0, minY: 0, maxX: width, maxY: height + width / 28 };
   const state = masks.get(maskKey(entry, width, height));
   return state?.status === 'ready' ? state.visibleBounds : null;
 }

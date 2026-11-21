@@ -1,0 +1,2 @@
+pypdf==6.21.4
+defusedxml==0.7.1

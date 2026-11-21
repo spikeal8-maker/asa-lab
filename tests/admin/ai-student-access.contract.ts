@@ -1,3 +1,4 @@
+import { publishFixtureModels, fixtureGenerationSql } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
@@ -107,6 +108,7 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       },
       randomUUID(),
     );
+    await publishFixtureModels(service, f.teacher.principal_id, ['gpt-5-mini']);
     async function policy(update: Record<string, unknown>) {
       const current = await access.classroom(f.teacher.principal_id, f.classroomId);
       return access.saveClassroom(f.teacher.principal_id, f.classroomId, {
@@ -189,10 +191,24 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       const f = await fixture();
       await f.policy({ kind: 'classroom', mode: 'allow', minimumRating: 50 });
       const chat = await f.service.createThread(f.principalId);
-      await f.admin.query(
-        'INSERT INTO ai_assistant_request_quota(owner_principal_id,request_id) SELECT $1,gen_random_uuid() FROM generate_series(1,30)',
-        [f.principalId],
+      const version = Number(
+        (
+          await f.runtime.query<{ configuration_version: number }>(
+            'SELECT * FROM ai_runtime_config()',
+          )
+        ).rows[0]!.configuration_version,
       );
+      for (let n = 0; n < 30; n++) {
+        const request = randomUUID();
+        await f.runtime.query(fixtureGenerationSql, [
+          f.principalId,
+          chat.id,
+          request,
+          'Лимитный запрос',
+          version,
+        ]);
+        await f.runtime.query('SELECT ai_chat_abort($1,$2,$3)', [f.principalId, chat.id, request]);
+      }
       const account = await aiIdentity(f.admin);
       await f.admin.query('UPDATE classroom_student_seats SET account_id=$2 WHERE id=$1', [
         f.seatId,
@@ -314,8 +330,19 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
 
     it('uses current canonical rating, including null, equality, and changed factors', async () => {
       const f = await fixture();
+      // This test owns a new classroom. Each write returns the next revision,
+      // so there is no need to project all classroom ratings before each write.
+      let revision = 0;
+      async function savePolicy(update: Record<string, unknown>) {
+        const saved = await f.access.saveClassroom(f.teacher.principal_id, f.classroomId, {
+          ...update,
+          expectedRevision: revision,
+          requestId: randomUUID(),
+        });
+        revision = saved.revision;
+      }
       await f.admin.query('SELECT learning_audience_ensure_seat_identity($1)', [f.seatId]);
-      await f.policy({ kind: 'classroom', mode: 'rating', minimumRating: 0 });
+      await savePolicy({ kind: 'classroom', mode: 'rating', minimumRating: 0 });
       const score = (
         await f.admin.query<{ score: string }>(
           "SELECT item->>'score' AS score FROM classroom_participant_metrics($1) WHERE item->>'seatId'=$2",
@@ -326,7 +353,7 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
         canGenerate: true,
         rating: Number(score),
       });
-      await f.policy({ kind: 'classroom', mode: 'rating', minimumRating: 100 });
+      await savePolicy({ kind: 'classroom', mode: 'rating', minimumRating: 100 });
       expect(await f.access.admission(f.principalId)).toMatchObject({
         canGenerate: false,
         reason: 'ai_rating_required',
@@ -335,19 +362,19 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
         `INSERT INTO classroom_participant_settings(classroom_id,factors) VALUES($1,'{"projects":false,"logins":false,"days":false,"time":false,"grades":false}')`,
         [f.classroomId],
       );
-      await f.policy({ kind: 'classroom', mode: 'rating', minimumRating: 0 });
+      await savePolicy({ kind: 'classroom', mode: 'rating', minimumRating: 0 });
       expect(await f.access.admission(f.principalId)).toMatchObject({
         canGenerate: false,
         rating: null,
         reason: 'ai_rating_unavailable',
       });
-      await f.policy({ kind: 'seat', seatId: f.seatId, override: 'allow' });
+      await savePolicy({ kind: 'seat', seatId: f.seatId, override: 'allow' });
       expect(await f.access.admission(f.principalId)).toMatchObject({ canGenerate: true });
       await f.admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
         f.seatId,
       ]);
       await expect(f.access.owner(f.principalId, null)).rejects.toMatchObject({ status: 403 });
-    });
+    }, 20_000); // Real PostgreSQL rating projections can exceed Vitest's 5s default on CI.
 
     it('keeps the same school owner after canonical Account link and rechecks unlink on every request', async () => {
       const f = await fixture();
@@ -419,7 +446,7 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       );
       expect(quota.rows[0]!.n).toBe(1);
       await f.admin.query(
-        'UPDATE ai_assistant_config SET enabled=false,configuration_version=configuration_version+1',
+        "UPDATE ai_provider_settings SET enabled=false WHERE provider='openai';UPDATE ai_assistant_config SET enabled=false,configuration_version=configuration_version+1",
       );
       await expect(
         f.service.send(f.principalId, next.id, 'Провайдер выключен', randomUUID()),

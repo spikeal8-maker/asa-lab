@@ -73,26 +73,7 @@ export function galleryGameCopyContract(
       expect([200, 201], published.body).toContain(published.statusCode);
 
       const copyUrl = `/api/gallery/${projectId}/copy`;
-      // Establish that this exact source is copyable by a standalone Account.
-      const ordinaryCopy = await inject(app, {
-        method: 'POST',
-        url: copyUrl,
-        cookies: { asa_session: accountToken },
-        payload: {},
-      });
-      expect(ordinaryCopy.statusCode, ordinaryCopy.body).toBe(201);
-      const ordinaryProjectId = ordinaryCopy.json<{ projectId: string }>().projectId;
-      expect(
-        (
-          await admin.query('SELECT module_key, owner_principal_id FROM projects WHERE id=$1', [
-            ordinaryProjectId,
-          ])
-        ).rows[0],
-      ).toMatchObject({ module_key: module, owner_principal_id: f.actor });
-
-      expect(
-        await f.write('class', { mode: 'deny', threshold: null, expectedVersion: 0 }),
-      ).toMatchObject({ mode: 'deny', version: 1 });
+      expect(f.actor).not.toBe(publisher.actor);
       const countCopies = async (): Promise<number> =>
         Number(
           (
@@ -103,6 +84,21 @@ export function galleryGameCopyContract(
           ).rows[0].n,
         );
       const before = await countCopies();
+      // Migration 0234 retired raw-draft Gallery copy. An Account must also
+      // fail closed; supported immutable acquisition has its own contract.
+      const ordinaryCopy = await inject(app, {
+        method: 'POST',
+        url: copyUrl,
+        cookies: { asa_session: accountToken },
+        payload: {},
+      });
+      expect(ordinaryCopy.statusCode, ordinaryCopy.body).toBe(400);
+      expect(ordinaryCopy.json()).toMatchObject({ error: { code: 'copy_failed' } });
+      expect(await countCopies()).toBe(before);
+
+      expect(
+        await f.write('class', { mode: 'deny', threshold: null, expectedVersion: 0 }),
+      ).toMatchObject({ mode: 'deny', version: 1 });
       // The canonical onRequest hook rejects every pair of nonempty cookies,
       // before either identity is resolved. This remains a 409, not a new auth flow.
       const conflictingCopy = await inject(app, {

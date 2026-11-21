@@ -411,6 +411,10 @@ Minimal schematic + capabilities. No editor DTO leak.
 
 ## R7-04D — Games
 
+**SUPERSEDED:** DEC-PROJ-117, прямое решение владельца от26.10.2026.
+Игры остаются в разделе «Игры» и не входят в публикатор. Приведённая ниже
+историческая серия не активируется в программе Public Projects.
+
 Не строить один магический universal game runtime.
 
 1. generic public runner contract;

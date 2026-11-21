@@ -27,6 +27,34 @@ async function post(page: Page, path: string, body: unknown) {
     data: body,
   });
 }
+async function signInStudentSeat(
+  page: Page,
+  pupil: { id: string; name: string; studentCode: string },
+  classroom: { id: string; title: string },
+) {
+  await page.getByLabel('Код ученика', { exact: true }).fill(pupil.studentCode);
+  // A completed click does not mean the App has resolved the learner session.
+  // Observe its real identity read before submitting, then wait for the portal.
+  const [sessionResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === '/api/class-join/me',
+    ),
+    page.getByRole('button', { name: 'Войти', exact: true }).click(),
+  ]);
+  expect(sessionResponse.status()).toBe(200);
+  expect(await sessionResponse.json()).toMatchObject({
+    authenticated: true,
+    student: { seatId: pupil.id, displayName: pupil.name },
+    classroom: { id: classroom.id, title: classroom.title },
+  });
+  const navigation = page.getByRole('complementary', { name: 'Основная навигация' });
+  await expect(navigation.getByText(pupil.name, { exact: true })).toBeVisible();
+  await expect(navigation.locator('.portal-sidebar-profile-copy small')).toHaveText(
+    classroom.title,
+  );
+}
 async function setGrade(page: Page, name: string, value: string, reason?: string) {
   await page
     .getByRole('button', { name: new RegExp(`^${name}, 2026-10-09, Работа на уроке:`) })
@@ -256,8 +284,11 @@ test('real manual date journal survives retries, corrections, presets and both l
   const scaleContext = await browser.newContext();
   const scalePage = await scaleContext.newPage();
   await scalePage.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-  await scalePage.getByLabel('Код ученика', { exact: true }).fill(scaleStudentCode);
-  await scalePage.getByRole('button', { name: 'Войти', exact: true }).click();
+  await signInStudentSeat(
+    scalePage,
+    { id: scaleSeat.id, name: 'Ученик шкал', studentCode: scaleStudentCode },
+    { id: classId, title },
+  );
   await scalePage.goto('/#/learning?journalMonth=2026-10');
   const scaleResults = scalePage.getByRole('region', { name: 'Мои оценки по датам' });
   await expect(scaleResults.locator('li')).toHaveCount(5);
@@ -277,8 +308,7 @@ test('real manual date journal survives retries, corrections, presets and both l
     contexts.push(context);
     const learner = await context.newPage();
     await learner.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-    await learner.getByLabel('Код ученика', { exact: true }).fill(pupil.studentCode);
-    await learner.getByRole('button', { name: 'Войти', exact: true }).click();
+    await signInStudentSeat(learner, pupil, { id: classId, title });
     await learner.goto('/#/learning?view=results');
     const grades = learner.getByRole('region', { name: 'Мои оценки по датам' });
     await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
@@ -332,8 +362,7 @@ test('real manual date journal survives retries, corrections, presets and both l
       // session just as a fresh visit would before testing an actual new login.
       await learner.reload();
       await learner.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-      await learner.getByLabel('Код ученика', { exact: true }).fill(pupil.studentCode);
-      await learner.getByRole('button', { name: 'Войти', exact: true }).click();
+      await signInStudentSeat(learner, pupil, { id: classId, title });
       await learner.goto('/#/learning?view=results');
       await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
       await expect(grades.locator('li b')).toHaveText('5');

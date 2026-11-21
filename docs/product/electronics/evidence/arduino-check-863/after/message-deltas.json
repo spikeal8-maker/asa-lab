@@ -1,0 +1,212 @@
+[
+  {
+    "path": "/cases/loops/diagnostics/0/message",
+    "before": "Цикл исполняется по условию в пределах защитного лимита операций.",
+    "after": "Повторяет команды, пока условие истинно."
+  },
+  {
+    "path": "/cases/loops/diagnostics/1/message",
+    "before": "Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.",
+    "after": "++ увеличивает переменную на 1, -- уменьшает; const и bool изменять нельзя."
+  },
+  {
+    "path": "/cases/loops/diagnostics/2/message",
+    "before": "Цикл исполняется по условию в пределах защитного лимита операций.",
+    "after": "Повторяет команды, пока условие истинно."
+  },
+  {
+    "path": "/cases/tonePwm/diagnostics/1/message",
+    "before": "tone/noTone используют canonical timed waveform без AVR timer accuracy.",
+    "after": "tone() задаёт частоту сигнала 0/5 В, noTone() выключает его; такты таймера AVR не воспроизводятся."
+  },
+  {
+    "path": "/cases/tonePwm/diagnostics/2/message",
+    "before": "tone/noTone используют canonical timed waveform без AVR timer accuracy.",
+    "after": "tone() задаёт частоту сигнала 0/5 В, noTone() выключает его; такты таймера AVR не воспроизводятся."
+  },
+  {
+    "path": "/cases/serial/diagnostics/0/message",
+    "before": "Задаёт скорость для виртуального монитора порта.",
+    "after": "Задаёт скорость порта; побитовый сигнал UART не воспроизводится."
+  },
+  {
+    "path": "/cases/timeIncrement/diagnostics/0/message",
+    "before": "millis()/micros() возвращают детерминированное время текущего шага симуляции.",
+    "after": "millis() возвращает миллисекунды, micros() — микросекунды времени симуляции."
+  },
+  {
+    "path": "/cases/timeIncrement/diagnostics/1/message",
+    "before": "millis()/micros() возвращают детерминированное время текущего шага симуляции.",
+    "after": "millis() возвращает миллисекунды, micros() — микросекунды времени симуляции."
+  },
+  {
+    "path": "/cases/timeIncrement/diagnostics/2/message",
+    "before": "Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.",
+    "after": "++ увеличивает переменную на 1, -- уменьшает; const и bool изменять нельзя."
+  },
+  {
+    "path": "/cases/timeIncrement/diagnostics/3/message",
+    "before": "Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.",
+    "after": "++ увеличивает переменную на 1, -- уменьшает; const и bool изменять нельзя."
+  },
+  {
+    "path": "/cases/unsupported/diagnostics/2/message",
+    "before": "mystery() не входит в подтверждённый Arduino-рантайм ASA Lab.",
+    "after": "Симулятор пока не исполняет mystery()."
+  },
+  {
+    "path": "/registries/blocks/asa_setup/summary",
+    "before": "setup() выполняется один раз на Reset в пределах поддерживаемого подмножества.",
+    "after": "setup() выполняется один раз после Reset."
+  },
+  {
+    "path": "/registries/blocks/asa_loop/summary",
+    "before": "loop() моделируется ограниченным циклом, а не полным AVR-рантаймом.",
+    "after": "Повторяет команды loop() после setup()."
+  },
+  {
+    "path": "/registries/blocks/asa_repeat/summary",
+    "before": "Цикл исполняется по условию в пределах лимита операций.",
+    "after": "Повторяет команды заданное число раз."
+  },
+  {
+    "path": "/registries/blocks/asa_forever/summary",
+    "before": "Бесконечный цикл останавливается защитным лимитом операций.",
+    "after": "Повторяет команды; delay() делает паузу перед продолжением."
+  },
+  {
+    "path": "/registries/blocks/asa_if/summary",
+    "before": "Условие вычисляется электрическим рантаймом.",
+    "after": "Выполняет команды, если условие истинно."
+  },
+  {
+    "path": "/registries/blocks/asa_while/summary",
+    "before": "Условие повторяется в пределах защитного лимита операций.",
+    "after": "Повторяет команды, пока условие истинно."
+  },
+  {
+    "path": "/registries/blocks/asa_for/summary",
+    "before": "Заголовок и тело повторяются в пределах защитного лимита операций.",
+    "after": "Повторяет тело цикла с проверкой условия и изменением счётчика."
+  },
+  {
+    "path": "/registries/blocks/asa_servo_write/summary",
+    "before": "Servo.write() управляет canonical 50 Hz waveform на attached GPIO.",
+    "after": "Задаёт угол Servo импульсами 50 Гц на подключённом выводе."
+  },
+  {
+    "path": "/registries/blocks/asa_tone/summary",
+    "before": "Формирует canonical timed 0/5 V waveform без AVR timer accuracy.",
+    "after": "Создаёт сигнал 0/5 В заданной частоты; такты таймера AVR не воспроизводятся."
+  },
+  {
+    "path": "/registries/blocks/asa_play_note/summary",
+    "before": "Формирует canonical timed tone waveform без AVR timer accuracy.",
+    "after": "Создаёт звуковой сигнал выбранной ноты."
+  },
+  {
+    "path": "/registries/blocks/asa_no_tone/summary",
+    "before": "Немедленно останавливает canonical tone waveform.",
+    "after": "Останавливает звуковой сигнал на выводе."
+  },
+  {
+    "path": "/registries/blocks/asa_serial_print/summary",
+    "before": "Передаёт детерминированный Serial TX в bounded runtime history без UI Monitor и UART bit timing.",
+    "after": "Выводит число или текст в монитор порта; побитовый сигнал UART не воспроизводится."
+  },
+  {
+    "path": "/registries/blocks/asa_ultrasonic/summary",
+    "before": "Поддержан exact adapter readUltrasonicCm(triggerPin, echoPin) поверх canonical GPIO/delay/pulseIn.",
+    "after": "Измеряет расстояние через trigger/echo функцией readUltrasonicCm()."
+  },
+  {
+    "path": "/registries/blocks/asa_pulse_in/summary",
+    "before": "Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy.",
+    "after": "Измеряет длительность импульса HIGH/LOW во времени симуляции."
+  },
+  {
+    "path": "/registries/blocks/asa_millis/summary",
+    "before": "Возвращает детерминированное время текущего шага симуляции.",
+    "after": "Возвращает время симуляции в миллисекундах."
+  },
+  {
+    "path": "/registries/blocks/asa_servo_read/summary",
+    "before": "Servo.read() возвращает последний commanded angle Servo object.",
+    "after": "Возвращает последний заданный угол Servo."
+  },
+  {
+    "path": "/registries/blocks/asa_serial_available/summary",
+    "before": "Возвращает число pending Serial RX bytes без UI Monitor.",
+    "after": "Возвращает число входящих байтов в очереди монитора порта."
+  },
+  {
+    "path": "/registries/blocks/asa_serial_read/summary",
+    "before": "Читает один pending Serial RX byte или -1 без UI Monitor.",
+    "after": "Читает входящий байт из монитора порта или −1, если очередь пуста."
+  },
+  {
+    "path": "/registries/commands/setup/summary",
+    "before": "Точка входа поддерживается ограниченным runtime state.",
+    "after": "Выполняет команды один раз после Reset."
+  },
+  {
+    "path": "/registries/commands/loop/summary",
+    "before": "Цикл моделируется в пределах детерминированного шага.",
+    "after": "Повторяет команды после setup()."
+  },
+  {
+    "path": "/registries/commands/tone/summary",
+    "before": "Формирует canonical timed 0/5 V waveform без AVR timer accuracy.",
+    "after": "Создаёт сигнал 0/5 В заданной частоты; такты таймера AVR не воспроизводятся."
+  },
+  {
+    "path": "/registries/commands/noTone/summary",
+    "before": "Немедленно останавливает canonical tone waveform.",
+    "after": "Останавливает звуковой сигнал на выводе."
+  },
+  {
+    "path": "/registries/commands/millis/summary",
+    "before": "Возвращает время текущего шага симуляции.",
+    "after": "Возвращает время симуляции в миллисекундах."
+  },
+  {
+    "path": "/registries/commands/micros/summary",
+    "before": "Возвращает виртуальное время в микросекундах.",
+    "after": "Возвращает время симуляции в микросекундах."
+  },
+  {
+    "path": "/registries/commands/readUltrasonicCm/summary",
+    "before": "Exact built-in adapter для ASA Lab: trigger/echo последовательность поверх pinMode(), digitalWrite(), delayMicroseconds() и pulseIn().",
+    "after": "Измеряет расстояние через trigger/echo; использует pinMode(), digitalWrite(), delayMicroseconds() и pulseIn()."
+  },
+  {
+    "path": "/registries/commands/Serial.begin/summary",
+    "before": "Задаёт скорость для виртуального монитора порта.",
+    "after": "Задаёт скорость порта; побитовый сигнал UART не воспроизводится."
+  },
+  {
+    "path": "/registries/language/type-text/summary",
+    "before": "char, String и строковые операции не исполняются; quoted literal разрешён только как аргумент Serial.print/println.",
+    "after": "char, String и строковые операции не исполняются; текст в кавычках разрешён только в Serial.print/println."
+  },
+  {
+    "path": "/registries/language/assignment/summary",
+    "before": "Типизированные globals и вложенные locals сохраняются через паузы; локальные имена исчезают при выходе из области. Сложные типы пока не поддерживаются.",
+    "after": "Значения переменных сохраняются через паузы; локальные переменные доступны внутри своего блока. Сложные типы не поддерживаются."
+  },
+  {
+    "path": "/registries/language/for/summary",
+    "before": "Заголовок и тело for исполняются по условию в пределах защитного лимита операций.",
+    "after": "Повторяет тело for с проверкой условия и изменением счётчика."
+  },
+  {
+    "path": "/registries/language/while/summary",
+    "before": "Условие while повторяется в пределах защитного лимита операций.",
+    "after": "Повторяет тело while, пока условие истинно."
+  },
+  {
+    "path": "/registries/language/do-while/summary",
+    "before": "Тело выполняется до проверки условия; действует защитный лимит операций.",
+    "after": "Выполняет тело do/while, затем проверяет условие повторения."
+  }
+]

@@ -12,6 +12,151 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected product AFTER — 1 November 2026
+
+This selection supersedes earlier test-only write bounds below. Those sections
+remain historical explanations. This is a necessary dependency of the owner's
+full issue836 browser qualification and earlier mirror-to-main instruction.
+
+Exactb4c723b30abc5fa8e77b162fc27ccca59c2793f8, strict41094573695, independently
+qualifies BEFORE_READY:16 complete journeys,784 readings with588 expected glyph
+axis failures;1536 endpoints and all window/center checks pass.32 PUT200 have
+exact CAS/document/reopen equality;496 trusted deliveries, healthy collectors
+and both closed contexts are proven.32 final/reopened PNGs verified. The overall
+workflow was cancelled and is not full acceptance. Preserve all old failure flags.
+
+Implement only individual-readout counterreflection: ordinary rotation, per-text
+own center, windows, actual signed values/modes, controls, wires, terminals and
+owner SVGs stay intact. Share a per-text style for the existing meter text and
+seven generated PSU/generator/scope texts. No group/screen/trace or always-horizontal
+transform. Mirror flags use canonical strict boolean semantics.
+
+Product paths: ProductionComponentVisual.tsx, production-asset-contracts.ts and
+workbench-presentation.spec.ts. Compose reviewed877D clipping/native-hit support
+with current836 leaves without restoring old whole files. Preserve instruments,
+annotations, sevenseg inspector, immediate burnout and SPST defaults. Prepared836
+source51e4 and901 source2d03 remain separately reviewed dependencies.
+
+Freeze full b4 simulation spec byte-for-byte: blob
+a3d5830c0b637e165cc60c8a43126e8f2ae8718f; SHA256
+09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1.
+Only the canonical generated browser hash may accompany this test dependency.
+
+No owner assets, solver, clock, API, waveform, workflow, dependencies, limits,
+retries or deadlines change. Check fixed caps and hygiene; meaningful per-text,
+strict-boolean/preservation tests, full Web once and fresh independent review
+precede one combined strict run. All16 AFTER journeys must complete with zero
+glyph-axis failures and unchanged native/document/CAS/reopen/geometry/browser
+checks. This waives no E11, timing or other issue836 qualification failure.
+
+## Selected test-only paint-order oracle repair — 30 October 2026
+
+Strict41080294495 exact3a9b3e1d97c370e650d8a895e488897c2a455d07 reached Save and
+server reopen in all16 cases:32 PUT200, CAS+1, full recorded expected/local/saved/
+reopened documents equal, no ledger errors, both contexts closed. Independent
+actual review also reevaluated the three remaining pure native-action checks.
+Nevertheless every case failed the DOM-ID-order assertion at4409 and retains
+journeyComplete:false. Browser collectors and final screenshots were never
+checked/captured on the success path. This is NOT a completed BEFORE; preserve
+the failed flags, cancellation and missing evidence, do not relabel them PASS.
+
+The old oracle incorrectly expects logical document-array order in the DOM.
+The existing presentation contract intentionally paints the regulated supply
+body below wires, ahead of ordinary components, without duplicate bodies. For
+the independently declared fixture the correct exact paint order is:
+bench-supply,source,meter,load,generator,scope. All16 raw DOM captures match it.
+Full logical document ordering remains strictly checked in local/server/request/
+response comparisons. Do not sort observed IDs or derive expected order from
+observed runtime data: retain exact identities, cardinality, duplicates and the
+specified paint ordering by asserting that explicit fixture-derived array.
+
+Authorize ONE new bounded test-only author for that oracle and forensic failure
+counts. Product write paths remain only e2e/electronics-simulation.spec.ts and
+the canonical generated component-coverage.json browserEvidenceSha256. Evidence
+files may be added. Preserve all other matrix checks/actions/order/deadlines,
+full-document/CAS/native/ledger/closure assertions and successful final screenshots.
+No production, fixture geometry, workflow, timeout, cap or unrelated test changes.
+
+Also checkpoint snapshots of BOTH existing browser-failure collectors in the
+existing finally path before/after context cleanup, so a later assertion cannot
+discard their counts. A small read-only holder for the reopened collector is
+allowed; preserve its original lifecycle and assertEmpty calls, with no new
+observer, cleared errors, requests, retries, UI actions or acceptance shortcut.
+Never replace the original success-path browser checks with these diagnostics.
+
+Recompose on independently reviewed877D f2f94ad22728ed744539ec490f53a74e1c8e1f47
+with the pure clipping helper; no source change. Preserve all old freezes and
+record a NEW full-spec freeze for corrected BEFORE/future AFTER. Prove corrected
+paint expectations against all16 raw captures and rejected wrong/missing/duplicate
+identity cases, plus source audit of unchanged success assertions/actions. Run
+canonical metadata, routing, format/lint/discovery checks; self-review/freeze/push
+STOP. NEW independent exact-SHA source/final-composition review precedes ONE new
+existing strict BEFORE run. All16 must complete with actual browser checks,
+screenshots, final healthy ledger and mirror-only expected glyph soft failures
+before separate mirror product AFTER. No closure, release or deployment.
+
+## Selected test-only observer and slider ownership repair — 30 October 2026
+
+Exact8ebe3f2b2 / strict41061516266 completes0/16 journeys. Focused gate and
+benchmark pass. Selected raw16 proof is preserved under
+`../evidence/instrument-525-before-41061516266/`; the1.93GB artifact was read by
+validated HTTP206 ranges, not downloaded wholesale. The accepted873 dependency
+fixes stale initial readings; it does not supply mirror compensation.
+
+Ten journeys reach final270 geometry then checkpoint Save fails. Every case
+records a real HTTP200 PUT revision2→3 with request/response document equality.
+The public dispatch observer was only registered with addInitScript AFTER the
+initial page.goto('/'); the following hash-only navigation does not install it.
+Both public-fetch checkpoints and nativeDelivered are absent. The response
+observer waits for dispatches.has(mutationId), fails its5000ms poll, then records
+the otherwise successful response. This is a demonstrated observer-installation
+defect; no product Save defect is established.
+
+Six remaining journeys (320x/xy,390x/xy,1024xy,1440xy) stop at the bench-supply
+power slider: its center is intercepted by the supply-negative wire hit path.
+The existing waveform helper already uses actual SVG RECT coordinates, CTM and
+elementFromPoint ownership to perform one native click.
+
+Authorize ONE bounded test-only repair author. Product write paths are only
+e2e/electronics-simulation.spec.ts and the canonical generated
+component-coverage.json browserEvidenceSha256. Proof files may be added under
+this task's evidence directory. No production/controller/persistence/solver,
+workflow, dependency, timeout, fixture/wire geometry, cap or unrelated test edit.
+
+Name the existing browser observer installer and make installation idempotent.
+Register it for new documents with addInitScript AND install it once in the
+already-open document with evaluate. Assert/journal readiness before measured
+actions. Preserve the exact transparent Reflect.apply fetch forwarding,
+synchronous storage snapshot, native listeners, bindings, request/response
+bijection, full-document/CAS checks and lifecycle/closure coverage. One actual
+installation per document, no duplicate listeners or fetch wrappers, reloads,
+extra Save/Enter, new waits or relaxed deadlines.
+
+Generalize only the existing owned-RECT helper and use it for both existing
+bench-supply slider clicks and existing waveform calls. Preserve the same nine
+interior candidate points/order, genuine current getScreenCTM mapping and strict
+elementFromPoint ownership. Journal candidate ownership before exactly one
+native mouse click. No force, overlay deletion, fixture/pan change, fallback
+click or retry. If no owned point exists, fail closed with the witness.
+
+Preserve the complete finalization_phase_contract below: all16 isolated
+journeys,64configs perwidth, eight readouts, all rotations/mirrors/native actions,
+CTM/own-center/window/endpoint oracles, full-document ledger/CAS, clean boundary,
+exactly one original final Save and fresh cookies-only reopen through both
+context closures. All unrelated spec bytes and generated fields stay unchanged.
+Preserve original hard failures and the original-before full-spec blob.
+
+Before a new expensive strict run, independently prove the installer in an
+already-loaded document plus hash navigation/new document/repeated install,
+transparent actual fetch delivery with exactly-one native event/dispatch and
+storage checkpoint, and the owned slider helper with genuine SVG/wire hits in
+the failed poses. Freeze/push/self-review STOP; NEW independent exact-SHA source
+and final-composition review precedes ONE justified existing strict run. The new
+full browser blob remains byte-identical for future BEFORE/AFTER. Only all16
+completed journeys with causal mirror-only soft failures and a NEW actual review
+can authorize a separate product AFTER. No technical acceptance/closure/release
+or deployment is granted by this repair selection.
+
 ## Selected TEST-ONLY finalization phase repair — 21 October 2026
 
 NEW independent proposal review selects one test-only repair in simulation spec

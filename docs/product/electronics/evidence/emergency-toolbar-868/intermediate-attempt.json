@@ -1,0 +1,32 @@
+{
+  "kind": "transcription_of_observed_native_receipt",
+  "accepted": false,
+  "reason": "Visual self-review rejected 13.953125px tool strip although the required right actions passed geometry checks.",
+  "width": 320,
+  "running": true,
+  "code": false,
+  "emergency": true,
+  "save": {
+    "x": 276,
+    "width": 42,
+    "height": 44,
+    "unobstructed": true
+  },
+  "tools": {
+    "x": 0,
+    "width": 13.953125,
+    "height": 46
+  },
+  "pace": {
+    "x": 13.953125,
+    "width": 84.046875,
+    "height": 42
+  },
+  "clock": {
+    "x": 16.953125,
+    "width": 50.046875,
+    "height": 42
+  },
+  "artifact_limitation": "Original intermediate geometry.json and PNG were overwritten by the final fixture run before evidence freezing. This transcription retains the exact dimensions observed in the tool output; it is not the original raw artifact.",
+  "repair": "Narrow clock/rate arrangement within44px speed control; new assertion tool strip width>=44 and native left Copy tap."
+}

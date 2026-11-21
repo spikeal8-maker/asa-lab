@@ -1,0 +1,28 @@
+2026-10-30T03:07:31.1170527Z  ✓  parallel  tests/capacity/prepared-draft-save.pg.spec.ts (5 tests) 1164ms
+2026-10-30T03:07:31.1179881Z      ✓ keeps annotation data through downgrade, replay and upgrade races (prepared=false)  501ms
+2026-10-30T03:07:31.1181531Z      ✓ keeps annotation data through downgrade, replay and upgrade races (prepared=true)  341ms
+2026-10-30T03:07:31.3534321Z  ✓  parallel  apps/web/src/auth-request.spec.ts (13 tests) 55ms
+2026-10-30T03:08:19.1665492Z  ❯  parallel  apps/api/src/electronics-save-validation.spec.ts (8 tests | 1 failed) 23ms
+2026-10-30T03:08:19.1667550Z      × API exposure policy admits every canonical Electronics reason 6ms
+2026-10-30T03:08:19.1669928Z      ✓ rejects malformed document with reason { schemaVersion: 99, components: [], connections: [], viewport: { x: +0, y: +0, zoom: 1 }, simulation: { running: false, maxIterations: 24 } } and leaves the existing draft intact 9ms
+2026-10-30T03:08:19.1673519Z      ✓ rejects malformed document with reason { schemaVersion: 4, components: [ { id: 'resistor', kind: 'resistor', position: { x: +0, y: +0 }, value: 1000, holeBindings: { a: { breadboardComponentId: 'deleted-board', holeId: 'H1' } } } ], connections: [], viewport: { x: +0, y: +0, zoom: 1 }, simulation: { running: false, maxIterations: 24 } } and leaves the existing draft intact 1ms
+2026-10-30T03:10:40.7734540Z  FAIL   parallel  apps/api/src/electronics-save-validation.spec.ts > Electronics parser, provider, Project Core and API validation reasons > API exposure policy admits every canonical Electronics reason
+2026-10-30T03:10:40.7736396Z AssertionError: expected undefined to be 'electronics_annotations' // Object.is equality
+2026-10-30T03:10:40.7736932Z
+2026-10-30T03:10:40.7737109Z - Expected:
+2026-10-30T03:10:40.7736396Z AssertionError: expected undefined to be 'electronics_annotations' // Object.is equality
+2026-10-30T03:10:40.7736932Z
+2026-10-30T03:10:40.7737109Z - Expected:
+2026-10-30T03:10:40.7737454Z "electronics_annotations"
+2026-10-30T03:10:40.7738965Z  ❯ apps/api/src/electronics-save-validation.spec.ts:23:44
+2026-10-30T03:10:40.7762514Z      21|   it('API exposure policy admits every canonical Electronics reason', …
+2026-10-30T03:10:40.7763784Z      22|     for (const reason of ELECTRONICS_DOCUMENT_VALIDATION_REASONS)
+2026-10-30T03:10:40.7765415Z      23|       expect(safeValidationReason(reason)).toBe(reason);
+2026-10-30T03:10:40.7787123Z  Test Files  1 failed | 672 passed | 2 skipped (675)
+2026-10-30T03:10:40.7832044Z       Tests  1 failed | 8697 passed | 11 skipped (8709)
+2026-10-30T03:10:40.7833172Z    Start at  03:03:50
+2026-10-30T03:10:40.7838421Z    Duration  410.68s (transform 26.64s, setup 0ms, import 141.29s, tests 783.67s, environment 49.45s)
+2026-10-30T03:10:40.7832044Z       Tests  1 failed | 8697 passed | 11 skipped (8709)
+2026-10-30T03:10:40.7833172Z    Start at  03:03:50
+2026-10-30T03:10:40.7838421Z    Duration  410.68s (transform 26.64s, setup 0ms, import 141.29s, tests 783.67s, environment 49.45s)
+2026-10-30T03:10:40.7840218Z

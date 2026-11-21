@@ -9,12 +9,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
+import { SystemTabs } from '../components/SystemTabs';
 import { ageBandLabel } from '../components/ClassroomFields';
+import { useClassroomFeedback } from '../components/useClassroomFeedback';
+import { SystemToastViewport } from '../components/SystemToastViewport';
 import { Dropdown } from '../components/Dropdown';
 import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
 import { classroomAverageRatingPresentation } from '../components/classroom-average-rating';
+import {
+  classroomRatingLeaders,
+  classroomRatingLeaderLabel,
+} from '../components/classroom-rating-leaders';
 
 type ListState =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
@@ -124,7 +131,8 @@ export function DashboardPage({
 }): JSX.Element {
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const feedback = useClassroomFeedback('dashboard');
+  const setNotice = feedback.success;
   const [roleView, setRoleView] = useState<ClassroomRoleView>('teaching');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [selectionMode, setSelectionMode] = useState(false);
@@ -207,6 +215,10 @@ export function DashboardPage({
     () => new Map(summary.data?.items.map((item) => [item.classroomId, item])),
     [summary.data],
   );
+  const ratingLeaders = useMemo(
+    () => classroomRatingLeaders(roleItems, rowMetrics),
+    [roleItems, rowMetrics],
+  );
   const visibleItems = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('ru-RU');
     return sortClassrooms(
@@ -256,7 +268,8 @@ export function DashboardPage({
     const failed = targets.length - changed;
     const verb =
       status === 'archived' ? 'В архиве' : status === 'active' ? 'Возвращено из архива' : 'Удалено';
-    setNotice(
+    const notify = changed === 0 ? feedback.info : failed > 0 ? feedback.warning : feedback.success;
+    notify(
       changed === 0
         ? 'Ничего не изменилось.'
         : `${verb}: ${changed}${failed > 0 ? `. Не удалось: ${failed}.` : '.'}`,
@@ -284,6 +297,7 @@ export function DashboardPage({
       tabIndex={-1}
       aria-busy={list.kind === 'loading'}
     >
+      <SystemToastViewport scopeKey={feedback.scopeKey} />
       <section className="classroom-hub-heading" aria-labelledby="classroom-hub-title">
         <div className="classroom-title-row">
           <div className="classroom-title-and-link">
@@ -309,29 +323,19 @@ export function DashboardPage({
           </p>
         ) : null}
         <div className="classroom-hub-control-row">
-          <nav className="classroom-role-tabs" aria-label="Роли в классах">
-            {CLASSROOM_ROLE_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={roleView === tab.id ? 'active' : undefined}
-                aria-label={tab.label}
-                aria-current={roleView === tab.id ? 'page' : undefined}
-                onClick={() => {
-                  setRoleView(tab.id);
-                  setSelected(new Set());
-                  setSelectionMode(false);
-                }}
-              >
-                <span className="classroom-role-label-full" aria-hidden="true">
-                  {tab.label}
-                </span>
-                <span className="classroom-role-label-compact" aria-hidden="true">
-                  {tab.compactLabel}
-                </span>
-              </button>
-            ))}
-          </nav>
+          <SystemTabs
+            items={CLASSROOM_ROLE_TABS}
+            active={roleView}
+            onChange={(next) => {
+              setRoleView(next);
+              setSelected(new Set());
+              setSelectionMode(false);
+            }}
+            label="Роли в классах"
+            className="classroom-role-tabs"
+            fullLabelClassName="classroom-role-label-full"
+            compactLabelClassName="classroom-role-label-compact"
+          />
           <section className="classroom-hub-toolbar" aria-label="Действия с классами">
             <label className="classroom-select-all">
               <input
@@ -502,12 +506,6 @@ export function DashboardPage({
         </div>
       </section>
 
-      {notice ? (
-        <p className="notice-success" role="status" aria-live="polite">
-          {notice}
-        </p>
-      ) : null}
-
       {list.kind === 'ready' &&
       search.trim() &&
       roleItems.length > 0 &&
@@ -588,6 +586,9 @@ export function DashboardPage({
           </li>
           {visibleItems.map((classroom, index) => {
             const metric = rowMetrics.get(classroom.id);
+            const leader = ratingLeaders.get(classroom.id);
+            const leaderLabel = leader ? classroomRatingLeaderLabel(leader) : undefined;
+            const leaderDescriptionId = `classroom-rating-leader-${classroom.id}`;
             const rating = classroomAverageRatingPresentation(
               metric?.averageRating,
               metric?.ratingParticipants,
@@ -606,12 +607,30 @@ export function DashboardPage({
                 <button
                   type="button"
                   className="classroom-row-title"
+                  aria-label={classroom.title}
+                  aria-describedby={leader ? leaderDescriptionId : undefined}
                   title={classroom.title}
                   onClick={() => onOpenProjects(classroom.id, classroom.title)}
                 >
-                  <span className="classroom-row-index" aria-hidden="true">
-                    {index + 1}.
+                  <span
+                    className={`classroom-row-index${leader ? ` classroom-row-medal classroom-row-medal-${leader.rank}` : ''}`}
+                    aria-hidden="true"
+                    title={leaderLabel}
+                  >
+                    {leader ? (
+                      <>
+                        <span className="classroom-medal-mark">◆</span>
+                        {leader.rank}
+                      </>
+                    ) : (
+                      `${index + 1}.`
+                    )}
                   </span>
+                  {leader ? (
+                    <span id={leaderDescriptionId} className="sr-only" aria-hidden="true">
+                      {leaderLabel}
+                    </span>
+                  ) : null}
                   <span className="classroom-row-title-text">{classroom.title}</span>
                   {classroom.status === 'archived' ? (
                     <em className="classroom-row-archived">в архиве</em>

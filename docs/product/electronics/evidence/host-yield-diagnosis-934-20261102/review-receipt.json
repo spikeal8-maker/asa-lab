@@ -1,0 +1,22 @@
+{
+  "task": "TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001",
+  "canonicalSourceSha": "3172d903073c927b6d9c037f4b4be2530fe068ba",
+  "review": "DIAGNOSTIC_PASS_WITH_LIMITS",
+  "reviewer": "/root/vite_yield_actual_review",
+  "rawEvidenceDirectory": "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-vite-yield-faed58ec",
+  "rawManifestSha256": "dfd0d1f8f2e480e20f8763ca38a6cd755482e71ecd3bc391b48f7fa320174c89",
+  "baselineWorkerBytes": 354015,
+  "baselineWorkerSha256": "689ed0889baf00d464aa5442a07a4896cf877e2fc18e7a9328c95aff2a3a0127",
+  "completeResponsesEqual": 48,
+  "savedStateHashesEqual": 48,
+  "loadedCanonicalModules": 54,
+  "verifiedEmittedArtifacts": 18,
+  "runtimeChanges": false,
+  "remainingTimingFailuresClosed": 0,
+  "limits": [
+    "Two samples per cell; cold JIT and order effects; possible concurrent lint/discovery",
+    "Reconstructed session identity; shared artificial preflight; TEMP transport instead of actual application journey",
+    "Compute intervals are elapsed work, not exclusive CPU time",
+    "Cancellation observation applies only to experimental MessageChannel run; page-observed notification gap is not isolated worker latency"
+  ]
+}

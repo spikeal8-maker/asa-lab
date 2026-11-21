@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it } from 'vitest';
+import { fixtureGenerationSql } from '../admin/ai-model-policy.fixture';
+import { AiAttachmentError } from '../../apps/api/src/ai-attachments/contracts';
 import { AiAccessService } from '../../apps/api/src/ai-access.service';
 import { PgAiAttachmentStore } from '../../apps/api/src/ai-attachments/store';
 import {
@@ -53,12 +55,39 @@ export async function aiAttachmentsFixture(admin: pg.Pool, runtime: pg.Pool) {
     const receipt = await store.finish(principal, file.receipt.uploadId, attempt, 'persisted');
     return { ...file, receipt, attempt };
   }
+  async function beginMessage(
+    principal: string,
+    thread: string,
+    request: string,
+    prompt: string,
+    version: number,
+    uploads: string[],
+  ) {
+    try {
+      const result = await runtime.query<{ admitted: boolean }>(
+        "SELECT ai_generation_begin($1,$2,$3,jsonb_build_object('text',$4::text,'model',NULL,'source',NULL,'uploads',to_jsonb($6::uuid[]),'webSearchMode',NULL,'weatherCity',NULL),(ai_generation_policy_runtime()->>'defaultModel')::varchar,(ai_generation_policy_runtime()->>'revision')::bigint,$5::bigint) AS admitted",
+        [principal, thread, request, prompt, version, uploads],
+      );
+      return result.rows[0]!.admitted;
+    } catch (error) {
+      const marker = (error instanceof Error ? error.message : '').match(
+        /AI_(?:ATTACHMENT_[A-Z_]+|REQUEST_ID_REUSED|STUDENT_DENIED|SCOPE_DENIED)/,
+      )?.[0];
+      if (marker)
+        throw new AiAttachmentError(
+          marker.toLowerCase(),
+          marker === 'AI_STUDENT_DENIED' || marker === 'AI_SCOPE_DENIED' ? 403 : 409,
+          'Fixture admission denied',
+        );
+      throw error;
+    }
+  }
   async function bind(
     files: Array<{ receipt: AiAttachmentRecord }>,
     prompt = 'Вопрос с файлами',
     request = randomUUID(),
   ) {
-    const admitted = await store.beginMessage(
+    const admitted = await beginMessage(
       owner,
       text.thread.id,
       request,
@@ -79,7 +108,7 @@ export async function aiAttachmentsFixture(admin: pg.Pool, runtime: pg.Pool) {
       text.thread.id,
       request,
     ]);
-  return { ...text, store, ownerId: owner, reserve, ready, bind, finish };
+  return { ...text, store, ownerId: owner, reserve, ready, bind, beginMessage, finish };
 }
 
 /** Seed a historical immutable row, rather than weakening the expiry trigger
@@ -110,6 +139,24 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
     return aiAttachmentsFixture(db.admin, db.runtime);
   };
   describe('0229 private attachment receipts and immutable message binding', () => {
+    it('B rejects obsolete attachment-worker admission without a policy receipt or paid spend', async () => {
+      const f = await fixture(),
+        file = await f.ready(),
+        before = await f.ledgers();
+      await expect(
+        f.runtime.query('SELECT ai_attachment_begin_message($1,$2,$3,$4,$5,$6::uuid[])', [
+          f.ownerId,
+          f.thread.id,
+          randomUUID(),
+          'Старый работник',
+          await f.version(),
+          [file.receipt.uploadId],
+        ]),
+      ).rejects.toThrow('AI_POLICY_WORKER_REQUIRED');
+      expect(await f.ledgers()).toEqual(before);
+      expect((await f.store.get(f.ownerId, file.receipt.uploadId)).state).toBe('ready');
+    });
+
     it('uses FORCE RLS and definer-only runtime ACL; private helper functions have no runtime or PUBLIC grant', async () => {
       const { admin, runtime } = database();
       const tables = [
@@ -447,14 +494,10 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
         '# Личный текст',
       ]);
       expect(
-        await f.store.beginMessage(
-          f.ownerId,
-          f.thread.id,
-          bound.request.toUpperCase(),
-          bound.prompt,
-          0,
-          [second.receipt.uploadId.toUpperCase(), first.receipt.uploadId],
-        ),
+        await f.beginMessage(f.ownerId, f.thread.id, bound.request.toUpperCase(), bound.prompt, 0, [
+          second.receipt.uploadId.toUpperCase(),
+          first.receipt.uploadId,
+        ]),
       ).toBe(false);
       expect(await f.ledgers()).toEqual({ global: before.global + 1, owner: before.owner + 1 });
       expect(await f.service.requestMessages(f.ownerId, f.thread.id, bound.request)).toHaveLength(
@@ -499,20 +542,21 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
         ['Другой вопрос', [a.receipt.uploadId, b.receipt.uploadId]],
       ] as const)
         await expect(
-          f.store.beginMessage(f.ownerId, f.thread.id, bound.request, prompt, await f.version(), [
+          f.beginMessage(f.ownerId, f.thread.id, bound.request, prompt, await f.version(), [
             ...ids,
           ]),
         ).rejects.toMatchObject({ code: 'ai_request_id_reused' });
       await f.finish(bound.request);
       const plain = randomUUID();
-      await f.runtime.query("SELECT ai_text_begin_paid($1,$2,$3,'Только текст',$4)", [
+      await f.runtime.query(fixtureGenerationSql, [
         f.ownerId,
         f.thread.id,
         plain,
+        'Только текст',
         await f.version(),
       ]);
       await expect(
-        f.store.beginMessage(f.ownerId, f.thread.id, plain, 'Только текст', await f.version(), [
+        f.beginMessage(f.ownerId, f.thread.id, plain, 'Только текст', await f.version(), [
           c.receipt.uploadId,
         ]),
       ).rejects.toMatchObject({ code: 'ai_request_id_reused' });
@@ -534,14 +578,7 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
       ]) {
         const request = randomUUID();
         await expect(
-          f.store.beginMessage(
-            f.ownerId,
-            f.thread.id,
-            request,
-            'Откат целиком',
-            await f.version(),
-            ids,
-          ),
+          f.beginMessage(f.ownerId, f.thread.id, request, 'Откат целиком', await f.version(), ids),
         ).rejects.toBeDefined();
         expect(
           (
@@ -579,7 +616,7 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
         large.push(id);
       }
       await expect(
-        f.store.beginMessage(
+        f.beginMessage(
           f.ownerId,
           f.thread.id,
           randomUUID(),
@@ -592,7 +629,7 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
       const bound = await f.bind([own]);
       await f.finish(bound.request);
       await expect(
-        f.store.beginMessage(
+        f.beginMessage(
           f.ownerId,
           f.thread.id,
           randomUUID(),
@@ -613,13 +650,10 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
       const future = await f.bind([later], 'Будущий вопрос');
       await f.finish(future.request);
       const regeneration = randomUUID();
-      await f.runtime.query('SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5)', [
-        f.ownerId,
-        f.thread.id,
-        regeneration,
-        first.source.sourceUserMessageId,
-        await f.version(),
-      ]);
+      await f.runtime.query(
+        "SELECT ai_generation_begin($1,$2,$3,jsonb_build_object('text','','model','gpt-5-mini','source',$4::text,'uploads','[]'::jsonb,'webSearchMode',NULL,'weatherCity',NULL),'gpt-5-mini',(ai_generation_policy_runtime()->>'revision')::bigint,$5)",
+        [f.ownerId, f.thread.id, regeneration, first.source.sourceUserMessageId, await f.version()],
+      );
       const selected = await f.store.requestSource(
         f.ownerId,
         f.thread.id,
@@ -668,7 +702,7 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
         held: true,
       });
       expect(
-        await f.store.beginMessage(f.ownerId, f.thread.id, bound.request, bound.prompt, 0, [
+        await f.beginMessage(f.ownerId, f.thread.id, bound.request, bound.prompt, 0, [
           file.receipt.uploadId,
         ]),
       ).toBe(false);
@@ -701,10 +735,10 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
         ).rows,
       ).toEqual([{ request_id: bound.request }]);
       await expect(
-        f.store.beginMessage(f.ownerId, f.thread.id, bound.request, bound.prompt, 0, [
+        f.beginMessage(f.ownerId, f.thread.id, bound.request, bound.prompt, 0, [
           file.receipt.uploadId,
         ]),
-      ).rejects.toMatchObject({ code: 'ai_request_id_reused' });
+      ).resolves.toBe(false);
       const claim = await f.store.claim(f.ownerId, file.receipt.uploadId);
       expect(
         await f.store.finishClaim(f.ownerId, file.receipt.uploadId, claim!.leaseId!, 'deleted'),
@@ -743,7 +777,7 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
       const thread = await f.service.createThread(school.principalId),
         request = randomUUID();
       expect(
-        await f.store.beginMessage(
+        await f.beginMessage(
           school.principalId,
           thread.id,
           request,
@@ -758,7 +792,7 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
         ownerId: school.principalId,
       });
       expect(
-        await f.store.beginMessage(school.principalId, thread.id, request, 'Школьный вопрос', 0, [
+        await f.beginMessage(school.principalId, thread.id, request, 'Школьный вопрос', 0, [
           ready.receipt.uploadId,
         ]),
       ).toBe(false);

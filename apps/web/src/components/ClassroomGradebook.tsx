@@ -1,12 +1,20 @@
+import { onSessionLoggedOut } from '../session-fetch';
+import { ClassroomAssignmentIssuer } from './ClassroomAssignmentIssuer';
+import { QuizQuestionFields } from './QuizQuestionFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, type GradebookEntry, type LearningReviewContext } from '../api';
+import {
+  api,
+  type ExactLearningSubmission,
+  type GradebookEntry,
+  type LearningReviewContext,
+} from '../api';
 import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
 import { LearningConditions } from './LearningConditions';
 import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
-import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import './classroom-gradebook.css';
 import { ManualClassroomJournal } from './ManualClassroomJournal';
+import './classroom-assignments.css';
 
 const LABELS: Record<string, string> = {
   not_applicable: 'Не назначено',
@@ -38,15 +46,7 @@ function score(item: GradebookEntry) {
   if (item.canonicalState?.selectedResult?.completionValue === true) return 'Выполнено';
   return null;
 }
-type Frozen = {
-  submissionId: string;
-  projectVersionId: string;
-  sourceRevision: number | null;
-  digest: string;
-  moduleKey: string;
-  document: unknown;
-  preview: ModulePreviewDescriptor | null;
-};
+type Frozen = ExactLearningSubmission;
 
 function ReviewDetail({
   classroomId,
@@ -66,7 +66,7 @@ function ReviewDetail({
       ? destination.attempt
       : null,
   );
-  const [frozen, setFrozen] = useState<Frozen | null>(null);
+  const [loadedSubmission, setFrozen] = useState<Frozen | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [points, setPoints] = useState('');
@@ -87,6 +87,7 @@ function ReviewDetail({
   }, [load]);
   const attempt = context?.attempts.find((entry) => entry.id === attemptId);
   const latest = attempt?.results[0] ?? null;
+  const frozen = loadedSubmission?.submissionId === attempt?.submissionId ? loadedSubmission : null;
   useEffect(() => {
     setFrozen(null);
     setError(null);
@@ -141,7 +142,7 @@ function ReviewDetail({
           <h3>
             {item.displayLabel} · {item.assignmentTitle}
           </h3>
-          <p>Официальная проверка точной сдачи. Значки проекта не являются оценками.</p>
+          <p>Проверяется зафиксированная сдача.</p>
         </div>
         <button className="btn-secondary" onClick={onClose}>
           Закрыть проверку
@@ -180,7 +181,11 @@ function ReviewDetail({
           ) : null}
           <label>
             Попытка{' '}
-            <select value={attemptId ?? ''} onChange={(event) => setAttemptId(event.target.value)}>
+            <select
+              aria-label="Попытка"
+              value={attemptId ?? ''}
+              onChange={(event) => setAttemptId(event.target.value)}
+            >
               {context.attempts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.number} · {LABELS[a.state] ?? a.state}
@@ -193,25 +198,72 @@ function ReviewDetail({
           {attempt && !attempt.submissionId ? (
             <p>Попытка в работе. Оценивать несданный черновик нельзя.</p>
           ) : null}
-          {frozen ? (
+          {frozen && attempt ? (
             <div className="gradebook-exact">
               <p>
                 <strong>Сданная версия</strong> · ревизия сохранения{' '}
                 {frozen.sourceRevision ?? 'не записана в legacy'} · попытка {attempt?.number}
               </p>
-              <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
-              {frozen.preview?.figure ? (
-                <ProjectPreviewFigure
-                  figure={frozen.preview.figure}
-                  label="Точный снимок сданной работы"
-                />
+              {frozen.kind === 'quiz' ? (
+                <div className="quiz-player" data-testid="submission-quiz-answers">
+                  <p>
+                    Автоматические баллы: {frozen.autoPoints}
+                    {frozen.manualPending
+                      ? ' · требуется проверка развёрнутых ответов; итог ещё не выставлен'
+                      : ''}
+                  </p>
+                  {frozen.questions.map((question, index) => (
+                    <fieldset key={question.id} disabled>
+                      <legend>
+                        {index + 1}.{' '}
+                        {question.promptBlocks.map((block) => block.text ?? '').join('\n')}
+                      </legend>
+                      <QuizQuestionFields
+                        question={question}
+                        answer={frozen.answers[question.id]}
+                        disabled
+                        onChange={() => undefined}
+                      />
+                    </fieldset>
+                  ))}
+                </div>
+              ) : frozen.kind === 'file' ? (
+                <p data-testid="submission-file">
+                  <a
+                    download
+                    href={`/api/learning/file/classes/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attempt.id)}/files/${encodeURIComponent(frozen.file.id)}`}
+                    style={{ overflowWrap: 'anywhere' }}
+                  >
+                    Скачать {frozen.file.name}
+                  </a>{' '}
+                  · {frozen.file.sizeBytes.toLocaleString('ru-RU')} Б
+                </p>
+              ) : frozen.kind === 'essay' ? (
+                <p
+                  data-testid="submission-essay-text"
+                  style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                >
+                  {frozen.text}
+                </p>
               ) : (
-                <p>Визуальный предпросмотр для этого снимка недоступен.</p>
+                <>
+                  <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
+                  {frozen.preview?.figure ? (
+                    <ProjectPreviewFigure
+                      figure={frozen.preview.figure}
+                      label="Точный снимок сданной работы"
+                    />
+                  ) : (
+                    <p>Визуальный предпросмотр для этого снимка недоступен.</p>
+                  )}
+                </>
               )}
               <details>
                 <summary>Содержимое и контрольная сумма сдачи</summary>
                 <p>{frozen.digest}</p>
-                <pre>{JSON.stringify(frozen.document, null, 2)}</pre>
+                {frozen.kind !== 'essay' && frozen.kind !== 'quiz' && frozen.kind !== 'file' ? (
+                  <pre>{JSON.stringify(frozen.document, null, 2)}</pre>
+                ) : null}
               </details>
             </div>
           ) : null}
@@ -394,16 +446,64 @@ function JournalModes({ classroomId, onOpenStudent }: GradebookStudentNavigation
   );
 }
 
+function readHiddenColumns(key: string): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
+    return Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function AssignedClassroomGradebook({
   classroomId,
   onOpenStudent,
 }: GradebookStudentNavigation): JSX.Element {
+  const [canAssign, setCanAssign] = useState(false);
   const [items, setItems] = useState<GradebookEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<GradebookEntry | null>(null);
   const [detailEpoch, setDetailEpoch] = useState(0);
   const [search, setSearch] = useState('');
   const [course, setCourse] = useState('');
+  const [showQueue, setShowQueue] = useState(false);
+  const [columnsPreference, setColumnsPreference] = useState<{
+    key: string | null;
+    hidden: string[];
+  } | null>(null);
+  const hiddenColumns = columnsPreference?.hidden ?? [];
+  const openedFrom = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    const unsubscribe = onSessionLoggedOut(() => {
+      controller.abort();
+      setColumnsPreference(null);
+    });
+    void api.me(controller.signal).then((result) => {
+      if (controller.signal.aborted) return;
+      const accountId = result.ok && result.data.authenticated ? result.data.account.id : null;
+      const key = accountId ? `asa-journal-columns:v1:${accountId}:${classroomId}` : null;
+      setColumnsPreference({ key, hidden: key ? readHiddenColumns(key) : [] });
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [classroomId]);
+
+  function updateHiddenColumns(hidden: string[]) {
+    if (!columnsPreference) return;
+    const { key } = columnsPreference;
+    setColumnsPreference({ key, hidden });
+    if (!key) return;
+    try {
+      if (hidden.length) localStorage.setItem(key, JSON.stringify(hidden));
+      else localStorage.removeItem(key);
+    } catch {
+      // The current view still works if the browser blocks persistence.
+    }
+  }
+
   const destination = useLearningDestination();
   const openedDestination = useRef('');
   useEffect(() => {
@@ -424,6 +524,15 @@ function AssignedClassroomGradebook({
       setItems(result.data.items);
       setError(null);
     } else setError(result.error.message);
+  }, [classroomId]);
+  useEffect(() => {
+    let mounted = true;
+    void api.getClassroom(classroomId).then((result) => {
+      if (mounted && result.ok) setCanAssign(result.data.classroom.status === 'active');
+    });
+    return () => {
+      mounted = false;
+    };
   }, [classroomId]);
   useEffect(() => {
     void reload();
@@ -465,6 +574,7 @@ function AssignedClassroomGradebook({
       ),
     [items, search],
   );
+  const visibleColumns = columns.filter(([id]) => !hiddenColumns.includes(id));
   const cells = useMemo(
     () => new Map((items ?? []).map((item) => [`${item.seatId}:${item.assignmentId}`, item])),
     [items],
@@ -473,16 +583,64 @@ function AssignedClassroomGradebook({
     (item) =>
       !item.canonicalState?.flags.includes('legacy_unresolved') &&
       ['submitted', 'waiting_review', 'evaluating'].includes(item.state),
-  ).length;
+  );
+  const queue = awaiting
+    .filter(
+      (item) =>
+        item.displayLabel.toLowerCase().includes(search.toLowerCase()) &&
+        (!course || (course === 'direct' ? !item.courseRunId : item.courseRunId === course)),
+    )
+    .sort((left, right) => {
+      if (!left.submittedAt) return right.submittedAt ? 1 : 0;
+      if (!right.submittedAt) return -1;
+      return left.submittedAt.localeCompare(right.submittedAt);
+    });
+
+  function openWork(item: GradebookEntry, trigger: HTMLButtonElement) {
+    openedFrom.current = trigger;
+    setOpened(item);
+    setDetailEpoch((value) => value + 1);
+    void reload();
+  }
+
+  function closeWork() {
+    setOpened(null);
+    if (openedFrom.current?.isConnected) openedFrom.current.focus();
+    openedFrom.current = null;
+  }
   return (
     <section className="classroom-tab-panel gradebook-panel">
       <header className="gradebook-heading">
         <div>
           <h2>Журнал</h2>
-          <p>Строки — ученики, столбцы — назначенные работы.</p>
+          <p>
+            {showQueue
+              ? 'Сданные работы, ожидающие проверки.'
+              : 'Строки — ученики, столбцы — назначенные работы.'}
+          </p>
         </div>
-        <span>Ждут проверки: {awaiting}</span>
+        <button
+          type="button"
+          className="btn-secondary"
+          aria-pressed={showQueue}
+          disabled={items === null}
+          onClick={() => setShowQueue((value) => !value)}
+        >
+          {showQueue ? 'К таблице оценок' : `Ждут проверки: ${awaiting.length}`}
+        </button>
       </header>
+      {canAssign ? (
+        <ClassroomAssignmentIssuer
+          classroomId={classroomId}
+          archived={false}
+          onAssigned={() => {
+            setShowQueue(false);
+            setCourse('');
+            setSearch('');
+            void reload();
+          }}
+        />
+      ) : null}
       {error ? (
         <p role="alert">
           {error}
@@ -505,10 +663,71 @@ function AssignedClassroomGradebook({
           ))}
         </select>
       </label>
+      {!showQueue && columnsPreference && columns.length ? (
+        <details className="gradebook-column-picker">
+          <summary>
+            Столбцы журнала{hiddenColumns.length > 0 ? ` · скрыто: ${hiddenColumns.length}` : ''}
+          </summary>
+          <fieldset className="learning-learner-picker">
+            <legend>Видны в моей таблице</legend>
+            {columns.map(([id, title]) => (
+              <label key={id}>
+                <input
+                  type="checkbox"
+                  aria-label={`Показывать столбец: ${title}`}
+                  checked={!hiddenColumns.includes(id)}
+                  onChange={(event) => {
+                    const visible = event.currentTarget.checked;
+                    updateHiddenColumns(
+                      visible
+                        ? hiddenColumns.filter((value) => value !== id)
+                        : [...hiddenColumns, id],
+                    );
+                  }}
+                />
+                {title}
+              </label>
+            ))}
+          </fieldset>
+          {hiddenColumns.length > 0 ? (
+            <button type="button" className="btn-secondary" onClick={() => updateHiddenColumns([])}>
+              Показать все столбцы
+            </button>
+          ) : null}
+        </details>
+      ) : null}
       {!items ? (
         <p>Загружаем журнал…</p>
+      ) : showQueue ? (
+        <section aria-label="Работы на проверку">
+          {queue.length ? (
+            <ul className="gradebook-review-queue">
+              {queue.map((item) => (
+                <li key={`${item.seatId}:${item.assignmentId}`}>
+                  <div>
+                    <strong>{item.assignmentTitle}</strong>
+                    <span>
+                      {item.displayLabel}
+                      {item.courseTitle ? ` · ${item.courseTitle}` : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    aria-label={`Проверить: ${item.assignmentTitle} · ${item.displayLabel}`}
+                    onClick={(event) => openWork(item, event.currentTarget)}
+                  >
+                    Проверить
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>{awaiting.length ? 'По выбранным фильтрам работ нет.' : 'Работ на проверку нет.'}</p>
+          )}
+        </section>
       ) : !items.length ? (
-        <p>Добавьте учеников и назначьте работу.</p>
+        <p>Здесь появятся работы и оценки.</p>
       ) : (
         <div
           className="gradebook-matrix-scroll"
@@ -521,7 +740,7 @@ function AssignedClassroomGradebook({
             <thead>
               <tr>
                 <th scope="col">Ученик</th>
-                {columns.map(([id, title]) => (
+                {visibleColumns.map(([id, title]) => (
                   <th scope="col" key={id}>
                     {title}
                   </th>
@@ -545,7 +764,7 @@ function AssignedClassroomGradebook({
                       label
                     )}
                   </th>
-                  {columns.map(([assignment, title]) => {
+                  {visibleColumns.map(([assignment, title]) => {
                     const item = cells.get(`${seat}:${assignment}`);
                     return (
                       <td key={assignment}>
@@ -554,11 +773,7 @@ function AssignedClassroomGradebook({
                             className="gradebook-cell"
                             aria-label={`${label} · ${title} · ${stateLabel(item)}`}
                             disabled={item.state === 'not_applicable'}
-                            onClick={() => {
-                              setOpened(item);
-                              setDetailEpoch((value) => value + 1);
-                              void reload();
-                            }}
+                            onClick={(event) => openWork(item, event.currentTarget)}
                           >
                             <strong>
                               {score(item) ?? (item.state === 'completed' ? 'Без оценки' : '—')}
@@ -592,7 +807,7 @@ function AssignedClassroomGradebook({
             classroomId={classroomId}
             item={opened}
             onChanged={reload}
-            onClose={() => setOpened(null)}
+            onClose={closeWork}
           />
         ) : (
           <LegacyLearningReview
@@ -600,7 +815,7 @@ function AssignedClassroomGradebook({
             classroomId={classroomId}
             item={opened}
             onChanged={reload}
-            onClose={() => setOpened(null)}
+            onClose={closeWork}
           />
         )
       ) : null}

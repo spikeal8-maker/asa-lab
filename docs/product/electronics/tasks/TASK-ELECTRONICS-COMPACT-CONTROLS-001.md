@@ -102,3 +102,44 @@ Fresh43 General37920212460 failed only Access test:access-a: tests/portal/projec
 Exact candidate `604ac63d237b242d5e46a22d3dc0f580be35636f` is technically accepted after [NEW independent review](../evidence/compact-controls-532-r4-independent-review-604ac63d.md) APPROVE, General37952280920 and ordinary Electronics37952969953 all8SUCCESS. Full127 browser cases and all95 original compact phases/PNGs plus five independently saved project intent receipts pass. [Acceptance and limitations](../evidence/compact-controls-532-r4-acceptance-20261009.md); [original receipt hashes](../evidence/compact-controls-532-r4-final-raw-receipts.json). Old partial observations/reviews remain historical; all original limits, existing scenarios, accepted dependencies and published refs preserved.
 
 This technical result completes532 only. Fresh canonical530 selection/convergence with the two specifically owner-agreed append/digest conflicts and NEW final-SHA review precedes526 full56/denial persistence acceptance. No next task activated here. SchoolK0/T3 and owner/class/release/deployment remain separate; no school or data operation performed.
+
+## Remaining native toolbar ownership qualification
+
+Repair the four original strict compact cases (text desktop-wide/desktop-compact,
+blocks-text all-widths, blocks all-widths), preserving their full production
+journeys and original95 phases/oracles. Their actual1374/1181 running receipts
+show left controls extending to616px while the shrinking group ends before the
+clock. A z-index or pointer-events workaround does not restore usable space.
+
+Budget: production `workbench.css` only; strengthen the existing
+`toolbar-oracle.browser.mjs` (and at most one other existing focused native
+harness) plus exact subsystem test mapping. Do not edit the production e2e file,
+generated coverage, fonts, code/runtime, physical time, dependencies or workflows.
+Keep the accepted actual emergency-copy caption/42x44 target unchanged.
+
+Use narrow desktop packing of gaps, icon controls, wire selectors and excess
+pill/clock padding; retain full captions and complete clock, one48px row and
+normal click/keyboard ownership. Desktop icon controls should retain at least
+36px width; preserve existing mobile target geometry at980px and below. Do not
+hide actions or clock prefix, zero fonts, truncate labels, overlap targets or
+reduce existing acceptance thresholds. If the actual geometry cannot fit this
+budget, report the measured constraint before adding source paths or changing it.
+
+Native proof uses both production stylesheets, real Header and real pacing.
+Retain original16/8/6 control counts and add clipping, full caption bounds and
+center/corner elementFromPoint ownership. Include1180/1181/1373/1374 stopped and
+running plus1440 and nearby980/981/1024 boundaries, long clocks and code states.
+The original four production Code/font/resize/Save/reopen journeys must pass
+unchanged in isolated CI, with complete intended/request/server/reopened
+project equality. Preserve E01 and the already completed8 placement cases.
+
+Use short native checks first; run the canonical uncached gate once in isolated
+CI rather than duplicating a full local build. Full original scope and new
+independent final-SHA source/actual review remain required. No server, Docker
+Desktop, live DB, protected assets, refactor or foreign unfinished work.
+
+The desktop-only author may carry reviewed caption8080 as a source dependency
+while its separate General completes: source/native/actual E01+8 qualification
+already passed independently. No simultaneous author changes the mobile caption.
+Begin from published canonical selection, preserve these reviewed caption bytes,
+and require fresh combined desktop/mobile evidence before source integration.

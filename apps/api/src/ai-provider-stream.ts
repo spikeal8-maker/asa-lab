@@ -1,11 +1,24 @@
+import { AI_MAX_ANSWER_CHARS, AI_GENERATION_TIMEOUT_MS } from './ai-generation-limits.js';
 /** Bounded upstream SSE decoder for OpenAI Responses and DeepSeek Chat Completions.
  * No provider credentials, request URLs, or response bodies are logged. */
 import {
   classifyProviderHttpFailure,
   classifyProviderTransportFailure,
 } from './ai-provider-errors.js';
-import { buildAiTextRequest, isModelForProvider } from './ai-model-catalog.js';
-export type StreamProvider = 'openai' | 'deepseek';
+import {
+  buildAiTextRequest,
+  isModelForProvider,
+  isKnownAdmittedModel,
+  supportsAiImageInput,
+} from './ai-model-catalog.js';
+import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
+import {
+  parseNativeToolBatch,
+  type NativeToolCall,
+  type NativeToolDefinition,
+  type NativeToolResult,
+} from './ai-native-tools.js';
+export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud' | 'polza';
 
 export class ProviderStreamError extends Error {
   constructor(
@@ -13,6 +26,7 @@ export class ProviderStreamError extends Error {
     readonly status: number,
     message: string,
     readonly partialText: string = '',
+    readonly usage?: AiProviderUsage,
   ) {
     super(message);
     this.name = 'ProviderStreamError';
@@ -20,23 +34,43 @@ export class ProviderStreamError extends Error {
 }
 
 interface StreamArgs {
+  readonly tools?: readonly NativeToolDefinition[];
+  readonly toolResults?: readonly NativeToolResult[];
   readonly fetchImpl: typeof fetch;
   readonly provider: StreamProvider;
   readonly model: string;
   readonly apiKey: string;
   readonly context: readonly { role: 'user' | 'assistant'; content: string }[];
   readonly instructions: string;
+  readonly images?: readonly string[];
   readonly signal: AbortSignal;
   readonly onDelta: (delta: string) => void;
 }
 
 export interface ProviderStreamResult {
+  readonly toolCalls?: readonly NativeToolCall[];
   readonly text: string;
   readonly stopped: boolean;
+  readonly usage?: AiProviderUsage;
 }
 
-const MAX_RESULT_CHARS = 8192;
+const MAX_RESULT_CHARS = AI_MAX_ANSWER_CHARS;
 const MAX_EVENT_BUFFER = 128 * 1024;
+
+type OpenAiReasoningItem = {
+  type: 'reasoning';
+  id: string;
+  summary: [];
+  encrypted_content: string;
+};
+type OpenAiCallReplay = {
+  callId: string;
+  itemId?: string;
+  arguments: string;
+  reasoning: OpenAiReasoningItem[];
+};
+// Keep opaque provider state only for the lifetime of a validated server-side tool call.
+const openAiCallReplay = new WeakMap<NativeToolCall, OpenAiCallReplay>();
 
 function completionState(
   provider: StreamProvider,
@@ -44,8 +78,8 @@ function completionState(
   partialText = '',
 ): 'complete' | 'stopped' {
   if (provider === 'openai' && terminal === 'completed') return 'complete';
-  if (provider === 'deepseek' && terminal === 'stop') return 'complete';
-  if (provider === 'deepseek' && terminal === 'length') return 'stopped';
+  if (provider !== 'openai' && terminal === 'stop') return 'complete';
+  if (provider !== 'openai' && terminal === 'length') return 'stopped';
   throw new ProviderStreamError(
     provider === 'openai' && terminal === 'failed' ? 'ai_provider_error' : 'ai_response_incomplete',
     503,
@@ -65,8 +99,17 @@ export function parseProviderText(
   let text = '';
   let terminal: unknown;
   if (provider === 'openai') {
-    const response = payload as { status?: unknown; output_text?: unknown; output?: unknown };
-    terminal = response.status;
+    const response = payload as {
+      status?: unknown;
+      output_text?: unknown;
+      output?: unknown;
+      incomplete_details?: { reason?: unknown };
+    };
+    terminal =
+      response.status === 'incomplete' &&
+      response.incomplete_details?.reason === 'max_output_tokens'
+        ? 'length'
+        : response.status;
     if (typeof response.output_text === 'string') text = response.output_text;
     else if (Array.isArray(response.output)) {
       text = response.output
@@ -90,11 +133,38 @@ export function parseProviderText(
   }
   text = text.trim();
   const bounded = text.slice(0, MAX_RESULT_CHARS);
-  const state = completionState(provider, terminal, bounded);
-  if (!bounded) {
-    throw new ProviderStreamError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
+  const usage = providerUsage(provider, payload);
+  let state: 'complete' | 'stopped';
+  try {
+    state =
+      provider === 'openai' && terminal === 'length'
+        ? 'stopped'
+        : completionState(provider, terminal, bounded);
+  } catch (error) {
+    if (error instanceof ProviderStreamError)
+      throw new ProviderStreamError(
+        error.code,
+        error.status,
+        error.message,
+        error.partialText,
+        usage,
+      );
+    throw error;
   }
-  return { text: bounded, stopped: state === 'stopped' || text.length >= MAX_RESULT_CHARS };
+  if (!bounded) {
+    throw new ProviderStreamError(
+      'ai_response_empty',
+      503,
+      'Модель не вернула текст ответа.',
+      '',
+      usage,
+    );
+  }
+  return {
+    text: bounded,
+    stopped: state === 'stopped' || text.length > MAX_RESULT_CHARS,
+    ...(usage ? { usage } : {}),
+  };
 }
 
 function textDelta(event: string, payload: unknown, provider: StreamProvider): string {
@@ -123,20 +193,74 @@ export async function streamProviderText({
   apiKey,
   context,
   instructions,
+  images,
+  tools,
+  toolResults,
   signal,
   onDelta,
 }: StreamArgs): Promise<ProviderStreamResult> {
   if (signal.aborted) return { text: '', stopped: true };
-  if (!isModelForProvider(provider, model)) {
+  if (!(isModelForProvider(provider, model) || isKnownAdmittedModel(provider, model))) {
     throw new ProviderStreamError('ai_model_invalid', 400, 'Выберите поддерживаемую модель.');
   }
-  const request = buildAiTextRequest(provider, model, context, instructions, true);
-  const timeout = AbortSignal.timeout(65000);
+  if (images?.length && !supportsAiImageInput(provider, model))
+    throw new ProviderStreamError(
+      'ai_vision_unsupported',
+      409,
+      'Выбранная модель не поддерживает чтение изображений. Выберите модель с Vision.',
+    );
+  const request = buildAiTextRequest(provider, model, context, instructions, true, images);
+  const effort = (request.body.reasoning as { effort?: string } | undefined)?.effort;
+  const replayReasoning = provider === 'openai' && (effort === 'low' || effort === 'medium');
+  if (replayReasoning && tools?.length) request.body.include = ['reasoning.encrypted_content'];
+  if (tools?.length)
+    request.body.tools =
+      provider === 'openai'
+        ? tools.map((t) => ({ type: 'function', ...t.function, strict: false }))
+        : tools;
+  if (tools?.length) request.body.parallel_tool_calls = false;
+  if (toolResults?.length) {
+    const calls = toolResults.map((r, i) => ({
+      type: 'function',
+      id: 'call_asa_' + i,
+      function: { name: r.call.name, arguments: JSON.stringify(r.call.arguments) },
+    }));
+    if (provider === 'openai')
+      request.body.input = [
+        ...(request.body.input as unknown[]),
+        ...toolResults.flatMap((r, i) => {
+          const replay = openAiCallReplay.get(r.call);
+          const callId = replay?.callId ?? 'call_asa_' + i;
+          return [
+            ...(replay?.reasoning ?? []),
+            {
+              type: 'function_call',
+              ...(replay?.itemId ? { id: replay.itemId } : {}),
+              call_id: callId,
+              name: r.call.name,
+              arguments: replay?.arguments ?? JSON.stringify(r.call.arguments),
+            },
+            { type: 'function_call_output', call_id: callId, output: r.content },
+          ];
+        }),
+      ];
+    else
+      request.body.messages = [
+        ...(request.body.messages as unknown[]),
+        // Preserve sequential model decisions, rather than fabricating one parallel batch.
+        ...toolResults.flatMap((r, i) => [
+          { role: 'assistant', content: '', tool_calls: [calls[i]] },
+          { role: 'tool', tool_call_id: 'call_asa_' + i, content: r.content },
+        ]),
+      ];
+  }
+  const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);
   const combined = AbortSignal.any([signal, timeout]);
   let response: Response;
   try {
     response = await fetchImpl(request.url, {
       method: 'POST',
+      redirect: 'error',
       headers: {
         authorization: 'Bearer ' + apiKey,
         'content-type': 'application/json',
@@ -169,6 +293,12 @@ export async function streamProviderText({
   let content = '';
   let finished = false;
   let providerState: 'complete' | 'stopped' | null = null;
+  let usage: AiProviderUsage | undefined;
+  const functionCalls = new Map<
+    number,
+    { name: string; arguments: string; callId?: string; itemId?: string }
+  >();
+  const reasoningItems = new Map<number, OpenAiReasoningItem>();
 
   function handle(frame: string): void {
     if (finished || combined.aborted) return;
@@ -184,7 +314,7 @@ export async function streamProviderText({
       .join('\n');
     if (!data) return;
     if (data === '[DONE]') {
-      if (provider === 'deepseek') {
+      if (provider !== 'openai') {
         if (providerState === null) completionState(provider, null);
         finished = true;
       }
@@ -198,6 +328,93 @@ export async function streamProviderText({
     }
     const packetType =
       payload && typeof payload === 'object' ? (payload as { type?: unknown }).type : null;
+    if (payload && typeof payload === 'object') {
+      if (
+        provider === 'openai' &&
+        (event === 'response.output_item.done' || packetType === 'response.output_item.done')
+      ) {
+        const p = payload as {
+          output_index?: number;
+          item?: {
+            type?: string;
+            name?: string;
+            arguments?: string;
+            id?: string;
+            call_id?: string;
+            encrypted_content?: string;
+          };
+        };
+        const index = p.output_index ?? 0;
+        if (p.item?.type === 'function_call') {
+          functionCalls.set(index, {
+            name: p.item.name ?? '',
+            arguments: p.item.arguments ?? '',
+            ...(replayReasoning && typeof p.item.call_id === 'string'
+              ? {
+                  callId: p.item.call_id,
+                  ...(typeof p.item.id === 'string' ? { itemId: p.item.id } : {}),
+                }
+              : {}),
+          });
+        }
+        if (
+          replayReasoning &&
+          tools?.length &&
+          p.item?.type === 'reasoning' &&
+          typeof p.item.id === 'string' &&
+          typeof p.item.encrypted_content === 'string'
+        ) {
+          if (!reasoningItems.has(index) && reasoningItems.size >= 4)
+            throw new ProviderStreamError(
+              'ai_stream_invalid',
+              503,
+              'Превышен предел событий модели.',
+            );
+          reasoningItems.set(index, {
+            type: 'reasoning',
+            id: p.item.id,
+            summary: [],
+            encrypted_content: p.item.encrypted_content,
+          });
+        }
+      }
+      if (provider !== 'openai') {
+        const calls = (
+          payload as {
+            choices?: {
+              delta?: {
+                tool_calls?: { index?: number; function?: { name?: string; arguments?: string } }[];
+              };
+            }[];
+          }
+        ).choices?.[0]?.delta?.tool_calls;
+        for (const call of calls ?? []) {
+          const i = call.index ?? 0,
+            previous = functionCalls.get(i) ?? { name: '', arguments: '' };
+          functionCalls.set(i, {
+            name: previous.name + (call.function?.name ?? ''),
+            arguments: previous.arguments + (call.function?.arguments ?? ''),
+          });
+        }
+      }
+      if (
+        (functionCalls.size > 0 && !tools?.length) ||
+        functionCalls.size > 4 ||
+        [...functionCalls.values()].some((c) => c.name.length > 80 || c.arguments.length > 131072)
+      )
+        throw new ProviderStreamError(
+          'ai_tool_call_invalid',
+          503,
+          'Некорректный вызов инструмента.',
+        );
+    }
+    usage = mergeProviderUsage(
+      usage,
+      providerUsage(
+        provider,
+        provider === 'openai' ? (payload as { response?: unknown })?.response : payload,
+      ),
+    );
     if (
       event === 'error' ||
       packetType === 'error' ||
@@ -210,13 +427,24 @@ export async function streamProviderText({
       provider === 'openai' &&
       (event === 'response.incomplete' || packetType === 'response.incomplete')
     ) {
+      if (
+        (payload as { response?: { incomplete_details?: { reason?: unknown } } })?.response
+          ?.incomplete_details?.reason === 'max_output_tokens'
+      ) {
+        providerState = 'stopped';
+        finished = true;
+        return;
+      }
       completionState(provider, 'incomplete');
     }
-    if (provider === 'deepseek' && payload && typeof payload === 'object') {
+    if (provider !== 'openai' && payload && typeof payload === 'object') {
       const reason = (payload as { choices?: Array<{ finish_reason?: string | null }> })
         .choices?.[0]?.finish_reason;
       if (reason !== null && reason !== undefined) {
-        providerState = completionState(provider, reason);
+        providerState =
+          reason === 'tool_calls' && functionCalls.size && tools?.length
+            ? 'complete'
+            : completionState(provider, reason);
       }
     }
     if (
@@ -257,15 +485,16 @@ export async function streamProviderText({
       }
     }
   } catch (error) {
-    if (signal.aborted) return { text: content, stopped: true };
+    if (signal.aborted) return { text: content, stopped: true, ...(usage ? { usage } : {}) };
     if (error instanceof ProviderStreamError) {
-      throw new ProviderStreamError(error.code, error.status, error.message, content);
+      throw new ProviderStreamError(error.code, error.status, error.message, content, usage);
     }
     throw new ProviderStreamError(
       timeout.aborted ? 'ai_provider_timeout' : 'ai_stream_interrupted',
       timeout.aborted ? 504 : 503,
       timeout.aborted ? 'Время ожидания модели истекло.' : 'Поток модели был прерван.',
       content,
+      usage,
     );
   } finally {
     await reader.cancel().catch(() => undefined);
@@ -277,6 +506,7 @@ export async function streamProviderText({
       504,
       'Время ожидания модели истекло.',
       content,
+      usage,
     );
   }
   if (!finished && !signal.aborted && content.length < MAX_RESULT_CHARS) {
@@ -285,13 +515,55 @@ export async function streamProviderText({
       503,
       'Соединение закрыто до завершения ответа модели.',
       content,
+      usage,
     );
   }
-  if (!content.trim() && !signal.aborted) {
-    throw new ProviderStreamError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
+  if (!content.trim() && !signal.aborted && !functionCalls.size) {
+    throw new ProviderStreamError(
+      'ai_response_empty',
+      503,
+      'Модель не вернула текст ответа.',
+      '',
+      usage,
+    );
+  }
+  let toolCalls: readonly NativeToolCall[] | undefined;
+  if (functionCalls.size && !signal.aborted && providerState !== 'stopped') {
+    try {
+      const calls = [...functionCalls].sort(([a], [b]) => a - b);
+      toolCalls = parseNativeToolBatch(
+        calls.map(([, c]) => ({
+          function: { name: c.name, arguments: JSON.parse(c.arguments) },
+        })),
+        tools ?? [],
+      );
+      for (const [position, [index, call]] of calls.entries()) {
+        if (!call.callId) continue;
+        const previousIndex = calls[position - 1]?.[0] ?? -1;
+        openAiCallReplay.set(toolCalls[position]!, {
+          callId: call.callId,
+          ...(call.itemId ? { itemId: call.itemId } : {}),
+          arguments: call.arguments,
+          reasoning: [...reasoningItems]
+            .filter(([itemIndex]) => itemIndex > previousIndex && itemIndex < index)
+            .sort(([a], [b]) => a - b)
+            .map(([, item]) => item),
+        });
+      }
+    } catch {
+      throw new ProviderStreamError(
+        'ai_tool_call_invalid',
+        503,
+        'Модель вернула некорректный вызов инструмента.',
+        content,
+        usage,
+      );
+    }
   }
   return {
+    ...(toolCalls ? { toolCalls } : {}),
     text: content,
     stopped: signal.aborted || providerState === 'stopped' || content.length >= MAX_RESULT_CHARS,
+    ...(usage ? { usage } : {}),
   };
 }

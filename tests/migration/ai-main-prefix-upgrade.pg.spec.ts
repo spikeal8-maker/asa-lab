@@ -21,6 +21,92 @@ const expectedPending = [
   '0239', // Optional LAN Ollama; preserve older published migrations.
   '0240', // Courses Teacher Home: function-local JIT only.
   '0241', // Native MAX external-only registration preserves canonical account bootstrap.
+  '0242', // Local Ollama binds immutable attachments without paid quota.
+  '0243', // Recover original owned attachments for regenerated responses.
+  '0244', // Current-only private per-owner usage journal.
+  '0245', // Typed admin catalog and bounded server keyset continuation.
+  '0246', // Read-only retained per-user history.
+  '0247', // Full typed CRM cards and exact teacher educational reads.
+  '0248', // Encrypted SMTP and one-use verified Account email proof.
+  '0249', // Filtered CRM aggregates/export and explicit organization class binding.
+  '0250', // Exact Seat retained detail and immutable educational notes.
+  '0251', // Scoped organization and exact-class responsibilities.
+  '0252', // Additive Ollama Cloud credentials preserve installed history.
+  '0253', // Optional scoped campaign observations and factual catalog projections.
+  '0254', // Free server internet evidence and bounded public weather cache.
+  '0255', // Read-only administrative visibility of retained legacy publications.
+  '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+  '0257', // Canonical draft timestamp projection repair.
+  '0258', // Immutable Public Projects publication pins.
+  '0259', // Private immutable-revision report intake.
+  '0260', // Exact immutable Electronics public display.
+  '0261', // Complete AI answers preserve installed data and SQL signatures.
+  '0262', // Local owner-bound 30-minute generation lease.
+  '0263', // Governed generation policy and retrieval.
+  '0264', // Private image generation and GPU admission.
+  '0265', // Native tool provenance.
+  '0266', // Administrative tool-policy controls.
+  '0267', // Additive frozen Courses completion repair, no data rewrite.
+  '0268', // Additive read-only AI usage overview.
+  '0269', // Exact public Scratch player and version-scoped asset reads.
+  '0271', // Accepted Ollama Cloud catalog migration.
+  '0272', // Accepted Ollama Cloud key pool migration.
+  '0273', // Accepted ComfyUI endpoint migration.
+  '0274', // Audited class/Seat distribution and immutable publication admission.
+  '0275', // Global and author acquisition controls.
+  '0276', // Independent providers.
+  '0277', // Cloud pool provider projection.
+  '0278', // Model selection policy.
+  '0279', // Soft monthly token budgets.
+  '0280', // Six image presets.
+  '0281', // Versioned image profiles.
+  '0282', // Local inference overrides preserve legacy defaults.
+  '0283', // Canonical publication likes retain legacy reactions.
+  '0284', // Isolated Polza STT credentials and bounded speech admission.
+  '0285', // Existing public author name projection, immutable history preserved.
+  '0286', // Bounded search retrieval settings.
+  '0287', // Durable successful-publication-copy aggregate.
+  '0288', // Exact Course academic-result visibility without Project byte access.
+  '0289', // Persistent publication discussions and independent learner permission.
+  '0290', // Comment likes, pinning and stable ordering.
+  '0291', // Guarded Account/Seat comment avatars.
+  '0292', // Publication author avatars and projects-only catalog projection.
+  '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+  '0294', // Accepted additive games-network schema in Main.
+  '0295', // Bounded document extraction with private originals.
+  '0296', // Private working files and immutable revisions.
+  '0297', // Polza text provider and bounded model catalogue.
+  '0298', // Exact owner-bound generated-image HTML binding.
+  '0299', // Selected Polza token budget catalog before publication.
+  '0300', // Unreleased durable image queue follows every published canonical migration.
+  '0301', // Scoped Chess presence and recipient-bound challenges.
+  '0302', // Private portal invitation notifications.
+  '0303', // Owner-only publication editor resolution.
+  '0304', // Russian-64 network matches reuse Games identity and policy.
+  '0305', // Robotics projects and authenticated module activity.
+  '0306', // Robotics in the existing immutable publication catalog.
+  '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+  '0308', // Independent eight-tool controls, preserving legacy snapshots.
+  '0309', // Written Course responses reuse the canonical academic chain.
+  '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+  '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+  '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+  '0313', // OpenAI Responses catalog admission.
+  '0314', // Polza video catalog category.
+  '0315', // Polza catalog selections and dates.
+  '0316', // Immutable learner file answers in class and Course assignments.
+  '0317', // Event-based admin attendance and Moscow calendar day.
+  '0318', // Operational overview with aligned Moscow intervals and measured activity.
+  '0319', // Function-local JIT at the measured canonical read boundaries.
+  '0320', // Authorized own progress summary; no identity or score writes.
+  '0321', // Qualified ordinary Account admission identity, preserving retained history.
+  '0322', // Authorized learner-safe group rank and avatar pages, no scoring rewrite.
+  '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+  '0324', // Classroom merit history and revocation read (canonical main).
+  '0325', // Direct written assignments reuse the academic submission chain.
+  '0326', // Allow large PDF task attachments.
+  '0327', // Expand supported task attachment formats.
+  '0328', // Safe Mode blocks new publications and retroactive public reads.
 ];
 
 interface Identity {
@@ -84,7 +170,19 @@ async function legacySnapshot(db: pg.Pool) {
     project_versions: [],
     project_snapshots: [],
     project_publications: [],
-    project_publication_state: [],
+    project_reactions: ['publication_id'],
+    // Consent, reaction and discussion controls add only explicit default columns. Keep every old field
+    // (and any unrecognized future field) in the strict preserved-data comparison.
+    project_publication_state: [
+      'acquisition_allowed',
+      'acquisition_version',
+      'reactions_enabled',
+      'reactions_version',
+      'comments_enabled',
+      'comments_admin_enabled',
+      'comments_version',
+      'pinned_comment_id',
+    ],
     project_publication_revisions: [
       'module_key',
       'author_label',
@@ -436,6 +534,13 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         };
       });
 
+      // Nonempty legacy like/wow rows must survive the new reaction namespace exactly.
+      const legacyReactor = stranger.principal_id;
+      await db.query(
+        "INSERT INTO project_reactions(project_id,reactor_principal_id,kind) VALUES($1,$2,'like'),($1,$2,'wow')",
+        [legacy.projectId, legacyReactor],
+      );
+
       // Synthetic ciphertext is never decrypted or sent to any provider.
       const configurationVersion = (
         await app.query<{ version: string }>(
@@ -661,9 +766,38 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       const upgrade = await db.connect();
       try {
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(expectedPending.length);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT enabled,version FROM publication_acquisition_settings WHERE singleton_key',
+            )
+          ).rows,
+        ).toEqual([{ enabled: false, version: 0 }]);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version FROM project_publication_state ORDER BY id',
+            )
+          ).rows,
+        ).toEqual(
+          before.project_publication_state!.map(() => ({
+            acquisition_allowed: false,
+            acquisition_version: 0,
+            reactions_enabled: true,
+            reactions_version: 0,
+          })),
+        );
       } finally {
         upgrade.release();
       }
+      expect(
+        (
+          await db.query(
+            'SELECT count(*)::integer n FROM project_reactions WHERE project_id=$1 AND publication_id IS NULL',
+            [legacy.projectId],
+          )
+        ).rows,
+      ).toEqual([{ n: 2 }]);
       const ledgerAfter = await ledger(db);
       expect(ledgerAfter.slice(0, ledgerBefore.length)).toEqual(ledgerBefore);
       expect(ledgerAfter.slice(ledgerBefore.length).map((row) => row.version)).toEqual(
@@ -691,6 +825,22 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         })),
       );
       expect(await legacySnapshot(db)).toEqual(before);
+      // Check the new discussion defaults independently; do not hide data
+      // mutations by excluding added columns from the old-byte comparison.
+      expect(
+        (
+          await db.query(
+            'SELECT comments_enabled,comments_admin_enabled,comments_version,pinned_comment_id FROM public.project_publication_state ORDER BY id',
+          )
+        ).rows,
+      ).toEqual(
+        before.project_publication_state!.map(() => ({
+          comments_enabled: true,
+          comments_admin_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
+        })),
+      );
       for (const table of [
         'ai_assistant_threads',
         'ai_assistant_messages',
@@ -734,6 +884,13 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           ).rows,
         ).toEqual([{ archived_at: null, next_message_ordinal: ordinal }]);
       }
+      // Slot timestamps belong to the transaction that created each provider, not
+      // whichever migration happens to be last in the complete upgrade plan.
+      const providerCatalogAppliedAt = ledgerAfter.find(
+        (row) => row.version === '0227',
+      )!.applied_at;
+      const cloudProviderAppliedAt = ledgerAfter.find((row) => row.version === '0252')!.applied_at;
+      const polzaProviderAppliedAt = ledgerAfter.find((row) => row.version === '0297')!.applied_at;
       const configAfter = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
         .rows[0]!.item;
       expect(configAfter).toEqual({
@@ -742,7 +899,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         enabled: false,
         migrated_from_model: 'deepseek-chat',
         configuration_version: configBefore.configuration_version + 1,
-        updated_at: expect.any(String),
+        updated_at: providerCatalogAppliedAt,
       });
       expect(
         (
@@ -751,6 +908,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       ).toEqual([
         {
           provider: 'deepseek',
+          enabled: false,
+          revision: 1,
           model: 'deepseek-flash',
           api_key_ciphertext: configBefore.api_key_ciphertext,
           api_key_iv: configBefore.api_key_iv,
@@ -759,13 +918,37 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           updated_at: configAfter.updated_at,
         },
         {
+          provider: 'ollama-cloud',
+          enabled: false,
+          revision: 1,
+          model: 'gemma4:31b',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: cloudProviderAppliedAt,
+        },
+        {
           provider: 'openai',
+          enabled: false,
+          revision: 1,
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,
           api_key_auth_tag: null,
           key_fingerprint: null,
-          updated_at: expect.any(String),
+          updated_at: providerCatalogAppliedAt,
+        },
+        {
+          provider: 'polza',
+          enabled: false,
+          revision: 1,
+          model: 'polza/unconfigured',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: polzaProviderAppliedAt,
         },
       ]);
 

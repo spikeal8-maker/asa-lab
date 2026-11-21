@@ -16,6 +16,15 @@ for cidr in $proxy_cidrs; do
 done
 [ "$proxy_count" -ge 1 ] && [ "$proxy_count" -le 16 ] || exit 78
 export ASA_INGRESS_TRUSTED_PROXY_CIDRS="$proxy_cidrs"
+panel_peer=${ASA_PANEL_INGRESS_PEER:-127.0.0.1}
+case "$panel_peer" in
+  *[!0-9.]*|'') echo 'Invalid ASA_PANEL_INGRESS_PEER: one IPv4 address is required.' >&2; exit 78 ;;
+esac
+printf '%s\n' "$panel_peer" | grep -Eq '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' || {
+  echo 'Invalid ASA_PANEL_INGRESS_PEER: one IPv4 address is required.' >&2
+  exit 78
+}
+export ASA_PANEL_INGRESS_PEER="$panel_peer"
 origin=${ASA_BLOCKS_RUNTIME_ORIGIN:-}
 if [ -n "$origin" ]; then
   printf '%s\n' "$origin" | grep -Eq '^https?://([A-Za-z0-9.-]+|\[[A-Fa-f0-9:]+\])(:[0-9]{1,5})?$' || {

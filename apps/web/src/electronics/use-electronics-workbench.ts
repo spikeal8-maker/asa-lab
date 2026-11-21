@@ -1,4 +1,6 @@
+import { ordinaryLedVisualState } from './component-result-presentation';
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -9,8 +11,17 @@ import {
   type WheelEvent,
 } from 'react';
 import { flushSync } from 'react-dom';
-import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
+import type {
+  ElectronicsArduinoSerialProjection,
+  ElectronicsHcSr04EnvironmentSample,
+} from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
+import { useCanvasAnnotations } from './use-canvas-annotations';
+import { SimulationPacing } from './simulation-pacing';
+import {
+  annotationOnlyDocumentChange,
+  createAnnotationRuntimeDocumentSelector,
+} from './workbench-annotations';
 import type {
   ComponentResult,
   ProductionStateValue,
@@ -109,8 +120,12 @@ import {
   type VertexDrag,
 } from './workbench-model';
 import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
-import type { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import type {
+  ElectronicsLiveSimulationWorkerController,
+  LiveSimulationInputBudget,
+} from './live-simulation-worker-controller';
 import { loadSimulationWorkerController } from './load-simulation-worker-controller';
+import { electronicsColdStartBudgetMs } from './simulation-startup-budget';
 import {
   circuitStateMessage,
   SimulationFailure,
@@ -130,11 +145,7 @@ import {
   createVisualFrame,
   translatedDragDocument,
 } from './workbench-drag-preview';
-import {
-  isEditableShortcutTarget,
-  resolveWorkbenchShortcut,
-  targetConsumesSpace,
-} from './workbench-shortcuts';
+import { bindWorkbenchShortcuts, type WorkbenchShortcutActions } from './workbench-shortcuts';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
@@ -148,8 +159,6 @@ function compactWorkbench(): boolean {
 const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
 const WIRE_DRAG_THRESHOLD_PX = 5;
 const DESKTOP_INITIAL_ZOOM = 1.25;
-const KEYBOARD_NUDGE_STEP = 5;
-const KEYBOARD_NUDGE_LARGE_STEP = 20;
 
 function emptyInitialViewport(): Viewport {
   if (compactWorkbench()) return DEFAULT_VIEWPORT;
@@ -162,23 +171,15 @@ function emptyInitialViewport(): Viewport {
   };
 }
 
-function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
-  if (
-    result?.presentationState === 'failed' ||
-    result?.deviceHealth === 'failed_open' ||
-    result?.damageState === 'failed'
-  )
-    return 'burned';
-  if (result?.junctionState === 'reverse_blocking') return 'reverse';
-  if (result?.presentationState === 'destructive') return 'overcurrent';
-  return result?.lit ? 'lit' : 'off';
-}
-
 function isArduinoUno(component: SchematicComponent): boolean {
   return component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno';
 }
 
 type LiveOpticalObservation = NativeOpticalObservation;
+
+type WorkbenchSerialProjection = ElectronicsArduinoSerialProjection & {
+  readonly streamGeneration?: string;
+};
 
 interface PendingOpticalObservation {
   readonly frame: LedPresentationFrame;
@@ -285,8 +286,63 @@ function writeLocalElectronicsViewport(projectId: string, viewport: Viewport): v
   }
 }
 
+export type ElectronicsWorkbenchProjectHost = Pick<
+  ReturnType<typeof useWorkbenchProjectState>,
+  | 'project'
+  | 'document'
+  | 'serverRevision'
+  | 'getCurrentDocument'
+  | 'result'
+  | 'versions'
+  | 'status'
+  | 'saveStatus'
+  | 'saveError'
+  | 'saveIssue'
+  | 'localCopySaved'
+  | 'exportEmergencyCopy'
+  | 'saveBeforeLeave'
+  | 'notice'
+  | 'setNotice'
+  | 'simulationRunning'
+  | 'simulationStatus'
+  | 'confirmSimulationStarted'
+  | 'busy'
+  | 'projectTitle'
+  | 'setProjectTitle'
+  | 'canUndo'
+  | 'canRedo'
+  | 'undo'
+  | 'redo'
+  | 'commitDocument'
+  | 'saveNow'
+  | 'toggleSimulation'
+  | 'resetSimulation'
+  | 'checkpoint'
+  | 'renameProject'
+>;
+
+export interface ElectronicsWorkbenchHostOptions {
+  readonly runtimeInputEventLimit?: number;
+  /** A local host has no diagnostics backend; ordinary editors keep reporting. */
+  readonly reportSimulationDiagnostics?: boolean;
+  /** Embedded editors may scope keyboard commands to their active editing page. */
+  readonly keyboardShortcutsEnabled?: boolean;
+}
+
 export function useElectronicsWorkbench(projectId: string, userId: string, seatLearner = false) {
   const projectState = useWorkbenchProjectState(projectId, userId, seatLearner);
+  return useElectronicsWorkbenchHost(projectId, projectState);
+}
+
+/** The editor/controller is shared; each host owns only its document and persistence. */
+export function useElectronicsWorkbenchHost(
+  projectId: string,
+  projectState: ElectronicsWorkbenchProjectHost,
+  options: ElectronicsWorkbenchHostOptions = {},
+) {
+  const runtimeInputEventLimit = options.runtimeInputEventLimit;
+  const reportSimulationDiagnostics = options.reportSimulationDiagnostics !== false;
+  const keyboardShortcutsEnabled = options.keyboardShortcutsEnabled !== false;
   const {
     project,
     document,
@@ -335,12 +391,22 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   };
 
   const undo = () => {
+    if (simulationRunning) {
+      if (projectUndo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectUndo();
   };
 
   const redo = () => {
+    if (simulationRunning) {
+      if (projectRedo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectRedo();
@@ -349,35 +415,48 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   const documentMutationEpoch = (): number => documentMutationEpochRef.current;
 
   const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
+  const [runtimeInputBudget, setRuntimeInputBudget] = useState<LiveSimulationInputBudget | null>(
+    null,
+  );
+  const runtimeInputBudgetRef = useRef<LiveSimulationInputBudget | null>(null);
+  const annotationRuntimeSelector = useRef<ReturnType<
+    typeof createAnnotationRuntimeDocumentSelector
+  > | null>(null);
+  if (!annotationRuntimeSelector.current)
+    annotationRuntimeSelector.current = createAnnotationRuntimeDocumentSelector();
+  const electricalDocument = annotationRuntimeSelector.current(document);
   const runtimeDocument = useMemo(
-    () => applyRuntimeComponentOverrides(document, simulationRunning, runtimeOverrides),
-    [document, runtimeOverrides, simulationRunning],
+    () => applyRuntimeComponentOverrides(electricalDocument, simulationRunning, runtimeOverrides),
+    [electricalDocument, runtimeOverrides, simulationRunning],
   );
 
   useEffect(() => {
     if (!simulationRunning) setRuntimeOverrides({});
   }, [simulationRunning]);
 
-  function setRuntimeComponentOverride(componentId: string, patch: RuntimeComponentOverride): void {
-    setRuntimeOverrides((current) => {
-      const previous = current[componentId];
-      return {
-        ...current,
-        [componentId]: {
-          ...previous,
-          ...patch,
-          ...(patch.stateProperties
-            ? {
-                stateProperties: {
-                  ...previous?.stateProperties,
-                  ...patch.stateProperties,
-                },
-              }
-            : {}),
-        },
-      };
-    });
-  }
+  const setRuntimeComponentOverride = useCallback(
+    (componentId: string, patch: RuntimeComponentOverride): void => {
+      setRuntimeOverrides((current) => {
+        const previous = current[componentId];
+        return {
+          ...current,
+          [componentId]: {
+            ...previous,
+            ...patch,
+            ...(patch.stateProperties
+              ? {
+                  stateProperties: {
+                    ...previous?.stateProperties,
+                    ...patch.stateProperties,
+                  },
+                }
+              : {}),
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const simulationStartedAtRef = useRef<number | null>(null);
   const simulationHostOffsetMicrosecondsRef = useRef(0);
@@ -391,6 +470,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   // discarded history owner on every React render.
   const [ledPresentation] = useState(() => new LedTemporalPresentation());
   const [nativeOpticalPresentation] = useState(() => new NativeOpticalPresentation());
+  const [simulationPacing] = useState(() => new SimulationPacing());
+  const simulationPaceCommandRef = useRef<((rate: number) => void) | null>(null);
+  const settleSimulationPauseRef = useRef<(() => void) | null>(null);
+  function setSimulationRate(rate: number): void {
+    if (!simulationPacing.request(rate)) return;
+    if (simulationPaceCommandRef.current) simulationPaceCommandRef.current(rate);
+    else if (rate === 0) simulationPacing.settlePause();
+  }
   const setCommittedHorizonMicroseconds = (value: number) =>
     nativeOpticalPresentation.setClock(value);
   const setLiveObservation = (value: LiveOpticalObservation | null) =>
@@ -420,6 +507,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     ) {
       opticalPublicationRef.current = null;
       nativeOpticalPresentation.commit(publication.next);
+      settleSimulationPauseRef.current?.();
       // This state change is deliberate: native owners must receive a render
       // that retires the protected rollback lease even without another result.
       setRollbackLedAssets(null);
@@ -450,6 +538,100 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   >(null);
   const runtimeDocumentRef = useRef(runtimeDocument);
   const resetSimulationRef = useRef(resetSimulation);
+  const setRuntimeHcSr04EnvironmentSample = useCallback(
+    (componentId: string, sample: ElectronicsHcSr04EnvironmentSample): boolean => {
+      const session = committedHostSessionRef.current;
+      if (
+        !simulationRunning ||
+        !session?.active ||
+        session.projectId !== projectId ||
+        runtimeInputBudgetRef.current?.exhausted ||
+        !sample ||
+        (sample.kind !== 'echo' && sample.kind !== 'no-echo') ||
+        (sample.kind === 'echo' &&
+          (!Number.isFinite(sample.distanceMeters) ||
+            sample.distanceMeters < 0.02 ||
+            sample.distanceMeters > 4))
+      )
+        return false;
+      const component = runtimeDocumentRef.current?.components.find(
+        (item) => item.id === componentId,
+      );
+      const entry = component ? catalogEntry(component) : null;
+      if (
+        component?.componentTypeId !== 'ultrasonic-hc-sr04' ||
+        !entry?.enabled ||
+        !entry.simulationSupported ||
+        entry.key !== component.componentTypeId
+      )
+        return false;
+      const properties: Readonly<Record<string, ProductionStateValue>> =
+        sample.kind === 'echo'
+          ? { distanceMeters: sample.distanceMeters, echoAvailable: true }
+          : { echoAvailable: false };
+      setRuntimeOverrides((current) => {
+        const previous = current[componentId];
+        const echoAvailable =
+          previous?.stateProperties?.echoAvailable ??
+          component.stateProperties?.echoAvailable ??
+          true;
+        const distanceMeters =
+          previous?.stateProperties?.distanceMeters ?? component.stateProperties?.distanceMeters;
+        if (
+          echoAvailable === (sample.kind === 'echo') &&
+          (sample.kind === 'no-echo' || distanceMeters === sample.distanceMeters)
+        )
+          return current;
+        // One override produces one same-time canonical input batch. The
+        // scheduler observes its distance and availability together at Trig.
+        // Compare with queued overrides, so multiple samples in one React batch
+        // retain their call order instead of deduplicating against a stale render.
+        return {
+          ...current,
+          [componentId]: {
+            ...previous,
+            stateProperties: { ...previous?.stateProperties, ...properties },
+          },
+        };
+      });
+      return true;
+    },
+    [projectId, simulationRunning],
+  );
+  const setRuntimeSensorDistance = useCallback(
+    (componentId: string, distanceMeters: number): boolean => {
+      const session = committedHostSessionRef.current;
+      if (
+        !simulationRunning ||
+        !session?.active ||
+        session.projectId !== projectId ||
+        runtimeInputBudgetRef.current?.exhausted ||
+        !Number.isFinite(distanceMeters) ||
+        distanceMeters < 0.02 ||
+        distanceMeters > 4
+      )
+        return false;
+      const component = runtimeDocumentRef.current?.components.find(
+        (item) => item.id === componentId,
+      );
+      const entry = component ? catalogEntry(component) : null;
+      if (
+        !component ||
+        !entry?.enabled ||
+        !entry.simulationSupported ||
+        (component.componentTypeId !== 'ultrasonic-hc-sr04' &&
+          component.componentTypeId !== 'ultrasonic-sensor') ||
+        entry.key !== component.componentTypeId
+      )
+        return false;
+      if (component.componentTypeId === 'ultrasonic-hc-sr04')
+        return setRuntimeHcSr04EnvironmentSample(componentId, { kind: 'echo', distanceMeters });
+      if (component.stateProperties?.distanceMeters === distanceMeters) return true;
+      setRuntimeComponentOverride(componentId, { stateProperties: { distanceMeters } });
+      return true;
+    },
+    [projectId, setRuntimeComponentOverride, setRuntimeHcSr04EnvironmentSample, simulationRunning],
+  );
   const nativePreparationSourceIdentity = useMemo(
     () =>
       JSON.stringify(
@@ -508,11 +690,28 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationStartedAtRef.current = null;
     normalHostClockRef.current = false;
     requestedHorizonMicrosecondsRef.current = 0;
+    simulationPacing.reset();
   }
 
   function readHostHorizonMicroseconds(): number | null {
     const startedAt = simulationStartedAtRef.current;
     if (startedAt === null) return null;
+    if (simulationPacing.explicit) {
+      const committed = simulationWorkerRef.current?.committedHorizonMicroseconds ?? 0;
+      const horizon = simulationPacing.horizon(
+        Math.round(window.performance.now() * 1000),
+        committed,
+      );
+      return horizon === null
+        ? null
+        : simulationHostOffsetMicrosecondsRef.current +
+            (normalHostClockRef.current
+              ? horizon
+              : Math.max(
+                  committed,
+                  Math.min(horizon, ledPresentation.presentedMicroseconds + 50_000),
+                ));
+    }
     const elapsed = Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
     return normalHostClockRef.current
       ? simulationHostOffsetMicrosecondsRef.current + elapsed
@@ -593,7 +792,17 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     let latestResultDocument: SchematicDocument | null = null;
     let latestCommittedHorizon = 0;
     let generationConfirmed = false;
-    let serialEmpty = true;
+    // Time to the first accepted result includes lazy module loading and Worker startup.
+    // It is deliberately independent of the canonical Arduino clock and Run timing.
+    const startupBudgetMs = electronicsColdStartBudgetMs(
+      import.meta.env.VITE_ASA_ELECTRONICS_STARTUP_PROFILE,
+    );
+    let startupDeadline: number | null = null;
+    const clearStartupDeadline = () => {
+      if (startupDeadline !== null) window.clearTimeout(startupDeadline);
+      startupDeadline = null;
+    };
+    let previousSerial: readonly WorkbenchSerialProjection[] = [];
     let lastCircuitMessage: SimulationStatusMessage | null = null;
     let pending: PendingOpticalObservation | null = null;
     let displayed: LiveOpticalObservation | null = null;
@@ -605,6 +814,31 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       null;
     let nativePreparationSequence = 0;
     let nativePreparationSource = nativePreparationSourceRef.current;
+    let hostTransitionPending = false;
+    let paceTransition = 0;
+    const settlePause = () => {
+      if (!pending && !publishing && displayed && generationConfirmed)
+        simulationPacing.settlePause();
+    };
+    settleSimulationPauseRef.current = settlePause;
+    const changePace = (rate: number) => {
+      if (!currentSession()) return;
+      const transition = ++paceTransition;
+      const wall = Math.round(window.performance.now() * 1000);
+      ledPresentation.setPlaybackRate(rate, wall);
+      if (rate === 0) {
+        controller?.setPaused(true);
+        cancelNativePreparation();
+        settlePause();
+      } else {
+        hostTransitionPending = controller?.hasPendingAdvance ?? false;
+        controller?.setPaused(false, (committed) => {
+          if (transition === paceTransition) simulationPacing.reanchor(committed, wall);
+        });
+        if (!controller) simulationPacing.reanchor(latestCommittedHorizon, wall);
+      }
+    };
+    simulationPaceCommandRef.current = changePace;
     const cancelNativePreparation = () => {
       queuedNativePreparation = null;
       if (nativePreparation) {
@@ -687,6 +921,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       const document = latestResultDocument;
       if (
         !document ||
+        (simulationPacing.read().rate === 0 && displayed !== null) ||
         pending ||
         publishing ||
         queuedNativePreparation?.document === document ||
@@ -704,6 +939,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         queuedNativePreparation = null;
         const current = () =>
           currentSession() &&
+          (simulationPacing.read().rate !== 0 || displayed === null) &&
           session?.active === true &&
           runtimeDocumentRef.current === document &&
           latestResultDocument === document &&
@@ -918,13 +1154,15 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationCommandRef.current = dispatch;
     const fail = (failure: SimulationFailure) => {
       if (!currentSession()) return;
+      clearStartupDeadline();
       active = false;
       pendingCommands.length = 0;
-      reportClientDiagnostic('simulation_failed', 'electronics', {
-        phase: 'simulation',
-        category: failure.category,
-        failureCode: failure.code,
-      });
+      if (reportSimulationDiagnostics)
+        reportClientDiagnostic('simulation_failed', 'electronics', {
+          phase: 'simulation',
+          category: failure.category,
+          failureCode: failure.code,
+        });
       setGenerationPending(false);
       resetHostClock();
       resetSimulationRef.current();
@@ -934,16 +1172,44 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       setArduinoSerialByBoard({});
       setSimulationMessage(simulationFailureMessage(failure));
     };
+    const armStartupDeadline = () => {
+      clearStartupDeadline();
+      startupDeadline = window.setTimeout(() => {
+        if (!currentSession() || generationConfirmed) return;
+        fail(
+          new SimulationFailure(
+            'technical',
+            'startup-timeout',
+            `Подготовка моделирования не завершилась за ${startupBudgetMs / 1000} секунд. Повторите запуск.`,
+          ),
+        );
+      }, startupBudgetMs);
+    };
     const start = (worker: ElectronicsLiveSimulationWorkerController) => {
       if (!currentSession()) return;
       controller = worker;
       simulationWorkerRef.current = worker;
+      runtimeInputBudgetRef.current = null;
+      setRuntimeInputBudget(null);
       worker.start(projectId, initialDocument, {
+        ...(runtimeInputEventLimit === undefined
+          ? {}
+          : {
+              inputEventLimit: runtimeInputEventLimit,
+              onInputBudget: (budget: LiveSimulationInputBudget) => {
+                if (!currentSession()) return;
+                runtimeInputBudgetRef.current = budget;
+                setRuntimeInputBudget(budget);
+              },
+            }),
         readHostHorizonMicroseconds: () => {
           return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
         },
         onGenerationPending: () => {
           if (!currentSession()) return;
+          // A real Reset starts a new generation and receives a new budget.
+          // The first generation keeps the deadline armed before module import.
+          if (generationConfirmed) armStartupDeadline();
           simulationStartedAtRef.current = null;
           normalHostClockRef.current = false;
           generationConfirmed = false;
@@ -951,6 +1217,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
           ledPresentation.reset();
+          if (simulationPacing.explicit) {
+            const rate = simulationPacing.read().rate;
+            ledPresentation.setPlaybackRate(rate, Math.round(window.performance.now() * 1000));
+            if (rate === 0) {
+              simulationPacing.request(0);
+              worker.setPaused(true);
+            }
+          }
           cancelOpticalPublication();
           // Source-only edits intentionally keep the controller generation,
           // and onResult does not identify the dispatch source. Until a real
@@ -966,6 +1240,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
           requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
           simulationStartedAtRef.current = window.performance.now();
+          if (simulationPacing.explicit)
+            simulationPacing.reanchor(0, Math.round(simulationStartedAtRef.current * 1000));
         },
         onResult: (nextResult, ledTemporal, clockProfileId) => {
           if (!currentSession()) return;
@@ -1013,6 +1289,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           }
           if (!generationConfirmed) {
             generationConfirmed = true;
+            clearStartupDeadline();
             setGenerationPending(false);
             confirmSimulationStarted();
           }
@@ -1021,21 +1298,33 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         onCommittedHorizon: (horizon) => {
           if (!currentSession()) return;
           latestCommittedHorizon = horizon;
-        },
-        onSerialProjection: (serial) => {
-          if (!currentSession()) return;
-          if (serial.length === 0) {
-            if (!serialEmpty) {
-              serialEmpty = true;
-              setArduinoSerialByBoard({});
-            }
-            return;
+          if (hostTransitionPending) {
+            hostTransitionPending = false;
+            simulationPacing.reanchor(horizon, Math.round(window.performance.now() * 1000));
           }
-          serialEmpty = false;
+        },
+        onSerialProjection: (serial: readonly WorkbenchSerialProjection[]) => {
+          if (!currentSession() || (serial.length === 0 && previousSerial.length === 0)) return;
+          const [entry] = serial;
+          const [previous] = previousSerial;
+          if (
+            serial.length === 1 &&
+            previousSerial.length === 1 &&
+            entry &&
+            previous &&
+            entry.tx.length === 0 &&
+            previous.tx.length === 0 &&
+            entry.componentId === previous.componentId &&
+            entry.streamGeneration === previous.streamGeneration &&
+            entry.begun === previous.begun &&
+            entry.baudRate === previous.baudRate &&
+            entry.rxPendingBytes === previous.rxPendingBytes
+          )
+            return;
+
+          previousSerial = serial;
           setArduinoSerialByBoard(
-            Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
-              Record<string, ElectronicsArduinoSerialProjection>
-            >,
+            Object.fromEntries(serial.map((entry) => [entry.componentId, entry])),
           );
         },
         onFailure: fail,
@@ -1046,6 +1335,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       }
       pendingCommands.length = 0;
     };
+    // Arm before loading a lazy controller, not after the first Worker response.
+    armStartupDeadline();
+    setGenerationPending(true);
     if (controller) start(controller);
     else {
       void loadSimulationWorkerController()
@@ -1060,6 +1352,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     return () => {
       active = false;
+      clearStartupDeadline();
       if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
       pendingCommands.length = 0;
       ledPresentation.reset();
@@ -1069,9 +1362,18 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (cancelNativePreparationRef.current === cancelNativePreparation)
         cancelNativePreparationRef.current = null;
       if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
+      if (simulationPaceCommandRef.current === changePace) simulationPaceCommandRef.current = null;
+      if (settleSimulationPauseRef.current === settlePause) settleSimulationPauseRef.current = null;
       controller?.stop();
     };
-  }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
+  }, [
+    confirmSimulationStarted,
+    projectId,
+    reportSimulationDiagnostics,
+    runtimeInputEventLimit,
+    setNotice,
+    simulationRunning,
+  ]);
 
   useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
@@ -1092,7 +1394,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         : calculateLiveSimulation(runtimeDocument, persistedResult, false, 0),
     [liveResult, persistedResult, runtimeDocument, simulationRunning],
   );
-  usePiezoAudio(runtimeDocument, result, simulationRunning);
+  usePiezoAudio(runtimeDocument, nativeOpticalPresentation, simulationRunning);
 
   useEffect(() => {
     if (!document || simulationRunning || status !== 'ready') return;
@@ -1140,6 +1442,27 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   const [selection, setSelection] = useState<Selection>(null);
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
+  const annotations = useCanvasAnnotations({
+    document,
+    selection,
+    clipboard: clipboardSelection,
+    setSelection,
+    setClipboard: setClipboardSelection,
+    getCurrentDocument,
+    commit: commitDocument,
+    notice: setNotice,
+    nextId,
+    center: visibleCenter,
+    scale: () => {
+      const rect = stageRef.current?.getBoundingClientRect();
+      return rect && rect.width > 0 && rect.height > 0
+        ? Math.min(
+            STAGE_WIDTH / viewport.zoom / rect.width,
+            STAGE_HEIGHT / viewport.zoom / rect.height,
+          )
+        : 1;
+    },
+  });
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
@@ -1592,6 +1915,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function duplicateSelected(): void {
+    if (annotations.duplicate()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || selection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
@@ -1607,12 +1931,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function copySelected(): void {
+    if (annotations.copy()) return;
     if (selection?.kind !== 'component') return;
     setClipboardSelection({ ...selection, ids: [...selection.ids] });
     setNotice(selection.ids.length > 1 ? 'Компоненты скопированы.' : 'Компонент скопирован.');
   }
 
   function pasteCopied(): void {
+    if (annotations.paste()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || clipboardSelection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
@@ -1632,6 +1958,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function removeSelection(): void {
+    if (annotations.remove()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || !selection) return;
     if (!structuralEditAllowed()) return;
@@ -2600,6 +2927,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function beginStagePointer(event: PointerEvent<SVGSVGElement>): void {
+    if ((event.target as Element | null)?.closest?.('[data-canvas-annotation]')) return;
     if (event.pointerType === 'touch') {
       if (pinchRef.current && !pinchRef.current.ids.includes(event.pointerId)) {
         event.preventDefault();
@@ -3204,29 +3532,40 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     });
   }
 
+  function fitSceneScaled(scale: number): void {
+    const fitted =
+      !document || (document.components.length === 0 && !document.annotations?.length)
+        ? emptyInitialViewport()
+        : (() => {
+            const bounds = sceneBounds(document, true);
+            const rect = stageRef.current?.getBoundingClientRect();
+            return bounds && rect
+              ? fitViewportToScreen(
+                  bounds,
+                  rect,
+                  STAGE_WIDTH,
+                  STAGE_HEIGHT,
+                  MIN_ZOOM,
+                  MAX_ZOOM,
+                  compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
+                )
+              : DEFAULT_VIEWPORT;
+          })();
+    const factor = Number.isFinite(scale) ? clamp(scale, 0.1, 1) : 1;
+    const zoom = clamp(fitted.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    // Preserve the fitted scene center while reducing apparent component size.
+    applyViewport({
+      zoom,
+      x: fitted.x + STAGE_WIDTH / (2 * fitted.zoom) - STAGE_WIDTH / (2 * zoom),
+      y: fitted.y + STAGE_HEIGHT / (2 * fitted.zoom) - STAGE_HEIGHT / (2 * zoom),
+    });
+  }
   function fitScene(): void {
-    if (!document || document.components.length === 0) {
-      applyViewport(emptyInitialViewport());
-      return;
-    }
-    const bounds = sceneBounds(document);
-    const rect = stageRef.current?.getBoundingClientRect();
-    applyViewport(
-      bounds && rect
-        ? fitViewportToScreen(
-            bounds,
-            rect,
-            STAGE_WIDTH,
-            STAGE_HEIGHT,
-            MIN_ZOOM,
-            MAX_ZOOM,
-            compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
-          )
-        : DEFAULT_VIEWPORT,
-    );
+    fitSceneScaled(1);
   }
 
   function nudgeSelection(dx: number, dy: number): void {
+    if (annotations.nudge(dx, dy)) return;
     const current = getCurrentDocument();
     if (!current || selection?.kind !== 'component') return;
     const selectedIds = selection.ids;
@@ -3263,33 +3602,26 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     commitDocument(next, 'Положение изменено с клавиатуры.');
   }
 
-  const shortcutActionsRef = useRef<{
-    readonly undo: () => unknown;
-    readonly redo: () => unknown;
-    readonly copy: () => void;
-    readonly paste: () => void;
-    readonly duplicate: () => void;
-    readonly remove: () => void;
-    readonly rotate: () => void;
-    readonly selectAll: () => void;
-    readonly nudge: (dx: number, dy: number) => void;
-    readonly cancel: () => void;
-  } | null>(null);
+  const shortcutActionsRef = useRef<WorkbenchShortcutActions | null>(null);
   shortcutActionsRef.current = {
     undo,
     redo,
     copy: copySelected,
     paste: pasteCopied,
     duplicate: duplicateSelected,
-    remove: removeSelection,
+    delete: removeSelection,
     rotate: rotateSelected,
-    selectAll: () => {
+    mirror: () => mirrorSelected('horizontal'),
+    simulate: () => {
+      if (!busy) void toggleSimulationWithAudio();
+    },
+    'select-all': () => {
       const current = getCurrentDocument();
       const ids = current?.components.map((component) => component.id) ?? [];
       setSelection(ids.length > 0 ? { kind: 'component', id: ids[0]!, ids } : null);
     },
     nudge: nudgeSelection,
-    cancel: () => {
+    escape: () => {
       cancelInteraction();
       setCatalogPlacementState(null);
       setPendingTerminal(null);
@@ -3302,45 +3634,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   };
 
   useEffect(() => {
-    function keyDown(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space' && !targetConsumesSpace(event.target)) {
-        spacePressedRef.current = true;
-      }
-      if (isEditableShortcutTarget(event.target)) return;
-
-      const command = resolveWorkbenchShortcut(event);
-      const actions = shortcutActionsRef.current;
-      if (!command || !actions) return;
-      if (command !== 'escape') event.preventDefault();
-
-      if (command === 'undo') actions.undo();
-      else if (command === 'redo') actions.redo();
-      else if (command === 'copy') actions.copy();
-      else if (command === 'paste') actions.paste();
-      else if (command === 'duplicate') actions.duplicate();
-      else if (command === 'delete') actions.remove();
-      else if (command === 'rotate') actions.rotate();
-      else if (command === 'select-all') actions.selectAll();
-      else if (command === 'nudge-up')
-        actions.nudge(0, -(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP));
-      else if (command === 'nudge-down')
-        actions.nudge(0, event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP);
-      else if (command === 'nudge-left')
-        actions.nudge(-(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP), 0);
-      else if (command === 'nudge-right')
-        actions.nudge(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP, 0);
-      else if (command === 'escape') actions.cancel();
-    }
-    function keyUp(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space') spacePressedRef.current = false;
-    }
-    window.addEventListener('keydown', keyDown);
-    window.addEventListener('keyup', keyUp);
+    spacePressedRef.current = false;
+    if (!keyboardShortcutsEnabled) return;
+    const unbind = bindWorkbenchShortcuts(shortcutActionsRef, spacePressedRef);
     return () => {
-      window.removeEventListener('keydown', keyDown);
-      window.removeEventListener('keyup', keyUp);
+      unbind();
+      spacePressedRef.current = false;
     };
-  }, []);
+  }, [keyboardShortcutsEnabled]);
 
   const filteredCatalog = useMemo(() => {
     const query = libraryQuery.trim().toLocaleLowerCase('ru');
@@ -3553,6 +3854,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         : result;
     },
     nativeOpticalPresentation,
+    simulationPacing,
+    setSimulationRate,
     versions,
     status,
     saveStatus,
@@ -3573,6 +3876,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
+    runtimeInputBudget,
+    setRuntimeSensorDistance,
+    setRuntimeHcSr04EnvironmentSample,
     arduinoSerialByBoard,
     sendArduinoSerialRx,
     get simulationTimeMs() {
@@ -3603,7 +3909,15 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     duplicateSelected,
     copySelected,
     pasteCopied,
-    hasClipboard: clipboardSelection?.kind === 'component',
+    hasClipboard:
+      clipboardSelection?.kind === 'component' || clipboardSelection?.kind === 'annotation',
+    annotations,
+    annotationWorldPoint: toWorld,
+    addCanvasText: () => {
+      cancelInteraction();
+      setPendingTerminal(null);
+      annotations.add();
+    },
     removeSelection,
     removeWireVertexAt,
     rotateSelected,
@@ -3646,6 +3960,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     handleWheel,
     zoomBy,
     fitScene,
+    fitSceneScaled,
     placeCatalogComponent,
     saveNow,
     toggleSimulation: toggleSimulationWithAudio,

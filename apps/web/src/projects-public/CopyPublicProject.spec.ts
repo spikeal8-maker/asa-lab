@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CopyPublicProject, copiedProjectHref } from './CopyPublicProject';
+import { CopyPublicProject, copiedProjectHref, copyError } from './CopyPublicProject';
 import { publicProjectsApi, type PublicProject, type PublicProjectCopy } from './api';
 import type { ApiResult } from '../api-call';
 import { setTelemetryContext } from '../telemetry-context';
@@ -20,6 +20,7 @@ const publication: PublicProject = {
   moduleKey: 'electronics',
   authorLabel: 'Author A',
   featured: false,
+  pinned: false,
   publishedAt: '2026-10-21T10:00:00Z',
   preview: null,
   capabilities: { viewer: 'static', canCopy: true, downloadFormats: [] },
@@ -70,7 +71,11 @@ describe('published private copy UI', () => {
     expect(container.textContent).toContain('Создаём копию');
     await act(async () => finish(success));
     const link = container.querySelector('a')!;
-    expect(link.textContent).toBe('Открыть мою копию');
+    expect(link.textContent).toContain('Открыть мою копию');
+    expect(container.querySelector('.publication-copy-check')).not.toBeNull();
+    expect(container.querySelector('[role=status]')?.textContent).toContain(
+      'Добавлено в мои проекты',
+    );
     expect(link.getAttribute('href')).toBe(
       '/projects/my-private-copy/electronics/edit?returnTo=%23%2Fprojects',
     );
@@ -124,12 +129,11 @@ describe('published private copy UI', () => {
     },
   );
 
-  it('leaves unsupported publications visibly unavailable', async () => {
+  it('hides unavailable copying without offering a disabled dead end', async () => {
     const copy = vi.spyOn(publicProjectsApi, 'copy');
     await render({ ...publication, capabilities: { ...publication.capabilities, canCopy: false } });
-    expect(button().disabled).toBe(true);
-    expect(container.textContent).toContain('Другие лицензии и модули пока не поддерживаются');
-    await act(async () => button().click());
+    expect(container.querySelector('button')).toBeNull();
+    expect(container.textContent).toBe('');
     expect(copy).not.toHaveBeenCalled();
   });
 
@@ -163,4 +167,9 @@ describe('published private copy UI', () => {
     );
     expect(copiedProjectHref({ projectId: 'copy', moduleKey: 'blocks', created: true })).toBeNull();
   });
+});
+
+it('explains platform master OFF overrides class or individual allowance', () => {
+  expect(copyError(403, 'acquisition_disabled')).toContain('Администратор платформы');
+  expect(copyError(403, 'acquisition_disabled')).toContain('не отменяет общий запрет');
 });

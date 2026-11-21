@@ -638,7 +638,11 @@ def collect_lanes(
         ("PR", [lane.get("task", {}).get("pr") for lane in lanes]),
         (
             "executor_id",
-            [lane.get("execution_lease", {}).get("executor_id") for lane in lanes],
+            [
+                lease.get("executor_id") if isinstance(lease, dict) else None
+                for lane in lanes
+                for lease in (lane.get("execution_lease"),)
+            ],
         ),
     ):
         populated = [value for value in values if value not in (None, "")]

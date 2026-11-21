@@ -1,8 +1,10 @@
+import { fixtureChatSql, publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import {
   AiChatService,
+  type AiAdminConfig,
   type AiCursor,
   type AiMessage,
   type AiPage,
@@ -160,8 +162,11 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       },
       randomUUID(),
     );
-    expect(saved.enabled).toBe(true);
-    expect(saved.apiKeyConfigured).toBe(true);
+    await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna', 'gpt-4.1-mini']);
+    expect(saved.providerConfigurations.find((slot) => slot.provider === 'openai')).toMatchObject({
+      enabled: true,
+      apiKeyConfigured: true,
+    });
     expect(JSON.stringify(saved)).not.toContain('sk-ai-private-integration-key-001');
 
     const raw = await admin.query<{ api_key_ciphertext: string }>(
@@ -209,26 +214,18 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     const thread = (await service.threads(owner.principalId))[0]!;
     const other = await service.createThread(owner.principalId);
     const operation = randomUUID();
-    const admitted = await runtime.query<{ admitted: boolean }>(
-      'SELECT ai_chat_begin($1,$2,$3,$4::varchar) AS admitted',
-      [owner.principalId, other.id, operation, 'Один запрос'],
-    );
+    const admitted = await runtime.query<{ admitted: boolean }>(fixtureChatSql, [
+      owner.principalId,
+      other.id,
+      operation,
+      'Один запрос',
+    ]);
     expect(admitted.rows[0]!.admitted).toBe(true);
     await expect(
-      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-        owner.principalId,
-        other.id,
-        operation,
-        'Другой текст',
-      ]),
+      runtime.query(fixtureChatSql, [owner.principalId, other.id, operation, 'Другой текст']),
     ).rejects.toMatchObject({ code: '22023' });
     await expect(
-      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-        owner.principalId,
-        thread.id,
-        operation,
-        'Один запрос',
-      ]),
+      runtime.query(fixtureChatSql, [owner.principalId, thread.id, operation, 'Один запрос']),
     ).rejects.toMatchObject({ code: '22023' });
   });
 
@@ -249,12 +246,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     const deletedRequest = randomUUID();
     // Failed admission must roll back without consuming quota.
     await expect(
-      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-        actor.principalId,
-        randomUUID(),
-        randomUUID(),
-        text,
-      ]),
+      runtime.query(fixtureChatSql, [actor.principalId, randomUUID(), randomUUID(), text]),
     ).rejects.toMatchObject({ message: 'AI_THREAD_BUSY_OR_MISSING' });
     for (let n = 0; n < 29; n += 1) {
       const thread = await adapter.createThread(actor.principalId);
@@ -471,19 +463,19 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       const [, selectedOptions] = mockFetch.mock.calls[1]!;
       const selectedInput = JSON.parse(String(selectedOptions?.body)) as { model: string };
       expect(selectedInput.model).toBe('gpt-4.1-mini');
-      const invalidModel = await inject(app, {
+      const hiddenModel = await inject(app, {
         method: 'POST',
         url: msgUrl + '/stream',
         headers: { host, 'content-type': 'application/json', accept: 'text/event-stream' },
         cookies: { asa_session: ownerToken },
         payload: {
-          message: 'Неподдерживаемый DeepSeek',
+          message: 'Скрытая модель DeepSeek',
           requestId: randomUUID(),
           model: 'deepseek-flash',
         },
       });
-      expect(invalidModel.statusCode).toBe(200);
-      expect(invalidModel.body).toContain('ai_model_invalid');
+      expect(hiddenModel.statusCode).toBe(200);
+      expect(hiddenModel.body).toContain('ai_model_not_allowed');
       expect(mockFetch).toHaveBeenCalledTimes(2);
       const streamedHistory = await service.messages(owner.principalId, threadId);
       expect(streamedHistory).toContainEqual(
@@ -515,18 +507,28 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       });
       expect(unauthorizedTest.statusCode).toBe(403);
       expect(mockFetch).toHaveBeenCalledTimes(2);
+      const verificationProvider = (
+        allowedAdmin.json() as AiAdminConfig
+      ).providerConfigurations.find((slot) => slot.provider === 'openai')!;
+      expect(verificationProvider).toMatchObject({ enabled: true, apiKeyConfigured: true });
       const verification = await inject(app, {
         method: 'POST',
         url: '/api/admin/v1/ai/test',
         headers: { host, 'content-type': 'application/json' },
         cookies: { asa_session: adminToken },
-        payload: { configurationVersion, acknowledgePaidRequest: true },
+        payload: {
+          configurationVersion,
+          acknowledgePaidRequest: true,
+          provider: verificationProvider.provider,
+          providerConfigurationVersion: verificationProvider.revision,
+        },
       });
       expect(verification.statusCode).toBe(200);
       expect(verification.json()).toMatchObject({
         provider: 'openai',
         model: 'gpt-6-luna',
         configurationVersion,
+        providerConfigurationVersion: verificationProvider.revision,
       });
       expect(verification.body).not.toContain('sk-ai-private-integration-key-001');
       expect(mockFetch).toHaveBeenCalledTimes(3);
@@ -731,6 +733,9 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         state: 'stopped',
       }),
     );
+    const quotaBeforeReplay = await admin.query(
+      'SELECT count(*)::integer AS count FROM ai_paid_operation_quota',
+    );
     const again = await adapter.sendStream(
       owner.principalId,
       thread.id,
@@ -740,8 +745,11 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       new AbortController().signal,
     );
     expect(again.replayed).toBe(true);
-    // Replay acknowledges stored state; it is not another live stop operation.
-    expect(again.stopped).toBe(false);
+    // Replay reports the immutable stored stopped state without another admission.
+    expect(again.stopped).toBe(true);
+    expect(
+      (await admin.query('SELECT count(*)::integer AS count FROM ai_paid_operation_quota')).rows,
+    ).toEqual(quotaBeforeReplay.rows);
     expect(again.messages).toContainEqual(
       expect.objectContaining({ requestId: request, role: 'assistant', state: 'stopped' }),
     );
@@ -882,6 +890,9 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         },
         randomUUID(),
       );
+      await publishFixtureModels(service, platformAdmin.principalId, [
+        provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
+      ]);
       try {
         const thread = await service.createThread(actor.principalId);
         const operation = randomUUID();
@@ -952,6 +963,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
           },
           randomUUID(),
         );
+        await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna']);
       }
     },
   );

@@ -3,11 +3,17 @@
 Compact router for Electronics/Arduino work. Product behaviour lives in `README.md`;
 do not preload that full specification or the Electronics source/test trees.
 
+> **Текущие требования владельца:** [ТЗ из 20 пунктов](OWNER_REMAINING_PLAN_20.md) задаёт нумерацию и критерии приёмки. Списки из [23](OWNER_23_EXECUTION_QUEUE.md) и [45 пунктов](OWNER_CONSOLIDATED_PLAN_45.md) сохраняют исходные замечания и соответствие номеров.
+>
+> **Восстановление электроники:** [ТЗ v1.1](https://github.com/spikeal8-maker/asa-lab/pull/1109) описывает отдельную программу. Границы предварительного расчёта при остановленной симуляции заданы в [карточке R10](tasks/TASK-ELECTRONICS-RECOVERY-R10-001.md). Выбранный срез и его статус смотри в [current.yaml](../../execution/current.yaml).
+
 > **Classroom stabilization 2.1:** owner programme [#452](https://github.com/spikeal8-maker/asa-lab/issues/452) is governed by [ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md](ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md). Weekly-log evidence is in [evidence/stabilization-20261001-weekly-log-findings.md](evidence/stabilization-20261001-weekly-log-findings.md). Prepared owner decisions include the 60-second autosave task [#459](https://github.com/spikeal8-maker/asa-lab/issues/459); classroom FRP/session/save load is tracked in [#460](https://github.com/spikeal8-maker/asa-lab/issues/460). These links do not override the active task in `current.yaml`.
 
 > **Owner priority update 3.0 (08.10.2026):** [E01–E35 / K0–K8](ASA_ELECTRONICS_OWNER_REPAIR_PRIORITY_20261008.md) refines the existing programme #452. P0 E01 save recovery precedes visual work; K0 version/backup verification is read-only and parallel. The [save-recovery card](tasks/TASK-ELECTRONICS-SAVE-RECOVERY-001.md) defines E01; concrete task selection lives only in current.yaml, including separately selected dependencies. Suspended525 and accepted results remain preserved. This owner input grants no school deployment or live data operation.
 
-> **23 пользовательских замечания (23.10.2026):** [исполнительное ТЗ и очередь «от простого к сложному»](OWNER_23_EXECUTION_QUEUE.md) → [единый реестр #703](https://github.com/spikeal8-maker/asa-lab/issues/703) → конкретная активная task card. Этот порядок не меняет `docs/execution/current.yaml` и не разрешает трогать чужие lanes.
+> **История 23 пользовательских замечаний (23.10.2026):** [исполнительное ТЗ и очередь «от простого к сложному»](OWNER_23_EXECUTION_QUEUE.md) → [единый реестр #703](https://github.com/spikeal8-maker/asa-lab/issues/703) → конкретная активная task card. Этот порядок не меняет `docs/execution/current.yaml` и не разрешает трогать чужие lanes.
+
+> **Ультразвуковые дальномеры:** [исполнительное ТЗ v1.1](contracts/ULTRASONIC_EXECUTION_SPEC.md) и [программа #1238](https://github.com/spikeal8-maker/asa-lab/issues/1238) задают последовательные карточки U00–U09 для HC-SR04/PING, отдельной справки «?» и управления целью как в Tinkercad. Готовность пакета определяется в [§6.1](contracts/ULTRASONIC_EXECUTION_SPEC.md#61-когда-исполнительный-пакет-готов), подготовка и формальное выполнение U00 разделены в [§7.1](contracts/ULTRASONIC_EXECUTION_SPEC.md#71-подготовка-и-формальное-выполнение-u00). [Аудит и проверка живого Tinkercad](evidence/ultrasonic-audit-20261117.md) — историческое evidence. Документы не выбирают product task; выбор остаётся в `current.yaml`.
 
 ## 1. Confirm the selected task
 
@@ -52,15 +58,15 @@ hygiene or Electronics asset-packaging work, first confirm the selected task and
 at the exact `WP-*` section named by that task card. The specification describes the whole
 programme but never activates a work package by itself.
 
-| Task kind | Next document |
-| --- | --- |
-| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); ordinary cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |
-| cleanup / optimization programme | Selected concrete task card → exact `WP-*` in [maintenance execution specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md) → [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) when deletion/decomposition/legacy applies |
-| `implementation` or `component/peripheral` | Selected concrete card and its exact [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md) stage; [implementation template](tasks/IMPLEMENTATION_TASK_TEMPLATE.md) |
-| `analysis/inventory` | Selected concrete inventory card; [read-only contract](AGENT_GUIDE.md#analysisinventory) |
-| `design-decision` | Selected concrete card using [design template](tasks/DESIGN_TASK_TEMPLATE.md) |
-| `deployment` | Separately selected card using [deployment template](tasks/DEPLOYMENT_TASK_TEMPLATE.md) |
-| `plan/governance` | Owner-selected documentation/tooling scope and [document ownership](DEVELOPMENT_SPEC.md#11-documentation-maintenance); hygiene-policy/baseline work reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |
+| Task kind                                  | Next document                                                                                                                                                                                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maintenance` / `repair`                   | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); ordinary cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md)                                           |
+| cleanup / optimization programme           | Selected concrete task card → exact `WP-*` in [maintenance execution specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md) → [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) when deletion/decomposition/legacy applies |
+| `implementation` or `component/peripheral` | Selected concrete card and its exact [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md) stage; [implementation template](tasks/IMPLEMENTATION_TASK_TEMPLATE.md)                                                                               |
+| `analysis/inventory`                       | Selected concrete inventory card; [read-only contract](AGENT_GUIDE.md#analysisinventory)                                                                                                                                                      |
+| `design-decision`                          | Selected concrete card using [design template](tasks/DESIGN_TASK_TEMPLATE.md)                                                                                                                                                                 |
+| `deployment`                               | Separately selected card using [deployment template](tasks/DEPLOYMENT_TASK_TEMPLATE.md)                                                                                                                                                       |
+| `plan/governance`                          | Owner-selected documentation/tooling scope and [document ownership](DEVELOPMENT_SPEC.md#11-documentation-maintenance); hygiene-policy/baseline work reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md)                   |
 
 Governance work audits named routing documents directly; it need not invent a runtime
 component ID. Every product task needs an exact selected scope/card before coding.

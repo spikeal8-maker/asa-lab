@@ -1,0 +1,44 @@
+{
+  "run": 41345471963,
+  "artifact": 13100544201,
+  "artifact_name": "electronics-r4-m1-browser-41345471963",
+  "fullArtifactBytes": 801363549,
+  "source": "6a23c93e9880653c64856f32ea6a1dd92f315c83",
+  "transport": "HTTP206 selected entries CRC32/size/SHA256 verified",
+  "bytesFetched": 17286785,
+  "selectedEntries": 108,
+  "selectedZipSHA256": "71f59e7ba85ed83fdfa4ddd8691c2a57afe64fe3ca66bf458b269ca35552bc16",
+  "job": 124965389154,
+  "conclusion": "cancelled",
+  "completedAt": "2026-11-01T21:07:03Z",
+  "scheduled": 269,
+  "completed": 261,
+  "pass": 236,
+  "fail": 25,
+  "uncompleted": 8,
+  "uncompletedSplit": "interrupted vs not-reached NOT_DETERMINED",
+  "fullQualification": "NOT_READY",
+  "failedGroups": {
+    "timingClassroom": 20,
+    "compactControlsHitOwnership": 4,
+    "deniedLocalStorageEmergencyCaption": 1
+  },
+  "artifactUploadedSHA256": "b28f6f4c124c73cee8cee2be743b29e2369f6c93ce2876cdbc170d792509cdaf",
+  "beforeRun": 41094573695,
+  "beforeSource": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+  "sameFiveTitlesBefore": "ALL_FAIL",
+  "testSourceProvenance": "git diff b4..6a23 -- e2e/electronics-simulation.spec.ts empty; identical test file",
+  "classification": "Five observed preexisting failures: independent baseline candidate, same titles fail before, but no zero-new-impact causal claim. All20 timing failures unresolved individually; no blanket C.",
+  "supplementaryArchives": [
+    {
+      "file": "extra-evidence.zip",
+      "bytes": 4128391,
+      "sha256": "1bd7b1107d20e37e92d551679f15a3a068c35e1c216dc038a1e448a09bfb52de"
+    },
+    {
+      "file": "five-failures-traces.zip",
+      "bytes": 94071712,
+      "sha256": "e9fa6db749adcc248fab17026366990cd654cd3447dfd8c93532b9d1f0584cbb"
+    }
+  ]
+}

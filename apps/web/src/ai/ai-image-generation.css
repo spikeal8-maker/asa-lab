@@ -1,0 +1,136 @@
+.ai-image-mode,
+.ai-generated-image {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.ai-image-mode {
+  display: grid;
+  gap: 10px;
+  color: var(--ai-text, #16344b);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ai-image-mode textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 76px;
+  max-height: 180px;
+  resize: vertical;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #8886;
+  border-radius: 12px;
+  padding: 10px;
+}
+.ai-image-mode-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.ai-image-mode button,
+.ai-image-mode select {
+  font: inherit;
+  max-width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ai-border, #b9c9d6);
+  background: var(--ai-surface, #fff);
+  color: var(--ai-text, #16344b);
+  cursor: pointer;
+}
+.ai-image-mode button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.ai-image-mode button:first-of-type {
+  background: var(--ai-accent, #0879b5);
+  color: var(--ai-on-accent, #fff);
+}
+.ai-image-mode fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #b9c9d6;
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  gap: 9px;
+}
+.ai-image-mode label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ai-image-mode input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.ai-image-mode label:has(input[type='checkbox']) {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+}
+.ai-image-mode input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.ai-image-mode select option {
+  color: var(--ai-text, #16344b);
+  background: var(--ai-surface, #fff);
+}
+.ai-image-mode p {
+  margin: 0;
+}
+.ai-generated-image img {
+  display: block;
+  width: min(100%, 512px);
+  height: auto;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+.ai-generated-image-footer {
+  display: flex;
+  align-items: center;
+  max-width: 512px;
+}
+.ai-generated-image-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.asa-ai-layout .ai-generated-image .ai-generated-image-actions > :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ai-muted, #64788a);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+.asa-ai-layout
+  .ai-generated-image
+  .ai-generated-image-actions
+  > :is(button, a):is(:hover, :focus-visible) {
+  background: var(--ai-bg, #eef4f8);
+  color: var(--ai-text, #16344b);
+}
+.ai-generated-image-error {
+  margin: 4px 0 0;
+  color: var(--ai-error, #9b2838);
+  font-size: 12px;
+}

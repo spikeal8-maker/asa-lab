@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import { randomUUID } from 'node:crypto';
 
 export class AnalyticsDeliveryError extends Error {
@@ -49,7 +50,7 @@ export class AnalyticsDeliveryQueue {
     private readonly enabled = true,
     private readonly now = Date.now,
     private readonly emit: (value: object) => void = (value) =>
-      process.stdout.write(`${JSON.stringify(value)}\n`),
+      emitApplicationLog(`${JSON.stringify(value)}\n`),
   ) {}
 
   get pending() {

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { InfoHint } from '../components/InfoHint';
 import { call } from './admin-api';
 import './ai-ollama.css';
 
@@ -8,10 +9,54 @@ interface OllamaConfig {
   model: string;
   revision: number;
   updatedAt: string | null;
+  thinking?: string;
+  contextTokens?: number;
 }
 interface OllamaModel {
   name: string;
   size: number;
+}
+interface ModelDetail {
+  capabilities: readonly string[];
+  thinking: { values: (boolean | string)[]; default: boolean | string | null } | null;
+  contextMax: number | null;
+}
+function validModelDetail(value: unknown): value is ModelDetail {
+  const d = value as ModelDetail | null;
+  return (
+    !!d &&
+    Array.isArray(d.capabilities) &&
+    d.capabilities.every((c) => typeof c === 'string') &&
+    (d.contextMax === null || (Number.isSafeInteger(d.contextMax) && Number(d.contextMax) > 0)) &&
+    (d.thinking === null ||
+      (!!d.thinking &&
+        Array.isArray(d.thinking.values) &&
+        d.thinking.values.length <= 32 &&
+        d.thinking.values.every(
+          (v) =>
+            typeof v === 'boolean' || (typeof v === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(v)),
+        ) &&
+        (d.thinking.default === null || d.thinking.values.includes(d.thinking.default))))
+  );
+}
+function modeValue(value: boolean | string): string {
+  return value === false ? 'off' : value === true ? 'on' : value;
+}
+function modeLabel(value: string): string {
+  return (
+    (
+      {
+        default: 'По умолчанию модели',
+        off: 'Выключено',
+        on: 'Включено',
+        low: 'Низкое',
+        medium: 'Среднее',
+        high: 'Высокое',
+        xhigh: 'Максимальное',
+        max: 'Максимальное',
+      } as Record<string, string>
+    )[value] ?? value
+  );
 }
 interface OllamaApplied {
   config: OllamaConfig;
@@ -43,6 +88,11 @@ export function AdminOllamaPage({
   const [saved, setSaved] = useState<OllamaConfig | null>(null);
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
+  const [thinking, setThinking] = useState('default');
+  const [contextTokens, setContextTokens] = useState(120000);
+  const [detail, setDetail] = useState<ModelDetail | null>(null);
+  const [detailError, setDetailError] = useState('');
+  const [detailLoading, setDetailLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [models, setModels] = useState<readonly OllamaModel[]>([]);
   const [checkingModels, setCheckingModels] = useState(false);
@@ -65,6 +115,10 @@ export function AdminOllamaPage({
       setEnabled(response.data.enabled);
       setBaseUrl(response.data.baseUrl);
       setModel(response.data.model);
+      setThinking(
+        response.data.thinking ?? (response.data.model === 'qwen3.8:27b' ? 'xhigh' : 'off'),
+      );
+      setContextTokens(response.data.contextTokens ?? 120000);
       setError('');
     });
     return () => {
@@ -106,9 +160,37 @@ export function AdminOllamaPage({
     };
   }, [baseUrl, saved?.revision]);
 
+  useEffect(() => {
+    setDetail(null);
+    setDetailError('');
+    if (!saved || !baseUrl.trim() || !model.trim()) return;
+    let active = true;
+    setDetailLoading(true);
+    const timer = setTimeout(() => {
+      void call<ModelDetail>('/api/admin/v1/ai/ollama/model-detail', {
+        method: 'POST',
+        body: JSON.stringify({ baseUrl: baseUrl.trim(), model: model.trim() }),
+      })
+        .then((response) => {
+          if (!active) return;
+          if (response.ok && validModelDetail(response.data)) setDetail(response.data);
+          else if (response.ok) setDetailError('Ollama вернула несовместимые возможности модели.');
+          else setDetailError(response.error.message || 'Возможности не определены');
+        })
+        .finally(() => {
+          if (active) setDetailLoading(false);
+        });
+    }, 450);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [baseUrl, model, saved?.revision]);
+
   async function apply(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!saved || saving) return;
+    if (!saved || saving || (enabled && (detailLoading || !supportedThinking || !validContext)))
+      return;
     setSaving(true);
     setError('');
     setFeedback('');
@@ -120,6 +202,8 @@ export function AdminOllamaPage({
           baseUrl: baseUrl.trim(),
           model: model.trim(),
           revision: saved.revision,
+          thinking,
+          contextTokens,
         }),
       });
       if (!response.ok) {
@@ -130,6 +214,11 @@ export function AdminOllamaPage({
       setSaved(response.data.config);
       setBaseUrl(response.data.config.baseUrl);
       setModel(response.data.config.model);
+      setThinking(
+        response.data.config.thinking ??
+          (response.data.config.model === 'qwen3.8:27b' ? 'xhigh' : 'off'),
+      );
+      setContextTokens(response.data.config.contextTokens ?? 120000);
       setEnabled(response.data.config.enabled);
       onUpdated?.();
       setFeedback(
@@ -145,6 +234,87 @@ export function AdminOllamaPage({
       setSaving(false);
     }
   }
+
+  const defaultMode = detail?.thinking?.default ?? undefined;
+  const inferenceDirty =
+    !!saved &&
+    (model !== saved.model ||
+      baseUrl !== saved.baseUrl ||
+      enabled !== saved.enabled ||
+      thinking !== (saved.thinking ?? (saved.model === 'qwen3.8:27b' ? 'xhigh' : 'off')) ||
+      contextTokens !== (saved.contextTokens ?? 120000));
+  const supportedThinking =
+    !!detail &&
+    (thinking === 'default' ||
+      (detail.thinking
+        ? detail.thinking.values.some((v) => modeValue(v) === thinking)
+        : thinking === 'off'));
+  const validContext =
+    Number.isSafeInteger(contextTokens) &&
+    contextTokens >= 2048 &&
+    contextTokens <= Math.min(detail?.contextMax ?? 1048576, 1048576);
+  const inferenceControls = (
+    <div className="asa-ai-ollama-inference">
+      <select
+        aria-label="Режим размышления Ollama"
+        value={detail?.thinking ? thinking : ''}
+        disabled={saving || detailLoading || !detail?.thinking}
+        onChange={(event) => {
+          setThinking(event.target.value);
+          setFeedback('');
+        }}
+      >
+        {detail?.thinking ? (
+          <>
+            <option value="default">Авто</option>
+            {detail.thinking.values.map((value) => (
+              <option key={String(value)} value={modeValue(value)}>
+                {modeLabel(modeValue(value))}
+              </option>
+            ))}
+            {thinking !== 'default' &&
+            !detail.thinking.values.some((v) => modeValue(v) === thinking) ? (
+              <option value={thinking} disabled>
+                Недоступный режим
+              </option>
+            ) : null}
+          </>
+        ) : (
+          <option value="">{detailLoading ? 'Загрузка…' : 'Без размышления'}</option>
+        )}
+      </select>
+      <label className="asa-ai-ollama-context">
+        <span aria-hidden="true">Контекст</span>
+        <input
+          type="number"
+          aria-label="Контекст, токенов"
+          min={2048}
+          max={Math.min(detail?.contextMax ?? 1048576, 1048576)}
+          step={1}
+          required
+          value={contextTokens || ''}
+          disabled={!saved || saving}
+          onChange={(event) => {
+            setContextTokens(event.target.valueAsNumber);
+            setFeedback('');
+          }}
+        />
+      </label>
+      <InfoHint label="Размышление и контекст Ollama">
+        {defaultMode !== undefined ? (
+          <p>Режим «Авто» для этой модели: {modeLabel(modeValue(defaultMode))}.</p>
+        ) : null}
+        <p>
+          {detail?.contextMax
+            ? 'Максимальный контекст: ' +
+              Math.min(detail.contextMax, 1048576).toLocaleString('ru-RU') +
+              ' токенов.'
+            : 'Допустимый контекст: от 2 048 до 1 048 576 токенов.'}
+          {' Чем больше контекст, тем больше памяти требуется Ollama.'}
+        </p>
+      </InfoHint>
+    </div>
+  );
 
   return (
     <section className="asa-ai-ollama" aria-label="Настройки Ollama">
@@ -248,51 +418,70 @@ export function AdminOllamaPage({
             aria-label="Установленные модели Ollama"
           >
             {models.map((item) => (
-              <button
+              <div
                 key={item.name}
-                type="button"
-                className={
-                  'asa-ai-ollama-model-option' + (model === item.name ? ' is-selected' : '')
-                }
-                aria-pressed={model === item.name}
-                disabled={saving}
-                onClick={() => {
-                  setModel(item.name);
-                  setFeedback('');
-                }}
+                className={'asa-ai-ollama-model-card' + (model === item.name ? ' is-selected' : '')}
               >
-                <span className="asa-ai-ollama-model-name">{item.name}</span>
-                <span className="asa-ai-ollama-model-size">{readableSize(item.size)}</span>
-                <span className="asa-ai-ollama-model-indicator" aria-hidden="true">
-                  {model === item.name ? '✓' : ''}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  className="asa-ai-ollama-model-option"
+                  aria-pressed={model === item.name}
+                  disabled={saving}
+                  onClick={() => {
+                    setModel(item.name);
+                    if (item.name !== model)
+                      setThinking(item.name === 'qwen3.8:27b' ? 'xhigh' : 'off');
+                    setFeedback('');
+                  }}
+                >
+                  <span className="asa-ai-ollama-model-name">{item.name}</span>
+                  <span className="asa-ai-ollama-model-size">{readableSize(item.size)}</span>
+                  <span className="asa-ai-ollama-model-indicator" aria-hidden="true">
+                    {model === item.name ? '✓' : ''}
+                  </span>
+                </button>
+                {model === item.name ? inferenceControls : null}
+              </div>
             ))}
           </div>
         ) : (
-          <label className="asa-ai-ollama-field">
-            <span className="asa-ai-visually-hidden">Модель</span>
-            <input
-              aria-label="Модель Ollama"
-              value={model}
-              maxLength={100}
-              required
-              onChange={(event) => {
-                setModel(event.target.value);
-                setFeedback('');
-              }}
-              spellCheck={false}
-              disabled={!saved || saving}
-              placeholder="Например: gemma4:12b"
-            />
-          </label>
+          <div className="asa-ai-ollama-model-card is-selected">
+            <label className="asa-ai-ollama-field">
+              <span className="asa-ai-visually-hidden">Модель</span>
+              <input
+                aria-label="Модель Ollama"
+                value={model}
+                maxLength={100}
+                required
+                onChange={(event) => {
+                  setModel(event.target.value);
+                  setFeedback('');
+                }}
+                spellCheck={false}
+                disabled={!saved || saving}
+                placeholder="Например: gemma4:12b"
+              />
+            </label>
+            {inferenceControls}
+          </div>
         )}
+        {detailError ? (
+          <p role="alert" className="asa-ai-field-error">
+            {detailError}
+          </p>
+        ) : null}
 
         <div className="asa-ai-ollama-bottom">
           <button
             className="asa-ai-ollama-primary"
             type="submit"
-            disabled={!saved || saving || !model.trim() || !baseUrl.trim()}
+            disabled={
+              !saved ||
+              saving ||
+              !model.trim() ||
+              !baseUrl.trim() ||
+              (enabled && (detailLoading || !supportedThinking || !validContext))
+            }
           >
             {saving
               ? 'Проверяем модель…'
@@ -303,6 +492,11 @@ export function AdminOllamaPage({
           {feedback ? (
             <span role="status" className="asa-ai-ollama-confirmed">
               {feedback}
+            </span>
+          ) : null}
+          {!feedback && inferenceDirty ? (
+            <span className="asa-ai-provider-subtitle" role="status">
+              Не сохранено
             </span>
           ) : null}
         </div>

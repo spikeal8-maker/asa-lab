@@ -1,0 +1,153 @@
+{
+  "candidatePaths": [
+    "apps/web/src/electronics/ArduinoCodePanel.tsx",
+    "apps/web/src/electronics/testing/arduino-check-messages.browser.mjs",
+    "apps/web/src/electronics/testing/arduino-code-contract.spec.ts",
+    "contexts/electronics/domain/arduino-capabilities.ts",
+    "contexts/electronics/testing/arduino-check-messages.spec.ts",
+    "docs/product/electronics/evidence/arduino-check-863/README.md",
+    "docs/product/electronics/evidence/arduino-check-863/after/loops-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/loops-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/message-deltas.json",
+    "docs/product/electronics/evidence/arduino-check-863/after/native.json",
+    "docs/product/electronics/evidence/arduino-check-863/after/serial-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/serial-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/servo-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/servo-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/source-copy-proof.json",
+    "docs/product/electronics/evidence/arduino-check-863/after/structures.json",
+    "docs/product/electronics/evidence/arduino-check-863/after/supported-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/supported-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/syntax-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/syntax-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/timeIncrement-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/timeIncrement-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/tonePwm-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/tonePwm-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/unsupported-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/after/unsupported-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/loops-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/loops-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/manifest.json",
+    "docs/product/electronics/evidence/arduino-check-863/before/native.json",
+    "docs/product/electronics/evidence/arduino-check-863/before/serial-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/serial-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/servo-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/servo-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/structures.json",
+    "docs/product/electronics/evidence/arduino-check-863/before/supported-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/supported-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/syntax-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/syntax-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/timeIncrement-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/timeIncrement-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/tonePwm-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/tonePwm-390.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/unsupported-1440.png",
+    "docs/product/electronics/evidence/arduino-check-863/before/unsupported-390.png"
+  ],
+  "foreignDirty": [
+    {
+      "worktree": "E:/Проекты/ASA-lab",
+      "dirty": [
+        "apps/web/src/pages/ClassroomPage.tsx",
+        "e2e/classroom-layout-acceptance.spec.ts",
+        "e2e/classroom-lifecycle.spec.ts",
+        "e2e/classroom-owner-ui.spec.ts",
+        "e2e/classroom-usability-ui.spec.ts",
+        "apps/web/src/modules/classroom-composition.css"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "C:/Users/spike/.codex/worktrees/ai-layout-quality/ASA-lab",
+      "dirty": [
+        "apps/api/src/abuse-protection.spec.ts",
+        "apps/api/src/abuse-protection.ts",
+        "apps/api/src/ai-chat.service.ts",
+        "apps/api/src/ai-native-search.spec.ts",
+        "apps/api/src/ai-native-tools.ts",
+        "apps/api/src/ai-tool-policy.controller.ts",
+        "apps/web/src/admin/AdminAiToolPolicies.tsx",
+        "apps/web/src/admin/testing/ai-tool-policies.spec.ts",
+        "apps/api/src/ai-native-weather.ts",
+        "reports/ai-export-pdf.png"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "C:/Users/spike/.codex/worktrees/electronics-682-engine-harness/ASA-lab",
+      "dirty": [
+        "contexts/electronics/testing/engine-timed-api.spec.ts"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "C:/Users/spike/.codex/worktrees/electronics-mobile-status/ASA-lab",
+      "dirty": [
+        "Temp/"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "C:/Users/spike/.codex/worktrees/v-ux2a-assignment-list-20261004/ASA-lab",
+      "dirty": [
+        "apps/web/src/learning/testing/authored-assignment-list.spec.ts",
+        "apps/web/src/pages/AuthoredMaterialsPage.tsx",
+        "apps/web/src/pages/assignment-library.css",
+        "e2e/learning-author-preview.spec.ts",
+        "e2e/learning-authoring-navigation.ts",
+        "e2e/learning-course-01.spec.ts",
+        "e2e/learning-teacher-assigns-activity.spec.ts",
+        "e2e/v-ux2a-assignment-list.spec.ts"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "E:/ASA-previews/electronics-classroom-d13-candidate-20261019",
+      "dirty": [
+        ".github/workflows/electronics-r4-m1-focused.yml",
+        "e2e/electronics-ready-cadence.spec.ts",
+        "tools/test_ci_image_transport.py",
+        "docs/product/electronics/examples/",
+        "docs/product/electronics/lessons/"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "E:/ASA-previews/teacher-587-review-fixes-20261018",
+      "dirty": [
+        "apps/web/src/pages/ClassroomPage.tsx",
+        "e2e/classroom-open-compact.spec.ts"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "E:/ASA-previews/teacher-open-class-20261017",
+      "dirty": [
+        "apps/web/src/modules/classroom-open-compact.css"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "E:/ASA-previews/teacher-pr582-redesign",
+      "dirty": [
+        ".github/workflows/classroom-owner.yml",
+        "apps/web/src/pages/DashboardPage.tsx",
+        "apps/web/src/modules/classroom-teacher-ultrawide.css",
+        "e2e/classroom-teacher-ultrawide.spec.ts"
+      ],
+      "overlap": []
+    },
+    {
+      "worktree": "E:/ASA-previews/teacher-pr587-ci-fix-20261018",
+      "dirty": [
+        "apps/web/src/creator-portal/portal-header-adaptive.css",
+        "apps/web/src/modules/classroom-open-compact.css",
+        "e2e/classroom-open-compact.spec.ts"
+      ],
+      "overlap": []
+    }
+  ],
+  "actualCandidateOverlap": []
+}

@@ -1,0 +1,142 @@
+{
+  "task": "TASK-ELECTRONICS-SEVEN-SEGMENT-PARITY-001",
+  "issue": 788,
+  "baseline": "9695e3c562f6f7390822bcee7e091c626e26f00a",
+  "command": "node apps/web/src/electronics/testing/servo-runtime.browser.mjs --seven-segment-parity-only",
+  "cases": 96,
+  "viewports": [
+    1440,
+    390
+  ],
+  "patterns": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "dp",
+    "off"
+  ],
+  "commonModes": [
+    "common-cathode",
+    "common-anode"
+  ],
+  "sources": [
+    "text",
+    "real Blockly Workspace: 8 asa_digital_write,8 asa_pin,8 asa_level,1 asa_loop; production generator"
+  ],
+  "resistors": {
+    "count": 8,
+    "eachOhm": 1000,
+    "originalDefault330FixtureAndGoldens": "unchanged"
+  },
+  "assertions": [
+    "matched current project session/generation/input digest/committed horizon and Worker response",
+    "fixed source equals document source and matched clock loadedSource",
+    "at least one complete eight-write loop, all eight OUTPUT modes and correct commanded latches",
+    "physical GPIO levels allow modeled driver drop",
+    "eight finite branch currents below 4mA and expected on/off mask",
+    "eight model brightness and actual Stage DOM opacities",
+    "finite quality, KCL and source residual inside existing tolerances",
+    "text/Blockly glyph equality and current/brightness tolerances"
+  ],
+  "results": {
+    "maximumBranchAmp": 0.003045186639,
+    "maximumKclResidualAmp": 8.5e-11,
+    "maximumSourceResidualVolt": 0,
+    "minimumCompletedLoops": 10,
+    "sampleWallMsRange": [
+      157,
+      654
+    ],
+    "sampleModelHorizonUsRange": [
+      100,
+      1000
+    ]
+  },
+  "pilot": [
+    {
+      "blocks": false,
+      "wallMs": 607,
+      "committedAtMicroseconds": 500
+    },
+    {
+      "blocks": true,
+      "wallMs": 547,
+      "committedAtMicroseconds": 1000
+    }
+  ],
+  "sourceSha256": [
+    "02164278aac209e2f708dc9986bc0e904e6614b7910bdc512ec9f504abbf6f3c",
+    "0320de2ccf6f70345318a0eeac74d3d4a4cdccaeebaf6f2ce5db1fd894e20cff",
+    "04d979d7a135d7b1f055faca7b72d19c5642905207b1c7372b93c16ceebdada1",
+    "0d539280ab7f1b6479cfa4b69f4d14a22d9c17f78452eb5b62767a6da08dc2f1",
+    "1614b1431cb36e98d65e411029fd890c980a0a9b66fdd91955dc470895ef7f63",
+    "1ef3ed8b23c1af74b7322c330bbd7be7bb0be07b40bde16489d386d1c47dbe82",
+    "20d19db0f827daf8277fdc32b002a0e294ab92f9a87faea3da62d37e7ba1bb9e",
+    "2bccfa2695a65de150caeefe79e0742f4d7ad68b9a367f5ed8fea76fd8a62aaf",
+    "2de83e767366ba58b2bca9c12595c370f5c50e698dd3cf81c014752f6d6884e6",
+    "32246317cb336f1051cc5362cc096cd0c1f8fd91b0221590793f05f19c84d601",
+    "3f620f5ff8b537314ed5f4f949b4a098fbc51ed03e8933a7500c231a0e20d11f",
+    "401b2cee18dcca9fe9a57e8754957e718228b0a5506e7ff024333f15866ccbba",
+    "442504b732b69455083bce7a2f722d99408ba0128c8412453059be8d7d4d9cc1",
+    "467690d6712d5547579ce2b4ee173eb9407b37ac93e79dc48555e6e729ca1ad1",
+    "4d6b502c4fd688acb059c277c3a107ef068a1d87f53772f8e4dcb48bc512356b",
+    "5a7229b5eb04425f1c0f546e3e4f05ad0f42699ea98c51ca84c86f7192890b89",
+    "6300c6da3848e616ec0a9568f588cf3353a1806d0580e826fe6e47efca29f907",
+    "69fb45c6c4df1d1c67d2ea3f8b5957a545d79fde3e99534520c8d15e3618cc28",
+    "6b3c5db3a534846997f89c2c209bea5bc0a4342600c3a208d81bb58b086d5e38",
+    "7df78811503a6abc16e5a48d2c2dc7a51417a9146f9baef020af14d5f1baba26",
+    "7e01eada323d89007015df445f1591dfdf1ffd51b0189c4647c0360f0c7d9eb7",
+    "80a931f5b75ee3d5a7631189b9108affe7407ce69341b5dc88f749443e731201",
+    "8e67a0f55add54b1dbc7957f16908d60431bf2881887cf86468c5ae92ebd6941",
+    "8ffb2e7bab1ec7c271f7cbd3ac76f89a96a8b55b51706bf8a5f962c234038643",
+    "907ae70cf7bec8499304b7c19c9335dc0354239790ee919899538cb02c259661",
+    "990480c384e2bb1fd0b796c31fe2699d7da08a5e099cdab4cf08e5171f58ce75",
+    "a033031ef4fb469d2eee5722365292b84b64ed56e92143c7a77bebe6137ddde9",
+    "a9dd7e2892f34db070dfeca8da70a42b0ee6dc6e790a916c12e51f416dd9f819",
+    "b036eb8d02d5a7da2df4cc9585011c028e25553c6e3e5f8fc0fdf5d3d0c7ffe0",
+    "b52bcb5d1aaf1a857bd996aec38e78a55d8fb2a0c48a69bfd75bec302b142663",
+    "b9f7ef29e18486ed8e2390a26be9d7b5538f3b53cd69f5689acbe71bdb55f750",
+    "bda77bc9c16defcd9106f15500885c66327c1f19c1afd43988e9069d98df6963",
+    "d8f9b292db0f3267ed999353cfd972da13e75ae6a2ba076c264f74f101fc3068",
+    "d9c898028469f6f3b6f218ab08c050f40478d9f2372875af61a9a3c7864d454f",
+    "e0a585122cd340bc8ba63fef597c2dc4e579ddc8529e8bc721c5e7a8dba259d3",
+    "e0fdcf2dec381dd8e46907e9a4a6c19bf3cd5942f4eac09a202e087587d07198",
+    "e154fdc559b96880afbedbe631ce4f43dac833309d2f353ad66d27ebd12c9f06",
+    "e1eee81a00cf1db7e0992f40d8433a32c7e52c8e03ea78f353f50109b95d07ea",
+    "e37e1a445f9ba7144486c6ed300b936f008866e85b704eea765b42c240c397e6",
+    "ecbaf7201346409f910523dccf78c4b64b41354391219e1a93a954a9b1c8ba10",
+    "f13e078aaf9dc20b8da314757e4e69a579f6e5ce5fadc506ca150fa33affbd6d",
+    "f1c0ad19f3143ab18bb76fb5054af59b3f588dba78a47b664a6fe6096314828b",
+    "f2bc4cc326308d9b2e5cf57bc54227b6da3378dcd6888fb819ffadcebd06f10f",
+    "fe67b86ac8288f6457bec32add55ff5d37fe0efe85c565cb2e4cde11ea2561ee"
+  ],
+  "fullReceiptSha256": "ddbea5e0ce483b94446eb30faa10879bfb404e052b62266f9d0eee84ed5dcda3",
+  "screenshots": [
+    {
+      "file": "seven-parity-1440.png",
+      "sha256": "74a17d49a1363a63496383ceffcf9ecf966f6ea32d5ef3eb3797f85145bb801d",
+      "inspected": true
+    },
+    {
+      "file": "seven-parity-390.png",
+      "sha256": "1b41c32db18e1ac2ab3ad06e8ec73d78220a76a776dbca78c9d65809f812e82e",
+      "inspected": true
+    }
+  ],
+  "nonClaims": [
+    "counters/buttons completion",
+    "point13 complete",
+    "point14 model-time lag fixed",
+    "realtime",
+    "installed app/server SaveCAS",
+    "owner or release acceptance"
+  ],
+  "checks": "Final lint/format/selected routing reported separately on candidate SHA; no product/build/full-gate changes."
+}

@@ -1,0 +1,11 @@
+
+ RUN  v4.1.11 C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab
+
+ ✓ |parallel| apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts (100 tests) 2770ms
+     ✓ 25ms completed observations expose both 50ms blink phases without changing canonical state  1014ms
+     ✓ 25ms completed observations expose both 100ms blink phases without changing canonical state  780ms
+
+ Test Files  1 passed (1)
+      Tests  100 passed (100)
+   Start at  07:24:15
+   Duration  4.59s (transform 721ms, setup 0ms, import 1.58s, tests 2.77s, environment 0ms)

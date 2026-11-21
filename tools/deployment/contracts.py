@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import ipaddress
 import json
+import ntpath
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -14,7 +15,8 @@ from urllib.request import urlopen
 
 REPOSITORY = "spikeal8-maker/asa-lab"
 REGISTRY = f"ghcr.io/{REPOSITORY}"
-SERVICES = ("api", "web", "scratch", "minio")
+LEGACY_SERVICES = ("api", "web", "scratch", "minio")
+SERVICES = (*LEGACY_SERVICES, "search")
 MOSCOW = dt.timezone(dt.timedelta(hours=3))
 DEFAULT_WINDOW = {"weekday": 6, "start": "03:00", "end": "05:00", "utcOffsetMinutes": 180}
 
@@ -45,8 +47,8 @@ def exact_origin(value):
     return value
 
 
-def attest_proxy_policy(env):
-    """Two distinct trust boundaries; values never become application identity."""
+def attest_proxy_policy(env, *, profile=None):
+    """Validate the API, direct web, and 1Panel proxy trust boundaries."""
     for key, default, separator in (
         ('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12', ','),
         ('ASA_INGRESS_TRUSTED_PROXY_CIDRS', '127.0.0.1/32 ::1/128', None),
@@ -62,6 +64,26 @@ def attest_proxy_policy(env):
                 require(network.prefixlen > 0 and not network.is_multicast, 'PROXY_POLICY', f'Unsafe CIDR in {key}.')
             except ValueError as failure:
                 raise Blocked('PROXY_POLICY', f'Invalid CIDR in {key}.', 'Configure only the actual trusted proxy hops; never trust all sources.') from failure
+    peer = env.get('ASA_PANEL_INGRESS_PEER', '127.0.0.1')
+    try:
+        address = ipaddress.IPv4Address(peer) if isinstance(peer, str) else None
+    except ValueError:
+        address = None
+    require(address is not None and not address.is_unspecified and not address.is_multicast
+            and not address.is_reserved, 'PROXY_POLICY', 'ASA_PANEL_INGRESS_PEER must be one usable IPv4 address.')
+    configured_port = env.get('ASA_PANEL_INGRESS_PORT')
+    require(address.is_loopback or configured_port is not None, 'PROXY_POLICY',
+            'A non-loopback 1Panel peer needs an explicitly configured loopback port.')
+    port = '4615' if configured_port is None and profile == 'production' else configured_port
+    if port is None:
+        return
+    require(isinstance(port, str) and bool(re.fullmatch(r'[0-9]{1,5}', port))
+            and 1024 <= int(port) <= 65535, 'PROXY_POLICY', 'ASA_PANEL_INGRESS_PORT must be a port from 1024 to 65535.')
+    for key, default in (('ASA_WEB_PORT', '4610'), ('ASA_API_PORT', '4611'), ('ASA_BLOCKS_PORT', '4613')):
+        other = env.get(key, default)
+        require(isinstance(other, str) and re.fullmatch(r'[0-9]{1,5}', other)
+                and int(port) != int(other),
+                'PROXY_POLICY', f'ASA_PANEL_INGRESS_PORT must be distinct from {key}.')
 
 
 def proxy_provenance_diagnostic(env):
@@ -69,11 +91,14 @@ def proxy_provenance_diagnostic(env):
     attest_proxy_policy(env)
     ingress = env.get('ASA_INGRESS_TRUSTED_PROXY_CIDRS', '127.0.0.1/32 ::1/128')
     networks = [ipaddress.ip_network(value, strict=False) for value in ingress.split()]
-    loopback_only = all(network.is_loopback for network in networks)
+    panel_peer = env.get('ASA_PANEL_INGRESS_PEER', '127.0.0.1')
+    loopback_only = all(network.is_loopback for network in networks) and ipaddress.IPv4Address(panel_peer).is_loopback
     return {
         'state': 'loopback_only' if loopback_only else 'external_policy_unverified',
         'verifiedVisitorIp': False,
         'ingressPolicy': ingress,
+        'panelIngressPeer': panel_peer,
+        'configuredPanelIngressPort': env.get('ASA_PANEL_INGRESS_PORT'),
         'apiPolicy': env.get('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12'),
         'action': 'Compare a controlled external visitor with protected analytics; verify the actual ingress peer and spoof rejection before trusting it. Unknown is not a visitor IP; do not trust all private networks.',
     }
@@ -191,7 +216,7 @@ def in_window(window, now=None, reserve_minutes=0):
 
 
 def validate_release(payload):
-    require(isinstance(payload, dict) and payload.get("format") == "asa-deployment-v1",
+    require(isinstance(payload, dict) and payload.get("format") in ("asa-deployment-v1", "asa-deployment-v2"),
             "RELEASE", "Unsupported release manifest.")
     require(payload.get("repository") == REPOSITORY, "RELEASE", "Foreign release repository.")
     require(re.fullmatch(r"[a-f0-9]{40}", payload.get("revision", "")), "RELEASE", "Invalid release SHA.")
@@ -200,8 +225,9 @@ def validate_release(payload):
     require(payload.get("platform") == "linux/amd64", "RELEASE", "Unsupported image platform.")
     require(type(payload.get("publicationRunId")) is int and payload["publicationRunId"] > 0,
             "RELEASE", "Publication workflow ID is required.")
-    require(set(payload.get("images", {})) == set(SERVICES), "RELEASE", "Incomplete image set.")
-    for name in SERVICES:
+    expected_services = LEGACY_SERVICES if payload["format"] == "asa-deployment-v1" else SERVICES
+    require(set(payload.get("images", {})) == set(expected_services), "RELEASE", "Incomplete image set.")
+    for name in expected_services:
         ref = payload["images"][name]
         require(isinstance(ref, str) and re.fullmatch(re.escape(f"{REGISTRY}/{name}@sha256:") + r"[a-f0-9]{64}", ref),
                 "RELEASE", f"Unpinned or foreign {name} image.")
@@ -257,9 +283,29 @@ def safe_member(root, relative):
     return target
 
 
+def _extended_windows_path(value):
+    """Use an absolute Win32 extended path without changing host policy."""
+    value = ntpath.normpath(value)
+    if value.startswith("\\\\?\\"):
+        return value
+    if value.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + value[2:]
+    return "\\\\?\\" + value
+
+
+def backup_path(value):
+    # A short backup root can contain MinIO descendants beyond MAX_PATH.
+    # Add the prefix before resolve/traversal, including for a long root itself.
+    # All descendants retain it; manifest member names remain relative POSIX paths.
+    if os.name == "nt":
+        value = _extended_windows_path(os.path.abspath(value))
+    return Path(value).resolve()
+
+
 def inventory_files(root):
+    root = backup_path(root)
     result = {}
-    for path in sorted(Path(root).rglob("*")):
+    for path in sorted(root.rglob("*")):
         relative = path.relative_to(root).as_posix()
         require(not path.is_symlink(), "BACKUP_PATH", "Backup contains a symlink.")
         if path.is_file() and relative != "manifest.json":
@@ -268,7 +314,7 @@ def inventory_files(root):
 
 
 def verify_backup(root):
-    root = Path(root).resolve()
+    root = backup_path(root)
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     require(manifest.get("format") == "asa-backup-v1" and manifest.get("complete") is True,
             "BACKUP", "Backup is incomplete or has an unsupported format.")

@@ -1,3 +1,6 @@
+import { EssayResponseEditor } from './EssayResponseEditor';
+import { QuizResponsePlayer } from './QuizResponsePlayer';
+import { FileResponseEditor } from './FileResponseEditor';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
@@ -38,9 +41,17 @@ export function SeatAssignments({
   const starter = useRef(new AtomicLearningStarter());
   // Which task is being read. One at a time: a learner is doing one thing.
   const [openId, setOpenId] = useState<string | null>(null);
+  const fileGuard = useRef<(() => boolean) | null>(null);
+  const registerFileGuard = (_id: string, guard: (() => boolean) | null) => {
+    fileGuard.current = guard;
+  };
+  function openAssignment(id: string | null) {
+    if (id === openId || fileGuard.current?.() === false) return;
+    setOpenId(id);
+  }
   const destination = useLearningDestination();
   useEffect(() => {
-    if (destination.assignment) setOpenId(destination.assignment);
+    if (destination.assignment) openAssignment(destination.assignment);
   }, [destination.assignment]);
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
@@ -110,8 +121,11 @@ export function SeatAssignments({
             // глазами, куда именно нажать, больше не нужно.
             onClick={(event) => {
               const target = event.target as HTMLElement;
-              if (target.closest('button, a')) return;
-              setOpenId(openId === assignment.id ? null : assignment.id);
+              if (
+                target.closest('button, a, input, label, textarea, .essay-response, .file-response')
+              )
+                return;
+              openAssignment(openId === assignment.id ? null : assignment.id);
             }}
           >
             {/* On a "make this" task the picture is half the brief: a paragraph
@@ -133,7 +147,7 @@ export function SeatAssignments({
                 type="button"
                 className="seat-assignment-open"
                 aria-expanded={openId === assignment.id}
-                onClick={() => setOpenId(openId === assignment.id ? null : assignment.id)}
+                onClick={() => openAssignment(openId === assignment.id ? null : assignment.id)}
               >
                 {assignment.title}
               </button>
@@ -188,6 +202,24 @@ export function SeatAssignments({
                       ) : null
                     }
                   />
+                  {assignment.activityKind === 'essay' &&
+                  assignment.activityRunId &&
+                  assignment.activityVersionId ? (
+                    <EssayResponseEditor
+                      key={assignment.activityRunId}
+                      activityRunId={assignment.activityRunId}
+                      activityVersionId={assignment.activityVersionId}
+                      onChanged={reload}
+                      onRegisterLeaveGuard={registerFileGuard}
+                    />
+                  ) : null}
+                  {assignment.activityKind === 'file' && assignment.activityRunId ? (
+                    <FileResponseEditor
+                      activityRunId={assignment.activityRunId}
+                      onChanged={reload}
+                      onRegisterLeaveGuard={registerFileGuard}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -235,6 +267,31 @@ export function SeatAssignments({
                         : 'Сдать'}
                   </button>
                 </>
+              ) : (assignment.activityKind === 'file' || assignment.activityKind === 'essay') &&
+                assignment.activityRunId ? (
+                openId !== assignment.id ? (
+                  <button
+                    type="button"
+                    className="portal-create-button"
+                    onClick={() => openAssignment(assignment.id)}
+                  >
+                    {assignment.activityKind === 'essay'
+                      ? 'Открыть письменный ответ'
+                      : 'Открыть файловый ответ'}
+                  </button>
+                ) : null
+              ) : assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                openId === assignment.id ? (
+                  <QuizResponsePlayer activityRunId={assignment.activityRunId} onChanged={reload} />
+                ) : (
+                  <button
+                    type="button"
+                    className="portal-create-button"
+                    onClick={() => openAssignment(assignment.id)}
+                  >
+                    Открыть тест
+                  </button>
+                )
               ) : assignment.activityRunId ? (
                 <button
                   type="button"

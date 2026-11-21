@@ -1,3 +1,4 @@
+import { switchSelectedTerminal } from '@asa-lab/electronics/rendering';
 import type { ComponentKind, SchematicComponent, Terminal } from '../api';
 import {
   defaultProductionType,
@@ -32,6 +33,8 @@ export type ComponentCategory =
 export type SemanticComponentCategory = Exclude<ComponentCategory, 'basic' | 'all' | 'preview'>;
 export type CatalogTier = 'core' | 'supported' | 'preview';
 export type CatalogEntry = ProductionCatalogItem;
+/** Catalog identity shared by the derived two-contact renderer and hit routing. */
+export const SPST_COMPONENT_TYPE = 'switch-spst';
 export type ComponentVisualState =
   'default' | 'off' | 'lit' | 'reverse' | 'overcurrent' | 'burned' | 'pressed' | 'on';
 
@@ -108,6 +111,7 @@ export const TINKERCAD_BASIC_FAMILY_ORDER = [
   'potentiometer',
   'capacitor',
   'spdt-switch',
+  'spst-switch',
   'battery-9v',
   'battery-3v',
   'battery-holder-aa',
@@ -391,7 +395,7 @@ export function visualAsset(
   }
   if (entry.key === 'button-tactile-6mm')
     return entry.stateAssets[component.state ? 'pressed' : 'released'] ?? entry.asset;
-  if (entry.key === 'switch-spdt')
+  if (entry.kind === 'switch')
     return entry.stateAssets[component.state ? 'right' : 'left'] ?? entry.asset;
   if (entry.key === 'incandescent-lamp') {
     const level = String(
@@ -457,7 +461,10 @@ export function terminalPosition(
     resistor: { a: 'lead-1', b: 'lead-2' },
     led: { a: 'anode', b: 'cathode' },
     button: { a: 'SW-A1', b: 'SW-B1' },
-    switch: { a: 'common', b: component?.state === true ? 'throw-right' : 'throw-left' },
+    switch: {
+      a: 'common',
+      b: switchSelectedTerminal(component),
+    },
     potentiometer: { a: 'terminal-1', b: 'terminal-2', wiper: 'wiper' },
     diode: { a: 'anode', b: 'cathode' },
     piezo: { a: 'positive', b: 'negative' },

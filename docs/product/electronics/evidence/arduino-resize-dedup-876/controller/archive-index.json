@@ -1,0 +1,37 @@
+[
+  {
+    "path": "independent-native-84e4acc1.zip",
+    "files": 18,
+    "bytes": 1351826,
+    "sha256": "5ddb3b4672bbcf1af0c4de9a31c0c103ccf8c0eddb5c5f4f52e513676be77f68",
+    "verified_receipts": {
+      "after/receipt.json": "8c6eb352219a5c67bafe5093e36267fcdf16ad292c24d6fc6f94a12c26cd3d5f",
+      "empty-before/receipt.json": "dc7c1e8e92d82f7bbe54c14c71b66b17e0a0c936a3e6c546749351b2657414e2",
+      "empty-after/receipt.json": "f0aa22958fd27d25b6ec37830d2f79eebbee8ecc5ce264ec997de04525fbf9b1"
+    }
+  },
+  {
+    "path": "canonical-84e4acc1.log.gz",
+    "raw_bytes": 25739,
+    "raw_sha256": "5e02d43397f0f786847267a38a1ed9566f0edecdde1b64922260053630af15dd",
+    "sha256": "69674e079e93e3a23fe4b1ac9d85f0170c0304592ec7bddf67628c14ea9b194b"
+  },
+  {
+    "path": "owner-assets-isolated-diagnostic.log.gz",
+    "raw_bytes": 382,
+    "raw_sha256": "4d375d71cfe698fa6b3fdc025947d61be362ca7841a768f9c780c5a76f631c44",
+    "sha256": "48421964a73dc4bfcf5874340a25654aff557e617369af72b4f79ad55667ba48"
+  },
+  {
+    "path": "canonical-final-84e4acc1.log.gz",
+    "raw_bytes": 49630,
+    "raw_sha256": "ee7ec4bdcf274c2e27f8a5769db5bfefb5b853a5c8a0f3ef3aebc6d3e2ebdf4d",
+    "sha256": "b37bd9f6ce98a81697a5a9c2234affa8da9fc869a924b8c65937367500031f2c"
+  },
+  {
+    "path": "caps-final-84e4acc1.log.gz",
+    "raw_bytes": 726,
+    "raw_sha256": "fbb85b537b0369009ac8379b1ef40ce6fbd42da279864687a9689e790d616242",
+    "sha256": "39e0e5c10b41923752eeb3d57a0f6596105e177b24df6827edade491cfbbe4a6"
+  }
+]

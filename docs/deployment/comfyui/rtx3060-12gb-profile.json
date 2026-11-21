@@ -1,0 +1,57 @@
+{
+  "profile": "rtx3060-12gb-fp8-images-20261028",
+  "scope": "Measured IZO image workflow; not the ASA flux2-klein-4b-v1 recipe",
+  "observedAt": "2026-10-28",
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 3060",
+    "vramGiB": 12,
+    "ramGiB": 32,
+    "textGpu": "Separate RTX 3090"
+  },
+  "software": {
+    "os": "Windows x64",
+    "comfyui": "0.19.3",
+    "python": "3.12.10",
+    "torch": "2.11.0+cu126"
+  },
+  "models": [
+    {
+      "path": "diffusion_models/flux-2-klein-4b-fp8.safetensors",
+      "bytes": 4070624520,
+      "sha256": "97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6"
+    },
+    {
+      "path": "text_encoders/qwen_3_4b.safetensors",
+      "bytes": 4022515168,
+      "sha256": "33607b140dc891e31c36360ecdc95b6fb69ec4f37d658fa2a11b41f5957e002d",
+      "note": "Local FP8 E4M3FN derivative, not the 8044982048-byte official BF16 file with the same name."
+    },
+    {
+      "path": "vae/flux2-vae.safetensors",
+      "bytes": 336213556,
+      "sha256": "d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5"
+    }
+  ],
+  "arguments": [
+    "--windows-standalone-build",
+    "--listen",
+    "127.0.0.1",
+    "--port",
+    "8188",
+    "--disable-auto-launch",
+    "--gpu-only",
+    "--fp8_e4m3fn-unet",
+    "--fp8_e4m3fn-text-enc",
+    "--reserve-vram",
+    "1",
+    "--disable-async-offload",
+    "--disable-pinned-memory"
+  ],
+  "environment": {
+    "CUDA_VISIBLE_DEVICES": "<select target GPU UUID on the new host>",
+    "PYTHONUTF8": "1",
+    "PYTHONIOENCODING": "utf-8",
+    "IZO_COMFY_KEEP_MODELS_HOT": "1"
+  },
+  "videoGeneration": "Disabled separately; video files may remain on disk"
+}

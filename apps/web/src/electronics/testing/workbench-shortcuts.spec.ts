@@ -57,4 +57,27 @@ describe('workbench shortcuts', () => {
     expect(targetConsumesSpace(button)).toBe(true);
     expect(targetConsumesSpace(canvas)).toBe(false);
   });
+
+  it('adds physical mirror and platform Run/Stop chords without capturing ordinary Enter', () => {
+    for (const glyph of ['m', 'ь'])
+      expect(resolveWorkbenchShortcut(key('KeyM', { key: glyph }))).toBe('mirror');
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }])
+      expect(resolveWorkbenchShortcut(key('Enter', modifier))).toBe('simulate');
+    expect(resolveWorkbenchShortcut(key('Enter'))).toBeNull();
+    expect(resolveWorkbenchShortcut(key('KeyM', { ctrlKey: true }))).toBeNull();
+    expect(resolveWorkbenchShortcut(key('KeyR', { key: 'к' }))).toBe('rotate');
+  });
+
+  it('ignores composition and unknown codes including inherited object keys', () => {
+    for (const code of ['KeyR', 'KeyM', 'Enter', 'KeyZ'])
+      expect(
+        resolveWorkbenchShortcut(
+          key(code, { ctrlKey: code === 'Enter' || code === 'KeyZ', isComposing: true }),
+        ),
+      ).toBeNull();
+    for (const code of ['', 'Unidentified', 'KeyQ', 'toString', 'constructor', '__proto__']) {
+      expect(resolveWorkbenchShortcut(key(code))).toBeNull();
+      expect(resolveWorkbenchShortcut(key(code, { ctrlKey: true }))).toBeNull();
+    }
+  });
 });

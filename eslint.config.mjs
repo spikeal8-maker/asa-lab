@@ -67,6 +67,15 @@ export const depConstraints = [
     onlyDependOnLibsWithTags: ['context:blocks', 'scope:shared', 'scope:contract'],
   },
   {
+    sourceTag: 'context:robotics',
+    onlyDependOnLibsWithTags: [
+      'context:robotics',
+      'context:electronics',
+      'scope:shared',
+      'scope:contract',
+    ],
+  },
+  {
     sourceTag: 'type:app',
     onlyDependOnLibsWithTags: ['type:lib'],
   },

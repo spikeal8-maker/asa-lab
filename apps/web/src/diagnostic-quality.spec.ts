@@ -26,6 +26,7 @@ function ledger(storage = disk()) {
 }
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.setSystemTime(1_000_000);
 });
 afterEach(() => {
@@ -33,6 +34,7 @@ afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 describe('diagnostic losses are observable separately from intake', () => {
   it.each([400, 401, 403])(
@@ -109,7 +111,8 @@ describe('diagnostic losses are observable separately from intake', () => {
     const quality = ledger(storage);
     const outbox = new DiagnosticOutbox(storage, quality);
     outbox.enqueue({ ...event(1), code: 'editor_heartbeat' });
-    for (let n = 2; n <= 51; n++) outbox.enqueue(event(n));
+    await vi.advanceTimersByTimeAsync(0); // The first immutable flight must be included in capacity.
+    for (let n = 2; n <= 51; n++) outbox.enqueue({ ...event(n), instanceId: id(n + 1000) });
     const queue = JSON.parse(storage.getItem('asa:diagnostics:v1')!);
     expect(queue).toHaveLength(50);
     expect(queue[0].eventId).toBe(id(1));
@@ -118,7 +121,7 @@ describe('diagnostic losses are observable separately from intake', () => {
     release(new Response('{}', { status: 400 }));
     await vi.advanceTimersByTimeAsync(0);
   });
-  it('attempted includes report-level deduplication/suppression before enqueue', async () => {
+  it('attempted includes coalesced occurrences and bounded admission losses before transport', async () => {
     vi.resetModules();
     vi.stubGlobal(
       'fetch',
@@ -136,9 +139,9 @@ describe('diagnostic losses are observable separately from intake', () => {
     }
     expect(quality.read().counters).toMatchObject({
       attempted: 22,
-      deduplicated: 1,
-      suppressed: 9,
-      enqueued: 12,
+      coalesced: 1,
+      suppressed: 13,
+      enqueued: 8,
     });
   });
 });

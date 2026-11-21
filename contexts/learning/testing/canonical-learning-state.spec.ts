@@ -3,6 +3,7 @@ import {
   CanonicalLearningContractError,
   adaptCourseProjectCanonicalInput,
   adaptDirectProjectCanonicalInput,
+  adaptEssayCanonicalInput,
   adaptQuizCanonicalInput,
   resolveCanonicalLearningState,
   type CanonicalAdapterInput,
@@ -239,7 +240,7 @@ describe('LRN-M0-006 canonical learning state', () => {
     expect(() => resolveCanonicalLearningState(input)).toThrow(CanonicalLearningContractError);
   });
 
-  it('keeps direct, course and quiz semantics equal through one resolver', () => {
+  it('keeps direct, course, quiz and essay semantics equal through one resolver', () => {
     const { scope, ...rest } = baseInput();
     const adapterInput: CanonicalAdapterInput = {
       ...rest,
@@ -255,6 +256,7 @@ describe('LRN-M0-006 canonical learning state', () => {
       adaptDirectProjectCanonicalInput(adapterInput),
       adaptCourseProjectCanonicalInput(adapterInput),
       adaptQuizCanonicalInput(adapterInput),
+      adaptEssayCanonicalInput(adapterInput),
     ].map(resolveCanonicalLearningState);
     expect(
       outputs.map(({ workflowState, selectedResult, flags }) => ({
@@ -263,11 +265,13 @@ describe('LRN-M0-006 canonical learning state', () => {
         flags,
       })),
     ).toEqual(
-      [outputs[0], outputs[0], outputs[0]].map(({ workflowState, selectedResult, flags }) => ({
-        workflowState,
-        selectedResult,
-        flags,
-      })),
+      [outputs[0], outputs[0], outputs[0], outputs[0]].map(
+        ({ workflowState, selectedResult, flags }) => ({
+          workflowState,
+          selectedResult,
+          flags,
+        }),
+      ),
     );
   });
 });

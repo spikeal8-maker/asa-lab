@@ -256,7 +256,57 @@ def collect_catalogs(errors: list[str]) -> tuple[dict[str, Any], list[dict[str, 
     return stable, [item for item in [*stable_tests, *active_tests] if isinstance(item, dict)], [str(item.get("id")) for item in active_tests if isinstance(item, dict)]
 
 
+def validate_local_checks(tests: list[dict[str, Any]], errors: list[str]) -> None:
+    """Local execution is opt-in; order and shared-resource groups are explicit."""
+    by_id = {str(test.get("id")): test for test in tests}
+    edges: dict[str, list[str]] = {}
+    for test_id, test in by_id.items():
+        metadata = test.get("local_check")
+        if metadata is None:
+            continue
+        if not isinstance(metadata, dict) or type(metadata.get("eligible")) is not bool:
+            errors.append(f"{test_id}: local_check needs boolean eligible")
+            continue
+        if set(metadata) - {"eligible", "reason", "order", "group", "after"}:
+            errors.append(f"{test_id}: unknown local_check fields")
+        if not isinstance(metadata.get("reason"), str) or not metadata["reason"].strip():
+            errors.append(f"{test_id}: local_check needs a reason")
+        if not metadata["eligible"]:
+            if set(metadata) - {"eligible", "reason"}:
+                errors.append(f"{test_id}: ineligible local_check cannot define scheduling")
+            continue
+        order = metadata.get("order")
+        if type(order) is not int or not 0 <= order <= 1000:
+            errors.append(f"{test_id}: local_check order must be 0..1000")
+        if not isinstance(metadata.get("group"), str) or not re.fullmatch(r"[a-z][a-z0-9-]*", metadata["group"]):
+            errors.append(f"{test_id}: local_check group must name a resource group")
+        after = metadata.get("after")
+        if not isinstance(after, list) or any(not isinstance(item, str) for item in after):
+            errors.append(f"{test_id}: local_check after must be an ID array")
+            continue
+        edges[test_id] = after
+        for predecessor in after:
+            other = (by_id.get(predecessor) or {}).get("local_check") or {}
+            if predecessor == test_id or other.get("eligible") is not True:
+                errors.append(f"{test_id}: invalid local_check dependency {predecessor}")
+            if type(order) is int and type(other.get("order")) is int and other["order"] > order:
+                errors.append(f"{test_id}: local_check dependency has later order")
+    def visit(node: str, pending: set[str], done: set[str]) -> None:
+        if node in pending:
+            errors.append(f"{node}: cyclic local_check dependencies")
+            return
+        if node in done:
+            return
+        for dependency in edges.get(node, []):
+            visit(dependency, pending | {node}, done)
+        done.add(node)
+    done: set[str] = set()
+    for node in edges:
+        visit(node, set(), done)
+
+
 def validate_catalogs(stable: dict[str, Any], tests: list[dict[str, Any]], active_ids: list[str], task_nodes: dict[str, dict[str, Any]], roadmap_aliases: set[str], errors: list[str]) -> tuple[int, int]:
+    validate_local_checks(tests, errors)
     if set(stable.get("result_states") or []) != ALLOWED_RESULT_STATES:
         errors.append("Stable result_states mismatch")
     suites = stable.get("suites")

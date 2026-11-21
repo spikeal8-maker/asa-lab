@@ -192,6 +192,7 @@ describe('copy HTTP boundary', () => {
     ['P5C02', 409, 'publication_changed'],
     ['P5P04', 404, 'not_available'],
     ['P5C01', 403, 'copy_forbidden'],
+    ['P5C03', 403, 'acquisition_disabled'],
   ] as const)(
     'maps source denial %s without exposing SQL details',
     async (code, status, errorCode) => {
@@ -216,7 +217,7 @@ describe('copy HTTP boundary', () => {
     },
   );
   it.each(['valid-seat', ''])(
-    'rejects mixed cookies including an empty Seat selector',
+    'never falls back to Account for an unresolved Seat selector',
     async (seat) => {
       const { controller, resolve, pool } = api();
       await expect(
@@ -226,7 +227,7 @@ describe('copy HTTP boundary', () => {
           'copy-key',
           { revisionId: REVISION },
         ),
-      ).rejects.toMatchObject({ status: 403 });
+      ).rejects.toMatchObject({ status: 401 });
       expect(resolve).not.toHaveBeenCalled();
       expect(pool.connect).not.toHaveBeenCalled();
     },
@@ -251,5 +252,27 @@ describe('copy HTTP boundary', () => {
       status: 400,
     });
     expect(pool.connect).not.toHaveBeenCalled();
+  });
+});
+
+describe('Seat public copy canonical writer', () => {
+  it('binds fresh Seat session hash to actor-only source admission and keeps canonical personal writer', async () => {
+    const { query, pool } = transaction();
+    const writer = vi.spyOn(PgProjectRepository.prototype, 'createWithDraft').mockResolvedValue({
+      kind: 'created',
+      project: { id: 'seat-copy', moduleKey: 'electronics' } as Project,
+    });
+    await copyPublicProject({ ...command(pool), seatSessionHash: 'trusted-session-hash' });
+    expect(query).toHaveBeenCalledWith(
+      'SELECT * FROM public_project_copy_source_seat($1,$2,$3,$4)',
+      ['actor', PUBLICATION, REVISION, 'trusted-session-hash'],
+    );
+    expect(writer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'personal',
+        classroomId: null,
+        actor: { principalId: 'actor', userId: null },
+      }),
+    );
   });
 });

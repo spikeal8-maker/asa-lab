@@ -11,6 +11,13 @@ acceptance_boundary: slice
 review: independent
 ---
 
+Latest owner direction: finish functional items first; defer refactoring and
+file decomposition. Resume the existing prepared two-line repair, not a new
+implementation. A dedicated native production-consumer fixture and its routing
+entry are permitted supporting proof. Keep all existing gate requirements;
+classify foreign failures without repairing other modules. Source/UI proof,
+whole-repository acceptance and installed verification remain separate.
+
 # №13 / L01 — не превращать LED в серый при обратной полярности
 
 **Программа:** #452. **Единый реестр:** #703. **Стабильное ТЗ:** `docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md`. Карточка: `docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md`. Выбранность определяет только актуальный `docs/execution/current.yaml`.
@@ -35,7 +42,7 @@ review: independent
 
 **Положительные/отрицательные:** blue/red/green обратный корпус остаётся своего оттенка, brightness 0%; normal forward lit state не затухает и не красится, overcurrent/burned не сбрасывается; Stop/Run одинаковый документ, нет нового сохранения/Undo/Reset behavior. Проверить 1440 desktop, 390 mobile + 320 при touch/zoom (не обязательно добавлять управления).
 
-**Обязательные gate и независимость:** `pnpm agent:preflight --scope electronics-reverse-led-colour --check`, `pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-REVERSE-LED-COLOUR-001`; focused Vitest; `pnpm gate:electronics-m1`; применимые browser/native и General gates на финальном SHA с literal `NX_SKIP_NX_CACHE=true`, `pnpm bundle:check` против 218000 Б, `git diff --check`, новый независимый source/product reviewer финального SHA. Только принятый источник — main, `IN_MAIN` не равно `DEPLOYED` и `USER_VERIFIED`. Старый bundle 217993 Б не распространять на новый SHA.
+**Обязательные gate и независимость:** `pnpm agent:preflight --scope electronics-reverse-led-colour --check`, `pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-REVERSE-LED-COLOUR-001`; focused Vitest; `pnpm gate:electronics-m1`; применимые browser/native и General gates на финальном SHA с literal `NX_SKIP_NX_CACHE=true`, `pnpm bundle:check` против действующего 222000 Б, `git diff --check`, новый независимый source/product reviewer финального SHA. Только принятый источник — main, `IN_MAIN` не равно `DEPLOYED` и `USER_VERIFIED`. Старый bundle 217993 Б не распространять на новый SHA.
 
 **STOP/соседи:** любые пересечения с чужими текущими редакторами CSS/Stage, P0 confirmed loss, отсутствующий native BEFORE, отрицательное review, непройденный exact CI, изменение физических инвариантов — остановить только данный срез и передать evidence контролёру; продолжить независимые работы. Школьные данные, Docker/FRP/backup/DB, защищённые SVG не изменять. После slice исполнитель STOP, а контролёр продолжает очередь.
 

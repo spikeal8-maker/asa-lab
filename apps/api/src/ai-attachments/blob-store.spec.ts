@@ -96,6 +96,17 @@ async function fixture() {
 }
 
 describe('immutable private AI S3 adapter', () => {
+  it('isolates generated output from upload objects and retains full verified immutable reads', async () => {
+    const f = await fixture();
+    const object = { ...f.object, purpose: 'generated' as const };
+    await f.store.putImmutable({ ...f.input, purpose: 'generated' });
+    expect(aiAttachmentObjectKey(object)).toContain('/generated/');
+    expect(await f.store.read(f.object)).toBeNull();
+    expect(await f.store.read(object)).toEqual(f.bytes);
+    const stored = f.objects.get(aiAttachmentObjectKey(object))!;
+    stored.bytes[0] = stored.bytes[0]! ^ 1;
+    await expect(f.store.read(object)).rejects.toThrow();
+  });
   it('constructs only the canonical private owner/upload/hash key and rejects caller paths or invalid identity', async () => {
     const f = await fixture();
     expect(f.key).toBe(

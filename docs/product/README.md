@@ -3,15 +3,22 @@
 Цель продукта описывают [`PRODUCT_BLUEPRINT.md`](PRODUCT_BLUEPRINT.md) и
 [`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml).
 
-ИИ-чат: [`ASA_AI_ASSISTANT_SPEC.md`](ASA_AI_ASSISTANT_SPEC.md) — продуктовый контракт встроенного помощника. Долговременные контракты модулей
-расположены в их поддиректориях.
+ИИ-блок: [`ASA_AI_ASSISTANT_SPEC.md`](ASA_AI_ASSISTANT_SPEC.md) — единое действующее
+ТЗ чата и полноценной AI-админки; [вход бота](ai/README.md) — порядок одного
+видимого среза, каталог заданий и критерии показа владельцу. Долговременные
+контракты остальных модулей расположены в их поддиректориях.
 
 Эта страница не хранит активную задачу. Получить точное состояние и документы
 нужного направления:
 
 ```bash
 pnpm agent:context --list
-pnpm agent:context --scope <lane>
+```
+
+Для известного AI-направления:
+
+```bash
+pnpm agent:preflight --scope ai-assistant --check
 ```
 
 Единственный источник выполнения —

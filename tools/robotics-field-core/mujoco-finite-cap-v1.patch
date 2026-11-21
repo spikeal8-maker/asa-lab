@@ -1,0 +1,137 @@
+diff --git a/src/engine/engine_collision_driver.c b/src/engine/engine_collision_driver.c
+index 44bdab5..f5cc193 100644
+--- a/src/engine/engine_collision_driver.c
++++ b/src/engine/engine_collision_driver.c
+@@ -14,6 +14,7 @@
+ 
+ #include "engine/engine_collision_driver.h"
+ 
++#include <math.h>
+ #include <stddef.h>
+ #include <stdint.h>
+ #include <string.h>
+@@ -2087,6 +2088,112 @@ static inline int pairNeedsCCD(const mjModel* m, const mjcPair* pair) {
+ }
+ 
+ 
++// TEST_ONLY explicit pair. The existing flat-face native allocation is four contacts.
++// Return zero to use the unchanged stock narrowphase.
++static int asaFiniteCap(const mjModel* m, const mjData* d, mjPreContact* contacts,
++                        int cylinder, int deck, int ipair, mjtNum margin, mjtNum gap) {
++  if (ipair < 0 || margin != 0 || gap != 0 || m->pair_dim[ipair] != 3 ||
++      m->opt.cone != mjCONE_ELLIPTIC || mjDISABLED(mjDSBL_NATIVECCD) ||
++      mjDISABLED(mjDSBL_MULTICCD) || speculativeEnabled(m) ||
++      m->geom_type[cylinder] != mjGEOM_CYLINDER || m->geom_type[deck] != mjGEOM_BOX) {
++    return 0;
++  }
++  int can_name = m->name_geomadr[cylinder], deck_name = m->name_geomadr[deck];
++  if (can_name < 0 || deck_name < 0 ||
++      strcmp(m->names + can_name, "asa1168_finite_cap_can") ||
++      strcmp(m->names + deck_name, "asa1168_finite_top") ||
++      mj_maxContact(m, cylinder, deck, 0) < 3) {
++    return 0;
++  }
++
++  const mjtNum* can_rot = d->geom_xmat + 9*cylinder;
++  const mjtNum* deck_rot = d->geom_xmat + 9*deck;
++  const mjtNum* can_pos = d->geom_xpos + 3*cylinder;
++  const mjtNum* deck_pos = d->geom_xpos + 3*deck;
++  const mjtNum* can_size = m->geom_size + 3*cylinder;
++  const mjtNum* deck_size = m->geom_size + 3*deck;
++  const mjtNum radius = can_size[0], height = can_size[1], interior = 0.01;
++  mjtNum axis[3] = {can_rot[2], can_rot[5], can_rot[8]};
++  mjtNum n[3] = {deck_rot[2], deck_rot[5], deck_rot[8]};
++
++  // Orient the cylinder axis away from the top face.
++  mjtNum axis_dot = mju_dot3(axis, n);
++  if (axis_dot < 0) {
++    mju_scl3(axis, axis, -1);
++    axis_dot = -axis_dot;
++  }
++  if (!(axis_dot > mjMINVAL)) {
++    return 0;
++  }
++  mjtNum base[3], top[3], relative[3], down[3], side[3];
++  mju_addScl3(base, can_pos, axis, -height);
++  mju_addScl3(top, deck_pos, n, deck_size[2]);
++  mju_sub3(relative, base, top);
++  mju_addScl3(down, n, axis, -axis_dot);
++  const mjtNum slope = mju_norm3(down);
++  const mjtNum reach = radius * slope;
++  const mjtNum s = mju_dot3(n, relative);
++  const mjtNum deepest = s - reach;
++
++  // Require one partial cap and an immersed witness above the bottom face.
++  if (!(slope > mjMINVAL && s > -reach && s < reach &&
++        deepest > -2*deck_size[2] && deepest + 2*height*axis_dot > 0)) {
++    return 0;
++  }
++
++  // Project a conservative disk envelope across the entire immersed axial span.
++  const mjtNum immersed = -deepest / axis_dot;
++  for (int j = 0; j < 2; j++) {
++    mjtNum direction[3] = {deck_rot[j], deck_rot[j+3], deck_rot[j+6]};
++    const mjtNum projection = mju_dot3(axis, direction);
++    const mjtNum extent = radius * mju_sqrt(mjMAX(0, 1 - projection*projection));
++    const mjtNum start = mju_dot3(relative, direction);
++    const mjtNum end = start + immersed * projection;
++    if (!(mjMAX(mju_abs(start), mju_abs(end)) + extent < deck_size[j] - interior)) {
++      return 0;
++    }
++  }
++
++  // At the two flanks use exactly half the deepest signed separation.
++  const mjtNum cosine = (1 + s/reach) / 2;
++  const mjtNum sine = mju_sqrt((1 - cosine) * (1 + cosine));
++  const mjtNum double_area = 2 * radius*radius * sine * (1 - cosine) * axis_dot;
++  if (!(double_area > mjMINVAL && isfinite(double_area))) {
++    return 0;
++  }
++  mju_scl3(down, down, -1/slope);
++  mju_cross(side, axis, down);
++  const mjtNum side_norm = mju_norm3(side);
++  if (!(side_norm > mjMINVAL && isfinite(side_norm))) {
++    return 0;
++  }
++  mju_scl3(side, side, 1/side_norm);
++
++  mjPreContact candidate[3] = {0};
++  for (int i = 0; i < 3; i++) {
++    mjtNum rim[3], projected[3];
++    mju_addScl3(rim, base, down, radius * (i == 0 ? 1 : cosine));
++    if (i) {
++      mju_addScl3(rim, rim, side, radius * sine * (i == 1 ? 1 : -1));
++    }
++    mju_sub3(projected, rim, top);
++    candidate[i].dist = mju_dot3(n, projected);
++    if (!(candidate[i].dist < 0 && isfinite(candidate[i].dist))) {
++      return 0;
++    }
++    mju_addScl3(candidate[i].pos, rim, n, -candidate[i].dist/2);
++    for (int j = 0; j < 3; j++) {
++      if (!isfinite(candidate[i].pos[j]) || !isfinite(n[j])) {
++        return 0;
++      }
++    }
++    mju_scl3(candidate[i].normal, n, -1);
++  }
++  memcpy(contacts, candidate, sizeof(candidate));
++  return 3;
++}
++
++
+ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id, int idx) {
+   mjContactArg* conargs = (mjContactArg*)arg;
+   mjPreContact* conbuffer = conargs->conbuffer;
+@@ -2113,7 +2220,10 @@ static void collisionTask(const mjModel* m, mjData* d, void* arg, int thread_id,
+         mjfCollision collision_func = mjCOLLISIONFUNC[m->geom_type[g1]][m->geom_type[g2]];
+         mjtNum margin = getMargin(m, g1, g2, ipair);
+         mjtNum gap = getGap(m, g1, g2, ipair);
+-        ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
++        ncon[i] = asaFiniteCap(m, d, conbuffer + conpos, g1, g2, ipair, margin, gap);
++        if (!ncon[i]) {
++          ncon[i] = collision_func(m, d, conbuffer + conpos, g1, g2, margin + gap);
++        }
+         if (speculativeEnabled(m)) {
+           // check for active surface contact (in-gap contacts are only replaced if
+           // CCD finds a surface hit)

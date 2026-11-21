@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
 import type { SchematicDocument, SolveResult } from '../api';
+import type { NativeOpticalPresentation } from './native-optical-presentation';
 
 interface PiezoVoice {
   readonly oscillator: OscillatorNode;
   readonly gain: GainNode;
   readonly waveform: OscillatorType;
+  frequencyHz?: number;
+  targetGain?: number;
 }
 
 let audioContext: AudioContext | null = null;
@@ -37,58 +40,102 @@ export async function unlockPiezoAudio(): Promise<void> {
 
 export function usePiezoAudio(
   document: SchematicDocument | null,
-  result: SolveResult | null,
+  presentation: NativeOpticalPresentation,
   simulationRunning: boolean,
 ): void {
   useEffect(() => {
-    if (!simulationRunning || !document || !result?.solved || !audioContext) {
+    // Subscribe at the committed-result seam: worker frames must not depend on
+    // an unrelated editor render, or consume a proposed optical vector.
+    if (
+      !simulationRunning ||
+      !document?.components.some((component) => component.kind === 'piezo')
+    ) {
       stopAllVoices();
       return;
     }
-    const resultByComponent = new Map(result.components.map((entry) => [entry.componentId, entry]));
-    const activeIds = new Set<string>();
-    for (const component of document.components) {
-      if (component.kind !== 'piezo') continue;
-      const componentResult = resultByComponent.get(component.id);
-      const frequencyHz = Number(componentResult?.frequencyHz ?? 0);
-      const soundLevel = Number(componentResult?.soundLevel ?? 0);
-      if (
-        componentResult?.energized !== true ||
-        !Number.isFinite(frequencyHz) ||
-        frequencyHz < 20 ||
-        frequencyHz > 20_000 ||
-        !Number.isFinite(soundLevel) ||
-        soundLevel <= 0
-      ) {
-        stopVoice(component.id);
-        continue;
-      }
-      activeIds.add(component.id);
-      const waveform: OscillatorType =
-        component.componentTypeId === 'piezo-disc' ? 'sine' : 'square';
-      let voice = voices.get(component.id);
-      if (!voice || voice.waveform !== waveform) {
-        stopVoice(component.id);
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
-        oscillator.type = waveform;
-        gain.gain.value = 0;
-        oscillator.connect(gain).connect(audioContext.destination);
-        oscillator.start();
-        voice = { oscillator, gain, waveform };
-        voices.set(component.id, voice);
-      }
-      const now = audioContext.currentTime;
-      voice.oscillator.frequency.setTargetAtTime(frequencyHz, now, 0.008);
-      // Educational preview volume is intentionally bounded; multiple buzzers
-      // cannot each claim full speaker amplitude.
-      const targetGain = Math.min(0.055, Math.max(0, soundLevel * 0.045));
-      voice.gain.gain.setTargetAtTime(targetGain, now, 0.012);
-    }
-    for (const componentId of [...voices.keys()]) {
-      if (!activeIds.has(componentId)) stopVoice(componentId);
-    }
-  }, [document, result, simulationRunning]);
+    let previousResult: SolveResult | null | undefined;
+    let previousVisibility: DocumentVisibilityState | undefined;
+    const update = () => {
+      const result = presentation.getCommittedSnapshot()?.result ?? null;
+      const visibility = globalThis.document.visibilityState;
+      if (result === previousResult && visibility === previousVisibility) return;
+      previousResult = result;
+      previousVisibility = visibility;
+      reconcilePiezoAudio(document, result, simulationRunning);
+    };
+    update();
+    const unsubscribe = presentation.subscribe(update);
+    const visibilityChanged = () => update();
+    globalThis.document.addEventListener('visibilitychange', visibilityChanged);
+    return () => {
+      unsubscribe();
+      globalThis.document.removeEventListener('visibilitychange', visibilityChanged);
+      stopAllVoices();
+    };
+  }, [document, presentation, simulationRunning]);
+}
 
-  useEffect(() => () => stopAllVoices(), []);
+function reconcilePiezoAudio(
+  document: SchematicDocument | null,
+  result: SolveResult | null,
+  simulationRunning: boolean,
+): void {
+  if (
+    !simulationRunning ||
+    !document ||
+    !result?.solved ||
+    !audioContext ||
+    globalThis.document.visibilityState === 'hidden'
+  ) {
+    stopAllVoices();
+    return;
+  }
+  const resultByComponent = new Map(result.components.map((entry) => [entry.componentId, entry]));
+  const activeIds = new Set<string>();
+  for (const component of document.components) {
+    if (component.kind !== 'piezo') continue;
+    const componentResult = resultByComponent.get(component.id);
+    const frequencyHz = Number(componentResult?.frequencyHz ?? 0);
+    const soundLevel = Number(componentResult?.soundLevel ?? 0);
+    if (
+      componentResult?.energized !== true ||
+      !Number.isFinite(frequencyHz) ||
+      frequencyHz < 20 ||
+      frequencyHz > 20_000 ||
+      !Number.isFinite(soundLevel) ||
+      soundLevel <= 0
+    ) {
+      stopVoice(component.id);
+      continue;
+    }
+    activeIds.add(component.id);
+    const waveform: OscillatorType = component.componentTypeId === 'piezo-disc' ? 'sine' : 'square';
+    let voice = voices.get(component.id);
+    if (!voice || voice.waveform !== waveform) {
+      stopVoice(component.id);
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = waveform;
+      gain.gain.value = 0;
+      oscillator.connect(gain).connect(audioContext.destination);
+      oscillator.start();
+      voice = { oscillator, gain, waveform };
+      voices.set(component.id, voice);
+    }
+    const now = audioContext.currentTime;
+    if (voice.frequencyHz !== frequencyHz) {
+      voice.oscillator.frequency.setTargetAtTime(frequencyHz, now, 0.008);
+      voice.frequencyHz = frequencyHz;
+    }
+    // Educational preview volume is intentionally bounded; multiple buzzers
+    // cannot each claim full speaker amplitude.
+    const targetGain = Math.min(0.055, Math.max(0, soundLevel * 0.045));
+    if (voice.targetGain !== targetGain) {
+      voice.gain.gain.setTargetAtTime(targetGain, now, 0.012);
+      voice.targetGain = targetGain;
+    }
+  }
+  for (const componentId of [...voices.keys()]) {
+    if (!activeIds.has(componentId)) stopVoice(componentId);
+  }
 }

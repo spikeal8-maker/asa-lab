@@ -725,6 +725,47 @@ def lane_direct_main_shared_branch(_):
     return collect_errors(document)
 
 
+@case("direct main permits missing advisory parallel execution lease", expect="")
+def lane_direct_main_missing_optional_lease(_):
+    document = multilane_document()
+    document["development_policy"] = {
+        "mode": "direct_main",
+        "branch": "main",
+        "feature_branches": "optional",
+        "pull_requests": "optional",
+        "execution_leases": "disabled",
+        "lane_path_ownership": "advisory",
+    }
+    document["task"].update({"branch": "main", "pr": None})
+    document["parallel_lanes"][0]["task"].update({"branch": "main", "pr": None})
+    document["parallel_lanes"][0].pop("execution_lease")
+    return collect_errors(document)
+
+
+@case("direct main permits null advisory execution lease", expect="")
+def lane_direct_main_null_optional_lease(_):
+    document = multilane_document()
+    document["development_policy"] = {
+        "mode": "direct_main",
+        "branch": "main",
+        "feature_branches": "optional",
+        "pull_requests": "optional",
+        "execution_leases": "disabled",
+        "lane_path_ownership": "advisory",
+    }
+    document["task"].update({"branch": "main", "pr": None})
+    document["parallel_lanes"][0]["task"].update({"branch": "main", "pr": None})
+    document["parallel_lanes"][0]["execution_lease"] = None
+    return collect_errors(document)
+
+
+@case("coordinated lanes reject missing execution lease without crashing", expect="execution_lease")
+def lane_coordinated_missing_required_lease(_):
+    document = multilane_document()
+    document["parallel_lanes"][0].pop("execution_lease")
+    return collect_errors(document)
+
+
 @case("a parallel lane reusing the primary executor", expect="unique executor_id")
 def lane_duplicate_executor(_):
     document = multilane_document()

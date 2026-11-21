@@ -76,6 +76,14 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
@@ -85,6 +93,7 @@ afterEach(async () => {
   root = null;
   container = null;
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('authored material legacy goal', () => {
