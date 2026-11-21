@@ -24,7 +24,7 @@ test('draft network timeout still aborts the response body without AbortSignal.a
     },
     async fetch(_url, options) {
       requests.push(options);
-      return new Response('{}');
+      return new globalThis.Response('{}');
     },
   };
   const shell = { dataset: {} };
@@ -46,19 +46,19 @@ test('draft network timeout still aborts the response body without AbortSignal.a
     AsaBlocksProtocol: { createChildProtocol: () => ({ start() {} }) },
     AsaBlocksStatus: {},
     AsaBlocksRecovery: {},
-    AbortController,
-    AbortSignal: { timeout: AbortSignal.timeout },
-    DOMException,
+    AbortController: globalThis.AbortController,
+    AbortSignal: { timeout: globalThis.AbortSignal.timeout },
+    DOMException: globalThis.DOMException,
     URL,
-    Request,
-    performance,
+    Request: globalThis.Request,
+    performance: globalThis.performance,
   });
   vm.runInContext(
     fs.readFileSync(new URL('../../infra/scratch-editor/host/main.js', import.meta.url), 'utf8'),
     context,
   );
   const url = '/api/blocks/runtime/projects/11111111-1111-4111-8111-111111111111/draft';
-  const caller = new AbortController();
+  const caller = new globalThis.AbortController();
   await window.fetch(url, { method: 'PUT', signal: caller.signal });
   const effective = requests[0].signal;
   assert.notEqual(effective, caller.signal);
@@ -414,7 +414,7 @@ test('invalid native asset input immediately completes the pending save with a b
 
 test('an aborted save wait does not consume a later durable outcome', async () => {
   const storage = loadStorage(
-    async () => new Response(JSON.stringify({ status: 'ok', revision: 24 })),
+    async () => new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 })),
     () => '22222222-2222-4222-8222-222222222222',
   )({
     projectId: PROJECT_ID,
@@ -426,7 +426,7 @@ test('an aborted save wait does not consume a later durable outcome', async () =
     getProjectGeneration: () => 2,
   });
   const sequence = storage.getUpstreamSaveSequence();
-  const controller = new AbortController();
+  const controller = new globalThis.AbortController();
   const first = storage.waitForUpstreamSaveAfter(sequence, controller.signal);
   controller.abort();
   assert.equal((await first).reason, 'save_exit_timeout');
