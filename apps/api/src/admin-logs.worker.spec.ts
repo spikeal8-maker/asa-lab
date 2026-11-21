@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import databaseContract from './database-diagnostic-contract.json';
 import {
   queryLogs,
+  errorTrend,
   exportLogs,
   readLogCatalog,
   type LogFilter,
@@ -42,6 +43,127 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('aligns error counts with Moscow hours, groups AI and robotics, and reports partial retention', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-error-trend-'));
+    try {
+      const row = (id: number, time: string, path: string, level = 'error') => ({
+        id: id.toString(16).padStart(64, '0'),
+        time,
+        source: 'api',
+        module: 'portal',
+        level,
+        message: JSON.stringify({ path }),
+        requestId: null,
+        revision: null,
+        origin: 'stdout',
+        truncated: false,
+      });
+      const robotics = row(2, '2026-11-11T17:12:00.000Z', '/api/robotics/projects');
+      const containerExit = {
+        kind: 'container_state',
+        service: 'api',
+        Status: 'exited',
+        ExitCode: 0,
+        OOMKilled: false,
+      };
+      const rows = [
+        row(1, '2026-11-11T16:35:00.000Z', '/api/ai/chat'),
+        robotics,
+        robotics,
+        {
+          ...row(4, '2026-11-11T17:13:00.000Z', '/'),
+          source: 'metrics',
+          origin: 'provider:comfyui',
+        },
+        {
+          ...row(5, '2026-11-11T17:14:00.000Z', '/'),
+          message: JSON.stringify(containerExit),
+        },
+        {
+          ...row(6, '2026-11-11T17:14:01.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, ExitCode: 1 }),
+        },
+        {
+          ...row(7, '2026-11-11T17:14:02.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, OOMKilled: true }),
+        },
+        {
+          ...row(8, '2026-11-11T17:14:03.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, health: 'unhealthy' }),
+        },
+        {
+          ...row(9, '2026-11-11T17:14:04.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, Status: 'running', health: 'unhealthy' }),
+        },
+        {
+          ...row(10, '2026-11-11T17:14:05.000Z', '/api/projects/draft'),
+          message: JSON.stringify({
+            kind: 'http_response',
+            status: 502,
+            path: '/api/projects/draft',
+          }),
+        },
+        row(3, '2026-11-11T17:15:00.000Z', '/api/robotics/projects', 'warn'),
+      ];
+      const raw = rows.map((event) => JSON.stringify(event)).join('\n') + '\n';
+      const file = 'seg-0000000000000001-0000000000000010.jsonl';
+      await writeFile(join(root, file), raw);
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [],
+          collectedAt: '2026-11-11T17:20:00.000Z',
+          segments: [
+            {
+              file,
+              bytes: Buffer.byteLength(raw),
+              count: rows.length,
+              first: rows[0]!.time,
+              last: rows.at(-1)!.time,
+            },
+          ],
+        }),
+      );
+      expect(
+        await errorTrend(root, {
+          from: '2026-11-11T16:15:00.000Z',
+          to: '2026-11-11T18:15:00.000Z',
+          bucketSeconds: 3600,
+        }),
+      ).toEqual({
+        coverage: 'partial',
+        from: rows[0]!.time,
+        to: '2026-11-11T17:20:00.000Z',
+        points: [
+          { at: '2026-11-11T16:00:00.000Z', counts: { ai: 1 } },
+          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1, api: 3, projects: 1 } },
+        ],
+      });
+      const journal = await queryLogs(
+        root,
+        { ...filter, from: rows[0]!.time, to: rows.at(-1)!.time },
+        20,
+      );
+      expect(journal.items).toContainEqual(
+        expect.objectContaining({ message: JSON.stringify(containerExit) }),
+      );
+      expect(journal.items).toContainEqual(
+        expect.objectContaining({
+          message: JSON.stringify({ ...containerExit, health: 'unhealthy' }),
+        }),
+      );
+      expect(
+        await errorTrend(root, {
+          from: rows[0]!.time,
+          to: '2026-11-11T17:20:00.000Z',
+          bucketSeconds: 3600,
+        }),
+      ).toMatchObject({ coverage: 'partial' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('leaves unknown optional required-coverage metadata unknown without breaking legacy queries', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-required-reader-'));
     try {
@@ -63,21 +185,23 @@ describe('retained log reader and archive', () => {
   it('preserves previously classified truncated editor JSON without trusting host or database hints', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-editor-truncated-'));
     try {
-      const rows = ['scratch', 'electronics', 'three-d', 'chess', 'checkers'].map((module, i) => ({
-        id: String(i + 1).repeat(64),
-        time: filter.from,
-        source: 'api',
-        module,
-        subsystem: module,
-        level: 'warn',
-        message: '{"path":"/api/' + module + '/fixture","msg":"' + 'x'.repeat(16000),
-        requestId: null,
-        revision: null,
-        origin: 'application-stdout',
-        truncated: true,
-      }));
+      const rows = ['scratch', 'electronics', 'robotics', 'three-d', 'chess', 'checkers'].map(
+        (module, i) => ({
+          id: String(i + 1).repeat(64),
+          time: filter.from,
+          source: 'api',
+          module,
+          subsystem: module,
+          level: 'warn',
+          message: '{"path":"/api/' + module + '/fixture","msg":"' + 'x'.repeat(16000),
+          requestId: null,
+          revision: null,
+          origin: 'application-stdout',
+          truncated: true,
+        }),
+      );
       const raw = Buffer.from(rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
-      const file = 'seg-0000000000000001-0000000000000005.jsonl';
+      const file = 'seg-0000000000000001-0000000000000006.jsonl';
       await writeFile(join(root, file), raw);
       await writeFile(
         join(root, 'catalog.json'),
@@ -88,7 +212,7 @@ describe('retained log reader and archive', () => {
             {
               file,
               bytes: raw.length,
-              count: 5,
+              count: 6,
               first: filter.from,
               last: filter.from,
               sources: ['api'],
@@ -111,7 +235,7 @@ describe('retained log reader and archive', () => {
   });
 
   it.each([false, true])(
-    'classifies all five editors and preserves imported levels through query and ZIP (gzip=%s)',
+    'classifies all six editors and preserves imported levels through query and ZIP (gzip=%s)',
     async (compressed) => {
       const temporary = await mkdtemp(join(tmpdir(), 'asa-editor-classification-'));
       try {
@@ -134,9 +258,16 @@ describe('retained log reader and archive', () => {
         for (const segment of catalog.segments)
           originals.set(segment.file, await readFile(join(root, segment.file)));
         const all = await queryLogs(root, logFilter(filter), 100);
-        expect(all.items).toHaveLength(45);
-        expect(new Set(all.items.map((row) => row.id)).size).toBe(45);
-        for (const module of ['scratch', 'electronics', 'three-d', 'chess', 'checkers']) {
+        expect(all.items).toHaveLength(54);
+        expect(new Set(all.items.map((row) => row.id)).size).toBe(54);
+        for (const module of [
+          'scratch',
+          'electronics',
+          'robotics',
+          'three-d',
+          'chess',
+          'checkers',
+        ]) {
           for (const level of ['info', 'warn', 'error']) {
             for (const search of ['', 'OBS015 failure marker']) {
               const selected = logFilter({ ...filter, module, subsystem: module, level, search });

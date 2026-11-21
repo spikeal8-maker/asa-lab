@@ -68,6 +68,29 @@ it('exposes real module chips and retains the committed search when switching ca
   });
   expect(publicProjectsApi.list).toHaveBeenCalledWith({ search: 'лампа', module: 'electronics' });
 });
+it('loads real Robotics publications and opens their ordinary public project route', async () => {
+  const robotics = { ...work, moduleKey: 'robotics', title: 'Маршрут робота' };
+  vi.mocked(publicProjectsApi.list).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [robotics], nextOffset: null },
+  });
+  await render({ kind: 'public-projects', module: 'robotics', search: 'Маршрут', sort: 'oldest' });
+  expect(publicProjectsApi.list).toHaveBeenLastCalledWith({
+    module: 'robotics',
+    search: 'Маршрут',
+    sort: 'oldest',
+  });
+  expect(category('Робототехника').getAttribute('aria-pressed')).toBe('true');
+  expect(
+    host.querySelectorAll('[aria-label="Среда проекта"] [data-module="robotics"]'),
+  ).toHaveLength(1);
+  const card = host.querySelector<HTMLAnchorElement>('.public-project-card-link')!;
+  expect(card.getAttribute('href')).toBe('/#/public-projects/published');
+  expect(card.textContent).toContain('Маршрут робота');
+  await act(async () => card.click());
+  expect(onOpen).toHaveBeenCalledWith('published');
+});
 it('shows an unknown URL category honestly and allows returning to all without dropping search', async () => {
   await render({ kind: 'public-projects', search: 'схема', module: 'future-module' });
   expect(category('future-module').getAttribute('aria-pressed')).toBe('true');
@@ -163,6 +186,25 @@ it('does not fabricate a count when an older server omits copy statistics', asyn
   });
   await render({ kind: 'public-projects' });
   expect(host.querySelector('[title="Добавили к себе"]')).toBeNull();
+});
+
+it('keeps catalogue heading semantics, real zero counts and a missing preview in the shared card', async () => {
+  vi.mocked(publicProjectsApi.list).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [{ ...work, copyCount: 0, likeCount: 0 }], nextOffset: null },
+  });
+  await render({ kind: 'public-projects' });
+  const card = host.querySelector('.public-project-card')!;
+  expect(card.querySelector('h2')?.textContent).toBe(work.title);
+  expect(card.querySelector('h3')).toBeNull();
+  expect(card.querySelector('[aria-label="0 добавлений в свои проекты"]')?.textContent).toBe('0');
+  expect(card.querySelector('[aria-label="0 нравится"]')?.textContent).toBe('0');
+  expect(
+    card.querySelector('[data-testid="public-project-preview-unavailable"]')?.textContent,
+  ).toBe('Предпросмотр недоступен');
+  expect(card.querySelectorAll('a')).toHaveLength(1);
+  expect(card.querySelector('a a, a button')).toBeNull();
 });
 
 it('shows the real author avatar, keeps initials on failure and ignores stale games filters', async () => {

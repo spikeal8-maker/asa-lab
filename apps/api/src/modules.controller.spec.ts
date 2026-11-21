@@ -8,7 +8,7 @@ import { createApiModuleRegistry } from './module-registry';
 import { ModulesController } from './modules.controller';
 
 describe('ModulesController', () => {
-  it('returns Electronics, ASA Chess, ASA Checkers and ASA 3D as creatable modules', async () => {
+  it('returns implemented environments including Robotics as creatable modules', async () => {
     const controller = new ModulesController(
       createApiModuleRegistry(),
       new SeatContextUseCase(null),
@@ -57,6 +57,24 @@ describe('ModulesController', () => {
       previewKind: 'scene',
       learningCapabilities: { assignable: true },
     });
+    expect(modules.find((module) => module.moduleKey === 'robotics')).toMatchObject({
+      displayName: 'Виртуальная робототехника',
+      defaultProjectTitlePrefix: 'Проект робототехники',
+      projectType: 'robot-world',
+      schemaVersion: 3,
+      availability: 'active',
+      creatable: true,
+      editorRoute: '/projects/:projectId/robotics',
+      viewerRoute: '/view/projects/:versionId/robotics',
+      safeModeSupported: true,
+      previewKind: 'scene',
+      learningCapabilities: {
+        assignable: false,
+        editableEvidence: false,
+        submitProjectVersion: false,
+        preview: 'none',
+      },
+    });
   });
 
   it('keeps unimplemented environments visible but not creatable', async () => {
@@ -84,7 +102,7 @@ describe('ModulesController', () => {
     );
   });
 
-  it('keeps active game and Scratch project modules out of the learning chooser', () => {
+  it('keeps game, Scratch and Robotics project activation separate from learning support', () => {
     const registry = createApiModuleRegistry();
     expect(
       registry

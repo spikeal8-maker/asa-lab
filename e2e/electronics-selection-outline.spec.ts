@@ -1728,14 +1728,16 @@ for (const width of [1440, 1024, 390, 320])
               response.request().method() === 'GET' &&
               new URL(response.url()).pathname === `/api/projects/${projectId}`,
           );
-          await reopened.goto(`/#/home/${projectId}`);
+          // The real project response, rather than unrelated page resources, owns readiness.
+          await reopened.goto(`/#/home/${projectId}`, { waitUntil: 'commit' });
+          const projectResponse = await delivery;
           const preAppStorage = await reopened.evaluate(
             () => (window as unknown as { outlinePreAppStorage?: unknown }).outlinePreAppStorage,
           );
           output.push({ phase: 'pre-app-storage', storage: preAppStorage });
           writeRaw('pre-app-storage');
           expect(preAppStorage).toEqual({ local: [], session: [] });
-          const delivered = (await (await delivery).json()) as {
+          const delivered = (await projectResponse.json()) as {
             draft: { revision: number; document: SchematicDocument };
           };
           expect(delivered.draft).toEqual(saved.draft);

@@ -1,3 +1,4 @@
+import { aiToolPolicyQueryFixture } from './testing/ai-tool-policy-query.fixture';
 import type pg from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as reader from './ai-web-page-reader';
@@ -10,6 +11,8 @@ const URL = 'https://example.org/article';
 const signal = () => new AbortController().signal;
 function fixture(pagesLimit = 1, admission = 'ready', blocked: string[] = []) {
   const query = vi.fn(async (sql: string) => {
+    const policy = aiToolPolicyQueryFixture(sql);
+    if (policy) return policy;
     if (sql.includes('ai_web_search_runtime'))
       return {
         rows: [

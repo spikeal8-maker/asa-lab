@@ -1132,6 +1132,157 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(failed.result!.diagnostics.map((entry) => entry.code)).toContain('component_failed');
   });
 
+  it('runs an Uno-powered photoresistor on the thermal clock and carries burnout forward', () => {
+    const ldr = { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 1 } };
+    const doc = circuit(
+      [board('uno', 'void setup(){}void loop(){delay(100);}'), ldr],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const early = through(doc, 5_000);
+    expect(early.executionStatus).toBe('ready');
+    expect(early.state?.profile).toBe('electrothermal-v1');
+    const observation = early.result!.components.find((entry) => entry.componentId === 'ldr')!;
+    expect(observation.powerUtilizationPercent).toBeGreaterThan(100);
+    expect(observation.accumulatedDamagePercent).toBeLessThan(1);
+    const physical = early.state!.physicalState!;
+    // Resume near the end of sustained overload so this test need not replay
+    // tens of thousands of 1 ms barriers for a mildly overloaded sensor.
+    const nearFailure: ArduinoCircuitClockState = {
+      ...early.state!,
+      physicalState: {
+        ...physical,
+        thermal: physical.thermal.map((entry) =>
+          entry.componentId === 'ldr' ? { ...entry, accumulatedDamage: 0.99999 } : entry,
+        ),
+      },
+    };
+    const failed = through(doc, 15_000, nearFailure);
+    expect(failed.executionStatus).toBe('ready');
+    expect(failed.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+      current: 0,
+      deviceHealth: 'failed_open',
+    });
+    const dimmed = through(doc, 20_000, failed.state!, [
+      { atMicroseconds: 16_000, componentId: 'ldr', property: 'illumination', value: 0 },
+    ]);
+    expect(dimmed.state?.reachedMicroseconds).toBe(20_000);
+    expect(dimmed.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+      current: 0,
+      deviceHealth: 'failed_open',
+    });
+  });
+
+  it('keeps a passive photoresistor observable across a light change without a source', () => {
+    const doc = circuit([
+      { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 0 } },
+    ]);
+    const dark = through(doc, 0);
+    expect(dark.executionStatus).toBe('ready');
+    expect(dark.state?.profile).toBe('dc-inputs-v1');
+    expect(dark.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+    const lit = through(doc, 2_000, dark.state!, [
+      { atMicroseconds: 1_000, componentId: 'ldr', property: 'illumination', value: 1 },
+    ]);
+    expect(lit.executionStatus).toBe('ready');
+    expect(lit.state).toMatchObject({ profile: 'dc-inputs-v1', reachedMicroseconds: 2_000 });
+    expect(lit.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+  });
+
+  it('samples live photoresistor light through a safe Uno divider on the same clock', () => {
+    const doc = circuit(
+      [
+        board('uno', 'int reading;void setup(){}void loop(){reading=analogRead(A0);delay(1);}'),
+        { ...part('ldr', 'photoresistor', 0), stateProperties: { illumination: 0 } },
+        part('sense', 'resistor', 10_000),
+      ],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'sense', 'a'],
+        ['ldr', 'b', 'uno', 'a0'],
+        ['sense', 'b', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const dark = through(doc, 5_000);
+    expect(dark.state?.profile).toBe('electrothermal-v1');
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 6_000, componentId: 'ldr', property: 'illumination', value: 1 },
+      { atMicroseconds: 12_000, componentId: 'ldr', property: 'illumination', value: 0 },
+    ];
+    const bright = through(doc, 10_000, dark.state!, inputs.slice(0, 1));
+    const darkAgain = through(doc, 16_000, bright.state!, inputs);
+    const whole = through(doc, 16_000, undefined, inputs);
+    expect(darkAgain.state?.reachedMicroseconds).toBe(16_000);
+    expect(darkAgain.result).toStrictEqual(whole.result);
+    expect(darkAgain.state).toStrictEqual(whole.state);
+    expect(runtime(bright).variables.reading).toBeGreaterThan(900);
+    expect(runtime(dark).variables.reading).toBeLessThan(20);
+    expect(runtime(darkAgain).variables.reading).toBe(runtime(dark).variables.reading);
+    for (const sample of [dark, bright, darkAgain]) {
+      expect(sample.result?.quality.passed).toBe(true);
+      expect(sample.result!.components.find((entry) => entry.componentId === 'ldr')).toMatchObject({
+        deviceHealth: 'normal',
+        accumulatedDamagePercent: 0,
+      });
+    }
+  });
+
+  it('reads lamp light on A0 as the filament warms and cools without electrical coupling', () => {
+    const doc = circuit(
+      [
+        board('uno', 'int reading;void setup(){}void loop(){reading=analogRead(A0);delay(10);}'),
+        {
+          ...part('ldr', 'photoresistor', 0),
+          stateProperties: {
+            illumination: 0,
+            lightSourceComponentId: 'lamp',
+            lightSourceDistanceCm: 10,
+          },
+        },
+        part('sense', 'resistor', 10_000),
+        part('lamp-power', 'source', 6),
+        { ...part('switch', 'button', 0), state: false },
+        {
+          ...part('lamp', 'lamp', 6),
+          componentTypeId: 'incandescent-lamp',
+          pinIds: ['L1', 'L2'],
+        },
+      ],
+      [
+        ['uno', 'power-5v', 'ldr', 'a'],
+        ['ldr', 'b', 'sense', 'a'],
+        ['ldr', 'b', 'uno', 'a0'],
+        ['sense', 'b', 'uno', 'power-gnd-1'],
+        ['lamp-power', 'a', 'switch', 'a'],
+        ['switch', 'b', 'lamp', 'L1'],
+        ['lamp', 'L2', 'lamp-power', 'b'],
+      ],
+    );
+    const dark = through(doc, 20_000);
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 21_000, componentId: 'switch', property: 'state', value: true },
+      { atMicroseconds: 601_000, componentId: 'switch', property: 'state', value: false },
+    ];
+    const warm = through(doc, 600_000, dark.state!, inputs.slice(0, 1));
+    const cold = through(doc, 1_100_000, warm.state!, inputs);
+    const sensor = (frame: ArduinoCircuitClockAdvance) =>
+      frame.result!.components.find((entry) => entry.componentId === 'ldr')!;
+    expect(sensor(dark)).toMatchObject({ illuminanceLux: 0, effectiveResistanceOhm: 1_000_000 });
+    expect(sensor(warm).illuminanceLux).toBeGreaterThan(60);
+    expect(sensor(warm).effectiveResistanceOhm).toBeLessThan(5_000);
+    expect(sensor(warm).current).toBeCloseTo(
+      sensor(warm).voltageDrop / sensor(warm).effectiveResistanceOhm!,
+      8,
+    );
+    expect(runtime(dark).variables.reading).toBeLessThan(20);
+    expect(runtime(warm).variables.reading).toBeGreaterThan(600);
+    expect(runtime(cold).variables.reading).toBe(runtime(dark).variables.reading);
+    expect(cold.state?.reachedMicroseconds).toBe(1_100_000);
+    for (const frame of [dark, warm, cold]) expect(frame.result?.quality.passed).toBe(true);
+  });
+
   it('rejects malformed continuation before any carried GPIO is used as a source', () => {
     const doc = buttonCircuit();
     const valid = through(doc, 10).state!;

@@ -22,6 +22,7 @@ for (const path of browser
       'e2e/public-project-admin-moderation.spec.ts',
       'e2e/gallery.spec.ts',
       'e2e/project-hub.spec.ts',
+      'e2e/robotics-projects.spec.ts',
     ]
   : [
       'tests/portal/publication-likes.pg.spec.ts',
@@ -61,6 +62,21 @@ for (const path of browser
       'apps/api/src/public-project-copy.spec.ts',
       'apps/api/src/admin-public-projects.controller.spec.ts',
       'apps/web/src/admin/testing/publication-acquisition.spec.ts',
+      'contexts/robotics/testing/document.spec.ts',
+      'contexts/robotics/testing/module.spec.ts',
+      'apps/web/src/robotics/testing/robotics-project-parity.spec.ts',
+      'apps/web/src/robotics/testing/robotics-project-host.spec.ts',
+      'apps/web/src/robotics/testing/robotics-local-host.spec.ts',
+      'apps/web/src/robotics/testing/robotics-lab.spec.ts',
+      'apps/api/src/modules.controller.spec.ts',
+      'apps/api/src/product-analytics.controller.spec.ts',
+      'tests/portal/robotics-projects-api.pg.spec.ts',
+      'tests/migration/robotics-projects-upgrade.pg.spec.ts',
+      'contexts/projects/testing/public-robotics-artifact.spec.ts',
+      'apps/api/src/robotics-public-artifact.spec.ts',
+      'apps/web/src/projects-public/PublicRoboticsViewer.spec.ts',
+      'apps/web/src/projects-public/PublicationArtifact.spec.ts',
+      'tests/portal/robotics-publication.pg.spec.ts',
     ]) {
   if (!existsSync(path)) {
     console.error(`BLOCKED: required publication evidence file is missing: ${path}`);
@@ -153,12 +169,12 @@ function verifyEmittedViewerGraph() {
   });
   if (result.error || result.status !== 0) process.exit(result.status ?? 78);
 }
-function run(args) {
+function run(args, commandEnv = env) {
   console.log(`\n> pnpm ${args.join(' ')}`);
   const result = spawnSync('pnpm', args, {
     stdio: 'inherit',
     shell: process.platform === 'win32',
-    env,
+    env: commandEnv,
   });
   if (result.error) {
     console.error(result.error.message);
@@ -186,9 +202,23 @@ if (browser) {
   run(['db:migrate:check']);
   // Nx follows ^build dependencies. API injection tests import the built API;
   // the browser then serves exactly these built files, not a Vite dev server.
-  run(['exec', 'nx', 'run-many', '-t', 'build', '--projects=api,web', '--parallel=2']);
+  // The isolated API and tests need NODE_ENV=test, but Vite must compile the
+  // production React runtime. Inheriting "test" enables development effects
+  // and measures different resources from the released application.
+  run(['exec', 'nx', 'run-many', '-t', 'build', '--projects=api,web', '--parallel=2'], {
+    ...env,
+    NODE_ENV: 'production',
+  });
   verifyBuiltRevision();
-  run(['exec', 'nx', 'run-many', '-t', 'typecheck', '--projects=projects,api,web', '--parallel=2']);
+  run([
+    'exec',
+    'nx',
+    'run-many',
+    '-t',
+    'typecheck',
+    '--projects=projects,robotics,api,web',
+    '--parallel=2',
+  ]);
   run([
     'exec',
     'tsc',
@@ -213,12 +243,24 @@ if (browser) {
     'e2e/public-project-copy.spec.ts',
     'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
+    'e2e/robotics-projects.spec.ts',
   ]);
   run([
     'exec',
     'vitest',
     'run',
     'contexts/projects/testing',
+    'contexts/robotics/testing',
+    'apps/web/src/robotics/testing/robotics-project-parity.spec.ts',
+    'apps/web/src/robotics/testing/robotics-project-host.spec.ts',
+    'apps/web/src/robotics/testing/robotics-local-host.spec.ts',
+    'apps/web/src/robotics/testing/robotics-lab.spec.ts',
+    'apps/api/src/modules.controller.spec.ts',
+    'apps/api/src/product-analytics.controller.spec.ts',
+    'tests/portal/robotics-projects-api.pg.spec.ts',
+    'tests/migration/robotics-projects-upgrade.pg.spec.ts',
+    'apps/api/src/robotics-public-artifact.spec.ts',
+    'tests/portal/robotics-publication.pg.spec.ts',
     'tests/portal/projects-api.spec.ts',
     'tests/portal/project-transactions.spec.ts',
     'tests/portal/project-publication-revisions.pg.spec.ts',

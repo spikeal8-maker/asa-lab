@@ -30,6 +30,30 @@ const schoolPendingFiles = [
   '0302_games_chess_notifications.sql',
   '0303_publication_owner_editor.sql',
   '0304_games_checkers_network.sql',
+  '0305_robotics_projects.sql',
+  '0306_robotics_publications.sql',
+  '0307_robotics_telemetry_v2.sql',
+  '0308_ai_eight_tool_registry.sql',
+  '0309_learning_essay_course_runtime.sql',
+  '0310_learning_quiz_policy_authority.sql',
+  '0311_learning_quiz_attempt_state.sql',
+  '0312_learning_quiz_complete_course.sql',
+  '0313_ai_openai_chat_catalog.sql',
+  '0314_ai_polza_video_catalog.sql',
+  '0315_ai_polza_catalog_selection.sql',
+  '0316_learning_file_answers.sql',
+  '0317_admin_dashboard_attendance.sql',
+  '0318_admin_operational_overview.sql',
+  '0319_canonical_read_boundaries_jit.sql',
+  '0320_personal_progress_summary.sql',
+  '0321_account_join_learner_identity.sql',
+  '0322_student_group_rating.sql',
+  '0323_project_duplicate_origin.sql',
+  '0324_classroom_merit_history.sql',
+  '0325_learning_direct_essay.sql',
+  '0326_learning_large_task_pdf.sql',
+  '0327_learning_task_attachment_formats.sql',
+  '0328_classroom_gallery_publish_safe_mode.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -50,6 +74,19 @@ const canonicalSqlDigests = {
   '0302': '43fb00c4ee7cdff378ffcaa1acd803a2b312eabc9d3211181c23bd238ba05a6d',
   '0303': '92818d6ea4dff20e5201e7e4e228678067048155714c89ce9d6f3270792bf60c',
   '0304': 'ecb1283c5adea892895b540f2e04d75a74ab51c54660110bf5a8269f56b3279d',
+  '0305': 'd706c3eaa79a7b3ce24824c507fa27ff524d9fcd9a0bb49eea1d6ee7410750bb',
+  '0306': '7c88a610329dc61030dc2155ffc33cf573062f18425044173026e67723737f11',
+  '0307': '3ea56361e766b572a5e83b4bce8d68ac90e3b82b92c79eabe6750619b8e71779',
+  '0308': '85722956cf9ec5aa183e8b710f720c7f2356d761bc47466f756b87f8358bbf9a',
+  '0309': '6405134e5c9e0d0b3302bf8c16afc53cfeb75bf719e0f974aa3903d80cb80d9d',
+  '0310': '85b4df00292bc47058616fe20054301a8a533a5ae3474daf8dbd3edc951fed39',
+  '0311': '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
+  '0312': 'fb93b9453e0127d94843feb45abf8371437eee0b0421ceb34323171bc5a1825b',
+  '0316': '4e63b37b20a09b4e0b2eba6e96140de1b2372febae7490cbf21ee505c7ec78c9',
+  '0317': 'c7efd322f7acf5567b85f1035b2e55a27842134fa3d487ff20be2d06ad90b99e',
+  '0318': 'e834b0e84327aaf2d53951bc54e2fb0a628abc31cc332af9926f2d0c966c3d5d',
+  '0324': 'e74f1664543474be7613d3fb777caa3b3d1bfdcc4916040174a38d69b487fda4',
+  '0328': 'e3635eaf128e48385f771ce85710afc2d6e0e7340f0cc59427c603ddcd60681d',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
@@ -168,7 +205,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0304');
+        expect(migrations.at(-1)?.file).toBe(schoolPendingFiles.at(-1));
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),

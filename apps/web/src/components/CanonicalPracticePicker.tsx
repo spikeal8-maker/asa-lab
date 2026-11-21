@@ -54,13 +54,19 @@ export function PinnedPracticePreview({ versionId }: { readonly versionId: strin
     <div className="course-pinned-practice">
       <strong>{preview.assignment.title}</strong>
       <small>
-        {preview.moduleKey === 'electronics'
-          ? 'Электроника'
-          : preview.moduleKey === 'three-d'
-            ? '3D'
-            : preview.moduleKey === 'blocks'
-              ? 'Scratch'
-              : 'Практика'}{' '}
+        {preview.kind === 'quiz'
+          ? 'Тест'
+          : preview.kind === 'file'
+            ? 'Файловый ответ'
+            : preview.kind === 'essay'
+              ? 'Письменный ответ'
+              : preview.moduleKey === 'electronics'
+                ? 'Электроника'
+                : preview.moduleKey === 'three-d'
+                  ? '3D'
+                  : preview.moduleKey === 'blocks'
+                    ? 'Scratch'
+                    : 'Практика'}{' '}
         · опубликованная версия {preview.source.versionNumber}
       </small>
       <AssignmentView assignment={preview.assignment} compact />
@@ -72,7 +78,9 @@ export function CanonicalPracticePicker({
   value,
   onChange,
   onRegisterNestedLeaveGuard,
+  allowEssay = false,
 }: {
+  readonly allowEssay?: boolean;
   readonly onRegisterNestedLeaveGuard?: (id: string, guard: (() => boolean) | null) => void;
   readonly value: string;
   readonly onChange: (versionId: string, title: string) => void;
@@ -144,7 +152,12 @@ export function CanonicalPracticePicker({
       if (result.ok)
         setItems(
           result.data.items.filter(
-            (item) => item.kind === 'project' && item.currentPublishedVersionId !== null,
+            (item) =>
+              (item.kind === 'project' ||
+                (allowEssay && item.kind === 'essay') ||
+                item.kind === 'quiz' ||
+                item.kind === 'file') &&
+              item.currentPublishedVersionId !== null,
           ),
         );
       else setError(result.error.message);
@@ -152,7 +165,7 @@ export function CanonicalPracticePicker({
     return () => {
       active = false;
     };
-  }, [open]);
+  }, [open, allowEssay]);
   return (
     <div className="course-practice-picker">
       {creating
@@ -175,6 +188,7 @@ export function CanonicalPracticePicker({
                     if (creationSession === sessionRef.current) authorLeaveGuard.current = guard;
                   }}
                   courseCreation={{
+                    allowEssay,
                     onClose: () => {
                       if (creationSession !== null) endCreation(creationSession);
                     },
@@ -186,17 +200,23 @@ export function CanonicalPracticePicker({
                       ]);
                       if (!mounted.current || creationSession !== sessionRef.current) return;
                       if (!result.ok) throw new Error(result.error.message);
-                      if (!modules.ok) throw new Error(modules.error.message);
+                      const essay =
+                        (result.data.kind === 'quiz' ||
+                          result.data.kind === 'file' ||
+                          (allowEssay && result.data.kind === 'essay')) &&
+                        result.data.moduleKey === null;
+                      if (!modules.ok && !essay) throw new Error(modules.error.message);
                       if (
-                        result.data.moduleKey === null ||
                         result.data.source.kind !== 'published' ||
                         result.data.source.id !== versionId ||
-                        !modules.data.items.some(
-                          (module) =>
-                            module.moduleKey === result.data.moduleKey &&
-                            module.creatable &&
-                            module.learningCapabilities?.assignable === true,
-                        )
+                        (!essay &&
+                          (!modules.ok ||
+                            !modules.data.items.some(
+                              (module) =>
+                                module.moduleKey === result.data.moduleKey &&
+                                module.creatable &&
+                                module.learningCapabilities?.assignable === true,
+                            )))
                       ) {
                         throw new Error(
                           'Опубликованное задание сейчас недоступно для добавления в курс.',
@@ -279,19 +299,26 @@ export function CanonicalPracticePicker({
                           .then(async (result) => {
                             const modules = await api.listModules();
                             if (!mounted.current) return;
-                            const supported =
+                            const essay =
                               result.ok &&
-                              modules.ok &&
-                              modules.data.items.some(
-                                (module) =>
-                                  module.moduleKey === result.data.moduleKey &&
-                                  module.creatable &&
-                                  module.learningCapabilities?.assignable === true,
-                              );
+                              (result.data.kind === 'quiz' ||
+                                result.data.kind === 'file' ||
+                                (allowEssay && result.data.kind === 'essay')) &&
+                              result.data.moduleKey === null;
+                            const supported =
+                              essay ||
+                              (result.ok &&
+                                modules.ok &&
+                                modules.data.items.some(
+                                  (module) =>
+                                    module.moduleKey === result.data.moduleKey &&
+                                    module.creatable &&
+                                    module.learningCapabilities?.assignable === true,
+                                ));
                             if (
                               supported &&
                               result.ok &&
-                              result.data.moduleKey !== null &&
+                              (essay || result.data.moduleKey !== null) &&
                               result.data.source.kind === 'published' &&
                               result.data.source.id === item.currentPublishedVersionId
                             ) {

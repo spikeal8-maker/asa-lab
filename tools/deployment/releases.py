@@ -19,6 +19,15 @@ def validate_deployment_digest(value):
     return value
 
 
+def published_deployment_digest():
+    # Use the digest returned by this pull, not a later lookup of the mutable tag.
+    receipt = run(["docker", "pull", f"{REGISTRY}/deployment:stable"], capture=True)
+    digests = re.findall(r"^Digest: (sha256:[a-f0-9]{64})$", receipt, re.MULTILINE)
+    require(len(digests) == 1, "RELEASE_DIGEST_MISMATCH",
+            "Docker did not report a unique digest for the published deployment.")
+    return validate_deployment_digest(digests[0])
+
+
 def discover_release(deployment_digest=None):
     reference = (f"{REGISTRY}/deployment@{validate_deployment_digest(deployment_digest)}"
                  if deployment_digest is not None else f"{REGISTRY}/deployment:stable")
@@ -137,6 +146,7 @@ def _successful_jobs(run, required):
     current = _ci_get(f"/{run['id']}")
     fields = ("id", "path", "head_sha", "head_branch", "run_attempt", "status", "conclusion", "display_title")
     require(all(current.get(field) == run.get(field) for field in fields), "CI_BLOCKED", "CI changed while verifying its jobs.")
+    return latest
 
 
 def _latest_general(revision):
@@ -188,9 +198,10 @@ def assert_ci(release):
     require(set(release["images"]) <= set(builds), "CI_BLOCKED", "Unknown release build requires an explicit CI contract.")
     # workflow_run head_sha identifies the workflow revision, not necessarily the
     # built release source. The immutable run ID and exact release title bind it.
-    _successful_jobs(publication, ["gate", "contracts (ubuntu-latest)", "contracts (windows-latest)", "publish",
-                                   *(builds[service] for service in release["images"])])
+    jobs = _successful_jobs(publication, ["gate", "contracts (ubuntu-latest)", "contracts (windows-latest)", "publish",
+                                          *(builds[service] for service in release["images"])])
     assert_general_ci(revision)
+    return jobs["publish"].get("completed_at")
 
 
 def fetch_images(release):

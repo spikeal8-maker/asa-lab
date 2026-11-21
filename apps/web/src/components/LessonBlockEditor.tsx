@@ -244,7 +244,7 @@ const ADD_OPTIONS: Array<{ type: LessonBlock['type']; label: string }> = [
   { type: 'video', label: 'Видео' },
   { type: 'audio', label: 'Аудио' },
   { type: 'file', label: 'Файл' },
-  { type: 'activity', label: 'Практика' },
+  { type: 'activity', label: 'Задание' },
   { type: 'manual-material', label: 'Материал из библиотеки' },
 ];
 
@@ -620,6 +620,7 @@ export function LessonBlockEditor({
             {block.type === 'activity' ? (
               <div data-course-field="learningActivityVersionId">
                 <CanonicalPracticePicker
+                  allowEssay
                   {...(onRegisterNestedLeaveGuard ? { onRegisterNestedLeaveGuard } : {})}
                   value={block.learningActivityVersionId}
                   onChange={(versionId) =>

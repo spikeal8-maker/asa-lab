@@ -943,7 +943,11 @@ describe('request-owned current quality traversal', () => {
         }
         const layouts = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
         try {
-          expect(g.compare(result).powerBalanceResidualWatt).toBe(0);
+          // Invented terminals cannot corroborate numerical shunts. The physical
+          // sum must still preserve grouped reduction (flattening would yield 1 W).
+          const quality = g.compare(result);
+          expect(quality.powerBalanceResidualWatt).toBe(0);
+          expect(quality.passed).toBe(false);
           expect(layouts).toHaveBeenCalled();
         } finally {
           layouts.mockRestore();

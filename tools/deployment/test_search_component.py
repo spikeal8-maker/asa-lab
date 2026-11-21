@@ -138,7 +138,7 @@ class SearchComponentTests(unittest.TestCase):
                 self.assertEqual(list(Path(directory).iterdir()), [path])
 
     def test_manager_exposes_only_stable_search_secret_error_code(self):
-        manager_source = (ROOT / "tools/asa_manager.py").read_text()
+        manager_source = (ROOT / "tools/asa_manager.py").read_text(encoding="utf-8")
         self.assertIn('"SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret)', manager_source)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ".env"

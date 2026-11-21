@@ -99,3 +99,60 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Tool workspace: compact fields, with full explanations in accessible hints. */
+.asa-ai-web-admin [hidden] {
+  display: none !important;
+}
+.asa-ai-web-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.asa-ai-web-section-heading h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.asa-ai-web-common {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+.asa-ai-web-common .asa-cloud-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.asa-ai-web-common input[type='number'] {
+  width: 110px;
+}
+.asa-ai-web-admin .asa-cloud-field > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.asa-ai-web-admin .asa-cloud-form {
+  gap: 12px;
+}
+.asa-ai-web-retrieval {
+  padding: 10px 12px;
+}
+.asa-ai-web-retrieval-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.asa-ai-web-admin textarea {
+  padding: 8px 10px;
+  line-height: 1.4;
+}
+.asa-ai-web-admin .asa-cloud-consent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.asa-ai-web-admin .asa-cloud-field > span {
+  flex-wrap: wrap;
+  min-width: 0;
+}

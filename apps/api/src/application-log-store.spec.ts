@@ -36,7 +36,7 @@ function event(code: string) {
 }
 
 describe('application-owned logging without host services', () => {
-  it('persists accepted HTTP 429 correlation through the real controller emit and native reader', async () => {
+  it('persists an accepted HTTP 429 aggregate and correlation through the real controller emit and native reader', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-native-429-'));
     let store: ApplicationLogStore | undefined;
     const output = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
@@ -64,11 +64,17 @@ describe('application-owned logging without host services', () => {
         operation: 'electronics_draft_write',
         failureKind: 'http',
         clientAttemptId: '30000000-0000-4000-8000-000000000003',
+        eventId: '40000000-0000-4000-8000-000000000004',
+        occurredAt: 1_000_000,
+        repetitionCount: 37,
+        firstOccurredAt: 1_000_000,
+        lastOccurredAt: 1_010_000,
       };
       expect(() =>
         controller.report(request, { ...body, url: 'PRIVATE', prompt: 'PRIVATE' }),
       ).toThrow();
       expect(store.counters.accepted).toBe(0);
+      expect(controller.report(request, body)).toEqual({ accepted: true });
       expect(controller.report(request, body)).toEqual({ accepted: true });
       await store.close();
       const result = await queryLogs(
@@ -87,6 +93,11 @@ describe('application-owned logging without host services', () => {
         operation: body.operation,
         failureKind: 'http',
         clientAttemptId: body.clientAttemptId,
+        eventId: body.eventId,
+        occurredAt: body.occurredAt,
+        repetitionCount: 37,
+        firstOccurredAt: 1_000_000,
+        lastOccurredAt: 1_010_000,
       });
       expect(result.items[0]!.message).not.toContain('PRIVATE');
       expect(store.counters).toMatchObject({ accepted: 1, persisted: 1, dropped: 0, failures: 0 });
@@ -95,6 +106,51 @@ describe('application-owned logging without host services', () => {
       output.mockRestore();
       vi.unstubAllEnvs();
       vi.resetModules();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('drops the entire repetition projection for malformed or foreign producer metadata', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-native-repetitions-'));
+    const store = new ApplicationLogStore(root);
+    const body = {
+      kind: 'client_diagnostic',
+      time: new Date().toISOString(),
+      module: 'portal',
+      code: 'request_failed',
+      eventId: '10000000-0000-4000-8000-000000000001',
+      occurredAt: 1_000_000,
+      repetitionCount: 2,
+      firstOccurredAt: 1_000_000,
+      lastOccurredAt: 1_000_001,
+    };
+    const invalid = [
+      { repetitionCount: 'PRIVATE' },
+      { repetitionCount: 0 },
+      { repetitionCount: 1_000_001 },
+      { repetitionCount: undefined },
+      { occurredAt: -1 },
+      { firstOccurredAt: undefined },
+      { firstOccurredAt: 1_000_001 },
+      { lastOccurredAt: { message: 'PRIVATE' } },
+      { lastOccurredAt: 999_999 },
+      { lastOccurredAt: 1_900_001 },
+      { eventId: undefined },
+      { kind: 'server_error' },
+    ];
+    try {
+      for (const extra of invalid) store.enqueue(JSON.stringify({ ...body, ...extra }));
+      await store.close();
+      const result = await queryLogs(root, filter, 100);
+      expect(result.items).toHaveLength(invalid.length);
+      for (const row of result.items) {
+        const projected = JSON.parse(row.message);
+        for (const key of ['occurredAt', 'repetitionCount', 'firstOccurredAt', 'lastOccurredAt'])
+          expect(projected).not.toHaveProperty(key);
+        expect(row.message).not.toContain('PRIVATE');
+      }
+    } finally {
+      await store.close();
       await rm(root, { recursive: true, force: true });
     }
   });

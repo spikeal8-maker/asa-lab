@@ -528,6 +528,32 @@ describe('ordinary image mount lifecycle', () => {
       },
     };
   }
+  it('starts ordinary image requests only after the SVG image is connected', async () => {
+    const fixture = mount();
+    const initial = '/assets/electronics/connected-initial.svg';
+    const replacement = '/assets/electronics/connected-replacement.svg';
+    const requests: Array<{ href: string; connected: boolean }> = [];
+    const setAttribute = Element.prototype.setAttribute;
+    vi.spyOn(Element.prototype, 'setAttribute').mockImplementation(function (
+      this: Element,
+      name,
+      value,
+    ) {
+      if (this.localName === 'image' && name === 'href' && [initial, replacement].includes(value)) {
+        requests.push({ href: value, connected: this.isConnected });
+      }
+      setAttribute.call(this, name, value);
+    });
+
+    await fixture.render(initial, []);
+    await fixture.render(replacement, []);
+
+    expect(requests).toEqual([
+      { href: initial, connected: true },
+      { href: replacement, connected: true },
+    ]);
+  });
+
   it('replays an error delivered before passive setup once through the finite shared recovery', async () => {
     const fixture = mount();
     await fixture.render('/assets/electronics/early-mount-test.svg', ['error']);

@@ -1,4 +1,5 @@
 import { AdminAiSpeechTest } from './AdminAiSpeechTest';
+import { AdminPolzaCatalog } from './AdminPolzaCatalog';
 import { useEffect, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { isPolzaConfig, type AiPolzaAdminConfig } from './ai-polza-admin';
@@ -132,11 +133,10 @@ export function AdminAiTranscription({
       {config ? (
         <form className="asa-polza-form" onSubmit={(event) => void save(event)}>
           <div className="asa-polza-control-row">
-            <div className="asa-polza-model">
-              <span>Модель русского языка</span>
-              <strong>GigaAM-v3</strong>
-              <small>Polza AI · ai-sage/gigaam-v3</small>
-            </div>
+            <p>
+              Модель голосового ввода выбирается в подключении Polza AI. Если в каталоге нет
+              активной выбранной модели, используется GigaAM-v3.
+            </p>
             <label className="asa-polza-switch">
               <input
                 type="checkbox"
@@ -218,6 +218,13 @@ export function AdminAiTranscription({
             </p>
           </details>
         </form>
+      ) : null}
+      {config ? (
+        <AdminPolzaCatalog
+          kind="stt"
+          connected={config.apiKeyConfigured}
+          onAccessDenied={onAccessDenied}
+        />
       ) : null}
       {config ? (
         <AdminAiSpeechTest

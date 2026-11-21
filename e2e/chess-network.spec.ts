@@ -495,7 +495,16 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
     await network.getByLabel('Разрешить сетевую игру', { exact: true }).check();
     await network.getByLabel('Круг соперников', { exact: true }).selectOption('classroom');
     await network.getByRole('button', { name: 'Сохранить сетевой режим', exact: true }).click();
-    await expect(network.getByRole('status')).toHaveText('Настройки сетевой игры сохранены.');
+    const networkFeedback = page.locator('.system-feedback-ribbon.system-feedback-success');
+    await expect(networkFeedback).toHaveCount(1);
+    await expect(networkFeedback).toBeVisible();
+    await expect(networkFeedback).toHaveText(/Настройки сетевой игры сохранены\./);
+    const networkAnnouncement = page.locator('.system-feedback-announcement[role="status"]');
+    await expect(networkAnnouncement).toHaveCount(1);
+    await expect(networkAnnouncement).toContainText('Настройки сетевой игры сохранены.');
+    await expect(
+      network.getByText('Настройки сетевой игры сохранены.', { exact: true }),
+    ).toHaveCount(0);
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(
@@ -522,12 +531,15 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
     expect(avatarSaved.ok(), await avatarSaved.text()).toBe(true);
     const bPlayer = (await (await b.page.request.get('/api/games/chess/access')).json()).player;
     const peer = a.page.locator(`[data-player-id="${bPlayer.playerId}"]`);
-    const currentLobby = await (
-      await post(a.page.request, origin, 'lobby', { scope: 'classroom' })
-    ).json();
+    // Opening the network screen does not wait for its initial presence heartbeat.
+    await expect(peer.locator('img')).toBeVisible({ timeout: 15000 });
+    const lobbyResponse = await post(a.page.request, origin, 'lobby', { scope: 'classroom' });
+    expect(lobbyResponse.ok()).toBe(true);
+    const currentLobby = await lobbyResponse.json();
     const expectedAvatar = currentLobby.players.find(
       (p: { playerId: string }) => p.playerId === bPlayer.playerId,
-    ).avatarUrl;
+    )?.avatarUrl;
+    expect(expectedAvatar).toEqual(expect.any(String));
     await expect(peer.locator('img')).toHaveAttribute('src', expectedAvatar, { timeout: 15000 });
 
     await expect(
@@ -968,6 +980,26 @@ test('two pupils finish white and black checkmates with personal outcomes on des
           );
       // Replay and reload are durable views, never a second victory celebration/result insertion.
       for (const learner of [white, black]) {
+        async function reopenFromHistory(enterLobby: () => Promise<unknown>) {
+          const [lobbyResponse] = await Promise.all([
+            learner.page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === '/api/games/chess/lobby' &&
+                response.request().method() === 'POST',
+              { timeout: 15000 },
+            ),
+            enterLobby(),
+          ]);
+          expect(lobbyResponse.ok()).toBe(true);
+          await expect(
+            learner.page.getByRole('heading', { name: 'Мои сетевые партии', exact: true }),
+          ).toBeVisible();
+          // The first roster render can move the history row during a touch gesture.
+          const roster = learner.page.getByRole('region', { name: 'Игроки в сети', exact: true });
+          await expect(roster).toBeVisible();
+          await expect(roster.getByText('Ищем доступных игроков…', { exact: true })).toBeHidden();
+          await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        }
         const historyBefore = await (
           await learner.page.request.get('/api/games/chess/history')
         ).json();
@@ -977,17 +1009,14 @@ test('two pupils finish white and black checkmates with personal outcomes on des
         expect(
           historyBefore.matches.find((match: { id: string }) => match.id === id),
         ).toMatchObject(frozen);
-        await learner.page.getByRole('button', { name: 'К приглашениям', exact: true }).tap();
-        await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        await reopenFromHistory(() =>
+          learner.page.getByRole('button', { name: 'К приглашениям', exact: true }).tap(),
+        );
         await expect(learner.page.locator('[data-outcome]')).toContainText(
           learner.page === winner ? 'Вы победили' : 'Вы проиграли',
         );
         await expect(learner.page.locator('[data-victory-effect="active"]')).toHaveCount(0);
-        await learner.page.reload();
-        await expect(
-          learner.page.getByRole('heading', { name: 'Мои сетевые партии', exact: true }),
-        ).toBeVisible();
-        await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        await reopenFromHistory(() => learner.page.reload());
         await expect(learner.page.locator('[data-outcome]')).toContainText(
           learner.page === winner ? 'Вы победили' : 'Вы проиграли',
         );

@@ -1,0 +1,129 @@
+name: Arduino GPIO settings native Chromium pre-merge
+run-name: Arduino GPIO #1220 — native four viewports — ${{ github.event.pull_request.head.sha }}
+
+"on":
+  pull_request:
+    paths:
+      - 'apps/web/src/electronics/ArduinoCodePanel.tsx'
+      - 'apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts'
+      - 'e2e/electronics-block-pin-setup.spec.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asa-arduino-gpio-1220-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Arduino GPIO native Chromium (1440/1024/390/320)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha }}
+      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha }}
+      ASA_ELECTRONICS_FAILURE_REPORT: 'true'
+      COMPOSE_PROJECT_NAME: asa-arduino-gpio-${{ github.run_id }}-${{ github.run_attempt }}
+      ASA_TEST_UID: '1000'
+      ASA_TEST_GID: '1000'
+    steps:
+      - name: Checkout exact product PR source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact source and prepare writable evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ASA_ELECTRONICS_EXPECTED_SHA"
+          mkdir -p e2e/artifacts/electronics-simulation reports
+          chmod -R 0777 e2e/artifacts reports
+
+      - name: Prepare and verify isolated PostgreSQL transport
+        run: |
+          python3 tools/test_ci_image_transport.py --prepare-electronics-postgres
+          python3 tools/test_ci_image_transport.py --electronics-compose-model-check
+
+      - name: Build exact isolated migration API Web and test runner images
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+
+      - name: Verify exact source revision and immutable image roots
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
+
+      - name: Start this run's isolated PostgreSQL
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 120 postgres
+
+      - name: Verify pinned PostgreSQL image
+        run: python3 tools/test_ci_image_transport.py --electronics-pulled-postgres
+
+      - name: Apply migrations only to this run's isolated test database
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps migration
+
+      - name: Start exact revision API and Web
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 240 --no-deps api web
+
+      - name: Fail closed unless all four native viewport cases are discovered
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test \
+            run --rm --no-deps -e NX_SKIP_NX_CACHE=true test-runner \
+            pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --list \
+            | tee "$RUNNER_TEMP/arduino-gpio-viewport-list.txt"
+          for viewport in 1440x900 1024x768 390x844 320x700; do
+            grep -F "944 owner setup and input settings $viewport" "$RUNNER_TEMP/arduino-gpio-viewport-list.txt"
+          done
+          test "$(grep -Ec '944 owner setup and input settings [0-9]+x[0-9]+' "$RUNNER_TEMP/arduino-gpio-viewport-list.txt")" -eq 4
+          echo "ARDUINO_GPIO_4VIEW: FOUR_VIEWPORTS_VERIFIED"
+
+      - name: Execute real Chromium E2E with API Save Reload and source preservation
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
+          pnpm exec playwright test e2e/electronics-block-pin-setup.spec.ts --workers=1
+
+      - name: Show exact isolated stack state
+        if: always()
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
+
+      - name: Preserve required native browser failure journal
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arduino-gpio-native-failures-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: reports/electronics-failures.ndjson
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve four viewport traces screenshots and API evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arduino-gpio-native-browser-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: |
+            e2e/artifacts/electronics-simulation
+            reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove only this run's disposable Compose stack
+        if: always()
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          down -v --remove-orphans

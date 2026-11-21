@@ -676,7 +676,7 @@ surfaces:
     invariants: [IDA-AUTH-001, IDA-CTX-001, IDA-REV-001]
     tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
   - id: CTRL-ADMIN-OVERVIEW-LAYOUT
-    label: Present readable real time-axis points and separate learning and game usage with accessible local scrolling
+    label: Show Moscow-time attendance and the selected interval above the active users chart, with aligned time axes and compact chart controls
     change_class: L1_UI_BEHAVIOR
     files: [apps/web/src/admin/AdminDashboard.tsx, apps/web/src/admin/admin.css]
     invariants: [IDA-SCOPE-001, IDA-CTX-001]

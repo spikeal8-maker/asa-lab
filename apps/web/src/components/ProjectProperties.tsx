@@ -208,6 +208,7 @@ export function ProjectProperties({
           <div ref={publicationSection} tabIndex={-1}>
             <PublicationPanel
               projectId={project.id}
+              moduleKey={project.moduleKey}
               metadata={{
                 title: title.trim(),
                 description: description.trim() || null,

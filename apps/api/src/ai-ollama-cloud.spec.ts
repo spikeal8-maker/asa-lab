@@ -15,6 +15,32 @@ const seed = [
 ];
 afterEach(() => installOllamaCloudCatalog(seed, null));
 describe('one-key Ollama Cloud metadata', () => {
+  it('reads context and modification time without sending a key or generating tokens', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      json({
+        model_info: {
+          'general.architecture': 'gemma4',
+          'gemma4.context_length': 262144,
+          'gemma4.vision.context_length': 1024,
+        },
+        modified_at: '2026-10-28T10:00:00Z',
+      }),
+    );
+    expect(await new OllamaCloudMetadata(fetchImpl).modelDetails('gemma4:31b')).toEqual({
+      contextTokens: 262144,
+      modifiedAt: '2026-10-28T10:00:00.000Z',
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://ollama.com/api/show',
+      expect.objectContaining({
+        method: 'POST',
+        redirect: 'error',
+        body: JSON.stringify({ model: 'gemma4:31b' }),
+      }),
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]?.headers).not.toHaveProperty('authorization');
+  });
   it('uses only fixed GET metadata URLs, caches per key and keeps secrets out of results', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async (url) =>
       String(url).endsWith('/api/tags')

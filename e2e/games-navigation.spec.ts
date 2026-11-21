@@ -583,7 +583,9 @@ test('game invitations reach the shared navigation and game card, ping once and 
   await page.route('**/api/games/chess/notifications', (route) => {
     expect(route.request().method()).toBe('GET');
     expect(route.request().headers()['x-game-presence']).toBe('1');
-    return route.fulfill({ json: { playerId: 'notification-player', incoming } });
+    // Both notification endpoints return the same games.actor_id() for this
+    // session, including the default Checkers response installed by fixture().
+    return route.fulfill({ json: { playerId: 'fixture-player', incoming } });
   });
   await page.goto('/#/games');
   await expect(page.getByRole('button', { name: 'Играть: Шахматы', exact: true })).toBeVisible();

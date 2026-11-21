@@ -117,9 +117,6 @@
             }
           },
           "name": "observability",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "packages/observability/src",
           "tags": [
             "npm:private",
             "type:lib",
@@ -140,6 +137,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/observability/src",
           "implicitDependencies": []
         }
       },
@@ -196,9 +196,6 @@
             }
           },
           "name": "organization",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/organization",
           "tags": [
             "npm:private",
             "type:lib",
@@ -220,6 +217,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/organization",
           "implicitDependencies": []
         }
       },
@@ -339,9 +339,6 @@
             }
           },
           "name": "electronics",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/electronics",
           "tags": [
             "npm:private",
             "type:lib",
@@ -354,9 +351,23 @@
               "packageName": "@asa-lab/electronics",
               "packageVersion": "0.0.0",
               "packageExports": {
+                "./timed-state": {
+                  "types": "./dist/timed-state.d.ts",
+                  "browser": "./timed-state.ts",
+                  "default": "./dist/timed-state.js"
+                },
+                "./rendering": {
+                  "types": "./dist/rendering.d.ts",
+                  "default": "./dist/rendering.js"
+                },
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
+                },
+                "./engine": {
+                  "types": "./dist/engine.d.ts",
+                  "browser": "./engine.ts",
+                  "default": "./dist/engine.js"
                 },
                 "./simulation": {
                   "types": "./dist/simulation.d.ts",
@@ -367,6 +378,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/electronics",
           "implicitDependencies": []
         }
       },
@@ -423,9 +437,6 @@
             }
           },
           "name": "chess-live",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/chess-live",
           "tags": [
             "npm:private",
             "type:lib",
@@ -447,6 +458,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/chess-live",
           "implicitDependencies": []
         }
       },
@@ -566,9 +580,6 @@
             }
           },
           "name": "module-sdk",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "packages/module-sdk/src",
           "tags": [
             "npm:private",
             "type:lib",
@@ -589,6 +600,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/module-sdk/src",
           "implicitDependencies": []
         }
       },
@@ -708,9 +722,6 @@
             }
           },
           "name": "classroom",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/classroom",
           "tags": [
             "npm:private",
             "type:lib",
@@ -732,6 +743,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/classroom",
           "implicitDependencies": []
         }
       },
@@ -788,13 +802,29 @@
             }
           },
           "name": "contracts",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "packages/contracts/src",
           "tags": [
+            "npm:private",
             "type:lib",
             "scope:contract"
           ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/contracts",
+              "packageVersion": "0.1.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/contracts/src",
           "implicitDependencies": []
         }
       },
@@ -851,9 +881,6 @@
             }
           },
           "name": "checkers",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/checkers",
           "tags": [
             "npm:private",
             "type:lib",
@@ -875,6 +902,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/checkers",
           "implicitDependencies": []
         }
       },
@@ -931,9 +961,6 @@
             }
           },
           "name": "database",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "packages/database/src",
           "tags": [
             "npm:private",
             "type:lib",
@@ -954,6 +981,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/database/src",
           "implicitDependencies": []
         }
       },
@@ -1073,9 +1103,6 @@
             }
           },
           "name": "identity",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/identity",
           "tags": [
             "npm:private",
             "type:lib",
@@ -1097,6 +1124,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/identity",
           "implicitDependencies": []
         }
       },
@@ -1153,9 +1183,6 @@
             }
           },
           "name": "learning",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/learning",
           "tags": [
             "npm:private",
             "type:lib",
@@ -1177,6 +1204,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/learning",
           "implicitDependencies": []
         }
       },
@@ -1233,9 +1263,6 @@
             }
           },
           "name": "projects",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/projects",
           "tags": [
             "npm:private",
             "type:lib",
@@ -1257,6 +1284,109 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/projects",
+          "implicitDependencies": []
+        }
+      },
+      "robotics": {
+        "name": "robotics",
+        "type": "lib",
+        "data": {
+          "root": "contexts/robotics",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/robotics/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/robotics/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/robotics"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "robotics",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:core",
+            "context:robotics"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/robotics",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                "./document": {
+                  "types": "./dist/domain/document.d.ts",
+                  "browser": "./domain/document.ts",
+                  "default": "./dist/domain/document.js"
+                },
+                "./world": {
+                  "types": "./dist/domain/world.d.ts",
+                  "browser": "./domain/world.ts",
+                  "default": "./dist/domain/world.js"
+                },
+                "./world-document": {
+                  "types": "./dist/domain/world-document.d.ts",
+                  "browser": "./domain/world-document.ts",
+                  "default": "./dist/domain/world-document.js"
+                },
+                "./world-physics": {
+                  "types": "./dist/domain/world-physics.d.ts",
+                  "browser": "./domain/world-physics.ts",
+                  "default": "./dist/domain/world-physics.js"
+                },
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/robotics",
           "implicitDependencies": []
         }
       },
@@ -1376,9 +1506,6 @@
             }
           },
           "name": "three-d",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/three-d",
           "tags": [
             "npm:private",
             "type:lib",
@@ -1391,6 +1518,14 @@
               "packageName": "@asa-lab/three-d",
               "packageVersion": "0.0.0",
               "packageExports": {
+                "./document": {
+                  "types": "./dist/domain/document.d.ts",
+                  "default": "./dist/domain/document.js"
+                },
+                "./operations": {
+                  "types": "./dist/domain/operations.d.ts",
+                  "default": "./dist/domain/operations.js"
+                },
                 ".": {
                   "types": "./dist/index.d.ts",
                   "default": "./dist/index.js"
@@ -1400,6 +1535,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/three-d",
           "implicitDependencies": []
         }
       },
@@ -1456,9 +1594,6 @@
             }
           },
           "name": "blocks",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/blocks",
           "tags": [
             "npm:private",
             "type:lib",
@@ -1480,6 +1615,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/blocks",
           "implicitDependencies": []
         }
       },
@@ -1599,9 +1737,6 @@
             }
           },
           "name": "authz",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "packages/authz/src",
           "tags": [
             "npm:private",
             "type:lib",
@@ -1622,6 +1757,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "packages/authz/src",
           "implicitDependencies": []
         }
       },
@@ -1678,9 +1816,6 @@
             }
           },
           "name": "chess",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "library",
-          "sourceRoot": "contexts/chess",
           "tags": [
             "npm:private",
             "type:lib",
@@ -1702,6 +1837,89 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/chess",
+          "implicitDependencies": []
+        }
+      },
+      "games-core": {
+        "name": "games-core",
+        "type": "lib",
+        "data": {
+          "root": "contexts/games",
+          "targets": {
+            "build": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "production",
+                "^production"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/games/tsconfig.json"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "typecheck": {
+              "dependsOn": [
+                "^build"
+              ],
+              "inputs": [
+                "default",
+                "^default"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "tsc -p contexts/games/tsconfig.json --noEmit"
+              },
+              "configurations": {},
+              "parallelism": true
+            },
+            "lint": {
+              "inputs": [
+                "default",
+                "{workspaceRoot}/eslint.config.mjs"
+              ],
+              "cache": true,
+              "executor": "nx:run-commands",
+              "options": {
+                "command": "eslint contexts/games"
+              },
+              "configurations": {},
+              "parallelism": true
+            }
+          },
+          "name": "games-core",
+          "tags": [
+            "npm:private",
+            "type:lib",
+            "scope:core",
+            "context:games"
+          ],
+          "metadata": {
+            "targetGroups": {},
+            "js": {
+              "packageName": "@asa-lab/games",
+              "packageVersion": "0.0.0",
+              "packageExports": {
+                ".": {
+                  "types": "./dist/index.d.ts",
+                  "default": "./dist/index.js"
+                }
+              },
+              "packageMain": "dist/index.js",
+              "isInPackageManagerWorkspaces": true
+            }
+          },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "library",
+          "sourceRoot": "contexts/games",
           "implicitDependencies": []
         }
       },
@@ -1780,12 +1998,16 @@
               ],
               "inputs": [
                 "production",
-                "^production"
+                "^production",
+                "{workspaceRoot}/tools/copy-api-runtime-assets.mjs"
               ],
               "cache": true,
               "executor": "nx:run-commands",
+              "outputs": [
+                "{projectRoot}/dist"
+              ],
               "options": {
-                "command": "tsc -p apps/api/tsconfig.json"
+                "command": "tsc -p apps/api/tsconfig.json && node tools/copy-api-runtime-assets.mjs"
               },
               "configurations": {},
               "parallelism": true
@@ -1832,9 +2054,6 @@
             }
           },
           "name": "api",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "application",
-          "sourceRoot": "apps/api/src",
           "tags": [
             "npm:private",
             "type:app",
@@ -1848,6 +2067,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "application",
+          "sourceRoot": "apps/api/src",
           "implicitDependencies": []
         }
       },
@@ -1863,12 +2085,44 @@
               ],
               "inputs": [
                 "production",
-                "^production"
+                "^production",
+                "{workspaceRoot}/tools/web-private-symbols.mjs",
+                "{workspaceRoot}/tools/browser-error-symbols.mjs",
+                "{workspaceRoot}/tools/web-symbols-public.pem",
+                "{workspaceRoot}/tools/web-build-revision.mjs",
+                {
+                  "env": "VITE_ASA_BUILD_REVISION"
+                },
+                {
+                  "env": "VITE_ASA_BUILT_AT"
+                },
+                {
+                  "env": "VITE_ASA_BLOCKS_PREVIEW"
+                },
+                {
+                  "env": "VITE_ASA_BLOCKS_RUNTIME_ORIGIN"
+                },
+                {
+                  "env": "ASA_CAPTURE_PUBLICATION_GRAPH"
+                },
+                {
+                  "env": "ASA_WEB_PORT"
+                },
+                {
+                  "env": "ASA_API_PORT"
+                },
+                {
+                  "env": "NODE_ENV"
+                },
+                {
+                  "runtime": "node tools/web-build-revision.mjs"
+                }
               ],
               "cache": true,
               "executor": "nx:run-commands",
               "outputs": [
-                "{workspaceRoot}/apps/web/dist"
+                "{workspaceRoot}/apps/web/dist",
+                "{workspaceRoot}/apps/web/private-symbols"
               ],
               "options": {
                 "command": "vite build -c apps/web/vite.config.ts"
@@ -1915,9 +2169,6 @@
             }
           },
           "name": "web",
-          "$schema": "../../node_modules/nx/schemas/project-schema.json",
-          "projectType": "application",
-          "sourceRoot": "apps/web/src",
           "tags": [
             "npm:private",
             "type:app",
@@ -1931,6 +2182,9 @@
               "isInPackageManagerWorkspaces": true
             }
           },
+          "$schema": "../../node_modules/nx/schemas/project-schema.json",
+          "projectType": "application",
+          "sourceRoot": "apps/web/src",
           "implicitDependencies": []
         }
       }
@@ -1997,6 +2251,23 @@
           "source": "projects",
           "target": "database",
           "type": "static"
+        },
+        {
+          "source": "projects",
+          "target": "contracts",
+          "type": "static"
+        }
+      ],
+      "robotics": [
+        {
+          "source": "robotics",
+          "target": "electronics",
+          "type": "static"
+        },
+        {
+          "source": "robotics",
+          "target": "module-sdk",
+          "type": "static"
         }
       ],
       "test-kit": [],
@@ -2004,6 +2275,11 @@
         {
           "source": "three-d",
           "target": "module-sdk",
+          "type": "static"
+        },
+        {
+          "source": "three-d",
+          "target": "contracts",
           "type": "static"
         }
       ],
@@ -2020,6 +2296,23 @@
         {
           "source": "chess",
           "target": "module-sdk",
+          "type": "static"
+        }
+      ],
+      "games-core": [
+        {
+          "source": "games-core",
+          "target": "contracts",
+          "type": "static"
+        },
+        {
+          "source": "games-core",
+          "target": "checkers",
+          "type": "static"
+        },
+        {
+          "source": "games-core",
+          "target": "chess",
           "type": "static"
         }
       ],
@@ -2057,12 +2350,22 @@
         },
         {
           "source": "api",
+          "target": "contracts",
+          "type": "static"
+        },
+        {
+          "source": "api",
           "target": "database",
           "type": "static"
         },
         {
           "source": "api",
           "target": "electronics",
+          "type": "static"
+        },
+        {
+          "source": "api",
+          "target": "games-core",
           "type": "static"
         },
         {
@@ -2097,6 +2400,11 @@
         },
         {
           "source": "api",
+          "target": "robotics",
+          "type": "static"
+        },
+        {
+          "source": "api",
           "target": "three-d",
           "type": "static"
         }
@@ -2114,12 +2422,22 @@
         },
         {
           "source": "web",
+          "target": "contracts",
+          "type": "static"
+        },
+        {
+          "source": "web",
           "target": "electronics",
           "type": "static"
         },
         {
           "source": "web",
           "target": "module-sdk",
+          "type": "static"
+        },
+        {
+          "source": "web",
+          "target": "robotics",
           "type": "static"
         },
         {

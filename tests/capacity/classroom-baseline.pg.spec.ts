@@ -522,9 +522,20 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             (r) => r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
           ).length,
         );
+        const draftReads = projectLoads.mock.calls.filter(
+          (call) => call[3]?.includeVersions === false,
+        );
+        // Electronics validates replacements against the current draft once
+        // per save, replay and conflict. Both modules also classify conflicts.
+        const electronicsProjects = new Set(
+          actors.filter((actor) => actor.module === 'electronics').map((actor) => actor.project),
+        );
         expect(
-          projectLoads.mock.calls.filter((call) => call[3]?.includeVersions === false),
-        ).toHaveLength(conflicts);
+          draftReads.filter(([, projectId]) => electronicsProjects.has(projectId)),
+        ).toHaveLength(b.electronics * b.saveWaves + 3);
+        expect(
+          draftReads.filter(([, projectId]) => !electronicsProjects.has(projectId)),
+        ).toHaveLength(1);
         expect(draftTargets).toHaveBeenCalledTimes(acknowledged + retriedReceipts + conflicts);
         success = true;
       } finally {
@@ -633,9 +644,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
               ).length,
           },
           draftReads: {
-            // Only conflict classification reads the old document. Ordinary saves
-            // prepare authorized metadata, not a full draft/history payload.
-            expectedWithoutHistory: conflicts,
+            // Replacement validation and conflict classification can read the
+            // current draft without loading its history.
+            expectedWithoutHistory: b.electronics * b.saveWaves + 4,
             actualWithoutHistory: projectLoads.mock.calls.filter(
               (call) => call[3]?.includeVersions === false,
             ).length,

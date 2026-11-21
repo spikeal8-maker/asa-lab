@@ -1,0 +1,83 @@
+name: ASA P0 Application Return
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('P0 return {0}', inputs.selected_deployment_digest) || 'P0 application return contracts' }}
+
+'on':
+  pull_request:
+    paths:
+      - 'tools/asa_manager.py'
+      - 'tools/deployment/**'
+      - '.github/workflows/application-rollback.yml'
+      - 'docs/deployment/APPLICATION_ROLLBACK.md'
+  push:
+    branches: ['main']
+    paths:
+      - 'tools/asa_manager.py'
+      - 'tools/deployment/**'
+      - '.github/workflows/application-rollback.yml'
+  workflow_dispatch:
+    inputs:
+      selected_deployment_digest:
+        description: 'Exact official P0 deployment digest to qualify against the declared previous release'
+        required: true
+        default: 'sha256:87acd65905c3cb64c1052ea046926932b1a5e9f42dc52d8b36c05db9f449da68'
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: application-return-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}-${{ inputs.selected_deployment_digest || 'contracts' }}
+  cancel-in-progress: false
+
+jobs:
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Application return and unchanged manager contracts
+        run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+      - name: Native file and command argument proof
+        run: python tools/deployment/ci_application_rollback.py --path-proof
+
+  native:
+    name: native official images
+    needs: contracts
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SELECTED_DEPLOYMENT_DIGEST: ${{ inputs.selected_deployment_digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Qualified tools must already have exact successful General CI
+        run: |
+          python -c "import os,sys; sys.path.insert(0,'tools'); from deployment.releases import assert_general_ci; assert_general_ci(os.environ['GITHUB_SHA'])"
+      - name: Official images, new writes, old-reader return and process interruption
+        run: |
+          python tools/deployment/ci_application_rollback.py --work-directory "$RUNNER_TEMP/asa-p0-return-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --output "$RUNNER_TEMP/asa-p0-return-evidence" --selected-deployment-digest "$SELECTED_DEPLOYMENT_DIGEST" --keep-fixture
+      - name: Upload synthetic evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p0-application-return-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/asa-p0-return-evidence/
+          if-no-files-found: warn
+          retention-days: 14

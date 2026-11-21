@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { InfoHint } from '../components/InfoHint';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { AiTokenBudgetAdmin, AiTokenBudgetLimit } from '@asa-lab/contracts';
 import { call } from './admin-api';
 import './ai-token-budgets.css';
@@ -35,16 +36,50 @@ export function budgetAdminShape(raw: unknown): raw is AiTokenBudgetAdmin {
     )
   );
 }
+function BudgetUsage({ usage }: { usage: AiTokenBudgetAdmin['models'][number] }) {
+  const remaining =
+    usage.globalLimit === null
+      ? null
+      : String(
+          BigInt(usage.globalLimit) > BigInt(usage.used) + BigInt(usage.held)
+            ? BigInt(usage.globalLimit) - BigInt(usage.used) - BigInt(usage.held)
+            : 0,
+        );
+  return (
+    <>
+      <span aria-label={'Подтверждено токенов всего: ' + usage.used}>{usage.used}</span>
+      {usage.pendingUnknown || usage.unresolved ? <small>На проверке</small> : null}
+      <InfoHint label={'Подробнее о расходе ' + usage.model}>
+        <div>
+          <p>
+            Резерв: {usage.held} ·{' '}
+            {remaining === null ? 'Без общего лимита' : 'Остаток: ' + remaining}
+          </p>
+          {usage.unresolved ? (
+            <p role="status">
+              Есть неподтверждённый исторический расход: новые запросы с лимитом приостановлены.
+            </p>
+          ) : null}
+          {usage.pendingUnknown ? (
+            <p role="status">Не весь расход подтверждён: резерв сохранён без срока истечения.</p>
+          ) : null}
+        </div>
+      </InfoHint>
+    </>
+  );
+}
 export function AdminAiTokenBudgets({
   onAccessDenied,
   eligibleModels,
   onDirtyChange,
   refreshKey = 0,
+  renderModels,
 }: {
   readonly onAccessDenied: () => void;
   readonly eligibleModels?: readonly string[];
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly refreshKey?: number;
+  readonly renderModels?: (budgetFor: (model: string) => ReactNode) => ReactNode;
 }) {
   const [config, setConfig] = useState<AiTokenBudgetAdmin | null>(null);
   const [draft, setDraft] = useState<readonly AiTokenBudgetLimit[]>([]);
@@ -124,10 +159,96 @@ export function AdminAiTokenBudgets({
       setBusy(false);
     }
   }
+  function budgetFor(model: string) {
+    const row = draft.find((item) => item.model === model);
+    const usage = config?.models.find((item) => item.model === model);
+    if (!row || !usage) return null;
+    return (
+      <div className="asa-ai-inline-budget">
+        {(['globalLimit', 'userLimit'] as const).map((field) => (
+          <label key={field}>
+            <span>{field === 'globalLimit' ? 'На всех' : 'На пользователя'}</span>
+            <input
+              form="ai-inline-budget-form"
+              inputMode="numeric"
+              aria-label={
+                (field === 'globalLimit' ? 'Общий лимит ' : 'Лимит на пользователя ') + model
+              }
+              placeholder="Без лимита"
+              disabled={busy}
+              value={row[field] ?? ''}
+              onChange={(event) => {
+                const value = event.target.value;
+                setDraft((old) =>
+                  old.map((item) => (item.model === model ? { ...item, [field]: value } : item)),
+                );
+              }}
+            />
+          </label>
+        ))}
+        <BudgetUsage usage={usage} />
+      </div>
+    );
+  }
+  if (renderModels)
+    return (
+      <>
+        <section className="asa-ai-inline-budgets" aria-label="Месячные лимиты токенов">
+          <div className="asa-ai-budget-explainer">
+            <strong>Лимиты текстовых моделей · токенов в месяц (UTC)</strong>
+            <InfoHint label="Как считаются токены">
+              <p>
+                Складываем входные и выходные токены из отчёта провайдера. Если отчёт неполный,
+                расход помечается как неподтверждённый.
+              </p>
+              <p>
+                «На всех» — один лимит на модель для всех пользователей. «На пользователя» —
+                отдельный лимит для каждого. Пусто — без этого ограничения. Ноль запрещает новые
+                запросы. Уже начатый ответ может завершиться.
+              </p>
+              <p>
+                Эти лимиты действуют на текстовые запросы. Изображения, видео и транскрибация в них
+                не входят.
+              </p>
+            </InfoHint>
+          </div>
+          {renderModels(budgetFor)}
+          <form
+            id="ai-inline-budget-form"
+            className="asa-ai-budget-inline-footer"
+            onSubmit={(event) => void save(event)}
+          >
+            <button type="submit" disabled={!dirty || busy}>
+              {busy ? 'Сохраняем…' : 'Сохранить лимиты токенов'}
+            </button>
+            {notice ? (
+              <span role="status">{notice}</span>
+            ) : !config ? (
+              <span role="status">Загружаем лимиты…</span>
+            ) : null}
+          </form>
+        </section>
+      </>
+    );
   return (
     <section className="asa-ai-budgets" aria-label="Месячные лимиты токенов">
-      <h2>Лимиты токенов в месяц</h2>
-      <p>Пусто — без лимита. 0 — новые запросы запрещены.</p>
+      <div className="asa-ai-budget-heading">
+        <h2>Лимиты токенов в месяц</h2>
+        <InfoHint label="Как работают лимиты">
+          <p>Пусто — без лимита. 0 — новые запросы запрещены.</p>
+          <p>
+            Уже начатый ответ завершается полностью. Резерв защищает от одновременных новых
+            запросов; неизвестный расход остаётся на проверке.
+          </p>
+          <p>
+            ollama-local — единый слот активной локальной модели: смена модели не обнуляет расход.
+          </p>
+          <p>
+            Эта кнопка сохраняет только бюджеты. Выбор моделей сохраняется отдельно. Проверки
+            подключения используют отдельный почасовой лимит операций.
+          </p>
+        </InfoHint>
+      </div>
       {config ? (
         <form onSubmit={(event) => void save(event)}>
           <div
@@ -154,14 +275,6 @@ export function AdminAiTokenBudgets({
                   if (eligibleModels && m.model !== '*' && !eligibleModels.includes(m.model))
                     return null;
                   const usage = config.models.find((row) => row.model === m.model)!;
-                  const remaining =
-                    usage.globalLimit === null
-                      ? null
-                      : String(
-                          BigInt(usage.globalLimit) > BigInt(usage.used) + BigInt(usage.held)
-                            ? BigInt(usage.globalLimit) - BigInt(usage.used) - BigInt(usage.held)
-                            : 0,
-                        );
                   return (
                     <tr key={m.model}>
                       <th scope="row" title={m.model}>
@@ -205,32 +318,8 @@ export function AdminAiTokenBudgets({
                           }
                         />
                       </td>
-                      <td>
-                        <span aria-label={'Подтверждено токенов всего: ' + usage.used}>
-                          {usage.used}
-                        </span>
-                        <details className="asa-ai-budget-info">
-                          <summary aria-label={'Подробнее о расходе ' + m.model}>
-                            {usage.pendingUnknown || usage.unresolved ? 'На проверке' : 'Подробнее'}
-                          </summary>
-                          <div>
-                            <p>
-                              Резерв: {usage.held} ·{' '}
-                              {remaining === null ? 'Без общего лимита' : 'Остаток: ' + remaining}
-                            </p>
-                            {usage.unresolved ? (
-                              <p role="status">
-                                Есть неподтверждённый исторический расход: новые запросы с лимитом
-                                приостановлены.
-                              </p>
-                            ) : null}
-                            {usage.pendingUnknown ? (
-                              <p role="status">
-                                Не весь расход подтверждён: резерв сохранён без срока истечения.
-                              </p>
-                            ) : null}
-                          </div>
-                        </details>
+                      <td className="asa-ai-budget-usage">
+                        <BudgetUsage usage={usage} />
                       </td>
                     </tr>
                   );
@@ -245,20 +334,7 @@ export function AdminAiTokenBudgets({
       ) : (
         <p>Загружаем бюджеты…</p>
       )}
-      <details className="asa-ai-budget-help">
-        <summary>Как работают лимиты</summary>
-        <p>
-          Уже начатый ответ завершается полностью. Резерв защищает от одновременных новых запросов;
-          неизвестный расход остаётся на проверке.
-        </p>
-        <p>
-          ollama-local — единый слот активной локальной модели: смена модели не обнуляет расход.
-        </p>
-        <p>
-          Эта кнопка сохраняет только бюджеты. Выбор моделей сохраняется отдельно. Проверки
-          подключения используют отдельный почасовой лимит операций.
-        </p>
-      </details>
+
       {notice ? <p role="status">{notice}</p> : null}
     </section>
   );

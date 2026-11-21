@@ -182,9 +182,13 @@ export class AiPolzaService {
     this.inspectDuration = options.inspectDuration ?? inspectPolzaAudioSeconds;
   }
 
-  private async sqlValue<T>(sql: string, values: readonly unknown[]): Promise<T> {
+  private async sqlValue<T>(
+    sql: string,
+    values: readonly unknown[],
+    connection: pg.Pool | pg.PoolClient = this.pool,
+  ): Promise<T> {
     try {
-      const response = await this.pool.query<{ value: T }>(sql, [...values]);
+      const response = await connection.query<{ value: T }>(sql, [...values]);
       if (!response.rows[0] || response.rows[0].value === null)
         throw new AiPolzaError('ai_polza_unavailable', 503, 'Настройки Polza AI недоступны.');
       return response.rows[0].value;
@@ -213,7 +217,7 @@ export class AiPolzaService {
         throw new AiPolzaError(
           'ai_polza_model_unavailable',
           400,
-          'Выберите доступную текстовую модель из каталога Polza.',
+          'Выберите доступную модель из каталога Polza.',
         );
       if (message.includes('AI_POLZA_INVALID') || message.includes('AI_KEY_REQUIRED'))
         throw new AiPolzaError('ai_polza_invalid', 400, 'Проверьте ключ и настройки подключения.');
@@ -410,13 +414,14 @@ export class AiPolzaService {
     const key = this.decrypt(await this.runtime());
     const began = Date.now();
     try {
-      // Model listing does not perform paid transcription. Never log raw responses or the key.
-      const response = await this.fetchImpl(POLZA_API_BASE + '/models', {
+      // The public model list cannot authenticate a key. The balance endpoint requires one.
+      const response = await this.fetchImpl('https://polza.ai/api/v2/balance', {
         method: 'GET',
         headers: { authorization: 'Bearer ' + key, accept: 'application/json' },
         redirect: 'error',
         signal: AbortSignal.timeout(8000),
       });
+      await response.body?.cancel().catch(() => undefined);
       if (!response.ok)
         throw new AiPolzaError(
           response.status === 401 ? 'ai_polza_auth_failed' : 'ai_polza_check_failed',
@@ -436,20 +441,67 @@ export class AiPolzaService {
     }
   }
 
+  private async transcriptionModel(connection: pg.Pool | pg.PoolClient = this.pool) {
+    const catalog = await readPolzaCatalog(connection);
+    const selected = catalog.items.find(
+      (item) => item.kind === 'stt' && item.selected && item.active,
+    );
+    return selected ? (catalog.credentialCurrent ? selected.upstream : null) : POLZA_STT_MODEL;
+  }
+
+  private async admitTranscription(
+    owner: string,
+    requestId: string,
+    revision: number,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const client = await this.pool.connect();
+    let discardClient = false;
+    try {
+      await client.query('BEGIN');
+      // Admission holds the settings lock also taken by catalogue refresh and selection.
+      await this.sqlValue<number>(
+        'SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid,$3::bigint) AS value',
+        [owner, requestId, revision],
+        client,
+      );
+      const model = await this.transcriptionModel(client).catch(() => null);
+      if (!model)
+        throw new AiPolzaError('ai_stt_disabled', 503, 'Модель распознавания речи недоступна.');
+      if (signal?.aborted)
+        throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
+      await client.query('COMMIT');
+      return model;
+    } catch (problem) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        discardClient = true;
+      }
+      throw problem;
+    } finally {
+      client.release(discardClient);
+    }
+  }
+
   async status(): Promise<{ enabled: boolean; model: string; maxAudioSeconds: number }> {
     const state = await this.runtime();
-    let ready = false;
+    let model: string | null = null;
     if (state.enabled && state.transcription_enabled && state.api_key_ciphertext && this.key) {
       try {
         // A restored database with a different encryption key must not advertise
         // an operational microphone or consume quota for undecryptable secrets.
         this.decrypt(state);
-        ready = true;
+        model = await this.transcriptionModel();
       } catch {
-        ready = false;
+        model = null;
       }
     }
-    return { enabled: ready, model: POLZA_STT_MODEL, maxAudioSeconds: state.max_audio_seconds };
+    return {
+      enabled: model !== null,
+      model: model ?? '',
+      maxAudioSeconds: state.max_audio_seconds,
+    };
   }
 
   private async acquire(signal?: AbortSignal): Promise<() => void> {
@@ -550,10 +602,7 @@ export class AiPolzaService {
       // A corrupt/restored key must fail before quota is consumed.
       const key = this.decrypt(state);
       // Durable per-owner budget and UUID replay guard happen BEFORE any paid network request.
-      await this.sqlValue<number>(
-        'SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid,$3::bigint) AS value',
-        [owner, audio.requestId, state.revision],
-      );
+      const model = await this.admitTranscription(owner, audio.requestId, state.revision, signal);
       if (signal?.aborted)
         throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
       const extension =
@@ -564,7 +613,7 @@ export class AiPolzaService {
         new Blob([new Uint8Array(audio.bytes)], { type: audio.mime }),
         'speech.' + extension,
       );
-      body.append('model', POLZA_STT_MODEL);
+      body.append('model', model);
       body.append('language', 'ru');
       let response: Response;
       try {
@@ -607,7 +656,7 @@ export class AiPolzaService {
       const text = (result as { text?: unknown } | null)?.text;
       if (typeof text !== 'string' || text.length > 6000)
         throw new AiPolzaError('ai_stt_response_invalid', 502, 'Сервис вернул недопустимый текст.');
-      return { text: text.trim(), model: POLZA_STT_MODEL };
+      return { text: text.trim(), model };
     } finally {
       release?.();
       this.inFlightOwners.delete(owner);

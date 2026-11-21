@@ -1,18 +1,25 @@
 import './ai-media-admin.css';
+import { AdminPolzaCatalog } from './AdminPolzaCatalog';
 
-export function AdminAiVideo() {
+export function AdminAiVideo({
+  connected,
+  onAccessDenied,
+}: {
+  connected: boolean;
+  onAccessDenied: () => void;
+}) {
   return (
     <section className="asa-ai-integration-panel" aria-label="Настройки видео">
       <header className="asa-ai-integration-header">
         <div>
           <h2>Видео</h2>
-          <p>Отдельный раздел будущей генерации и обработки видео.</p>
+          <p>Каталог моделей видеогенерации Polza AI.</p>
         </div>
-        <span className="asa-ai-integration-state">Планируется</span>
       </header>
       <p className="asa-ai-integration-note" role="status">
-        Генерация видео пока не подключена. Действующие настройки изображений не изменены.
+        Запуск генерации видео из ASA Lab пока недоступен.
       </p>
+      <AdminPolzaCatalog kind="video" connected={connected} onAccessDenied={onAccessDenied} />
     </section>
   );
 }

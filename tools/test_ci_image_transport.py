@@ -28,6 +28,7 @@ GENERAL_OVERLAY_NAME = "asa-general-postgres.yaml"
 GENERAL_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + GENERAL_OVERLAY_NAME + '"'
 FOCUSED = ".github/workflows/electronics-r4-m1-focused.yml"
 SCOPED_UI = ".github/workflows/electronics-ui-679-557.yml"
+ARDUINO_GPIO_E2E = ".github/workflows/arduino-settings-native-e2e.yml"
 ELECTRONICS_TRANSPORT = "docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json"
 ELECTRONICS_OVERLAY_NAME = "asa-electronics-postgres.yaml"
 ELECTRONICS_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + ELECTRONICS_OVERLAY_NAME + '"'
@@ -153,6 +154,30 @@ def general_node_contract(contract, original, effective):
     uploads[0]["with"]["path"] += (
         "reports/playwright/portal-compact-shell-r2-20261008/\n"
         "e2e/artifacts/owner-preview/classroom-profile-completion/\n")
+    return contract
+
+
+def general_d0_v1_contract(contract):
+    """Overlay the exact General event policy on the immutable transport contract."""
+    contract = deepcopy(contract)
+    contract["required_triggers"] = {"push": {"branches": ["main"]}, "pull_request": {}}
+    return contract
+
+
+def general_d1_v1_contract(contract):
+    """Add applicability after D0 without changing any full-job transport step."""
+    contract = deepcopy(contract)
+    contract["workflow_controls"]["env"].update({
+        "SOURCE_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+        "BASE_SHA": "${{ github.event.pull_request.base.sha || github.event.before }}",
+        "BASE_REF": "${{ github.event.pull_request.base.ref || github.ref_name }}",
+        "EVENT_NAME": "${{ github.event_name }}", "EVENT_REF": "${{ github.ref }}",
+        "MERGE_CANDIDATE_SHA": "${{ github.sha }}",
+    })
+    for job_id in ("code", "postgres-tests", "access-a-browser"):
+        contract["jobs"][job_id]["controls"].update(
+            needs=["governance" if job_id == "code" else "code", "selection"],
+            **{"if": "needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'"})
     return contract
 
 
@@ -295,6 +320,52 @@ def qualification_contract(contract):
     return contract
 
 
+FAILURE_REPORT_FLAG = "ASA_ELECTRONICS_FAILURE_REPORT"
+FAILURE_REPORT_UPLOAD = {
+    "if": "always()",
+    "uses": "actions/upload-artifact@v4",
+    "with": {
+        "name": "electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "reports/electronics-failures.ndjson",
+        "if-no-files-found": "error",
+        "retention-days": 14,
+    },
+}
+
+
+def failure_evidence_contract(contract):
+    """Add only the exact bounded journal transport to the existing browser gate."""
+    contract = deepcopy(contract)
+    paths = contract["required_triggers"]["pull_request"]["paths"]
+    for path in ["tools/electronics-failure-reporter.mjs", "playwright.config.ts"]:
+        if path not in paths:
+            paths.append(path)
+    browser = contract["jobs"]["browser"]
+    require(FAILURE_REPORT_FLAG not in browser["controls"]["env"],
+            "Failure evidence must extend the original browser environment")
+    browser["controls"]["env"][FAILURE_REPORT_FLAG] = "true"
+    old = "-e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner"
+    new = "-e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e " + FAILURE_REPORT_FLAG + " test-runner"
+    steps = []
+    counts = {"gate": 0, "upload": 0}
+    for step in browser["required_steps"]:
+        command = step.get("run", "")
+        if old in command:
+            require(command.count(old) == 1, "Duplicate qualification forwarding in browser step")
+            step["run"] = command.replace(old, new)
+            counts["gate"] += 1
+        if (step.get("uses") == "actions/upload-artifact@v4"
+                and step.get("with", {}).get("name")
+                == "electronics-r4-m1-browser-${{ github.run_id }}"):
+            steps.append(deepcopy(FAILURE_REPORT_UPLOAD))
+            counts["upload"] += 1
+        steps.append(step)
+    require(counts == {"gate": 1, "upload": 1},
+            "Failure evidence must extend one existing gate and precede its original archive")
+    browser["required_steps"] = steps
+    return contract
+
+
 def d2_classroom_budget_contract(contract):
     """D2 budget v1: extend only the complete suite's browser job to 50 minutes."""
     contract = deepcopy(contract)
@@ -302,6 +373,54 @@ def d2_classroom_budget_contract(contract):
             and contract["jobs"]["review-images"]["controls"]["timeout-minutes"] == 35,
             "D2 browser budget must start from the original 35-minute jobs")
     contract["jobs"]["browser"]["controls"]["timeout-minutes"] = 50
+    return contract
+
+
+QUALIFICATION_SHARD_MATRIX = """${{ fromJSON(
+    (inputs.qualification_profile == 'classroom-d13-v2' ||
+    inputs.qualification_profile == 'classroom-d13-v3' ||
+    inputs.qualification_profile == 'arduino-editor-error') &&
+    '[{"label":"whole","shard":""}]' ||
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+  ) }}"""
+
+QUALIFICATION_SHARD_CLI = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}'
+QUALIFICATION_SHARD_SUFFIX = "-${{ matrix.browser_case.label }}"
+BROWSER_REPORT_NAME = "electronics-r4-m1-browser-${{ github.run_id }}"
+SHARDED_FAILURE_REPORT_UPLOAD = deepcopy(FAILURE_REPORT_UPLOAD)
+SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"] += QUALIFICATION_SHARD_SUFFIX
+
+
+def strict_shard_contract(contract):
+    """Split only strict qualification, with both original evidence uploads per child."""
+    contract = deepcopy(contract)
+    browser = contract["jobs"]["browser"]
+    browser["controls"]["name"] = "Actual editor live simulation journey (${{ matrix.browser_case.label }})"
+    browser["controls"]["strategy"] = {
+        "fail-fast": False,
+        "matrix": {"browser_case": QUALIFICATION_SHARD_MATRIX},
+    }
+    env = browser["controls"]["env"]
+    env["ASA_ELECTRONICS_BROWSER_SHARD"] = "${{ matrix.browser_case.shard }}"
+    env["COMPOSE_PROJECT_NAME"] += QUALIFICATION_SHARD_SUFFIX
+    upload_names = {
+        FAILURE_REPORT_UPLOAD["with"]["name"]: SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"],
+        BROWSER_REPORT_NAME: BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX,
+    }
+    gate_count = 0
+    uploads = set()
+    for step in browser["required_steps"]:
+        if step.get("run", "").endswith('test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"'):
+            step["run"] += QUALIFICATION_SHARD_CLI
+            gate_count += 1
+        if step.get("uses") == "actions/upload-artifact@v4":
+            name = step.get("with", {}).get("name")
+            if name in upload_names:
+                require(name not in uploads, "Duplicate original browser evidence upload")
+                uploads.add(name)
+                step["with"]["name"] = upload_names[name]
+    require(gate_count == 1 and uploads == set(upload_names),
+            "Sharding must extend one browser gate and both evidence uploads")
     return contract
 
 
@@ -392,13 +511,30 @@ def covers_required_triggers(actual, required):
 
 def check_workflow(path, contract, receipt, general_node, electronics):
     workflow = parse_yaml(read(path))
-    require(covers_required_triggers(workflow.get("on"), contract["required_triggers"]),
-            "Missing or narrowed mandatory workflow trigger: " + path)
+    require(FAILURE_REPORT_FLAG not in workflow.get("env", {}),
+            "Failure report flag must not be inherited by the entire workflow: " + path)
+    triggers = workflow.get("on")
+    if path == GENERAL:
+        from devex_ci_contract import check_wiring
+        check_wiring(workflow)
+        require(isinstance(triggers, dict)
+                and {event: {} if options is None else options for event, options in triggers.items()}
+                == contract["required_triggers"],
+                "DEVEX-D0 v1 General workflow triggers must be main push and unfiltered pull requests")
+    else:
+        require(covers_required_triggers(triggers, contract["required_triggers"]),
+                "Missing or narrowed mandatory workflow trigger: " + path)
     for key, expected in contract["workflow_controls"].items():
         require(workflow.get(key) == expected, "Workflow control drift: " + path + ":" + key)
     for job_id, expected in contract["jobs"].items():
         job = workflow.get("jobs", {}).get(job_id)
         require(isinstance(job, dict), "Missing required job: " + path + ":" + job_id)
+        if path == FOCUSED and job_id == "browser":
+            require("continue-on-error" not in job and "if" not in job,
+                    "Browser shards cannot be skipped or have failures ignored")
+            require(sum("ASA_ELECTRONICS_BROWSER_GATE" in step.get("run", "")
+                        for step in job.get("steps", [])) == 1,
+                    "Exactly one mandatory browser gate step is required per shard")
         for key, value in expected["controls"].items():
             require(job.get(key) == value, "Job control drift: " + job_id + ":" + key)
         # Required semantic steps must remain in order, with their actual gates,
@@ -421,11 +557,19 @@ def check_workflow(path, contract, receipt, general_node, electronics):
         effective = general_node if selected else electronics if classroom_build else receipt
         arguments = build_args(effective)
         if not classroom_browser:
+            require(FAILURE_REPORT_FLAG not in job.get("env", {}),
+                    "Failure report flag outside selected Electronics browser job: " + job_id)
+        if not classroom_browser:
             require(not any(key in job.get("env", {}) for key in
                     ["ASA_ELECTRONICS_QUALIFICATION_PROFILE", "ASA_ELECTRONICS_BROWSER_GATE"]),
                     "Qualification profile outside selected Electronics browser job: " + job_id)
         for step in job.get("steps", []):
             command = step.get("run", "")
+            require(FAILURE_REPORT_FLAG not in step.get("env", {}),
+                    "Failure report flag must use the selected job environment: " + job_id)
+            if not classroom_browser:
+                require(FAILURE_REPORT_FLAG not in command,
+                        "Failure report command outside selected Electronics browser job: " + job_id)
             if not classroom_browser:
                 require("ASA_ELECTRONICS_QUALIFICATION_PROFILE" not in command
                         and "ASA_ELECTRONICS_BROWSER_GATE" not in command
@@ -492,11 +636,15 @@ def check_offline(receipt):
     classroom = electronics_receipt(receipt, effective)
     for path, expected in contract["workflows"].items():
         if path == GENERAL:
-            expected = general_node_contract(expected, receipt, effective)
+            expected = general_d1_v1_contract(general_d0_v1_contract(
+                general_node_contract(expected, receipt, effective)))
         elif path == FOCUSED:
             expected = qualification_contract(electronics_contract(expected, receipt, classroom))
-            expected = d2_classroom_budget_contract(expected)
+            expected = failure_evidence_contract(expected)
+            expected = strict_shard_contract(d2_classroom_budget_contract(expected))
         check_workflow(path, expected, receipt, effective, classroom)
+    from devex_ci_contract import check_bounded_wiring
+    check_bounded_wiring(parse_yaml(read(".github/workflows/devex-changed.yml")))
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
 
@@ -588,8 +736,22 @@ def require_electronics_job(browser_only=False):
               and re.fullmatch(r"[^/\s@]+/[^/\s@]+", repository) is not None
               and re.fullmatch(re.escape(repository + "/" + SCOPED_UI)
                                + r"@refs/heads/[^\s@]+", workflow_ref) is not None)
+    # Restricted extra admission: a PR targeting the canonical main on the
+    # exact workflow path and job. It cannot authorize a local host, a non-PR
+    # dispatch, a foreign repo, or a different job.
+    arduino_native = (
+        os.environ.get("GITHUB_JOB") == "browser"
+        and repository == "spikeal8-maker/asa-lab"
+        and os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+        and os.environ.get("GITHUB_BASE_REF") == "main"
+        and re.fullmatch(
+            re.escape(repository + "/" + ARDUINO_GPIO_E2E + "@")
+            + r"(refs/pull/[1-9][0-9]*/merge|refs/heads/main)",
+            workflow_ref,
+        ) is not None
+    )
     require((os.environ.get("GITHUB_JOB") in jobs and ("/" + FOCUSED + "@") in workflow_ref)
-            or scoped,
+            or scoped or arduino_native,
             "Docker proof is restricted to exact disposable Electronics workflow/job pairs")
 
 
@@ -704,6 +866,7 @@ def check_challenges(receipt):
     from unittest.mock import patch
 
     source = {path: read(path) for path in [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+              ".github/workflows/devex-changed.yml",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
@@ -754,6 +917,7 @@ def check_challenges(receipt):
     trigger_challenge("General ignored required branch", general, "push", "branches-ignore", ["main"])
     trigger_challenge("General restricted pull request activity", general, "pull_request", "types", ["opened"])
     trigger_challenge("General new pull request path filter", general, "pull_request", "paths", ["docs/**"])
+    trigger_challenge("General restricted pull request base branch", general, "pull_request", "branches", ["main"])
     trigger_challenge("focused new pull request branch filter", focused, "pull_request", "branches", ["other"])
     trigger_challenge("focused new ignored paths", focused, "pull_request", "paths-ignore", ["apps/**"])
     trigger_challenge("focused required dispatch input", focused, "workflow_dispatch", "inputs",
@@ -761,11 +925,15 @@ def check_challenges(receipt):
     without_event = parse_yaml(source[general])
     del without_event["on"]["pull_request"]
     challenge("removed required pull request event", {general: json.dumps(without_event)}, False)
-    trigger_challenge("additive positive branch", general, "push", "branches",
-                      branches + ["feature/**"], True)
-    extra_event = parse_yaml(source[general])
-    extra_event["on"]["workflow_dispatch"] = None
-    challenge("additive independent event", {general: json.dumps(extra_event)}, True)
+    for branch in ("agent/**", "assistant/**", "codex/**"):
+        trigger_challenge("reintroduced General branch push: " + branch, general, "push", "branches",
+                          branches + [branch])
+    extra_general_event = parse_yaml(source[general])
+    extra_general_event["on"]["workflow_dispatch"] = None
+    challenge("additional General event", {general: json.dumps(extra_general_event)}, False)
+    extra_focused_event = parse_yaml(source[focused])
+    extra_focused_event["on"]["repository_dispatch"] = None
+    challenge("additive independent focused event", {focused: json.dumps(extra_focused_event)}, True)
     trigger_challenge("additive positive path", focused, "pull_request", "paths",
                       paths + ["e2e/electronics-simulation-time.spec.ts"], True)
     challenge("additive test step", {general: source[general].replace(
@@ -996,6 +1164,7 @@ def check_electronics_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1113,6 +1282,28 @@ def check_electronics_challenges(receipt):
         runtime(name, lambda: prepare_electronics_postgres(effective), False,
                 environment={**scoped_context, **changes})
 
+    arduino_context = {
+        "GITHUB_REPOSITORY": "spikeal8-maker/asa-lab",
+        "GITHUB_WORKFLOW_REF": ("spikeal8-maker/asa-lab/" + ARDUINO_GPIO_E2E
+                                + "@refs/pull/1232/merge"),
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_BASE_REF": "main",
+    }
+    runtime("exact Arduino PR browser overlay", lambda: prepare_electronics_postgres(effective),
+            environment=arduino_context)
+    for name, changes in [
+        ("Arduino wrong job", {"GITHUB_JOB": "review-images"}),
+        ("Arduino wrong event", {"GITHUB_EVENT_NAME": "workflow_dispatch"}),
+        ("Arduino wrong base", {"GITHUB_BASE_REF": "other"}),
+        ("Arduino wrong repository", {"GITHUB_REPOSITORY": "other/repository"}),
+        ("Arduino unknown workflow", {"GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/.github/workflows/other.yml@refs/pull/1232/merge"}),
+        ("Arduino ref suffix spoof", {"GITHUB_WORKFLOW_REF": arduino_context["GITHUB_WORKFLOW_REF"] + "@evil"}),
+        ("Arduino ref prefix spoof", {"GITHUB_WORKFLOW_REF": "evil/" + arduino_context["GITHUB_WORKFLOW_REF"]}),
+        ("Arduino invalid pull ref", {"GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/" + ARDUINO_GPIO_E2E + "@refs/pull/1232/head"}),
+    ]:
+        runtime(name, lambda: prepare_electronics_postgres(effective), False,
+                environment={**arduino_context, **changes})
+
     for name, env, system, architecture in [
         ("outside Actions", {"GITHUB_ACTIONS": "false"}, "Linux", "x86_64"),
         ("General job", {"GITHUB_JOB": "postgres-tests"}, "Linux", "x86_64"),
@@ -1168,6 +1359,7 @@ def check_qualification_challenges(receipt):
     from unittest.mock import patch
 
     paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
              *receipt["semantic_contract"]["dockerfile_defaults"],
              *receipt["semantic_contract"]["workflows"]]
     source = {path: read(path) for path in paths}
@@ -1217,6 +1409,25 @@ def check_qualification_challenges(receipt):
         ("runner path must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(QUALIFICATION_RUNNER)),
         ("D13 observer must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove("e2e/electronics-classroom-timing.spec.ts")),
         ("profile cannot move to benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
+        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s2","shard":"2/4"}', "")})),
+        ("strict cannot omit s4 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s4","shard":"4/4"}', "")})),
+        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":"1/4"')})),
+        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":""')})),
+        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/4"')})),
+        ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
+        ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
+        ("matrix cannot be removed", lambda w: w["jobs"]["browser"].pop("strategy")),
+        ("matrix cannot add unexpected child", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"include": [{"label": "bypass", "shard": ""}]})),
+        ("matrix cannot fail fast", lambda w: w["jobs"]["browser"]["strategy"].update({"fail-fast": True})),
+        ("browser cannot skip a shard", lambda w: w["jobs"]["browser"].update({"if": False})),
+        ("browser cannot ignore failed job", lambda w: w["jobs"]["browser"].update({"continue-on-error": True})),
+        ("browser shard must reach runner env", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_BROWSER_SHARD")),
+        ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/4"})),
+        ("Compose project must isolate all children", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}"})),
+        ("Compose project cannot be static", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics"})),
+        ("large archive cannot share a name", lambda w: [step["with"].update({"name": BROWSER_REPORT_NAME})
+            for step in w["jobs"]["browser"]["steps"]
+            if step.get("with", {}).get("name") == BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX]),
     ]:
         changed = deepcopy(workflow)
         mutate(changed)
@@ -1225,6 +1436,17 @@ def check_qualification_challenges(receipt):
         ("profile reaches real test container", " -e ASA_ELECTRONICS_QUALIFICATION_PROFILE", ""),
         ("selected gate cannot ignore failure", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true'),
         ("selected gate cannot become strict-only", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', "pnpm gate:electronics-m1:browser"),
+        ("shard CLI must reach Playwright", QUALIFICATION_SHARD_CLI, ""),
+        ("shard CLI cannot be fixed at s1", QUALIFICATION_SHARD_CLI, " --shard=1/4"),
+        ("strict shards cannot use default workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "")),
+        ("strict shards cannot run two workers", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace("--workers=1", "--workers=2")),
+        ("whole profiles cannot inherit a strict worker limit", QUALIFICATION_SHARD_CLI,
+            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "") + " --workers=1"),
+        ("browser CLI cannot grep away cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep LED"),
+        ("browser CLI cannot skip cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep-invert E11"),
+        ("browser CLI cannot retry failed cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --retries=3"),
         ("qualification tests cannot be conditional", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        if: false"),
         ("qualification tests cannot ignore failure", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        continue-on-error: true"),
     ]:
@@ -1254,6 +1476,99 @@ def check_qualification_challenges(receipt):
             changed["scripts"][alias] += suffix
             challenge(alias + " rejects " + suffix, {"package.json": json.dumps(changed)})
     print(json.dumps({"classroom_qualification_challenges": outcomes}, indent=2))
+
+
+def check_failure_evidence_challenges(receipt):
+    """Challenge diagnostic delivery through the real guard without Docker or writes."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             ".github/workflows/devex-changed.yml",
+             *receipt["semantic_contract"]["dockerfile_defaults"],
+             *receipt["semantic_contract"]["workflows"]]
+    source = {path: read(path) for path in paths}
+    workflow = parse_yaml(source[FOCUSED])
+    outcomes = []
+
+    def challenge(name, replacements, passes=False):
+        error = None
+        with patch(__name__ + ".read", side_effect={**source, **replacements}.__getitem__):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require((error is None) == passes, "Failure evidence challenge failed: " + name + ":" + str(error))
+        outcomes.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    challenge("exact diagnostic flag, forwarding and small archive", {}, True)
+    for name, mutate in [
+        ("missing diagnostic flag", lambda w: w["jobs"]["browser"]["env"].pop(FAILURE_REPORT_FLAG)),
+        ("disabled diagnostic flag", lambda w: w["jobs"]["browser"]["env"].update({FAILURE_REPORT_FLAG: "false"})),
+        ("flag must remain a literal string", lambda w: w["jobs"]["browser"]["env"].update({FAILURE_REPORT_FLAG: True})),
+        ("missing reporter trigger", lambda w: w["on"]["pull_request"]["paths"].remove("tools/electronics-failure-reporter.mjs")),
+        ("missing reporter configuration trigger", lambda w: w["on"]["pull_request"]["paths"].remove("playwright.config.ts")),
+        ("workflow-wide diagnostic flag", lambda w: w.setdefault("env", {}).update({FAILURE_REPORT_FLAG: "true"})),
+        ("diagnostic flag in benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({FAILURE_REPORT_FLAG: "true"})),
+        ("diagnostic flag in an additive job", lambda w: w["jobs"].update({"extra": {
+            "runs-on": "ubuntu-24.04", "env": {FAILURE_REPORT_FLAG: "true"}, "steps": [{"run": "true"}]}})),
+        ("diagnostic command outside browser", lambda w: w["jobs"]["benchmark"]["steps"].append(
+            {"run": "env " + FAILURE_REPORT_FLAG + "=true node --version"})),
+        ("diagnostic step environment outside browser", lambda w: w["jobs"]["benchmark"]["steps"].append(
+            {"run": "true", "env": {FAILURE_REPORT_FLAG: "true"}})),
+        ("diagnostic browser step override", lambda w: w["jobs"]["browser"]["steps"].append(
+            {"run": "true", "env": {FAILURE_REPORT_FLAG: "false"}})),
+    ]:
+        changed = deepcopy(workflow)
+        mutate(changed)
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    forwarding = " -e " + FAILURE_REPORT_FLAG
+    require(source[FOCUSED].count(forwarding) == 1, "Expected exactly one diagnostic forwarding")
+    for name, replacement in [
+        ("missing container diagnostic forwarding", ""),
+        ("disabled container diagnostic forwarding", forwarding + "=false"),
+        ("duplicate container diagnostic forwarding", forwarding + forwarding),
+    ]:
+        challenge(name, {FOCUSED: source[FOCUSED].replace(forwarding, replacement)})
+    steps = workflow["jobs"]["browser"]["steps"]
+    uploads = [index for index, step in enumerate(steps)
+               if semantic_step(step) == SHARDED_FAILURE_REPORT_UPLOAD]
+    require(len(uploads) == 1, "Expected exactly one diagnostic artifact upload")
+    upload_index = uploads[0]
+    without_upload = deepcopy(workflow)
+    without_upload["jobs"]["browser"]["steps"].pop(upload_index)
+    challenge("missing diagnostic artifact upload", {FOCUSED: json.dumps(without_upload)})
+    for name, field, value in [
+        ("conditional diagnostic artifact", ["if"], "failure()"),
+        ("ignored diagnostic artifact error", ["continue-on-error"], True),
+        ("changed diagnostic artifact action", ["uses"], "actions/upload-artifact@v3"),
+        ("unbounded diagnostic artifact directory", ["with", "path"], "reports"),
+        ("missing diagnostic file ignored", ["with", "if-no-files-found"], "ignore"),
+        ("changed diagnostic retention", ["with", "retention-days"], 1),
+        ("diagnostic artifact loses attempt identity", ["with", "name"],
+            "electronics-r4-m1-failures-${{ github.run_id }}" + QUALIFICATION_SHARD_SUFFIX),
+        ("diagnostic artifact loses shard identity", ["with", "name"],
+            FAILURE_REPORT_UPLOAD["with"]["name"]),
+    ]:
+        changed = deepcopy(workflow)
+        target = changed["jobs"]["browser"]["steps"][upload_index]
+        for key in field[:-1]:
+            target = target[key]
+        target[field[-1]] = value
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    reordered = deepcopy(workflow)
+    reordered_steps = reordered["jobs"]["browser"]["steps"]
+    small_upload = reordered_steps.pop(upload_index)
+    large_index = next(index for index, step in enumerate(reordered_steps)
+        if step.get("with", {}).get("name") == BROWSER_REPORT_NAME + QUALIFICATION_SHARD_SUFFIX)
+    reordered_steps.insert(large_index + 1, small_upload)
+    challenge("small diagnostic artifact after large archive", {FOCUSED: json.dumps(reordered)})
+    general = parse_yaml(source[GENERAL])
+    general.setdefault("env", {})[FAILURE_REPORT_FLAG] = "true"
+    challenge("diagnostic flag in General workflow", {GENERAL: json.dumps(general)})
+    print(json.dumps({"failure_evidence_challenges": outcomes}, indent=2))
 
 
 def main():
@@ -1305,6 +1620,7 @@ def main():
         check_challenges(receipt)
         check_electronics_challenges(receipt)
         check_qualification_challenges(receipt)
+        check_failure_evidence_challenges(receipt)
     if options.baseline_proof:
         check_original_baseline(receipt)
     if options.compose_model_check or options.built_images or options.pulled_postgres:

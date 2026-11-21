@@ -13,7 +13,10 @@ vi.mock('../admin-api', () => ({
 }));
 
 vi.mock('../AdminAiGenerationPolicy', () => ({ AdminAiGenerationPolicy: () => null }));
-vi.mock('../AdminAiTokenBudgets', () => ({ AdminAiTokenBudgets: () => null }));
+vi.mock('../AdminAiTokenBudgets', () => ({
+  AdminAiTokenBudgets: ({ renderModels }: { renderModels: (budgetFor: () => null) => unknown }) =>
+    renderModels(() => null),
+}));
 vi.mock('../AdminAiUsageOverview', () => ({ AdminAiUsageOverview: () => null }));
 vi.mock('../AdminAiPage', () => ({ AiAdminPage: () => null }));
 vi.mock('../AdminOllamaPage', () => ({ AdminOllamaPage: () => null }));

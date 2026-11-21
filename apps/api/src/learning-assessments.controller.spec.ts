@@ -39,6 +39,34 @@ function controller(rows: unknown[]) {
 }
 
 describe('learning assessments API', () => {
+  it('reads an essay only through its scoped frozen text reader without inventing a Project', async () => {
+    const target = controller([]);
+    target.query.mockImplementation(async (sql: string) => ({
+      rows: sql.includes('learning_teacher_exact_essay_submission')
+        ? [
+            {
+              submission_id: ATTEMPT_ID,
+              payload_digest: 'abc',
+              response_text: 'Точный ответ',
+              draft_revision: 3,
+            },
+          ]
+        : [],
+    }));
+    await expect(
+      target.value.exactSubmission(request(), CLASSROOM_ID, ATTEMPT_ID),
+    ).resolves.toEqual({
+      kind: 'essay',
+      submissionId: ATTEMPT_ID,
+      digest: 'abc',
+      text: 'Точный ответ',
+      sourceRevision: 3,
+    });
+    expect(target.query).toHaveBeenLastCalledWith(
+      'SELECT * FROM learning_teacher_exact_essay_submission($1,$2,$3)',
+      ['123e4567-e89b-42d3-a456-426614174011', CLASSROOM_ID, ATTEMPT_ID],
+    );
+  });
   it('keeps unique legacy review reads compatible and scopes the SQL by the authenticated educator', async () => {
     const detail = { activityRunId: RUN_A, participationId: 'part-a', attempts: [] };
     const target = controller([{ detail }]);

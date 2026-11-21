@@ -4,9 +4,6 @@ name: ASA Lab Governance and Code Gates
   push:
     branches:
       - main
-      - "agent/**"
-      - "assistant/**"
-      - "codex/**"
   pull_request: {}
 
 # Read-only, but wider than contents alone: the control-plane validator compares
@@ -26,8 +23,84 @@ concurrency:
 env:
   CI: "true"
   NX_SKIP_NX_CACHE: "true"
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+  BASE_REF: ${{ github.event.pull_request.base.ref || github.ref_name }}
+  EVENT_NAME: ${{ github.event_name }}
+  EVENT_REF: ${{ github.ref }}
+  MERGE_CANDIDATE_SHA: ${{ github.sha }}
 
 jobs:
+  selection:
+    name: Versioned General applicability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      route: ${{ steps.plan.outputs.route }}
+      plan: ${{ steps.plan.outputs.plan }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Cheap source diff and accepted-base classification
+        id: changes
+        shell: bash
+        run: |
+          git switch --detach "$SOURCE_SHA"
+          git diff --check
+          if [ "$EVENT_NAME" = pull_request ] && [ "$BASE_REF" = main ] && git show "$BASE_SHA:tools/devex_ci_contract.py" > "$RUNNER_TEMP/devex_ci_contract.py"; then
+            python3 "$RUNNER_TEMP/devex_ci_contract.py" classify
+          else
+            GITHUB_OUTPUT='' python3 tools/devex_ci_contract.py classify
+            printf 'candidate=false\n' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.candidate == 'true'
+        with:
+          node-version: "22"
+          cache: pnpm
+      - name: Install proof dependencies only for bounded candidate
+        if: steps.changes.outputs.candidate == 'true'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Existing AST and source proof
+        if: steps.changes.outputs.candidate == 'true'
+        env:
+          MERGE_BASE: ${{ steps.changes.outputs.merge_base }}
+        run: node tools/devex-local-ui.mjs --prove "$MERGE_BASE" > .asa/devex/ci-proof.json
+      - name: Publish exact-source applicability plan
+        id: plan
+        shell: bash
+        run: |
+          if [ "$EVENT_NAME" = pull_request ] && [ "$BASE_REF" = main ] && [ -s "$RUNNER_TEMP/devex_ci_contract.py" ]; then
+            python3 "$RUNNER_TEMP/devex_ci_contract.py" select
+          else
+            python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          plan = json.loads(Path('.asa/devex/general-plan.json').read_text())
+          if plan['route'] != 'FULL' or plan['candidate'] is not False:
+              raise SystemExit('Bootstrap/Main must be FULL')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('route=FULL\nplan=' + json.dumps(plan, separators=(',', ':')) + '\n')
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: general-plan-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .asa/devex/general-plan.json
+            .asa/devex/ci-proof.json
+          include-hidden-files: true
+          if-no-files-found: error
+
   governance:
     name: Governance contracts
     runs-on: ubuntu-latest
@@ -62,7 +135,8 @@ jobs:
 
   code:
     name: Format lint types contracts build
-    needs: governance
+    needs: [governance, selection]
+    if: needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -101,6 +175,9 @@ jobs:
       - name: DevEx shadow planner integration
         run: pnpm test:devex-plan:integration
 
+      - name: General contract existing effect helper integration
+        run: node tools/devex-python.mjs tools/test_devex_ci_contract.py --helper-integration
+
       - name: DevEx changed local checks execution
         run: pnpm test:dev-check
 
@@ -114,7 +191,8 @@ jobs:
 
   postgres-tests:
     name: PostgreSQL tests and RLS
-    needs: code
+    needs: [code, selection]
+    if: needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -246,7 +324,8 @@ jobs:
 
   access-a-browser:
     name: Access A real browser journeys
-    needs: code
+    needs: [code, selection]
+    if: needs.selection.outputs.route == 'FULL' || needs.selection.outputs.route == 'PARALLEL'
     # Playwright 1.55.1 chromium installer rejects ubuntu26.04 in ubuntu-latest.
     # Pin a supported runner; do not bypass browser tests or apt signatures.
     runs-on: ubuntu-24.04
@@ -301,6 +380,29 @@ jobs:
           Path('/etc/apt/apt.conf.d/80-asa-browser-network').write_text(
               'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "1";\n')
           PY
+      - name: Use the Ubuntu archive in the runner mirror list
+        run: |
+          # APT mirror+file sources load the real URIs from this separate list.
+          ubuntu_mirror_list=/etc/apt/apt-mirrors.txt
+          if [ ! -f "$ubuntu_mirror_list" ]; then
+            exit 0
+          fi
+          for ubuntu_archive in \
+            https://archive.ubuntu.com/ubuntu \
+            https://us.archive.ubuntu.com/ubuntu \
+            https://mirrors.edge.kernel.org/ubuntu
+          do
+            if probe_status=$(sudo curl --fail --silent --head --output /dev/null \
+              --write-out '%{http_code}' --connect-timeout 3 --max-time 5 \
+              "$ubuntu_archive/dists/noble/InRelease") && [ "$probe_status" = 200 ]; then
+              sudo sed -E -i --follow-symlinks \
+                's#^([[:space:]]*)https?://azure\.archive\.ubuntu\.com/ubuntu([/[:space:]]|$)#\1'"$ubuntu_archive"'\2#' \
+                "$ubuntu_mirror_list"
+              echo "Using $ubuntu_archive for the runner mirror list."
+              exit 0
+            fi
+          done
+          echo "No Ubuntu archive responded to the probe. APT will use its configured mirrors."
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - name: Migrate isolated database and provision restricted runtime
@@ -336,9 +438,16 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  changed-ui:
+    needs: [selection, governance]
+    if: needs.selection.outputs.route == 'FAST' || needs.selection.outputs.route == 'PARALLEL'
+    uses: ./.github/workflows/devex-changed.yml
+    with:
+      plan: ${{ needs.selection.outputs.plan }}
+
   required:
-    name: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' && 'ASA / branch push (not required)' || 'ASA / required' }}
-    needs: [governance, code, postgres-tests, access-a-browser]
+    name: ASA / required
+    needs: [governance, code, postgres-tests, access-a-browser, selection, changed-ui]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -347,13 +456,18 @@ jobs:
     env:
       ASA_REQUIRED_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_REQUIRED_NEEDS_JSON: ${{ toJSON(needs) }}
+      GENERAL_PLAN: ${{ needs.selection.outputs.plan }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Require all four exact-source General results
-        run: python tools/ci_required.py
+      - name: Require complete applicable exact-source General results
+        shell: bash
+        run: |
+          git switch --detach "$SOURCE_SHA"
+          python tools/devex_ci_contract.py required

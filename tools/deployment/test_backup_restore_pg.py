@@ -101,12 +101,14 @@ class PostgresFixture:
         return self.execute(*command, env=env, **kwargs)
 
     def synthetic_storage(self, args, **kwargs):
-        if args[:2] == ["docker", "cp"]:
-            assert args[2] == "minio:/data/."
-            shutil.copytree(self.objects, args[3], dirs_exist_ok=True)
-            return ""
         assert args[:3] == ["docker", "inspect", "--format"]
         return "sha256:" + "f" * 64
+
+    def export_objects(self, install, record, partial):
+        assert install is self and record["id"] == "minio"
+        refs = backup.snapshot_database(self, partial / "database.dump")
+        assert refs == [["fixture.txt", len(b"synthetic object bytes")]]
+        shutil.copytree(self.objects, partial / "objects")
 
     def cleanup(self):
         for remote in self.remote_files:
@@ -134,6 +136,8 @@ class BackupRestorePostgresTests(unittest.TestCase):
                     CREATE TABLE ai_assistant_config(singleton_key boolean PRIMARY KEY,
                         provider varchar NOT NULL, model varchar NOT NULL);
                     CREATE TABLE projects(id integer PRIMARY KEY, content text NOT NULL);
+                    CREATE TABLE blocks_blobs(object_key text PRIMARY KEY, size_bytes bigint);
+                    INSERT INTO blocks_blobs VALUES('fixture.txt', 22);
                     INSERT INTO projects VALUES(1,'synthetic visible'),(2,'synthetic hidden');
                     ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
                     ALTER TABLE projects FORCE ROW LEVEL SECURITY;
@@ -165,10 +169,13 @@ class BackupRestorePostgresTests(unittest.TestCase):
                 """)
                 install.sql(f"INSERT INTO ai_assistant_config VALUES(true,'{provider}','{model}');")
                 original = install.sql("SELECT provider||'|'||model FROM ai_assistant_config")
-                with patch.object(backup, "run", side_effect=install.synthetic_storage):
+                with (patch.object(backup, "run", side_effect=install.synthetic_storage),
+                      patch.object(backup, "copy_online_objects", side_effect=install.export_objects)):
                     exported = backup.export_backup(install)
                 manifest = verify_backup(exported)
+                self.assertEqual(manifest["captureMode"], "online-postgres-minio")
                 self.assertEqual(manifest["runtime"], install.readiness())
+                self.assertFalse(any(call[0] in {"stop", "start"} for call in install.calls))
                 self.assertEqual((exported / "private.env").read_bytes(), (install.root / ".env").read_bytes())
                 self.assertEqual((exported / "objects/fixture.txt").read_text(), "synthetic object bytes")
                 if catalog:

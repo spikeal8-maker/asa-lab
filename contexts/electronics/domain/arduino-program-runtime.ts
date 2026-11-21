@@ -1,3 +1,8 @@
+import {
+  sameRuntimeEntries,
+  stableOwnedLoop,
+  type StableOwnedLoop,
+} from './arduino-stable-loop.js';
 import { draw, seed, valid } from './arduino-random.js';
 import {
   arduinoSwitchSections,
@@ -333,7 +338,7 @@ interface SwitchInstruction {
   defaultTarget: number;
   readonly line: number;
 }
-type CompiledInstruction =
+export type CompiledInstruction =
   | SimpleInstruction
   | BranchInstruction
   | JumpInstruction
@@ -3218,6 +3223,7 @@ export function advanceClockedArduinoRuntime(
 interface OwnedRuntimeMemory {
   readonly compilation: ArduinoProgramCompilation;
   readonly inactiveScopes: InactiveScopePool;
+  readonly stableLoop: StableOwnedLoop | undefined;
   scopes?: ArduinoScope[];
   pinModes?: Map<Terminal, ArduinoPinMode>;
   outputVoltages?: Map<Terminal, number>;
@@ -3268,18 +3274,32 @@ function createOwnedInstructionWorkspace(
 }
 
 /** Package internal: only the cloned clock request constructs this working context. */
-export function createOwnedClockedArduinoRuntime(source: string, initial?: ArduinoRuntimeState) {
+export function createOwnedClockedArduinoRuntime(
+  source: string,
+  initial?: ArduinoRuntimeState,
+  options: { readonly accountForStableLoops?: boolean } = {},
+) {
   const compilation = compileArduinoProgram(source);
-  const safe = (node: ExpressionSyntax): boolean =>
-    node.kind === 'literal' ||
-    node.kind === 'binding' ||
-    (node.kind === 'unary' && safe(node.operand)) ||
-    (node.kind === 'binary' && safe(node.left) && safe(node.right)) ||
-    (node.kind === 'conditional' &&
-      safe(node.condition) &&
-      safe(node.whenTrue) &&
-      safe(node.whenFalse)) ||
-    (node.kind === 'call' && ['millis', 'micros'].includes(node.name) && node.args.every(safe));
+  let readsMillis = false;
+  let readsMicros = false;
+  const safe = (node: ExpressionSyntax): boolean => {
+    if (node.kind === 'call') {
+      if (node.name === 'millis') readsMillis = true;
+      else if (node.name === 'micros') readsMicros = true;
+      else return false;
+      return node.args.every(safe);
+    }
+    return (
+      node.kind === 'literal' ||
+      node.kind === 'binding' ||
+      (node.kind === 'unary' && safe(node.operand)) ||
+      (node.kind === 'binary' && safe(node.left) && safe(node.right)) ||
+      (node.kind === 'conditional' &&
+        safe(node.condition) &&
+        safe(node.whenTrue) &&
+        safe(node.whenFalse))
+    );
+  };
   // These routes have no reader, member/peripheral effect or importer normalization.
   // Other supported programmes keep the public interpreter's original importer.
   if (
@@ -3312,7 +3332,15 @@ export function createOwnedClockedArduinoRuntime(source: string, initial?: Ardui
     )
   )
     return null;
-  let memory: OwnedRuntimeMemory | undefined = { compilation, inactiveScopes: [] };
+  let memory: OwnedRuntimeMemory | undefined = {
+    compilation,
+    inactiveScopes: [],
+    stableLoop: options.accountForStableLoops
+      ? stableOwnedLoop(compilation.loopInstructions, readsMillis, readsMicros, (instruction) =>
+          literalCommands.get(instruction),
+        )
+      : undefined,
+  };
   let previous = initial;
   return {
     advance(time: number, instructionBudget: number, stopAtElectricalBoundary = false) {
@@ -3506,6 +3534,32 @@ function advanceRuntime(
   let advanceStatementCount = 0;
   let continuousStatementCount = 0;
   let executedInstructions = 0;
+  let attemptedMillisecond = -1;
+  let loopProof:
+    | {
+        readonly millisecond: number;
+        readonly startMicroseconds: number;
+        readonly instructionCount: number;
+        readonly globals: ArduinoScope;
+        readonly pinModes: Map<Terminal, ArduinoPinMode>;
+        readonly outputVoltages: Map<Terminal, number>;
+      }
+    | undefined;
+  const stableLoop = owned?.stableLoop;
+  const targetMicroseconds = stableLoop ? microsecondsFromMilliseconds(targetTimeMs) : 0;
+  const accountForCompleteLoops = (first: number, end: number, stride: number): boolean => {
+    const loops = Math.floor(
+      Math.min(end - first, instructionBudget - executedInstructions) / stride,
+    );
+    if (loops <= 0 || loopIterations > Number.MAX_SAFE_INTEGER - loops) return false;
+    loopIterations += loops;
+    completedLoops += loops;
+    loopStartedAtMs = (first + (loops - 1) * stride) / 1000;
+    executedInstructions += loops * stride;
+    resumeAtMs = (first + loops * stride) / 1000;
+    continuousStatementCount = 0;
+    return true;
+  };
   const consumeClockInstruction = (): void => {
     if (!clocked) return;
     executedInstructions += 1;
@@ -3643,6 +3697,62 @@ function advanceRuntime(
         (servoDeclarations.length > 0 && servo !== previous?.servo))
     )
       break;
+    if (
+      stableLoop &&
+      stopAtElectricalBoundary &&
+      phase === 'loop' &&
+      !loopIterationActive &&
+      programCounter === 0 &&
+      activeFunction === undefined &&
+      events.length === 0 &&
+      tones.size === 0 &&
+      !pulseWait &&
+      !ultrasonicAdapter &&
+      !serial &&
+      servoDeclarations.length === 0 &&
+      !pendingEvaluation &&
+      scopes.length === 2 &&
+      scopes[1]!.size === 0
+    ) {
+      const first = microsecondsFromMilliseconds(resumeAtMs);
+      if (stableLoop.kind === 'literal-writes') {
+        if (
+          !scopes[0]!.has('digitalWrite') &&
+          stableLoop.writes.every(
+            ({ terminal, targetVoltage }) =>
+              pinModes.get(terminal) === 'OUTPUT' &&
+              Object.is(outputVoltages.get(terminal), targetVoltage),
+          ) &&
+          accountForCompleteLoops(first, targetMicroseconds + 1, stableLoop.writes.length + 1)
+        )
+          continue;
+      } else {
+        // Use the absolute millisecond so proof never crosses the unsigned millis rollover.
+        const millisecond = Math.floor(resumeAtMs);
+        if (loopProof?.millisecond === millisecond) {
+          const stride = executedInstructions - loopProof.instructionCount;
+          const unchanged =
+            stride > 0 &&
+            first - loopProof.startMicroseconds === stride &&
+            sameRuntimeEntries(scopes[0]!, loopProof.globals) &&
+            sameRuntimeEntries(pinModes, loopProof.pinModes) &&
+            sameRuntimeEntries(outputVoltages, loopProof.outputVoltages);
+          loopProof = undefined;
+          const end = Math.min((millisecond + 1) * 1000, targetMicroseconds + 1);
+          if (unchanged && accountForCompleteLoops(first, end, stride)) continue;
+        } else if (attemptedMillisecond !== millisecond) {
+          attemptedMillisecond = millisecond;
+          loopProof = {
+            millisecond,
+            startMicroseconds: first,
+            instructionCount: executedInstructions,
+            globals: new Map(scopes[0]!),
+            pinModes: new Map(pinModes),
+            outputVoltages: new Map(outputVoltages),
+          };
+        }
+      }
+    }
     expireTones(resumeAtMs, tones, emit);
     const instructions =
       activeFunction === undefined

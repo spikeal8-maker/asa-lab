@@ -1,0 +1,965 @@
+{
+  "schema": "robotics-source-preservation-v1",
+  "observed_at": "2026-11-10T21:08:30.103962+00:00",
+  "host": "D2-R2",
+  "source_root": "C:\\Users\\spike\\Projects\\asa-lab-robotics-fast-dev-001",
+  "source_head": "d4ed560647e9f7f38724f202168d88a6ad29ec42",
+  "backup_root": "C:\\Users\\spike\\Projects\\asa-lab-robotics-safety\\20261111-e0",
+  "tracked_modified_count": 1,
+  "untracked_count": 148,
+  "file_count": 149,
+  "total_file_bytes": 13672812,
+  "zip_sha256": "434b0895d74900ecd09d89c22639903e82812bb2b605e820c7f9645b917e4689",
+  "patch_sha256": "4441f3c1a9456911fc380b0ae61bc2bb44072f5b18751870d3e8b2ea1ea0d26c",
+  "archive_verify": "PASS",
+  "isolated_restore_verify": "PASS",
+  "live_unchanged": "PASS",
+  "database_actions": "NONE",
+  "files": [
+    {
+      "path": "e2e/robotics-projects.spec.ts",
+      "bytes": 64836,
+      "sha256": "ebed49df42d3fadba5981fbd147f134d30ed51bce8d66dcfa1f0dad913fd4f98",
+      "kind": "tracked-modified"
+    },
+    {
+      "path": "e2e/artifacts/robotics-5m-demo-008/failed.png",
+      "bytes": 109711,
+      "sha256": "53c57114d27317a0986c3f9ab70c59be9e3328ef1e527134f50f5bded36ee1a0",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-5m-demo-008/measurements.json",
+      "bytes": 188,
+      "sha256": "869881004a9e0b8cd88d96571cd658dad97e17a8e9ff785864e245491c4f569d",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-5m-demo-008/new-5m-field-1440.png",
+      "bytes": 106221,
+      "sha256": "dc6bccc13f3cf7ad58ae94d23cd732079c81c27174f6a0a064f887a5992a0fb4",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-5m-demo-008/new-5m-field-390.png",
+      "bytes": 41298,
+      "sha256": "fcbf38f61482951f636dff5e297736610ec615060e26736f8a25b21be421efe3",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-5m-demo-008/save-reopen-failure.png",
+      "bytes": 108877,
+      "sha256": "adbde32916ca607445256b7775ce76d90031d2b6992bb920806ee4220a650958",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-5m-demo-008/save-reopen-report.json",
+      "bytes": 244,
+      "sha256": "958db1519e7abe9a16b146c98af65447d7678ba9ccff4b1f7baaf620a6446f1c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-5m-demo-008/saved-reopened-5m-1440.png",
+      "bytes": 108665,
+      "sha256": "a023018bbf760a1e1ae5dc598249c91575217cd928dec8dc55c3aefdbd248886",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-electronics-parity-004/catalog-compact-1440.png",
+      "bytes": 218509,
+      "sha256": "3230a70c694cad73aa864d889b44ef9bd6f0e452525b1c98649edece7e8fa54e",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-electronics-parity-004/electronics-1024.png",
+      "bytes": 159401,
+      "sha256": "3ad042166edc3c20c9b0188f8d058308f4e1ebf678d042079edabb8a90875b28",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-electronics-parity-004/electronics-1440.png",
+      "bytes": 221202,
+      "sha256": "740a6b73f217d5b60e8876a3d0e9f7113d61b987b6cb8f54ec2c88ea9aa59557",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-electronics-parity-004/electronics-320.png",
+      "bytes": 55744,
+      "sha256": "5b85f672f87726495cf19ce766314a350203c853f6bec3e94ab9e3464bbb239a",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-electronics-parity-004/electronics-390.png",
+      "bytes": 63322,
+      "sha256": "95baa2741caf7902620ed634a805268f24678509c13d4ca423ccb8238b04e0a5",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-electronics-parity-004/failure.png",
+      "bytes": 218080,
+      "sha256": "8e2f11210c6de8f412a763f1ddf599eea5c98fc6c561ef22e6a66dd1fe0f0bb0",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/electronics-1024.png",
+      "bytes": 122166,
+      "sha256": "fd7a79bc0837252c7733e4c204631682937cf47e3c2d0e9840e417e15683b6ae",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/electronics-1440.png",
+      "bytes": 165475,
+      "sha256": "7003b46904c9ff413d47ecbe503a6a512fcd6fa17af95141e822032d166e7cff",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/electronics-320.png",
+      "bytes": 70021,
+      "sha256": "762d6125068453890d0c5622f0f0111bb1b9e2147cf7c6f38b0c0ce46644be78",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/electronics-390.png",
+      "bytes": 73288,
+      "sha256": "b1270bb138f1600d27081733cef334bc319111a63f5ff79bc9392e8ea234669f",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/electronics-catalog-open-1440.png",
+      "bytes": 204011,
+      "sha256": "8595bd77deca655d7dc0a46d9007c348ad00ea0a318bf3015e5b414842434d4e",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/failure.png",
+      "bytes": 45731,
+      "sha256": "f69aee9256f97c021b75970435c697723e99b9e94cb028712f07b0511d2e69f3",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/field-1024.png",
+      "bytes": 114257,
+      "sha256": "7991c1eb53af77c93e1c0185bfc0015dce30547b86f84d6a934c7739025c23af",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/field-1440.png",
+      "bytes": 131655,
+      "sha256": "154ed4f52b25fbd1a9f0dcffc32b9b509e0fd2b750695c7ed45e6afc4eac4122",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/field-320.png",
+      "bytes": 39228,
+      "sha256": "ba9370bf356645be6d84a6414b68fe8afa363d597112dcb0505d286fa9513a2c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/field-390.png",
+      "bytes": 45731,
+      "sha256": "f69aee9256f97c021b75970435c697723e99b9e94cb028712f07b0511d2e69f3",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-electronics-003/layout-audit.json",
+      "bytes": 3331,
+      "sha256": "df82ecebe2deee7aa8c4ec74c304c9984675baa6ac82eb0eb13dcaeacabb191a",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-materials-009/failed.png",
+      "bytes": 117485,
+      "sha256": "2a42a8a2e0a8a372c0e4f4f08fac61d2a59ffa08bc78776253d4c8db9fa6919c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-materials-009/rectangle-context-1440.png",
+      "bytes": 135143,
+      "sha256": "76107d16a86a21a1a8191f21ce1a91b88add2842dbe0c362a4ffc70c563a2081",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-materials-009/report.json",
+      "bytes": 241,
+      "sha256": "4444b46cc8e8bc65ffde17b6268e6f19d443dd748edc72c07365f30519774b51",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/electronics-1440.png",
+      "bytes": 224599,
+      "sha256": "fa4d3dc581ca2cd27c4b1b9c7c4374df77aa8ecfc5522dc553cb83ea4b9a3e02",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/failure.png",
+      "bytes": 94900,
+      "sha256": "000c64b70a40be15bb21030d8c42d37cc1995b1f32e45e48f62ddee301727aee",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/field-1440.png",
+      "bytes": 109303,
+      "sha256": "7659d1b7f7cc5ad62efe238144fc3afdcaa87a178b0b5bb5e1e0a601075786a8",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/field-1728.png",
+      "bytes": 111492,
+      "sha256": "a6fdb84d28b4dccb9faf037a668fcaaaad6a2699e00365cbf0bfadfe03454ec6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/field-390.png",
+      "bytes": 51574,
+      "sha256": "e0a006c556e5a7fb6e4ebf7f0b44b5cca680e4fb7cb6b15a76d3e3adc89b0ab7",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/measurements.json",
+      "bytes": 12263,
+      "sha256": "20cb0e3f8687d8e98c266ca35ea96df68b734b6aef0aba1312bcad0002a424d7",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/electronics-1440.png",
+      "bytes": 181747,
+      "sha256": "e698db641b2eb3c44b7fdf158731dc73af704cd1e3031ad65956ecd2d49aa18d",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/electronics-1728.png",
+      "bytes": 257772,
+      "sha256": "52ca6cdbede3da17bd19c7fc5b8ad76ec11dbfaf97f21bd8f5d6747e83d4b31a",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/electronics-390.png",
+      "bytes": 88654,
+      "sha256": "741802cb0c270dc66f4c2678e52b1df2a99ff75c0408834b1e506cb3eaae8c1b",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/failure.png",
+      "bytes": 55640,
+      "sha256": "c94c3a6a43d0b4589496bf7d5528fdb0ce02bf325f54e3ab047bcd471cd05ef6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/field-1440.png",
+      "bytes": 103809,
+      "sha256": "3dc0c45e0278393c91123c783a3206d434d39027efe8f62f02cb733a40f515d7",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/field-1728.png",
+      "bytes": 120635,
+      "sha256": "0787cd3be9a4f4dbefc7dd9d4a45378e947cbb1dfe7736e275b7dec0eb96d10c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/field-390.png",
+      "bytes": 35853,
+      "sha256": "47ab1d3fe0e00cefe0ad39497d2de606daebd14ad1698b1eda9c53ad7b3cbb22",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/measurements.json",
+      "bytes": 11595,
+      "sha256": "72e1571a1d2f9ae8dcea4a663944727d4c7c5c81770ea07957d7e180ffb41421",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/program-1440.png",
+      "bytes": 170742,
+      "sha256": "2a59fc1fc150c6a72910876bb29c2b71cc4683afae7794ebc935e128d7ae4cff",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/program-1728.png",
+      "bytes": 170786,
+      "sha256": "586ad014b07f02bd3922d39d60430aba6bea1c44541798b9934b44ab179be1dc",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/program-390.png",
+      "bytes": 59234,
+      "sha256": "4d1cd34683cbe4bf8ed319f6cc506669cc86ab429b511fbbc136a44e77e744db",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/robot-1440.png",
+      "bytes": 293722,
+      "sha256": "0883786524c24d22f44164ce17fe4a209f997829a4373ce6afcca668baaaae80",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/robot-1728.png",
+      "bytes": 356184,
+      "sha256": "b77aeb602b8769a87436a2bfcc7862461f736ccbc5a070ddee94ea5b0fa19dad",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-palette-007/toolbars/robot-390.png",
+      "bytes": 74747,
+      "sha256": "1fffbfdfd85f202f67702d65487aad5f46ad959d6832a22249d676d0f0c747bc",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-vectors-008/failed.png",
+      "bytes": 116788,
+      "sha256": "bc6cc8e74c108130aec6f99b091cff6adfbb5ec2e6bcc2968ed03febb4530bce",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-vectors-008/field-1024.png",
+      "bytes": 104621,
+      "sha256": "8f9eb0d895f195502cf7678f51deedc0f6eaf754f48d92ba834b6cc637d6e93a",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-vectors-008/field-1440.png",
+      "bytes": 118210,
+      "sha256": "43d9b3737bcd47f81512e91eb00cbdab4f66ff2a6c38c07c78069e83a0a64032",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-vectors-008/field-320.png",
+      "bytes": 47701,
+      "sha256": "060f2b801185c15449bf24d30e27bda9d1e331c097d2e18e1c619688eb0c83e6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-vectors-008/field-390.png",
+      "bytes": 52125,
+      "sha256": "dd89fd346f2862a21937cf93bfe69f98a1af7a166b6fa3ca6223dc05335d2eea",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-vectors-008/rectangle-settings-1440.png",
+      "bytes": 134325,
+      "sha256": "158ccf58693fde0f230a835b879f4e66d89834a88d211c35ddd317040f15fcd0",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-field-vectors-008/report.json",
+      "bytes": 386,
+      "sha256": "e0d445bfb3321cf169da51ce1189f7373e4f8c5cf22c9f18695f852b326497a5",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/editor-1024.png",
+      "bytes": 107975,
+      "sha256": "e6223e21d2e9566f4e0197a52989a0322e04f985be5dde198195ae01aa295560",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/editor-1440.png",
+      "bytes": 120359,
+      "sha256": "8e02bd1a381948a00b63ff5a5d4c37d9c997fa252dd069ec96d56bb65af40571",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/editor-320.png",
+      "bytes": 41469,
+      "sha256": "1bf8dc23580098b62e4c149a5dab888615c5230d28001b71ae9b8f73ea27d7f3",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/editor-390.png",
+      "bytes": 47022,
+      "sha256": "ad72b2ce3d8161c020f2933871ac90e61dedb6e47bd4a01163b118fb56ee6063",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/failed.png",
+      "bytes": 41024,
+      "sha256": "e4f0b3f52de0b529a0e4c42ff25bb02e301844c5f6d149fe9dc820799bda6930",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/header-1024.png",
+      "bytes": 15335,
+      "sha256": "0d4e1aee3d8608a214dc6e85767fa08515f712fdc35f458c33fa59139b7082c6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/header-1440.png",
+      "bytes": 16370,
+      "sha256": "ce699a79f1b9591d4141935e10d776c043b22b6fa9b58bcc7706aebb2dde750b",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/header-320.png",
+      "bytes": 7345,
+      "sha256": "bc73b19c7554a9da5186e35834827103eb2b87b62e33291c5676651585ed3697",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/header-390.png",
+      "bytes": 8033,
+      "sha256": "cdc6b4e87099e995955d5f1c5c988cd3ce04ad98d806c3898d68e7e5f6e36721",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-header-ui-002/measurements.json",
+      "bytes": 2989,
+      "sha256": "bcdc1c514c77fff5b9f698fdeec916e2689bd77c3a2cff9da6720caa5e67938d",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/electronics-1440.png",
+      "bytes": 185059,
+      "sha256": "31ce85022342fb5f0888f8e608d955a47b514d80a430b8c3cb9c39f6cd10f3df",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/electronics-390.png",
+      "bytes": 79753,
+      "sha256": "bb8e58804a55e3301a815548185b0b06398d5df4c583f37298b29786825e5bef",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/field-1440.png",
+      "bytes": 126474,
+      "sha256": "24a47a0567f65361f66f62d0d6dfd0a95d9a3755a2294609260ad4dca6ddf2f9",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/field-390.png",
+      "bytes": 42245,
+      "sha256": "49a79abf6db5549000795276a6d553c6cae49603714355145df188c1da944b75",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/measurements.json",
+      "bytes": 8094,
+      "sha256": "9668e487f46c348c9638aa28ad8b4f89112a939da3e5d0d37be50afaba834ff2",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/program-1440.png",
+      "bytes": 161789,
+      "sha256": "142abc0f40db20e741bee21636c60ff356cfaa4d2052efd345121da32808d73c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/program-390.png",
+      "bytes": 56717,
+      "sha256": "dab237b3dbe343b4906d958f27ef1b524b34608c2b31cecbf7b7bb4b822586a9",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/robot-1440.png",
+      "bytes": 295454,
+      "sha256": "160f750646e9ea4fc9e268b826af1037f61ae5ad38df55cee3452666bdf7e6af",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-left-rail-005/robot-390.png",
+      "bytes": 74920,
+      "sha256": "07cd3bdac944d265f049a2239bf850d79407ce0924d569e283bed22437be1cac",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/community-1440.png",
+      "bytes": 90645,
+      "sha256": "0028c7ade0e3a5b3d22c94f59c29570896138cdb7fef30482748695b3f5b0bef",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-field-1024.png",
+      "bytes": 115674,
+      "sha256": "09335ebff8d245cd513178e339902164dbe9d1b25fd8e590b12ad2cad9b53c1e",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-field-1440.png",
+      "bytes": 123807,
+      "sha256": "3a8e53404ffec8bab0a4373ca71f2a4ce1e3f148ff578cbbca0d3ffac7442296",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-field-320.png",
+      "bytes": 49201,
+      "sha256": "25f7d10782bcc739fafdb282f24484d35bc22dd235629ec5193785a4c5b46dcc",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-field-390.png",
+      "bytes": 52579,
+      "sha256": "f2bb1dc04799f10e56ec6f0377d5c9e298990355ca5edaceacaa2061d3c6067f",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-program-1024.png",
+      "bytes": 154998,
+      "sha256": "30b113e01707bdfeb7419b1cd2ca05bbfac8a6bb54c44cfb3dce0ab8d2f6dfe7",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-program-1440.png",
+      "bytes": 163887,
+      "sha256": "2f03a97a0fcb16180918ccdc084fec8637bb01c7d7816ca6e482ff37a1d07afb",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-program-320.png",
+      "bytes": 61307,
+      "sha256": "2917617669701f40a6767869a4ab4e1bbf3637f2c5c7585961ddbbff145b93a4",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/editor-program-390.png",
+      "bytes": 63964,
+      "sha256": "1f15074d53c7fe8b3d18723dbdcfec86d31ff91e82db97db4a5019e467ce42c4",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-after-contact-1440.png",
+      "bytes": 125037,
+      "sha256": "c6cf2ba991b9eb1e4a48b8fd5ca9988af6109c76d91660b60d9f988a2da56f02",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-before-run-1440.png",
+      "bytes": 126355,
+      "sha256": "e67b2d0ced1e7a0e7197b8c0a5d6697aef0f495b129f812cdcd698124756e9dc",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-inspector-1024.png",
+      "bytes": 141491,
+      "sha256": "9408f557dc5d6c3d2f419e63e910fe034c024a6f94d9de577377c893a8b7d0e9",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-inspector-1440.png",
+      "bytes": 143525,
+      "sha256": "ed1a9e3eb265adb2ad6b9494fad98d7bb8a63c7eebfcb57b5337fdfacf39c4e1",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-inspector-390.png",
+      "bytes": 67706,
+      "sha256": "91b5caaa3b0531f060dccb7a84b08d98d34ae798275b8cbbe1e800ef54ce8f34",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-invalid-shrink-1024.png",
+      "bytes": 144299,
+      "sha256": "d229bc8bb7a8415bdfabdd9763bf04458a23889a14b236e90d3125631c0ab479",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-invalid-shrink-1440.png",
+      "bytes": 149807,
+      "sha256": "bdef52d662cc5065ecab29aa14613b7a53dccdbcae3cef4016a091e5d8c853c5",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-tools-1024.png",
+      "bytes": 141410,
+      "sha256": "d5548b1213f9ab57e00c760a4c694c9655da44e8d7301181fd0a17369ca368f3",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-tools-1440.png",
+      "bytes": 126696,
+      "sha256": "b9169b1c80a8add3fa177365aac5abda8bb84eef0a753ddcdeae2e968946f97b",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/field-v3-tools-390.png",
+      "bytes": 79970,
+      "sha256": "b97c51c66a95363778a8e7a1717d12773a43ac063364fc3bd74e6f4d28c84133",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/home-1024.png",
+      "bytes": 114343,
+      "sha256": "cb31b220a9d0305158bd738f0d2e82fffad87e1c06abd489cc858f42d840cec9",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/home-1440.png",
+      "bytes": 130477,
+      "sha256": "b2ccb87cd73cb00f5b208c5e83528f5e75d1e95aa2e6eedaaf86ee8de63b5fc8",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/home-320.png",
+      "bytes": 49929,
+      "sha256": "15ea48ec978688460f393e0457a2c8aa805e00aca152cbe742fcb75fe7e11603",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/home-390.png",
+      "bytes": 50945,
+      "sha256": "a84d44ee95240474ea2a502b76d43e4db478863639c6faede9c75537633dd635",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/lifecycle.json",
+      "bytes": 1595,
+      "sha256": "621f8eb48926082410544630792d979c7ad4b5a85ada8d5672cb5f21807c71f6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/my-projects-1024.png",
+      "bytes": 78080,
+      "sha256": "29e23ef1a34b98a7f71aee4de52da2f1ffeb7d4a430498f48c5ec393fde254eb",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/my-projects-1440.png",
+      "bytes": 85184,
+      "sha256": "aa423820475cfe61a96b453b4dcd8a2e0f352a0dfee0c378206c2eaebff348ac",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/my-projects-320.png",
+      "bytes": 40784,
+      "sha256": "2055547c4522487f3077905f1154558dfc1ef6562bfffd2034ab161b6c4eb219",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/my-projects-390.png",
+      "bytes": 37587,
+      "sha256": "702865ac32babb05b87c23480df3fd1fef02d7dc452f3e6cfc19c74cd3a7a2f6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/publication-1024.png",
+      "bytes": 58707,
+      "sha256": "12a1bf72158765be922bc9c0f1eb0da2fbf0ab8df951a5f7613cfc0b87884179",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/publication-1440.png",
+      "bytes": 54172,
+      "sha256": "a47bf605a2a50bbcedac0b71bc461a7715686ad8d8470059d43ebc6da5d6ccee",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/publication-320.png",
+      "bytes": 45714,
+      "sha256": "88e96464bb4062a38f5c94abaa8a4c15273bc9c34d9814da3057907f5a6a4214",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/publication-390.png",
+      "bytes": 48713,
+      "sha256": "3c4db599c277289a5edcc69b1691dc8ec8e3a2c817b9e714efc0db27168f2d41",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-home-1024.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-home-1440.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-home-320.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-home-390.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-my-projects-1024.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-my-projects-1440.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-my-projects-320.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/source-preview-my-projects-390.png",
+      "bytes": 26717,
+      "sha256": "960cccf8427461821defd1903429143cb0ea930f26567e30a2ee05770add8a92",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-assembly-1024.png",
+      "bytes": 108734,
+      "sha256": "c1f29aff3b893a85b1180b5e41b8bf2bf4a5f678c5b8c96fd4e3870b9263b92d",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-assembly-1440.png",
+      "bytes": 110972,
+      "sha256": "577a995b975038933322decb9746a3ad77a26103f63c21f20a2f6853d4253525",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-assembly-320.png",
+      "bytes": 60869,
+      "sha256": "9b927c86c945735e54786ef82f2fef3ee691d8894bdcdc0bc42de3bd43f1473b",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-assembly-390.png",
+      "bytes": 64668,
+      "sha256": "172351a96d8ff7b3a1558b461e648ebf7e5a1fc2ab5c0e7616e28b983e1aaaca",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-field-1024.png",
+      "bytes": 106747,
+      "sha256": "ac0df37069cfa3b5809cc013c2799f62e5f3c08c7644703d3c710f220883e546",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-field-1440.png",
+      "bytes": 109267,
+      "sha256": "b3778f7010c64e25a1b041ebb271535085b77150eb651c9b9c6e90ebcd8bfacb",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-field-320.png",
+      "bytes": 62403,
+      "sha256": "ce1a93f3c4a654d6d75f6208837572b846886cef09e897eb2674790d41e34390",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-projects/viewer-field-390.png",
+      "bytes": 65207,
+      "sha256": "fac4c075465703ee61abcb135f63c6f82ccd99589c996ddc96f467b82cd37995",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/editor-1024.png",
+      "bytes": 109084,
+      "sha256": "2392305c062206d83202a84de2a59568f75bb85c83a048cd2eb7046e0b97953c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/editor-1440.png",
+      "bytes": 122209,
+      "sha256": "d5f81a37a6879a7b12461a27b76f4f2dbc0e0e958ccd3207920f9eeb9c46bfab",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/editor-320.png",
+      "bytes": 40489,
+      "sha256": "cf37f4b8cf04d7bbec021f2339ad5972652ff4d80a5d10c59f36fe1eb6bb1ebf",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/editor-390.png",
+      "bytes": 45915,
+      "sha256": "250cc99780bb06077e32cc0ead1d00155c043814d8ebf495af1c2b25b00514bd",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/failure.png",
+      "bytes": 121588,
+      "sha256": "a887375e2dc1a8a9b02bf4c4cd6d57d35964f14e5280cf0930651aa182c15c7b",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/layout-audit.json",
+      "bytes": 2970,
+      "sha256": "04ac0d33ab88d3a82a1133ce10f5d015fbea69e306ebf9ca3280e2ce9762bc93",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/runbar-1024.png",
+      "bytes": 2953,
+      "sha256": "41880231d338304edbe9018f16b2e1228c6fcfe6920c21752cc94b09b3cb0d01",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/runbar-1440.png",
+      "bytes": 2959,
+      "sha256": "1c4af33671eae7df8db40f99dc76cd16cc09437068c3fbd7d0a098b5ff5d9aaa",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/runbar-320.png",
+      "bytes": 3048,
+      "sha256": "9b3e0fb8f6868907f01493c08217f480b8af8a3bacfb7936d353bce731b25e37",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/runbar-390.png",
+      "bytes": 3036,
+      "sha256": "f148d2d9065ff7dc9e90be3ec82cf4658b3163c3e826da95906ece310a4a2358",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/runbar-paused-1440.png",
+      "bytes": 3433,
+      "sha256": "5f8d2c66af70a5ba771432c6a10c112e41d517b73168bed2157eb79a1c9ad1f6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/runbar-running-1440.png",
+      "bytes": 2904,
+      "sha256": "e87ee01123f728d99102362a9406f02d85b492691294ae951a28d917f0fb7b1d",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-run-compact-002/speed-10x.png",
+      "bytes": 7309,
+      "sha256": "f24e62df9a226551c40bc26a70254622a603967a157a9ae1df1cd3a2507138d3",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/electronics-1440.png",
+      "bytes": 189249,
+      "sha256": "fb453b38dd48a3bf8c6dd56cf78d8d30401bd81839f6f2843d3f19c27580abc2",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/electronics-1728.png",
+      "bytes": 236483,
+      "sha256": "24147a71fe7bc9cd9bedfc270ec105d1383fe0f240136aee73c01185438df8a6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/electronics-390.png",
+      "bytes": 65595,
+      "sha256": "46f79a40b85b457725a69e658d2dc62253ead95abc5154ee8f11f3728a794f11",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/failure.png",
+      "bytes": 105650,
+      "sha256": "f1a111582e470d75a2fe010c585d1a8da1987396684f7e793cbc80a6dfd46208",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/field-1440.png",
+      "bytes": 121972,
+      "sha256": "f114a9d4e60b3c849a73b93d0b2f090ff65a6cdb455c098a3e2b2e9cc77d5d3e",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/field-1728.png",
+      "bytes": 133646,
+      "sha256": "e153e20ed7ba6758a3782ca4a6587590947d48e0f76bba66bfee3fbea5efb809",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/field-390.png",
+      "bytes": 33519,
+      "sha256": "edc27f1a44f515a86247a2476f830c2e5e0f2232430b17799dc89cab8591af87",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/measurements.json",
+      "bytes": 8927,
+      "sha256": "c9e1c9fe72bfc39ea93d0f693f7d4c22bb705bdde122866f25dbac98a8c9f30c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/program-1440.png",
+      "bytes": 175045,
+      "sha256": "3a085c37228752cbe46b51559639200f6a08b0fe76b7b7befb44c2925132d40c",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/program-1728.png",
+      "bytes": 178555,
+      "sha256": "b7c3f7140c6c6706108147cf1721120be8cdbf3a16552d1bf90fbea185756aba",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/program-390.png",
+      "bytes": 58225,
+      "sha256": "b159b5a0198850b4400761c34a92355485b9a8e7e50c9090a1b1a5e7f29084fb",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/robot-1440.png",
+      "bytes": 302549,
+      "sha256": "54fc4f575c8d80e858fe52f8d8410745793241fc2402654016459a5a6b173ba6",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/robot-1728.png",
+      "bytes": 357620,
+      "sha256": "f7f6668c1bfa17a48dc0e6c0eae5f21eee80a90d3e73498e91f3b136f08317b9",
+      "kind": "untracked-evidence"
+    },
+    {
+      "path": "e2e/artifacts/robotics-toolbars-one-row-006/robot-390.png",
+      "bytes": 74795,
+      "sha256": "6a0b1671ee754c9dc226ca565a5cd9d377d0cd30bd762acc668fd8f568ae5a52",
+      "kind": "untracked-evidence"
+    }
+  ],
+  "checkpoint": {
+    "branch": "archive/robotics-4630-e0-20261111",
+    "sha": "92fb87c2490cdeac97d291de4080765cf0ca7443",
+    "parent": "d4ed560647e9f7f38724f202168d88a6ad29ec42",
+    "url": "https://github.com/spikeal8-maker/asa-lab/tree/archive/robotics-4630-e0-20261111",
+    "source_readback": "PASS",
+    "changed_paths": [
+      "e2e/robotics-projects.spec.ts"
+    ],
+    "acceptance": "PRESERVATION_ONLY_NOT_TESTED",
+    "bundle_requires_main_ancestors": true
+  },
+  "baseline_browser": {
+    "observed_at": "2026-11-10T21:10:00.829Z",
+    "scope": "read-only isolated browser context; dev entry, not owner account acceptance",
+    "pageErrors": [],
+    "failedRequests": [],
+    "screens": [
+      {
+        "width": 1440,
+        "height": 900,
+        "http": 200,
+        "tabs": [
+          "Поле",
+          "Робот",
+          "Электроника",
+          "Код"
+        ],
+        "fieldSvgCount": 2,
+        "startZoneCount": 1,
+        "screenshotSha256": "c19de52732c59d3c4f91f5aeac9ef4c5e3ce033210a037c3fa38f6837c6249b9"
+      },
+      {
+        "width": 390,
+        "height": 844,
+        "http": 200,
+        "tabs": [
+          "Поле",
+          "Робот",
+          "Электроника",
+          "Код"
+        ],
+        "fieldSvgCount": 2,
+        "startZoneCount": 1,
+        "screenshotSha256": "4f56359673159a95e6af725c3558e3e13f1d5ecfb484340ab4938bf8399f18f7"
+      }
+    ],
+    "apiReadyHttp": 200,
+    "verdict": "PASS"
+  },
+  "note": "Source preservation and read-only dev-entry smoke only. No user account flow, physical qualification, deployment or database backup was performed. Raw screenshot/JSON archive remains local, not republished publicly."
+}

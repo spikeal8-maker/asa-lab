@@ -1,7 +1,9 @@
 """Immutable selection transport/continuation; all Docker/Git/CI calls are fakes."""
 import contextlib
+import datetime as dt
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -25,6 +27,57 @@ def manifest():
                 images={s: REGISTRY+'/'+s+'@sha256:'+'b'*64 for s in SERVICES})
 
 
+class OffsitePolicyTests(unittest.TestCase):
+    def test_implicit_update_rereads_selection_after_lock_instead_of_reviving_cancelled_digest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            state = root / '.asa'
+            state.mkdir()
+            source = state / 'release-selection.json'
+            manager.private_atomic_json(source, manager.selection_record(DIGEST, manifest()))
+            install = SimpleNamespace(root=root, state=state, settings={})
+
+            @contextlib.contextmanager
+            def lock_after_cancel(_root):
+                source.rename(state / 'cancelled-test.json')
+                yield
+
+            with patch.object(manager, 'Installation', return_value=install),                     patch.object(manager, 'operation_lock', side_effect=lock_after_cancel),                     patch.object(manager, 'update') as update:
+                self.assertEqual(manager.main(['update', '--root', str(root), '--profile', 'production']), 0)
+            update.assert_called_once_with(install, check=False, scheduled=False)
+
+    def test_update_reads_policy_again_after_taking_operation_lock(self):
+        root = Path.cwd()
+        original = SimpleNamespace(root=root, settings={})
+        configured = SimpleNamespace(root=root, settings={'updatePolicy': {'receipt': '/receipt'}})
+        with patch.object(manager, 'Installation', side_effect=[original, configured]), \
+                patch.object(manager, 'resolve_selection', return_value=(None, None)), \
+                patch.object(manager, 'operation_lock', return_value=contextlib.nullcontext()), \
+                patch.object(manager, 'update') as update:
+            self.assertEqual(manager.main(['update', '--root', str(root), '--profile', 'production']), 0)
+        update.assert_called_once_with(configured, check=False, scheduled=False)
+
+    @unittest.skipUnless(os.name == 'posix' and os.geteuid() == 0, 'School receipt paths must be owned by root')
+    def test_only_fresh_full_receipt_for_the_current_release_passes(self):
+        current = {'revision': 'a' * 40, 'schema': 308}
+        now = dt.datetime.now(dt.timezone.utc)
+        receipt = {**current, 'format': 'asa-school-gfs-receipt-v1', 'kind': 'full', 'encrypted': 'age',
+                   'runtimeSource': 'verified-manifest',
+                   'createdAt': now.isoformat(), 'remoteFullReadbackSha256': True, 'remote': {'daily-full': {}}}
+        with tempfile.TemporaryDirectory(dir='/root') as folder:
+            path = Path(folder) / 'latest-full.json'
+            policy = {'receipt': str(path)}
+            path.write_text(json.dumps(receipt), encoding='utf-8')
+            path.chmod(0o600)
+            manager.verify_offsite_backup(policy, current)
+            for change in ({'schema': 307}, {'revision': 'b' * 40}, {'kind': 'hourly'}, {'remote': {}}, {'runtimeSource': None},
+                           {'remoteFullReadbackSha256': False}, {'createdAt': (now - dt.timedelta(hours=37)).isoformat()}):
+                with self.subTest(change=change), self.assertRaises(Blocked) as error:
+                    path.write_text(json.dumps({**receipt, **change}), encoding='utf-8')
+                    manager.verify_offsite_backup(policy, current)
+                self.assertEqual(error.exception.code, 'OFFSITE_BACKUP')
+
+
 class Transport:
     def __init__(self, payload=None, digests=None):
         self.payload = manifest() if payload is None else payload
@@ -43,6 +96,15 @@ class Transport:
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_operator_pins_the_digest_reported_by_the_stable_pull(self):
+        with patch.object(releases, 'run', return_value=f"Digest: {DIGEST}\nStatus: Downloaded") as run:
+            self.assertEqual(releases.published_deployment_digest(), DIGEST)
+            run.assert_called_once_with(['docker', 'pull', REGISTRY+'/deployment:stable'], capture=True)
+        for receipt in ('Status: Downloaded', f'Digest: {DIGEST}\nDigest: {DIGEST}'):
+            with self.subTest(receipt=receipt), patch.object(releases, 'run', return_value=receipt):
+                with self.assertRaisesRegex(Blocked, 'unique digest'):
+                    releases.published_deployment_digest()
+
     def test_exact_reference_and_local_id_pinned_before_extraction(self):
         transport = Transport()
         with patch.object(releases, 'run', side_effect=transport), contextlib.redirect_stdout(io.StringIO()):
@@ -104,6 +166,86 @@ class ContinuationTests(unittest.TestCase):
         self.install.state.mkdir(exist_ok=True)
         manager.private_atomic_json(self.install.state/'release-selection.json',manager.selection_record(DIGEST,manifest()))
 
+    def test_cancel_archives_only_matching_selection_on_the_running_release(self):
+        self.save_pending()
+        source = self.install.state / 'release-selection.json'
+        saved = source.read_bytes()
+        self.install.settings.update(profile='production')
+        self.install.identity = Mock(return_value={})
+        installed = {**manifest(), 'revision': self.current, 'schema': 286}
+        (self.install.state / 'installed-release.json').write_text(json.dumps(installed))
+        with (patch.object(manager, 'os', wraps=manager.os) as platform,
+              patch.object(manager.application_rollback, 'attest_private_state'),
+              patch.object(manager.application_rollback, 'guard_acknowledge'),
+              patch.object(manager, 'sync_selection'),
+              patch.object(manager, 'verify_running_release') as verify,
+              contextlib.redirect_stdout(io.StringIO())):
+            platform.name = 'posix'
+            platform.geteuid = Mock(return_value=0)
+            with self.assertRaisesRegex(Blocked, 'digest'):
+                manager.cancel_update_before_switch(self.install, 'sha256:' + 'e' * 64)
+            self.assertEqual(source.read_bytes(), saved)
+            marker = self.install.state / 'maintenance.json'
+            marker.touch()
+            with self.assertRaises(Blocked) as started:
+                manager.cancel_update_before_switch(self.install, DIGEST)
+            self.assertEqual(started.exception.code, 'MAINTENANCE')
+            self.assertEqual(source.read_bytes(), saved)
+            marker.unlink()
+            self.current = 'e' * 40
+            with self.assertRaises(Blocked) as wrong_checkout:
+                manager.cancel_update_before_switch(self.install, DIGEST)
+            self.assertEqual(wrong_checkout.exception.code, 'RELEASE_SOURCE')
+            self.current = installed['revision']
+            manager.cancel_update_before_switch(self.install, DIGEST)
+        self.assertFalse(source.exists())
+        archived, = self.install.state.glob('cancelled-release-selection-*.json')
+        self.assertEqual(archived.read_bytes(), saved)
+        self.install.readiness.assert_called_once_with(installed['revision'], installed['schema'])
+        verify.assert_called_once_with(self.install, installed)
+
+    def test_operator_resumes_only_the_saved_digest_after_source_switch(self):
+        def first_update(*args, **kwargs):
+            if not manager.pending_selection(self.install):
+                self.save_pending()
+                raise Blocked('RETRY_NEW_MANAGER', 'source changed', 'use the same digest')
+
+        with patch.object(manager.release_transport, 'published_deployment_digest', return_value=DIGEST) as select, \
+                patch.object(manager, 'update', side_effect=first_update) as update, \
+                patch.object(manager, 'Installation', return_value=self.install) as reload, contextlib.redirect_stdout(io.StringIO()):
+            manager.run_operator(self.install, 'update', None)
+        select.assert_called_once_with()
+        reload.assert_called_once_with(self.root, self.install.profile)
+        self.assertEqual(update.call_count, 2)
+        for call in update.call_args_list:
+            self.assertEqual(call.kwargs, dict(check=False, deployment_digest=DIGEST, operator=True))
+
+    def test_operator_never_retries_failed_ci_or_a_changed_pin(self):
+        with patch.object(manager, 'update', side_effect=Blocked(
+                'CI_BLOCKED', 'blocked', 'inspect the cause')) as update:
+            with self.assertRaises(Blocked) as denied:
+                manager.run_operator(self.install, 'update', DIGEST)
+            self.assertEqual(denied.exception.code, 'CI_BLOCKED')
+            update.assert_called_once()
+
+        def changed_pin(*args, **kwargs):
+            self.save_pending()
+            raise Blocked('RETRY_NEW_MANAGER', 'source changed', 'inspect the saved release')
+
+        with patch.object(manager, 'update', side_effect=changed_pin) as update:
+            with self.assertRaises(Blocked) as denied:
+                manager.run_operator(self.install, 'update', 'sha256:' + 'e'*64)
+            self.assertEqual(denied.exception.code, 'RELEASE_SELECTION_PENDING')
+            update.assert_called_once()
+
+    def test_operator_uses_pending_selection_before_looking_at_stable(self):
+        self.save_pending()
+        with patch.object(manager.release_transport, 'published_deployment_digest') as select, \
+                patch.object(manager, 'update') as update:
+            manager.run_operator(self.install, 'check', None)
+        select.assert_not_called()
+        update.assert_called_once_with(self.install, check=True, deployment_digest=DIGEST, operator=True)
+
     def checked_update(self, transport, **kwargs):
         with patch.object(manager,'doctor') as doctor, patch.object(manager,'clean_checkout'), \
              patch.object(manager,'backup_directory'), patch.object(manager,'attest_editor_env'), \
@@ -111,6 +253,15 @@ class ContinuationTests(unittest.TestCase):
              patch.object(manager,'fetch_images') as images, contextlib.redirect_stdout(io.StringIO()):
             manager.update(self.install,check=True,**kwargs)
         doctor.assert_called_once(); ci.assert_called_once_with(transport.payload); images.assert_not_called()
+
+    def test_normal_school_check_accepts_a_new_schema_with_backup_without_return_preflight(self):
+        policy = {'receipt': '/receipt'}
+        self.install.settings['updatePolicy'] = policy
+        with patch.object(manager, 'verify_offsite_backup') as backup, \
+                patch.object(manager.application_rollback, 'prepare_candidate') as recovery:
+            self.checked_update(Transport(), deployment_digest=DIGEST, operator=True)
+        backup.assert_called_once_with(policy, self.install.readiness.return_value)
+        recovery.assert_not_called()
 
     def test_retry_checkpoint_written_before_switch_and_reused_with_fresh_ci(self):
         with patch.object(manager,'recovery_configuration',return_value={'synthetic':'old runtime'}), self.assertRaises(Blocked) as stopped:
@@ -203,6 +354,7 @@ class ContinuationTests(unittest.TestCase):
         with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'),patch.object(manager,'backup_directory'), \
              patch.object(manager,'attest_editor_env'),patch.object(releases,'run',side_effect=Transport()), \
              patch.object(manager,'assert_ci'),patch.object(manager,'verify_embedded_entry_http'), \
+             patch.object(manager,'collector_status',return_value={'state':'stale'}), \
              patch.object(manager,'prepare_collector',return_value={'readerGroupChanged':False}), \
              patch.object(manager,'Installation',return_value=self.install), \
              patch.object(manager,'reconcile_collector',side_effect=reconcile), \
@@ -210,6 +362,78 @@ class ContinuationTests(unittest.TestCase):
             self.install.env['ASA_UPDATE_ENTRY_ORIGIN']='https://example.test'
             manager.update(self.install)
         self.assertFalse(path.exists())
+
+    def test_installed_exact_no_change_does_not_consume_github_quota(self):
+        self.install.state.mkdir(exist_ok=True)
+        (self.install.state/'installed-release.json').write_text(json.dumps(manifest()),encoding='utf-8')
+        self.install.readiness.return_value=dict(revision='a'*40,schema=300)
+        self.install.identity=lambda: {name:{'image':reference} for name,reference in manifest()['images'].items()}
+        self.install.env['ASA_UPDATE_ENTRY_ORIGIN']='https://example.test'
+        with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'), \
+             patch.object(manager,'backup_directory'),patch.object(manager,'attest_editor_env'), \
+             patch.object(manager,'discover_release',return_value=manifest()), \
+             patch.object(manager,'collector_status',return_value={'state':'running'}), \
+             patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit','retry after quota reset')) as ci, \
+             patch.object(manager,'verify_embedded_entry_http') as verify_entry, \
+             patch.object(manager,'prepare_collector') as prepare, \
+             patch.object(manager,'Installation',return_value=self.install), \
+             patch.object(manager,'reconcile_collector') as reconcile, \
+             patch.object(manager,'fetch_images') as images, \
+             patch('deployment.operational.append_safely') as receipt, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            manager.update(self.install)
+        ci.assert_not_called()
+        images.assert_not_called()
+        verify_entry.assert_called_once_with('https://example.test','a'*40)
+        reconcile.assert_not_called()
+        prepare.assert_not_called()
+        receipt.assert_called_once()
+        self.assertIn('NO_CHANGE',output.getvalue())
+
+    def test_ci_unavailable_still_blocks_actual_changes_check_and_stale_collector(self):
+        self.install.state.mkdir(exist_ok=True)
+        (self.install.state/'installed-release.json').write_text(json.dumps(manifest()),encoding='utf-8')
+        self.install.readiness.return_value=dict(revision='a'*40,schema=300)
+        self.install.env['ASA_UPDATE_ENTRY_ORIGIN']='https://example.test'
+        for name,selected,collector,check in (
+            ('new_revision',{**manifest(),'revision':'b'*40},'running',False),
+            ('modified_manifest',{**manifest(),'publicationRunId':124},'running',False),
+            ('check_requires_fresh_ci',manifest(),'running',True),
+            ('stale_collector',manifest(),'stale',False),
+        ):
+            with self.subTest(name=name),patch.object(manager,'doctor'), \
+                 patch.object(manager,'clean_checkout'),patch.object(manager,'backup_directory'), \
+                 patch.object(manager,'attest_editor_env'), \
+                 patch.object(manager,'discover_release',return_value=selected), \
+                 patch.object(manager,'collector_status',return_value={'state':collector}), \
+                 patch.object(manager,'assert_ci',side_effect=Blocked('CI_UNAVAILABLE','rate limit','retry after quota reset')) as ci, \
+                 patch.object(manager,'prepare_collector') as prepare, \
+                 patch.object(manager,'fetch_images') as images, \
+                 contextlib.redirect_stdout(io.StringIO()),self.assertRaises(Blocked) as denied:
+                manager.update(self.install,check=check)
+            self.assertEqual(denied.exception.code,'CI_UNAVAILABLE')
+            ci.assert_called_once_with(selected)
+            prepare.assert_not_called()
+            images.assert_not_called()
+
+    def test_installed_same_source_with_image_drift_never_reports_no_change(self):
+        self.install.state.mkdir(exist_ok=True)
+        (self.install.state/'installed-release.json').write_text(json.dumps(manifest()),encoding='utf-8')
+        self.install.readiness.return_value=dict(revision='a'*40,schema=300)
+        self.install.identity=lambda: {name:{'image':'untrusted-image'} for name in manifest()['images']}
+        with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'), \
+             patch.object(manager,'backup_directory'),patch.object(manager,'attest_editor_env'), \
+             patch.object(manager,'discover_release',return_value=manifest()), \
+             patch.object(manager,'collector_status',return_value={'state':'running'}), \
+             patch.object(manager,'assert_ci') as ci, \
+             patch.object(manager,'prepare_collector') as prepare, \
+             patch.object(manager,'fetch_images') as images, \
+             contextlib.redirect_stdout(io.StringIO()),self.assertRaises(Blocked) as denied:
+            manager.update(self.install)
+        self.assertEqual(denied.exception.code,'IMAGE_DRIFT')
+        ci.assert_not_called()
+        prepare.assert_not_called()
+        images.assert_not_called()
 
     def test_cli_pending_adapter_conflict_precedes_lock_and_collector_changes(self):
         self.save_pending()

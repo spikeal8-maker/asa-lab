@@ -188,6 +188,20 @@ export class ClassroomParticipantsController {
     ])) as { submittedCount: number; awaitingReview: number };
     return this.withHelperClasses(data, actor, classId, seatId);
   }
+  @Get('classrooms/:classId/participants/:seatId/merit-history')
+  async meritHistory(
+    @Req() request: FastifyRequest,
+    @Param('classId') classId: string,
+    @Param('seatId') seatId: string,
+    @Query('offset') offset: string | undefined,
+  ) {
+    return this.read('classroom_participant_merit_history', [
+      await this.account(request),
+      this.uuid(classId),
+      this.uuid(seatId),
+      this.pageOffset(offset),
+    ]);
+  }
   @Get('classrooms/:classId/participants/staff/:accountId')
   async staff(
     @Req() request: FastifyRequest,
@@ -350,6 +364,7 @@ export class ClassroomParticipantsController {
         'settings',
         'role',
         'merit',
+        'merit_update',
         'merit_grant',
         'builtin_grant',
         'avatar',
@@ -382,12 +397,14 @@ export class ClassroomParticipantsController {
         );
       }
     }
-    const data = (await this.read('classroom_participant_write', [
-      actor,
-      classId,
-      action,
-      JSON.stringify(input),
-    ])) as { error?: string };
+    const data = (await this.read(
+      action === 'merit_update'
+        ? 'classroom_participant_merit_update'
+        : 'classroom_participant_write',
+      action === 'merit_update'
+        ? [actor, classId, JSON.stringify(input)]
+        : [actor, classId, action, JSON.stringify(input)],
+    )) as { error?: string };
     if (data.error) {
       const code = data.error;
       fail(
@@ -468,6 +485,19 @@ export class ClassroomParticipantsController {
       seat.seatId,
     ]);
     return this.withHelperClasses(data, seat.principalId, seat.classroomId, seat.seatId);
+  }
+  @Get('class-join/participants/merit-history')
+  async seatMeritHistory(
+    @Req() request: FastifyRequest,
+    @Query('offset') offset: string | undefined,
+  ) {
+    const seat = await this.seat(request);
+    return this.read('classroom_participant_merit_history', [
+      seat.principalId,
+      seat.classroomId,
+      seat.seatId,
+      this.pageOffset(offset),
+    ]);
   }
   private async image(
     reply: FastifyReply,

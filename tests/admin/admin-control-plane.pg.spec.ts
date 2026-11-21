@@ -136,6 +136,279 @@ afterAll(async () => {
 });
 
 describe('Administrative Control Plane PostgreSQL isolation', () => {
+  it('counts event-time attendance across Moscow midnight and separates logins from created seats', async () => {
+    const attendanceAdmin = await seedPrincipal({
+      label: 'attendance-school-admin',
+      workspaceKind: 'organization',
+      role: 'school_admin',
+    });
+    const otherAttendanceAdmin = await seedPrincipal({
+      label: 'attendance-other-school-admin',
+      workspaceKind: 'organization',
+      role: 'school_admin',
+    });
+    const attendanceAccount = await seedPrincipal({
+      label: 'attendance-account',
+      workspaceKind: 'personal',
+      role: 'owner',
+    });
+    const occupied = randomUUID();
+    const createdOnly = randomUUID();
+    const seatPrincipal = randomUUID();
+    await admin.query(
+      `WITH school AS (
+         INSERT INTO schools(tenant_id,title) VALUES ($1,'Attendance fixture') RETURNING id
+       ), period AS (
+         INSERT INTO academic_periods(tenant_id,school_id,title,starts_on,ends_on)
+         SELECT $1,id,'Attendance period','2026-01-01','2026-12-31' FROM school RETURNING id
+       ), teacher AS (
+         INSERT INTO users(tenant_id,school_id,role,email,display_name,password_hash)
+         SELECT $1,id,'teacher',$2,'Attendance teacher','fixture' FROM school RETURNING id
+       ), room AS (
+         INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by)
+         SELECT $1,school.id,period.id,'Attendance class',teacher.id
+         FROM school,period,teacher RETURNING id
+       )
+       INSERT INTO classroom_student_seats
+         (id,tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,status,created_by,created_at)
+       SELECT seat.id,$1,room.id,seat.label,replace(seat.id::text,'-',''),replace(seat.id::text,'-',''),
+              'active',teacher.id,'2026-06-01T21:05:00Z'
+       FROM room,teacher,(VALUES ($3::uuid,'Used'),($4::uuid,'Created only')) seat(id,label)`,
+      [attendanceAdmin.tenantId, `${randomUUID()}@attendance.test`, occupied, createdOnly],
+    );
+    await admin.query("INSERT INTO principals(id,kind,seat_id) VALUES($1,'student_seat',$2)", [
+      seatPrincipal,
+      occupied,
+    ]);
+    await admin.query(
+      `INSERT INTO product_analytics_events
+         (occurred_at,actor_kind,account_id,seat_id,workspace_id,tenant_id,event_type,outcome,auth_method,principal_id)
+       VALUES
+         ('2026-06-01T20:55:00Z','account',$11,NULL,$2,$3,'visit.observed','succeeded',NULL,$12),
+         ('2026-06-01T21:15:00Z','account',$1,NULL,$2,$3,'session.observed','succeeded',NULL,$8),
+         ('2026-06-01T22:15:00Z','account',$1,NULL,$2,$3,'visit.observed','succeeded',NULL,$8),
+         ('2026-06-01T21:30:00Z','account',$5,NULL,$6,$7,'visit.observed','succeeded',NULL,$9),
+         ('2026-06-01T21:10:00Z','student',NULL,$4,NULL,$3,'auth.class_join','succeeded','class_code',$10),
+         ('2026-06-01T21:20:00Z','student',NULL,$4,NULL,$3,'auth.class_join','failed','class_code',$10),
+         ('2026-06-01T22:10:00Z','student',NULL,$4,NULL,$3,'auth.class_join','succeeded','class_code',$10)`,
+      [
+        attendanceAdmin.accountId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
+        occupied,
+        otherAttendanceAdmin.accountId,
+        otherAttendanceAdmin.workspaceId,
+        otherAttendanceAdmin.tenantId,
+        attendanceAdmin.principalId,
+        otherAttendanceAdmin.principalId,
+        seatPrincipal,
+        attendanceAccount.accountId,
+        attendanceAccount.principalId,
+      ],
+    );
+    const dashboard = (
+      from: string,
+      actor = attendanceAdmin.principalId,
+      bucketSeconds = 3600,
+      to = '2026-06-01T23:00:00Z',
+    ) =>
+      runtime.query<{ payload: Record<string, unknown> }>(
+        `SELECT admin_get_product_dashboard_v3($1,'organization',$2,$3,$4,$5) AS payload`,
+        [actor, attendanceAdmin.workspaceId, from, to, bucketSeconds],
+      );
+    const full = (await dashboard('2026-06-01T20:00:00Z')).rows[0]?.payload;
+    const today = {
+      from: '2026-06-01T21:00:00+00:00',
+      activeAccounts: 1,
+      activeStudents: 1,
+      studentLogins: 2,
+      newStudents: 2,
+    };
+    expect(full).toMatchObject({
+      todayMsk: today,
+      timeline: [
+        { activeAccounts: 1, activeStudents: 0, studentLogins: 0, newStudents: 0 },
+        { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 2 },
+        { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 0 },
+      ],
+    });
+    expect((await dashboard('2026-06-01T22:00:00Z')).rows[0]?.payload).toMatchObject({
+      todayMsk: today,
+      summary: { activeAccounts: 1, activeStudents: 1, studentLogins: 1, newStudents: 0 },
+    });
+    const year = (await dashboard('2025-06-01T23:00:00Z', attendanceAdmin.principalId, 7 * 86400))
+      .rows[0]?.payload;
+    const lastDay = { at: '2026-05-31T23:00:00+00:00' };
+    expect(year?.['timeline']).toHaveLength(53);
+    expect((year?.['timeline'] as Array<unknown>).at(-1)).toMatchObject({
+      ...lastDay,
+      activeAccounts: 2,
+      activeStudents: 1,
+      studentLogins: 2,
+      newStudents: 2,
+    });
+    for (const series of ['modules', 'loginMethods', 'actions']) {
+      expect(year?.[series]).toEqual(expect.arrayContaining([expect.objectContaining(lastDay)]));
+    }
+    await expect(
+      dashboard('2026-06-01T20:00:00Z', otherAttendanceAdmin.principalId),
+    ).rejects.toMatchObject({
+      code: '42501',
+    });
+
+    await admin.query(
+      `INSERT INTO product_analytics_events
+         (occurred_at,actor_kind,account_id,workspace_id,tenant_id,event_type,outcome,auth_method,principal_id,ip_address,network_kind)
+       VALUES
+         ('2026-06-01T20:10:00Z','account',$1,$2,$3,'auth.login','succeeded','password',$4,'192.0.2.9','public'),
+         ('2026-06-01T22:58:00Z','account',$1,$2,$3,'auth.telegram','succeeded','telegram',$4,'192.0.2.1','public'),
+         ('2026-06-01T23:01:00Z','account',$1,$2,$3,'auth.login','succeeded','password',$4,'192.0.2.2','public')`,
+      [
+        attendanceAdmin.accountId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
+        attendanceAdmin.principalId,
+      ],
+    );
+    const electronics = randomUUID();
+    const checkers = randomUUID();
+    const electronicsTab = randomUUID();
+    const checkersTab = randomUUID();
+    await admin.query(
+      `INSERT INTO projects
+         (id, tenant_id, module_key, title, status, owner_principal_id, project_scope)
+       VALUES ($1,$3,'electronics','Activity tab 1','active',$4,'personal'),
+              ($2,$3,'checkers','Activity tab 2','active',$4,'personal')`,
+      [electronics, checkers, attendanceAdmin.tenantId, attendanceAdmin.principalId],
+    );
+    await admin.query(
+      `INSERT INTO product_module_sessions
+         (id,actor_kind,account_id,principal_id,workspace_id,tenant_id,project_id,module_key,network_kind,started_at,last_seen_at)
+       VALUES
+         ($1,'account',$3,$4,$5,$6,$7,'electronics','proxy','2026-06-01T22:58:30Z','2026-06-01T23:00:00Z'),
+         ($2,'account',$3,$4,$5,$6,$8,'checkers','proxy','2026-06-01T22:59:30Z','2026-06-01T23:01:00Z')`,
+      [
+        electronicsTab,
+        checkersTab,
+        attendanceAdmin.accountId,
+        attendanceAdmin.principalId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
+        electronics,
+        checkers,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO product_module_activity_slices(session_id,started_at,ended_at,active_seconds)
+       VALUES ($1,'2026-06-01T22:58:30Z','2026-06-01T23:00:00Z',90),
+              ($2,'2026-06-01T22:59:30Z','2026-06-01T23:01:00Z',90)`,
+      [electronicsTab, checkersTab],
+    );
+    const operational = (actor: string) =>
+      runtime.query<{ payload: Record<string, unknown> }>(
+        `SELECT admin_get_operational_overview($1,'organization',$2,'2026-06-01T20:15:00Z','2026-06-01T23:05:00Z',3600)->'overview' AS payload`,
+        [actor, attendanceAdmin.workspaceId],
+      );
+    expect((await operational(attendanceAdmin.principalId)).rows[0]?.payload).toMatchObject({
+      points: [
+        { at: '2026-06-01T20:00:00+00:00', from: '2026-06-01T20:15:00+00:00', accountLogins: 0 },
+        { at: '2026-06-01T21:00:00+00:00', newStudents: 2, studentLogins: 1, studentSeconds: null },
+        { at: '2026-06-01T22:00:00+00:00', accountLogins: 1, accountSeconds: 90 },
+        {
+          at: '2026-06-01T23:00:00+00:00',
+          to: '2026-06-01T23:05:00+00:00',
+          accountLogins: 1,
+          accountSeconds: 60,
+        },
+      ],
+      loginMethods: expect.arrayContaining([
+        expect.objectContaining({ method: 'telegram', successfulLogins: 1 }),
+      ]),
+      modules: expect.arrayContaining([
+        expect.objectContaining({ moduleKey: 'electronics', launches: 1, activeSeconds: 90 }),
+        expect.objectContaining({ moduleKey: 'checkers', launches: 1, activeSeconds: 30 }),
+        expect.objectContaining({ moduleKey: 'checkers', launches: 0, activeSeconds: 60 }),
+      ]),
+      recentAccounts: 1,
+      recentStudents: 0,
+      network: { addresses: 2, resolvedEvents: 2, peopleWithMultipleAddresses: 1 },
+    });
+    await expect(operational(otherAttendanceAdmin.principalId)).rejects.toMatchObject({
+      code: '42501',
+    });
+
+    const activitySeatPrincipal = randomUUID();
+    const activityAccountSession = randomUUID();
+    const activitySeatSession = randomUUID();
+    const boundarySeatSession = randomUUID();
+    await admin.query("INSERT INTO principals(id,kind,seat_id) VALUES($1,'student_seat',$2)", [
+      activitySeatPrincipal,
+      createdOnly,
+    ]);
+    await admin.query(
+      `INSERT INTO product_module_sessions
+         (id,actor_kind,account_id,principal_id,seat_id,workspace_id,tenant_id,project_id,module_key,network_kind,started_at,last_seen_at)
+       VALUES
+         ($1,'account',$4,$5,NULL,$6,$7,$8,'electronics','proxy','2026-06-01T20:59:20Z','2026-06-01T23:00:30Z'),
+         ($2,'student',NULL,$9,$10,NULL,$7,$8,'electronics','proxy','2026-06-01T20:59:45Z','2026-06-01T23:00:15Z'),
+         ($3,'student',NULL,$11,$12,NULL,$7,$8,'electronics','proxy','2026-06-01T22:59:00Z','2026-06-01T23:00:00Z')`,
+      [
+        activityAccountSession,
+        activitySeatSession,
+        boundarySeatSession,
+        attendanceAccount.accountId,
+        attendanceAccount.principalId,
+        attendanceAdmin.workspaceId,
+        attendanceAdmin.tenantId,
+        electronics,
+        activitySeatPrincipal,
+        createdOnly,
+        seatPrincipal,
+        occupied,
+      ],
+    );
+    await admin.query(
+      `INSERT INTO product_module_activity_slices(session_id,started_at,ended_at,active_seconds)
+       VALUES ($1,'2026-06-01T20:59:20Z','2026-06-01T21:00:20Z',60),
+              ($1,'2026-06-01T22:59:30Z','2026-06-01T23:00:30Z',60),
+              ($2,'2026-06-01T20:59:45Z','2026-06-01T21:00:15Z',30),
+              ($2,'2026-06-01T22:59:45Z','2026-06-01T23:00:15Z',30),
+              ($3,'2026-06-01T22:59:00Z','2026-06-01T23:00:00Z',60)`,
+      [activityAccountSession, activitySeatSession, boundarySeatSession],
+    );
+    const withOngoingActivity = await dashboard(
+      '2026-06-01T22:00:00Z',
+      attendanceAdmin.principalId,
+      3600,
+      '2026-06-01T23:05:00Z',
+    );
+    expect(withOngoingActivity.rows[0]?.payload).toMatchObject({
+      todayMsk: { ...today, activeAccounts: 2, activeStudents: 2 },
+      summary: { activeAccounts: 2, activeStudents: 2, studentLogins: 1, newStudents: 0 },
+      timeline: [
+        { activeAccounts: 2, activeStudents: 2, studentLogins: 1 },
+        { activeAccounts: 2, activeStudents: 1, studentLogins: 0 },
+      ],
+    });
+    const atMoscowMidnight = await dashboard(
+      '2026-06-01T20:00:00Z',
+      attendanceAdmin.principalId,
+      3600,
+      '2026-06-01T21:00:00Z',
+    );
+    expect(atMoscowMidnight.rows[0]?.payload).toMatchObject({
+      todayMsk: {
+        from: today.from,
+        to: today.from,
+        activeAccounts: 0,
+        activeStudents: 0,
+        studentLogins: 0,
+        newStudents: 0,
+      },
+      summary: { activeAccounts: 2, activeStudents: 1, studentLogins: 0 },
+    });
+  });
+
   it('exposes only server-owned administrator scopes through the API', async () => {
     const granted = await inject(app, {
       method: 'GET',

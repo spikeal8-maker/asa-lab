@@ -30,6 +30,7 @@ let mode = 'text';
 const model = {
   id: 'qwen/test-vision@v1',
   name: 'Qwen test Vision',
+  created: Date.UTC(2026, 9, 1) / 1000,
   type: 'chat',
   architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] },
   endpoints: ['/api/v1/chat/completions'],
@@ -56,6 +57,13 @@ const upstream = vi.fn<typeof fetch>(async (url, init) => {
             type: 'stt',
             architecture: { input_modalities: ['audio'], output_modalities: ['text'] },
             endpoints: ['/api/v1/audio/transcriptions'],
+          },
+          {
+            id: 'video/test',
+            name: 'Video',
+            type: 'video',
+            architecture: { input_modalities: ['text'], output_modalities: ['video'] },
+            endpoints: ['/api/v1/media'],
           },
         ],
       }),
@@ -120,23 +128,32 @@ beforeAll(async () => {
 afterAll(async () => db?.close());
 it('keeps credentials private, imports only fixed-endpoint metadata, and requires an explicit connection selection', async () => {
   const c = await polza.refreshCatalog(actor);
-  expect(c.items).toHaveLength(3);
+  expect(c.items).toHaveLength(4);
   expect(c.items.every((m) => !m.selected)).toBe(true);
   expect(c.items.find((m) => m.id === 'polza/qwen/test-vision@v1')).toMatchObject({
     vision: true,
     tools: true,
     maxOutputTokens: 4096,
+    catalogMonth: '2026-10',
+  });
+  expect(c.items.find((m) => m.id === 'polza/video/test')).toMatchObject({
+    kind: 'video',
+    selected: false,
   });
   await expect(polza.catalog(owner)).rejects.toMatchObject({ status: 403 });
   await expect(runtime.query('SELECT * FROM ai_polza_models')).rejects.toBeTruthy();
   await expect(
-    polza.selectModels(actor, { version: c.version, ids: ['polza/stt/test'] }),
+    polza.selectModels(actor, { version: c.version, ids: ['polza/missing'] }),
   ).rejects.toMatchObject({ status: 400 });
-  const selected = await polza.selectModels(actor, {
-    version: c.version,
-    ids: ['polza/qwen/test-vision@v1'],
-  });
-  expect(selected.items.find((m) => m.id === 'polza/qwen/test-vision@v1')?.selected).toBe(true);
+  const ids = ['polza/qwen/test-vision@v1', 'polza/stt/test', 'polza/video/test'];
+  await polza.selectModels(actor, { version: c.version, ids });
+  const refreshed = await polza.refreshCatalog(actor);
+  expect(
+    refreshed.items
+      .filter((m) => m.selected)
+      .map((m) => m.id)
+      .sort(),
+  ).toEqual(ids.sort());
   const p = await chat.generationPolicy(actor);
   expect(p.models.find((m) => m.id === 'polza/qwen/test-vision@v1')).toMatchObject({
     ready: true,

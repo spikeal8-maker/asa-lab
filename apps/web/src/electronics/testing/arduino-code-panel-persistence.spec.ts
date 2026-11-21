@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument } from '../../api';
 import { readLocalProjectDraft } from '../../modules/project-local-draft';
-import { ArduinoCodePanel } from '../ArduinoCodePanel';
+import { ArduinoCodePanel, type ArduinoCodePanelHandle } from '../ArduinoCodePanel';
 import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
@@ -38,6 +38,8 @@ vi.mock('scratch-blocks', async (original) => {
       workspace.newBlock = (...args) =>
         Object.assign(create(...args), {
           getSvgRoot: () => null,
+          initSvg: () => undefined,
+          render: () => undefined,
           ...(injected.savedGeometry ? {} : { getRelativeToSurfaceXY: () => ({ x: 1000, y: 0 }) }),
         });
       Object.assign(workspace, {
@@ -116,6 +118,8 @@ let host: HTMLDivElement | null = null;
 let root: Root | null = null;
 let current: ReturnType<typeof useElectronicsWorkbench> | null = null;
 let stored: Map<string, SchematicDocument>;
+let exposeProgramHandle = false;
+const programHandle: { current: ArduinoCodePanelHandle | null } = { current: null };
 
 function controller() {
   if (!current) throw new Error('Controller has not rendered');
@@ -133,6 +137,7 @@ function Probe({ projectId }: { projectId: string }) {
         mobileHeightPercent: 60,
         onMobileHeightChange: () => undefined,
         onClose: () => undefined,
+        ...(exposeProgramHandle ? { programHandleRef: programHandle } : {}),
       })
     : null;
 }
@@ -231,6 +236,8 @@ afterEach(async () => {
   injected.workspace = null;
   injected.mounts = 0;
   injected.savedGeometry = false;
+  exposeProgramHandle = false;
+  programHandle.current = null;
 });
 
 describe('latest visible Arduino text is canonical before save or departure', () => {
@@ -342,7 +349,7 @@ function clickButton(label: string) {
 }
 function openInputSettings() {
   host!.querySelector<HTMLElement>('.arduino-mode-menu > summary')!.click();
-  clickButton('Настройки Arduino');
+  clickButton('Настройки блоков');
 }
 function inputPort(pin: string) {
   return host!.querySelector<HTMLInputElement>(`[aria-label="Входной порт ${pin}"]`)!;
@@ -433,25 +440,33 @@ describe('per-board Arduino input settings', () => {
     ).toEqual(saved);
   });
 
-  it('cancels drafts, restores focus, keeps text verbatim and saves independent board lists', async () => {
-    await prepare();
+  it('cancels drafts, restores focus and preserves independent block and text GPIO settings', async () => {
+    stubSvgSurface();
+    const initial = blockSettingsDocument();
+    const textBoard = initial.components.find((component) => component.id === 'uno-b')!;
+    textBoard.stateProperties!['arduinoInputPins'] = ['3'];
+    await prepare(initial);
     const before = controller().document;
+
     act(() => openInputSettings());
-    expect(host!.querySelector('[role="dialog"][aria-label="Настройки Arduino"]')).not.toBeNull();
-    act(() => inputPort('2').click());
+    expect(
+      host!.querySelector('[role="dialog"][aria-label="Настройки блоков — входные порты"]'),
+    ).not.toBeNull();
+    act(() => inputPort('A5').click());
     act(() => clickButton('Отмена'));
     expect(controller().document).toBe(before);
-    expect(document.activeElement?.textContent).toBe('Настройки Arduino');
+    expect(document.activeElement?.textContent).toBe('Настройки блоков');
     act(() => openInputSettings());
-    expect(inputPort('2').checked).toBe(false);
+    expect(inputPort('A5').checked).toBe(false);
     act(() => inputPort('A0').click());
     act(() => clickButton('Применить'));
     expect(controller().document?.components[0]!.stateProperties?.['arduinoInputPins']).toEqual([
       'A0',
     ]);
-    expect(controller().document?.components[0]!.stateProperties?.['arduinoSource']).toBe(
-      source('uno-a'),
+    expect(controller().document?.components[0]!.stateProperties?.['arduinoSource']).toContain(
+      'pinMode(A0, INPUT);',
     );
+
     act(() => controller().undo());
     act(() => openInputSettings());
     expect(inputPort('A0').checked).toBe(false);
@@ -462,22 +477,35 @@ describe('per-board Arduino input settings', () => {
     );
     act(() => controller().redo());
     act(() => switchBoard('uno-b'));
-    act(() => openInputSettings());
-    expect(inputPort('A0').checked).toBe(false);
-    act(() => inputPort('3').click());
-    act(() => clickButton('Применить'));
+
+    const modeMenu = host!.querySelector<HTMLElement>('.arduino-mode-menu > summary')!;
+    act(() => modeMenu.click());
+    expect(
+      [...host!.querySelectorAll('button')].some(
+        (button) => button.textContent?.trim() === 'Настройки блоков',
+      ),
+    ).toBe(false);
+    expect(
+      host!.querySelector('[role="dialog"][aria-label="Настройки блоков — входные порты"]'),
+    ).toBeNull();
+    expect(controller().document?.components[1]!.stateProperties?.['arduinoSource']).toBe(
+      source('uno-b'),
+    );
+    expect(controller().document?.components[1]!.stateProperties?.['arduinoInputPins']).toEqual([
+      '3',
+    ]);
+
     await act(async () => controller().saveNow());
     expect(
       stored
         .get('first')!
         .components.slice(0, 2)
-        .map((b) => b.stateProperties?.['arduinoInputPins']),
+        .map((board) => board.stateProperties?.['arduinoInputPins']),
     ).toEqual([['A0'], ['3']]);
     act(() => switchBoard('uno-a'));
     act(() => openInputSettings());
     expect(inputPort('A0').checked).toBe(true);
     act(() => clickButton('Отмена'));
-    expect(host!.querySelector<HTMLTextAreaElement>('textarea')!.value).toBe(source('uno-a'));
   });
 
   it('atomically changes generated modes and settings through Undo/Redo without remounting blocks', async () => {
@@ -692,5 +720,56 @@ describe('unchanged Arduino publication preserves canonical persistence state', 
     await act(async () => controller().saveNow());
     expect(save).toHaveBeenCalledTimes(1);
     expect(stored.get('first')).toEqual(expected);
+  });
+});
+
+describe('optional enclosing-host flush and explicit legacy mode replacement', () => {
+  it('publishes a live block edit and saves in the same event at t=0 without waiting for 180ms', async () => {
+    stubSvgSurface();
+    exposeProgramHandle = true;
+    const save = await prepare(blockSettingsDocument());
+    const live = injected.workspace as S.Workspace;
+    const pin = live.getBlocksByType('asa_digital_write', false)[0]!.getInputTargetBlock('PIN');
+    expect(pin).toBeTruthy();
+    const before = controller().document!.components[0]!.stateProperties!.arduinoSource;
+    await act(async () => {
+      pin!.setFieldValue('9', 'VALUE');
+      expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toBe(before);
+      programHandle.current!.flushPendingPublication();
+      expect(localDocument()!.components[0]!.stateProperties!.arduinoSource).toContain(
+        'digitalWrite(9,',
+      );
+      await controller().saveNow();
+    });
+    expect(Date.now()).toBe(0);
+    expect(save).toHaveBeenCalledOnce();
+    expect(stored.get('first')!.components[0]!.stateProperties!.arduinoSource).toContain(
+      'digitalWrite(9,',
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toContain(
+      'digitalWrite(9,',
+    );
+  });
+
+  it('keeps a text-only sketch through opening and cancellation, then replaces only after confirmation', async () => {
+    stubSvgSurface();
+    const legacy = normalizeLoadedDocument(fixtureDocument);
+    const properties = legacy.components[0]!.stateProperties!;
+    delete properties['arduinoWorkspace'];
+    const original = properties['arduinoSource'];
+    await prepare(legacy);
+    expect(injected.mounts).toBe(0);
+    act(() => clickButton('Блоки'));
+    expect(host!.textContent).toContain('Текущий текстовый код будет заменён стартовым примером');
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toBe(original);
+    act(() => clickButton('Отмена'));
+    expect(injected.mounts).toBe(0);
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).toBe(original);
+    act(() => clickButton('Блоки'));
+    act(() => clickButton('Продолжить'));
+    expect(injected.mounts).toBe(1);
+    expect(controller().document!.components[0]!.stateProperties!.arduinoCodeMode).toBe('blocks');
+    expect(controller().document!.components[0]!.stateProperties!.arduinoSource).not.toBe(original);
   });
 });

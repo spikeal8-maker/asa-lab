@@ -118,6 +118,7 @@ export type WorkbenchInspectorController = CommittedPresentationController &
     ElectronicsWorkbenchController,
     | 'beginReconnect'
     | 'diagnosticsByComponent'
+    | 'document'
     | 'libraryOpen'
     | 'removeSelection'
     | 'removeWireBends'

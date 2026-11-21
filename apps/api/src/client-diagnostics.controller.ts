@@ -22,7 +22,7 @@ const CODES = new Set([
   'editor_unresponsive',
   'editor_recovered',
 ]);
-const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth']);
+const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth', 'chess', 'checkers']);
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const CATEGORIES = [
   'unsupported',
@@ -88,6 +88,9 @@ export class ClientDiagnosticsController {
             'method',
             'clientAttemptId',
             'failureKind',
+            'repetitionCount',
+            'firstOccurredAt',
+            'lastOccurredAt',
           ].includes(key),
       ) ||
       (value['operation'] !== undefined &&
@@ -123,6 +126,21 @@ export class ClientDiagnosticsController {
         (!Number.isSafeInteger(value['occurredAt']) ||
           (value['occurredAt'] as number) < 0 ||
           (value['occurredAt'] as number) > 8_640_000_000_000_000)) ||
+      // Optional for legacy clients. An aggregate counts all occurrences, including the first.
+      (['repetitionCount', 'firstOccurredAt', 'lastOccurredAt'].some(
+        (key) => value[key] !== undefined,
+      ) &&
+        (typeof value['eventId'] !== 'string' ||
+          !Number.isSafeInteger(value['repetitionCount']) ||
+          (value['repetitionCount'] as number) < 1 ||
+          (value['repetitionCount'] as number) > 1_000_000 ||
+          !Number.isSafeInteger(value['firstOccurredAt']) ||
+          value['firstOccurredAt'] !== value['occurredAt'] ||
+          !Number.isSafeInteger(value['lastOccurredAt']) ||
+          (value['lastOccurredAt'] as number) < (value['firstOccurredAt'] as number) ||
+          (value['lastOccurredAt'] as number) > 8_640_000_000_000_000 ||
+          (value['lastOccurredAt'] as number) - (value['firstOccurredAt'] as number) >
+            15 * 60_000)) ||
       (value['category'] !== undefined && !CATEGORIES.includes(value['category'] as string)) ||
       (value['exception'] !== undefined &&
         !validClientException(value['exception'], value['code'])) ||

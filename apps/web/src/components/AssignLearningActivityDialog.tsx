@@ -5,22 +5,56 @@ import { assignmentDateTime } from '../learning/assignment-date-time';
 
 export function AssignLearningActivityDialog({
   classroomId,
+  preparedVersionId,
   onClose,
+  onCreate,
   onAssigned,
 }: {
   readonly classroomId: string;
+  readonly preparedVersionId: string | null;
   readonly onClose: () => void;
-  readonly onAssigned: (title: string, count: number) => void;
+  readonly onCreate: (draftId?: string) => void;
+  readonly onAssigned: (title: string, count: number, wholeClass: boolean) => void;
 }): JSX.Element {
   const [activities, setActivities] = useState<LearningAssignableActivity[] | null>(null);
   const [students, setStudents] = useState<ClassroomStudentSeat[] | null>(null);
-  const [activityVersionId, setActivityVersionId] = useState('');
+  const [activityVersionId, setActivityVersionId] = useState(preparedVersionId ?? '');
+  const [drafts, setDrafts] = useState<{ id: string; title: string }[]>([]);
+  const [draftError, setDraftError] = useState(false);
+  const [draftId, setDraftId] = useState('');
   const [audienceType, setAudienceType] = useState<'whole_class' | 'named_learners'>('whole_class');
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [dueAt, setDueAt] = useState('');
   const request = useRef<{ payload: string; id: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => closeButton.current?.focus(), []);
+  useEffect(() => {
+    if (preparedVersionId) return;
+    let active = true;
+    void api.authoredActivities().then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setDraftError(true);
+        return;
+      }
+      setDrafts(
+        result.data.items.filter(
+          (item) =>
+            item.currentPublishedVersionId === null &&
+            (item.kind === 'project' ||
+              item.kind === 'quiz' ||
+              item.kind === 'file' ||
+              item.kind === 'essay'),
+        ),
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [preparedVersionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,9 +71,6 @@ export function AssignLearningActivityDialog({
           ? roster.data.items.filter((student) => ['issued', 'active'].includes(student.status))
           : [],
       );
-      if (library.ok && library.data.items[0]) {
-        setActivityVersionId(library.data.items[0].versionId);
-      }
     });
     return () => {
       cancelled = true;
@@ -83,49 +114,119 @@ export function AssignLearningActivityDialog({
       setError(result.error.message || 'Не удалось назначить задание.');
       return;
     }
-    onAssigned(activity.title, result.data.assignedCount);
+    onAssigned(activity.title, result.data.assignedCount, audienceType === 'whole_class');
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="modal-backdrop" role="presentation" onMouseDown={busy ? undefined : onClose}>
       <section
         className="modal learning-assign-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="learning-assign-title"
         onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !busy) onClose();
+        }}
       >
         <header>
           <div>
             <h2 id="learning-assign-title">Назначить задание</h2>
-            <p>Выберите готовый материал, учеников и срок.</p>
+            <p>
+              {preparedVersionId
+                ? 'Выберите получателей и срок.'
+                : 'Создайте новое или выберите готовое задание для класса.'}
+            </p>
           </div>
-          <button type="button" className="modal-close" aria-label="Закрыть" onClick={onClose}>
+          <button
+            type="button"
+            ref={closeButton}
+            className="modal-close"
+            aria-label="Закрыть"
+            onClick={onClose}
+            disabled={busy}
+          >
             ×
           </button>
         </header>
+        {preparedVersionId ? null : (
+          <div className="classroom-assignment-issue">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => onCreate()}
+              disabled={busy}
+            >
+              Создать новое задание
+            </button>
+            {drafts.length > 0 ? (
+              <details>
+                <summary>Продолжить черновик</summary>
+                <label className="learning-assign-field">
+                  Черновик
+                  <select
+                    aria-label="Черновик"
+                    value={draftId}
+                    onChange={(event) => setDraftId(event.target.value)}
+                  >
+                    <option value="" disabled>
+                      Выберите черновик
+                    </option>
+                    {drafts.map((draft) => (
+                      <option key={draft.id} value={draft.id}>
+                        {draft.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={!draftId || busy}
+                  onClick={() => onCreate(draftId)}
+                >
+                  Открыть черновик
+                </button>
+              </details>
+            ) : null}
+            {draftError ? <p role="status">Черновики временно недоступны.</p> : null}
+          </div>
+        )}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         {activities === null || students === null ? (
           <p role="status">Загружаем материалы и класс…</p>
+        ) : preparedVersionId && !activity ? (
+          <p role="alert">Подготовленная версия недоступна. Вернитесь к редактору.</p>
         ) : activities.length === 0 ? (
           <div className="classroom-roster-empty">
-            <h3>Нет опубликованных заданий</h3>
-            <p>Сначала опубликуйте проект в разделе «Задания».</p>
+            <p>Готовых заданий пока нет. Создайте первое прямо здесь.</p>
           </div>
         ) : (
           <form onSubmit={(event) => void submit(event)}>
-            <label className="learning-assign-field">
-              <span>Задание</span>
-              <select
-                value={activityVersionId}
-                onChange={(event) => setActivityVersionId(event.target.value)}
-              >
-                {activities.map((entry) => (
-                  <option key={entry.versionId} value={entry.versionId}>
-                    {entry.title}
+            {preparedVersionId ? (
+              <strong>{activity?.title}</strong>
+            ) : (
+              <label className="learning-assign-field">
+                <span>Задание</span>
+                <select
+                  value={activityVersionId}
+                  onChange={(event) => setActivityVersionId(event.target.value)}
+                >
+                  <option value="" disabled>
+                    Выберите готовое задание
                   </option>
-                ))}
-              </select>
-            </label>
+                  {activities.map((entry) => (
+                    <option key={entry.versionId} value={entry.versionId}>
+                      {entry.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {activity?.instructions ? (
               <p className="learning-assign-preview">{activity.instructions}</p>
             ) : null}
@@ -182,14 +283,9 @@ export function AssignLearningActivityDialog({
                 Дата и время: {Intl.DateTimeFormat().resolvedOptions().timeZone}. Пусто — без срока.
               </small>
             </label>
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            ) : null}
             <footer>
-              <button type="button" className="btn-secondary" onClick={onClose}>
-                Отмена
+              <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+                {preparedVersionId ? 'К редактору' : 'Отмена'}
               </button>
               <button
                 type="submit"

@@ -11,7 +11,7 @@ const tools = TOOL_IDS.map((id) => ({ id, enabled: true, instructions: '' }));
 const valid = { schemaVersion: 1, expectedConfigurationVersion: 1, requestId, tools };
 
 describe('closed tool policy update', () => {
-  it('accepts exactly four unique tool rules and a bounded instruction', () => {
+  it('accepts exactly eight unique tool rules and a bounded instruction', () => {
     expect(validateToolPolicyUpdate(valid)).toMatchObject(valid);
     expect(
       validateToolPolicyUpdate({

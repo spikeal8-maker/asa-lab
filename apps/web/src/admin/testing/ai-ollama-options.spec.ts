@@ -69,7 +69,7 @@ it('discovers per-model modes inside the selected card and saves manual context 
     'select[aria-label="Режим размышления Ollama"]',
   )!;
   expect(select.value).toBe('xhigh');
-  expect(host.textContent).toContain('Сохранено: контекст 120000');
+  expect(host.querySelector('.asa-ai-ollama-reasoning')).toBeNull();
   expect(Array.from(select.options).map((v) => v.value)).toEqual([
     'default',
     'off',
@@ -83,10 +83,10 @@ it('discovers per-model modes inside the selected card and saves manual context 
     select.dispatchEvent(new Event('change', { bubbles: true }));
   });
   const context = host.querySelector<HTMLInputElement>('input[aria-label="Контекст, токенов"]')!;
-  expect(context.max).toBe('131072');
-  expect(host.querySelector('#asa-ollama-context-limit')?.textContent).toMatch(
-    /Максимум модели: 131\s072 токенов/,
+  expect(context.closest('.asa-ai-ollama-model-card')).toBe(
+    select.closest('.asa-ai-ollama-model-card'),
   );
+  expect(context.max).toBe('131072');
   context.value = '131073';
   expect(context.validity.rangeOverflow).toBe(true);
   await act(async () => {

@@ -1,8 +1,14 @@
+import {
+  AI_TOOL_IDS,
+  AI_TOOL_LABELS,
+  AI_TOOL_DEPENDENCIES,
+  type AiToolId,
+} from '@asa-lab/contracts';
 import type pg from 'pg';
 import type { NativeToolName } from './ai-native-tools.js';
 
-export const TOOL_IDS = ['weather', 'web_search', 'image_search', 'generate_image'] as const;
-export type ToolId = (typeof TOOL_IDS)[number];
+export const TOOL_IDS = AI_TOOL_IDS;
+export type ToolId = AiToolId;
 export interface ToolRule {
   readonly id: ToolId;
   readonly enabled: boolean;
@@ -30,7 +36,7 @@ export class AiToolPolicyError extends Error {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const defaults: readonly ToolRule[] = TOOL_IDS.map((id) => ({
   id,
-  enabled: true,
+  enabled: false,
   instructions: '',
 }));
 const fallback: ToolPolicy = { configurationVersion: 0, tools: defaults };
@@ -44,8 +50,51 @@ export const toolMetadata: Record<
     hardLimits: string[];
   }
 > = {
+  read_page: {
+    label: AI_TOOL_LABELS.read_page,
+    usageDescription:
+      'Читает публичную ссылку пользователя или выбранные страницы из выдачи. Разрешение задаётся отдельно от поиска.',
+    parameters: ['url: ссылка из сообщения либо sourceIds: выбранные источники'],
+    resultDescription: 'Извлечённый текст, источник и сведения о неполноте чтения.',
+    hardLimits: [
+      'Только публичный HTTPS, проверка адресов и перенаправлений.',
+      'Лимиты страниц и текста сохраняются; JavaScript сайта не выполняется.',
+    ],
+  },
+  create_working_file: {
+    label: AI_TOOL_LABELS.create_working_file,
+    usageDescription:
+      'Создаёт новый рабочий файл этого чата или сохраняет уже написанный блок кода.',
+    parameters: ['name и content либо name, sourceMessageId и blockIndex'],
+    resultDescription:
+      'Рабочий файл с первой версией и доступным предпросмотром для поддерживаемого формата.',
+    hardLimits: [
+      'Только собственный чат, разрешённые форматы и существующие лимиты размера.',
+      'Не предоставляет доступ к диску или запуск команд.',
+    ],
+  },
+  read_working_file: {
+    label: AI_TOOL_LABELS.read_working_file,
+    usageDescription: 'Читает существующий рабочий файл перед анализом или правкой.',
+    parameters: ['name и необязательная version'],
+    resultDescription: 'Содержимое конкретной версии собственного файла.',
+    hardLimits: [
+      'Проверка владельца и чата обязательна.',
+      'Не открывает все файлы пользователя или репозиторий.',
+    ],
+  },
+  edit_working_file: {
+    label: AI_TOOL_LABELS.edit_working_file,
+    usageDescription: 'Меняет уже созданный файл, сохраняя его идентичность и историю версий.',
+    parameters: ['name, expectedVersion, edits: пары oldText/newText'],
+    resultDescription: 'Новая версия того же файла либо явный конфликт.',
+    hardLimits: [
+      'До 12 однозначных замен, проверка ожидаемой версии.',
+      'Конфликт не перезаписывает чужое изменение; права проверяются перед вызовом.',
+    ],
+  },
   weather: {
-    label: 'Погода',
+    label: AI_TOOL_LABELS.weather,
     usageDescription:
       'В режиме «Авто» выбранная подключённая модель с поддержкой tools может запросить прогноз для города, названного пользователем, если политика, источник и лимит позволяют. При явном выборе «Погода» ASA подготавливает прогноз до ответа модели.',
     parameters: ['city: название города, до 100 символов'],
@@ -56,7 +105,7 @@ export const toolMetadata: Record<
     ],
   },
   web_search: {
-    label: 'Поиск в интернете',
+    label: AI_TOOL_LABELS.web_search,
     usageDescription:
       'В режиме «Авто» выбранная подключённая модель с поддержкой tools может искать свежие сведения, когда сервер разрешил инструмент и источник готов. При явном выборе интернет-поиска ASA подготавливает ссылки до ответа модели.',
     parameters: ['query: запрос, до 400 символов'],
@@ -69,7 +118,7 @@ export const toolMetadata: Record<
     ],
   },
   image_search: {
-    label: 'Поиск изображений',
+    label: AI_TOOL_LABELS.image_search,
     usageDescription:
       'В режиме «Авто» выбранная подключённая модель с поддержкой tools может искать уже существующие изображения. При явном выборе поиска изображений ASA подготавливает результаты до ответа модели; пиксели найденных картинок модель не видит.',
     parameters: ['query: запрос, до 400 символов'],
@@ -80,12 +129,12 @@ export const toolMetadata: Record<
     ],
   },
   generate_image: {
-    label: 'Создание изображения',
+    label: AI_TOOL_LABELS.generate_image,
     usageDescription:
       'В режиме «Авто» выбранная подключённая модель с поддержкой tools может создать новое изображение, если генератор готов, размер разрешён и дневной лимит не исчерпан. Явный выбор FLUX.2 Klein 4B создаёт отдельное задание с серверной проверкой; прежние пиксели не редактируются.',
     parameters: [
       'prompt: сцена, до 3000 символов',
-      'size: 512, 768 или 1024',
+      'size: разрешённый ID пресета с указанными шириной и высотой',
       'model: FLUX.2 Klein 4B',
     ],
     resultDescription: 'Сохранённое задание генерации изображения.',
@@ -108,7 +157,7 @@ export function validateToolPolicyUpdate(raw: unknown): ToolPolicyUpdate {
     typeof v.requestId !== 'string' ||
     !UUID.test(v.requestId) ||
     !Array.isArray(v.tools) ||
-    v.tools.length !== 4
+    v.tools.length !== TOOL_IDS.length
   )
     throw new AiToolPolicyError('ai_tool_policy_invalid', 400, 'Неверные настройки инструментов.');
   const ids = new Set<string>();
@@ -147,10 +196,31 @@ function policy(value: unknown): ToolPolicy {
       'Политика инструментов недоступна.',
     );
   const raw = value as { revision?: unknown; tools?: unknown };
+  if (Array.isArray(raw.tools) && raw.tools.length === 4) {
+    const legacy = raw.tools as ToolRule[];
+    const ids = new Set(legacy.map((item) => item?.id));
+    if (
+      ['weather', 'web_search', 'image_search', 'generate_image'].every((id) =>
+        ids.has(id as ToolId),
+      )
+    ) {
+      raw.tools = [
+        ...legacy,
+        {
+          id: 'read_page',
+          enabled: legacy.find((item) => item.id === 'web_search')?.enabled === true,
+          instructions: '',
+        },
+        ...(['create_working_file', 'read_working_file', 'edit_working_file'] as const).map(
+          (id) => ({ id, enabled: true, instructions: '' }),
+        ),
+      ];
+    }
+  }
   if (
     !Number.isSafeInteger(Number(raw.revision)) ||
     !Array.isArray(raw.tools) ||
-    raw.tools.length !== 4
+    raw.tools.length !== TOOL_IDS.length
   )
     throw new AiToolPolicyError(
       'ai_tool_policy_unavailable',
@@ -174,22 +244,19 @@ function policy(value: unknown): ToolPolicy {
   return { configurationVersion: Number(raw.revision), tools: TOOL_IDS.map((id) => byId.get(id)!) };
 }
 export function toolRule(p: ToolPolicy, id: NativeToolName): ToolRule {
-  if (id !== 'read_page' && !TOOL_IDS.includes(id as ToolId))
-    return { id: 'web_search', enabled: false, instructions: '' };
-  const policyId: ToolId = id === 'read_page' ? 'web_search' : (id as ToolId);
+  return p.tools.find((item) => item.id === id) ?? { id, enabled: false, instructions: '' };
+}
+export function toolEnabled(p: ToolPolicy, id: ToolId): boolean {
   return (
-    p.tools.find((item) => item.id === policyId) ?? {
-      id: policyId,
-      enabled: false,
-      instructions: '',
-    }
+    toolRule(p, id).enabled &&
+    AI_TOOL_DEPENDENCIES[id].every((dependency) => toolRule(p, dependency).enabled)
   );
 }
 export class AiToolPolicyService {
   constructor(private readonly pool: pg.Pool) {}
   async schemaReady(): Promise<boolean> {
     const r = await this.pool.query<{ ready: boolean }>(
-      "SELECT to_regprocedure('public.ai_tool_policy_runtime()') IS NOT NULL AS ready",
+      "SELECT to_regprocedure('public.ai_tool_policy_permit(uuid,uuid,uuid,text)') IS NOT NULL AS ready",
     );
     return r.rows[0]?.ready === true;
   }
@@ -244,8 +311,24 @@ export class AiToolPolicyService {
       throw error;
     }
   }
+  async assertAllowed(owner: string, thread: string, request: string, tool: ToolId): Promise<void> {
+    if (!(await this.allowed(owner, thread, request, tool)))
+      throw new AiToolPolicyError(
+        'ai_tool_disabled',
+        403,
+        'Инструмент недоступен для этого запроса.',
+      );
+  }
+  async allowed(owner: string, thread: string, request: string, tool: ToolId): Promise<boolean> {
+    if (!(await this.schemaReady())) return false;
+    const result = await this.pool.query<{ value: boolean }>(
+      'SELECT ai_tool_policy_permit($1,$2,$3,$4) AS value',
+      [owner, thread, request, tool],
+    );
+    return result.rows[0]?.value === true;
+  }
   async manualImageAllowed(owner: string, thread: string, request: string): Promise<boolean> {
-    if (!(await this.schemaReady())) return true;
+    if (!(await this.schemaReady())) return false;
     const r = await this.pool.query<{ value: boolean }>(
       'SELECT ai_tool_policy_image_permit($1,$2,$3) AS value',
       [owner, thread, request],

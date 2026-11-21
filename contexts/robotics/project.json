@@ -1,0 +1,18 @@
+{
+  "name": "robotics",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "contexts/robotics",
+  "tags": ["type:lib", "scope:core", "context:robotics"],
+  "targets": {
+    "build": {
+      "command": "tsc -p contexts/robotics/tsconfig.json"
+    },
+    "typecheck": {
+      "command": "tsc -p contexts/robotics/tsconfig.json --noEmit"
+    },
+    "lint": {
+      "command": "eslint contexts/robotics"
+    }
+  }
+}

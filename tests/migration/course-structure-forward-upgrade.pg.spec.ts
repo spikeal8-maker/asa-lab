@@ -174,6 +174,30 @@ describe('Course Builder structure forward upgrade', () => {
         '0302', // Private portal invitation notifications.
         '0303', // Owner-only publication editor resolution.
         '0304', // Russian-64 network matches reuse Games identity and policy.
+        '0305', // Robotics projects and authenticated module activity.
+        '0306', // Robotics in the existing immutable publication catalog.
+        '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+        '0308', // Independent eight-tool controls, preserving legacy snapshots.
+        '0309', // Written Course responses reuse the canonical academic chain.
+        '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+        '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+        '0313', // OpenAI Responses catalog admission.
+        '0314', // Polza video catalog category.
+        '0315', // Polza catalog selections and dates.
+        '0316', // Immutable learner file answers in class and Course assignments.
+        '0317', // Event-based admin attendance and Moscow calendar day.
+        '0318', // Operational overview with aligned Moscow intervals and measured activity.
+        '0319', // Function-local JIT at the measured canonical read boundaries.
+        '0320', // Authorized own progress summary; no identity or score writes.
+        '0321', // Qualified ordinary Account admission identity, preserving retained history.
+        '0322', // Learner-only group rating projection, retained Course history unchanged.
+        '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+        '0324', // Classroom merit history and revocation read (canonical main).
+        '0325', // Direct written assignments reuse the academic submission chain.
+        '0326', // Allow large PDF task attachments.
+        '0327', // Expand supported task attachment formats.
+        '0328', // Safe Mode blocks new publications and retroactive public reads.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -507,6 +531,30 @@ describe('Course Builder structure forward upgrade', () => {
           '0302', // Private portal invitation notifications.
           '0303', // Owner-only publication editor resolution.
           '0304', // Russian-64 network matches reuse Games identity and policy.
+          '0305', // Robotics projects and authenticated module activity.
+          '0306', // Robotics in the existing immutable publication catalog.
+          '0307', // Robotics V2 telemetry envelopes retain fixed module and route policies.
+          '0308', // Independent eight-tool controls, preserving legacy snapshots.
+          '0309', // Written Course responses reuse the canonical academic chain.
+          '0310', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0311', // Exact Quiz Start and answer state; historical rows remain unchanged.
+          '0312', // Complete eight-type Quiz Course vertical; immutable published history preserved.
+          '0313', // OpenAI Responses catalog admission.
+          '0314', // Polza video catalog category.
+          '0315', // Polza catalog selections and dates.
+          '0316', // Immutable learner file answers in class and Course assignments.
+          '0317', // Event-based admin attendance and Moscow calendar day.
+          '0318', // Operational overview with aligned Moscow intervals and measured activity.
+          '0319', // Function-local JIT at the measured canonical read boundaries.
+          '0320', // Authorized own progress summary; no identity or score writes.
+          '0321', // Qualified ordinary Account admission identity, preserving retained history.
+          '0322', // Authorized learner-only group pages; retained Course history unchanged.
+          '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+          '0324', // Classroom merit history and revocation read (canonical main).
+          '0325', // Direct written assignments reuse the academic submission chain.
+          '0326', // Allow large PDF task attachments.
+          '0327', // Expand supported task attachment formats.
+          '0328', // Safe Mode blocks new publications and retroactive public reads.
         ]);
         expect(
           await applyIsolatedTestPlan(
@@ -559,7 +607,14 @@ describe('Course Builder structure forward upgrade', () => {
       expect(
         (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
           .rows[0],
-      ).toEqual(legacyAttemptBefore);
+      ).toEqual({ ...legacyAttemptBefore, expires_at: null });
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
 
       const draftAfter = (
         await pool.query(

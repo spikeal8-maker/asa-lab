@@ -1,4 +1,4 @@
-/** Deadlines apply only to authentication and provider configuration requests. */
+/** Deadlines cover authentication, capability attestation and provider configuration. */
 export const AUTH_REQUEST_TIMEOUT_MS = 15_000;
 
 export class AuthRequestError extends Error {
@@ -12,10 +12,24 @@ export class AuthRequestError extends Error {
   }
 }
 
+const lifecycleCancellations = new WeakSet<object>();
+
+/** Local lifecycle retirement is not a network failure or a user's cancelled action. */
+export function lifecycleCancellation(): DOMException {
+  const reason = new DOMException('Request no longer needed', 'AbortError');
+  lifecycleCancellations.add(reason);
+  return reason;
+}
+
+export function isLifecycleCancellation(reason: unknown): boolean {
+  return reason !== null && typeof reason === 'object' && lifecycleCancellations.has(reason);
+}
+
 export function isAuthRequest(path: string): boolean {
   const pathname = path.split('?')[0]!;
   return (
     pathname.startsWith('/api/auth/') ||
+    /^\/api\/capabilities\/(?:content-author|educator)\/self-attest$/.test(pathname) ||
     pathname.startsWith('/api/admin/v1/auth/email') ||
     /^\/api\/crm\/v1\/users\/account\/[^/]+\/email(?:\/cancel)?$/.test(pathname) ||
     pathname === '/api/admin/v1/auth/verification-policy' ||
@@ -55,7 +69,12 @@ export async function authRequest<T>(
 ): Promise<T> {
   if (!isAuthRequest(path)) return operation(init);
   const controller = new AbortController();
-  const cancelled = () => controller.abort(new AuthRequestError('auth_cancelled'));
+  const cancelled = () =>
+    controller.abort(
+      isLifecycleCancellation(init.signal?.reason)
+        ? init.signal!.reason
+        : new AuthRequestError('auth_cancelled'),
+    );
   const timeout = setTimeout(
     () => controller.abort(new AuthRequestError('auth_timeout')),
     AUTH_REQUEST_TIMEOUT_MS,

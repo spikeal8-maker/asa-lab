@@ -506,17 +506,27 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     const fake = await fixture(page);
     await page.goto('/#/admin/ai');
-    await page.getByRole('tab', { name: 'Интернет-поиск' }).click();
-    await expect(page.getByRole('heading', { name: 'Интернет-поиск · SearxNG' })).toBeVisible();
-    await expect(page.locator('input[type=password]')).toHaveCount(0);
-    await expect(page.getByRole('textbox')).toHaveCount(0);
-    await page.getByText('Прогноз погоды', { exact: true }).click();
+    await page
+      .getByRole('tablist', { name: 'Разделы ИИ' })
+      .getByRole('tab', { name: 'Настройки', exact: true })
+      .click();
     await expect(page.getByRole('checkbox', { name: 'Включить прогноз погоды' })).toBeChecked();
+    await page
+      .getByRole('tablist', { name: 'Разделы ИИ' })
+      .getByRole('tab', { name: 'Инструменты', exact: true })
+      .click();
+    await expect(page.getByRole('heading', { name: 'Интернет-поиск', exact: true })).toBeVisible();
+    await expect(page.locator('input[type=password]')).toHaveCount(0);
+    await expect(page.locator('input[type=url]')).toHaveCount(0);
     await page.getByRole('spinbutton', { name: 'Лимит поисковых операций за час' }).fill('50');
     await page.getByRole('spinbutton', { name: 'Результатов поиска', exact: true }).fill('6');
+    await page
+      .getByRole('tablist', { name: 'Инструменты помощника' })
+      .getByRole('tab', { name: 'Чтение страниц', exact: true })
+      .click();
     await page.getByRole('spinbutton', { name: 'Страниц для чтения', exact: true }).fill('1');
     await page.getByRole('spinbutton', { name: 'Символов со страницы', exact: true }).fill('2500');
-    await page.getByRole('button', { name: 'Сохранить поиск', exact: true }).click();
+    await page.getByRole('button', { name: 'Сохранить параметры сети', exact: true }).click();
     await expect(
       page.getByText('Настройки сохранены. Поисковый запрос не выполнялся.'),
     ).toBeVisible();

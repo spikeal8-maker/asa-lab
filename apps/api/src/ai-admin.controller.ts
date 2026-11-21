@@ -10,6 +10,7 @@ import {
   HttpException,
   Inject,
   Post,
+  Param,
   Put,
   Req,
 } from '@nestjs/common';
@@ -140,6 +141,30 @@ export class AiAdminController {
     return this.safe(() => this.ai.saveGenerationPolicy(actor, raw as AiGenerationPolicyUpdate));
   }
 
+  @Post(':provider/catalog')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async cloudCatalog(
+    @Req() request: FastifyRequest,
+    @Param('provider') provider: string,
+    @Body() raw: unknown,
+  ) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    if (provider !== 'deepseek' && provider !== 'openai')
+      return reject('ai_catalog_invalid', 'Выберите провайдера.', 400);
+    const apiKey = (raw as { apiKey?: unknown } | null)?.apiKey;
+    if (
+      apiKey !== undefined &&
+      (typeof apiKey !== 'string' ||
+        apiKey.length < 12 ||
+        apiKey.length > 2048 ||
+        /[\p{Cc}\p{Zl}\p{Zp}]/u.test(apiKey))
+    )
+      return reject('ai_key_invalid', 'Проверьте формат API-ключа.', 400);
+    return this.safe(() => this.ai.cloudCatalog(actor, provider, apiKey));
+  }
+
   @Put('web-search')
   async saveWebSearch(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
@@ -183,16 +208,35 @@ export class AiAdminController {
   async inspectCloudKeys(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
     const actor = await this.requirePlatformAdmin(request);
-    const body = raw as { configurationVersion?: unknown } | null;
+    const body = raw as { configurationVersion?: unknown; slot?: number } | null;
     if (
       !body ||
       !Number.isSafeInteger(body.configurationVersion) ||
-      Number(body.configurationVersion) < 1
+      Number(body.configurationVersion) < 1 ||
+      (body.slot !== undefined && (!Number.isInteger(body.slot) || body.slot < 1 || body.slot > 5))
     )
       return reject('ai_cloud_pool_invalid', 'Нужна актуальная версия настроек.', 400);
     return this.safe(() =>
-      this.ai.inspectOllamaCloudPool(actor, Number(body.configurationVersion), request.id),
+      this.ai.inspectOllamaCloudPool(
+        actor,
+        Number(body.configurationVersion),
+        request.id,
+        body.slot,
+      ),
     );
+  }
+
+  @Post('ollama-cloud/model-details')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async cloudModelDetails(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const body = raw as { model?: unknown } | null;
+    if (typeof body?.model !== 'string' || body.model.length > 100)
+      return reject('ai_model_invalid', 'Выберите модель Ollama Cloud.', 400);
+    const model = body.model;
+    return this.safe(() => this.ai.ollamaCloudModelDetails(actor, model));
   }
 
   @Post('test')

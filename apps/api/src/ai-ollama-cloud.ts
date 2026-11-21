@@ -47,14 +47,20 @@ export class OllamaCloudMetadata {
   private catalogCache: { at: number; value: Promise<readonly AiOllamaCloudModel[]> } | null = null;
   constructor(private readonly fetchImpl: typeof fetch = fetch) {}
   private async json(
-    path: '/api/tags' | '/api/balance',
+    path: '/api/tags' | '/api/balance' | '/api/show',
     key?: string,
+    model?: string,
   ): Promise<{ status: number; body: unknown; retry: number | null }> {
     const response = await this.fetchImpl(ORIGIN + path, {
-      method: 'GET',
+      method: model ? 'POST' : 'GET',
       redirect: 'error',
       signal: AbortSignal.timeout(8000),
-      headers: { accept: 'application/json', ...(key ? { authorization: 'Bearer ' + key } : {}) },
+      headers: {
+        accept: 'application/json',
+        ...(key ? { authorization: 'Bearer ' + key } : {}),
+        ...(model ? { 'content-type': 'application/json' } : {}),
+      },
+      ...(model ? { body: JSON.stringify({ model }) } : {}),
     });
     if (response.redirected) throw new Error('AI_CLOUD_METADATA_UNAVAILABLE');
     const retryHeader = response.headers.get('retry-after');
@@ -84,6 +90,26 @@ export class OllamaCloudMetadata {
       await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
+  }
+  async modelDetails(
+    model: string,
+  ): Promise<{ contextTokens: number | null; modifiedAt: string | null }> {
+    const reply = await this.json('/api/show', undefined, model);
+    if (reply.status !== 200) throw new Error('AI_CLOUD_METADATA_UNAVAILABLE');
+    const body = object(reply.body);
+    const info = object(body['model_info']);
+    const architecture = info['general.architecture'];
+    const context =
+      typeof architecture === 'string'
+        ? info[architecture + '.context_length']
+        : Object.entries(info).find(([name]) => /^[^.]+\.context_length$/.test(name))?.[1];
+    return {
+      contextTokens:
+        typeof context === 'number' && Number.isSafeInteger(context) && context > 0
+          ? context
+          : null,
+      modifiedAt: date(body['modified_at']),
+    };
   }
   catalog(): Promise<readonly AiOllamaCloudModel[]> {
     if (this.catalogCache && Date.now() - this.catalogCache.at < 60000)

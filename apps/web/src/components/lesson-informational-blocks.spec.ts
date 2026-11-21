@@ -377,7 +377,7 @@ describe('informational lesson blocks', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     expect(menu.getAttribute('aria-label')).toBe('Добавить содержимое урока');
     expect(button('+ Текст', menu).getAttribute('role')).toBe('menuitem');
-    expect(button('+ Практика', menu).getAttribute('role')).toBe('menuitem');
+    expect(button('+ Задание', menu).getAttribute('role')).toBe('menuitem');
     expect(
       [...menu.querySelectorAll('[role="menuitem"]')].every((item) => item.tagName === 'BUTTON'),
     ).toBe(true);

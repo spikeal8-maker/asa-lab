@@ -39,6 +39,37 @@ class ProxyPolicyTests(unittest.TestCase):
         attest_proxy_policy({'ASA_TRUSTED_PROXY_CIDRS': '172.16.0.0/12,fd00::/64',
                              'ASA_INGRESS_TRUSTED_PROXY_CIDRS': '192.0.2.7/32 2001:db8::7/128'})
 
+    def test_panel_ingress_requires_one_host_and_its_own_port(self):
+        panel = {'ASA_PANEL_INGRESS_PEER': '172.19.0.1', 'ASA_PANEL_INGRESS_PORT': '4615'}
+        attest_proxy_policy(panel)
+        diagnostic = proxy_provenance_diagnostic(panel)
+        self.assertEqual(diagnostic['state'], 'external_policy_unverified')
+        self.assertEqual(diagnostic['panelIngressPeer'], '172.19.0.1')
+        for overrides in (
+            {'ASA_PANEL_INGRESS_PEER': '172.19.0.0/16'},
+            {'ASA_PANEL_INGRESS_PEER': '127.0.0.1\nservers'},
+            {'ASA_PANEL_INGRESS_PEER': '0.0.0.0'},
+            {'ASA_PANEL_INGRESS_PEER': '224.0.0.1'},
+            {'ASA_PANEL_INGRESS_PORT': '0'},
+            {'ASA_PANEL_INGRESS_PORT': '04610'},
+            {'ASA_PANEL_INGRESS_PEER': '127.0.0.1', 'ASA_PANEL_INGRESS_PORT': '4610'},
+            {'ASA_BLOCKS_PORT': '4615'},
+            {'ASA_API_PORT': '4615'},
+            {'ASA_PANEL_INGRESS_PORT': '65536'},
+        ):
+            with self.subTest(overrides=overrides), self.assertRaises(Blocked) as failure:
+                attest_proxy_policy(panel | overrides)
+            self.assertEqual(failure.exception.code, 'PROXY_POLICY')
+
+    def test_only_production_reserves_the_default_panel_ingress_port(self):
+        env = {'ASA_WEB_PORT': '4615'}
+        attest_proxy_policy(env, profile='dev')
+        with self.assertRaises(Blocked):
+            attest_proxy_policy(env, profile='production')
+        attest_proxy_policy(env | {'ASA_PANEL_INGRESS_PORT': '4616'}, profile='production')
+        with self.assertRaises(Blocked):
+            attest_proxy_policy({'ASA_PANEL_INGRESS_PEER': '172.19.0.1'}, profile='production')
+
     def test_malformed_unbounded_and_injected_policies_block_before_operations(self):
         for key in ('ASA_TRUSTED_PROXY_CIDRS', 'ASA_INGRESS_TRUSTED_PROXY_CIDRS'):
             for raw in ('', '0.0.0.0/0', '::/0', '172.16.0.0/99', 'private_ranges',
@@ -338,7 +369,8 @@ class ReleaseTests(unittest.TestCase):
             if legacy:
                 fixture["general_jobs"].pop()
             with self.subTest(legacy=legacy), patch("deployment.releases.urllib.request.urlopen", side_effect=self.ci_response(fixture)):
-                assert_ci(release())
+                publish = next(job for job in fixture["publication_jobs"] if job["name"] == "publish")
+                self.assertEqual(assert_ci(release()), publish["completed_at"])
                 assert_general_ci("a" * 40)
 
     def test_every_required_job_must_be_present_and_successful(self):
@@ -478,12 +510,12 @@ class ReleaseTests(unittest.TestCase):
         gate = workflow.split(start, 1)[1].split(end, 1)[0]
         source_marker = "      - id: source\n"
         checkout = ("    steps:\n      - uses: actions/checkout@v4\n        with:\n"
-                    "          ref: ${{ github.event.workflow_run.head_sha || github.sha }}\n"
-                    "          persist-credentials: false\n")
-        self.assertEqual(gate.count(checkout + source_marker), 1)
+                    "          ref: ${{ github.workflow_sha }}\n"
+                    "          fetch-depth: 0\n          persist-credentials: false\n")
+        self.assertEqual(gate.count(checkout), 1)
         self.assertEqual(gate.count(source_marker), 1)
         source = gate.split(source_marker, 1)[1]
-        opening, closing = "        run: |\n          python - <<'PY'\n", "\n          PY"
+        opening, closing = "        run: |\n          python -P - <<'PY'\n", "\n          PY"
         self.assertEqual(source.count(opening), 1)
         body = source.split(opening, 1)[1]
         self.assertEqual(body.count(closing), 1)
@@ -492,8 +524,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(body and all(line.startswith(" " * 10) for line in body.splitlines()))
         return "\n".join(line[10:] for line in body.splitlines())
 
-    def run_publication_gate(self, remote, revision="a" * 40, general_error=None, script=None):
-        script = self.publication_gate_script() if script is None else script
+    def run_publication_gate(self, remote, revision="a" * 40, general_error=None, ancestor=True):
+        script = self.publication_gate_script()
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
             environment = {"GITHUB_OUTPUT": str(output)}
@@ -512,85 +544,59 @@ class ReleaseTests(unittest.TestCase):
                 self.assertFalse(output.exists())
                 if general_error:
                     raise general_error
+            def check_ancestor(candidate, main):
+                order.append("ancestry")
+                self.assertEqual((candidate, main), (revision, remote))
+                self.assertFalse(output.exists())
+                return ancestor
             failure = None
-            with patch.dict(os.environ, environment, clear=True), patch.object(sys, "path", list(sys.path)), \
-                    patch("deployment.system.run", side_effect=current_main) as command, \
+            with patch.dict(os.environ, environment, clear=True), \
+                    patch("deployment.publication.canonical_main", side_effect=current_main), \
+                    patch("deployment.publication.is_ancestor", side_effect=check_ancestor), \
                     patch("deployment.releases.assert_general_ci", side_effect=general):
                 try:
                     exec(compile(script, "portable-release-gate", "exec"), {})
                 except Blocked as problem:
                     failure = problem
-            command.assert_called_once_with(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True)
             return failure, output.read_text() if output.exists() else "", order
 
     def test_publication_gate_executes_the_same_full_general_verifier(self):
-        failure, output, order = self.run_publication_gate("a" * 40 + "\trefs/heads/main")
+        failure, output, order = self.run_publication_gate("b" * 40)
         self.assertIsNone(failure)
-        self.assertEqual(order, ["main", "general"])
+        self.assertEqual(order, ["main", "ancestry", "general"])
         self.assertEqual(output, "revision=" + "a" * 40 + "\n")
 
-    def test_publication_gate_rejects_stale_or_unverifiable_main_before_general_and_output(self):
-        for remote in ("b" * 40 + "\trefs/heads/main", "", "a" * 39 + "\trefs/heads/main",
-                       "g" * 40 + "\trefs/heads/main", "a" * 40 + "\trefs/heads/other",
-                       "a" * 40, "a" * 40 + " refs/heads/main",
-                       ("a" * 40 + "\trefs/heads/main\n") * 2):
-            with self.subTest(remote=remote):
-                failure, output, order = self.run_publication_gate(remote)
-                self.assertIsNotNone(failure)
-                self.assertEqual(failure.code, "STALE_RELEASE")
-                self.assertEqual((output, order), ("", ["main"]))
+    def test_publication_gate_rejects_foreign_revision_before_general_and_output(self):
+        failure, output, order = self.run_publication_gate("b" * 40, ancestor=False)
+        self.assertEqual(failure.code, "RELEASE_SOURCE")
+        self.assertEqual((output, order), ("", ["main", "ancestry"]))
         for revision in (None, "", "a" * 39, "g" * 40, "a" * 40 + "\n"):
             with self.subTest(revision=revision):
-                failure, output, order = self.run_publication_gate("a" * 40 + "\trefs/heads/main", revision)
-                self.assertEqual(failure.code, "STALE_RELEASE")
-                self.assertEqual((output, order), ("", ["main"]))
-
-    def test_stale_regression_detects_removed_or_late_early_check(self):
-        script = self.publication_gate_script()
-        early = script[script.index("latest = "):script.index("assert_general_ci(os.environ")]
-        general = "assert_general_ci(os.environ['REVISION'])\n"
-        for broken in (script.replace(early, ""), script.replace(general, "").replace(early, general + early)):
-            with self.subTest(script=broken), self.assertRaises(AssertionError):
-                failure, output, order = self.run_publication_gate("b" * 40 + "\trefs/heads/main", script=broken)
-                self.assertIsNotNone(failure)
-                self.assertEqual(failure.code, "STALE_RELEASE")
-                self.assertEqual((output, order), ("", ["main"]))
+                failure, output, order = self.run_publication_gate("a" * 40, revision)
+                self.assertEqual(failure.code, "RELEASE_SOURCE")
+                self.assertEqual((output, order), ("", []))
 
     def test_publication_gate_tool_or_incomplete_general_failure_emits_no_revision(self):
-        problem = Blocked("COMMAND", "ls-remote failed", "retry")
+        problem = Blocked("COMMAND", "canonical main fetch failed", "retry")
         failure, output, order = self.run_publication_gate(problem)
         self.assertIs(failure, problem)
         self.assertEqual((output, order), ("", ["main"]))
         problem = Blocked("CI_BLOCKED", "partial", "wait")
-        failure, output, order = self.run_publication_gate("a" * 40 + "\trefs/heads/main", general_error=problem)
+        failure, output, order = self.run_publication_gate("b" * 40, general_error=problem)
         self.assertIs(failure, problem)
-        self.assertEqual((output, order), ("", ["main", "general"]))
+        self.assertEqual((output, order), ("", ["main", "ancestry", "general"]))
 
-    def test_main_advance_after_early_gate_is_still_blocked_immediately_before_stable(self):
-        self.assertIsNone(self.run_publication_gate("a" * 40 + "\trefs/heads/main")[0])
+    def test_only_a_guarded_normal_build_can_publish_stable(self):
         workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        self.assertIn("\n  contracts:\n    needs: gate\n", workflow)
         self.assertIn("\n  build:\n    needs: [gate, contracts]\n", workflow)
         self.assertIn("\n  publish:\n    needs: [gate, build]\n", workflow)
-        late = """      - name: Prevent a delayed workflow from rolling the channel backward
-        run: |
-          python - <<'PY'
-          import os, sys
-          sys.path.insert(0, 'tools')
-          from deployment.system import run
-          from deployment.contracts import require
-          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True).split()[0]
-          require(latest == os.environ['ASA_BUILD_REVISION'], 'STALE_RELEASE',
-                  'Main advanced during the build; keep stable unchanged and publish the next green main.')
-          PY
-"""
-        promotion = "      - uses: docker/build-push-action@v6\n"
-        self.assertEqual(workflow.count(late + promotion), 1)
-        self.assertIn("/deployment:stable", workflow.split(late + promotion, 1)[1])
-        script = "\n".join(line[10:] for line in late.splitlines()[3:-1])
-        with patch.dict(os.environ, {"ASA_BUILD_REVISION": "a" * 40}), patch.object(sys, "path", list(sys.path)), \
-                patch("deployment.system.run", return_value="b" * 40 + "\trefs/heads/main"), self.assertRaises(Blocked) as failure:
-            exec(compile(script, "portable-release-final-guard", "exec"), {})
-        self.assertEqual(failure.exception.code, "STALE_RELEASE")
+        promotion = ("        run: python -P -m deployment.publication\n"
+                     "      - uses: docker/build-push-action@v6\n"
+                     "        if: steps.promotion.outputs.promote == 'true'\n")
+        self.assertEqual(workflow.count(promotion), 1)
+        self.assertEqual(workflow.count("/deployment:stable"), 1)
+        self.assertIn("/deployment:stable", workflow.split(promotion, 1)[1])
 
     def test_pinned_set(self):
         self.assertEqual(validate_release(release())["schema"], 159)

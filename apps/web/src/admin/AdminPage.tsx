@@ -856,7 +856,11 @@ function UserCrmPanelBody({
         </dl>
       ) : null}
 
-      <div className="admin-user-tabs" role="tablist" aria-label="Карточка пользователя">
+      <div
+        className="admin-user-tabs asa-system-tabs"
+        role="tablist"
+        aria-label="Карточка пользователя"
+      >
         {
           <button
             type="button"
@@ -1687,7 +1691,11 @@ function AdminWorkspace({
     selectedScope.permissions.includes('administration.security.manage');
 
   return (
-    <main id="main-content" className="portal-content admin-page" tabIndex={-1}>
+    <main
+      id="main-content"
+      className={`portal-content admin-page${visibleSection === 'overview' ? ' admin-overview-page' : ''}`}
+      tabIndex={-1}
+    >
       <header className="admin-heading admin-heading-compact">
         <div className="admin-title-line">
           <h1>

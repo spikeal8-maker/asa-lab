@@ -12,6 +12,7 @@ export const publicationBrowserPartitions = [
   'gallery',
   'project-hub',
   'publication-likes',
+  'robotics-projects',
 ].map((name) => ({ name, files: [`e2e/${name}.spec.ts`] }));
 
 export function runPublicationBrowserPartitions(run, env = process.env) {

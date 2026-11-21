@@ -280,7 +280,7 @@
 
 .asa-polza-catalog {
   display: grid;
-  gap: 14px;
+  gap: 8px;
   border-top: 1px solid var(--border, #d5e0e9);
   padding-top: 18px;
 }
@@ -331,7 +331,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 8px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border, #e3edf5);
 }
 .asa-polza-catalog-model input {
@@ -395,4 +395,38 @@
   color: var(--text, #16344b);
   padding: 12px;
   font: inherit;
+}
+
+.asa-polza-control-row:has(.asa-polza-hourly) {
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, auto) auto;
+  align-items: end;
+}
+.asa-polza-control-row .asa-polza-switch {
+  align-self: end;
+  min-height: 36px;
+}
+.asa-polza-category {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.asa-polza-category button {
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+.asa-polza-category button[aria-pressed='true'] {
+  border-color: currentColor;
+  font-weight: 700;
+}
+@media (max-width: 580px) {
+  .asa-polza-control-row:has(.asa-polza-hourly) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .asa-polza-control-row:has(.asa-polza-hourly) > .asa-polza-key:first-child {
+    grid-column: 1 / -1;
+  }
 }

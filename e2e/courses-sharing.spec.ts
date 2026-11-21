@@ -13,7 +13,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
-import { openAccountSettings } from './portal-navigation';
+import { openAccountSettings, switchWorkspace } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /**
@@ -577,14 +577,10 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'owner')",
     [authorIdentity.account_id, authorWorkspace],
   );
-  expect(
-    (
-      await authorPage.request.post('/api/session/context', {
-        headers: { origin: new URL(authorPage.url()).origin },
-        data: { workspaceId: authorWorkspace },
-      })
-    ).ok(),
-  ).toBe(true);
+  // Load the new membership before changing the session, then use the UI handoff
+  // so the open page's telemetry actor follows the server's workspace selection.
+  await authorPage.reload();
+  await switchWorkspace(authorPage, 'Private Library author');
   const authorProjects = await authorPage.request.post('/api/projects', {
     headers: {
       origin: new URL(authorPage.url()).origin,

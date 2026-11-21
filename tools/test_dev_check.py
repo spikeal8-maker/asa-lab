@@ -20,6 +20,7 @@ from unittest.mock import patch
 
 import yaml
 import dev_check as check
+import devex_ci_contract as general
 import devex_plan
 import run_task_tests
 
@@ -467,11 +468,21 @@ class Fixture(unittest.TestCase):
         step = next(item for item in workflow['jobs']['collect-picker']['steps'] if item.get('id') == step_id)
         return step['run'].split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
 
-    def test_shadow_classification_uses_actual_git_and_fails_closed_on_missing_source(self):
+    def test_general_selection_cli_uses_actual_git_and_rejects_missing_source(self):
+        # The selector compares Git identities before installing proof dependencies.
+        for name in general.CONTROLS:
+            target = self.root / name
+            if (check.ROOT / name).is_dir():
+                target = target / 'fixture.txt'
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text('owned control fixture\n', encoding='utf-8')
+        adapter = 'tools/devex_ci_contract.py'
+        (self.root / adapter).write_bytes(Path(general.__file__).read_bytes())
         style = self.root / 'apps/web/src/components/collect-picker.css'
         style.parent.mkdir(parents=True)
         style.write_text('.collect-picker-create input { min-height: 34px; }\n', encoding='utf-8')
-        self.git('add', '--', 'changed.py', str(style.relative_to(self.root)))
+        self.git('add', '--all')
         self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'owned baseline')
         base = self.git('rev-parse', 'HEAD').stdout.decode().strip()
         style.write_text('.collect-picker-create input { min-height: 44px; }\n', encoding='utf-8')
@@ -480,36 +491,53 @@ class Fixture(unittest.TestCase):
         head = self.git('rev-parse', 'HEAD').stdout.decode().strip()
         output = self.root / '.asa/github-output'
         output.parent.mkdir(parents=True)
-        source = self.workflow_python('changes')
+        selector = output.with_name('accepted-selector.py')
+        selector.write_bytes(self.git('show', f'{base}:{adapter}').stdout)
+
+        def merge_candidate():
+            return self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit-tree', f'{head}^{{tree}}', '-p', base, '-p', head,
+                            '-m', 'owned event merge candidate').stdout.decode().strip()
+
+        merge = merge_candidate()
+
         def invoke(**overrides):
             output.unlink(missing_ok=True)
-            return subprocess.run([sys.executable, '-c', source], cwd=self.root,
+            return subprocess.run([sys.executable, str(selector), 'classify'], cwd=self.root,
                                   env={**os.environ, 'SOURCE_SHA': head, 'BASE_SHA': base,
+                                       'BASE_REF': 'main', 'EVENT_NAME': 'pull_request',
+                                       'EVENT_REF': 'refs/pull/999/merge', 'MERGE_CANDIDATE_SHA': merge,
                                        'GITHUB_OUTPUT': str(output), **overrides},
                                   capture_output=True, text=True, timeout=10)
-        result = invoke()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('candidate=true', output.read_text())
-        selection = json.loads((self.root / '.asa/devex/ci-selection.json').read_text())
-        self.assertEqual((selection['source_sha'], selection['base_sha'], selection['checks_executed']), (head, base, 0))
-        self.assertEqual(selection['route'], 'CANDIDATE_REQUIRES_PROOF', 'classification alone is never test PASS')
+
+        def verify_candidate(candidate):
+            result = invoke()
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            outputs = dict(line.split('=', 1) for line in output.read_text(encoding='utf-8').splitlines())
+            self.assertEqual(outputs['candidate'], str(candidate).lower())
+            self.assertEqual(outputs['route'], 'FULL', 'classification alone cannot authorize a bounded run')
+            selection = json.loads(outputs['plan'])
+            self.assertEqual(selection, json.loads((self.root / '.asa/devex/general-plan.json').read_text(encoding='utf-8')))
+            self.assertEqual((selection['source_sha'], selection['base_sha'], selection['merge_candidate_sha']),
+                             (head, base, merge))
+            self.assertIs(selection['candidate'], candidate)
+            self.assertFalse(selection['integration_ready'])
+            self.assertFalse(selection['release_ready'])
+
+        verify_candidate(True)
         api = self.root / 'apps/api/foreign.ts'
         api.parent.mkdir(parents=True)
         api.write_text('// an unrelated API change\n', encoding='utf-8')
         self.git('add', '--', str(api.relative_to(self.root)))
         self.git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'owned negative API input')
         head = self.git('rev-parse', 'HEAD').stdout.decode().strip()
-        result = invoke()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('candidate=false', output.read_text())
-        selection = json.loads((self.root / '.asa/devex/ci-selection.json').read_text())
-        self.assertEqual((selection['route'], selection['checks_executed']), ('FULL_CI_REQUIRED', 0))
-        self.assertFalse(selection['integration_ready'])
-        self.assertFalse(selection['release_ready'])
-        for override in ({'BASE_SHA': '0' * 40}, {'BASE_SHA': '--help'}, {'SOURCE_SHA': base}):
+        merge = merge_candidate()
+        verify_candidate(False)
+        for override in ({'BASE_SHA': '0' * 40}, {'BASE_SHA': '--help'}, {'SOURCE_SHA': ''}, {'SOURCE_SHA': base}):
             with self.subTest(override=override):
                 result = invoke(**override)
                 self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(json.loads(result.stdout)['status'], 'BLOCKED')
                 self.assertFalse(output.exists(), 'invalid identity must not publish successful admission')
 
     def test_shadow_receipt_rejects_wrong_source_failed_incomplete_and_false_ready_results(self):

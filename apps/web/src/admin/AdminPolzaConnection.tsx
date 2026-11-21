@@ -29,8 +29,10 @@ export function AdminPolzaConnection({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
   const [reload, setReload] = useState(0);
+  const [catalogRevision, setCatalogRevision] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -67,11 +69,11 @@ export function AdminPolzaConnection({
     return () => onDirtyChange?.(false);
   }, [dirty, catalogDirty, onDirtyChange]);
   const keyReady = !!keyInput || (!!config?.apiKeyConfigured && !clearKey);
+  const connectionLocked = busy || loading || catalogBusy || catalogDirty;
   const canSave =
     !!config &&
     dirty &&
-    !busy &&
-    !loading &&
+    !connectionLocked &&
     config.encryptionReady &&
     (!enabled || keyReady) &&
     Number.isInteger(paidPerHour) &&
@@ -79,17 +81,19 @@ export function AdminPolzaConnection({
     paidPerHour <= 10000 &&
     (!keyInput || /^pza_[A-Za-z0-9_-]{8,2040}$/.test(keyInput));
 
-  async function check(): Promise<void> {
+  async function check(): Promise<boolean> {
     const result = await call<CheckReceipt>('/api/admin/v1/ai/polza/check', {
       method: 'POST',
       body: '{}',
     });
     if (!result.ok) {
-      if ([401, 403].includes(result.status)) onAccessDenied();
+      if ([401, 403].includes(result.status) && result.error.code !== 'ai_polza_auth_failed')
+        onAccessDenied();
       setError(result.error.message);
-      return;
+      return false;
     }
     setMessage('Подключение подтверждено · ' + (result.data.latencyMs / 1000).toFixed(1) + ' с');
+    return true;
   }
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -136,7 +140,20 @@ export function AdminPolzaConnection({
       setClearKey(false);
       setMessage('Ключ и параметры сохранены на сервере');
       onUpdated?.();
-      if (result.data.enabled) await check();
+      if ((result.data.enabled || keyInput) && (await check()) && keyInput) {
+        const catalog = await call('/api/admin/v1/ai/polza/models/refresh', {
+          method: 'POST',
+          body: '{}',
+        });
+        if (catalog.ok) {
+          setLoading(true);
+          setReload((version) => version + 1);
+          setCatalogRevision((version) => version + 1);
+          onUpdated?.();
+        } else {
+          setError(catalog.error.message);
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -147,7 +164,6 @@ export function AdminPolzaConnection({
       <header className="asa-ai-integration-header">
         <div>
           <h2>Polza AI</h2>
-          <p>Единый ключ для текстовых моделей и распознавания речи.</p>
         </div>
         <span className="asa-ai-integration-state">
           {config?.enabled
@@ -180,56 +196,59 @@ export function AdminPolzaConnection({
                 spellCheck={false}
                 maxLength={2048}
                 value={keyInput}
-                disabled={busy || clearKey || !config.encryptionReady}
-                placeholder={
-                  config.apiKeyConfigured ? 'Сохранён · введите новый для замены' : 'pza_…'
-                }
+                disabled={connectionLocked || clearKey || !config.encryptionReady}
+                placeholder={config.apiKeyConfigured ? 'pza_•••••••• · сохранён' : 'pza_…'}
                 onChange={(event) => {
                   setKeyInput(event.target.value);
                   setMessage('');
                 }}
               />
             </label>
+            {config.textConfigurationVersion !== undefined ? (
+              <label
+                className="asa-polza-key asa-polza-hourly"
+                title="Общий лимит платных текстовых запросов всех облачных провайдеров. Ноль отключает платные запросы."
+              >
+                <span>Запросов в час</span>
+                <input
+                  aria-label="Общий лимит платных запросов в час"
+                  type="number"
+                  min="0"
+                  max="10000"
+                  value={paidPerHour}
+                  disabled={connectionLocked}
+                  onChange={(e) => setPaidPerHour(Number(e.target.value))}
+                />
+              </label>
+            ) : null}
             <label className="asa-polza-switch">
               <input
                 type="checkbox"
                 checked={enabled}
-                disabled={busy || !config.encryptionReady}
+                disabled={connectionLocked || !config.encryptionReady}
                 onChange={(event) => {
                   setEnabled(event.target.checked);
                   setMessage('');
                 }}
               />
-              Использовать Polza AI
+              Включено
             </label>
           </div>
-          {config.textConfigurationVersion !== undefined ? (
-            <label className="asa-polza-key">
-              <span>Общий лимит платных текстовых запросов в час</span>
-              <input
-                aria-label="Общий лимит платных запросов в час"
-                type="number"
-                min="0"
-                max="10000"
-                value={paidPerHour}
-                disabled={busy}
-                onChange={(e) => setPaidPerHour(Number(e.target.value))}
-              />
-              <small>
-                Для всех облачных провайдеров ASA. 0 запрещает новые платные запросы. Лимиты токенов
-                задаются в Настройках.
-              </small>
-            </label>
-          ) : null}
           <div className="asa-polza-actions">
             <button className="asa-polza-primary" type="submit" disabled={!canSave}>
               {busy ? 'Сохраняем…' : enabled ? 'Сохранить и проверить' : 'Сохранить'}
             </button>
+            {dirty && catalogDirty ? <small>Сначала сохраните выбор моделей.</small> : null}
             <button
               type="button"
               className="asa-polza-secondary"
-              disabled={busy || dirty || !config.apiKeyConfigured}
-              onClick={() => void check()}
+              disabled={connectionLocked || dirty || !config.apiKeyConfigured}
+              onClick={() => {
+                setBusy(true);
+                setError('');
+                setMessage('');
+                void check().finally(() => setBusy(false));
+              }}
             >
               Проверить
             </button>
@@ -250,15 +269,15 @@ export function AdminPolzaConnection({
           <details className="asa-polza-advanced">
             <summary>Дополнительно</summary>
             <p>
-              Ключ хранится только на сервере (AES-256-GCM). Проверка выполняет запрос списка
-              моделей, без платной транскрибации.
+              Ключ хранится на сервере в зашифрованном виде. Проверка запрашивает статус ключа без
+              запуска платной модели.
             </p>
             {config.apiKeyConfigured ? (
               <label className="asa-polza-switch">
                 <input
                   type="checkbox"
                   checked={clearKey}
-                  disabled={busy}
+                  disabled={connectionLocked}
                   onChange={(event) => {
                     setClearKey(event.target.checked);
                     if (event.target.checked) {
@@ -273,25 +292,19 @@ export function AdminPolzaConnection({
           </details>
         </form>
       ) : null}
-      <div className="asa-polza-capabilities" aria-label="Направления Polza AI">
-        <div>
-          <strong>Текст и Vision</strong>
-          <span>Модели выбираются в каталоге ниже</span>
-        </div>
-        <div>
-          <strong>Изображения</strong>
-          <span>В чате используется ComfyUI</span>
-        </div>
-        <div>
-          <strong>Транскрибация</strong>
-          <span>{config?.transcriptionEnabled ? 'Включена' : 'Настраивается отдельно'}</span>
-        </div>
-      </div>
       {config?.apiKeyConfigured ? (
         <AdminPolzaCatalog
+          key={catalogRevision}
+          connection
+          connectionDirty={dirty || busy}
           onAccessDenied={onAccessDenied}
-          onUpdated={onUpdated}
+          onUpdated={() => {
+            setLoading(true);
+            setReload((value) => value + 1);
+            onUpdated?.();
+          }}
           onDirtyChange={setCatalogDirty}
+          onBusyChange={setCatalogBusy}
         />
       ) : null}
     </section>

@@ -12,6 +12,8 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
   let config = structuredClone(initial);
   const writes: Record<string, unknown>[] = [];
   const paidTests: unknown[] = [];
+  const deepSeekCatalogChecks: boolean[] = [];
+  const policyWrites: Record<string, unknown>[] = [];
   const poolWrites: { configurationVersion: number; keys: AiOllamaCloudKeyUpdate[] }[] = [];
   let pool: AiOllamaCloudPool = {
     configurationVersion: config.configurationVersion,
@@ -22,7 +24,7 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
         id: model.id,
         model: model.id,
         active: true,
-        capabilities: ['completion'],
+        capabilities: model.id === 'gemma4:31b' ? ['completion', 'vision'] : ['completion'],
       })),
     keys: Array.from({ length: 5 }, (_, index) => ({
       slot: index + 1,
@@ -221,6 +223,28 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
       }
       return route.fulfill({ json: ollama });
     }
+    if (path === '/api/admin/v1/ai/ollama-cloud/inspect') {
+      return route.fulfill({ json: { account: { status: 'ok' } } });
+    }
+    if (path === '/api/admin/v1/ai/ollama-cloud/keys/inspect') {
+      const { slot } = request.postDataJSON() as { slot?: number };
+      pool = {
+        ...pool,
+        configurationVersion: config.configurationVersion,
+        keys: pool.keys.map((key) =>
+          key.configured && (slot === undefined || key.slot === slot)
+            ? {
+                ...key,
+                account: { status: 'ok', checkedAt: NOW, retryAfterSeconds: null, balance: null },
+              }
+            : key,
+        ),
+      };
+      return route.fulfill({ json: pool });
+    }
+    if (path === '/api/admin/v1/ai/ollama-cloud/model-details') {
+      return route.fulfill({ json: { contextTokens: 262144, modifiedAt: NOW } });
+    }
     if (path === '/api/admin/v1/ai/ollama-cloud/keys') {
       if (request.method() === 'PUT') {
         const body = request.postDataJSON() as (typeof poolWrites)[number];
@@ -236,6 +260,7 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
               ...old,
               label: next.label,
               priority: next.priority,
+              account: next.apiKey || next.clearApiKey ? null : old.account,
               enabled: next.enabled && !next.clearApiKey,
               configured: next.clearApiKey ? false : Boolean(next.apiKey) || old.configured,
               fingerprint: next.clearApiKey
@@ -264,19 +289,93 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
         json: { ...pool, configurationVersion: config.configurationVersion },
       });
     }
+    if (path === '/api/admin/v1/ai/openai/catalog') {
+      return route.fulfill({
+        json: {
+          models: ['gpt-6-luna', 'gpt-5-mini', 'gpt-future'].map((id) => ({
+            id,
+            name: id,
+            contextTokens: null,
+            inputModalities: null,
+            outputModalities: null,
+          })),
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/deepseek/catalog') {
+      deepSeekCatalogChecks.push(Boolean(request.postDataJSON()?.apiKey));
+      return route.fulfill({
+        json: {
+          models: [
+            {
+              id: 'deepseek-flash',
+              name: 'DeepSeek Flash',
+              contextTokens: 1048576,
+              inputModalities: ['text', 'image'],
+              outputModalities: ['text'],
+            },
+            {
+              id: 'deepseek-v4-pro',
+              name: 'DeepSeek V4 Pro',
+              contextTokens: 1048576,
+              inputModalities: ['text'],
+              outputModalities: ['text'],
+            },
+            {
+              id: 'deepseek-future',
+              name: 'DeepSeek Future',
+              contextTokens: null,
+              inputModalities: null,
+              outputModalities: null,
+            },
+          ],
+        },
+      });
+    }
     if (
       path === '/api/admin/v1/ai/generation-policy' ||
       path === '/api/admin/v1/ai/generation-policy/catalog'
     ) {
       const policy = generationPolicyFixture();
+      const policyModels = [
+        ...policy.models.map((model) =>
+          model.id === 'gpt-6-luna' ? { ...model, inputModalities: ['text', 'image'] } : model,
+        ),
+        {
+          id: 'gpt-5-mini',
+          provider: 'openai' as const,
+          label: 'GPT-5 mini',
+          ready: true,
+          selectable: true,
+          allowed: false,
+          eligible: true,
+          inputModalities: ['text', 'image'],
+        },
+        {
+          id: 'deepseek-v4-pro',
+          provider: 'deepseek' as const,
+          label: 'DeepSeek V4 Pro',
+          ready: true,
+          selectable: true,
+          allowed: false,
+          eligible: true,
+          inputModalities: ['text'],
+        },
+      ];
+      if (request.method() === 'PUT') policyWrites.push(request.postDataJSON());
       const selected = new Set(
         pool.keys.filter((key) => key.enabled && key.configured).flatMap((key) => key.models),
       );
       return route.fulfill({
         json: {
           ...policy,
-          models: policy.models.map((model) => ({
+          models: policyModels.map((model) => ({
             ...model,
+            eligible:
+              (
+                policyWrites.at(-1)?.['modelPreferences'] as
+                  { id: string; eligible: boolean }[] | undefined
+              )?.find((item) => item.id === model.id)?.eligible ?? model.eligible,
             connectionSelected:
               model.provider !== 'ollama-cloud' || !pool.managed || selected.has(model.id),
           })),
@@ -374,6 +473,8 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
     writes,
     paidTests,
     poolWrites,
+    deepSeekCatalogChecks,
+    policyWrites,
     ollamaWrites,
     ollamaDiscoveries,
     ollamaTests,
@@ -437,14 +538,14 @@ test('Four supported connections show exact key status and no secret or redundan
     0,
   );
   await selectProvider(page, 'openai');
-  await expect(page.getByRole('region', { name: 'Настройки OpenAI' })).toBeVisible();
-  await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gpt-6-luna');
-  await expect(page.getByRole('button', { name: 'Сохранить выключенным' })).toBeDisabled();
-  await expect(page.getByRole('region', { name: 'Настройки OpenAI' })).not.toContainText(
-    'Отпечаток',
-  );
+  const openai = page.getByRole('region', { name: 'Настройки OpenAI' });
+  await expect(openai).toBeVisible();
+  await expect(openai.getByLabel('API-ключ OpenAI')).toBeVisible();
+  await expect(openai.getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
+  await expect(openai).not.toContainText('Отпечаток');
   await selectProvider(page, 'deepseek');
-  await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('deepseek-flash');
+  await expect(page.getByLabel('API-ключ DeepSeek')).toBeVisible();
+  await expect(page.getByLabel('Модель', { exact: true })).toHaveCount(0);
   expect(fake.writes).toHaveLength(0);
   expect(fake.paidTests).toHaveLength(0);
   expect(fake.pageErrors).toEqual([]);
@@ -457,16 +558,36 @@ test('Separate OpenAI and DeepSeek keys stay server-side and delete only selecte
   await openAdmin(page);
   await selectProvider(page, 'openai');
   const secretA = 'test-openai-key-do-not-render';
-  await page.getByLabel('Новый API-ключ').fill(secretA);
-  await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
-  await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
-  await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
+  const openai = page.getByRole('region', { name: 'Настройки OpenAI' });
+  await openai.getByLabel('API-ключ OpenAI').fill(secretA);
+  await openai.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(openai.getByText('Сохранено', { exact: true })).toBeVisible();
+  await expect(openai.getByLabel('API-ключ OpenAI')).toHaveValue('');
   await selectProvider(page, 'deepseek');
   const secretB = 'test-deepseek-key-do-not-render';
-  await page.getByLabel('Новый API-ключ').fill(secretB);
-  await page.getByLabel('Модель', { exact: true }).selectOption('deepseek-v4-pro');
-  await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
-  await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
+  const panel = page.getByRole('region', { name: 'Настройки DeepSeek' });
+  await panel.getByLabel('API-ключ DeepSeek').fill(secretB);
+  await panel.getByRole('button', { name: 'Проверить ключ' }).click();
+  await expect(panel.getByText('Ключ принят · моделей: 3')).toBeVisible();
+  await expect(panel.getByText('Читает изображения')).toBeVisible();
+  await expect(panel.getByRole('checkbox', { name: 'DeepSeek Future' })).toBeDisabled();
+  await panel.getByRole('checkbox', { name: 'DeepSeek V4 Pro' }).uncheck();
+  await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('0');
+  await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+  expect(fake.writes).toHaveLength(1);
+  await panel.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+  expect(fake.writes[1]).toMatchObject({
+    provider: 'deepseek',
+    enabled: true,
+    paidOperationsPerHour: 0,
+  });
+  expect(fake.deepSeekCatalogChecks).toEqual([true, false]);
+  expect(fake.policyWrites[0]?.['modelPreferences']).toContainEqual({
+    id: 'deepseek-v4-pro',
+    eligible: false,
+    order: 0,
+  });
   expect(
     fake
       .current()
@@ -478,12 +599,11 @@ test('Separate OpenAI and DeepSeek keys stay server-side and delete only selecte
       ?.apiKeyConfigured,
   ).toBe(false);
   await selectProvider(page, 'openai');
-  await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gpt-6-luna');
-  await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
-  await page.getByText('Дополнительно', { exact: true }).click();
-  await page.getByLabel('Удалить сохранённый ключ этого провайдера').check();
-  await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
-  await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
+  await expect(openai.getByLabel('API-ключ OpenAI')).toHaveValue('');
+  await expect(openai.getByText('Ключ принят · моделей: 3')).toBeVisible();
+  await openai.getByRole('button', { name: 'Удалить ключ' }).click();
+  await openai.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(openai.getByText('Сохранено', { exact: true })).toBeVisible();
   const slots = fake.current().providerConfigurations;
   expect(slots.find((x) => x.provider === 'deepseek')?.apiKeyConfigured).toBe(true);
   expect(slots.find((x) => x.provider === 'openai')?.apiKeyConfigured).toBe(false);
@@ -493,43 +613,76 @@ test('Separate OpenAI and DeepSeek keys stay server-side and delete only selecte
   expect(fake.paidTests).toHaveLength(0);
 });
 
-test('Cloud save-and-verify uses exactly one consented paid request and refreshed version', async ({
+for (const provider of ['openai', 'deepseek'] as const) {
+  test(`A saved ${provider} key can be deleted without server encryption`, async ({ page }) => {
+    const label = provider === 'openai' ? 'OpenAI' : 'DeepSeek';
+    const fake = await adminFixture(
+      page,
+      aiAdminFixture({
+        provider,
+        model: provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
+        enabled: true,
+        apiKeyConfigured: true,
+        encryptionReady: false,
+      }),
+    );
+    await openAdmin(page);
+    await selectProvider(page, provider);
+    const panel = page.getByRole('region', { name: 'Настройки ' + label });
+    await expect(panel.getByLabel('API-ключ ' + label)).toBeDisabled();
+    await panel.getByRole('button', { name: 'Удалить ключ' }).click();
+    await panel.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+    expect(fake.writes[0]).toMatchObject({ provider, enabled: false, clearApiKey: true });
+    expect(fake.writes[0]).not.toHaveProperty('apiKey');
+  });
+}
+
+test('OpenAI loads its catalogue automatically and saves model selection with the connection', async ({
   page,
 }) => {
-  const configured = aiAdminFixture({
-    provider: 'deepseek',
-    model: 'deepseek-flash',
-    enabled: true,
-    apiKeyConfigured: true,
-    paidOperationsPerHour: 5,
-    configurationVersion: 3,
-  });
-  const fake = await adminFixture(page, configured);
+  const fake = await adminFixture(
+    page,
+    aiAdminFixture({
+      provider: 'openai',
+      model: 'gpt-6-luna',
+      enabled: false,
+      apiKeyConfigured: true,
+      paidOperationsPerHour: 0,
+    }),
+  );
   await openAdmin(page);
+  await selectProvider(page, 'openai');
+  const panel = page.getByRole('region', { name: 'Настройки OpenAI' });
+  await expect(panel.getByText('Ключ принят · моделей: 3')).toBeVisible();
+  await expect(panel.getByText('Читает изображения')).toHaveCount(2);
+  await expect(panel.getByRole('checkbox', { name: 'gpt-future' })).toBeDisabled();
+  await expect(panel.getByText('Изображения: нет данных')).toBeVisible();
+  await panel.getByRole('checkbox', { name: 'GPT-5 mini' }).uncheck();
+  const save = panel.getByRole('button', { name: 'Сохранить', exact: true });
+  await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+  await expect(save).toBeEnabled();
+  await expect(panel.getByText('Платные запросы отключены при лимите 0.')).toBeVisible();
+  await expect(panel.getByRole('button', { name: /^Сохранить/ })).toHaveCount(1);
+  await save.click();
+  await expect(panel.getByText('Сохранено', { exact: true })).toBeVisible();
+  expect(fake.writes[0]).toMatchObject({
+    provider: 'openai',
+    enabled: true,
+    paidOperationsPerHour: 0,
+  });
+  expect(fake.policyWrites[0]?.['modelPreferences']).toContainEqual({
+    id: 'gpt-5-mini',
+    eligible: false,
+    order: 0,
+  });
   await selectProvider(page, 'deepseek');
-  const action = page.getByRole('button', { name: 'Сохранить и проверить' });
-  await expect(action).toBeDisabled();
-  await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('6');
-  await page.getByLabel('Разрешаю один платный запрос для проверки').check();
-  await action.click();
-  await expect(page.getByText(/Подключено · DeepSeek/)).toBeVisible();
-  expect(fake.writes).toHaveLength(1);
-  expect(fake.paidTests).toEqual([
-    {
-      acknowledgePaidRequest: true,
-      configurationVersion: 4,
-      provider: 'deepseek',
-      providerConfigurationVersion: 2,
-    },
-  ]);
-  await expect(page.getByLabel('Разрешаю один платный запрос для проверки')).not.toBeChecked();
-  await expect(action).toBeDisabled();
-  expect(fake.pageErrors).toEqual([]);
+  expect(fake.paidTests).toHaveLength(0);
 });
 
 for (const width of [1440, 1024, 390, 320]) {
   for (const theme of ['light', 'dark']) {
-    test(`Ollama Cloud saves a separate key and uses explicit paid verification at ${width} ${theme}`, async ({
+    test(`Ollama Cloud verifies a key and selects shared models at ${width} ${theme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: theme === 'dark' ? 'dark' : 'light' });
@@ -537,104 +690,69 @@ for (const width of [1440, 1024, 390, 320]) {
       const fake = await adminFixture(page);
       await openAdmin(page);
       await selectProvider(page, 'ollama-cloud');
-      await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toBeVisible();
-      await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toHaveCSS(
-        'background-color',
-        theme === 'dark' ? 'rgb(32, 33, 35)' : 'rgb(255, 255, 255)',
+      const panel = page.getByRole('region', { name: 'Настройки Ollama Cloud' });
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole('link', { name: 'Получить ключ' })).toHaveAttribute(
+        'href',
+        'https://ollama.com/settings/keys',
       );
-      await expect(
-        page.getByRole('link', { name: 'Войти в Ollama и получить ключ' }),
-      ).toHaveAttribute('href', 'https://ollama.com/settings/keys');
-      await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gemma4:31b');
-      const keyCard = page.locator('details.asa-cloud-key-card').filter({
-        has: page.getByLabel('API-ключ 1', { exact: true }),
-      });
-      await page.getByRole('button', { name: 'Открыть ключ 1', exact: true }).click();
-      await keyCard.getByLabel('API-ключ 1', { exact: true }).fill('test-ollama-cloud-key-only');
-      await keyCard.getByRole('checkbox', { name: 'Использовать ключ', exact: true }).check();
-      await keyCard.getByRole('checkbox', { name: 'gemma4:31b', exact: true }).check();
-      expect(fake.paidTests).toHaveLength(0);
-      await page.getByRole('button', { name: 'Сохранить ключи и порядок', exact: true }).click();
-      await expect(page.getByText('Ключи и порядок сохранены', { exact: true })).toBeVisible();
-      await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
-      await expect(page.getByLabel('Выключено', { exact: true })).not.toBeChecked();
+      await expect(panel.locator('input[type=password]')).toHaveCount(5);
+      await expect(page.getByText('Модели подключения', { exact: true })).toHaveCount(0);
+      const field = panel.getByLabel('API-ключ 1', { exact: true });
+      await field.fill('test-ollama-cloud-key-only');
+      await panel.getByRole('button', { name: 'Проверить ключ 1', exact: true }).click();
+      await expect(panel.locator('.asa-cloud-key-verification [data-tone=success]')).toHaveText(
+        'Ключ работает',
+      );
+      await expect(field).toHaveValue('test-ollama-cloud-key-only');
+      expect(fake.poolWrites).toHaveLength(0);
+      await panel.getByRole('button', { name: 'Выбрать модели', exact: true }).click();
+      const model = panel.getByRole('checkbox', { name: 'gemma4:31b', exact: true });
+      await model.check();
+      await panel.getByRole('button', { name: 'Сведения о модели gemma4:31b' }).click();
+      await expect(panel.getByText(/Контекст:.*262.*144/)).toBeVisible();
+      await expect(panel.locator('.asa-cloud-catalog-list')).toHaveCSS('overflow-y', 'visible');
+      await panel.getByLabel('Общий лимит платных ИИ-операций за час').fill('0');
+      await panel.getByRole('checkbox', { name: 'Включён', exact: true }).check();
+      const save = panel.getByRole('button', { name: 'Сохранить', exact: true });
+      await expect(panel.getByRole('button', { name: /^Сохранить/ })).toHaveCount(1);
+      await save.click();
+      await expect(panel.getByText('Сохранено · Ollama Cloud включён')).toBeVisible();
+      await expect(field).toHaveValue('');
       expect(fake.poolWrites).toHaveLength(1);
-      expect(fake.poolWrites[0]).toMatchObject({
-        configurationVersion: 1,
-        keys: expect.arrayContaining([
-          {
-            slot: 1,
-            label: 'Ключ 1',
-            priority: 1,
-            enabled: true,
-            models: ['gemma4:31b'],
-            apiKey: 'test-ollama-cloud-key-only',
-          },
-        ]),
+      expect(fake.poolWrites[0]?.keys[0]).toMatchObject({
+        slot: 1,
+        enabled: true,
+        apiKey: 'test-ollama-cloud-key-only',
       });
-      expect(
-        fake.current().providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
-      ).toMatchObject({ enabled: false, apiKeyConfigured: true, revision: 1 });
-      expect(fake.paidTests).toHaveLength(0);
-      await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
-      await page.getByLabel('Выключено', { exact: true }).check();
-      await expect(page.getByRole('button', { name: 'Сохранить и проверить' })).toBeDisabled();
-      expect(fake.paidTests).toHaveLength(0);
-      await page.getByLabel('Разрешаю один платный запрос для проверки').check();
-      await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
-      await expect(page.getByText(/Подключено · Ollama Cloud/)).toBeVisible();
+      expect(fake.poolWrites[0]?.keys.map((key) => key.models)).toEqual(
+        Array.from({ length: 5 }, () => ['gemma4:31b']),
+      );
       expect(fake.writes).toHaveLength(1);
       expect(fake.writes[0]).toMatchObject({
         provider: 'ollama-cloud',
-        model: 'gemma4:31b',
         enabled: true,
         configurationVersion: 2,
-        providerConfigurationVersion: 1,
+        paidOperationsPerHour: 0,
       });
-      expect(fake.writes[0]).not.toHaveProperty('apiKey');
-      expect(fake.paidTests).toEqual([
-        {
-          acknowledgePaidRequest: true,
-          configurationVersion: 3,
-          provider: 'ollama-cloud',
-          providerConfigurationVersion: 2,
-        },
-      ]);
-      await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
+      expect(fake.paidTests).toHaveLength(0);
       expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
-      await page.getByRole('region', { name: 'Настройки Ollama Cloud' }).scrollIntoViewIfNeeded();
-      await page.evaluate(() => {
-        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      });
+      await panel.scrollIntoViewIfNeeded();
       await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}-${theme}.png`) });
-      const editor = keyCard.locator('.asa-cloud-key-editor');
-      await editor.scrollIntoViewIfNeeded();
-      await expect(editor).toBeVisible();
-      const keyControl = editor.getByLabel('API-ключ 1', { exact: true });
-      if (theme === 'dark')
-        await expect(keyControl).toHaveCSS('background-color', 'rgb(22, 22, 24)');
-      else await expect(keyControl).not.toHaveCSS('background-color', 'rgb(22, 22, 24)');
-      await expect(
-        keyCard.getByRole('checkbox', { name: 'gemma4:31b', exact: true }),
-      ).toBeChecked();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
-      );
-      await page.screenshot({
-        path: test.info().outputPath(`ollama-cloud-editor-${width}-${theme}.png`),
-      });
       expect(fake.pageErrors).toEqual([]);
     });
   }
 }
 
-test('Stale cloud save cannot start a paid request or claim success', async ({ page }) => {
+test('A stale OpenAI save keeps the draft and does not generate a paid response', async ({
+  page,
+}) => {
   const configured = aiAdminFixture({
-    provider: 'deepseek',
-    model: 'deepseek-flash',
+    provider: 'openai',
+    model: 'gpt-6-luna',
     enabled: true,
     apiKeyConfigured: true,
     paidOperationsPerHour: 5,
@@ -642,47 +760,14 @@ test('Stale cloud save cannot start a paid request or claim success', async ({ p
   });
   const fake = await adminFixture(page, configured);
   await openAdmin(page);
-  await selectProvider(page, 'deepseek');
-  await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('8');
-  await page.getByLabel('Разрешаю один платный запрос для проверки').check();
+  await selectProvider(page, 'openai');
+  const quota = page.getByLabel('Общий лимит платных ИИ-операций за час');
+  await quota.fill('8');
   fake.replace({ ...configured, paidOperationsPerHour: 9, configurationVersion: 4 });
-  await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
-  await expect(page.getByRole('alert')).toContainText('Настройки ИИ изменились');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Настройки изменились');
+  await expect(quota).toHaveValue('8');
   expect(fake.paidTests).toHaveLength(0);
-  await expect(page.getByText('Подключено ·')).toHaveCount(0);
-});
-
-test('A response for another model is never a verified connection', async ({ page }) => {
-  const fake = await adminFixture(
-    page,
-    aiAdminFixture({
-      provider: 'deepseek',
-      model: 'deepseek-flash',
-      enabled: true,
-      apiKeyConfigured: true,
-      paidOperationsPerHour: 5,
-      configurationVersion: 2,
-    }),
-  );
-  await page.route('**/api/admin/v1/ai/test', async (route) =>
-    route.fulfill({
-      json: {
-        provider: 'deepseek',
-        model: 'deepseek-v4-pro',
-        providerConfigurationVersion: 1,
-        elapsedMs: 123,
-        testedAt: NOW,
-        configurationVersion: 2,
-      },
-    }),
-  );
-  await openAdmin(page);
-  await selectProvider(page, 'deepseek');
-  await page.getByLabel('Разрешаю один платный запрос для проверки').check();
-  await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
-  await expect(page.getByRole('alert')).toContainText('не соответствует текущим настройкам');
-  await expect(page.getByText('Подключено ·')).toHaveCount(0);
-  expect(fake.pageErrors).toEqual([]);
 });
 
 for (const width of [1440, 1024, 390, 320]) {
@@ -700,8 +785,8 @@ for (const width of [1440, 1024, 390, 320]) {
     );
     await openAdmin(page);
     await selectProvider(page, 'deepseek');
-    await expect(page.getByRole('button', { name: 'Сохранить выключенным' })).toBeVisible();
-    await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
+    await expect(page.getByText('Ключ принят · моделей: 3')).toBeVisible();
+    await expect(page.getByLabel('API-ключ DeepSeek')).toHaveValue('');
     await expect
       .poll(() =>
         page.evaluate(
@@ -713,6 +798,7 @@ for (const width of [1440, 1024, 390, 320]) {
       path: test.info().outputPath('ai-connections-' + width + '.png'),
       fullPage: true,
     });
+    expect(fake.deepSeekCatalogChecks).toEqual([false]);
     expect(fake.writes).toHaveLength(0);
     expect(fake.paidTests).toHaveLength(0);
     expect(fake.pageErrors).toEqual([]);
@@ -726,18 +812,18 @@ for (const width of [1440, 390]) {
     await openAdmin(page);
     await selectProvider(page, 'ollama');
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://127.0.0.1:11434');
-    await expect(
-      page.getByRole('group', { name: 'Установленные модели Ollama' }).getByRole('button'),
-    ).toHaveCount(2);
+    await expect(page.locator('.asa-ai-ollama-model-option')).toHaveCount(2);
     await page.getByLabel('Адрес Ollama').fill('http://192.168.1.20:11434');
-    await expect(
-      page.getByRole('group', { name: 'Установленные модели Ollama' }).getByRole('button'),
-    ).toHaveCount(2);
+    await expect(page.locator('.asa-ai-ollama-model-option')).toHaveCount(2);
     await page
       .getByRole('group', { name: 'Установленные модели Ollama' })
       .getByRole('button', { name: /ornith:9b/ })
       .click();
     await page.getByRole('checkbox', { name: 'Выключено' }).check();
+    const selectedRow = page.locator('.asa-ai-ollama-model-card.is-selected');
+    await expect(selectedRow.getByLabel('Режим размышления Ollama')).toBeVisible();
+    await expect(selectedRow.getByLabel('Контекст, токенов')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Модели подключения' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
     await expect(page.getByText('Сохранено · ornith:9b', { exact: false })).toBeVisible();
     expect(fake.ollamaWrites).toHaveLength(1);
@@ -773,70 +859,19 @@ for (const width of [1440, 390]) {
   });
 }
 
-const CASES = [
-  ['ai_provider_invalid_request', 502, 'отклонил формат запроса'],
-  ['ai_provider_authentication_failed', 502, 'не принял API-ключ'],
-  ['ai_provider_insufficient_balance', 502, 'недостаточно средств'],
-  ['ai_provider_access_denied', 502, 'запретил доступ'],
-  ['ai_provider_model_unavailable', 502, 'Модель или endpoint недоступны'],
-  ['ai_provider_rate_limit', 429, 'ограничил частоту'],
-  ['ai_provider_unavailable', 503, 'не смог соединиться'],
-  ['ai_provider_timeout', 504, 'не ответил вовремя'],
-  ['ai_key_decryption_failed', 503, 'не удалось расшифровать'],
-  ['ai_platform_quota_exhausted', 429, 'равен нулю'],
-  ['ai_test_incomplete', 503, 'не получила завершённый'],
-] as const;
-for (const [code, status, message] of CASES) {
-  test('Paid check failure ' + code + ' masks upstream secrets', async ({ page }) => {
-    const fake = await adminFixture(
-      page,
-      aiAdminFixture({
-        provider: 'deepseek',
-        model: 'deepseek-flash',
-        enabled: true,
-        apiKeyConfigured: true,
-        paidOperationsPerHour: 5,
-      }),
-    );
-    let attempts = 0;
-    await page.route('**/api/admin/v1/ai/test', async (route) => {
-      attempts += 1;
-      return route.fulfill({
-        status,
-        json: {
-          error: { code, message: 'PRIVATE_REMOTE_PROVIDER_BODY sk-not-user-visible' },
-        },
-      });
-    });
-    await openAdmin(page);
-    await selectProvider(page, 'deepseek');
-    await page.getByLabel('Разрешаю один платный запрос для проверки').check();
-    await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
-    await expect(page.getByRole('alert')).toContainText(message);
-    await expect(page.locator('body')).not.toContainText('PRIVATE_REMOTE_PROVIDER_BODY');
-    await expect(page.locator('body')).not.toContainText('sk-not-user-visible');
-    expect(attempts).toBe(1);
-    expect(fake.writes).toHaveLength(0);
-  });
-}
-
-test('Encryption unready and zero quota prohibit cloud paid checks', async ({ page }) => {
-  const fake = await adminFixture(
-    page,
-    aiAdminFixture({
-      provider: 'deepseek',
-      model: 'deepseek-flash',
-      enabled: true,
-      apiKeyConfigured: true,
-      encryptionReady: false,
-      paidOperationsPerHour: 0,
+test('An OpenAI key rejected by the catalogue is not saved', async ({ page }) => {
+  const fake = await adminFixture(page);
+  await page.route('**/api/admin/v1/ai/openai/catalog', (route) =>
+    route.fulfill({
+      status: 502,
+      json: { error: { code: 'ai_cloud_catalog_key_rejected', message: 'OpenAI не принял ключ.' } },
     }),
   );
   await openAdmin(page);
-  await selectProvider(page, 'deepseek');
-  await expect(page.getByLabel('Новый API-ключ')).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Сохранить и проверить' })).toBeDisabled();
-  await expect(page.getByRole('alert')).toContainText('Шифрование ключей');
-  expect(fake.paidTests).toHaveLength(0);
+  await selectProvider(page, 'openai');
+  await page.getByLabel('API-ключ OpenAI').fill('rejected-openai-key');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('OpenAI не принял ключ.')).toBeVisible();
   expect(fake.writes).toHaveLength(0);
+  expect(fake.paidTests).toHaveLength(0);
 });

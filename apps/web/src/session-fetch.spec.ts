@@ -4,11 +4,16 @@ import { reportClientDiagnostic } from './client-diagnostics';
 import { fetchWithSessionRefresh, onSessionLoggedOut } from './session-fetch';
 import { setTelemetryContext } from './telemetry-context';
 import { AUTH_REQUEST_TIMEOUT_MS } from './auth-request';
+import { invalidatePortalSession } from './portal-requests';
+import { call } from './api-call';
 
 vi.mock('./client-diagnostics', () => ({ reportClientDiagnostic: vi.fn() }));
 
 afterEach(() => {
+  invalidatePortalSession();
   vi.useRealTimers();
+  // A new fixture is a new authentication lifetime, even if both are anonymous.
+  setTelemetryContext(null, true, 'public');
   setTelemetryContext(null, false, 'public');
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -216,7 +221,12 @@ describe('confirmed session invalidation', () => {
     );
     const result = fetchWithSessionRefresh('/api/projects/id/draft', {
       method: 'PUT',
-      body: 'private-document',
+      retryAfterRefresh: 'idempotent',
+      body: JSON.stringify({
+        document: 'private-document',
+        baseRevision: 1,
+        mutationId: '10000000-0000-4000-8000-000000000001',
+      }),
     });
     await settle();
     nextActor();
@@ -606,12 +616,16 @@ describe('authentication deadlines preserve shared refresh', () => {
     const timedOut = api.accountVerification();
     await vi.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS + 1);
     await expect(timedOut).resolves.toMatchObject({ ok: false, error: { code: 'auth_timeout' } });
+    // A newly mounted caller must not immediately repeat the expired refresh.
+    await expect(api.me()).resolves.toMatchObject({ ok: false, status: 401 });
+    expect(refreshCount).toBe(1);
+    await vi.advanceTimersByTimeAsync(1000);
     await expect(api.me()).resolves.toMatchObject({ ok: true, data: { authenticated: true } });
     finishLate(Response.json({ refreshed: true }));
     await vi.advanceTimersByTimeAsync(0);
     expect(refreshCount).toBe(2);
     expect(paths.filter((path) => path === '/api/auth/verification')).toHaveLength(1);
-    expect(paths.filter((path) => path === '/api/auth/me')).toHaveLength(2);
+    expect(paths.filter((path) => path === '/api/auth/me')).toHaveLength(3);
   });
 
   it('bounds a stalled refresh error body without replaying a mutation', async () => {
@@ -632,6 +646,249 @@ describe('authentication deadlines preserve shared refresh', () => {
     expect(transport.mock.calls.map(([path]) => path)).toEqual([
       '/api/projects/id/snapshot',
       '/api/auth/refresh',
+    ]);
+  });
+});
+
+describe('bounded recovery waves and explicit replay contracts', () => {
+  const settle = async () => {
+    for (let index = 0; index < 40; index++) await Promise.resolve();
+  };
+
+  it('reuses a completed refresh for a delayed 401 from the same wave', async () => {
+    let finishSlow!: (value: Response) => void;
+    const attempts = new Map<string, number>();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      const path = String(url);
+      attempts.set(path, (attempts.get(path) ?? 0) + 1);
+      if (path === '/api/auth/refresh') return Response.json({ refreshed: true });
+      if (path === '/api/projects/slow' && attempts.get(path) === 1)
+        return new Promise<Response>((resolve) => {
+          finishSlow = resolve;
+        });
+      return Response.json({}, { status: attempts.get(path) === 1 ? 401 : 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const slow = fetchWithSessionRefresh('/api/projects/slow');
+    expect((await fetchWithSessionRefresh('/api/projects/fast')).status).toBe(200);
+    finishSlow(new Response(null, { status: 401 }));
+    expect((await slow).status).toBe(200);
+    expect(attempts.get('/api/auth/refresh')).toBe(1);
+    expect(attempts.get('/api/projects/slow')).toBe(2);
+  });
+
+  it('bounds repeated 60-client failure waves and respects Retry-After', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const refresh = vi.fn(
+      async () => new Response(null, { status: 503, headers: { 'retry-after': '3' } }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (path) =>
+          path === '/api/auth/refresh' ? refresh() : new Response(null, { status: 401 }),
+        ),
+    );
+    const wave = () =>
+      Promise.all(
+        Array.from({ length: 60 }, (_, index) =>
+          fetchWithSessionRefresh(`/api/projects/fixture-${index}`),
+        ),
+      );
+    expect((await wave()).every((response) => response.status === 401)).toBe(true);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(2999);
+    await wave();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await wave();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(500);
+    await wave();
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([0, 1])(
+    'adds positive refresh jitter after Retry-After for random=%s',
+    async (random) => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, 'random').mockReturnValue(random);
+      const refresh = vi.fn(
+        async () => new Response(null, { status: 503, headers: { 'retry-after': '3' } }),
+      );
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn<typeof fetch>()
+          .mockImplementation(async (path) =>
+            path === '/api/auth/refresh' ? refresh() : new Response(null, { status: 401 }),
+          ),
+      );
+      await fetchWithSessionRefresh('/api/projects/fixture');
+      await vi.advanceTimersByTimeAsync(3000);
+      await fetchWithSessionRefresh('/api/projects/fixture');
+      expect(refresh).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(200);
+      await fetchWithSessionRefresh('/api/projects/fixture');
+      expect(refresh).toHaveBeenCalledTimes(random === 0 ? 2 : 1);
+      if (random === 1) {
+        await vi.advanceTimersByTimeAsync(400);
+        await fetchWithSessionRefresh('/api/projects/fixture');
+        expect(refresh).toHaveBeenCalledTimes(2);
+      }
+    },
+  );
+
+  it('does not carry a recovery cooldown into another user or workspace', async () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn(async () => new Response(null, { status: 503 }));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (path) =>
+          path === '/api/auth/refresh' ? refresh() : new Response(null, { status: 401 }),
+        ),
+    );
+    await fetchWithSessionRefresh('/api/projects/original');
+    setTelemetryContext(
+      { kind: 'account', accountId: 'new-account', workspaceId: 'new-workspace' },
+      true,
+      'projects',
+    );
+    await fetchWithSessionRefresh('/api/projects/successor');
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('starts shared refresh outside the occupied product queue', async () => {
+    let finishRefresh!: (value: Response) => void;
+    let refreshed = false;
+    const attempts = new Map<string, number>();
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      const path = String(url);
+      attempts.set(path, (attempts.get(path) ?? 0) + 1);
+      if (path === '/api/auth/refresh')
+        return new Promise<Response>((resolve) => {
+          finishRefresh = resolve;
+        });
+      return Response.json({}, { status: refreshed ? 200 : 401 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const requests = Array.from({ length: 12 }, (_, index) =>
+      call(`/api/projects?fixture=${index}`),
+    );
+    await settle();
+    expect(attempts.get('/api/auth/refresh')).toBe(1);
+    refreshed = true;
+    finishRefresh(Response.json({ refreshed: true }));
+    expect((await Promise.all(requests)).every((response) => response.ok)).toBe(true);
+    expect(attempts.get('/api/auth/refresh')).toBe(1);
+  });
+
+  it('never replays an opted-in write across a pending scope boundary', async () => {
+    let finish!: (value: Response) => void;
+    const denied = new Response(null, { status: 401 });
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (path) => {
+      if (path === '/api/auth/refresh')
+        return new Promise<Response>((resolve) => {
+          finish = resolve;
+        });
+      return denied;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const saving = fetchWithSessionRefresh('/api/projects/p/draft', {
+      method: 'PUT',
+      retryAfterRefresh: 'idempotent',
+      body: JSON.stringify({
+        document: { nodes: ['work'] },
+        baseRevision: 7,
+        mutationId: '10000000-0000-4000-8000-000000000001',
+      }),
+    });
+    await settle();
+    // The canonical successor has not reached App/telemetry yet.
+    invalidatePortalSession();
+    finish(Response.json({ refreshed: true }));
+    expect(await saving).toBe(denied);
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/projects/p/draft',
+      '/api/auth/refresh',
+    ]);
+  });
+
+  it.each([
+    { path: '/api/projects/p/versions/v/restore', method: 'POST' },
+    { path: '/api/projects/p', method: 'PATCH' },
+    { path: '/api/projects/p/snapshot', method: 'PUT' },
+    { path: '/api/unproved', method: 'POST', retryAfterRefresh: 'idempotent' as const },
+    { path: '/api/projects', method: 'POST' },
+    { path: '/api/projects/p/draft', method: 'PUT', retryAfterRefresh: 'idempotent' as const },
+  ])('refreshes but never replays unproved $method $path', async ({ path, ...init }) => {
+    const denied = new Response(null, { status: 401 });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (url) =>
+        url === '/api/auth/refresh' ? Response.json({ refreshed: true }) : denied,
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(
+      await fetchWithSessionRefresh(path, {
+        ...init,
+        body: '{}',
+        headers: { 'idempotency-key': 'present-but-not-a-proven-route' },
+      }),
+    ).toBe(denied);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([path, '/api/auth/refresh']);
+  });
+
+  it('replays one exact project create with its existing idempotency key', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ refreshed: true }))
+      .mockResolvedValueOnce(
+        Response.json({ project: { id: 'saved' }, created: true }, { status: 201 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(
+      await api.createProject({
+        scope: 'personal',
+        module: 'electronics',
+        title: 'Saved once',
+        idempotencyKey: '10000000-0000-4000-8000-000000000001',
+      }),
+    ).toMatchObject({ ok: true, status: 201, data: { created: true } });
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/projects',
+      '/api/auth/refresh',
+      '/api/projects',
+    ]);
+    expect(fetchMock.mock.calls[0]![1]!.body).toBe(fetchMock.mock.calls[2]![1]!.body);
+    expect(fetchMock.mock.calls[0]![1]!.headers).toEqual(fetchMock.mock.calls[2]![1]!.headers);
+    expect(fetchMock.mock.calls[2]![1]).not.toHaveProperty('retryAfterRefresh');
+  });
+
+  it('preserves autosave recovery with the same generated draft mutation and revision', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ refreshed: true }))
+      .mockResolvedValueOnce(Response.json({ draft: { revision: 8 }, result: null }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await api.saveDraft('project-a', { nodes: ['work'] }, 7)).toMatchObject({
+      ok: true,
+      data: { draft: { revision: 8 } },
+    });
+    const body = String(fetchMock.mock.calls[0]![1]!.body);
+    expect(JSON.parse(body)).toMatchObject({ document: { nodes: ['work'] }, baseRevision: 7 });
+    expect(JSON.parse(body).mutationId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(fetchMock.mock.calls[2]![1]!.body).toBe(body);
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/projects/project-a/draft',
+      '/api/auth/refresh',
+      '/api/projects/project-a/draft',
     ]);
   });
 });

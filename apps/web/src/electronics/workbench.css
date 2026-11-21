@@ -5017,6 +5017,9 @@ html.arduino-palette-resizing * {
     width: 36px;
     height: 100%;
   }
+  .workbench-toolbar.breadboard > .workbench-breadboard-tools > .workbench-tool {
+    width: 34px;
+  }
   .workbench-breadboard-tools .workbench-toolbar-gap {
     width: 0;
   }

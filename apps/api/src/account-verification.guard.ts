@@ -77,6 +77,22 @@ const SEAT_FIRST_ROUTES = new Set([
   'GET /api/learning/projects/:projectId/context',
   'POST /api/learning/projects/:projectId/submit',
   'POST /api/learning/work/runs/:activityRunId/start',
+  'GET /api/learning/essay/runs/:activityRunId',
+  'GET /api/learning/essay/runs/:activityRunId/media/:role/:contentHash',
+  'POST /api/learning/essay/runs/:activityRunId/start',
+  'PUT /api/learning/essay/runs/:activityRunId/draft',
+  'POST /api/learning/essay/runs/:activityRunId/submit',
+  'GET /api/learning/file/runs/:activityRunId',
+  'GET /api/learning/file/runs/:activityRunId/media/:role/:contentHash',
+  'GET /api/learning/file/runs/:activityRunId/files/:fileId',
+  'POST /api/learning/file/runs/:activityRunId/start',
+  'PUT /api/learning/file/runs/:activityRunId/draft/:attemptId/:expectedRevision/:requestId',
+  'POST /api/learning/file/runs/:activityRunId/submit',
+  'POST /api/learning/activity-participations/:participationId/attempts',
+  'GET /api/learning/attempts/:attemptId',
+  'PATCH /api/learning/attempts/:attemptId/quiz-answers',
+  'POST /api/learning/attempts/:attemptId/submit',
+  'GET /api/learning/quiz/runs/:activityRunId',
 ]);
 
 /** Only identity proof, recovery and narrowly scoped configuration use this. */

@@ -1,0 +1,973 @@
+import { useId, type MouseEventHandler, type PointerEventHandler } from 'react';
+import { fieldCameraViewBox, type FieldCamera, type FieldViewport } from './field-camera';
+import type {
+  RoboticsDistanceMeasurement,
+  RoboticsWorldDocument,
+  RoboticsWorldState,
+} from './world';
+import type {
+  RoboticsBody,
+  RoboticsObjectKey,
+  RoboticsPoint,
+} from '@asa-lab/robotics/world-document';
+
+export type { RoboticsObjectKey } from '@asa-lab/robotics/world-document';
+
+type RoboticsBodyGeometry = Pick<
+  RoboticsBody,
+  'id' | 'label' | 'xMeters' | 'yMeters' | 'headingRadians' | 'heightMeters'
+> &
+  (
+    | { readonly kind: 'can'; readonly radiusMeters: number }
+    | { readonly kind: 'box'; readonly widthMeters: number; readonly depthMeters: number }
+  );
+
+/** The same drawing accepts source-only published geometry and a full editable world. */
+export type RoboticsFieldGeometry = Pick<RoboticsWorldDocument, 'robot' | 'initialPose'> & {
+  readonly field: Omit<RoboticsWorldDocument['field'], 'balls' | 'bodies'> & {
+    readonly balls: readonly Pick<
+      RoboticsWorldDocument['field']['balls'][number],
+      'id' | 'label' | 'xMeters' | 'yMeters' | 'radiusMeters'
+    >[];
+    readonly bodies?: readonly RoboticsBodyGeometry[];
+  };
+};
+
+export function RobotField({
+  world,
+  state,
+  distance,
+  showGrid,
+  selection = null,
+  ghost = null,
+  editable = false,
+  view = 'field',
+  testIdPrefix = 'robotics',
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  onLostPointerCapture,
+  onContextMenu,
+  draftStroke,
+  projection,
+}: {
+  world: RoboticsFieldGeometry;
+  projection?: { camera: FieldCamera; viewport: FieldViewport } | undefined;
+  state?: RoboticsWorldState;
+  distance?: RoboticsDistanceMeasurement;
+  showGrid: boolean;
+  selection?: RoboticsObjectKey | null;
+  ghost?: { key: RoboticsObjectKey; valid: boolean } | null;
+  editable?: boolean;
+  view?: 'field' | 'robot';
+  testIdPrefix?: string;
+  onPointerDown?: PointerEventHandler<SVGSVGElement>;
+  onPointerMove?: PointerEventHandler<SVGSVGElement>;
+  onPointerUp?: PointerEventHandler<SVGSVGElement>;
+  onPointerCancel?: PointerEventHandler<SVGSVGElement>;
+  onLostPointerCapture?: PointerEventHandler<SVGSVGElement>;
+  onContextMenu?: MouseEventHandler<SVGSVGElement>;
+  draftStroke?: {
+    kind: 'line' | 'curve';
+    points: readonly RoboticsPoint[];
+    cursor: RoboticsPoint | null;
+  } | null;
+}) {
+  const id = useId().replaceAll(':', '');
+  const width = world.field.widthMeters * 1000;
+  const height = world.field.heightMeters * 1000;
+  const pixelsPerMetre = projection?.camera.pixelsPerMeter;
+  const detailStride = pixelsPerMetre
+    ? 2 ** Math.max(0, Math.ceil(Math.log2(8 / (world.field.gridMeters * pixelsPerMetre))))
+    : 1;
+  const gridPitch = world.field.gridMeters * 1000 * detailStride;
+  const tilePitch = (world.field.tiles?.sizeMeters ?? 0.3) * 1000;
+  const viewStroke = pixelsPerMetre ? 1000 / pixelsPerMetre : 3;
+  const floor =
+    world.field.surface === 'carpet'
+      ? ['#dadfd9', '#c7d1c7']
+      : world.field.surface === 'wood'
+        ? ['#eeeadf', '#e4dbca']
+        : ['#e6eced', '#d2dce0'];
+  const robot = world.robot;
+  const length = robot.bodyLengthMeters * 1000;
+  const bodyWidth = robot.bodyWidthMeters * 1000;
+  const radius = robot.wheelRadiusMeters * 1000;
+  const wheelWidth = robot.wheelWidthMeters * 1000;
+  const halfTrack = (robot.wheelTrackMeters * 1000) / 2;
+  const sensorX = robot.sensorForwardMeters * 1000;
+  const sensorY = -robot.sensorLateralMeters * 1000;
+  const boardLength = length * 0.43;
+  const boardWidth = bodyWidth * 0.54;
+  const pose = state?.pose ?? world.initialPose;
+  const currentTrail = state?.trail ?? [];
+  const ghostMarker = (key: RoboticsObjectKey) =>
+    ghost?.key === key ? (ghost.valid ? 'valid' : 'invalid') : undefined;
+  const trail = currentTrail
+    .map((point) => `${point.xMeters * 1000},${height - point.yMeters * 1000}`)
+    .join(' ');
+
+  const robotViewRadius =
+    Math.max(
+      length,
+      bodyWidth,
+      Math.abs(sensorX) * 2 + 100,
+      Math.abs(sensorY) * 2 + 100,
+      halfTrack * 2 + wheelWidth,
+    ) * 0.8;
+  const viewBox =
+    projection && view === 'field'
+      ? fieldCameraViewBox(projection.camera, projection.viewport, world.field.heightMeters)
+      : view === 'robot'
+        ? `${pose.xMeters * 1000 - robotViewRadius} ${height - pose.yMeters * 1000 - robotViewRadius} ${robotViewRadius * 2} ${robotViewRadius * 2}`
+        : `-65 -65 ${width + 130} ${height + 130}`;
+
+  const vectorHandle = (
+    kind: 'mark' | 'wall' | 'ball' | 'body' | 'decoration',
+    itemId: string,
+    which: 'start' | 'end' | 'control' | 'radius',
+    sceneKey: string,
+    point: RoboticsPoint,
+  ) => (
+    <circle
+      key={kind + ':' + itemId + ':' + which}
+      className="robotics-vector-handle"
+      data-vector-kind={kind}
+      data-vector-id={itemId}
+      data-vector-handle={which}
+      data-scene-key={sceneKey}
+      aria-label={'Изменить ' + which + ': ' + kind}
+      cx={point.xMeters * 1000}
+      cy={height - point.yMeters * 1000}
+      r={projection ? 7_000 / projection.camera.pixelsPerMeter : 16}
+      stroke="#066c90"
+      strokeWidth={projection ? 2_000 / projection.camera.pixelsPerMeter : 6}
+      fill="#ffffff"
+      role="presentation"
+    />
+  );
+  const rectHandles = (
+    kind: 'wall' | 'decoration',
+    itemId: string,
+    sceneKey: string,
+    left: number,
+    bottom: number,
+    widthMeters: number,
+    heightMeters: number,
+  ) => [
+    vectorHandle(kind, itemId, 'start', sceneKey, { xMeters: left, yMeters: bottom }),
+    vectorHandle(kind, itemId, 'end', sceneKey, {
+      xMeters: left + widthMeters,
+      yMeters: bottom + heightMeters,
+    }),
+  ];
+
+  return (
+    <svg
+      className="robotics-field"
+      data-testid={`${testIdPrefix}-field`}
+      data-editable={editable}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onLostPointerCapture}
+      onContextMenu={onContextMenu}
+      role="img"
+      aria-labelledby={`robotics-field-title-${id} robotics-field-description-${id}`}
+      viewBox={viewBox}
+      preserveAspectRatio={projection ? 'none' : 'xMidYMid meet'}
+    >
+      <title id={`robotics-field-title-${id}`}>
+        {view === 'robot' ? 'Шасси и крепление датчика, вид сверху' : 'Поле робота, вид сверху'}
+      </title>
+      <desc id={`robotics-field-description-${id}`}>
+        {view === 'robot'
+          ? `Корпус ${length} на ${bodyWidth} миллиметров. Колёса L и R и положение HC-SR04. Бирюзовая стрелка показывает направление датчика относительно корпуса.`
+          : `Поле ${Math.round(width * 100) / 100} на ${Math.round(height * 100) / 100} миллиметров. Робот: X ${Math.round(pose.xMeters * 1000)}, Y ${Math.round(pose.yMeters * 1000)} миллиметров. ${state ? 'Бирюзовый луч показывает измерение датчика, оранжевая линия — пройденный путь.' : 'Сохранённая сцена и начальное положение робота.'}`}
+      </desc>
+      <defs>
+        <clipPath id={`robotics-floor-clip-${id}`}>
+          <rect width={width} height={height} />
+        </clipPath>
+        <linearGradient id={`robotics-floor-${id}`} x2="1" y2="1">
+          <stop offset="0" stopColor={floor[0]} />
+          <stop offset="1" stopColor={floor[1]} />
+        </linearGradient>
+        <linearGradient id={`robotics-metal-${id}`} x2=".85" y2="1">
+          <stop offset="0" stopColor="#f6fafb" />
+          <stop offset=".28" stopColor="#95a5b3" />
+          <stop offset=".51" stopColor="#e4ebef" />
+          <stop offset=".78" stopColor="#b4c1cb" />
+          <stop offset="1" stopColor="#7b8a98" />
+        </linearGradient>
+        <radialGradient id={`robotics-ball-${id}`} cx=".35" cy=".27" r=".76">
+          <stop offset="0" stopColor="#ffd981" />
+          <stop offset=".52" stopColor="#eea33b" />
+          <stop offset="1" stopColor="#a85119" />
+        </radialGradient>
+        <linearGradient id={`robotics-wood-${id}`} x2="1" y2="1">
+          <stop offset="0" stopColor="#efc896" />
+          <stop offset=".72" stopColor="#cc9c65" />
+          <stop offset="1" stopColor="#a47045" />
+        </linearGradient>
+        <linearGradient id={`robotics-chassis-${id}`} x2=".8" y2="1">
+          <stop offset="0" stopColor="#546b78" />
+          <stop offset=".45" stopColor="#273d49" />
+          <stop offset="1" stopColor="#172833" />
+        </linearGradient>
+        <linearGradient id={`robotics-tire-${id}`} x2=".18" y2="1">
+          <stop offset="0" stopColor="#3f4c56" />
+          <stop offset=".5" stopColor="#253139" />
+          <stop offset="1" stopColor="#16232c" />
+        </linearGradient>
+        <pattern
+          id={`robotics-tiles-${id}`}
+          width={tilePitch}
+          height={tilePitch}
+          patternUnits="userSpaceOnUse"
+          patternTransform={`translate(0 ${height})`}
+        >
+          <path
+            d={`M ${tilePitch} 0 H 0 V ${tilePitch}`}
+            fill="none"
+            stroke="#8399a4"
+            strokeOpacity=".54"
+            strokeWidth={viewStroke * 1.4}
+          />
+        </pattern>
+        <pattern
+          id={`robotics-grid-${id}`}
+          width={gridPitch}
+          height={gridPitch}
+          patternUnits="userSpaceOnUse"
+          patternTransform={`translate(0 ${height})`}
+        >
+          <path
+            d={`M ${gridPitch} 0 H 0 V ${gridPitch}`}
+            fill="none"
+            stroke="#8197a0"
+            strokeOpacity=".29"
+            strokeWidth={viewStroke}
+          />
+        </pattern>
+        <pattern
+          id={`robotics-obstacle-${id}`}
+          width="24"
+          height="24"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(45)"
+        >
+          <rect width="24" height="24" fill="#bac8d0" />
+          <path d="M0 0V24" stroke="#d5dfe3" strokeWidth="5" />
+        </pattern>
+      </defs>
+      {view === 'field' ? (
+        <>
+          {projection ? (
+            <rect
+              x={viewStroke * 2}
+              y={viewStroke * 5}
+              width={width}
+              height={height}
+              fill="#152b35"
+              opacity=".18"
+              pointerEvents="none"
+            />
+          ) : null}
+          <rect width={width} height={height} fill={`url(#robotics-floor-${id})`} />
+          {showGrid ? (
+            <rect width={width} height={height} fill={`url(#robotics-grid-${id})`} />
+          ) : null}
+          {world.field.tiles?.enabled ? (
+            <rect
+              data-testid={`${testIdPrefix}-tiles`}
+              width={width}
+              height={height}
+              fill={`url(#robotics-tiles-${id})`}
+              pointerEvents="none"
+            />
+          ) : null}
+          <rect
+            width={width}
+            height={height}
+            fill="none"
+            stroke="#69838f"
+            strokeWidth={viewStroke * 1.6}
+            pointerEvents="none"
+          />
+          {!projection ? (
+            <>
+              <text x={width / 2} y="-22" textAnchor="middle" className="robotics-field-dimension">
+                {Math.round(width * 100) / 100} мм
+              </text>
+              <text
+                transform={`translate(-24 ${height / 2}) rotate(-90)`}
+                textAnchor="middle"
+                className="robotics-field-dimension"
+              >
+                {Math.round(height * 100) / 100} мм
+              </text>
+            </>
+          ) : null}
+          <g clipPath={`url(#robotics-floor-clip-${id})`}>
+            {world.field.floorMarks.map((mark) => {
+              const key: RoboticsObjectKey = mark.groupId
+                ? `mark-group:${mark.groupId}`
+                : `mark:${mark.id}`;
+              return mark.kind !== 'area' ? (
+                <path
+                  key={mark.id}
+                  data-scene-key={key}
+                  data-object-kind={mark.kind}
+                  data-floor-mark-id={mark.id}
+                  data-field-ghost={ghostMarker(key)}
+                  d={`M${mark.start.xMeters * 1000} ${height - mark.start.yMeters * 1000} ${mark.kind === 'curve' ? `Q${mark.control.xMeters * 1000} ${height - mark.control.yMeters * 1000}` : 'L'} ${mark.end.xMeters * 1000} ${height - mark.end.yMeters * 1000}`}
+                  fill="none"
+                  stroke={mark.color}
+                  strokeWidth={mark.widthMeters * 1000}
+                  strokeLinecap="round"
+                  className={selection === key ? 'selected' : ''}
+                >
+                  <title>
+                    {mark.label ?? (mark.kind === 'curve' ? 'Плавный поворот' : 'Линия')}
+                  </title>
+                </path>
+              ) : (
+                <rect
+                  key={mark.id}
+                  data-scene-key={key}
+                  data-object-kind="area"
+                  data-floor-mark-id={mark.id}
+                  data-field-ghost={ghostMarker(key)}
+                  x={mark.xMeters * 1000}
+                  y={height - (mark.yMeters + mark.heightMeters) * 1000}
+                  width={mark.widthMeters * 1000}
+                  height={mark.heightMeters * 1000}
+                  fill={mark.color}
+                  fillOpacity=".42"
+                  stroke={selection === key ? '#087d9b' : mark.color}
+                  strokeWidth={selection === key ? 9 : 2}
+                >
+                  <title>{mark.label ?? 'Цветная зона'}</title>
+                </rect>
+              );
+            })}
+          </g>
+          <g clipPath={'url(#robotics-floor-clip-' + id + ')'}>
+            {(world.field.visuals ?? []).map((visual) => {
+              const x = visual.xMeters * 1000;
+              const y = height - (visual.yMeters + visual.heightMeters) * 1000;
+              const w = visual.widthMeters * 1000;
+              const h = visual.heightMeters * 1000;
+              const isSelected = selection === 'decoration:' + visual.id;
+              return (
+                <g
+                  key={visual.id}
+                  data-scene-key={'decoration:' + visual.id}
+                  data-object-kind={visual.kind}
+                  data-decoration-id={visual.id}
+                  data-field-ghost={ghostMarker(`decoration:${visual.id}`)}
+                  transform={
+                    'rotate(' +
+                    -((visual.rotationRadians ?? 0) * 180) / Math.PI +
+                    ' ' +
+                    (x + w / 2) +
+                    ' ' +
+                    (y + h / 2) +
+                    ')'
+                  }
+                >
+                  <title>{visual.label ?? visual.kind}</title>
+                  {visual.kind === 'rectangle' ? (
+                    <rect
+                      x={x}
+                      y={y}
+                      width={w}
+                      height={h}
+                      stroke={isSelected ? '#087d9b' : visual.strokeColor}
+                      fill={visual.fillEnabled ? visual.fillColor : 'none'}
+                      strokeWidth={isSelected ? 7 : 4}
+                    />
+                  ) : visual.kind === 'circle' ? (
+                    <circle
+                      cx={x + w / 2}
+                      cy={y + h / 2}
+                      r={w / 2}
+                      stroke={isSelected ? '#087d9b' : visual.strokeColor}
+                      fill={visual.fillEnabled ? visual.fillColor : 'none'}
+                      strokeWidth={isSelected ? 7 : 4}
+                    />
+                  ) : visual.kind === 'text' ? (
+                    <>
+                      <rect
+                        x={x}
+                        y={y}
+                        width={w}
+                        height={h}
+                        fill="transparent"
+                        stroke={isSelected ? '#087d9b' : 'none'}
+                        strokeDasharray="8 6"
+                        strokeWidth="3"
+                      />
+                      <text
+                        x={x + 7}
+                        y={y + Math.min(h * 0.78, 120)}
+                        fontSize={Math.min(h * 0.73, 110)}
+                        fontFamily="Arial, sans-serif"
+                        fontWeight="700"
+                        fill={visual.strokeColor}
+                        textLength={Math.max(8, w - 14)}
+                        lengthAdjust="spacingAndGlyphs"
+                        pointerEvents="none"
+                      >
+                        {visual.text}
+                      </text>
+                    </>
+                  ) : (
+                    <>
+                      <image
+                        x={x}
+                        y={y}
+                        width={w}
+                        height={h}
+                        href={visual.imageData}
+                        preserveAspectRatio="none"
+                      />
+                      <rect
+                        x={x}
+                        y={y}
+                        width={w}
+                        height={h}
+                        fill="transparent"
+                        stroke={isSelected ? '#087d9b' : '#9db3be'}
+                        strokeWidth={isSelected ? 7 : 3}
+                      />
+                    </>
+                  )}
+                </g>
+              );
+            })}
+            {selection && editable ? (
+              <g className="robotics-field-selection-handles">
+                {world.field.floorMarks.flatMap((mark) => {
+                  const key = mark.groupId ? 'mark-group:' + mark.groupId : 'mark:' + mark.id;
+                  if (selection !== key) return [];
+                  return mark.kind === 'area'
+                    ? [
+                        vectorHandle('mark', mark.id, 'start', key, mark),
+                        vectorHandle('mark', mark.id, 'end', key, {
+                          xMeters: mark.xMeters + mark.widthMeters,
+                          yMeters: mark.yMeters + mark.heightMeters,
+                        }),
+                      ]
+                    : [
+                        vectorHandle('mark', mark.id, 'start', key, mark.start),
+                        ...(mark.kind === 'curve'
+                          ? [vectorHandle('mark', mark.id, 'control', key, mark.control)]
+                          : []),
+                        vectorHandle('mark', mark.id, 'end', key, mark.end),
+                      ];
+                })}
+                {world.field.obstacles.flatMap((wall) =>
+                  selection === 'wall:' + wall.id
+                    ? rectHandles(
+                        'wall',
+                        wall.id,
+                        'wall:' + wall.id,
+                        wall.xMeters,
+                        wall.yMeters,
+                        wall.widthMeters,
+                        wall.heightMeters,
+                      )
+                    : [],
+                )}
+                {world.field.balls.flatMap((ball) =>
+                  selection === 'ball:' + ball.id
+                    ? [
+                        vectorHandle('ball', ball.id, 'radius', 'ball:' + ball.id, {
+                          xMeters: ball.xMeters + ball.radiusMeters,
+                          yMeters: ball.yMeters,
+                        }),
+                      ]
+                    : [],
+                )}
+                {(world.field.bodies ?? []).flatMap((body) =>
+                  selection === 'body:' + body.id
+                    ? [
+                        vectorHandle('body', body.id, 'radius', 'body:' + body.id, {
+                          xMeters:
+                            body.xMeters +
+                            (body.kind === 'can' ? body.radiusMeters : body.widthMeters / 2),
+                          yMeters: body.yMeters + (body.kind === 'can' ? 0 : body.depthMeters / 2),
+                        }),
+                      ]
+                    : [],
+                )}
+                {(world.field.visuals ?? []).flatMap((visual) =>
+                  selection === 'decoration:' + visual.id
+                    ? rectHandles(
+                        'decoration',
+                        visual.id,
+                        'decoration:' + visual.id,
+                        visual.xMeters,
+                        visual.yMeters,
+                        visual.widthMeters,
+                        visual.heightMeters,
+                      )
+                    : [],
+                )}
+              </g>
+            ) : null}
+            {draftStroke && draftStroke.points.length > 0 ? (
+              <>
+                <path
+                  className="robotics-draft-stroke"
+                  d={(() => {
+                    const points = [
+                      ...draftStroke.points,
+                      ...(draftStroke.cursor ? [draftStroke.cursor] : []),
+                    ];
+                    const point = (p: RoboticsPoint) =>
+                      p.xMeters * 1000 + ' ' + (height - p.yMeters * 1000);
+                    if (points.length < 2) return '';
+                    if (draftStroke.kind === 'curve' && points.length > 2)
+                      return (
+                        'M ' +
+                        point(points[0]!) +
+                        ' Q ' +
+                        point(points[1]!) +
+                        ' ' +
+                        point(points[2]!)
+                      );
+                    return 'M ' + points.map(point).join(' L ');
+                  })()}
+                  fill="none"
+                  stroke="#0aa4c8"
+                  strokeWidth="13"
+                  strokeDasharray="24 14"
+                  strokeLinecap="round"
+                  pointerEvents="none"
+                />
+                {draftStroke.points.map((point, index) => (
+                  <circle
+                    key={index}
+                    cx={point.xMeters * 1000}
+                    cy={height - point.yMeters * 1000}
+                    r="16"
+                    stroke="#0b83a4"
+                    strokeWidth="5"
+                    fill="#fff"
+                    pointerEvents="none"
+                  />
+                ))}
+              </>
+            ) : null}
+          </g>
+          {view === 'field' ? (
+            <g
+              className="robotics-start-zone"
+              data-testid={`${testIdPrefix}-start-zone`}
+              data-zone-size-meters="0.3"
+              data-center-x-meters={world.initialPose.xMeters}
+              data-center-y-meters={world.initialPose.yMeters}
+              pointerEvents="none"
+              aria-label="Стартовая зона 30 на 30 сантиметров"
+            >
+              <title>Стартовая зона 30 × 30 см</title>
+              <rect
+                x={world.initialPose.xMeters * 1000 - 150}
+                y={height - world.initialPose.yMeters * 1000 - 150}
+                width="300"
+                height="300"
+                rx="4"
+                fill="#158678"
+                fillOpacity=".15"
+                stroke="#248778"
+                strokeWidth={Math.max(viewStroke * 1.4, 2)}
+                strokeDasharray={`${viewStroke * 5} ${viewStroke * 3}`}
+              />
+              <text
+                x={world.initialPose.xMeters * 1000}
+                y={height - world.initialPose.yMeters * 1000 - 150 - viewStroke * 5}
+                textAnchor="middle"
+                fontSize={Math.min(viewStroke * 10, 72)}
+                fontFamily="Inter, Segoe UI, sans-serif"
+                fontWeight="700"
+                letterSpacing=".08em"
+                fill="#155b51"
+              >
+                СТАРТ
+              </text>
+            </g>
+          ) : null}
+          {world.field.obstacles.map((obstacle) => (
+            <rect
+              key={obstacle.id}
+              data-obstacle-id={obstacle.id}
+              data-scene-key={`wall:${obstacle.id}`}
+              data-object-kind="wall"
+              data-field-ghost={ghostMarker(`wall:${obstacle.id}`)}
+              transform={`rotate(${(-(obstacle.headingRadians ?? 0) * 180) / Math.PI} ${(obstacle.xMeters + obstacle.widthMeters / 2) * 1000} ${height - (obstacle.yMeters + obstacle.heightMeters / 2) * 1000})`}
+              x={obstacle.xMeters * 1000}
+              y={height - (obstacle.yMeters + obstacle.heightMeters) * 1000}
+              width={obstacle.widthMeters * 1000}
+              height={obstacle.heightMeters * 1000}
+              rx="3"
+              fill={`url(#robotics-obstacle-${id})`}
+              stroke={selection === `wall:${obstacle.id}` ? '#087d9b' : '#576f7d'}
+              strokeWidth={selection === `wall:${obstacle.id}` ? viewStroke * 1.8 : 4}
+            />
+          ))}
+          {world.field.balls.map((ball) => {
+            const current = state?.balls.find((entry) => entry.id === ball.id) ?? ball;
+            const radius = ball.radiusMeters * 1000;
+            return (
+              <g
+                key={ball.id}
+                data-scene-key={`ball:${ball.id}`}
+                data-object-kind="ball"
+                data-ball-id={ball.id}
+                data-field-ghost={ghostMarker(`ball:${ball.id}`)}
+                data-x-meters={current.xMeters}
+                data-y-meters={current.yMeters}
+                data-velocity-x={
+                  state
+                    ? 'velocityXMetersPerSecond' in current
+                      ? current.velocityXMetersPerSecond
+                      : 0
+                    : undefined
+                }
+                data-velocity-y={
+                  state
+                    ? 'velocityYMetersPerSecond' in current
+                      ? current.velocityYMetersPerSecond
+                      : 0
+                    : undefined
+                }
+                transform={`translate(${current.xMeters * 1000} ${height - current.yMeters * 1000})`}
+              >
+                <title>{ball.label ?? 'Мяч'}</title>
+                <circle
+                  cx={radius * 0.13}
+                  cy={radius * 0.19}
+                  r={radius * 1.05}
+                  fill="#283940"
+                  opacity=".24"
+                  pointerEvents="none"
+                />
+                <circle
+                  r={radius}
+                  fill={`url(#robotics-ball-${id})`}
+                  stroke={selection === `ball:${ball.id}` ? '#087d9b' : '#ad5f23'}
+                  strokeWidth={selection === `ball:${ball.id}` ? viewStroke * 1.8 : radius * 0.06}
+                />
+                <path
+                  d={`M${-radius * 0.66} ${radius * 0.59}Q${-radius * 0.08} ${-radius * 0.12} ${radius * 0.76} ${-radius * 0.56}`}
+                  fill="none"
+                  stroke="#863d20"
+                  strokeOpacity=".55"
+                  strokeWidth={radius * 0.055}
+                  strokeLinecap="round"
+                  pointerEvents="none"
+                />
+                <path
+                  d={`M${-radius * 0.83} ${-radius * 0.35}Q${-radius * 0.15} ${radius * 0.03} ${radius * 0.58} ${radius * 0.77}`}
+                  fill="none"
+                  stroke="#873b1b"
+                  strokeOpacity=".47"
+                  strokeWidth={radius * 0.055}
+                  pointerEvents="none"
+                />
+              </g>
+            );
+          })}
+          {(world.field.bodies ?? []).map((body) => {
+            const current = state?.bodies?.find((entry) => entry.id === body.id) ?? body;
+            const selected = selection === `body:${body.id}`;
+            const canRadius = body.kind === 'can' ? body.radiusMeters * 1000 : 0;
+            return (
+              <g
+                key={body.id}
+                data-body-id={body.id}
+                data-scene-key={`body:${body.id}`}
+                data-object-kind={body.kind}
+                data-field-ghost={ghostMarker(`body:${body.id}`)}
+                data-x-meters={current.xMeters}
+                data-y-meters={current.yMeters}
+                data-heading-radians={current.headingRadians}
+                data-velocity-x={
+                  state
+                    ? 'velocityXMetersPerSecond' in current
+                      ? current.velocityXMetersPerSecond
+                      : 0
+                    : undefined
+                }
+                data-velocity-y={
+                  state
+                    ? 'velocityYMetersPerSecond' in current
+                      ? current.velocityYMetersPerSecond
+                      : 0
+                    : undefined
+                }
+                transform={`translate(${current.xMeters * 1000} ${height - current.yMeters * 1000}) rotate(${(-current.headingRadians * 180) / Math.PI})`}
+              >
+                <title>
+                  {body.label ??
+                    (body.kind === 'can' ? 'Металлическая банка' : 'Деревянный брусок')}
+                </title>
+                {body.kind === 'can' ? (
+                  <>
+                    <circle
+                      cx={canRadius * 0.17}
+                      cy={canRadius * 0.19}
+                      r={canRadius * 1.05}
+                      fill="#263843"
+                      opacity=".29"
+                      pointerEvents="none"
+                    />
+                    <circle
+                      r={canRadius}
+                      fill={`url(#robotics-metal-${id})`}
+                      stroke={selected ? '#087d9b' : '#526876'}
+                      strokeWidth={selected ? viewStroke * 1.8 : canRadius * 0.08}
+                    />
+                    <circle
+                      r={canRadius * 0.82}
+                      fill={`url(#robotics-metal-${id})`}
+                      stroke="#f9fbfc"
+                      strokeWidth={canRadius * 0.07}
+                      pointerEvents="none"
+                    />
+                    <ellipse
+                      cx={canRadius * 0.35}
+                      cy="0"
+                      rx={canRadius * 0.26}
+                      ry={canRadius * 0.19}
+                      fill="#526671"
+                      stroke="#e0e9ee"
+                      strokeWidth={canRadius * 0.05}
+                      pointerEvents="none"
+                    />
+                    <rect
+                      x={-canRadius * 0.46}
+                      y={-canRadius * 0.22}
+                      width={canRadius * 0.69}
+                      height={canRadius * 0.44}
+                      rx={canRadius * 0.21}
+                      fill={`url(#robotics-metal-${id})`}
+                      stroke="#647987"
+                      strokeWidth={canRadius * 0.07}
+                      pointerEvents="none"
+                    />
+                    <ellipse
+                      cx={-canRadius * 0.24}
+                      rx={canRadius * 0.126}
+                      ry={canRadius * 0.105}
+                      fill="#667a88"
+                      pointerEvents="none"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <rect
+                      x={-body.widthMeters * 500}
+                      y={-body.depthMeters * 500}
+                      width={body.widthMeters * 1000}
+                      height={body.depthMeters * 1000}
+                      rx="4"
+                      fill={`url(#robotics-wood-${id})`}
+                      stroke={selected ? '#087d9b' : '#9c703e'}
+                      strokeWidth={selected ? viewStroke * 1.8 : 3}
+                    />
+                    {[-0.22, 0.08, 0.3].map((stripe) => (
+                      <path
+                        key={stripe}
+                        d={`M${-body.widthMeters * 430} ${body.depthMeters * stripe * 1000}q${body.widthMeters * 220} -6 ${body.widthMeters * 430} 0t${body.widthMeters * 430} 0`}
+                        fill="none"
+                        stroke="#94623d"
+                        strokeOpacity=".64"
+                        strokeWidth="2"
+                        pointerEvents="none"
+                      />
+                    ))}
+                  </>
+                )}
+              </g>
+            );
+          })}
+          {currentTrail.length > 1 ? (
+            <polyline
+              points={trail}
+              pointerEvents="none"
+              fill="none"
+              stroke="#c67628"
+              strokeWidth={viewStroke * 1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ) : null}
+          {distance?.status === 'ok' ? (
+            <g aria-hidden="true" pointerEvents="none">
+              <line
+                x1={distance.origin.xMeters * 1000}
+                y1={height - distance.origin.yMeters * 1000}
+                x2={distance.hit.xMeters * 1000}
+                y2={height - distance.hit.yMeters * 1000}
+                stroke="#16766b"
+                strokeWidth={viewStroke * 1.3}
+                strokeDasharray={`${viewStroke * 4} ${viewStroke * 4}`}
+              />
+              <circle
+                cx={distance.hit.xMeters * 1000}
+                cy={height - distance.hit.yMeters * 1000}
+                r={viewStroke * 2.2}
+                fill="#16766b"
+              />
+            </g>
+          ) : null}
+        </>
+      ) : null}
+      <g
+        data-testid={`${testIdPrefix}-robot`}
+        data-scene-key="robot"
+        data-object-kind="robot"
+        data-x-meters={pose.xMeters}
+        data-y-meters={pose.yMeters}
+        data-heading-radians={pose.headingRadians}
+        transform={`translate(${pose.xMeters * 1000} ${height - pose.yMeters * 1000}) rotate(${(-pose.headingRadians * 180) / Math.PI})`}
+      >
+        <rect
+          x={-length / 2 + 6}
+          y={-bodyWidth / 2 + 9}
+          width={length}
+          height={bodyWidth}
+          rx={bodyWidth * 0.16}
+          fill="#172b36"
+          opacity=".31"
+          pointerEvents="none"
+        />
+        <path d={`M0 ${-halfTrack}V${halfTrack}`} stroke="#526677" strokeWidth="8" />
+        {[-halfTrack, halfTrack].map((center, index) => (
+          <g key={center}>
+            <rect
+              x={-radius}
+              y={center - wheelWidth / 2}
+              width={radius * 2}
+              height={wheelWidth}
+              rx={wheelWidth * 0.2}
+              fill={`url(#robotics-tire-${id})`}
+              stroke="#172830"
+              strokeWidth="3"
+            />
+            {[-0.72, -0.36, 0, 0.36, 0.72].map((part) => (
+              <path
+                key={part}
+                d={`M${part * radius - 2} ${center - wheelWidth * 0.34}l4 ${wheelWidth * 0.68}`}
+                stroke="#71808a"
+                strokeOpacity=".74"
+                strokeWidth={wheelWidth * 0.07}
+              />
+            ))}
+            {view === 'robot' ? (
+              <text
+                x="0"
+                y={center + (index ? wheelWidth / 2 + 20 : -wheelWidth / 2 - 10)}
+                textAnchor="middle"
+                className="robotics-wheel-label"
+              >
+                {index ? 'R' : 'L'}
+              </text>
+            ) : null}
+          </g>
+        ))}
+        <rect
+          x={-length / 2}
+          y={-bodyWidth / 2}
+          width={length}
+          height={bodyWidth}
+          rx={bodyWidth * 0.16}
+          fill={`url(#robotics-chassis-${id})`}
+          stroke={selection === 'robot' ? '#148d84' : '#142932'}
+          strokeWidth={selection === 'robot' ? viewStroke * 1.8 : 4}
+        />
+        <rect
+          x={-length * 0.4}
+          y={-boardWidth / 2}
+          width={boardLength}
+          height={boardWidth}
+          rx={bodyWidth * 0.045}
+          fill="#17797c"
+          stroke="#6aa4a3"
+          strokeWidth={2}
+        />
+        {[-1, 1].map((side) => (
+          <rect
+            key={side}
+            x={-length * 0.36}
+            y={side * boardWidth * 0.35 - 3}
+            width={boardLength * 0.7}
+            height={6}
+            rx="2"
+            fill="#182c35"
+          />
+        ))}
+        <rect
+          x={-length * 0.25}
+          y={-boardWidth * 0.16}
+          width={boardLength * 0.36}
+          height={boardWidth * 0.32}
+          rx="2"
+          fill="#22313a"
+        />
+        <rect
+          x={-length * 0.43}
+          y={-boardWidth * 0.18}
+          width={boardLength * 0.2}
+          height={boardWidth * 0.31}
+          rx="2"
+          fill={`url(#robotics-metal-${id})`}
+        />
+        <circle cx={length * 0.06} cy={-boardWidth * 0.25} r={3.2} fill="#88e49c" />
+        <path
+          d={`M${length * 0.23} ${-bodyWidth * 0.16}l${length * 0.1} ${bodyWidth * 0.16}-${length * 0.1} ${bodyWidth * 0.16}`}
+          fill="none"
+          stroke="#75cfbd"
+          strokeWidth={bodyWidth * 0.05}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <g
+          transform={`translate(${sensorX} ${sensorY}) rotate(${(-robot.sensorHeadingRadians * 180) / Math.PI})`}
+        >
+          {view === 'robot' ? (
+            <path
+              d="M14 0H78M64 -10L78 0 64 10"
+              fill="none"
+              stroke="#0a91b2"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            />
+          ) : null}
+          <rect x="-9" y="-25" width="17" height="50" rx="3" fill="#318da1" />
+          {[-13, 13].map((center) => (
+            <g key={center}>
+              <circle cx="1" cy={center} r="9" fill={`url(#robotics-metal-${id})`} />
+              <circle
+                cx="1"
+                cy={center}
+                r="5.6"
+                fill="#566a76"
+                stroke="#bed0d8"
+                strokeWidth="1.6"
+              />
+            </g>
+          ))}
+        </g>
+      </g>
+    </svg>
+  );
+}

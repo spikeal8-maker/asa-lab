@@ -1,0 +1,575 @@
+.personal-progress {
+  container-type: inline-size;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  color: var(--text, #1e3545);
+}
+.personal-progress-hero {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.personal-progress-hero-avatar {
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--asa-slate-100, #eef3f6);
+}
+.personal-progress img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.personal-progress-hero-copy {
+  min-width: 0;
+}
+.personal-progress h1 {
+  margin: 0;
+  font-size: 23px;
+  line-height: 1.25;
+}
+.personal-progress-person {
+  margin: 5px 0 10px;
+  color: var(--ink-muted, #526779);
+  overflow-wrap: anywhere;
+}
+.personal-progress-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0;
+}
+.personal-progress-metrics > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.personal-progress-metrics dt {
+  display: flex;
+  color: var(--asa-cyan-700, #0877b3);
+}
+.personal-progress-metrics dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.personal-progress-explanation {
+  padding: 0 4px;
+  color: var(--ink-muted, #526779);
+  font-size: 13px;
+}
+.personal-progress-explanation summary {
+  width: fit-content;
+  padding: 9px 0;
+  cursor: pointer;
+}
+.personal-progress-explanation p {
+  max-width: 70ch;
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.personal-progress-groups {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.personal-progress-groups-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.personal-progress h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+}
+.personal-progress-groups-heading a {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--asa-cyan-700, #0877b3);
+  font-size: 13px;
+}
+.personal-progress-group-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.personal-progress-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+.personal-progress-group > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.personal-progress-group h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.personal-progress-group > header > span {
+  flex: 0 0 auto;
+  color: var(--ink-muted, #526779);
+  font-size: 12px;
+}
+.personal-progress-group-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.personal-progress-self {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 4px 9px 0;
+}
+.personal-progress-group-avatar {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border: 2px solid #0877b3;
+  outline: 2px solid var(--surface, #fff);
+  box-shadow: 0 0 0 3px #0877b3;
+  border-radius: 50%;
+}
+.personal-progress-rank,
+.personal-progress-score {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.personal-progress-rank {
+  top: -5px;
+  left: -8px;
+  min-width: 21px;
+  width: max-content;
+  min-height: 21px;
+  height: 21px;
+  padding: 0 4px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text, #1e3545);
+}
+.personal-progress-score {
+  right: -9px;
+  bottom: -2px;
+  min-width: 27px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: #0877b3;
+  color: #fff;
+}
+.personal-progress-you {
+  color: var(--ink-muted, #526779);
+  font-size: 11px;
+  line-height: 1.2;
+}
+.personal-progress-group-note {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink-muted, #526779);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.personal-progress-state,
+.personal-progress-more {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 8px 0;
+  font-size: 14px;
+}
+.personal-progress-pending {
+  min-height: 130px;
+  align-content: center;
+}
+.personal-progress-next {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 14px 16px;
+  border-left: 3px solid #0877b3;
+  border-radius: 4px 10px 10px 4px;
+  background: var(--surface, #fff);
+  min-width: 0;
+}
+.personal-progress-next p {
+  margin: 0;
+  min-width: 0;
+}
+.personal-progress-next a {
+  overflow-wrap: anywhere;
+  color: var(--asa-cyan-700, #0877b3);
+}
+.personal-progress :is(a, button, summary):focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+@container (max-width: 520px) {
+  .personal-progress-hero {
+    gap: 16px;
+    padding: 16px;
+  }
+  .personal-progress h1 {
+    font-size: 21px;
+  }
+  .personal-progress-metrics {
+    gap: 9px 16px;
+  }
+  .personal-progress-group {
+    padding: 11px;
+  }
+  .personal-progress-group-avatar {
+    width: 54px;
+    height: 54px;
+  }
+  .personal-progress-rank {
+    min-width: 19px;
+    min-height: 19px;
+    height: 19px;
+  }
+  .personal-progress-score {
+    height: 19px;
+  }
+  .personal-progress-group-body {
+    gap: 12px;
+  }
+}
+@container (max-width: 380px) {
+  .personal-progress-hero {
+    gap: 14px;
+    padding: 14px 10px;
+  }
+  .personal-progress-hero-avatar {
+    flex-basis: 84px;
+    width: 84px;
+    height: 84px;
+  }
+  .personal-progress h1 {
+    font-size: 20px;
+  }
+  .personal-progress-metrics {
+    gap: 8px 12px;
+  }
+  .personal-progress-metrics dd {
+    font-size: 14px;
+  }
+  .personal-progress-group {
+    padding: 10px;
+  }
+  .personal-progress-group-avatar {
+    width: 44px;
+    height: 44px;
+  }
+  .personal-progress-group-body {
+    gap: 8px;
+  }
+  .personal-progress-groups-heading {
+    flex-wrap: wrap;
+    gap: 0 10px;
+  }
+}
+
+/* SP-04: one learner-safe compact ranking strip; no full roster hidden by CSS. */
+.personal-progress-group > header {
+  align-items: center;
+}
+.personal-progress-group > header > h3 {
+  flex: 1 1 0;
+}
+.personal-progress-all {
+  flex: 0 0 auto;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--asa-cyan-700, #0877b3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.personal-progress-all:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.personal-progress-group-retry {
+  justify-self: start;
+  min-height: 44px;
+}
+.personal-progress-peer-divider {
+  flex: 0 0 1px;
+  min-height: 52px;
+  align-self: center;
+  background: var(--asa-slate-200, #dce5eb);
+}
+.personal-progress-peers {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 0;
+}
+.personal-progress-peer {
+  display: grid;
+  flex: 0 0 70px;
+  width: 70px;
+  min-width: 0;
+  justify-items: center;
+  padding: 7px 1px 4px;
+}
+.personal-progress-peer-avatar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--asa-slate-100, #eef3f6);
+}
+.personal-progress-peer-avatar img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.personal-progress-peer .personal-progress-rank {
+  /* On a 32 px peer image this keeps the top badge clear of the score badge. */
+  top: -8px;
+}
+.personal-progress-rating-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  background: rgb(5 21 33 / 65%);
+}
+.personal-progress-rating-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(800px, 100%);
+  max-width: 100%;
+  max-height: min(90vh, 850px);
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px 16px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #1e3545);
+  box-shadow: 0 16px 45px rgb(0 0 0 / 22%);
+}
+.personal-progress-rating-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.personal-progress-rating-title h3 {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.personal-progress-rating-title > span {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--ink-muted, #526779);
+}
+.personal-progress-rating-title button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--asa-slate-200, #dce5eb);
+  background: var(--surface, #fff);
+  color: inherit;
+  cursor: pointer;
+}
+.personal-progress-rating-body {
+  display: flex;
+  gap: 15px;
+  min-width: 0;
+  overflow: hidden;
+}
+.personal-progress-rating-pinned {
+  display: flex;
+  flex: 0 0 94px;
+  align-items: start;
+  justify-content: center;
+  border-right: 1px solid var(--asa-slate-200, #dce5eb);
+}
+.personal-progress-rating-scroll {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 60vh;
+  padding: 5px;
+}
+.personal-progress-rating-scroll p {
+  margin: 6px 0;
+  font-size: 13px;
+}
+.personal-progress-rating-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.personal-progress-rating-next,
+.personal-progress-rating-scroll [role='alert'] button {
+  margin-top: 8px;
+  min-height: 44px;
+}
+@container (max-width: 520px) {
+  .personal-progress-peer {
+    flex-basis: 57px;
+    width: 57px;
+    padding: 8px 1px 4px;
+  }
+  .personal-progress-peer-avatar {
+    width: 36px;
+    height: 36px;
+  }
+  .personal-progress-peer-divider {
+    min-height: 42px;
+  }
+  .personal-progress-peers {
+    gap: 4px;
+  }
+  .personal-progress-rating-pinned {
+    flex-basis: 77px;
+  }
+}
+@container (max-width: 380px) {
+  .personal-progress-peer {
+    flex-basis: 55px;
+    width: 55px;
+  }
+  .personal-progress-peer-avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .personal-progress-peers {
+    gap: 2px;
+  }
+  .personal-progress-peer-divider {
+    min-height: 36px;
+  }
+  .personal-progress-rating-title {
+    flex-wrap: wrap;
+  }
+  .personal-progress-rating-pinned {
+    flex-basis: 64px;
+  }
+}
+
+/* The rank/score for "You" is text, not another large avatar. */
+.personal-progress-self-compact {
+  flex: 0 0 116px;
+  width: 116px;
+  box-sizing: border-box;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 3px;
+  padding: 5px 4px;
+  font-size: 12px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.personal-progress-self-compact strong {
+  color: #0877b3;
+}
+.personal-progress-group-body {
+  --rating-peer-slot: 74px;
+  --rating-peer-gap: 5px;
+  overflow: hidden;
+}
+.personal-progress-group-body .personal-progress-peers {
+  gap: var(--rating-peer-gap);
+}
+.personal-progress-group-body .personal-progress-peer {
+  flex: 0 0 var(--rating-peer-slot);
+  width: var(--rating-peer-slot);
+}
+@container (max-width: 520px) {
+  .personal-progress-group-body {
+    --rating-peer-slot: 64px;
+    --rating-peer-gap: 4px;
+  }
+  .personal-progress-self-compact {
+    flex-basis: 110px;
+    width: 110px;
+  }
+  .personal-progress-peer-avatar {
+    width: 44px;
+    height: 44px;
+  }
+}
+@container (max-width: 380px) {
+  .personal-progress-group-body {
+    --rating-peer-slot: 60px;
+    --rating-peer-gap: 2px;
+  }
+  .personal-progress-self-compact {
+    flex-basis: 100px;
+    width: 100px;
+    font-size: 11px;
+  }
+  .personal-progress-peer-avatar {
+    width: 42px;
+    height: 42px;
+  }
+}

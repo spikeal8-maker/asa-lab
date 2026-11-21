@@ -74,7 +74,8 @@ function wiresAboveComponentBody({ kind, componentTypeId }: SchematicComponent):
   return (
     kind === 'breadboard' ||
     componentTypeId === 'arduino-uno' ||
-    componentTypeId === 'regulated-power-supply'
+    componentTypeId === 'regulated-power-supply' ||
+    componentTypeId === 'l298n-motor-driver'
   );
 }
 
@@ -463,6 +464,8 @@ export function WorkbenchComponentBody({
     return JSON.stringify([
       result?.presentationState,
       result?.sourceOperatingMode,
+      result?.illuminanceLux,
+      component.kind === 'photoresistor' ? result?.effectiveResistanceOhm : undefined,
       projection.errorDiagnosticComponentIds.has(component.id),
       (projection.diagnosticsByComponent.get(component.id) ?? []).map((item) => item.code),
     ]);
@@ -483,8 +486,14 @@ export function WorkbenchComponentBody({
   const photoresistorPercent = Math.round(
     Math.min(1, Math.max(0, Number(component.stateProperties?.['illumination'] ?? 0.5))) * 100,
   );
-  const photoresistorLux = photoresistorIlluminanceLux(component);
-  const photoresistorResistance = photoresistorResistanceOhm(component);
+  const photoresistorResult =
+    component.kind === 'photoresistor'
+      ? c.runtimePresentationResultByComponent.get(component.id)
+      : undefined;
+  const photoresistorLux =
+    photoresistorResult?.illuminanceLux ?? photoresistorIlluminanceLux(component);
+  const photoresistorResistance =
+    photoresistorResult?.effectiveResistanceOhm ?? photoresistorResistanceOhm(component);
   const photoresistorLightText = `${photoresistorLightCondition(
     photoresistorLux,
   )}: ${formatIlluminanceLux(photoresistorLux)}`;
@@ -670,9 +679,12 @@ export function WorkbenchComponentBody({
                   max="100"
                   step="1"
                   value={photoresistorPercent}
-                  aria-valuetext={`${photoresistorLightText}; сопротивление ${Math.round(
-                    photoresistorResistance,
-                  )} Ом`}
+                  title="Фоновая освещённость"
+                  aria-valuetext={`${photoresistorLightText}; сопротивление ${
+                    photoresistorResult?.deviceHealth === 'failed_open'
+                      ? 'обрыв цепи'
+                      : `${Math.round(photoresistorResistance)} Ом`
+                  }`}
                   onChange={(event) => {
                     const illumination = Number(event.currentTarget.value) / 100;
                     const preview = {

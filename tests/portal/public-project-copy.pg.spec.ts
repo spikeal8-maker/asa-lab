@@ -6,6 +6,7 @@ import { buildTestApp, inject, type NestApp } from './app';
 import { seedTeacher, testAdminPool, testAppPool } from './helpers';
 import { studentProjectPolicyFixture } from './student-project-policy-fixture';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import {
   createEmptyThreeDDocument,
   createThreeDNode,
@@ -208,6 +209,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
   it('copies exact V1, atomically deduplicates concurrent requests and preserves independent editable ownership and lineage', async () => {
     const source = await fixture();
     const before = await open(source.owner, source.id);
+    expect(before.project.copiedFrom).toBeNull();
     const versions = await frozen(source.id);
     const detail = await inject(app, {
       method: 'GET',
@@ -262,7 +264,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     const lineage = await admin.query(
       `SELECT p.copied_from_publication_id,p.copied_from_revision_id,p.copied_from_version_id,
               p.copied_from_license,p.license,p.copied_from_project_id,p.copied_from_author,p.copied_from_title,r.publication_id,r.project_id,r.project_version_id,
-              v.document_json,v.version_no
+              p.copied_at,v.document_json,v.version_no
          FROM projects p
          JOIN project_publication_revisions r ON r.id=p.copied_from_revision_id
          JOIN project_versions v ON v.id=r.project_version_id
@@ -285,6 +287,14 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
       version_no: source.publication.versionNo,
       document_json: source.v1,
     });
+    expect(lineage.rows[0].copied_at).toBeInstanceOf(Date);
+    const copiedFrom = {
+      projectId: source.id,
+      author: detail.json().publication.authorLabel,
+      title: detail.json().publication.title,
+      at: lineage.rows[0].copied_at.toISOString(),
+    };
+    expect(target.project.copiedFrom).toEqual(copiedFrom);
     const ownership = await admin.query(
       `SELECT id,tenant_id,owner_principal_id,project_scope AS scope,classroom_id FROM projects WHERE id=ANY($1::uuid[])`,
       [[source.id, id]],
@@ -309,11 +319,199 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     const changed = scene(61);
     await save(source.reader, id, changed, target.draft.revision);
     expect((await open(source.reader, id)).draft.document).toEqual(changed);
+    const replay = await copy(source, key);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toMatchObject({ projectId: id, moduleKey: 'three-d', created: false });
+    expect((await open(source.reader, id)).project.copiedFrom).toEqual(copiedFrom);
     expect((await open(source.owner, source.id)).draft).toEqual(before.draft);
     expect(await frozen(source.id)).toEqual(versions);
     expect((await copy(source, key, { title: 'Different fingerprint' })).statusCode).toBe(409);
     expect(await count()).toBe(initial + 1);
     expect(await publicCount()).toBe(1);
+  });
+
+  it('preserves exact eight-field origin over ordinary duplicate/replay/publish without extra receipts', async () => {
+    const source = await fixture();
+    const first = await copy(source);
+    expect(first.statusCode).toBe(200);
+    const publicCopyId = first.json().projectId as string;
+    const readOrigin = async (id: string) => {
+      const result = await admin.query(
+        `SELECT copied_from_project_id,copied_from_author,copied_from_title,
+                copied_at::text AS copied_at,
+                copied_from_publication_id,copied_from_revision_id,
+                copied_from_version_id,copied_from_license,
+                 COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage
+           FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id
+           WHERE p.id=$1`,
+        [id],
+      );
+      expect(result.rows).toHaveLength(1);
+      return result.rows[0];
+    };
+    const original = await readOrigin(publicCopyId);
+    expect(
+      (
+        await admin.query(
+          "SELECT COALESCE(e.writer_operation,'unknown') AS writer_operation FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
+          [publicCopyId],
+        )
+      ).rows[0].writer_operation,
+    ).toBe('public_acquisition');
+    expect(original.copied_from_project_id).toBe(source.id);
+    expect(original.copied_from_publication_id).toBe(source.publication.publicationId);
+    expect(original.copied_from_revision_id).toBe(source.publication.revisionId);
+    expect(original.copied_at).toBeTruthy();
+    expect(original.writer_lineage_coverage).toBe('unknown');
+
+    const receiptCount = async () =>
+      Number(
+        (
+          await admin.query(
+            'SELECT count(*)::int n FROM publication_copy_events WHERE publication_id=$1',
+            [source.publication.publicationId],
+          )
+        ).rows[0].n,
+      );
+    const countBefore = await receiptCount();
+    expect(countBefore).toBe(1);
+    const duplicated = (id: string, key = randomUUID(), title = 'Derived work') =>
+      inject(app, {
+        method: 'POST',
+        url: `/api/projects/${id}/duplicate`,
+        cookies: source.reader,
+        headers: { 'idempotency-key': key },
+        payload: { title },
+      });
+    const key = randomUUID();
+    const parallel = await Promise.all([
+      duplicated(publicCopyId, key),
+      duplicated(publicCopyId, key),
+    ]);
+    expect(parallel.map((value) => value.statusCode).sort()).toEqual([200, 201]);
+    const nextIds = parallel.map((value) => value.json().project.id as string);
+    expect(nextIds[0]).toBe(nextIds[1]);
+    const derived = nextIds[0];
+    expect(derived).not.toBe(publicCopyId);
+    expect(await readOrigin(derived)).toEqual(original);
+    expect(
+      (
+        await admin.query(
+          "SELECT COALESCE(e.writer_operation,'unknown') AS writer_operation FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
+          [derived],
+        )
+      ).rows[0].writer_operation,
+    ).toBe('ordinary_duplicate');
+    expect((await open(source.reader, derived)).project.copiedFrom).toEqual(
+      (await open(source.reader, publicCopyId)).project.copiedFrom,
+    );
+    expect(await receiptCount()).toBe(countBefore);
+
+    // Even a same-tenant, correctly owned descendant with an exact matching
+    // public origin is NOT a new acquisition. The immutable writer operation
+    // must reject an attempted explicit receipt.
+    const derivedIdentity = (
+      await admin.query('SELECT tenant_id,owner_principal_id FROM projects WHERE id=$1', [derived])
+    ).rows[0] as { tenant_id: string; owner_principal_id: string };
+    const deniedClient = await runtime.connect();
+    try {
+      await deniedClient.query('BEGIN');
+      await deniedClient.query("SELECT set_config('app.tenant_id',$1,true)", [
+        derivedIdentity.tenant_id,
+      ]);
+      await expect(
+        deniedClient.query('SELECT public.record_publication_copy_acquisition($1,$2,$3,$4)', [
+          derivedIdentity.owner_principal_id,
+          derived,
+          source.publication.publicationId,
+          source.publication.revisionId,
+        ]),
+      ).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await deniedClient.query('ROLLBACK');
+      deniedClient.release();
+    }
+    expect(await receiptCount()).toBe(countBefore);
+
+    const next = await duplicated(derived, randomUUID(), 'Derived again');
+    expect(next.statusCode).toBe(201);
+    const descendant = next.json().project.id as string;
+    expect(descendant).not.toBe(derived);
+    expect(await readOrigin(descendant)).toEqual(original);
+    expect(await receiptCount()).toBe(countBefore);
+
+    // A later publication must never erase or reinterpret known copied origin.
+    const opened = await open(source.reader, descendant);
+    const snapshot = await inject(app, {
+      method: 'PUT',
+      url: `/api/projects/${descendant}/snapshot`,
+      cookies: source.reader,
+      payload: { sourceRevision: opened.draft.revision, imageDataUrl: snapshotFixture() },
+    });
+    expect(snapshot.statusCode).toBe(200);
+    const published = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${descendant}/publication`,
+      cookies: source.reader,
+      payload: { title: 'Derived publication', license: 'public-domain' },
+    });
+    expect(published.statusCode).toBe(200);
+    expect(await readOrigin(descendant)).toEqual(original);
+    expect(await receiptCount()).toBe(countBefore);
+
+    // Losing source readability must not erase the already proved origin or
+    // make an ordinary duplicate depend on current source revision validity.
+    await admin.query(
+      "UPDATE project_publication_state SET state='revoked',revoked_at=now() WHERE id=$1",
+      [source.publication.publicationId],
+    );
+    const afterRevoke = await duplicated(descendant, randomUUID(), 'After source revoke');
+    expect(afterRevoke.statusCode).toBe(201);
+    expect(await readOrigin(afterRevoke.json().project.id)).toEqual(original);
+    expect(await receiptCount()).toBe(countBefore);
+    expect((await duplicated(publicCopyId, randomUUID(), 'Another copy')).statusCode).toBe(201);
+
+    // App-role and owner fences remain enforced after migration.
+    const foreign = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${descendant}/duplicate`,
+      cookies: source.owner,
+      headers: { 'idempotency-key': randomUUID() },
+      payload: { title: 'Cross-tenant denied' },
+    });
+    expect(foreign.statusCode).toBe(404);
+    expect(await receiptCount()).toBe(countBefore);
+  });
+
+  it('records private native writer coverage without promoting historical copied origin', async () => {
+    const source = await fixture();
+    const native = await admin.query(
+      "SELECT COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage,COALESCE(e.writer_operation,'unknown') AS writer_operation,p.copied_from_project_id FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
+      [source.id],
+    );
+    expect(native.rows).toEqual([
+      { writer_lineage_coverage: 'v1', writer_operation: 'native', copied_from_project_id: null },
+    ]);
+    const duplicated = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${source.id}/duplicate`,
+      cookies: source.owner,
+      headers: { 'idempotency-key': randomUUID() },
+      payload: { title: 'Native duplicate' },
+    });
+    expect(duplicated.statusCode).toBe(201);
+    const inherited = await admin.query(
+      "SELECT COALESCE(e.writer_lineage_coverage,'unknown') AS writer_lineage_coverage,COALESCE(e.writer_operation,'unknown') AS writer_operation,p.copied_from_project_id FROM projects p LEFT JOIN project_writer_evidence e ON e.project_id=p.id WHERE p.id=$1",
+      [duplicated.json().project.id],
+    );
+    expect(inherited.rows).toEqual([{ ...native.rows[0], writer_operation: 'ordinary_duplicate' }]);
+    expect(JSON.stringify(duplicated.json())).not.toContain('writer_lineage_coverage');
+    await expect(
+      admin.query(
+        "UPDATE project_writer_evidence SET writer_lineage_coverage='unknown' WHERE project_id=$1",
+        [source.id],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
   });
 
   it('retains durable aggregate after trash/deletion, rolls back failed inserts and hides private receipts', async () => {
@@ -330,12 +528,86 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
         ).rows[0].n,
       );
     expect(await total()).toBe(1);
+    // The explicit receipt is written in the same transaction as the new
+    // destination and draft. Rolling the transaction back removes both.
+    const ownerRow = (
+      await admin.query('SELECT tenant_id,owner_principal_id FROM projects WHERE id=$1', [
+        destination,
+      ])
+    ).rows[0] as { tenant_id: string; owner_principal_id: string };
+    let rollbackDestinationId = '';
+    const rollbackClient = await runtime.connect();
+    try {
+      await rollbackClient.query('BEGIN');
+      const resolved = await rollbackClient.query(
+        'SELECT * FROM public_project_copy_source($1,$2,$3)',
+        [
+          ownerRow.owner_principal_id,
+          source.publication.publicationId,
+          source.publication.revisionId,
+        ],
+      );
+      expect(resolved.rows).toHaveLength(1);
+      const permitted = resolved.rows[0];
+      const written = await new PgProjectRepository(runtime)
+        .inTransaction(rollbackClient)
+        .createWithDraft({
+          tenantId: ownerRow.tenant_id,
+          scope: 'personal',
+          classroomId: null,
+          actor: {
+            principalId: ownerRow.owner_principal_id,
+            userId: permitted.destination_user_id,
+          },
+          moduleKey: permitted.module_key,
+          title: 'Rolled back acquisition',
+          idempotencyKey: randomUUID(),
+          requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
+          initialDocument: permitted.document_json,
+          initialPreview: null,
+          publicationCopyOrigin: {
+            projectId: permitted.source_project_id,
+            publicationId: permitted.publication_id,
+            revisionId: permitted.revision_id,
+            versionId: permitted.version_id,
+            author: permitted.author_label,
+            title: permitted.title,
+            license: 'public-domain',
+          },
+        });
+      expect(written.kind).toBe('created');
+      if (written.kind !== 'created') throw Error('Rollback acquisition not created');
+      rollbackDestinationId = written.project.id;
+      expect(
+        Number(
+          (
+            await rollbackClient.query('SELECT public.publication_copy_count($1) n', [
+              source.publication.publicationId,
+            ])
+          ).rows[0].n,
+        ),
+      ).toBe(2);
+      expect(await total()).toBe(1);
+    } finally {
+      await rollbackClient.query('ROLLBACK');
+      rollbackClient.release();
+    }
+    expect(await total()).toBe(1);
+    expect(
+      (
+        await admin.query('SELECT count(*)::int n FROM projects WHERE id=$1', [
+          rollbackDestinationId,
+        ])
+      ).rows[0].n,
+    ).toBe(0);
     for (const sql of [
       'SELECT * FROM public.publication_copy_events',
+      'SELECT * FROM public.project_writer_evidence',
       `INSERT INTO public.publication_copy_events VALUES('${randomUUID()}','${randomUUID()}',now())`,
       'DELETE FROM public.publication_copy_events',
       'UPDATE public.publication_copy_events SET created_at=now()',
       'SELECT public.record_publication_copy_created()',
+      'SELECT public.record_publication_copy_acquisition(NULL,NULL,NULL,NULL)',
     ]) {
       await expect(runtime.query(sql)).rejects.toMatchObject({ code: '42501' });
     }
@@ -360,7 +632,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
             ])
           ).rows[0].n,
         ),
-      ).toBe(2);
+      ).toBe(1); // Direct SQL INSERT of inherited lineage is not a new acquisition.
       expect(await total()).toBe(1);
       await transaction.query('ROLLBACK');
     } finally {

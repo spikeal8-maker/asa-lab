@@ -93,10 +93,10 @@ describe('admin overview lifecycle', () => {
       'Показаны предыдущие данные',
     );
     const cards = [...host.querySelectorAll('.admin-chart-card')];
-    const learning = cards.find((card) =>
-      card.textContent?.includes('Учебные инструменты — запуски'),
+    const learning = cards.find(
+      (card) => card.querySelector('h3')?.textContent === 'Учебные инструменты',
     )!;
-    const games = cards.find((card) => card.textContent?.includes('Игры — запуски'))!;
+    const games = cards.find((card) => card.querySelector('h3')?.textContent === 'Игры')!;
     expect(learning.textContent).toContain('Scratch');
     expect(learning.textContent).not.toContain('Шахматы');
     expect(games.textContent).toContain('Шашки');
@@ -123,7 +123,11 @@ describe('admin overview lifecycle', () => {
     await act(async () => fresh.resolve(success(42)));
     expect(host.querySelector('.admin-chart-card')).not.toBeNull();
     vi.mocked(adminApi.dashboard).mockReturnValueOnce(new Promise(() => undefined));
-    await click('7 дней');
+    await act(async () => {
+      const select = host.querySelector<HTMLSelectElement>('[aria-label="Период дашборда"]')!;
+      select.value = '7d';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     expect(host.querySelector('.admin-chart-card')).toBeNull();
     expect(host.textContent).toContain('Собираем реальные показатели');
   });

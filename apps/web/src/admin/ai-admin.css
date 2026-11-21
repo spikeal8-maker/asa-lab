@@ -304,172 +304,6 @@
   }
 }
 
-/* Only the Ollama Cloud card gains metadata; other provider layouts are unchanged. */
-.asa-cloud-key-pool {
-  margin-top: 14px;
-  min-width: 0;
-}
-.asa-cloud-pool-heading,
-.asa-cloud-pool-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.asa-cloud-pool-heading {
-  justify-content: space-between;
-}
-.asa-cloud-pool-note,
-.asa-cloud-pool-help {
-  font-size: 12px;
-  color: var(--ink-muted, #607684);
-}
-.asa-cloud-pool-note {
-  margin: 6px 0 10px;
-}
-.asa-cloud-key-row {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 92px;
-  gap: 6px;
-  align-items: start;
-  padding: 8px 0;
-  border-top: 1px solid var(--border, #dce5ec);
-}
-.asa-cloud-key-rank {
-  padding-top: 8px;
-  color: var(--ink-muted, #607684);
-  font-size: 12px;
-}
-.asa-cloud-key-card {
-  min-width: 0;
-  font-size: 13px;
-}
-.asa-cloud-key-card summary {
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 0;
-}
-.asa-cloud-key-card summary > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.asa-cloud-key-card summary strong::before {
-  content: '▸ ';
-}
-.asa-cloud-key-card[open] summary strong::before {
-  content: '▾ ';
-}
-.asa-cloud-key-card small,
-.asa-cloud-key-balance > span {
-  display: block;
-  color: var(--ink-muted, #607684);
-  font-size: 12px;
-}
-.asa-cloud-key-order {
-  display: flex;
-  gap: 4px;
-  padding-top: 3px;
-}
-.asa-cloud-key-order button {
-  min-width: 44px;
-}
-.asa-cloud-key-pool button {
-  min-height: 44px;
-  cursor: pointer;
-  font: inherit;
-}
-.asa-cloud-key-editor {
-  display: grid;
-  gap: 8px;
-  margin: 4px 0 8px;
-}
-.asa-cloud-key-editor > label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-.asa-cloud-key-editor input:not([type='checkbox']) {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  border: 1px solid var(--border, #c4d3df);
-  border-radius: 6px;
-  padding: 8px;
-  font: inherit;
-}
-.asa-cloud-key-editor .asa-cloud-key-check,
-.asa-cloud-key-models label {
-  display: flex;
-  gap: 6px;
-  align-items: start;
-}
-/* Opt native checkboxes out of the global full-width input rule. Each flex
- * label owns a 17px control and a wrapping text slot, not a full-width input. */
-.asa-cloud-key-editor input[type='checkbox'] {
-  flex: 0 0 17px;
-  width: 17px;
-  height: 17px;
-  margin: 2px 0 0;
-  padding: 0;
-}
-.asa-cloud-key-editor .asa-cloud-key-check,
-.asa-cloud-key-models label {
-  min-height: 44px;
-}
-.asa-cloud-key-models label > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.asa-cloud-key-editor fieldset {
-  min-width: 0;
-  border: 1px solid var(--border, #dce5ec);
-  border-radius: 6px;
-  padding: 8px;
-}
-.asa-cloud-key-models {
-  display: grid;
-  gap: 6px;
-  max-height: 180px;
-  overflow-y: auto;
-  overflow-wrap: anywhere;
-}
-.asa-cloud-pool-actions {
-  margin-top: 10px;
-  font-size: 12px;
-}
-.asa-cloud-pool-help {
-  margin-top: 10px;
-  overflow-wrap: anywhere;
-}
-.asa-cloud-pool-help summary {
-  cursor: pointer;
-}
-@media (max-width: 600px) {
-  .asa-cloud-key-card summary {
-    flex-direction: column;
-    gap: 3px;
-  }
-  .asa-cloud-key-row {
-    grid-template-columns: 16px minmax(0, 1fr) 44px;
-  }
-  .asa-cloud-key-order {
-    flex-direction: column;
-  }
-  .asa-cloud-key-pool button {
-    min-height: 44px;
-  }
-}
-.asa-cloud-connection.is-ollama-cloud .asa-cloud-form {
-  gap: 10px;
-}
-.asa-cloud-connection.is-ollama-cloud .asa-cloud-fields {
-  grid-template-columns: minmax(0, 1fr);
-}
-.is-ollama-cloud .asa-cloud-fields > label:first-child {
-  order: 2;
-}
 .asa-cloud-metadata {
   min-width: 0;
   font-size: 12px;
@@ -509,33 +343,232 @@
   }
 }
 
-.asa-cloud-slot-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: 8px;
-}
-.asa-cloud-slot-picker button {
+/* Ollama Cloud connection */
+.asa-cloud-compact-top,
+.asa-cloud-pool-heading,
+.asa-cloud-hourly {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  min-width: 0;
-  text-align: left;
-  padding: 10px;
-  border: 1px solid var(--border, #c4d3df);
-  border-radius: 8px;
-  background: var(--panel, transparent);
-  color: inherit;
-  overflow-wrap: anywhere;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
 }
-.asa-cloud-slot-picker button[aria-pressed='true'] {
-  border-color: var(--accent, #2879b9);
-  box-shadow: inset 0 0 0 1px var(--accent, #2879b9);
+.asa-cloud-compact-top {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border, #dce5ec);
 }
-.asa-cloud-key-row[hidden] {
+.asa-cloud-compact-top h2 {
+  margin: 0 auto 0 0;
+  font-size: 19px;
+}
+.asa-cloud-compact-top .asa-cloud-apply,
+.asa-cloud-key-pool .asa-cloud-apply {
+  min-height: 32px;
+  padding: 5px 12px;
+}
+.asa-cloud-compact-top small:empty,
+.asa-cloud-catalog-list:empty {
   display: none;
 }
-.asa-connection-state {
-  margin: 8px 0;
+.asa-cloud-compact-top small {
+  flex-basis: 100%;
+}
+.asa-cloud-hourly input {
+  width: 7ch;
+}
+.asa-cloud-key-pool {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  min-width: 0;
   font-size: 13px;
+}
+.asa-cloud-key-pool small,
+.asa-cloud-compact-top small {
+  color: var(--ink-muted, #607684);
+}
+.asa-cloud-pool-heading > strong:first-child {
+  margin-inline-end: auto;
+}
+.asa-cloud-key-row {
+  display: grid;
+  grid-template-columns: 50px minmax(100px, 175px) minmax(104px, 315px) 145px 26px 76px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border, #dce5ec);
+}
+.asa-cloud-key-row input[type='password'],
+.asa-cloud-hourly input {
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 6px;
+  font: inherit;
+}
+.asa-cloud-key-row input[type='password'] {
+  width: 100%;
+}
+.asa-cloud-key-status {
+  overflow-wrap: anywhere;
+}
+.asa-cloud-key-status[data-active='true'] {
+  color: var(--success, #14805e);
+  font-weight: 600;
+}
+.asa-cloud-key-status small {
+  display: block;
+  font-weight: 400;
+}
+.asa-cloud-key-verification {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asa-cloud-key-verification small[data-tone='success'] {
+  color: light-dark(#087654, #7ce5b8);
+  font-weight: 600;
+}
+.asa-cloud-key-verification small[data-tone='error'] {
+  color: light-dark(#b32232, #ff9aa3);
+  font-weight: 600;
+}
+.asa-cloud-key-order {
+  display: flex;
+  gap: 2px;
+}
+.asa-cloud-key-pool button:not(.asa-cloud-apply) {
+  min-height: 32px;
+  padding: 3px 7px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 6px;
+  background: var(--panel, transparent);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.asa-cloud-key-pool button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.asa-cloud-key-order button {
+  min-width: 24px;
+}
+.asa-cloud-key-toggle,
+.asa-cloud-model-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.asa-cloud-key-toggle input[type='checkbox'],
+.asa-cloud-model-row input[type='checkbox'] {
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+}
+.asa-cloud-catalog {
+  display: grid;
+  gap: 6px;
+  padding-top: 6px;
+}
+.asa-cloud-catalog-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.asa-cloud-model-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  border-top: 1px solid var(--border, #dce5ec);
+}
+.asa-cloud-model-row label span {
+  overflow-wrap: anywhere;
+}
+.asa-cloud-model-details {
+  grid-column: 1 / -1;
+  padding: 0 0 3px 23px;
+}
+
+.asa-cloud-catalog-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 6px 12px;
+  margin-block: 12px;
+  font-size: 13px;
+}
+.asa-cloud-catalog-key-row > label {
+  display: grid;
+  gap: 4px;
+  width: min(100%, 360px);
+}
+.asa-cloud-catalog-key-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+}
+.asa-cloud-catalog-key-row > :not(label) {
+  margin-top: 1.35em;
+}
+.asa-cloud-catalog-key-row button {
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 6px;
+  background: var(--panel, transparent);
+  color: inherit;
+  font: inherit;
+}
+.asa-cloud-catalog-catalog-heading,
+.asa-cloud-catalog-model-row,
+.asa-cloud-catalog-model-row label {
+  display: flex;
+  align-items: center;
+  gap: 5px 12px;
+}
+.asa-cloud-catalog-catalog-heading,
+.asa-cloud-catalog-model-row {
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+.asa-cloud-catalog-model-row {
+  border-top: 1px solid var(--border, #dce5ec);
+}
+.asa-cloud-catalog-model-row label {
+  min-width: min(100%, 220px);
+  overflow-wrap: anywhere;
+}
+.asa-cloud-catalog-model-row input[type='checkbox'] {
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+}
+
+@media (max-width: 720px) {
+  .asa-cloud-key-row {
+    grid-template-columns: max-content minmax(0, 1fr) 26px 76px;
+  }
+  .asa-cloud-key-row input[type='password'] {
+    grid-row: 2;
+    grid-column: 1 / 3;
+  }
+  .asa-cloud-key-verification {
+    grid-row: 2;
+    grid-column: 3 / 5;
+    overflow-wrap: anywhere;
+  }
 }

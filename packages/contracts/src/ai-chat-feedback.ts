@@ -1,3 +1,5 @@
+import { AI_TOOL_IDS, type AiToolId } from './ai-tools.js';
+
 /** Public chat feedback never includes provider diagnostics or connection details. */
 export const AI_TEXT_UNAVAILABLE = 'Извините, текстовая модель сейчас недоступна.';
 export const AI_IMAGE_UNAVAILABLE = 'Извините, генератор изображений сейчас недоступен.';
@@ -17,28 +19,39 @@ export function aiPublicErrorMessage(code: string, fallback = AI_TEXT_UNAVAILABL
   return fallback;
 }
 
-export const AI_CHAT_TOOLS = [
-  'web_search',
-  'image_search',
-  'weather',
-  'read_page',
-  'generate_image',
-  'create_working_file',
-  'read_working_file',
-  'edit_working_file',
-] as const;
-export type AiChatTool = (typeof AI_CHAT_TOOLS)[number];
+export const AI_CHAT_TOOLS = AI_TOOL_IDS;
+export type AiChatTool = AiToolId;
 export interface AiToolActivity {
   readonly tool: AiChatTool;
   readonly state: 'running' | 'complete';
+  readonly fileRead?: { readonly name: string; readonly version: number };
 }
 export function isAiToolActivity(value: unknown): value is AiToolActivity {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
+  if (
+    !AI_CHAT_TOOLS.includes(v['tool'] as AiChatTool) ||
+    (v['state'] !== 'running' && v['state'] !== 'complete')
+  )
+    return false;
+  if (!Object.hasOwn(v, 'fileRead')) return Object.keys(v).length === 2;
+  if (
+    Object.keys(v).length !== 3 ||
+    v['tool'] !== 'read_working_file' ||
+    v['state'] !== 'complete' ||
+    !v['fileRead'] ||
+    typeof v['fileRead'] !== 'object'
+  )
+    return false;
+  const { name, version } = v['fileRead'] as Record<string, unknown>;
   return (
-    Object.keys(v).length === 2 &&
-    AI_CHAT_TOOLS.includes(v['tool'] as AiChatTool) &&
-    (v['state'] === 'running' || v['state'] === 'complete')
+    Object.keys(v['fileRead']).length === 2 &&
+    typeof name === 'string' &&
+    /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,95}$/.test(name) &&
+    !name.includes('..') &&
+    typeof version === 'number' &&
+    Number.isSafeInteger(version) &&
+    version > 0
   );
 }
 export const AI_TOOL_ACTIVITY_LABELS: Readonly<Record<AiChatTool, string>> = {

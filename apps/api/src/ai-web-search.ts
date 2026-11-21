@@ -253,6 +253,7 @@ export class AiWebSearchService {
       provider: 'searxng',
       enabled: row.enabled,
       configured: !!this.provider.searchBase,
+      pageReadConfigured: row.enabled && (row.pages_limit ?? 2) > 0,
       weatherConfigured: !!(row.weather_enabled && this.provider.geocoderBase),
     };
   }
@@ -440,7 +441,11 @@ export class AiWebSearchService {
       ...({ searchInstructions: config.search_instructions ?? '' } as object),
     };
     let evidence: AiWebSearchEvidence;
-    if (!toolRule(toolPolicy, toolName).enabled) evidence = { ...base, reason: 'not_configured' };
+    if (
+      !toolRule(toolPolicy, toolName).enabled ||
+      !(await this.toolPolicy.allowed(owner, thread, request, toolName))
+    )
+      evidence = { ...base, reason: 'not_configured' };
     else if (status === 'limited') evidence = { ...base, status: 'limited', reason: 'rate_limit' };
     else if (status !== 'ready') evidence = { ...base, reason: 'not_configured' };
     else if (intent === 'images' && !imageSearchQueryAllowed(query))
@@ -529,7 +534,8 @@ export class AiWebSearchService {
     const allowed =
       admission === 'ready' &&
       retrievalOptions.pagesLimit > 0 &&
-      toolRule(policy, 'web_search').enabled &&
+      toolRule(policy, 'read_page').enabled &&
+      (await this.toolPolicy.allowed(owner, thread, request, 'read_page')) &&
       searchDomainAllowed(url, config.allowed_domains ?? [], config.blocked_domains ?? []);
     const doc = allowed
       ? await readPublicDocument(

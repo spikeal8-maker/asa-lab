@@ -605,6 +605,20 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+const evidenceCollectors = new WeakMap<TestInfo, (page: Page) => Promise<void>>();
+
+// Full diagnostics use the teardown budget after the browser assertions finish.
+test.afterEach(async ({ page }, info) => {
+  const collect = evidenceCollectors.get(info);
+  if (!collect) return;
+  try {
+    await collect(page);
+  } catch (error) {
+    if (info.status === info.expectedStatus) throw error;
+    info.annotations.push({ type: 'switch-shadow-evidence-error', description: String(error) });
+  }
+});
+
 for (const width of [1440, 1024, 390, 320]) {
   for (const colorScheme of ['light', 'dark'] as const) {
     test(`SPDT extra ON shadow: native states save reopen ${width}px ${colorScheme}`, async ({
@@ -659,7 +673,36 @@ for (const width of [1440, 1024, 390, 320]) {
       });
       let reopenedProbe: unknown = null;
       let savedProof: unknown = null;
-      try {
+      let verifiedFinalServer: Awaited<ReturnType<typeof serverDraft>> | undefined;
+      evidenceCollectors.set(info, async (evidencePage) => {
+        const path = info.outputPath('switch-shadow-actual.json');
+        await writeFile(
+          path,
+          JSON.stringify(
+            {
+              width,
+              colorScheme,
+              projectId,
+              baselineDocument: fixture,
+              samples,
+              savedProof,
+              puts,
+              originalProbe: await evidencePage.evaluate(
+                () => (window as ProbeWindow).__switchShadowProbe,
+              ),
+              reopenedProbe,
+              server: verifiedFinalServer ?? (await serverDraft(evidencePage, projectId)),
+            },
+            null,
+            2,
+          ),
+          'utf8',
+        );
+        await info.attach('switch-shadow-actual', { path, contentType: 'application/json' });
+        await evidencePage.screenshot({ path: info.outputPath('switch-shadow-final.png') });
+      });
+
+      await test.step('Verify native switch states, save and reopen', async () => {
         await page.goto(`/#/home/${projectId}`);
         await expect(page.locator('.workbench-stage')).toBeVisible();
         const collapse = page.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
@@ -747,7 +790,9 @@ for (const width of [1440, 1024, 390, 320]) {
             });
             if (await collapse.isVisible()) await collapse.click();
             await matrix(reopened, 'cookies-reopen', info, samples, false);
-            expect((await serverDraft(reopened, projectId)).draft).toEqual(saved.draft);
+            const finalServer = await serverDraft(reopened, projectId);
+            expect(finalServer.draft).toEqual(saved.draft);
+            verifiedFinalServer = finalServer;
             freshFailures.assertEmpty();
           } finally {
             reopenedProbe = await reopened.evaluate(
@@ -758,31 +803,7 @@ for (const width of [1440, 1024, 390, 320]) {
           await fresh.close();
         }
         failures.assertEmpty();
-      } finally {
-        const path = info.outputPath('switch-shadow-actual.json');
-        await writeFile(
-          path,
-          JSON.stringify(
-            {
-              width,
-              colorScheme,
-              projectId,
-              baselineDocument: fixture,
-              samples,
-              savedProof,
-              puts,
-              originalProbe: await page.evaluate(() => (window as ProbeWindow).__switchShadowProbe),
-              reopenedProbe,
-              server: await serverDraft(page, projectId),
-            },
-            null,
-            2,
-          ),
-          'utf8',
-        );
-        await info.attach('switch-shadow-actual', { path, contentType: 'application/json' });
-        await page.screenshot({ path: info.outputPath('switch-shadow-final.png') });
-      }
+      });
     });
   }
 }

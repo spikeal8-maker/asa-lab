@@ -88,3 +88,17 @@ it('rejects unrecognized stored/URL values and keeps navigation available when s
     provider: 'openai',
   });
 });
+
+it('keeps old Internet links and stored preferences usable in the Tools workspace', () => {
+  localStorage.setItem(
+    'asa-ai-admin-navigation:v1:administrator-a',
+    JSON.stringify({ section: 'internet', provider: 'ollama-cloud' }),
+  );
+  expect(readAiAdminNavigation('administrator-a').section).toBe('tools');
+  window.history.replaceState(null, '', '/#/admin/ai?section=internet&provider=deepseek');
+  expect(readAiAdminNavigation('administrator-a')).toEqual({
+    section: 'tools',
+    provider: 'deepseek',
+  });
+  expect(AI_ADMIN_SECTIONS.filter((entry) => entry.label === 'Инструменты')).toHaveLength(1);
+});

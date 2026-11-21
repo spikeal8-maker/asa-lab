@@ -76,7 +76,7 @@ export interface CanonicalLearningStateInput {
     tenantId: string;
     schoolId: string;
     classroomId: string;
-    kind: 'direct_project' | 'course_project' | 'quiz';
+    kind: 'direct_project' | 'course_project' | 'quiz' | 'essay';
     classroomAssignmentId: string | null;
     activityRunId: string | null;
   };
@@ -409,4 +409,10 @@ export function adaptCourseProjectCanonicalInput(
 
 export function adaptQuizCanonicalInput(input: CanonicalAdapterInput): CanonicalLearningStateInput {
   return adapt(input, 'quiz');
+}
+
+export function adaptEssayCanonicalInput(
+  input: CanonicalAdapterInput,
+): CanonicalLearningStateInput {
+  return adapt(input, 'essay');
 }

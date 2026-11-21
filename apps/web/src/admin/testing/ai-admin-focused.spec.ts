@@ -347,7 +347,7 @@ it('distinguishes the pending switch from confirmed saved state and preserves it
   expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
 });
 
-it('preserves an unsaved provider switch when the independent Cloud key save reloads configuration', async () => {
+it('checks a replacement key without saving it or discarding an unsaved provider switch', async () => {
   const initial = aiAdminFixture({
     provider: 'ollama-cloud',
     model: 'gemma4:31b',
@@ -379,6 +379,9 @@ it('preserves an unsaved provider switch when the independent Cloud key save rel
       if (init?.method === 'PUT') version++;
       return { ok: true, status: 200, data: pool() };
     }
+    if (url.endsWith('/keys/inspect')) return { ok: true, status: 200, data: pool() };
+    if (url.endsWith('/ollama-cloud/inspect'))
+      return { ok: true, status: 200, data: { account: { status: 'ok' } } };
     return { ok: true, status: 200, data: { ...initial, configurationVersion: version } };
   });
   await act(async () =>
@@ -386,19 +389,20 @@ it('preserves an unsaved provider switch when the independent Cloud key save rel
       createElement(AiAdminPage, { providerChoice: 'ollama-cloud', onAccessDenied: denied }),
     ),
   );
-  await toggle(checkbox('Включено'));
+  await toggle(checkbox('Включён'));
   await enter(control<HTMLInputElement>('[aria-label="API-ключ 1"]'), 'private-key-only-test');
-  await act(async () => button('Сохранить ключи и порядок').click());
-  expect(version).toBe(8);
-  expect(checkbox('Выключено').checked).toBe(false);
+  const check = control<HTMLButtonElement>('[aria-label="Проверить ключ 1"]');
+  await act(async () => check.click());
+  expect(version).toBe(7);
+  expect(checkbox('Включён').checked).toBe(false);
   expect(host.textContent).toContain('Есть несохранённые изменения');
-  expect(host.textContent).toContain('Сохранено на сервере: включено');
+  expect(host.textContent).toContain('Ключ работает');
   expect(
     vi
       .mocked(call)
       .mock.calls.filter(([, init]) => init?.method === 'PUT')
       .map(([url]) => url),
-  ).toEqual(['/api/admin/v1/ai/ollama-cloud/keys']);
+  ).toEqual([]);
   expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
 });
 

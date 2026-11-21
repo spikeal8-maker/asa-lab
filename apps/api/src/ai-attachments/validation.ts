@@ -163,13 +163,26 @@ export function describeAiAttachmentFile(filename: string): AiAttachmentFileDesc
   };
 }
 
-function dimensions(width: number, height: number): { width: number; height: number } {
+interface ImageLimits {
+  readonly maxDimension: number;
+  readonly maxPixels: number;
+}
+const AI_IMAGE_LIMITS: ImageLimits = {
+  maxDimension: AI_ATTACHMENT_MAX_DIMENSION,
+  maxPixels: AI_ATTACHMENT_MAX_PIXELS,
+};
+
+function dimensions(
+  width: number,
+  height: number,
+  limits: ImageLimits,
+): { width: number; height: number } {
   if (
     width < 1 ||
     height < 1 ||
-    width > AI_ATTACHMENT_MAX_DIMENSION ||
-    height > AI_ATTACHMENT_MAX_DIMENSION ||
-    width * height > AI_ATTACHMENT_MAX_PIXELS
+    width > limits.maxDimension ||
+    height > limits.maxDimension ||
+    width * height > limits.maxPixels
   ) {
     fail('ai_attachment_image_dimensions_invalid');
   }
@@ -184,7 +197,7 @@ function pngCrc(bytes: Buffer, start: number, end: number): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function validatePng(bytes: Buffer): { width: number; height: number } {
+function validatePng(bytes: Buffer, limits: ImageLimits): { width: number; height: number } {
   if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) imageInvalid();
   let offset = 8;
   let size: { width: number; height: number } | null = null;
@@ -218,7 +231,7 @@ function validatePng(bytes: Buffer): { width: number; height: number } {
     if (PNG_BEFORE_DATA.has(type) && dataSeen) imageInvalid();
     if (type === 'IHDR') {
       if (size || offset !== 8 || length !== 13) imageInvalid();
-      size = dimensions(bytes.readUInt32BE(start), bytes.readUInt32BE(start + 4));
+      size = dimensions(bytes.readUInt32BE(start), bytes.readUInt32BE(start + 4), limits);
       bitDepth = bytes[start + 8];
       colorType = bytes[start + 9];
       if (
@@ -389,7 +402,7 @@ function jpegScanEnd(bytes: Buffer, start: number, restartInterval: number): num
   return imageInvalid();
 }
 
-function validateJpeg(bytes: Buffer): { width: number; height: number } {
+function validateJpeg(bytes: Buffer, limits: ImageLimits): { width: number; height: number } {
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) imageInvalid();
   let offset = 2;
   let size: { width: number; height: number } | null = null;
@@ -433,7 +446,7 @@ function validateJpeg(bytes: Buffer): { width: number; height: number } {
       if (size || length < 11) imageInvalid();
       precision = bytes[start];
       if (precision !== 8 && (marker === 0xc0 || precision !== 12)) imageInvalid();
-      size = dimensions(bytes.readUInt16BE(start + 3), bytes.readUInt16BE(start + 1));
+      size = dimensions(bytes.readUInt16BE(start + 3), bytes.readUInt16BE(start + 1), limits);
       const count = bytes[start + 5];
       if (count < 1 || count > 4 || length !== 8 + 3 * count) imageInvalid();
       for (let index = start + 6; index < end; index += 3) {
@@ -529,13 +542,14 @@ function webpFrame(
   start: number,
   length: number,
   lossless: boolean,
+  limits: ImageLimits,
 ): { width: number; height: number } {
   if (lossless) {
     if (length < 6 || bytes[start] !== 0x2f) imageInvalid();
     const header = bytes.readUInt32LE(start + 1);
     if (header >>> 29 !== 0) imageInvalid();
     // The VP8L alpha bit is only a hint, not a decoder or ownership decision.
-    return dimensions((header & 0x3fff) + 1, ((header >>> 14) & 0x3fff) + 1);
+    return dimensions((header & 0x3fff) + 1, ((header >>> 14) & 0x3fff) + 1, limits);
   }
   if (length < 11) imageInvalid();
   const tag = bytes.readUIntLE(start, 3);
@@ -551,10 +565,14 @@ function webpFrame(
     partitionLength >= length - 10
   )
     imageInvalid();
-  return dimensions(bytes.readUInt16LE(start + 6) & 0x3fff, bytes.readUInt16LE(start + 8) & 0x3fff);
+  return dimensions(
+    bytes.readUInt16LE(start + 6) & 0x3fff,
+    bytes.readUInt16LE(start + 8) & 0x3fff,
+    limits,
+  );
 }
 
-function validateWebp(bytes: Buffer): { width: number; height: number } {
+function validateWebp(bytes: Buffer, limits: ImageLimits): { width: number; height: number } {
   if (
     bytes.length < 20 ||
     bytes.toString('latin1', 0, 4) !== 'RIFF' ||
@@ -584,7 +602,11 @@ function validateWebp(bytes: Buffer): { width: number; height: number } {
       flags = bytes[start];
       if ((flags & 2) !== 0) fail('ai_attachment_animation_unsupported');
       if ((flags & 0xc1) !== 0 || bytes.readUIntLE(start + 1, 3) !== 0) imageInvalid();
-      canvas = dimensions(bytes.readUIntLE(start + 4, 3) + 1, bytes.readUIntLE(start + 7, 3) + 1);
+      canvas = dimensions(
+        bytes.readUIntLE(start + 4, 3) + 1,
+        bytes.readUIntLE(start + 7, 3) + 1,
+        limits,
+      );
     } else if (type === 'VP8 ' || type === 'VP8L') {
       if (
         frame ||
@@ -592,7 +614,7 @@ function validateWebp(bytes: Buffer): { width: number; height: number } {
         (type === 'VP8L' && alpha)
       )
         imageInvalid();
-      frame = webpFrame(bytes, start, length, type === 'VP8L');
+      frame = webpFrame(bytes, start, length, type === 'VP8L', limits);
       if (canvas && (frame.width !== canvas.width || frame.height !== canvas.height))
         imageInvalid();
       if (canvas && type === 'VP8 ' && Boolean(flags & 16) !== alpha) imageInvalid();
@@ -620,6 +642,18 @@ function validateWebp(bytes: Buffer): { width: number; height: number } {
   )
     imageInvalid();
   return frame;
+}
+
+/** Verify the bounded encoded image container without decoding its pixels. */
+export function validateAttachmentImageStructure(
+  bytes: Uint8Array,
+  extension: 'png' | 'jpg' | 'webp',
+  limits: ImageLimits = AI_IMAGE_LIMITS,
+): { width: number; height: number } {
+  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (extension === 'png') return validatePng(buffer, limits);
+  if (extension === 'jpg') return validateJpeg(buffer, limits);
+  return validateWebp(buffer, limits);
 }
 
 /**
@@ -658,15 +692,7 @@ export function validateAiAttachment(bytes: Uint8Array, filename: string): Valid
       text,
     };
   }
-  // A view, not a rewrite/copy of the captured bytes. The synchronous parsers do
-  // not retain this view or write to it.
-  const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const size =
-    file.extension === 'png'
-      ? validatePng(buffer)
-      : file.extension === 'jpg'
-        ? validateJpeg(buffer)
-        : validateWebp(buffer);
+  const size = validateAttachmentImageStructure(bytes, file.extension as 'png' | 'jpg' | 'webp');
   return {
     kind: 'image',
     mediaType: file.mediaType,

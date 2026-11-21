@@ -1,3 +1,4 @@
+import { AI_TOOL_IDS } from '@asa-lab/contracts';
 import {
   TOOL_PROVIDERS,
   TOOL_TEST_ROOT,
@@ -17,6 +18,20 @@ it.each(TOOL_PROVIDERS)(
     const thread = '22222222-2222-4222-8222-222222222222';
     const request = '33333333-3333-4333-8333-333333333333';
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      if (sql.includes("to_regprocedure('public.ai_tool_policy_permit"))
+        return { rows: [{ ready: true }] };
+      if (sql.includes('SELECT ai_tool_policy_permit')) return { rows: [{ value: true }] };
+      if (sql.includes('ai_tool_policy_snapshot'))
+        return {
+          rows: [
+            {
+              value: {
+                revision: 1,
+                tools: AI_TOOL_IDS.map((id) => ({ id, enabled: true, instructions: '' })),
+              },
+            },
+          ],
+        };
       const journal = aiUsageQueryFixture(sql);
       if (journal) return journal;
       if (sql.includes('ai_runtime_config'))
@@ -131,6 +146,7 @@ it.each(TOOL_PROVIDERS)(
       .spyOn(service.workingFiles, 'write')
       .mockResolvedValue({ ...file, version: 2, content: '<h1>Змейка</h1>' });
     const deltas: string[] = [];
+    const activity = vi.fn();
     await service.sendStream(
       owner,
       thread,
@@ -138,7 +154,24 @@ it.each(TOOL_PROVIDERS)(
       request,
       (delta) => deltas.push(delta),
       new AbortController().signal,
+      undefined,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      activity,
     );
+    expect(activity.mock.calls.filter(([event]) => event.tool === 'read_working_file')).toEqual([
+      [{ tool: 'read_working_file', state: 'running' }],
+      [
+        {
+          tool: 'read_working_file',
+          state: 'complete',
+          fileRead: { name: 'snake.html', version: 1 },
+        },
+      ],
+    ]);
     expect(round).toBe(3);
     expect(deltas.join('')).toBe('Заголовок обновлён.');
     expect(write).toHaveBeenCalledTimes(1);

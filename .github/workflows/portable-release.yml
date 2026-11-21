@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   contracts:
+    needs: gate
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -26,7 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ needs.gate.outputs.revision }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -40,26 +42,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - id: source
         env:
           GH_TOKEN: ${{ github.token }}
           REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
+          PYTHONPATH: ${{ github.workspace }}/tools
         run: |
-          python - <<'PY'
-          import os, re, sys
-          sys.path.insert(0, 'tools')
+          python -P - <<'PY'
+          import os, re
           from deployment.releases import assert_general_ci
-          from deployment.system import run
+          from deployment.publication import canonical_main, is_ancestor
           from deployment.contracts import require
-          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True)
-          main = re.fullmatch(r'([0-9a-f]{40})\trefs/heads/main', latest)
-          require(main and main[1] == os.environ.get('REVISION'), 'STALE_RELEASE',
-                  'Candidate is not the current main; stop before building release images.')
-          assert_general_ci(os.environ['REVISION'])
+          revision = os.environ.get('REVISION', '')
+          require(re.fullmatch(r'[a-f0-9]{40}', revision), 'RELEASE_SOURCE', 'Invalid candidate revision.')
+          require(is_ancestor(revision, canonical_main()), 'RELEASE_SOURCE',
+                  'Candidate must belong to the canonical main history.')
+          assert_general_ci(revision)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('revision=' + os.environ['REVISION'] + '\n')
+              output.write(f'revision={revision}\n')
           PY
   build:
     needs: [gate, contracts]
@@ -167,18 +173,20 @@ jobs:
       - run: python tools/deployment/ci_manifest.py
       - name: Verify the exact images before promoting stable
         run: python tools/deployment/ci_smoke.py .asa/release/release.json
-      - name: Prevent a delayed workflow from rolling the channel backward
-        run: |
-          python - <<'PY'
-          import os, sys
-          sys.path.insert(0, 'tools')
-          from deployment.system import run
-          from deployment.contracts import require
-          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True).split()[0]
-          require(latest == os.environ['ASA_BUILD_REVISION'], 'STALE_RELEASE',
-                  'Main advanced during the build; keep stable unchanged and publish the next green main.')
-          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .asa/publication-tools
+          sparse-checkout: tools/deployment
+          persist-credentials: false
+      - name: Compare the qualified candidate with the published channel
+        id: promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: ${{ github.workspace }}/.asa/publication-tools/tools
+        run: python -P -m deployment.publication
       - uses: docker/build-push-action@v6
+        if: steps.promotion.outputs.promote == 'true'
         with:
           context: .asa/release
           file: infra/deployment/Dockerfile

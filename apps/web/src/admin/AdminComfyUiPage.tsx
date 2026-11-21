@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AiImageGenerationAdminConfig, AiImageRecipe } from '@asa-lab/contracts';
 import { AdminAiImages } from './AdminAiImages';
 import { AdminComfyImageTest } from './AdminComfyImageTest';
+import { AdminPolzaCatalog } from './AdminPolzaCatalog';
 import { call } from './admin-api';
 import { newClientId } from '../client-id';
 import './ai-image-workbench.css';
@@ -48,11 +49,15 @@ function validStatus(value: unknown): value is ComfyUiStatus {
 export function AdminComfyUiPage({
   onAccessDenied,
   principalId,
+  polzaConnected = false,
+  initialTab = 'local',
 }: {
   onAccessDenied: () => void;
   principalId?: string;
+  polzaConnected?: boolean;
+  initialTab?: 'local' | 'api';
 }) {
-  const [tab, setTab] = useState<'local' | 'api'>('local');
+  const [tab, setTab] = useState(initialTab);
   const [imageConfig, setImageConfig] = useState<AiImageGenerationAdminConfig | null>(null);
   const [details, setDetails] = useState<ComfyUiStatus | null>(null);
   const [connectionVerified, setConnectionVerified] = useState(false);
@@ -408,24 +413,12 @@ export function AdminComfyUiPage({
             </div>
             <span className="asa-image-state is-warning">Не подключён</span>
           </div>
-          <p>
-            API-генерация пока не подключена к ASA Lab. Ключи, список моделей, доступ пользователям
-            и платные пробные запросы будут настраиваться здесь после отдельной серверной
-            интеграции.
-          </p>
-          <div className="asa-image-api-steps" aria-label="Будущие настройки API">
-            <span>1. Защищённый API-ключ</span>
-            <span>2. Каталог моделей</span>
-            <span>3. Доступ и лимиты</span>
-            <span>4. Пробная генерация</span>
-          </div>
-          <a href="https://polza.ai/collections/image" target="_blank" rel="noopener noreferrer">
-            Посмотреть модели изображений Polza AI
-          </a>
-          <p className="asa-image-muted">
-            Ключи не вводятся на этой странице до реализации зашифрованного хранения и контроля
-            расходов. ComfyUI продолжает работать независимо.
-          </p>
+          <p>Запуск генерации изображений через Polza AI из ASA Lab пока недоступен.</p>
+          <AdminPolzaCatalog
+            kind="image"
+            connected={polzaConnected}
+            onAccessDenied={onAccessDenied}
+          />
         </section>
       )}
     </section>
