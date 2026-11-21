@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
+import { channel } from 'node:diagnostics_channel';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { ClientRequest, type IncomingMessage } from 'node:http';
 import type pg from 'pg';
 import { vi } from 'vitest';
 import { PgProjectRepository } from '../../contexts/projects/dist/index.js';
-import { S3BlocksBlobStore } from '../../apps/api/dist/blocks-asset-storage.js';
 import { quantiles } from '../../tools/capacity/contracts.mjs';
 
 const sizes = [1, 10, 30] as const;
@@ -39,7 +40,7 @@ function newSample(users: number, variant: Variant) {
     versionRows: 0,
     sql: new Map<SqlStage, Timings>(),
     checkout: timings(),
-    minioOpen: timings(),
+    minioHeaders: timings(),
     http: timings(),
   };
 }
@@ -102,6 +103,68 @@ function describeTiming(bucket: Timings) {
   return { latencyMs: quantiles(bucket.elapsedMs), failures: bucket.failures };
 }
 
+type MinioTiming = (elapsedMs: number, failed: boolean) => void;
+
+function httpClientRequest(message: unknown): ClientRequest | undefined {
+  if (!message || typeof message !== 'object') return undefined;
+  const request = (message as { request?: unknown }).request;
+  return request instanceof ClientRequest ? request : undefined;
+}
+
+// Observe actual HTTP traffic, independently of how Vitest loads the SDK.
+// Match both the intended origin and the connected peer; ignore headers
+// other than Host, and never inspect object paths, bodies or signing data.
+function observeMinioHeaders(origin: URL, capture: () => MinioTiming | undefined): () => void {
+  const start = channel('http.client.request.start');
+  const headers = channel('http.client.response.finish');
+  const error = channel('http.client.request.error');
+  const attempts = new WeakMap<ClientRequest, { started: number; record: MinioTiming }>();
+  const port = Number(origin.port);
+  const connectedToMinio = (request: ClientRequest) =>
+    request.socket?.remoteAddress === origin.hostname && request.socket.remotePort === port;
+  function onStart(message: unknown) {
+    const request = httpClientRequest(message);
+    if (
+      !request ||
+      request.method !== 'GET' ||
+      request.protocol !== origin.protocol ||
+      request.host !== origin.hostname ||
+      request.getHeader('host') !== origin.host
+    )
+      return;
+    const record = capture();
+    if (record) attempts.set(request, { started: performance.now(), record });
+  }
+  function takeAttempt(message: unknown) {
+    const request = httpClientRequest(message);
+    if (!request) return undefined;
+    const attempt = attempts.get(request);
+    if (!attempt) return undefined;
+    attempts.delete(request);
+    return { request, ...attempt };
+  }
+  function onHeaders(message: unknown) {
+    const attempt = takeAttempt(message);
+    if (!attempt || !connectedToMinio(attempt.request)) return;
+    const status = (message as { response?: IncomingMessage }).response?.statusCode ?? 0;
+    attempt.record(performance.now() - attempt.started, status < 200 || status >= 300);
+  }
+  function onError(message: unknown) {
+    const attempt = takeAttempt(message);
+    if (!attempt) return;
+    if (attempt.request.socket?.remotePort && !connectedToMinio(attempt.request)) return;
+    attempt.record(performance.now() - attempt.started, true);
+  }
+  start.subscribe(onStart);
+  headers.subscribe(onHeaders);
+  error.subscribe(onError);
+  return () => {
+    start.unsubscribe(onStart);
+    headers.unsubscribe(onHeaders);
+    error.unsubscribe(onError);
+  };
+}
+
 /** Measures one test run. Never serializes SQL, binds, HTTP bodies, identities or credentials. */
 export async function profileScratchAssetReads(input: {
   pool: pg.Pool;
@@ -113,7 +176,8 @@ export async function profileScratchAssetReads(input: {
   const originalConnect = pool.connect;
   const originalQueries = new Map<pg.PoolClient, pg.PoolClient['query']>();
   const originalLoad = PgProjectRepository.prototype.load;
-  const originalOpen = S3BlocksBlobStore.prototype.open;
+  const minioOrigin = new URL(process.env.ASA_OBJECT_STORAGE_ENDPOINT ?? '');
+  assert.equal(minioOrigin.origin, 'http://127.0.0.1:19000');
   let active: Sample | null = null;
   let participantCount = 0;
   let correctness = 'FAIL';
@@ -160,21 +224,13 @@ export async function profileScratchAssetReads(input: {
     scope.versionRows += result?.versions.length ?? 0;
     return result;
   });
-  const minio = vi.spyOn(S3BlocksBlobStore.prototype, 'open').mockImplementation(async function (
-    this: S3BlocksBlobStore,
-    ...args
-  ) {
+  const stopMinio = observeMinioHeaders(minioOrigin, () => {
     const scope = active;
-    if (!scope) return originalOpen.apply(this, args);
-    const finish = sampleTiming(scope, scope.minioOpen);
-    try {
-      const result = await originalOpen.apply(this, args);
-      finish(result === null);
-      return result;
-    } catch (problem) {
-      finish(problem);
-      throw problem;
-    }
+    if (!scope) return undefined;
+    return (elapsedMs, failed) => {
+      scope.minioHeaders.elapsedMs.push(elapsedMs);
+      if (failed) scope.minioHeaders.failures++;
+    };
   });
 
   pool.on('acquire', onAcquire);
@@ -235,8 +291,8 @@ export async function profileScratchAssetReads(input: {
     for (const scope of samples) {
       const requests = scope.users * repetitions;
       assert.equal(scope.http.elapsedMs.length, requests);
-      assert.equal(scope.minioOpen.elapsedMs.length, requests);
-      assert.equal(scope.minioOpen.failures, 0);
+      assert.equal(scope.minioHeaders.elapsedMs.length, requests);
+      assert.equal(scope.minioHeaders.failures, 0);
       assert.equal(scope.checkout.failures, 0);
       assert(scope.checkout.elapsedMs.length >= requests, 'missing pool checkout evidence');
       assert.equal(scope.sql.get('project-authority')?.elapsedMs.length, 2 * requests);
@@ -260,11 +316,11 @@ export async function profileScratchAssetReads(input: {
     pool.connect = originalConnect;
     pool.off('acquire', onAcquire);
     for (const [client, query] of originalQueries) client.query = query;
-    minio.mockRestore();
+    stopMinio();
     load.mockRestore();
 
     const report = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       sourceSha: process.env.GITHUB_SHA,
       correctness,
       participantCount,
@@ -277,7 +333,7 @@ export async function profileScratchAssetReads(input: {
         users: scope.users,
         variant: scope.variant,
         fullResponse: describeTiming(scope.http),
-        minioOpenToBodyHeaders: describeTiming(scope.minioOpen),
+        minioHttpToResponseHeaders: describeTiming(scope.minioHeaders),
         sqlCalls: [...scope.sql.values()].reduce(
           (count, bucket) => count + bucket.elapsedMs.length,
           0,
