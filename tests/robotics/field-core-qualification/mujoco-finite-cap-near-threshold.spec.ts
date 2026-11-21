@@ -200,6 +200,7 @@ const allowedExports = new Set([
   'contactWorldForce',
   'relativePointVelocity',
   'assessWindow',
+  'assessContacts',
   'copyWarnings',
   'captureForward',
   'copyContacts',
@@ -957,6 +958,37 @@ function supportCertificate(h: Helpers, p: Packet): Support {
   }
   result.downhillRim = result.loaded > 0 && result.downhillRim;
   return result;
+}
+function compareNativeCertificate(
+  h: Helpers,
+  packet: Packet,
+  forward: Forward,
+  force: Force,
+  beforeTip: boolean,
+) {
+  const nativeSupport = call<{ bodies: { cylinder: Support } }>(
+    h.observer,
+    'assessContacts',
+    c,
+    forward,
+    force,
+    h.ids,
+    call<Floor>(h.observer, 'floorFrame', base + packet.pre.qpos[0]!),
+  ).bodies.cylinder;
+  const retainedSupport = supportCertificate(h, packet);
+  demand(
+    Object.is(nativeSupport.maxSlip, retainedSupport.maxSlip) &&
+      Object.is(nativeSupport.outwardForce, retainedSupport.outwardForce) &&
+      nativeSupport.loaded === retainedSupport.loaded,
+    'NATIVE_RETAINED_FORCE_VELOCITY_CERTIFICATE',
+  );
+  if (beforeTip)
+    demand(
+      nativeSupport.supported === retainedSupport.supported &&
+        nativeSupport.downhillRim === retainedSupport.downhillRim,
+      'NATIVE_RETAINED_FINITE_WITNESS_CERTIFICATE',
+    );
+  return { native: nativeSupport, retained: retainedSupport };
 }
 type Torque = {
   nativeForce: number;
@@ -1932,28 +1964,7 @@ async function runWorld(
       const bytes = encode(packet);
       journal.frame(bytes);
       stage = 'independent-physical-certificate';
-      const nativeSupport = call<{ bodies: { cylinder: Support } }>(
-        h.observer,
-        'assessContacts',
-        c,
-        forward,
-        force,
-        h.ids,
-        call<Floor>(h.observer, 'floorFrame', base + pre.qpos[0]!),
-      ).bodies.cylinder;
-      const retainedSupport = supportCertificate(h, packet);
-      demand(
-        Object.is(nativeSupport.maxSlip, retainedSupport.maxSlip) &&
-          Object.is(nativeSupport.outwardForce, retainedSupport.outwardForce) &&
-          nativeSupport.loaded === retainedSupport.loaded,
-        'NATIVE_RETAINED_FORCE_VELOCITY_CERTIFICATE',
-      );
-      if (!certificate.firstConfirmed)
-        demand(
-          nativeSupport.supported === retainedSupport.supported &&
-            nativeSupport.downhillRim === retainedSupport.downhillRim,
-          'NATIVE_RETAINED_FINITE_WITNESS_CERTIFICATE',
-        );
+      compareNativeCertificate(h, packet, forward, force, !certificate.firstConfirmed);
       certificate.observe(packet, bytes);
       pending = undefined;
       if (certificate.done) break;
@@ -2998,3 +3009,35 @@ it('replays both complete synthetic rate worlds from exclusive external files wi
     rmdirSync(root);
   }
 }, 60000);
+
+// Exact candidate tick11 from the pinned f3e700b3� receipt: four native contacts,
+// two loaded contacts. This is retained historical input, not a new native run.
+const defaultArchivedFourContact =
+  '{"kind":"interval","engine":"candidate","tick":11,"pre":{"time":0.005000000000000001,"qpos":[-0.000007970797553397634,0.027041562016467312,0,0.05072289384867421,0.9702957262759965,0,0.24192189559966773,0],"qvel":[-0.0019803286820398456,0,0,-0.04905,0,0,0],"qacc":[0.0436547072809511,0,0,-9.81,0,0,0],"qacc_warmstart":[0.0436547072809511,0,0,-9.81,0,0,0]},"control":{"u":0,"stage":0,"phase":"SETTLING","target":0,"stageEndUs":2000000},"stage":"solved-observation","forward":{"state":{"qpos":[-0.000007970797553397634,0.027041562016467312,0,0.05072289384867421,0.9702957262759965,0,0.24192189559966773,0],"qvel":[-0.0019803286820398456,0,0,-0.04905,0,0,0],"time":0.005000000000000001},"bodies":{"0":{"com":[0,0,0],"rotation":[1,0,0,0,1,0,0,0,1],"quaternion":[1,0,0,0],"omega":[0,0,0],"velocity":[0,0,0]},"1":{"com":[-0.01173661312436161,0,-0.02207378337234157],"rotation":[0.8829513348936627,0,0.46946452497446434,0,1.0000000000000002,0,-0.46946452497446434,0,0.8829513348936627],"quaternion":[0.9702966904235175,0,0.24191802858234593,0],"omega":[0,-0.0019803286820398456,0],"velocity":[0.00004371334633338224,0,-0.00002324235160017858]},"2":{"com":[0.027041562016467312,0,0.05072289384867421],"rotation":[0.882947592858927,0,0.4694715627858908,0,1,0,-0.4694715627858908,0,0.882947592858927],"quaternion":[0.9702957262759965,0,0.24192189559966773,0],"omega":[0,0,0],"velocity":[0,0,-0.04905]}},"contacts":[{"index":0,"dist":-0.000018856084316987068,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":0,"adhesion":0,"pos":[-0.026867954620029597,0.012628553268048015,0.014274992304176271],"frame":[-0.4694645249744904,0,-0.8829513348936487,0,1,0,0.8829513348936487,0,-0.4694645249744904],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"index":1,"dist":-0.000019199757830144162,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":3,"adhesion":0,"pos":[0.011201804668187001,0.030488024572872474,-0.005966863153286579],"frame":[-0.46946452497448315,0,-0.8829513348936526,0,1,0,0.8829513348936526,0,-0.46946452497448315],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"index":2,"dist":-0.000019342112060302195,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":6,"adhesion":0,"pos":[0.02697081528164535,-0.012628553268047965,-0.014351314211363514],"frame":[-0.469464524974452,0,-0.8829513348936693,0,1,0,0.8829513348936693,0,-0.469464524974452],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},{"index":3,"dist":-0.000018998438547159846,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":9,"adhesion":0,"pos":[-0.011098944006571174,-0.03048802457287248,0.005890541246099302],"frame":[-0.4694645249744595,0,-0.8829513348936653,0,1,0,0.8829513348936653,0,-0.4694645249744595],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}],"efcVel":[-0.043248512072701535,0,-0.023027216279376452,-0.043333897068468796,0,-0.02302721593908284,-0.0433692646917395,0,-0.02302721579812723,-0.043283879695972236,0,-0.023027216138420858],"efcType":[7,7,7,7,7,7,7,7,7,7,7,7],"efcId":[0,0,0,1,1,1,2,2,2,3,3,3],"ncon":4,"nefc":12},"worldDeck":{"hingeAnchor":[0,0,0],"hingeAxis":[0,1,0],"geomCenter":[-0.01173661312436161,0,-0.02207378337234157]},"post":{"time":0.005500000000000001,"qpos":[-0.000008748047980867814,0.027042055615151044,4.8875466426682175e-8,0.05070471486144854,0.970294960251713,-4.1245032184649473e-7,0.24192496793416313,1.0284045026571632e-7],"qvel":[-0.0015545008549403606,0.0009871973674647823,0.00009775093285336434,-0.03635797445133844,-0.0017003125650485664,0.012665564309214837,1.954271730667873e-8],"qacc":[1.0641479560387126,1.9743947349295645,0.19550186570672867,25.384051097323123,-3.4006251300971333,25.331128618429673,0.000039085434613357465],"qacc_warmstart":[1.0641479560387126,1.9743947349295645,0.19550186570672867,25.384051097323123,-3.4006251300971333,25.331128618429673,0.000039085434613357465]},"rows":{"ncon":4,"nefc":12,"efcType":[7,7,7,7,7,7,7,7,7,7,7,7],"efcId":[0,0,0,1,1,1,2,2,2,3,3,3]},"retainedForce":[0,0,0,4.501982600898777,-0.608452740504672,2.3472545625355794,11.498788740622748,0.5107018076513077,5.0422774442237275,0,0,0],"force":{"contacts":[{"index":0,"dist":-0.000018856084316987068,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":0,"adhesion":0,"pos":[-0.026867954620029597,0.012628553268048015,0.014274992304176271],"frame":[-0.4694645249744904,0,-0.8829513348936487,0,1,0,0.8829513348936487,0,-0.4694645249744904],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"force":[0,0,0,0,0,0]},{"index":1,"dist":-0.000019199757830144162,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":3,"adhesion":0,"pos":[0.011201804668187001,0.030488024572872474,-0.005966863153286579],"frame":[-0.46946452497448315,0,-0.8829513348936526,0,1,0,0.8829513348936526,0,-0.46946452497448315],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"force":[4.501982600898777,-0.608452740504672,2.3472545625355794,0,0,0]},{"index":2,"dist":-0.000019342112060302195,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":6,"adhesion":0,"pos":[0.02697081528164535,-0.012628553268047965,-0.014351314211363514],"frame":[-0.469464524974452,0,-0.8829513348936693,0,1,0,0.8829513348936693,0,-0.469464524974452],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"force":[11.498788740622748,0.5107018076513077,5.0422774442237275,0,0,0]},{"index":3,"dist":-0.000018998438547159846,"includemargin":0,"mu":1,"dim":3,"geom1":1,"geom2":0,"exclude":0,"efc_address":9,"adhesion":0,"pos":[-0.011098944006571174,-0.03048802457287248,0.005890541246099302],"frame":[-0.4694645249744595,0,-0.8829513348936653,0,1,0,0.8829513348936653,0,-0.4694645249744595],"friction":[1,1,0.00001,0.00001,0.00001],"solref":[0.004,1],"solreffriction":[0,0],"solimp":[0.99,0.99,0.001,0.5,2],"geom":[1,0],"flex":[-1,-1],"elem":[-1,-1],"vert":[-1,-1],"surfacevel":[0,0,0],"H":[13.806913667173852,0.00007250294856789539,13.806913666983485,0.00007250294856789539,21.2367093044783,-0.000039015387794421404,13.806913666983485,-0.000039015387794421404,13.806913667378737,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"force":[0,0,0,0,0,0]}],"efcForce":[0,0,0,4.501982600898777,-0.608452740504672,2.3472545625355794,11.498788740622748,0.5107018076513077,5.0422774442237275,0,0,0],"qfrcConstraint":[0.4083708431862537,0.9871973674647823,0.09775093285336434,17.597025548661563,-0.002336796235231747,0.017406707215630923,1.064100957348657e-8],"qfrcActuator":[0.6151389620633084,0,0,0,0,0,0],"actuatorForce":[0.6151389620633084],"qacc":[1.0641479560387126,1.9743947349295645,0.19550186570672867,25.384051097323123,-3.4006251300971333,25.331128618429673,0.000039085434613357465],"solverIterations":[16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"islands":1,"warnings":[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],"endpoint":{"time":0.005500000000000001,"qpos":[-0.000008748047980867814,0.027042055615151044,4.8875466426682175e-8,0.05070471486144854,0.970294960251713,-4.1245032184649473e-7,0.24192496793416313,1.0284045026571632e-7],"qvel":[-0.0015545008549403606,0.0009871973674647823,0.00009775093285336434,-0.03635797445133844,-0.0017003125650485664,0.012665564309214837,1.954271730667873e-8],"qacc":[1.0641479560387126,1.9743947349295645,0.19550186570672867,25.384051097323123,-3.4006251300971333,25.331128618429673,0.000039085434613357465],"qacc_warmstart":[1.0641479560387126,1.9743947349295645,0.19550186570672867,25.384051097323123,-3.4006251300971333,25.331128618429673,0.000039085434613357465]}},"kinematics":[{"vDeck":[-0.000028269176695858327,0,-0.00005320738116178959],"local":[-0.043248512072701535,0,-0.023027216279376456],"native":[-0.043248512072701535,0,-0.023027216279376452],"projectedSlip":0.023027216279375175},{"vDeck":[0.000011816350244260125,0,0.00002218325507501856],"local":[-0.04333389706846879,0,-0.02302721593908284],"native":[-0.043333897068468796,0,-0.02302721593908284],"projectedSlip":0.02302721593908192},{"vDeck":[0.000028420319157729215,0,0.00005341107908024086],"local":[-0.0433692646917395,0,-0.02302721579812723],"native":[-0.0433692646917395,0,-0.02302721579812723],"projectedSlip":0.02302721579812784},{"vDeck":[-0.000011665207782389179,0,-0.000021979557156567136],"local":[-0.04328387969597223,0,-0.023027216138420854],"native":[-0.043283879695972236,0,-0.023027216138420858],"projectedSlip":0.023027216138421094}],"support":{"loaded":2,"maxSlip":0.02302721593908284,"outwardForce":16.000771341521506,"supported":true,"downhillRim":false,"forceSum":[0.9871973674647823,0.09775093285336434,17.597025548661563],"sumAbsProducts":[14.036391666679954,1.1191545481559797,17.597025548661563],"contactCount":4},"torque":{"u":0,"thetaPre":-0.000007970797553397634,"omegaPre":-0.0019803286820398456,"omegaPost":-0.0015545008549403606,"nativeForce":0.6151389620633084,"saturated":false,"effective":0.5257151183724166,"endpointFormula":0.5257151183724166,"algebraBudget":6.099136245917717e-14},"signedWork":-4.6457833211496596e-7,"work":-0.000003943047693078962,"physical":{"tick":11,"pre":{"theta":0.4886842197608589,"omega":-0.0019803286820398456,"phi":0.00000797079755335386,"beta":0.00000797079755335386,"relativeOmega":0.0019803286820398456,"relativeOmegaY":0.0019803286820398456,"uphillRimLift":-0.000018836061869375448,"uphillDirectionValid":true,"maximumRimLift":-0.00001883606186937433},"post":{"theta":0.48868344251043144,"omega":-0.0015545008549403606,"phi":0.000015104774188259873,"beta":0.000015080830135427492,"relativeOmega":0.01432135873763604,"relativeOmegaY":0.014220065164155199,"uphillRimLift":-0.00003442091659328246,"uphillDirectionValid":true,"maximumRimLift":-0.00003442012643953861},"loaded":true,"positiveSupport":true,"supported":true,"downhillRim":false,"noSlip":false},"slip":0,"signature":{"eligible":false,"matches":false,"movingSpeed":0,"loadedMoving":false}}';
+it('routes the real archived four-contact specimen through the same dispatched native-certificate comparison as runWorld', async () => {
+  expect(hash(defaultArchivedFourContact)).toBe(
+    '1325a0593d2de5c796266a850946c912913636941149984b49d8e753bdc9fdc6',
+  );
+  const sample = parseLine(defaultArchivedFourContact) as unknown as ArchivedInterval;
+  expect([sample.engine, sample.tick, sample.forward.ncon, sample.forward.nefc]).toEqual([
+    'candidate',
+    11,
+    4,
+    12,
+  ]);
+  const h = await helpers(),
+    packet = archivePacket(h, sample);
+  const actual = compareNativeCertificate(h, packet, sample.forward, sample.force, true);
+  expect(Object.is(actual.native.maxSlip, sample.support.maxSlip)).toBe(true);
+  expect(Object.is(actual.native.outwardForce, sample.support.outwardForce)).toBe(true);
+  expect(actual.native.loaded).toBe(sample.support.loaded);
+  expect(actual.retained.supported).toBe(sample.support.supported);
+  expect(actual.retained.downhillRim).toBe(sample.support.downhillRim);
+  for (const denied of [
+    'cylinderPlan',
+    'executePhy01',
+    'verifyEngineArtifacts',
+    'validateCylinderDynamicAuthorization',
+  ])
+    expect(() => call(h.harness, denied, c)).toThrow('PURE_EXPORT_ALLOWLIST_');
+});
