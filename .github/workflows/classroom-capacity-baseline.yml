@@ -20,15 +20,15 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: Focused client recovery or the existing backend capacity baseline
+        description: Select an isolated capacity baseline, Scratch asset profile, or recovery verification
         type: choice
-        options: [backend30, snapshot-recovery, proxy-admission, resource-budget, school-nat, release-repair]
+        options: [backend30, scratch-asset-profile, snapshot-recovery, proxy-admission, resource-budget, school-nat, release-repair]
         default: backend30
 permissions:
   contents: read
 jobs:
   backend30:
-    if: github.event_name != 'workflow_dispatch' || inputs.profile == 'backend30'
+    if: github.event_name != 'workflow_dispatch' || inputs.profile == 'backend30' || inputs.profile == 'scratch-asset-profile'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     services:
@@ -45,6 +45,7 @@ jobs:
     env:
       NX_SKIP_NX_CACHE: 'true'
       ASA_CAPACITY_BASELINE: '1'
+      ASA_CAPACITY_SCRATCH_PROFILE: ${{ inputs.profile == 'scratch-asset-profile' && '1' || '0' }}
       TEST_DATABASE_URL: postgresql://postgres:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
       APP_TEST_DATABASE_URL: postgresql://asalab_app:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
       MIGRATION_DATABASE_URL: postgresql://postgres:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
@@ -90,6 +91,14 @@ jobs:
         with:
           name: classroom-backend30-${{ github.sha }}
           path: reports/capacity/backend30.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Preserve Scratch private asset measurements
+        if: always() && inputs.profile == 'scratch-asset-profile'
+        uses: actions/upload-artifact@v4
+        with:
+          name: scratch-asset-profile-${{ github.sha }}
+          path: reports/capacity/scratch-asset-profile.json
           if-no-files-found: warn
           retention-days: 14
       - name: Remove only this run's disposable object store
