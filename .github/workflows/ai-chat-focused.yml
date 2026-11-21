@@ -13,6 +13,8 @@ name: ASA AI Chat Focused
       - 'tools/copy-api-runtime-assets.mjs'
       - 'tools/smoke-ai-built-document-reader.mjs'
       - 'tools/ai-document-requirements.txt'
+      - 'tools/polza-reconcile*.mjs'
+      - 'tools/test-polza-reconcile.mjs'
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/app.factory.ts'
       - 'apps/api/src/abuse-protection.ts'
@@ -24,6 +26,9 @@ name: ASA AI Chat Focused
       - 'apps/web/src/components/ClassroomAiAccess.tsx'
       - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
+      - 'apps/web/public/vite-preload-recovery.js'
+      - 'apps/web/src/styles.css'
+      - 'tools/test-web-release-update.mjs'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/AiAdminWorkspace.tsx'
       - 'apps/web/src/admin/AdminAiUsageOverview.tsx'
@@ -59,6 +64,8 @@ name: ASA AI Chat Focused
       - 'tools/copy-api-runtime-assets.mjs'
       - 'tools/smoke-ai-built-document-reader.mjs'
       - 'tools/ai-document-requirements.txt'
+      - 'tools/polza-reconcile*.mjs'
+      - 'tools/test-polza-reconcile.mjs'
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/app.factory.ts'
       - 'apps/api/src/abuse-protection.ts'
@@ -70,6 +77,9 @@ name: ASA AI Chat Focused
       - 'apps/web/src/components/ClassroomAiAccess.tsx'
       - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
+      - 'apps/web/public/vite-preload-recovery.js'
+      - 'apps/web/src/styles.css'
+      - 'tools/test-web-release-update.mjs'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/AiAdminWorkspace.tsx'
       - 'apps/web/src/admin/AdminAiUsageOverview.tsx'
@@ -137,6 +147,10 @@ jobs:
           ASA_DOCUMENT_PYTHON="$RUNNER_TEMP/asa-document-python/bin/python" node tools/smoke-ai-built-document-reader.mjs
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
+      - name: Release update notification and safe reload regression
+        run: node --test tools/test-web-release-update.mjs
+      - name: Portable Polza setup, negative and no-op checks
+        run: node --test tools/test-polza-reconcile.mjs
       - name: Attachment fixture CLI startup regression without Docker
         run: node --test tests/ai-attachments/minio-fixture.test.mjs
       - name: No unformatted files

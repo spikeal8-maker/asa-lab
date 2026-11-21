@@ -11,6 +11,8 @@ Operator references:
 
 - [`COMFYUI_LOCAL_IMAGES.md`](COMFYUI_LOCAL_IMAGES.md) — local image GPU, RTX 3060 12 GB,
   exact models/hashes, measured workflow and private LAN/VPN connection from ASA.
+- [`POLZA_REPRODUCIBLE_SETUP.md`](POLZA_REPRODUCIBLE_SETUP.md) — повторяемое подключение
+  Polza AI, проверка каталога, моделей и транскрибации без копирования секретов.
 
 - [`../delivery/AGENT_CHANGE_WORKFLOW.md`](../delivery/AGENT_CHANGE_WORKFLOW.md) —
   agent path from a focused change through GitHub, CI and an explicitly requested deploy;
