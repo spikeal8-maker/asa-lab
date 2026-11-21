@@ -11,19 +11,25 @@ export const PING_ULTRASONIC_PROFILE = Object.freeze({
   minimumSupplyVolt: 4.5,
   maximumSupplyVolt: 5.5,
   digitalHighThresholdVolt: 2.5,
-  echoHighVolt: 5,
   echoOutputResistanceOhm: 10,
+  releaseLowMicroseconds: 1,
+  // Functional profile: only the output load draws current from VCC.
+  quiescentCurrentAmp: 0,
 });
 
-type PingUltrasonicPhase = 'idle' | 'trigger-high' | 'echo-delay' | 'echo-high';
+type PingUltrasonicPhase =
+  'idle' | 'trigger-high' | 'echo-delay' | 'echo-high' | 'echo-low' | 'no-echo-delay';
 
 export interface PingUltrasonicRuntimeState {
-  readonly version: 1;
+  readonly version: 2;
   readonly phase: PingUltrasonicPhase;
   readonly powered: boolean;
+  readonly triggerArmed: boolean;
   readonly triggerHighSinceMicroseconds?: number | undefined;
   readonly echoStartMicroseconds?: number | undefined;
   readonly echoEndMicroseconds?: number | undefined;
+  readonly echoReleaseMicroseconds?: number | undefined;
+  readonly echoDecisionMicroseconds?: number | undefined;
   readonly lastEchoStartMicroseconds?: number | undefined;
   readonly lastEchoEndMicroseconds?: number | undefined;
 }
@@ -36,8 +42,7 @@ interface PingUltrasonicRuntimeStep {
 interface PingUltrasonicElectricalBranch {
   readonly id: 'echo';
   readonly terminal: 'signal';
-  readonly ground: 'gnd';
-  readonly targetVoltage: number;
+  readonly rail: 'vcc' | 'gnd';
   readonly resistanceOhm: number;
 }
 
@@ -69,16 +74,19 @@ export function pingEchoWidthMicroseconds(distanceMeters: number): number {
 }
 
 export function initialPingUltrasonicRuntimeState(): PingUltrasonicRuntimeState {
-  return { version: 1, phase: 'idle', powered: false };
+  return { version: 2, phase: 'idle', powered: false, triggerArmed: false };
 }
 
 export function isPingUltrasonicRuntimeState(value: unknown): value is PingUltrasonicRuntimeState {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<PingUltrasonicRuntimeState>;
   if (
-    state.version !== 1 ||
-    !['idle', 'trigger-high', 'echo-delay', 'echo-high'].includes(state.phase ?? '') ||
-    typeof state.powered !== 'boolean'
+    state.version !== 2 ||
+    !['idle', 'trigger-high', 'echo-delay', 'echo-high', 'echo-low', 'no-echo-delay'].includes(
+      state.phase ?? '',
+    ) ||
+    typeof state.powered !== 'boolean' ||
+    typeof state.triggerArmed !== 'boolean'
   )
     return false;
 
@@ -86,23 +94,36 @@ export function isPingUltrasonicRuntimeState(value: unknown): value is PingUltra
     state.triggerHighSinceMicroseconds,
     state.echoStartMicroseconds,
     state.echoEndMicroseconds,
+    state.echoReleaseMicroseconds,
+    state.echoDecisionMicroseconds,
     state.lastEchoStartMicroseconds,
     state.lastEchoEndMicroseconds,
   ];
   if (times.some((time) => time !== undefined && !canonicalTime(time))) return false;
   if (state.phase === 'trigger-high') return state.triggerHighSinceMicroseconds !== undefined;
-  if (state.phase === 'echo-delay' || state.phase === 'echo-high')
+  if (state.phase === 'no-echo-delay')
+    return (
+      state.echoDecisionMicroseconds !== undefined &&
+      state.echoStartMicroseconds === undefined &&
+      state.echoEndMicroseconds === undefined &&
+      state.echoReleaseMicroseconds === undefined
+    );
+  if (state.phase === 'echo-delay' || state.phase === 'echo-high' || state.phase === 'echo-low')
     return (
       state.echoStartMicroseconds !== undefined &&
       state.echoEndMicroseconds !== undefined &&
-      state.echoEndMicroseconds >= state.echoStartMicroseconds
+      state.echoEndMicroseconds > state.echoStartMicroseconds &&
+      state.echoReleaseMicroseconds ===
+        state.echoEndMicroseconds + PING_ULTRASONIC_PROFILE.releaseLowMicroseconds
     );
   return true;
 }
 
 export function pingNextDueMicroseconds(state: PingUltrasonicRuntimeState): number {
+  if (state.phase === 'no-echo-delay') return state.echoDecisionMicroseconds!;
   if (state.phase === 'echo-delay') return state.echoStartMicroseconds!;
   if (state.phase === 'echo-high') return state.echoEndMicroseconds!;
+  if (state.phase === 'echo-low') return state.echoReleaseMicroseconds!;
   return Number.POSITIVE_INFINITY;
 }
 
@@ -110,15 +131,25 @@ export function pingEchoHigh(state: PingUltrasonicRuntimeState): boolean {
   return state.powered && state.phase === 'echo-high';
 }
 
+function pingDrive(state: PingUltrasonicRuntimeState): 'vcc' | 'gnd' | null {
+  if (!state.powered) return null;
+  if (state.phase === 'echo-high') return 'vcc';
+  return state.phase === 'echo-delay' ||
+    state.phase === 'echo-low' ||
+    state.phase === 'no-echo-delay'
+    ? 'gnd'
+    : null;
+}
+
 export function pingUltrasonicElectricalBranch(
   state: PingUltrasonicRuntimeState,
 ): PingUltrasonicElectricalBranch | null {
-  if (!pingEchoHigh(state)) return null;
+  const rail = pingDrive(state);
+  if (rail === null) return null;
   return {
     id: 'echo',
     terminal: 'signal',
-    ground: 'gnd',
-    targetVoltage: PING_ULTRASONIC_PROFILE.echoHighVolt,
+    rail,
     resistanceOhm: PING_ULTRASONIC_PROFILE.echoOutputResistanceOhm,
   };
 }
@@ -147,7 +178,7 @@ export function advancePingUltrasonicDue(
   if (!isPingUltrasonicRuntimeState(state) || !canonicalTime(nowMicroseconds))
     throw new TypeError('Invalid PING ultrasonic runtime continuation.');
 
-  const before = pingEchoHigh(state);
+  const before = pingDrive(state);
   let next = state;
 
   if (
@@ -166,15 +197,29 @@ export function advancePingUltrasonicDue(
     nowMicroseconds >= (next.echoEndMicroseconds ?? Number.POSITIVE_INFINITY)
   ) {
     next = {
-      version: 1,
-      phase: 'idle',
-      powered: next.powered,
-      lastEchoStartMicroseconds: next.lastEchoStartMicroseconds,
+      ...next,
+      phase: 'echo-low',
       lastEchoEndMicroseconds: next.echoEndMicroseconds,
     };
   }
 
-  return { state: next, echoChanged: before !== pingEchoHigh(next) };
+  if (
+    (next.phase === 'echo-low' &&
+      nowMicroseconds >= (next.echoReleaseMicroseconds ?? Number.POSITIVE_INFINITY)) ||
+    (next.phase === 'no-echo-delay' &&
+      nowMicroseconds >= (next.echoDecisionMicroseconds ?? Number.POSITIVE_INFINITY))
+  ) {
+    next = {
+      version: 2,
+      phase: 'idle',
+      powered: next.powered,
+      triggerArmed: false,
+      lastEchoStartMicroseconds: next.lastEchoStartMicroseconds,
+      lastEchoEndMicroseconds: next.lastEchoEndMicroseconds,
+    };
+  }
+
+  return { state: next, echoChanged: before !== pingDrive(next) };
 }
 
 export function observePingUltrasonicSignal(
@@ -183,28 +228,37 @@ export function observePingUltrasonicSignal(
   powered: boolean,
   signalHigh: boolean,
   distanceMeters: number,
+  echoAvailable = true,
 ): PingUltrasonicRuntimeStep {
   if (!isPingUltrasonicRuntimeState(state) || !canonicalTime(nowMicroseconds))
     throw new TypeError('Invalid PING ultrasonic runtime continuation.');
+  if (typeof echoAvailable !== 'boolean')
+    throw new TypeError('PING echoAvailable must be boolean.');
 
-  const echoBefore = pingEchoHigh(state);
+  const echoBefore = pingDrive(state);
   if (!powered) {
     const next: PingUltrasonicRuntimeState = {
-      version: 1,
+      version: 2,
       phase: 'idle',
       powered: false,
+      triggerArmed: false,
       lastEchoStartMicroseconds: state.lastEchoStartMicroseconds,
       lastEchoEndMicroseconds: state.lastEchoEndMicroseconds,
     };
-    return { state: next, echoChanged: echoBefore };
+    return { state: next, echoChanged: echoBefore !== null };
   }
 
   let next: PingUltrasonicRuntimeState = state.powered ? state : { ...state, powered: true };
 
-  if (next.phase === 'idle' && signalHigh) {
+  // Busy observations never arm a later Trigger. A released line must first
+  // observe a new LOW, then a fresh HIGH and its qualified falling edge.
+  if (next.phase === 'idle' && !signalHigh && !next.triggerArmed) {
+    next = { ...next, triggerArmed: true };
+  } else if (next.phase === 'idle' && signalHigh && next.triggerArmed) {
     next = {
       ...next,
       phase: 'trigger-high',
+      triggerArmed: false,
       triggerHighSinceMicroseconds: nowMicroseconds,
     };
   } else if (next.phase === 'trigger-high' && !signalHigh) {
@@ -212,26 +266,36 @@ export function observePingUltrasonicSignal(
     if (highDuration >= PING_ULTRASONIC_PROFILE.minimumTriggerHighMicroseconds) {
       const echoStartMicroseconds =
         nowMicroseconds + PING_ULTRASONIC_PROFILE.echoStartLatencyMicroseconds;
-      const echoEndMicroseconds = echoStartMicroseconds + pingEchoWidthMicroseconds(distanceMeters);
+      const echoEndMicroseconds = echoAvailable
+        ? echoStartMicroseconds + pingEchoWidthMicroseconds(distanceMeters)
+        : undefined;
       next = {
-        version: 1,
-        phase: 'echo-delay',
+        version: 2,
+        phase: echoAvailable ? 'echo-delay' : 'no-echo-delay',
         powered: true,
-        echoStartMicroseconds,
-        echoEndMicroseconds,
+        triggerArmed: false,
+        ...(echoEndMicroseconds === undefined
+          ? { echoDecisionMicroseconds: echoStartMicroseconds }
+          : {
+              echoStartMicroseconds,
+              echoEndMicroseconds,
+              echoReleaseMicroseconds:
+                echoEndMicroseconds + PING_ULTRASONIC_PROFILE.releaseLowMicroseconds,
+            }),
         lastEchoStartMicroseconds: next.lastEchoStartMicroseconds,
         lastEchoEndMicroseconds: next.lastEchoEndMicroseconds,
       };
     } else {
       next = {
-        version: 1,
+        version: 2,
         phase: 'idle',
         powered: true,
+        triggerArmed: true,
         lastEchoStartMicroseconds: next.lastEchoStartMicroseconds,
         lastEchoEndMicroseconds: next.lastEchoEndMicroseconds,
       };
     }
   }
 
-  return { state: next, echoChanged: echoBefore !== pingEchoHigh(next) };
+  return { state: next, echoChanged: echoBefore !== pingDrive(next) };
 }

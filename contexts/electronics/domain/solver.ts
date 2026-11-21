@@ -3028,6 +3028,10 @@ function solveCircuitStep(
     const branch = state ? pingUltrasonicElectricalBranch(state) : null;
     return branch ? [{ component, ...branch }] : [];
   });
+  const ultrasonicBranches = [...hcSr04Branches, ...pingUltrasonicBranches];
+  const ultrasonicBranchByComponent = new Map(
+    ultrasonicBranches.map((branch) => [branch.component.id, branch]),
+  );
   const empty = (
     status: Exclude<SimulationSolveStatus, 'solved'>,
     iterations = 0,
@@ -3515,12 +3519,21 @@ function solveCircuitStep(
     };
 
     for (const variable of nodeVariables.values()) matrix[variable]![variable] += GMIN;
-    for (const branch of [...arduinoBranches, ...hcSr04Branches, ...pingUltrasonicBranches]) {
+    for (const branch of arduinoBranches) {
       const positive = physicalNodeIndex(branch.component, branch.terminal);
       const ground = physicalNodeIndex(branch.component, branch.ground);
       const conductance = 1 / branch.resistanceOhm;
       stampConductance(positive, ground, conductance);
       stampOffset(positive, ground, conductance * branch.targetVoltage);
+    }
+    // An ultrasonic output is a passive switch to the actual supply/ground
+    // rail. The same branch below supplies its signed terminal observation.
+    for (const branch of ultrasonicBranches) {
+      stampConductance(
+        physicalNodeIndex(branch.component, branch.terminal),
+        physicalNodeIndex(branch.component, branch.rail),
+        1 / branch.resistanceOhm,
+      );
     }
     for (const component of document.components) {
       if (failedComponentIds.has(component.id)) continue;
@@ -4117,6 +4130,33 @@ function solveCircuitStep(
           ...(failedMotorTransition
             ? motorComponentObservation(component, failedMotorTransition)
             : {}),
+        };
+      }
+      if (isHcSr04(component) || isPingUltrasonic(component)) {
+        const branch = ultrasonicBranchByComponent.get(component.id);
+        const signal = isHcSr04(component) ? 'echo' : 'signal';
+        const branchCurrent = branch
+          ? (physicalVoltageAt(component, branch.terminal) -
+              physicalVoltageAt(component, branch.rail)) /
+            branch.resistanceOhm
+          : 0;
+        const terminalCurrents: Partial<Record<Terminal, number>> = Object.fromEntries(
+          terminals.map((terminal) => [terminal, 0]),
+        );
+        if (branch) {
+          terminalCurrents[branch.terminal] = roundCurrent(branchCurrent);
+          terminalCurrents[branch.rail] = roundCurrent(-branchCurrent);
+        }
+        return {
+          componentId: component.id,
+          voltageDrop: round(
+            physicalVoltageAt(component, signal) - physicalVoltageAt(component, 'gnd'),
+          ),
+          current: roundCurrent(Math.abs(branchCurrent)),
+          terminalVoltages,
+          terminalCurrents,
+          power: round(branch ? branchCurrent * branchCurrent * branch.resistanceOhm : 0),
+          brightness: 0,
         };
       }
       const branches = diodeBranchesByComponent.get(component.id) ?? [];
@@ -5084,6 +5124,63 @@ function solveCircuitStep(
     ...sources.map((source) => Math.abs(sourceCurrents.get(source.id) ?? 0)),
     ...arduinoBranches.map((branch) => Math.abs(currentDeliveredByArduinoBranch(branch))),
   );
+  const drivenOutputs = [
+    ...arduinoBranches
+      .filter((branch) => {
+        const snapshot = arduinoSnapshots.get(branch.component.id);
+        return (
+          snapshot?.pinModes.get(branch.terminal) === 'OUTPUT' ||
+          snapshot?.tones.has(branch.terminal) ||
+          branch.id.startsWith('servo-')
+        );
+      })
+      .map((branch) => ({ ...branch, high: branch.targetVoltage > 0 })),
+    ...ultrasonicBranches.map((branch) => ({
+      ...branch,
+      ground: 'gnd' as const,
+      high: branch.rail === 'vcc',
+    })),
+  ];
+  const diagnosedOutputConflicts = new Set<string>();
+  for (const branch of ultrasonicBranches) {
+    const signalNode = physicalNodeIndex(branch.component, branch.terminal);
+    const groundNode = physicalNodeIndex(branch.component, 'gnd');
+    if (signalNode === undefined || groundNode === undefined) continue;
+    const netIds = [`net-${signalNode}`];
+    if (branch.rail === 'vcc' && signalNode === groundNode) {
+      diagnostics.push({
+        code: 'short_circuit',
+        severity: 'error',
+        message: `${branch.component.name ?? branch.component.id}: активный HIGH-выход замкнут на GND.`,
+        componentIds: [branch.component.id],
+        netIds,
+        suggestedAction: 'Уберите прямое соединение сигнального выхода с GND.',
+      });
+    }
+    const opposing = drivenOutputs.filter(
+      (driver) =>
+        driver.component.id !== branch.component.id &&
+        driver.high !== (branch.rail === 'vcc') &&
+        physicalNodeIndex(driver.component, driver.terminal) === signalNode &&
+        physicalNodeIndex(driver.component, driver.ground) === groundNode,
+    );
+    if (opposing.length === 0) continue;
+    const componentIds = [
+      ...new Set([branch.component.id, ...opposing.map((driver) => driver.component.id)]),
+    ].sort();
+    const key = JSON.stringify([signalNode, componentIds]);
+    if (diagnosedOutputConflicts.has(key)) continue;
+    diagnosedOutputConflicts.add(key);
+    diagnostics.push({
+      code: 'conflicting_sources',
+      severity: 'error',
+      message:
+        'Ультразвуковой выход и другой активный выход задают противоположные уровни одной сети.',
+      componentIds,
+      netIds,
+      suggestedAction: 'Переведите принимающий GPIO в INPUT и проверьте сигнальные соединения.',
+    });
+  }
   const sourcesByIsland = new Map<number, SchematicComponent[]>();
   for (const source of sources) {
     const positiveNode = netlist.nodeOf.get(terminalKey(source.id, logicalTerminal(source, 'a')));
