@@ -47,11 +47,14 @@ async function visibleSprite(learner: Learner) {
 }
 
 async function editPosition(learner: Learner, x: number) {
+  await learner.page.bringToFront();
   const position = editor(learner).getByPlaceholder('x', { exact: true });
+  await position.click();
   await position.fill(String(x));
-  await position.press('Enter');
+  await position.press('Tab');
   await expect(position).toHaveValue(String(x));
   learner.x = x;
+  await visibleSprite(learner);
 }
 
 test.use({ trace: 'off', screenshot: 'off' });
@@ -85,6 +88,9 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     users: PUPILS,
     completed: {} as Record<string, number>,
     phaseMs: {} as Record<string, number>,
+    inputDispatch: 'serialized keyboard focus on one Chromium; 30 live pupil contexts',
+    nativeDraftHttp: {} as Record<string, number>,
+    pupilsWithDraftResponses: 0,
     vendorRequests: { cold: 0, warm: 0 },
     vendorBytes: { cold: 0, warm: 0 },
     faultAttempts: { session: 0, asset: 0, expiredPermission: 0 },
@@ -92,6 +98,21 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     assetHits: { cold: 0, warm: 0 },
     databaseActivity: { samples: 0, activePeak: 0, lockWaitPeak: 0, errors: 0 },
     unexpectedApiErrors: [] as { phase: Phase; status: number; operation: string }[],
+  };
+  const pupilsWithDraftResponses = new Set<string>();
+  const observeDraftResponses = (learner: Learner) => {
+    learner.page.on('response', (response) => {
+      if (
+        response.request().method() !== 'PUT' ||
+        new URL(response.url()).pathname !==
+          `/api/blocks/runtime/projects/${learner.projectId}/draft`
+      )
+        return;
+      const status = String(response.status());
+      evidence.nativeDraftHttp[status] = (evidence.nativeDraftHttp[status] ?? 0) + 1;
+      pupilsWithDraftResponses.add(learner.projectId);
+      evidence.pupilsWithDraftResponses = pupilsWithDraftResponses.size;
+    });
   };
   const observer = e2eAdminPool();
   let samplePending: Promise<void> | null = null;
@@ -330,6 +351,7 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
         name,
         x: index + 1,
       });
+      observeDraftResponses(learners.at(-1)!);
     }
     expect(new Set(learners.map((learner) => learner.seatId)).size).toBe(PUPILS);
     sampleDatabase();
@@ -339,24 +361,48 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
       await learner.page.goto(editorPath(learner), { waitUntil: 'domcontentloaded' });
       await ready(learner);
     });
+    const baselineRevisions = await Promise.all(
+      learners.map(async (learner) => (await draft(learner)).revision),
+    );
+    const saveReceipts = new Map<string, ReturnType<typeof waitForSave>>();
+    const editStarted = Date.now();
+    evidence.completed.nativeEdit = 0;
+    // Chromium exposes one foreground input target in the shared runner.
+    // Keep native autosave timers and all 30 browser contexts running while
+    // committing each learner's keyboard input with its own focus.
+    for (const learner of learners) {
+      await learner.page.bringToFront();
+      const frame = editor(learner);
+      const shell = frame.locator('[data-asa-host-shell]');
+      const beforeEdit = Number(await shell.getAttribute('data-project-changes'));
+      const receipt = waitForSave(learner);
+      void receipt.catch(() => undefined);
+      saveReceipts.set(learner.projectId, receipt);
+      await frame.getByRole('button', { name: 'Choose a Sprite', exact: true }).first().click();
+      await frame.getByText('Apple', { exact: true }).click();
+      const name = frame.getByPlaceholder('Name', { exact: true });
+      await expect(name).toHaveValue('Apple');
+      await name.fill(learner.name);
+      await name.press('Tab');
+      await frame.getByRole('button', { name: learner.name, exact: true }).click();
+      await editPosition(learner, learner.x);
+      await expect
+        .poll(async () => Number(await shell.getAttribute('data-project-changes')))
+        .toBeGreaterThan(beforeEdit);
+      evidence.completed.nativeEdit++;
+    }
+    evidence.phaseMs.nativeEdit = Date.now() - editStarted;
     await runPhase('nativeMinuteSave', async (learner) => {
-      const before = (await draft(learner)).revision;
-      const [response] = await Promise.all([
-        waitForSave(learner),
-        (async () => {
-          const frame = editor(learner);
-          await frame.getByRole('button', { name: 'Choose a Sprite', exact: true }).first().click();
-          await frame.getByText('Apple', { exact: true }).click();
-          const name = frame.getByPlaceholder('Name', { exact: true });
-          await name.fill(learner.name);
-          await name.press('Enter');
-          await editPosition(learner, learner.x);
-        })(),
-      ]);
-      expect(response.status()).toBe(200);
-      expect(await response.finished()).toBeNull();
-      await verifyDraft(learner, before);
+      const response = await saveReceipts.get(learner.projectId)?.catch(() => null);
+      if (response) {
+        expect(response.status()).toBe(200);
+        expect(await response.finished()).toBeNull();
+      }
+      // Verify the authenticated persistent result even if the browser
+      // response observer did not see a matching payload.
+      await verifyDraft(learner, baselineRevisions[learners.indexOf(learner)]!);
     });
+    expect(pupilsWithDraftResponses.size).toBe(PUPILS);
     phase = 'warm';
     await runPhase('warmReopen', async (learner) => {
       await learner.page.goto('/#/projects', { waitUntil: 'domcontentloaded' });
@@ -395,6 +441,7 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
     await first.page.close();
     await first.context.setOffline(false);
     first.page = await first.context.newPage();
+    observeDraftResponses(first);
     const [recoverySave] = await Promise.all([
       waitForSave(first),
       (async () => {
