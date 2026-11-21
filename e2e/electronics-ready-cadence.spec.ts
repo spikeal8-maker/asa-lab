@@ -6777,16 +6777,20 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
           const probe = window as D2Window;
           const matchesVector = (brightness: readonly number[]) =>
             brightness.map((value) => (value > 0 ? '1' : '0')).join('') === vector;
-          let frame: number;
-          const timeout = window.setTimeout(() => {
-            window.cancelAnimationFrame(frame);
+          const deadline = performance.now() + 20_000;
+          let frame: number | undefined;
+          const expire = () => {
+            window.clearTimeout(timeout);
+            if (frame !== undefined) window.cancelAnimationFrame(frame);
             reject(new Error('Native screenshot phase did not become ready: ' + vector));
-          }, 20_000);
+          };
+          const timeout = window.setTimeout(expire, 20_000);
           const read = () => {
+            frame = undefined;
             const run = probe.__ownerTemporal!.paintRuns.at(-1);
             const paint = probe.__ownerPaint!.at(-1);
             const l = probe.__d2L!.at(-1);
-            if (
+            const ready =
               run &&
               run.first.previousFrameAt !== null &&
               run.first.previousFrameAt >= seekFrom &&
@@ -6804,12 +6808,17 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
               matchesVector(paint.brightness) &&
               l?.activeAttribute === 'false' &&
               l.opacity === 0 &&
-              l.visible
-            ) {
+              l.visible;
+            const now = performance.now();
+            if (now >= deadline) {
+              expire();
+              return;
+            }
+            if (ready) {
               window.clearTimeout(timeout);
               resolve({
                 beforeShot: { paint, l },
-                captureFrom: performance.now(),
+                captureFrom: now,
               });
               return;
             }
