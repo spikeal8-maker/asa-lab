@@ -54,6 +54,8 @@ function pendingCreation(webStatus?: unknown) {
     if (path === '/api/ai/threads/' + CREATED_THREAD + '/working-files') return ok({ items: [] });
     if (path === '/api/ai/threads/' + CREATED_THREAD + '/messages')
       return ok({ items: [], nextCursor: null });
+    if (path.startsWith('/api/ai/threads/' + CREATED_THREAD + '/requests/'))
+      return ok({ items: [] });
     if (path === '/api/ai/threads') {
       const school = new Headers(init?.headers).get('x-asa-ai-seat') === SEAT;
       return ok({
@@ -335,6 +337,47 @@ it('dismisses a model failure when the user edits without refreshing or automati
   expect(host.textContent).not.toContain('Обновить переписку');
   await enter('Исправленный вопрос');
   expect(host.textContent).not.toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(streamAiRequest).toHaveBeenCalledTimes(1);
+});
+
+it('recovers a late saved answer by request ID without resending the edit or clearing a new draft', async () => {
+  const complete = pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  let reads = 0;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.includes('/attachments?')) return ok({ items: [] });
+    if (!path.includes('/requests/')) return original(path, init);
+    const requestId = vi.mocked(streamAiRequest).mock.calls[0]?.[2];
+    expect(path).toBe('/api/ai/threads/' + CREATED_THREAD + '/requests/' + requestId);
+    expect(init?.method ?? 'GET').toBe('GET');
+    const user = {
+      id: 'question',
+      requestId,
+      role: 'user',
+      content: 'Исправь сайт',
+      state: 'complete',
+    };
+    const answer = {
+      id: 'answer',
+      requestId,
+      role: 'assistant',
+      content: 'Сайт обновлён',
+      state: 'complete',
+    };
+    return ok({ items: ++reads === 1 ? [user] : [user, answer] });
+  });
+  vi.mocked(streamAiRequest).mockRejectedValueOnce(new Error('stream disconnected'));
+  await mount();
+  await submit('Исправь сайт');
+  await act(async () => complete());
+  expect(reads).toBe(1);
+  await enter('Следующая правка');
+  await act(async () => vi.advanceTimersByTimeAsync(400));
+  expect(reads).toBe(2);
+  expect(host.querySelectorAll('.chat-user-bubble')).toHaveLength(1);
+  expect(host.querySelectorAll('.chat-assistant-message')).toHaveLength(1);
+  expect(host.textContent).not.toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(composer().value).toBe('Следующая правка');
   expect(streamAiRequest).toHaveBeenCalledTimes(1);
 });
 

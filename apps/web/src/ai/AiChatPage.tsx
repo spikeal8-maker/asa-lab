@@ -1285,24 +1285,35 @@ export function AiChatPage({
         }
         setDraft((value) => value || text);
         setError(problem instanceof AiStreamClientError ? problem.message : AI_TEXT_UNAVAILABLE);
-        const history = await call<AiPage<AiMessage>>(
-          '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
-        );
-        if (history.ok && version === selectedVersion.current) {
-          // Recovery returns the newest page, not all previously loaded pages.
-          setMessages((previous) => mergeMessages(previous, history.data.items));
-          if (
-            history.data.items.some(
-              (message) => message.role === 'assistant' && message.requestId === requestId,
-            )
-          ) {
+        const requestPath =
+          '/api/ai/threads/' +
+          encodeURIComponent(id) +
+          '/requests/' +
+          encodeURIComponent(requestId);
+        // A saved user message may precede the final answer after a stream disconnect.
+        // Reconcile the original request without starting another generation.
+        for (const delay of [0, 400, 900, 1800, 3000]) {
+          if (delay) await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+          if (version !== selectedVersion.current || controller.signal.aborted) return;
+          const receipt = await call<AiPage<AiMessage>>(requestPath, {
+            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(4000)]),
+          });
+          if (version !== selectedVersion.current || controller.signal.aborted) return;
+          if (!receipt.ok) break;
+          const acknowledged = receipt.data.items.filter(
+            (message) => message.requestId === requestId,
+          );
+          setMessages((previous) => mergeMessages(previous, acknowledged));
+          if (acknowledged.some((message) => message.role === 'assistant')) {
             // The persisted answer settles the original request. Never carry
             // its already-bound uploads into a new request after an SSE loss.
             pendingRequest.current = null;
             setDraft((value) => (value === text ? '' : value));
             clearFiles();
             setError(null);
+            break;
           }
+          if (!acknowledged.some((message) => message.role === 'user')) break;
         }
       } finally {
         activeStream.current = null;
