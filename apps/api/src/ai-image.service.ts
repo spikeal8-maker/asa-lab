@@ -39,6 +39,17 @@ import {
 } from './ai-attachments/blob-store.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_NATIVE_VISIBLE_BYTES = 8 * 1024 * 1024;
+
+function boundNativeVisibleText(text: string): string {
+  if (Buffer.byteLength(text) <= MAX_NATIVE_VISIBLE_BYTES) return text;
+  const bytes = Buffer.from(text);
+  let end = MAX_NATIVE_VISIBLE_BYTES;
+  // A byte cap must not split a UTF-8 code point.
+  while (((bytes[end] ?? 0) & 0xc0) === 0x80) end--;
+  return bytes.subarray(0, end).toString('utf8');
+}
+
 export class AiImageError extends Error {
   constructor(
     readonly code: string,
@@ -423,6 +434,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     signal: AbortSignal,
     requestedRecipe?: AiImageRecipe,
     target?: Readonly<{ name: string; expectedVersion: number; placeholder: string }>,
+    visibleText = '',
   ): Promise<AiImageGenerationJob> {
     const input = imageInput({ requestId: randomUUID(), prompt, size });
     if (signal.aborted) throw new AiImageError('ai_image_cancelled', 409, 'Запрос остановлен.');
@@ -438,10 +450,28 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       'ASA_' + provider.replaceAll('-', ''),
       recipe,
     );
+    const signature = target
+      ? 'public.ai_tool_image_file_visible_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying,character varying,jsonb,character varying)'
+      : 'public.ai_tool_image_visible_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying,character varying,character varying)';
+    const serializableText = visibleText.replaceAll('\u0000', '');
+    const retainText =
+      !!serializableText.trim() &&
+      (await this.value<boolean>('SELECT to_regprocedure($1) IS NOT NULL AS value', [signature]));
+    if (signal.aborted) throw new AiImageError('ai_image_cancelled', 409, 'Запрос остановлен.');
+    const parameters =
+      '$1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar';
+    const name = target
+      ? retainText
+        ? 'ai_tool_image_file_visible_begin'
+        : 'ai_tool_image_file_begin'
+      : retainText
+        ? 'ai_tool_image_visible_begin'
+        : 'ai_tool_image_begin';
+    const optionalParameters =
+      (target ? ',$12::jsonb' : '') +
+      (retainText ? (target ? ',$13::varchar' : ',$12::varchar') : '');
     const j = await this.value<ImageJobRow>(
-      target
-        ? 'SELECT ai_tool_image_file_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar,$12::jsonb) AS value'
-        : 'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar) AS value',
+      'SELECT ' + name + '(' + parameters + optionalParameters + ') AS value',
       [
         owner,
         imageId(thread),
@@ -455,6 +485,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         digest,
         recipe,
         ...(target ? [JSON.stringify(target)] : []),
+        ...(retainText ? [boundNativeVisibleText(serializableText)] : []),
       ],
     );
     const cancel = () => {

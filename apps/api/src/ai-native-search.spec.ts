@@ -310,6 +310,9 @@ function fixture(
         createBeforeImage && round <= 2
           ? {
               message: {
+                ...(provider === 'ollama'
+                  ? { content: round === 1 ? 'Неподтверждённое обещание.' : 'Сайт сохранён.' }
+                  : {}),
                 tool_calls: [
                   {
                     function:
@@ -1342,6 +1345,10 @@ describe.each(TOOL_PROVIDERS)('%s native image executor', (provider) => {
       expectedVersion: 1,
       placeholder: 'ASA_GENERATED_IMAGE_PENDING',
     });
+    if (provider === 'ollama') {
+      expect(f.deltas.join('')).toBe('Сайт сохранён.');
+      expect(f.images.createFromTool.mock.calls[0]?.[8]).toBe(f.deltas.join(''));
+    }
     const calls = f.requests.filter((r) => isToolModelUrl(r.url));
     expect(calls).toHaveLength(2);
     expect(JSON.stringify(calls[0]?.body)).toContain('СНАЧАЛА');
