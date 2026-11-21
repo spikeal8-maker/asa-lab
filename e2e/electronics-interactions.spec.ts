@@ -4338,11 +4338,21 @@ test.describe('asset recovery in the built editor', () => {
       await page.setViewportSize({ width: 1440, height: 1000 });
       const asset = catalogEntry('battery-holder-aa-2')!.asset;
       let imageRequests = 0;
+      let ordinaryImageRequests = 0;
       await page.route(
         (url) => url.pathname === asset,
         async (route) => {
-          if (route.request().resourceType() !== 'image') return route.continue();
+          const request = route.request();
+          if (request.resourceType() !== 'image') return route.continue();
+          const params = new URL(request.url()).searchParams;
+          // The first alpha-mask attempt can use the same unmarked asset URL.
+          // Only explicitly tagged mask work belongs to the separate mask clock.
+          const maskAttempt =
+            !params.has('asa-image-retry') &&
+            !params.has('asa-image-cycle') &&
+            (params.has('asa-mask-retry') || params.has('asa-mask-cycle'));
           imageRequests += 1;
+          if (!maskAttempt) ordinaryImageRequests += 1;
           await route.fulfill({ status: 404, body: 'missing' });
         },
       );
@@ -4356,24 +4366,39 @@ test.describe('asset recovery in the built editor', () => {
       const initial = readDocument();
       editorSnapshot = () => ({ initial, current: readDocument(), requests, errors });
       retain('editor-initial', editorSnapshot());
-      const stageError = part(page, 'holder').getByRole('status', {
+      const holder = part(page, 'holder');
+      const stageError = holder.getByRole('status', {
         name: 'Изображение детали не загрузилось',
       });
       await expect(stageError).toBeVisible({ timeout: 10_000 });
       await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
-      await expect(
-        part(page, 'holder').locator('[data-owner-image-status="failed"]'),
-      ).toBeVisible();
+      await expect(holder.locator('[data-owner-image-status="failed"]')).toBeVisible();
       const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
       await card.scrollIntoViewIfNeeded();
       await expect(
         card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
       ).toBeVisible();
-      const requestsAtFailure = imageRequests;
-      await page.waitForTimeout(800);
-      expect(imageRequests).toBe(requestsAtFailure);
-      // Stage and catalog each load the original and validated retry URL; the
-      // shared recovery promise makes at most three probe requests between them.
+      const ordinaryRequestsAtFailure = ordinaryImageRequests;
+      retain('ordinary-image-quiet-start', { ordinaryImageRequests, imageRequests });
+      // The display badges and the separately prepared hit mask settle at
+      // different times. Check quietness at both terminal boundaries.
+      await Promise.all([
+        page.waitForTimeout(800).then(() => {
+          expect(ordinaryImageRequests, 'ordinary image requests after both badges').toBe(
+            ordinaryRequestsAtFailure,
+          );
+        }),
+        (async () => {
+          await expect(holder).toHaveAttribute('data-hit-mask-status', 'failed');
+          const requestsAtFailure = imageRequests;
+          retain('ordinary-image-and-mask-quiet-start', { ordinaryImageRequests, imageRequests });
+          await page.waitForTimeout(800);
+          expect(imageRequests, 'all image requests after display and mask failure').toBe(
+            requestsAtFailure,
+          );
+        })(),
+      ]);
+      // Keep the combined network budget, including hit-mask attempts.
       expect(imageRequests).toBeLessThanOrEqual(7);
       expect(readDocument()).toEqual(initial);
       expect(requests).toHaveLength(0);
