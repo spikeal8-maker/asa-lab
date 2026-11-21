@@ -11,12 +11,20 @@ const THREAD = '22222222-2222-4222-8222-222222222222';
 const REQUEST = '33333333-3333-4333-8333-333333333333';
 const UPLOAD = '44444444-4444-4444-8444-444444444444';
 
-function attachmentService(bytes: Buffer, kind: 'text' | 'image' = 'text') {
+function attachmentService(
+  bytes: Buffer,
+  kind: 'text' | 'image' = 'text',
+  fileName = kind === 'text' ? 'sketch.ino' : 'led.png',
+) {
   const receipt = {
     uploadId: UPLOAD,
-    fileName: kind === 'text' ? 'sketch.ino' : 'led.png',
+    fileName,
     sizeBytes: bytes.length,
-    mediaType: kind === 'text' ? 'text/plain' : 'image/png',
+    mediaType: fileName.endsWith('.csv')
+      ? 'text/csv'
+      : kind === 'text'
+        ? 'text/plain'
+        : 'image/png',
     kind,
     sha256: createHash('sha256').update(bytes).digest('hex'),
   };
@@ -206,6 +214,41 @@ describe('ASA AI real file-to-provider context', () => {
     expect(body.messages.at(-1)?.content).toContain('2: void setup(){pinMode(led,INPUT);}');
     expect(body.messages.at(-1)?.content).toContain('sketch.ino');
     expect(sqlCalls.some((entry) => entry.sql.includes('ai_chat_finish'))).toBe(true);
+  });
+
+  it('delivers owned CSV cells, including literal formulas and leading zeros, to the model', async () => {
+    const bytes = Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from('Артикул;Дата;Формула\r\n0007;2026-11-14;=1+2\r\n0009;;', 'utf16le'),
+    ]);
+    const attachments = attachmentService(bytes, 'text', 'survey.csv');
+    const { pool, sqlCalls } = mockPool();
+    const fetchImpl = vi.fn<typeof fetch>(async (_url, options) => {
+      const body = JSON.parse(String(options?.body)) as {
+        messages: { content: string }[];
+      };
+      const prompt = body.messages.at(-1)?.content;
+      expect(prompt).toContain('survey.csv');
+      expect(prompt).toContain('Строка 2: ["0007","2026-11-14","=1+2"]');
+      expect(prompt).toContain('Строка 3: ["0009","",""]');
+      return new Response(JSON.stringify({ message: { content: '0007' }, done: true }) + '\n');
+    });
+    const chat = new AiChatService(pool, { attachments, fetchImpl });
+    await chat.sendStream(
+      OWNER,
+      THREAD,
+      'Какой артикул в строке 2?',
+      REQUEST,
+      () => undefined,
+      new AbortController().signal,
+      'ollama-local',
+      undefined,
+      [UPLOAD],
+    );
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(sqlCalls.some((entry) => entry.sql.includes('ai_attachment_begin_message_local'))).toBe(
+      true,
+    );
   });
 
   it('refuses an image if /api/show lacks Vision before SQL admission or provider chat', async () => {

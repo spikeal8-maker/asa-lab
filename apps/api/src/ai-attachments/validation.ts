@@ -1,3 +1,6 @@
+import { AiAttachmentError } from './contracts.js';
+import { extractCsvText } from './csv-reader.js';
+
 export const AI_ATTACHMENT_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 export const AI_ATTACHMENT_TEXT_MAX_BYTES = 512 * 1024;
 export const AI_ATTACHMENT_MAX_DIMENSION = 8192;
@@ -53,6 +56,7 @@ export type ValidatedAiAttachment =
 
 const TEXT_EXTENSIONS = new Set([
   'txt',
+  'csv',
   'md',
   'markdown',
   'js',
@@ -157,7 +161,12 @@ export function describeAiAttachmentFile(filename: string): AiAttachmentFileDesc
   if (!TEXT_EXTENSIONS.has(extension)) fail('ai_attachment_format_unsupported', 415);
   return {
     kind: 'text',
-    mediaType: extension === 'md' || extension === 'markdown' ? 'text/markdown' : 'text/plain',
+    mediaType:
+      extension === 'csv'
+        ? 'text/csv'
+        : extension === 'md' || extension === 'markdown'
+          ? 'text/markdown'
+          : 'text/plain',
     extension,
     maxBytes: AI_ATTACHMENT_TEXT_MAX_BYTES,
   };
@@ -670,10 +679,31 @@ export function validateAiAttachment(bytes: Uint8Array, filename: string): Valid
     fail('ai_attachment_format_unsupported', 415);
   if (file.kind === 'text') {
     let text: string;
-    try {
-      text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-    } catch {
-      fail('ai_attachment_text_invalid');
+    if (file.extension === 'csv') {
+      const result = extractCsvText(bytes);
+      if ('error' in result) {
+        const message = {
+          encoding: 'Кодировка CSV не распознана. Сохраните таблицу в UTF-8.',
+          invalid: 'Строки CSV повреждены или содержат разное число ячеек.',
+          ambiguous:
+            'Разделитель CSV неоднозначен. Сохраните файл с одним разделителем строк таблицы.',
+          limit: 'В CSV слишком много строк или столбцов.',
+        }[result.error];
+        throw new AiAttachmentError(
+          'ai_csv_' + result.error,
+          result.error === 'limit' ? 413 : 422,
+          message,
+        );
+      }
+      text = result.text;
+      if (Buffer.byteLength(text) > AI_ATTACHMENT_TEXT_MAX_BYTES)
+        fail('ai_attachment_text_too_long', 413);
+    } else {
+      try {
+        text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+      } catch {
+        fail('ai_attachment_text_invalid');
+      }
     }
     let scalars = 0;
     for (const scalar of text) {

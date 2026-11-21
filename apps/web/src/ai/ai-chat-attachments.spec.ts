@@ -86,3 +86,11 @@ it.each(['pdf', 'docx', 'xlsx'])(
     expect(requests.bytes).not.toHaveBeenCalled();
   },
 );
+
+it('accepts CSV within the existing text upload budget', () => {
+  expect(checkAiChatFiles([new File(['АДРЕС,СУММА\n001,7'], 'results.csv')])).toBeNull();
+  expect(checkAiChatFiles([new File([new Uint8Array(512 * 1024 + 1)], 'results.csv')])).toMatch(
+    /512 КБ/,
+  );
+  expect(requests.scope).not.toHaveBeenCalled();
+});

@@ -791,3 +791,34 @@ describe('WebP RIFF, still frames and canvas consistency', () => {
       invalid(image, 'image.webp');
   });
 });
+
+describe('bounded CSV attachments', () => {
+  it('keeps separators, leading zeros, long IDs, dates, decimals, empty values and formula-like cells literal', () => {
+    const original = Buffer.from(
+      '\ufeffКод;ID;Дата;Число;Заметка\r\n001;12345678901234567;2026-11-14;1,25;"строка ""А""\nещё"\r\n002;;;-2;=1+2',
+    );
+    const before = Buffer.from(original);
+    const result = validateAiAttachment(original, 'таблица.CSV');
+    expect(result).toMatchObject({ kind: 'text', extension: 'csv', mediaType: 'text/csv' });
+    expect(result.text).toContain('3 строк · 5 столбцов');
+    expect(result.text).toContain(
+      'Строка 2: ' +
+        JSON.stringify(['001', '12345678901234567', '2026-11-14', '1,25', 'строка "А"\nещё']),
+    );
+    expect(result.text).toContain('Строка 3: ["002","","","-2","=1+2"]');
+    expect(original).toEqual(before);
+  });
+
+  it.each([
+    [Buffer.from('a,b;c\n1,2;3'), 'ambiguous', 422],
+    [Buffer.from('a,b\n1'), 'invalid', 422],
+    [Buffer.from('a,b\n"1,2'), 'invalid', 422],
+    [Buffer.from([0xc0, 0xaf]), 'encoding', 422],
+    [Buffer.from('x,'.repeat(256)), 'limit', 413],
+    [Buffer.from('x\n'.repeat(10001)), 'limit', 413],
+  ])('rejects corrupt, overlarge or ambiguous input (%s, %s)', (bytes, code, status) => {
+    expect(() => validateAiAttachment(bytes, 'table.csv')).toThrow(
+      expect.objectContaining({ code: 'ai_csv_' + code, status }),
+    );
+  });
+});

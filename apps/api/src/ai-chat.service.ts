@@ -3,6 +3,7 @@ import { isAiImageSize, type AiChatTool, type AiToolActivity } from '@asa-lab/co
 import { reloadPolzaCatalog } from './ai-polza-catalog.js';
 import { supportsAiTools } from './ai-model-catalog.js';
 import { readDocument, DOCUMENT_TYPES } from './ai-attachments/document-reader.js';
+import { validateAiAttachment } from './ai-attachments/validation.js';
 import {
   WorkingFileStore,
   WorkingFileError,
@@ -1684,7 +1685,9 @@ export class AiChatService {
             const extension = receipt.fileName?.split('.').at(-1)?.toLowerCase() ?? '';
             const rawText = Object.hasOwn(DOCUMENT_TYPES, extension)
               ? (await readDocument(bytes, extension, AbortSignal.timeout(15000))).text!
-              : bytes.toString('utf8');
+              : extension === 'csv'
+                ? validateAiAttachment(bytes, receipt.fileName!).text!
+                : bytes.toString('utf8');
             const lines = rawText.split(/\r?\n/);
             const numberedText = lines.map((line, index) => `${index + 1}: ${line}`).join('\n');
             const content = numberedText.slice(0, remainingText);
