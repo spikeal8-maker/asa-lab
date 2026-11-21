@@ -491,6 +491,46 @@ function fixture(
 }
 
 describe('native local internet tools', () => {
+  it.each(['', 'Уточнение.'])(
+    'persists all visible text when the provider fails during a search continuation: %s',
+    async (continuation) => {
+      const f = fixture('auto');
+      const original = f.fetchImpl.getMockImplementation()!;
+      let generation = 0;
+      f.fetchImpl.mockImplementation(async (url, init) => {
+        if (!isToolModelUrl(String(url))) return original(url, init);
+        if (++generation === 1) {
+          return toolProviderResponse('ollama', {
+            message: {
+              content: 'Начало ответа. ',
+              tool_calls: [
+                { function: { name: 'web_search', arguments: { query: 'Казань новости' } } },
+              ],
+            },
+            prompt_eval_count: 10,
+            eval_count: 2,
+            done: true,
+          });
+        }
+        return continuation
+          ? new Response(JSON.stringify({ message: { content: continuation } }) + '\n')
+          : new Response(null, { status: 502 });
+      });
+
+      await expect(f.send()).rejects.toThrow();
+      expect(generation).toBe(2);
+      expect(f.deltas.join('')).toBe('Начало ответа. ' + continuation);
+      expect(f.calls.find((call) => call.sql.includes('ai_chat_finish'))?.params).toEqual([
+        OWNER,
+        THREAD,
+        REQUEST,
+        'Начало ответа. ' + continuation,
+        'stopped',
+      ]);
+      expect(f.calls.some((call) => call.sql.includes('ai_chat_abort'))).toBe(false);
+    },
+  );
+
   it.each(
     TOOL_PROVIDERS.flatMap((provider) =>
       ['edit-batch', 'edit-sequential'].map((scenario) => ({
