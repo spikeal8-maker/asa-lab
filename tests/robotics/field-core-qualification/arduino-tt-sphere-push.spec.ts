@@ -1989,7 +1989,6 @@ class Witness {
   private resting: Vec | undefined;
   private rolling: Window | undefined;
   private restFrom: number | undefined;
-  private uprightRestFrom: number | undefined;
   private controlAnchor: Pose | undefined;
   private priorCurrent = 0;
   private totalArc = 0;
@@ -2199,17 +2198,33 @@ class Witness {
         norm(sub(frame.after[roverBody]!.p, this.resting)),
       );
     if (this.world === 'control') {
-      this.uprightRestFrom = quiet ? (this.uprightRestFrom ?? frame.from) : undefined;
-      if (this.uprightRestFrom !== undefined && frame.to - this.uprightRestFrom >= limits.staticUs)
-        this.controlAnchor ??= postSphere;
-      if (
-        this.controlAnchor &&
-        (norm(sub(postSphere.p, this.controlAnchor.p)) > limits.controlDriftM ||
-          norm(worldRotationVector(this.controlAnchor.q, postSphere.q)) > limits.controlAngleRad ||
+      // Startup is observed, but never used to search for a later, quieter baseline.
+      // The only admitted baseline is the actual native endpoint at initial 50 ms.
+      if (frame.to === limits.staticUs) {
+        this.controlAnchor = postSphere;
+        if (
+          !sphereLoaded ||
+          roverTouches ||
+          penetratingRover ||
           norm(postMetric.velocity) > limits.controlSpeedMps ||
-          this.sphereRadius * norm(postMetric.omega) > limits.controlRadiusOmegaMps)
-      )
-        this.fail('LOW_SPHERE_DID_NOT_REMAIN_AT_REST', frame.to);
+          this.sphereRadius * norm(postMetric.omega) > limits.controlRadiusOmegaMps
+        )
+          this.fail('LOW_SPHERE_NOT_SETTLED_AT_50MS', frame.to);
+      }
+      if (frame.from < limits.staticUs && frame.to > limits.staticUs)
+        this.fail('LOW_MISSING_EXACT_50MS_ENDPOINT', frame.to);
+      if (frame.from >= limits.staticUs) {
+        if (!this.controlAnchor) this.fail('LOW_MISSING_EXACT_50MS_ENDPOINT', frame.from);
+        else if (
+          !quiet ||
+          [preSphere, postSphere].some(
+            (pose) =>
+              norm(sub(pose.p, this.controlAnchor!.p)) > limits.controlDriftM ||
+              norm(worldRotationVector(this.controlAnchor!.q, pose.q)) > limits.controlAngleRad,
+          )
+        )
+          this.fail('LOW_SPHERE_DID_NOT_REMAIN_AT_REST', frame.to);
+      }
       if (roverTouches || penetratingRover) this.fail('LOW_ROVER_CONTACTED_SPHERE', frame.to);
     }
     const gap = sweptSphereClearance(frame);
@@ -3131,6 +3146,58 @@ function withContact(frame: Frame, force: Vec): Frame {
   };
   return frame;
 }
+it('anchors actual LOW Witness at 50 ms and retains an escape despite later quiet rest', () => {
+  const witness = new Witness('control', sourcePins());
+  let stateBefore = initialState();
+  stateBefore.qvel[9] = 0.002;
+  const observe = (x: number, speed: number) => {
+    const frame = syntheticFrame();
+    frame.from = Math.round(stateBefore.seconds / secondsPerMicrosecond);
+    frame.to = frame.from + 500;
+    frame.pre = structuredClone(stateBefore);
+    frame.post = structuredClone(stateBefore);
+    frame.post.seconds = frame.to * secondsPerMicrosecond;
+    frame.post.qpos[10] = x;
+    frame.post.qvel[9] = speed;
+    frame.before = posesFromState(frame.pre);
+    frame.after = posesFromState(frame.post);
+    frame.kinematics = frame.before.map((pose, id) => ({
+      com: pose.p,
+      velocity: id === sphereBody ? vec(frame.pre.qvel, 9) : ([0, 0, 0] as Vec),
+      omega: [0, 0, 0] as Vec,
+    }));
+    frame.contacts = [
+      {
+        index: 0,
+        address: 0,
+        rowTypes: 0x777,
+        first: names.floor,
+        second: names.sphere,
+        point: [frame.pre.qpos[10]!, 0, 0],
+        frame: [0, 0, 1, 1, 0, 0, 0, 1, 0],
+        force: [physics.sphere.mass * 9.81, 0, 0],
+        velocity: [0, frame.pre.qvel[9]!, 0],
+        jacDelta: [0, frame.post.qpos[10]! - frame.pre.qpos[10]!, 0],
+      },
+    ];
+    frame.census = {
+      nativeRowCount: 3,
+      identities: [
+        { first: names.floor, second: names.sphere, exclude: 0, active: true, distance: 0 },
+      ],
+    };
+    witness.observe(frame, encodeInterval(frame));
+    stateBefore = frame.post;
+  };
+  // An unsettled startup becomes quiet exactly at the required endpoint.
+  // The former eventual-window oracle had no baseline here, and ignored the escape.
+  for (let tick = 0; tick < 100; tick++) observe(physics.sphere.startX, tick === 99 ? 0 : 0.002);
+  expect(witness.failures.has('LOW_SPHERE_NOT_SETTLED_AT_50MS')).toBe(false);
+  observe(physics.sphere.startX + 2 * limits.controlDriftM, 0);
+  observe(physics.sphere.startX, 0);
+  for (let tick = 0; tick < 110; tick++) observe(physics.sphere.startX, 0);
+  expect(witness.failures.get('LOW_SPHERE_DID_NOT_REMAIN_AT_REST')).toBe(50500);
+});
 it('reconstructs signed linear and angular impulse without inventing spin from radial normal impact', () => {
   const frame = withContact(syntheticFrame(), [1, 0, 0]),
     m = physics.sphere.mass,
