@@ -3076,6 +3076,272 @@ describe('Electronics canonical Worker controller', () => {
   });
 });
 
+describe('ordinary demand near an accepted Arduino wake', () => {
+  const source =
+    'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(50);digitalWrite(13,LOW);delay(50);}';
+  const document: SchematicDocument = {
+    ...circuit,
+    components: [
+      {
+        ...serialCircuit.components.at(-1)!,
+        electricalModelId: 'arduino-uno',
+        electricalModelVersion: 1,
+        modelProfileId: 'arduino-uno-r3',
+        modelProfileVersion: 1,
+        stateProperties: { arduinoSource: source },
+      },
+      {
+        id: 'load',
+        kind: 'resistor',
+        value: 330,
+        position: { x: 90, y: 0 },
+        componentTypeId: 'resistor-axial',
+        electricalModelId: 'resistor',
+        electricalModelVersion: 1,
+        modelProfileId: 'axial-resistor',
+        modelProfileVersion: 1,
+        pinIds: ['lead-1', 'lead-2'],
+        stateProperties: { powerRatingWatt: 0.25 },
+      },
+      {
+        id: 'led',
+        kind: 'led',
+        value: 2,
+        position: { x: 110, y: 0 },
+        componentTypeId: 'led-5mm',
+        electricalModelId: 'ordinary-led',
+        electricalModelVersion: 1,
+        modelProfileId: 'generic-red-led',
+        modelProfileVersion: 1,
+        pinIds: ['anode', 'cathode'],
+        stateProperties: { ledColour: 'red' },
+      },
+    ],
+    connections: [
+      {
+        id: 'out',
+        from: { componentId: 'uno', terminal: 'd13' },
+        to: { componentId: 'load', terminal: 'lead-1' },
+      },
+      {
+        id: 'light',
+        from: { componentId: 'load', terminal: 'lead-2' },
+        to: { componentId: 'led', terminal: 'anode' },
+      },
+      {
+        id: 'ground',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    ],
+  };
+
+  async function establishWake(
+    controller: ElectronicsLiveSimulationWorkerController,
+    executor: FakeExecutor,
+    checkpoint: number,
+  ) {
+    let host = 0;
+    let defaultPace = true;
+    const onFailure = vi.fn();
+    const evaluate = async (call: AdvanceCall) => {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        {
+          protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+          engineRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
+          kind: 'advance',
+          requestId: 'wake-' + String(executor.advances.length),
+          projectSessionId: 'acknowledged-wake',
+          generationId: call.generationId,
+          document: call.document,
+          state: call.state,
+          requestedHorizonMicroseconds: call.requestedHorizonMicroseconds,
+          inputEvents: call.inputEvents,
+        },
+        () => true,
+        () => Promise.resolve(),
+      );
+      if (!response?.ok || response.kind !== 'advance') throw new Error(JSON.stringify(response));
+      expect(response.advance.executionStatus, JSON.stringify(response.advance.diagnostics)).toBe(
+        'ready',
+      );
+      expect(response.advance.result?.quality?.passed).toBe(true);
+      return response.advance;
+    };
+    const advance = async () => {
+      const call = executor.advances.at(-1)!;
+      const reply = await evaluate(call);
+      call.deferred.resolve(reply);
+      await flush();
+      expect(onFailure).not.toHaveBeenCalled();
+      return reply;
+    };
+
+    const callbacks = {
+      isDefaultHostPace: () => defaultPace,
+      readHostHorizonMicroseconds: () => host,
+      onResult: vi.fn(),
+      onFailure,
+    };
+    controller.start('acknowledged-wake', document, callbacks);
+    executor.preflights[0]!.resolve(result(0));
+    await flush();
+    await advance();
+    const update = (at: number, runtimeDocument = document) => {
+      host = at;
+      controller.update(runtimeDocument, at);
+    };
+    let horizon = 1000;
+    let receipt: SimulationTimedAdvancePayload;
+    for (;;) {
+      update(horizon);
+      receipt = await advance();
+      if (horizon === checkpoint) break;
+      horizon = Math.min(checkpoint, horizon + 20_000);
+    }
+    const state = receipt.state.continuation!;
+    expect(state.clockProfileId).toBe('electrothermal-events-v2');
+    expect(receipt.ledTemporal?.toMicroseconds).toBe(checkpoint);
+    const board = (
+      JSON.parse(state.serializedState) as {
+        boards: { loadedSource: string; runtime: { resumeAtMs: number } }[];
+      }
+    ).boards[0]!;
+    expect(board.loadedSource).toBe(source);
+    return {
+      advance,
+      evaluate,
+      update,
+      wake: Math.round(board.runtime.resumeAtMs * 1000),
+      setHost: (at: number) => {
+        host = at;
+      },
+      useExplicitPace: () => {
+        defaultPace = false;
+      },
+    };
+  }
+
+  it.each([
+    { checkpoint: 35_900, preWake: 49_200, fallingEdge: 50_004 },
+    { checkpoint: 135_900, preWake: 146_900, fallingEdge: 150_009 },
+    { checkpoint: 835_800, preWake: 845_900, fallingEdge: 850_044 },
+  ])(
+    'keeps the sole Worker free ahead of the physical fall at $fallingEdge',
+    async ({ checkpoint, preWake, fallingEdge }) => {
+      vi.useFakeTimers();
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      try {
+        const probe = await establishWake(controller, executor, checkpoint);
+        expect(probe.wake).toBeLessThanOrEqual(fallingEdge);
+        expect(probe.wake).toBeGreaterThan(preWake);
+        const before = executor.advances.length;
+        probe.update(preWake);
+        expect(executor.advances).toHaveLength(before);
+        expect(vi.getTimerCount()).toBe(1);
+        const elapsed = Math.ceil((probe.wake + 1000 - preWake) / 1000);
+        probe.setHost(preWake + (elapsed - 1) * 1000);
+        await vi.advanceTimersByTimeAsync(elapsed - 1);
+        expect(executor.advances).toHaveLength(before);
+        const actualHost = preWake + elapsed * 1000;
+        probe.setHost(actualHost);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(executor.advances).toHaveLength(before + 1);
+        const call = executor.advances.at(-1)!;
+        expect(call.requestedHorizonMicroseconds).toBe(actualHost);
+        expect(call.requestedHorizonMicroseconds - checkpoint).toBeLessThanOrEqual(25_000);
+        expect(call.inputEvents).toEqual([]);
+        expect(call.state.continuation?.committedHorizonMicroseconds).toBe(checkpoint);
+        const completed = await probe.advance();
+        const previousPartition = await probe.evaluate({
+          ...call,
+          requestedHorizonMicroseconds: preWake,
+        });
+        const ordinary = await probe.evaluate({ ...call, state: previousPartition.state });
+        expect(completed.state).toEqual(ordinary.state);
+        expect(completed.result).toEqual(ordinary.result);
+        expect(
+          completed.ledTemporal?.components.find((row) => row.componentId === 'led')?.samples,
+        ).toContainEqual(expect.objectContaining({ atMicroseconds: fallingEdge, brightness: 0 }));
+      } finally {
+        controller.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it('uses the new cursor ceiling even if the timer cannot reach the wake', async () => {
+    vi.useFakeTimers();
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    try {
+      const probe = await establishWake(controller, executor, 35_900);
+      const before = executor.advances.length;
+      probe.update(49_200);
+      expect(vi.getTimerCount()).toBe(1);
+      probe.setHost(48_500);
+      await vi.advanceTimersByTimeAsync(20);
+      expect(executor.advances).toHaveLength(before + 1);
+      expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(48_500);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      controller.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(['stop', 'reset', 'source update', 'input', 'pause', 'explicit pace'] as const)(
+    'retires the wake when %s takes ownership',
+    async (change) => {
+      vi.useFakeTimers();
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      try {
+        const probe = await establishWake(controller, executor, 35_900);
+        probe.update(49_200);
+        expect(vi.getTimerCount()).toBe(1);
+        if (change === 'stop') controller.stop();
+        if (change === 'reset') controller.restart(document);
+        if (change === 'pause') controller.setPaused(true);
+        if (change === 'explicit pace') {
+          probe.useExplicitPace();
+          controller.setPaused(false);
+        }
+        if (change === 'input') {
+          controller.sendSerialRx('uno', 'A', 49_200);
+          expect(executor.advances.at(-1)!.inputEvents).toEqual([
+            expect.objectContaining({ operation: 'serialRx' }),
+          ]);
+        }
+        if (change === 'source update') {
+          const updated: SchematicDocument = {
+            ...document,
+            components: document.components.map((component) =>
+              component.id === 'uno'
+                ? {
+                    ...component,
+                    stateProperties: { ...component.stateProperties, arduinoSource: source + ' ' },
+                  }
+                : component,
+            ),
+          };
+          probe.update(49_200, updated);
+          expect(executor.advances.at(-1)!.document).toEqual(updated);
+        }
+        const count = executor.advances.length;
+        expect(vi.getTimerCount()).toBe(0);
+        probe.setHost(60_000);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(executor.advances).toHaveLength(count);
+      } finally {
+        controller.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
+});
+
 describe('Ready cadence preserves the production canonical engine', () => {
   function physicalFixture(physical: boolean, source?: string) {
     const components: SchematicDocument['components'][number][] = [
