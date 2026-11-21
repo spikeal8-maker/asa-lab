@@ -6,6 +6,8 @@ import {
 } from './arduino-model.js';
 import { copyNumericalNode, numericalShuntPowerWatt } from './numerical-shunt-power.js';
 import { buildNetlist, terminalKey, type Netlist } from './netlist.js';
+import { createL298nArduinoCurrentSampler } from './models/l298n-pwm-model.js';
+import { L298N_BOARD_PROFILE } from './models/l298n-dc-model.js';
 import { canonicalElectricalModelRegistry } from './model-identity.js';
 import { canonicalPhotoresistorProfileRegistry } from './photoresistor-model.js';
 import { TMP36_PROFILE } from './models/tmp36-dc-model.js';
@@ -92,6 +94,7 @@ const MODEL_SET_DIGEST = `sha256:${sha256Hex(
     brushedMotorProfiles: canonicalBrushedMotorProfileRegistry(),
     brushedMotorTransientModelVersion: BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION,
     regulatedPowerSupplyProfiles: canonicalRegulatedPowerSupplyProfileRegistry(),
+    l298nBoardProfile: L298N_BOARD_PROFILE,
     piezoAudioProfiles: canonicalPiezoAudioProfileRegistry(),
     arduinoRuntimeStateVersion: ARDUINO_RUNTIME_STATE_VERSION,
   }),
@@ -420,6 +423,7 @@ export function verifyCircuitQuality(
     };
   }
 
+  const arduinoCurrent = createL298nArduinoCurrentSampler(document, compiled.netlist.nodeOf);
   const componentResult = new Map(result.components.map((entry) => [entry.componentId, entry]));
   const residualByNode = new Map<number, number>();
   const addAtNode = (componentId: string, terminal: Terminal, currentLeaving: number): void => {
@@ -468,9 +472,13 @@ export function verifyCircuitQuality(
         options.simulationTimeMs ?? 0,
       );
       for (const branch of branches) {
-        const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
-        const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-        const currentLeaving = (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+        const currentLeaving = arduinoCurrent(
+          component.id,
+          resultForComponent.terminalVoltages,
+          branch,
+          options,
+          result.transientState?.simulationTimeMs,
+        );
         addBranch(component, branch.terminal, branch.ground, currentLeaving);
       }
       continue;
@@ -619,7 +627,8 @@ export function verifyCircuitQuality(
         component.componentTypeId === 'temperature-sensor' ||
         component.componentTypeId === 'soil-moisture-sensor' ||
         component.componentTypeId === 'multimeter' ||
-        component.componentTypeId === 'oscilloscope'),
+        component.componentTypeId === 'oscilloscope' ||
+        component.componentTypeId === 'l298n-motor-driver'),
   );
   const powerBalanceApplicable =
     powerBalanceComponents.length > 0 &&
@@ -808,6 +817,7 @@ export function createArduinoQualityTraversal(
   // Neither these Maps nor the derived terminal layouts escape this closure.
   const nodeOf = new Map(compiled.netlist.nodeOf);
   const nodeCount = compiled.netlist.nodeCount;
+  const arduinoCurrent = createL298nArduinoCurrentSampler(document, nodeOf);
   const componentResult = new Map<string, ComponentResult>();
   const residualByNode = new Map<number, number>();
   const terminalPowerByComponent: number[] = [];
@@ -907,10 +917,13 @@ export function createArduinoQualityTraversal(
             options.simulationTimeMs ?? 0,
           );
           for (const branch of branches) {
-            const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
-            const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
-            const currentLeaving =
-              (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+            const currentLeaving = arduinoCurrent(
+              component.id,
+              resultForComponent.terminalVoltages,
+              branch,
+              options,
+              result.transientState?.simulationTimeMs,
+            );
             addBranch(component, branch.terminal, branch.ground, currentLeaving);
           }
           continue;
@@ -1065,7 +1078,8 @@ export function createArduinoQualityTraversal(
             component.componentTypeId === 'temperature-sensor' ||
             component.componentTypeId === 'soil-moisture-sensor' ||
             component.componentTypeId === 'multimeter' ||
-            component.componentTypeId === 'oscilloscope'),
+            component.componentTypeId === 'oscilloscope' ||
+            component.componentTypeId === 'l298n-motor-driver'),
       );
       const powerBalanceApplicable =
         powerBalanceComponents.length > 0 &&
@@ -1165,6 +1179,8 @@ function statusFor(result: SolveResult): SimulationStatus {
 
 export interface SimulationOptions {
   readonly simulationTimeMs?: number;
+  /** Internal shared-clock interval input, never persisted as project state. */
+  readonly l298nPwmSampleTimeMs?: number | undefined;
   readonly transientState?: CapacitorTransientState;
   readonly controllerState?: ArduinoControllerState;
 }

@@ -38,6 +38,8 @@ import { NPN_DEVICE_MODEL } from './models/npn-dc-model.js';
 import { PNP_DEVICE_MODEL } from './models/pnp-dc-model.js';
 import type { ElectronicsDocument, SchematicComponent, Terminal } from './document.js';
 import { simulationInputDigest } from './simulation-input-digest.js';
+import { l298nControlNetIndices } from './models/l298n-input-network.js';
+import { nextL298nPwmEdgeMicroseconds } from './models/l298n-pwm-model.js';
 import { REGULATED_POWER_SUPPLY_PROFILE } from './models/regulated-power-supply-model.js';
 import {
   SIGNAL_GENERATOR_MAX_AMPLITUDE_VPP,
@@ -361,6 +363,7 @@ function clockedComponent(component: SchematicComponent): boolean {
         'ideal-dc-source',
         'capacitor',
         'piezo-transducer',
+        'l298n-dual-hbridge',
       ].includes(model.id))
   );
 }
@@ -980,9 +983,13 @@ function* iterateArduinoCircuitClock(
         ? 'rc-inputs-v2'
         : 'dc-inputs-v1';
   const hasPhysics = profile !== 'dc-inputs-v1';
+  const hasL298n = document.components.some(
+    (component) => component.componentTypeId === 'l298n-motor-driver',
+  );
   const hasTimeDependentObservation = document.components.some(
     (component) =>
       component.componentTypeId === 'signal-generator' ||
+      component.componentTypeId === 'l298n-motor-driver' ||
       electricalModelFor(component).id === 'piezo-transducer',
   );
   const unsupported = document.components.find((component) => !clockedComponent(component));
@@ -1370,6 +1377,7 @@ function* iterateArduinoCircuitClock(
   const withQuality = (
     frame: SolveResult,
     time: number,
+    l298nPwmSampleTimeMs?: number,
   ): NonNullable<ArduinoCircuitClockAdvance['result']> => {
     // Compilation depends only on the immutable active document, never on a frame.
     // Each applied input replaces that document; every frame is still independently verified.
@@ -1398,7 +1406,7 @@ function* iterateArduinoCircuitClock(
         traversal: createArduinoQualityTraversal(activeDocument, qualityCircuit, layout.owner),
       };
     }
-    const qualityOptions = { simulationTimeMs: time / 1000 };
+    const qualityOptions = { simulationTimeMs: time / 1000, l298nPwmSampleTimeMs };
     return {
       ...frame,
       quality: ownership?.quality
@@ -1435,8 +1443,11 @@ function* iterateArduinoCircuitClock(
       time,
       (id, pin) => (id === boardId && ownModes ? ownModes.get(pin) : states.get(id)?.pinModes[pin]),
     );
-  const advancePhysics = (time: number) =>
-    withQuality(
+  const advancePhysics = (time: number) => {
+    // Previous GPIO/PWM is held over this interval. The subsequent zero-time
+    // sample observes the new timer level at the same causal boundary.
+    const heldPwmTime = hasL298n ? (physicalState?.simulationTimeMs ?? 0) : undefined;
+    return withQuality(
       solveRcCircuitWithHeldArduino(
         activeDocument,
         time / 1000,
@@ -1448,13 +1459,19 @@ function* iterateArduinoCircuitClock(
         preparation(),
         operatingPointReuse,
         eventPhysics ? thermalEpochs : undefined,
+        undefined,
+        heldPwmTime,
       ),
       time,
+      heldPwmTime,
     );
+  };
   let shaft: ArduinoCircuitShaftSample | undefined;
   const solveShaftFrame = (time: number) => {
     if (!winding || !shaft || shaft.measuredAtMicroseconds !== winding.atMicroseconds)
       throw new Error('TT shaft and electrical state are not at the same time.');
+    const heldPwmTime =
+      hasL298n && time > winding.atMicroseconds ? winding.atMicroseconds / 1000 : undefined;
     const solved = solveRcCircuitWithHeldArduinoAndExternalShaft(
       {
         winding,
@@ -1468,8 +1485,9 @@ function* iterateArduinoCircuitClock(
       pingUltrasonicStates,
       servoStates,
       preparation(),
+      heldPwmTime,
     );
-    return { frame: withQuality(solved.frame, time), accepted: solved.accepted };
+    return { frame: withQuality(solved.frame, time, heldPwmTime), accepted: solved.accepted };
   };
   const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
     // Generator output and passive piezo edge-age recognition depend on the
@@ -1650,6 +1668,24 @@ function* iterateArduinoCircuitClock(
       ]),
       Number.POSITIVE_INFINITY,
     );
+  let pwmDocument: ElectronicsDocument | undefined;
+  let pwmNodes: ReadonlyMap<string, number> = new Map();
+  let pwmControlNodes: ReadonlySet<number> = new Set();
+  const nextPwmTime = (): number => {
+    if (!hasL298n) return Number.POSITIVE_INFINITY;
+    if (pwmDocument !== activeDocument) {
+      pwmDocument = activeDocument;
+      pwmNodes = compileCircuit(activeDocument).netlist.nodeOf;
+      pwmControlNodes = l298nControlNetIndices(activeDocument, pwmNodes);
+    }
+    return nextL298nPwmEdgeMicroseconds(
+      activeDocument,
+      pwmNodes,
+      pwmControlNodes,
+      states,
+      Math.max(0, reachedMicroseconds),
+    );
+  };
   const nextPhysicsTime = (): number =>
     hasPhysics
       ? (Math.floor(
@@ -1674,6 +1710,7 @@ function* iterateArduinoCircuitClock(
       inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY,
       nextSensorTime(),
       nextToneTime(),
+      nextPwmTime(),
       nextPhysicsTime(),
       nextShaftTime(),
       eventPhysics ? failureTime : Number.POSITIVE_INFINITY,
@@ -1811,6 +1848,8 @@ function* iterateArduinoCircuitClock(
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && (suspendedClock || clockEvents < budget)) {
     const time = nextTime();
+    const pwmDue = hasL298n && nextPwmTime() === time;
+    if (pwmDue) cachedFrame = undefined;
     if (suspendedClock) {
       // A due operation may leave other work scheduled at the very same timestamp.
       // Only a timestamp strictly behind the next operation is externally committed.
@@ -2047,7 +2086,7 @@ function* iterateArduinoCircuitClock(
     for (const board of runnableBoards) {
       const state = states.get(board.id);
       const pulseInputSample =
-        Boolean(state?.pulseWait) && (inputChanged || physicsDue || sensorOutputChanged);
+        Boolean(state?.pulseWait) && (inputChanged || physicsDue || sensorOutputChanged || pwmDue);
       const toneBarrierDue =
         arduinoServoNextDueMicroseconds(state?.servo) === time ||
         Object.values(state?.tones ?? {}).some(

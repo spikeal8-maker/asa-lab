@@ -29,6 +29,7 @@ export type ElectricalModelId =
   | 'n-channel-fet'
   | 'incandescent-lamp'
   | 'dc-motor'
+  | 'l298n-dual-hbridge'
   | 'digital-multimeter'
   | 'breadboard-connectivity'
   | 'arduino-uno'
@@ -76,6 +77,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'n-channel-fet',
   'incandescent-lamp',
   'dc-motor',
+  'l298n-dual-hbridge',
   'digital-multimeter',
   'breadboard-connectivity',
   'arduino-uno',
@@ -111,6 +113,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'incandescent-lamp': identity('incandescent-lamp', 't1-bipin-6v-incandescent', 2),
   'dc-motor': identity('dc-motor', 'pololu-1117-130-6v'),
   gearmotor: identity('dc-motor', 'adafruit-3777-tt-48to1'),
+  'l298n-motor-driver': identity('l298n-dual-hbridge', 'l298n-red-43mm-v1'),
   'vibration-motor': identity('dc-motor', 'precision-microdrives-310-101-3v'),
   multimeter: identity('digital-multimeter', 'asa-two-terminal-dmm', 3),
   'breadboard-small': identity('breadboard-connectivity', 'breadboard-small'),
