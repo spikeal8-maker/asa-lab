@@ -171,7 +171,7 @@ const project = (name, assets = []) => ({
   extensions: [],
 });
 
-function loadStorage(fetchMock, randomUUID) {
+function loadStorage(fetchMock, randomUUID, timers = {}) {
   class FixtureStorage extends Storage {
     async store(assetType, dataFormat, data, assetId) {
       const format = dataFormat || assetType?.runtimeFormat;
@@ -194,7 +194,10 @@ function loadStorage(fetchMock, randomUUID) {
     fetch: fetchMock,
     Response: globalThis.Response,
     AbortController: globalThis.AbortController,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
     crypto: { subtle: webcrypto.subtle, randomUUID },
+    ...timers,
   });
   vm.runInContext(
     fs.readFileSync(new URL('../../infra/scratch-editor/host/storage.js', import.meta.url), 'utf8'),
@@ -203,6 +206,36 @@ function loadStorage(fetchMock, randomUUID) {
   const runtimeStandalone = { ...standalone, ScratchStorage: FixtureStorage };
   return (options) => context.AsaBlocksStorage.createReadOnlyStorage(runtimeStandalone, options);
 }
+
+function openProjectWithAssets(assets, fetchMock, options = {}) {
+  const { timers, ...storageOptions } = options;
+  return loadStorage(
+    fetchMock,
+    undefined,
+    timers,
+  )({
+    projectId: PROJECT_ID,
+    projectJson: project('Saved project', assets),
+    assets: assets.map(reference),
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+    canSave: true,
+    ...storageOptions,
+  });
+}
+
+function recordRetryDelays(delays) {
+  return {
+    setTimeout(callback, delay) {
+      delays.push(delay);
+      return globalThis.setTimeout(callback, 0);
+    },
+  };
+}
+
+const assetResponse = (media) =>
+  new globalThis.Response(media.bytes, { headers: { 'content-type': 'image/png' } });
 
 test('terminal draft failure reports bounded status/request correlation and cannot be replaced by an observer error', async () => {
   for (const status of [400, 401, 403, 409, 429, 503]) {
@@ -549,6 +582,153 @@ test('project-open asset read renews expired authority and still verifies the re
   assert.equal(calls.length, 2);
   assert.equal(calls[1].headers.authorization, 'Bearer fresh.payload.signature');
   assert.equal(storage.getConfirmedRevision(), 7);
+});
+
+test('project opening recovers from a temporary asset failure and an interrupted body', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  const delays = [];
+  let requests = 0;
+  const storage = openProjectWithAssets(
+    [media],
+    async (_url, init) => {
+      requests += 1;
+      assert.equal(init.method, 'GET');
+      assert.equal(init.credentials, 'omit');
+      assert.equal(init.cache, 'no-store');
+      if (requests === 1) return new globalThis.Response(null, { status: 503 });
+      if (requests === 2) {
+        const response = assetResponse(media);
+        response.arrayBuffer = async () => {
+          throw new TypeError('connection interrupted');
+        };
+        return response;
+      }
+      return assetResponse(media);
+    },
+    { timers: recordRetryDelays(delays) },
+  );
+  await storage.prepareProjectAssets();
+  assert.equal(requests, 3);
+  assert.equal(delays.length, 2);
+  assert.ok(delays[0] >= 250 && delays[0] < 500);
+  assert.ok(delays[1] >= 500 && delays[1] < 750);
+  assert.equal(storage.getConfirmedRevision(), 7);
+});
+
+test('asset reads honor short retry instructions and stop on longer or unspecified rate limits', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  for (const retryAfter of ['1', '120', null]) {
+    const delays = [];
+    let requests = 0;
+    const storage = openProjectWithAssets(
+      [media],
+      async () => {
+        if (++requests > 1) return assetResponse(media);
+        return new globalThis.Response(null, {
+          status: 429,
+          headers: retryAfter ? { 'retry-after': retryAfter } : undefined,
+        });
+      },
+      { timers: recordRetryDelays(delays) },
+    );
+    if (retryAfter === '1') {
+      await storage.prepareProjectAssets();
+      assert.equal(requests, 2);
+      assert.equal(delays.length, 1);
+      assert.ok(delays[0] >= 1_000);
+    } else {
+      await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+      assert.equal(requests, 1);
+      assert.deepEqual(delays, []);
+    }
+  }
+});
+
+test('project asset retry stays fail-closed for denied, missing, redirected, and unverified bytes', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  for (const makeResponse of [
+    () => new globalThis.Response(null, { status: 401 }),
+    () => new globalThis.Response(null, { status: 403 }),
+    () => new globalThis.Response(null, { status: 404 }),
+    () =>
+      new globalThis.Response(null, {
+        status: 302,
+        headers: { location: 'https://elsewhere.invalid' },
+      }),
+    () => new globalThis.Response(media.bytes, { headers: { 'content-type': 'text/html' } }),
+    () => assetResponse({ bytes: Uint8Array.of(3, 2, 1) }),
+  ]) {
+    const delays = [];
+    let requests = 0;
+    const storage = openProjectWithAssets(
+      [media],
+      async () => {
+        requests += 1;
+        return makeResponse();
+      },
+      { timers: recordRetryDelays(delays) },
+    );
+    await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+    assert.equal(requests, 1);
+    assert.deepEqual(delays, []);
+  }
+});
+
+test('concurrent reads share one bounded burst of asset retries per editor', async () => {
+  const media = Array.from({ length: 12 }, (_, index) =>
+    asset(index.toString(16).repeat(32), 'png', Uint8Array.of(1, 2, 3)),
+  );
+  const calls = new Map();
+  const delays = [];
+  const storage = openProjectWithAssets(
+    media,
+    async (url) => {
+      const callsForAsset = (calls.get(url) ?? 0) + 1;
+      calls.set(url, callsForAsset);
+      if (callsForAsset === 1) throw new TypeError('network failure');
+      return assetResponse(media[0]);
+    },
+    { timers: recordRetryDelays(delays) },
+  );
+  try {
+    await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+    assert.equal(delays.length, 8);
+    assert.ok([...calls.values()].every((count) => count <= 2));
+  } finally {
+    storage.dispose();
+  }
+});
+
+test('disposing the project clears asset backoff and prevents another request', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  let scheduled;
+  const waitingForRetry = new Promise((resolve) => {
+    scheduled = resolve;
+  });
+  const cleared = [];
+  let requests = 0;
+  const storage = openProjectWithAssets(
+    [media],
+    async () => {
+      requests += 1;
+      return new globalThis.Response(null, { status: 503 });
+    },
+    {
+      timers: {
+        setTimeout() {
+          scheduled();
+          return 4;
+        },
+        clearTimeout: (timer) => cleared.push(timer),
+      },
+    },
+  );
+  const pending = storage.prepareProjectAssets();
+  await waitingForRetry;
+  storage.dispose();
+  await assert.rejects(pending, /storage_disposed/);
+  assert.deepEqual(cleared, [4]);
+  assert.equal(requests, 1);
 });
 
 test('asset upload recovers expired authority once and verifies the retried durable bytes', async () => {

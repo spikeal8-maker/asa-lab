@@ -31,6 +31,11 @@
   const RECOVERY_ASSET_TOTAL_LIMIT = 250 * 1024 * 1024;
   const UPSTREAM_ASSET_STORE_CONCURRENCY = 4;
   const PROJECT_OPEN_ASSET_GET_CONCURRENCY = 4;
+  const PROJECT_ASSET_READ_RETRIES = 2;
+  const PROJECT_ASSET_RETRY_BURST = 8;
+  const PROJECT_ASSET_RETRY_WINDOW_MS = 30_000;
+  const PROJECT_ASSET_RETRY_AFTER_LIMIT_MS = 4_000;
+  const RETRYABLE_ASSET_READ_STATUS = new Set([408, 429, 500, 502, 503, 504]);
   const RECOVERY_ASSET_LIMITS = {
     svg: 10 * 1024 * 1024,
     png: 10 * 1024 * 1024,
@@ -46,6 +51,16 @@
     Object.hasOwn(mediaTypes, format);
 
   const runtimeKey = (id, format) => `${id}.${format}`;
+  const retryAfterMilliseconds = (response) => {
+    const value = response.headers.get('retry-after')?.trim();
+    if (!value) return null;
+    if (/^\d+$/.test(value)) return Number(value) * 1_000;
+    if (!value.endsWith(' GMT')) return null;
+    const retryAt = Date.parse(value);
+    if (!Number.isFinite(retryAt)) return null;
+    const serverTime = Date.parse(response.headers.get('date'));
+    return Math.max(0, retryAt - (Number.isFinite(serverTime) ? serverTime : Date.now()));
+  };
   const exactBytes = (data) => {
     if (data instanceof Uint8Array) return Uint8Array.from(data);
     if (data instanceof ArrayBuffer) return new Uint8Array(data.slice(0));
@@ -146,6 +161,7 @@
     let latestUpstreamSaveOutcome = null;
     const upstreamSaveWaiters = new Set();
     const abortController = typeof AbortController === 'undefined' ? null : new AbortController();
+    const assetReadRetriesAt = [];
     let disposed = false;
 
     const key = (type, id, format) => `${type.name}:${id}:${format}`;
@@ -480,36 +496,96 @@
       }
     };
 
+    const waitForAssetRetry = (delay) =>
+      new Promise((resolve, reject) => {
+        if (disposed) {
+          reject(unavailable('storage_disposed'));
+          return;
+        }
+        const signal = abortController?.signal;
+        const timer = globalThis.setTimeout(() => {
+          signal?.removeEventListener('abort', abort);
+          resolve();
+        }, delay);
+        const abort = () => {
+          globalThis.clearTimeout(timer);
+          reject(unavailable('storage_disposed'));
+        };
+        signal?.addEventListener('abort', abort, { once: true });
+      });
+
+    const readRuntimeAsset = async (url, contentTypes) => {
+      const init = {
+        method: 'GET',
+        credentials: 'omit',
+        // Surface redirects as terminal responses without following them.
+        redirect: 'manual',
+        cache: 'no-store',
+        headers: { accept: contentTypes[0] },
+        ...(abortController ? { signal: abortController.signal } : {}),
+      };
+      for (let retries = 0; ; retries += 1) {
+        if (disposed) throw unavailable('storage_disposed');
+        let retryAfter = 0;
+        try {
+          const response = await runtimeFetch(url, init);
+          if (response.redirected) throw unavailable();
+          if (response.ok) {
+            const contentType = response.headers.get('content-type')?.split(';')[0].trim();
+            if (!contentTypes.includes(contentType)) throw unavailable();
+            return new Uint8Array(await response.arrayBuffer());
+          }
+          const suppliedDelay = retryAfterMilliseconds(response);
+          void response.body?.cancel().catch(() => undefined);
+          if (
+            !RETRYABLE_ASSET_READ_STATUS.has(response.status) ||
+            (response.status === 429 && suppliedDelay === null)
+          ) {
+            throw unavailable();
+          }
+          retryAfter = suppliedDelay ?? 0;
+        } catch (error) {
+          if (disposed) throw unavailable('storage_disposed');
+          // Fetch uses TypeError for network failures and interrupted body reads.
+          // Authorization, validation and explicit aborts never enter backoff.
+          if (error?.name !== 'TypeError') throw error;
+        }
+        if (
+          retries === PROJECT_ASSET_READ_RETRIES ||
+          retryAfter > PROJECT_ASSET_RETRY_AFTER_LIMIT_MS
+        )
+          throw unavailable();
+
+        // All concurrent readers in this editor draw from one retry budget.
+        const now = Date.now();
+        while (
+          assetReadRetriesAt.length &&
+          now - assetReadRetriesAt[0] >= PROJECT_ASSET_RETRY_WINDOW_MS
+        )
+          assetReadRetriesAt.shift();
+        if (assetReadRetriesAt.length >= PROJECT_ASSET_RETRY_BURST) throw unavailable();
+        assetReadRetriesAt.push(now);
+
+        const backoff = Math.max(retryAfter, 250 * 2 ** retries);
+        await waitForAssetRetry(backoff + Math.random() * 250);
+      }
+    };
+
     const loadRuntimeAsset = async (reference, type, format) => {
       if (disposed || !validTypeAndFormat(type, format)) throw unavailable();
       const existing = verifiedRuntimeAssets.get(key(type, reference.assetId, format));
       if (existing) return existing;
 
-      const response = await runtimeFetch(
+      const bytes = await readRuntimeAsset(
         options.publicationRevisionId && options.canSave === false
           ? `${options.apiOrigin}/api/blocks/runtime/publications/${options.projectId}/revisions/${options.publicationRevisionId}/assets/${reference.assetId}.${reference.dataFormat}`
           : `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${reference.assetId}.${reference.dataFormat}`,
-        {
-          method: 'GET',
-          credentials: 'omit',
-          redirect: 'error',
-          cache: 'no-store',
-          headers: {
-            accept: mediaTypes[reference.dataFormat][0],
-            authorization: `Bearer ${getToken()}`,
-          },
-          ...(abortController ? { signal: abortController.signal } : {}),
-        },
+        mediaTypes[reference.dataFormat],
       );
-      if (!response.ok || response.redirected) throw unavailable();
-
-      const contentType = response.headers.get('content-type')?.split(';')[0].trim();
-      if (!mediaTypes[reference.dataFormat].includes(contentType)) throw unavailable();
-
-      const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength !== reference.sizeBytes) throw unavailable();
       if ((await sha256(bytes)) !== reference.sha256) throw unavailable();
 
+      if (disposed) throw unavailable('storage_disposed');
       return cache(type, format, bytes, reference.assetId, verifiedRuntimeAssets);
     };
 
