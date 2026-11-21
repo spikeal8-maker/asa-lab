@@ -6868,6 +6868,7 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
       format: 'png',
       fromSurface: true,
       captureBeyondViewport: false,
+      optimizeForSpeed: true,
       clip: { ...clip, scale: 1 },
     });
     const captureTo = await page.evaluate(() => performance.now());
