@@ -43,7 +43,7 @@ const deferred = () => {
 const success = (marker = 8) => ({
   ok: true as const,
   status: 200,
-  data: adminDashboardFixture('24h', marker),
+  data: adminDashboardFixture('today', marker),
 });
 async function show(selected = scope, denied = vi.fn()) {
   await act(async () =>
@@ -106,6 +106,65 @@ describe('admin overview lifecycle', () => {
         /^#[0-9a-f]{6}$/.test(path.getAttribute('stroke') ?? ''),
       ),
     ).toBe(true);
+  });
+  it('renders new accounts, AI outcomes and both error colors in the partly collected first hour', async () => {
+    const sample = adminDashboardFixture('today');
+    const at = sample.timeline[0]!.at;
+    vi.spyOn(adminApi, 'dashboard').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        ...sample,
+        accountRegistrations: [{ at, count: 3 }],
+        aiUsage: {
+          journalFrom: at,
+          requests: 4,
+          completed: 3,
+          people: 2,
+          points: [{ at, requests: 4, completed: 3, people: 2 }],
+        },
+      },
+    });
+    vi.spyOn(adminApi, 'errorTrend').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        coverage: 'partial',
+        from: '2026-10-25T00:10:00Z',
+        to: sample.to,
+        points: [{ at, counts: { database: 3, web: 7 } }],
+      },
+    });
+    await show({
+      ...scope,
+      permissions: ['administration.open', 'administration.operations.read'],
+    });
+    const charts = [...host.querySelectorAll('.admin-chart-card')];
+    const chart = (name: string) =>
+      charts.find((item) => item.querySelector('h3')?.textContent === name)!;
+    expect(chart('Активные пользователи').textContent).toContain('Новые аккаунты');
+    expect(chart('Новые пользователи и места').textContent).toContain(
+      'Созданные ученические места',
+    );
+    const totals = chart('Использование ИИ').querySelector(
+      '[aria-label="Использование ИИ за период"]',
+    );
+    expect([...(totals?.children ?? [])].map((cell) => cell.textContent)).toEqual([
+      'Запросы 4',
+      'Ответы 3',
+      'Пользователи 2',
+    ]);
+    const errors = chart('Ошибки по системам');
+    expect(
+      [...errors.querySelectorAll('rect[fill]')].map((bar) => bar.getAttribute('fill')),
+    ).toEqual(['#a12239', '#3469ad']);
+    await click('База данных');
+    expect(
+      [...errors.querySelectorAll('rect[fill]')].map((bar) => bar.getAttribute('fill')),
+    ).toEqual(['#a12239']);
+    expect(errors.parentElement?.textContent).toContain(
+      'Журнал за этот период может быть неполным',
+    );
   });
   it('immediately removes stale scope and range data and rejects their late response', async () => {
     const old = deferred(),

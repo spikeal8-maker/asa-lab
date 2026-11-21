@@ -1618,23 +1618,25 @@
   background: #fff;
   font-size: 11px;
   font-weight: 750;
-  opacity: 0.58;
 }
 
 .admin-chart-legend button.active {
   color: var(--admin-ink);
   border-color: #adc6d3;
   background: #f6fafc;
-  opacity: 1;
 }
 
-.admin-chart-legend button span {
-  width: 8px;
-  border-top: 2px solid currentColor;
+.admin-chart-legend button:not(.active) {
+  text-decoration: line-through;
 }
 
-.admin-chart-legend button span.dashed {
-  border-top-style: dashed;
+.admin-chart-legend button span,
+.admin-error-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
 .admin-chart-recent {
@@ -1643,12 +1645,78 @@
   white-space: nowrap;
 }
 
+.admin-chart-period-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.admin-chart-period-totals span {
+  white-space: nowrap;
+}
+.admin-chart-period-totals strong {
+  color: var(--admin-ink);
+}
+
 .admin-chart-recent strong {
   color: var(--admin-ink);
 }
 
 .admin-error-panel {
   min-width: 0;
+}
+
+.admin-error-picker {
+  position: relative;
+  font-size: 12px;
+}
+
+.admin-error-picker summary,
+.admin-error-picker-options button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  color: var(--admin-ink);
+  background: #fff;
+  cursor: pointer;
+}
+
+.admin-error-picker summary::after {
+  content: '▾';
+  margin-inline-start: auto;
+}
+
+.admin-error-picker-options {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: calc(100% + 3px);
+  inset-inline-start: 0;
+  display: grid;
+  gap: 2px;
+  width: max-content;
+  max-height: 235px;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--admin-line);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 16px #152b3b26;
+}
+
+.admin-error-picker-options button {
+  width: 100%;
+  border-color: transparent;
+}
+
+.admin-error-picker-options button:hover,
+.admin-error-picker-options button[aria-pressed='true'] {
+  background: #ecf4f8;
 }
 
 .admin-chart-coverage {

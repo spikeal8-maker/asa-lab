@@ -1,3 +1,4 @@
+import type { AiDashboardUsage } from '@asa-lab/contracts';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { authRequest, authRequestFailure } from '../auth-request';
 import { notifyAccountVerificationRequired } from '../auth-verification';
@@ -457,7 +458,8 @@ export interface AdminOperationsStatus {
   } | null;
 }
 
-export type AdminDashboardRange = '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+export type AdminDashboardRange =
+  'today' | 'yesterday' | '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
 
 export interface AdminDashboardPoint {
   readonly at: string;
@@ -526,6 +528,8 @@ export interface AdminProductDashboard {
     readonly localNetworkAccounts: number;
     readonly unclassifiedNetworkEvents: number;
   };
+  readonly aiUsage?: AiDashboardUsage | null;
+  readonly accountRegistrations?: readonly { readonly at: string; readonly count: number }[];
   readonly timeline: readonly AdminDashboardPoint[];
   readonly modules: readonly AdminModulePoint[];
   readonly loginMethods: readonly AdminLoginMethodPoint[];

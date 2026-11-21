@@ -1,3 +1,16 @@
+export interface AiDashboardUsage {
+  readonly journalFrom: string | null;
+  readonly requests: number;
+  readonly completed: number;
+  readonly people: number;
+  readonly points: readonly {
+    readonly at: string;
+    readonly requests: number;
+    readonly completed: number;
+    readonly people: number;
+  }[];
+}
+
 /** Recorded token usage only. Decimal strings preserve PostgreSQL SUM(bigint) exactly. */
 export interface AiUsageTokenTotal {
   /** Null means operations exist, but none supplied this token count. */

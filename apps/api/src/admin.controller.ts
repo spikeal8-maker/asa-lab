@@ -34,6 +34,8 @@ import { parseCatalogQuery, parseCatalogFilters } from './admin-user-catalog.js'
 import { parseHistoryQuery } from './admin-user-history.js';
 
 const DASHBOARD_RANGES = new Set<AdminDashboardRange>([
+  'today',
+  'yesterday',
   '1h',
   '6h',
   '12h',

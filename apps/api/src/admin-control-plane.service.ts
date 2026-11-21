@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { AiDashboardUsage } from '@asa-lab/contracts';
 import type { AdminHistoryPage, HistoryCategory } from './admin-user-history.js';
 import type { RuntimeMetrics, RuntimeMetricsSnapshot } from '@asa-lab/observability';
 import { runtimeBuildMetadata } from './build-metadata.js';
@@ -199,7 +200,8 @@ export interface AdminOperationsStatusView {
   readonly runtime: RuntimeMetricsSnapshot | null;
 }
 
-export type AdminDashboardRange = '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+export type AdminDashboardRange =
+  'today' | 'yesterday' | '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
 
 export interface AdminProductDashboardView {
   readonly generatedAt: string;
@@ -232,6 +234,8 @@ export interface AdminProductDashboardView {
     readonly localNetworkAccounts: number;
     readonly unclassifiedNetworkEvents: number;
   };
+  readonly aiUsage: AiDashboardUsage | null;
+  readonly accountRegistrations: readonly { readonly at: string; readonly count: number }[];
   readonly timeline: readonly Record<string, unknown>[];
   readonly modules: readonly Record<string, unknown>[];
   readonly loginMethods: readonly Record<string, unknown>[];
@@ -377,7 +381,10 @@ function countValue(value: unknown): number {
 }
 
 const DASHBOARD_WINDOWS: Readonly<
-  Record<AdminDashboardRange, { readonly durationSeconds: number; readonly bucketSeconds: number }>
+  Record<
+    Exclude<AdminDashboardRange, 'today' | 'yesterday'>,
+    { readonly durationSeconds: number; readonly bucketSeconds: number }
+  >
 > = {
   '1h': { durationSeconds: 60 * 60, bucketSeconds: 5 * 60 },
   '6h': { durationSeconds: 6 * 60 * 60, bucketSeconds: 15 * 60 },
@@ -394,8 +401,20 @@ function dashboardWindow(range: AdminDashboardRange): {
   readonly to: Date;
   readonly bucketSeconds: number;
 } {
-  const config = DASHBOARD_WINDOWS[range];
   const to = new Date();
+  if (range === 'today' || range === 'yesterday') {
+    const day = 86_400_000;
+    const offset = 3 * 3_600_000;
+    const midnight = Math.floor((to.getTime() + offset) / day) * day - offset;
+    return range === 'today'
+      ? {
+          from: new Date(midnight),
+          to: new Date(Math.max(midnight + 1, to.getTime())),
+          bucketSeconds: 3600,
+        }
+      : { from: new Date(midnight - day), to: new Date(midnight), bucketSeconds: 3600 };
+  }
+  const config = DASHBOARD_WINDOWS[range];
   return {
     from: new Date(to.getTime() - config.durationSeconds * 1000),
     to,
@@ -1040,8 +1059,15 @@ export class AdminControlPlaneService {
   ): Promise<AdminProductDashboardView> {
     this.requirePermission(access, 'administration.open', input.scope);
     const range = dashboardWindow(input.range);
-    const result = await this.pool.query<{ payload: Record<string, unknown> }>(
-      `SELECT admin_get_operational_overview($1,$2,$3,$4,$5,$6) AS payload`,
+    const result = await this.pool.query<{
+      payload: Record<string, unknown>;
+      ai_usage: AiDashboardUsage | null;
+      registrations: AdminProductDashboardView['accountRegistrations'];
+    }>(
+      `SELECT admin_get_operational_overview($1,$2,$3,$4,$5,$6) AS payload,
+              admin_get_dashboard_registrations($1,$2,$3,$4,$5,$6) AS registrations,
+              CASE WHEN $2::varchar = 'platform' AND $3::uuid IS NULL
+                   THEN admin_get_ai_dashboard_usage($1,$4,$5,$6) END AS ai_usage`,
       [
         access.subject.principalId,
         input.scope.kind,
@@ -1058,6 +1084,8 @@ export class AdminControlPlaneService {
     return {
       ...(payload as unknown as Omit<AdminProductDashboardView, 'range' | 'max'>),
       range: input.range,
+      aiUsage: result.rows[0]?.ai_usage ?? null,
+      accountRegistrations: result.rows[0]?.registrations ?? [],
       max: {
         configured: config.enabled,
         featureEnabled: config.featureEnabled,

@@ -29,7 +29,7 @@ export type {
   AiGenerationPolicy,
   AiGenerationPolicyUpdate,
 } from './ai-generation-policy.js';
-export type { AiUsageOverview, AiUsageTokenTotal } from './ai-usage-overview.js';
+export type { AiDashboardUsage, AiUsageOverview, AiUsageTokenTotal } from './ai-usage-overview.js';
 export type {
   AiWebSearchMode,
   AiWebSource,

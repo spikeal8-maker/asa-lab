@@ -104,9 +104,19 @@ describe('retained log reader and archive', () => {
           }),
         },
         row(3, '2026-11-11T17:15:00.000Z', '/api/robotics/projects', 'warn'),
+        {
+          ...row(11, '2026-11-11T17:16:00.000Z', '/'),
+          source: 'postgres',
+          message: '2026-11-11 17:16:00 UTC [15] ERROR:  quality stream conflict',
+        },
+        {
+          ...row(12, '2026-11-11T17:16:01.000Z', '/'),
+          source: 'postgres',
+          message: '2026-11-11 17:16:01 UTC [15] ERROR:  deadlock detected',
+        },
       ];
       const raw = rows.map((event) => JSON.stringify(event)).join('\n') + '\n';
-      const file = 'seg-0000000000000001-0000000000000010.jsonl';
+      const file = 'seg-0000000000000001-0000000000000012.jsonl';
       await writeFile(join(root, file), raw);
       await writeFile(
         join(root, 'catalog.json'),
@@ -121,6 +131,18 @@ describe('retained log reader and archive', () => {
               count: rows.length,
               first: rows[0]!.time,
               last: rows.at(-1)!.time,
+            },
+            {
+              file: 'seg-0000000000000013-0000000000005000.jsonl',
+              schema: 2,
+              sha256: 'a'.repeat(64),
+              bytes: 4 * 1024 * 1024,
+              rawBytes: 4 * 1024 * 1024,
+              count: 4990,
+              first: '2026-11-11T17:17:00.000Z',
+              last: '2026-11-11T17:19:00.000Z',
+              levels: ['info'],
+              sources: ['api'],
             },
           ],
         }),
@@ -137,7 +159,10 @@ describe('retained log reader and archive', () => {
         to: '2026-11-11T17:20:00.000Z',
         points: [
           { at: '2026-11-11T16:00:00.000Z', counts: { ai: 1 } },
-          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1, api: 3, projects: 1 } },
+          {
+            at: '2026-11-11T17:00:00.000Z',
+            counts: { robotics: 1, ai: 1, api: 3, projects: 1, diagnostics: 1, database: 1 },
+          },
         ],
       });
       const journal = await queryLogs(

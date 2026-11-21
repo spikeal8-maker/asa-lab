@@ -287,7 +287,20 @@ async function fixture(page: Page) {
       const range = (url.searchParams.get('range') ?? '24h') as AdminDashboardRange;
       const marker =
         account === ACCOUNT && url.searchParams.get('scopeKind') === 'platform' ? 8 : 42;
-      const dashboard = adminDashboardFixture(range, marker, empty);
+      const fixture = adminDashboardFixture(range, marker, empty);
+      const dashboard =
+        marker === 8
+          ? {
+              ...fixture,
+              aiUsage: {
+                journalFrom: fixture.from,
+                requests: empty ? 0 : 11,
+                completed: empty ? 0 : 9,
+                people: empty ? 0 : 4,
+                points: empty ? [] : [{ at: fixture.from, requests: 11, completed: 9, people: 4 }],
+              },
+            }
+          : fixture;
       if (holdDashboard)
         return new Promise<void>((done) =>
           dashboardQueue.push(async () => {
@@ -582,8 +595,13 @@ for (const width of [1440, 1024, 390, 320]) {
       'Активные пользователи',
     );
     await expect(page.getByRole('heading', { name: 'Активные пользователи' })).toBeInViewport();
-    await expect(page.getByRole('heading', { name: 'Созданные ученические места' })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Период дашборда' })).toHaveValue('24h');
+    await expect(page.getByRole('heading', { name: 'Новые пользователи и места' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Использование ИИ' })).toBeVisible();
+    const usage = page.getByLabel('Использование ИИ за период');
+    await expect(usage).toContainText('Запросы 11');
+    await expect(usage).toContainText('Ответы 9');
+    await expect(usage).toContainText('Пользователи 4');
+    await expect(page.getByRole('combobox', { name: 'Период дашборда' })).toHaveValue('today');
     await expect(page.locator('.admin-range-interval')).toHaveText(
       '25.10.2026, 03:00 — 26.10.2026, 02:10 МСК',
     );
@@ -695,7 +713,7 @@ for (const width of [1440, 1024, 390, 320]) {
       if (box.top < readoutBox.y + readoutBox.height && box.bottom > readoutBox.y)
         expect(box.right).toBeLessThanOrEqual(readoutBox.x);
     }
-    await expect(page.getByText('Доступная часть журнала:', { exact: false })).toBeVisible();
+    await expect(page.getByText('Подсчёт по доступным записям', { exact: false })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'IP-адреса пользователей' })).toBeVisible();
     await expect(
       page.locator('.admin-dashboard-network article').filter({ hasText: 'Разные IP' }),
@@ -711,10 +729,11 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(users.locator('.admin-chart-readout')).toContainText('Аккаунты 2');
       await games.getByRole('combobox', { name: 'Показатель «Игры»' }).selectOption('both');
       await expect(games.locator('svg path[stroke-dasharray]')).toHaveCount(2);
-      await page.getByRole('combobox', { name: 'Система в журнале ошибок' }).selectOption('ai');
-      await expect(page.getByRole('combobox', { name: 'Система в журнале ошибок' })).toHaveValue(
-        'ai',
-      );
+      const systemPicker = errors.getByLabel('Система в журнале ошибок');
+      await systemPicker.click();
+      await errors.getByRole('button', { name: 'ИИ', exact: true }).click();
+      await expect(systemPicker).toContainText('ИИ');
+      await expect(errors.locator('svg rect[fill]')).toHaveCount(1);
     }
     if (width === 390 || width === 320) {
       await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();

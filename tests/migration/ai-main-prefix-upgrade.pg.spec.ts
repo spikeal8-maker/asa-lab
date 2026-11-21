@@ -107,6 +107,7 @@ const expectedPending = [
   '0326', // Allow large PDF task attachments.
   '0327', // Expand supported task attachment formats.
   '0328', // Safe Mode blocks new publications and retroactive public reads.
+  '0329', // Aggregate AI usage and new registrations over the dashboard window.
 ];
 
 interface Identity {

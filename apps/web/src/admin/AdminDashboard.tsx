@@ -21,6 +21,8 @@ import { AdminAuthProviderCard } from './AdminAuthProviderCard';
 import { VerificationPolicyControl } from './VerificationPolicyControl';
 
 const RANGE_OPTIONS: readonly { readonly value: AdminDashboardRange; readonly label: string }[] = [
+  { value: 'today', label: 'Сегодня · МСК' },
+  { value: 'yesterday', label: 'Вчера · МСК' },
   { value: '1h', label: '1 час' },
   { value: '6h', label: '6 часов' },
   { value: '12h', label: '12 часов' },
@@ -108,7 +110,7 @@ interface ChartSeries {
   readonly values: readonly (number | null)[];
   readonly secondary?: boolean;
   readonly bars?: boolean;
-  readonly group?: { readonly id: string; readonly label: string };
+  readonly group?: { readonly id: string; readonly label: string; readonly color?: string };
 }
 
 function MultiLineChart({
@@ -146,17 +148,7 @@ function MultiLineChart({
   const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const helpId = useId();
-  const [visible, setVisible] = useState<ReadonlySet<string>>(
-    () => new Set(series.map((item) => item.group?.id ?? item.id)),
-  );
-  useEffect(() => {
-    setVisible((current) => {
-      const allowed = new Set(series.map((item) => item.group?.id ?? item.id));
-      const next = new Set([...current].filter((id) => allowed.has(id)));
-      if (next.size === 0) allowed.forEach((id) => next.add(id));
-      return next;
-    });
-  }, [series]);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
     if (!canvas.current || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(([entry]) => {
@@ -166,8 +158,10 @@ function MultiLineChart({
     return () => observer.disconnect();
   }, []);
 
-  const active = series.filter((item) => visible.has(item.group?.id ?? item.id));
   const legend = new Map(series.map((item) => [item.group?.id ?? item.id, item]));
+  const visible = new Set([...legend.keys()].filter((id) => !hidden.has(id)));
+  if (visible.size === 0) legend.forEach((_, id) => visible.add(id));
+  const active = series.filter((item) => visible.has(item.group?.id ?? item.id));
   useLayoutEffect(() => {
     const rowHeader = header.current;
     const card = rowHeader?.parentElement;
@@ -208,11 +202,16 @@ function MultiLineChart({
     return () => observer.disconnect();
   }, [controls, legend.size]);
 
+  const bars = active.filter((item) => item.bars);
+  const barTotals = labels.map((_, index) =>
+    bars.reduce((sum, series) => sum + (series.values[index] ?? 0), 0),
+  );
   const maxFor = (secondary: boolean) =>
     Math.max(
       0,
+      ...(secondary ? [] : barTotals),
       ...active
-        .filter((item) => Boolean(item.secondary) === secondary)
+        .filter((item) => !item.bars && Boolean(item.secondary) === secondary)
         .flatMap((item) => item.values.map((value) => value ?? 0)),
     );
   const axis = chartCountAxis(maxFor(false));
@@ -244,13 +243,15 @@ function MultiLineChart({
   const readings =
     cursor === null
       ? []
-      : active.map((item) => {
-          const value = item.values[cursor];
-          return {
-            id: item.id,
-            text: `${item.label} ${value == null ? '—' : VALUE.format(value)}`,
-          };
-        });
+      : active
+          .filter((item) => !item.bars || (item.values[cursor] ?? 0) > 0)
+          .map((item) => {
+            const value = item.values[cursor];
+            return {
+              id: item.id,
+              text: `${item.label} ${value == null ? '—' : VALUE.format(value)}`,
+            };
+          });
 
   return (
     <article
@@ -291,17 +292,16 @@ function MultiLineChart({
                   className={selected ? 'active' : ''}
                   aria-pressed={selected}
                   onClick={() =>
-                    setVisible((current) => {
+                    setHidden((current) => {
                       const next = new Set(current);
-                      if (next.has(id) && next.size > 1) next.delete(id);
-                      else next.add(id);
+                      if (!selected) next.delete(id);
+                      else if (visible.size > 1) next.add(id);
                       return next;
                     })
                   }
                 >
                   <span
-                    className={!item.group && item.secondary ? 'dashed' : ''}
-                    style={{ color: item.color }}
+                    style={{ backgroundColor: item.group?.color ?? item.color }}
                     aria-hidden="true"
                   />
                   {item.group?.label ?? item.label}
@@ -323,6 +323,9 @@ function MultiLineChart({
             >
               <strong>{pointLabels[cursor]}</strong>
               <div className="admin-chart-readout-values">
+                {bars.length > 1 && (barTotals[cursor] ?? 0) > 0 ? (
+                  <span>Ошибки {VALUE.format(barTotals[cursor]!)}</span>
+                ) : null}
                 {readings.map((reading) => (
                   <span key={reading.id}>{reading.text}</span>
                 ))}
@@ -399,25 +402,28 @@ function MultiLineChart({
               className="admin-chart-grid"
             />
           ))}
-          {active
-            .filter((item) => item.bars)
-            .flatMap((item) =>
-              item.values.map((value, index) => {
-                if (value === null || value <= 0) return null;
-                const y = yAt(value, axis.maximum);
-                return (
-                  <rect
-                    key={`${item.id}:${index}`}
-                    x={xAt(index) - barWidth / 2}
-                    y={y}
-                    width={barWidth}
-                    height={top + plotHeight - y}
-                    rx="2"
-                    fill={item.color}
-                  />
-                );
-              }),
-            )}
+          {labels.flatMap((_, index) => {
+            let total = 0;
+            return bars.map((item) => {
+              const value = item.values[index];
+              if (value == null || value <= 0) return null;
+              const bottomY = yAt(total, axis.maximum);
+              total += value;
+              const topY = yAt(total, axis.maximum);
+              return (
+                <rect
+                  key={`${item.id}:${index}`}
+                  x={xAt(index) - barWidth / 2}
+                  y={topY}
+                  width={barWidth}
+                  height={bottomY - topY}
+                  fill={item.color}
+                >
+                  <title>{`${item.label} · ${VALUE.format(value)}`}</title>
+                </rect>
+              );
+            });
+          })}
           {active
             .filter((item) => !item.bars)
             .map((item) => (
@@ -483,14 +489,13 @@ function timeLabels(
   points: readonly { readonly at: string }[],
   range: AdminDashboardRange,
 ): string[] {
-  const formatter =
-    range === '1h' || range === '6h' || range === '12h' || range === '24h'
-      ? MOSCOW_TIME
-      : new Intl.DateTimeFormat('ru-RU', {
-          day: '2-digit',
-          month: 'short',
-          timeZone: 'Europe/Moscow',
-        });
+  const formatter = ['today', 'yesterday', '1h', '6h', '12h', '24h'].includes(range)
+    ? MOSCOW_TIME
+    : new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: 'short',
+        timeZone: 'Europe/Moscow',
+      });
   return points.map((point) => formatter.format(new Date(point.at)));
 }
 
@@ -501,7 +506,7 @@ export function AdminDashboard({
   readonly scope: AdminScope;
   readonly onAccessDenied: () => void;
 }): JSX.Element {
-  const [range, setRange] = useState<AdminDashboardRange>('24h');
+  const [range, setRange] = useState<AdminDashboardRange>('today');
   const scopeKind = scope.kind;
   const scopeId = scope.id;
   const key = `${scopeKind}:${scopeId ?? ''}:${range}`;
@@ -624,7 +629,7 @@ export function AdminDashboard({
             <p role="alert">{state.refreshError} Показаны предыдущие данные за выбранный период.</p>
           ) : null}
           <div aria-busy={state.refreshing} className="admin-dashboard-content">
-            <TodayAttendance dashboard={state.dashboard} />
+            {range !== 'yesterday' ? <TodayAttendance dashboard={state.dashboard} /> : null}
             <DashboardContent
               dashboard={state.dashboard}
               canReadErrors={
@@ -731,6 +736,22 @@ function DashboardContent({
       ),
     },
   ];
+  const accountRegistrations = new Map(
+    dashboard.accountRegistrations
+      ? dashboard.accountRegistrations.map((point) => [Date.parse(point.at), point.count])
+      : dashboard.timeline.map((point) => [Date.parse(point.at), point.newAccounts]),
+  );
+  const newAccountSeries = {
+    id: 'newAccounts',
+    label: 'Новые аккаунты',
+    color: '#8257c7',
+    values: points.map(
+      (point) =>
+        accountRegistrations.get(Date.parse(point.at)) ??
+        (dashboard.accountRegistrations ? 0 : null),
+    ),
+  };
+  if (counts) people.push(newAccountSeries);
   const methodCounts = new Map(
     (overview?.loginMethods ?? dashboard.loginMethods).map((point) => [
       `${point.at}:${point.method}`,
@@ -767,14 +788,14 @@ function DashboardContent({
       <MultiLineChart
         className="admin-chart-wide"
         title="Активные пользователи"
-        description="В каждом интервале аккаунт или ученическое место учитывается один раз по успешному событию или подтверждённой работе в модуле. Входы можно посмотреть отдельно. Время — среднее среди пользователей с замерами в редакторах и играх, без простоя и двойного учёта параллельных вкладок."
+        description="В каждом интервале аккаунт или ученическое место учитывается один раз по успешному событию или подтверждённой работе в модуле. Линия новых аккаунтов показывает регистрации. Входы можно посмотреть отдельно. Время — среднее среди пользователей с замерами в редакторах и играх, без простоя и двойного учёта параллельных вкладок."
         {...axes}
         primaryUnit={counts ? 'Пользователи' : durations ? 'Мин / пользователь' : 'Входы'}
         series={people}
         emptyMessage={durations ? 'В этом периоде нет замеров активного времени.' : undefined}
         controls={
           <>
-            {overview ? (
+            {overview && dashboard.range !== 'yesterday' ? (
               <span
                 className="admin-chart-recent"
                 title="Уникальные аккаунты и ученики с активностью за последние пять минут к моменту обновления."
@@ -797,6 +818,9 @@ function DashboardContent({
         }
       />
       {canReadErrors ? <ErrorsChart dashboard={dashboard} points={points} {...axes} /> : null}
+      {dashboard.aiUsage ? (
+        <AiUsageChart usage={dashboard.aiUsage} points={points} {...axes} />
+      ) : null}
       <ModuleChart
         title="Учебные инструменты"
         keys={LEARNING_MODULES}
@@ -819,21 +843,16 @@ function DashboardContent({
         series={methods}
       />
       <MultiLineChart
-        title="Созданные ученические места"
-        description="Места, добавленные в классы и оставшиеся в их списках. Создание места может произойти до того, как ученик зайдёт."
+        title="Новые пользователи и места"
+        description="Новые аккаунты — зарегистрированные пользователи. Ученические места — добавленные в классы места, оставшиеся в списках. Создание места может произойти до первого входа ученика."
         {...axes}
-        primaryUnit="Места"
-        controls={
-          <span className="admin-chart-recent">
-            За период: <strong>{dashboard.summary.newStudents}</strong>
-          </span>
-        }
+        primaryUnit="Аккаунты и места"
         series={[
+          newAccountSeries,
           {
             id: 'newStudents',
-            label: 'Созданные места',
+            label: 'Созданные ученические места',
             color: '#b96910',
-            bars: true,
             values: points.map((point) => point.newStudents),
           },
         ]}
@@ -932,6 +951,59 @@ function DashboardContent({
   );
 }
 
+function AiUsageChart({
+  usage,
+  points,
+  labels,
+  pointLabels,
+}: {
+  readonly usage: NonNullable<AdminProductDashboard['aiUsage']>;
+  readonly points: readonly { readonly at: string; readonly to: string }[];
+  readonly labels: readonly string[];
+  readonly pointLabels: readonly string[];
+}): JSX.Element {
+  const byTime = new Map(usage.points.map((point) => [Date.parse(point.at), point]));
+  const journalStart = usage.journalFrom ? Date.parse(usage.journalFrom) : Infinity;
+  const series = [
+    ['requests', 'Запросы', '#0877b3'],
+    ['completed', 'Успешные ответы', '#16835f'],
+    ['people', 'Пользователи', '#8257c7'],
+  ] as const;
+  return (
+    <MultiLineChart
+      title="Использование ИИ"
+      description="Чат и генерация изображений. Запрос учитывается при постановке в обработку. Ответ — успешный итог этого запроса. Пользователи считаются один раз за каждый интервал и отдельно за весь период."
+      labels={labels}
+      pointLabels={pointLabels}
+      primaryUnit="Количество"
+      emptyMessage="В журнале за этот период нет принятых запросов ИИ."
+      controls={
+        <div className="admin-chart-period-totals" aria-label="Использование ИИ за период">
+          <span>
+            Запросы <strong>{VALUE.format(usage.requests)}</strong>
+          </span>
+          <span>
+            Ответы <strong>{VALUE.format(usage.completed)}</strong>
+          </span>
+          <span>
+            Пользователи <strong>{VALUE.format(usage.people)}</strong>
+          </span>
+        </div>
+      }
+      series={series.map(([id, label, color]) => ({
+        id,
+        label,
+        color,
+        values: points.map((point) =>
+          Date.parse(point.to) <= journalStart
+            ? null
+            : (byTime.get(Date.parse(point.at))?.[id] ?? 0),
+        ),
+      }))}
+    />
+  );
+}
+
 function ModuleChart({
   title,
   keys,
@@ -1007,7 +1079,7 @@ const ERROR_SYSTEMS: Readonly<Record<string, string>> = {
   access: 'Доступ и вход',
   analytics: 'Аналитика',
   administration: 'Админка',
-  diagnostics: 'Диагностика',
+  diagnostics: 'Телеметрия',
   storage: 'Хранилище',
   database: 'База данных',
   scratch: 'Scratch',
@@ -1024,6 +1096,35 @@ const ERROR_SYSTEMS: Readonly<Record<string, string>> = {
   host: 'Сервер',
   metrics: 'Метрики',
 };
+
+const ERROR_COLORS: Readonly<Record<string, string>> = {
+  database: '#a12239',
+  web: '#3469ad',
+  electronics: '#a36012',
+  host: '#546370',
+  diagnostics: '#734bb0',
+  scratch: '#b33a78',
+  ai: '#047c69',
+  access: '#5e681d',
+  analytics: '#627dc0',
+  api: '#476271',
+  projects: '#805a31',
+  storage: '#81527d',
+  network: '#057f9c',
+  'three-d': '#65459a',
+  robotics: '#257b56',
+  backup: '#865678',
+  administration: '#ac581f',
+  audit: '#726045',
+  updates: '#447a71',
+  metrics: '#5252a4',
+  learning: '#516b2e',
+  courses: '#476f99',
+  classrooms: '#477d7f',
+  chess: '#965656',
+  checkers: '#826343',
+};
+const errorColor = (system: string) => ERROR_COLORS[system] ?? '#64748b';
 
 function ErrorsChart({
   dashboard,
@@ -1079,24 +1180,33 @@ function ErrorsChart({
   const selected = systems.includes(system) ? system : 'all';
   const coverageStart = Date.parse(trend.from!);
   const coverageEnd = Date.parse(trend.to!);
-  const errorCounts = points.map((point) => {
-    if (Date.parse(point.from) < coverageStart || Date.parse(point.to) > coverageEnd) return null;
-    const counts = byTime.get(Date.parse(point.at)) ?? {};
-    return selected === 'all'
-      ? Object.values(counts).reduce((sum, value) => sum + value, 0)
-      : (counts[selected] ?? 0);
-  });
+  const errorSeries = (selected === 'all' ? systems : [selected]).map((key): ChartSeries => ({
+    id: key,
+    label: ERROR_SYSTEMS[key] ?? key,
+    color: errorColor(key),
+    bars: true,
+    group: { id: 'errors', label: 'Ошибки', color: errorColor(selected) },
+    values: points.map((point) => {
+      const from = Date.parse(point.from);
+      const to = Date.parse(point.to);
+      if (from >= coverageEnd || to <= coverageStart) return null;
+      return (
+        byTime.get(Date.parse(point.at))?.[key] ??
+        (from < coverageStart || to > coverageEnd ? null : 0)
+      );
+    }),
+  }));
   return (
     <div className="admin-chart-wide admin-error-panel">
       <MultiLineChart
         title="Ошибки по системам"
-        description="Количество записей уровня error в собранном журнале. Пунктир — уникальные активные аккаунты и ученики в тех же интервалах, по правой шкале."
+        description="Цвет столбца обозначает систему. Для неполных интервалов показаны только найденные записи. Пунктир показывает уникальные активные аккаунты и учеников по правой шкале."
         labels={labels}
         pointLabels={pointLabels}
         primaryUnit="Ошибки"
         secondaryUnit="Пользователи"
         series={[
-          { id: 'errors', label: 'Ошибки', color: '#ae3b36', values: errorCounts, bars: true },
+          ...errorSeries,
           {
             id: 'people',
             label: 'Активные пользователи',
@@ -1106,23 +1216,53 @@ function ErrorsChart({
           },
         ]}
         controls={
-          <select
-            aria-label="Система в журнале ошибок"
-            value={selected}
-            onChange={(event) => setSystem(event.target.value)}
+          <details
+            className="admin-error-picker"
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return;
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector('summary')?.focus();
+            }}
           >
-            <option value="all">Все системы</option>
-            {systems.map((key) => (
-              <option key={key} value={key}>
-                {ERROR_SYSTEMS[key] ?? key}
-              </option>
-            ))}
-          </select>
+            <summary aria-label="Система в журнале ошибок">
+              <span
+                className="admin-error-swatch"
+                style={{ backgroundColor: errorColor(selected) }}
+                aria-hidden="true"
+              />
+              {selected === 'all' ? 'Все системы' : (ERROR_SYSTEMS[selected] ?? selected)}
+            </summary>
+            <div className="admin-error-picker-options">
+              {['all', ...systems].map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={key === selected}
+                  onClick={(event) => {
+                    setSystem(key);
+                    const picker = event.currentTarget.closest('details');
+                    if (picker) {
+                      picker.open = false;
+                      picker.querySelector('summary')?.focus();
+                    }
+                  }}
+                >
+                  <span
+                    className="admin-error-swatch"
+                    style={{ backgroundColor: errorColor(key) }}
+                    aria-hidden="true"
+                  />
+                  {key === 'all' ? 'Все системы' : (ERROR_SYSTEMS[key] ?? key)}
+                </button>
+              ))}
+            </div>
+          </details>
         }
       />
       {trend.coverage === 'partial' && trend.from && trend.to ? (
         <p className="admin-chart-coverage">
-          Доступная часть журнала: {moscowInterval(trend.from, trend.to)}. Возможны пробелы.
+          Подсчёт по доступным записям за {moscowInterval(trend.from, trend.to)}. Журнал за этот
+          период может быть неполным.
         </p>
       ) : null}
     </div>
@@ -1259,13 +1399,13 @@ export function IpActivitySection({
           value={range}
           onChange={(event) => setRange(event.target.value as AdminDashboardRange)}
         >
-          {RANGE_OPTIONS.filter((option) => !['1h', '6h', '12h'].includes(option.value)).map(
-            (option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ),
-          )}
+          {RANGE_OPTIONS.filter(
+            (option) => !['today', 'yesterday', '1h', '6h', '12h'].includes(option.value),
+          ).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </div>
       {items === null && !error ? <p>Проверяем успешные входы…</p> : null}

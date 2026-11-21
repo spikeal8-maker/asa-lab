@@ -54,6 +54,7 @@ const schoolPendingFiles = [
   '0326_learning_large_task_pdf.sql',
   '0327_learning_task_attachment_formats.sql',
   '0328_classroom_gallery_publish_safe_mode.sql',
+  '0329_admin_ai_dashboard_usage.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -87,6 +88,7 @@ const canonicalSqlDigests = {
   '0318': 'e834b0e84327aaf2d53951bc54e2fb0a628abc31cc332af9926f2d0c966c3d5d',
   '0324': 'e74f1664543474be7613d3fb777caa3b3d1bfdcc4916040174a38d69b487fda4',
   '0328': 'e3635eaf128e48385f771ce85710afc2d6e0e7340f0cc59427c603ddcd60681d',
+  '0329': '3199e0635ac4b9a71260e3f5db86f399c84ef6a1039e0cf758951447090107d2',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
