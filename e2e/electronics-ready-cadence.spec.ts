@@ -6735,74 +6735,98 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
   // handshakes/detach previously consumed the narrow optical capture window.
   // The owning test's browser-context finally disposes this session on failure.
   const cdp = await page.context().newCDPSession(page);
+  // The original full-viewport screenshot takes longer than a complete LED
+  // phase on loaded CI. Crop only the actual three LED bodies and D13 L while
+  // retaining every original independent native pixel sample and assertion.
+  const regions = [
+    ...nativeGeometry.paint.images.map((image) => image.rect),
+    nativeGeometry.l.rect,
+  ];
+  if (regions.some((rect) => rect == null))
+    throw new Error('native screenshot requires all four actual visible geometries');
+  const actualRegions = regions as Array<NonNullable<D2NativeImageWitness['rect']>>;
+  const clipX = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.x)) - 12));
+  const clipY = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.y)) - 12));
+  const clipRight = Math.min(
+    viewport.width,
+    Math.ceil(Math.max(...actualRegions.map((r) => r.x + r.width)) + 12),
+  );
+  const clipBottom = Math.min(
+    viewport.height,
+    Math.ceil(Math.max(...actualRegions.map((r) => r.y + r.height)) + 12),
+  );
+  const clip = {
+    x: clipX,
+    y: clipY,
+    width: clipRight - clipX,
+    height: clipBottom - clipY,
+  };
+  if (clip.width <= 0 || clip.height <= 0)
+    throw new Error('native screenshot clip is outside the editor viewport');
   let seekFrom = await page.evaluate(() => performance.now());
   for (let index = 0; index < requested.length; index++) {
     const vector = requested[index]!;
     // Wait for a fresh actually painted phase. Do not rename an ambiguous PNG,
     // retry a failed image or advance the simulation with a separate timer.
-    await page.waitForFunction(
-      ({ vector, seekFrom }) => {
-        const probe = window as D2Window;
-        const run = probe.__ownerTemporal!.paintRuns.at(-1);
-        const l = probe.__d2L!.at(-1);
-        return (
-          !!run &&
-          run.first.previousFrameAt !== null &&
-          run.first.previousFrameAt >= seekFrom &&
-          run.first.brightness.map((value) => (value > 0 ? '1' : '0')).join('') === vector &&
-          run.first.images.length === 3 &&
-          run.first.images.every(
-            (image, led) =>
-              image.decoded &&
-              image.visible &&
-              image.unoccluded &&
-              image.opacity === 1 &&
-              image.lit === run.first.brightness[led]! > 0,
-          ) &&
-          !!l &&
-          l.activeAttribute === 'false' &&
-          l.opacity === 0 &&
-          l.visible
-        );
-      },
+    const { beforeShot, captureFrom } = await page.evaluate(
+      ({ vector, seekFrom }) =>
+        new Promise<{
+          beforeShot: { paint: PaintReceipt; l: D2LReceipt };
+          captureFrom: number;
+        }>((resolve, reject) => {
+          const probe = window as D2Window;
+          const matchesVector = (brightness: readonly number[]) =>
+            brightness.map((value) => (value > 0 ? '1' : '0')).join('') === vector;
+          let frame: number;
+          const timeout = window.setTimeout(() => {
+            window.cancelAnimationFrame(frame);
+            reject(new Error('Native screenshot phase did not become ready: ' + vector));
+          }, 20_000);
+          const read = () => {
+            const run = probe.__ownerTemporal!.paintRuns.at(-1);
+            const paint = probe.__ownerPaint!.at(-1);
+            const l = probe.__d2L!.at(-1);
+            if (
+              run &&
+              run.first.previousFrameAt !== null &&
+              run.first.previousFrameAt >= seekFrom &&
+              matchesVector(run.first.brightness) &&
+              run.first.images.length === 3 &&
+              run.first.images.every(
+                (image, led) =>
+                  image.decoded &&
+                  image.visible &&
+                  image.unoccluded &&
+                  image.opacity === 1 &&
+                  image.lit === run.first.brightness[led]! > 0,
+              ) &&
+              paint?.stablePreviousFrame &&
+              matchesVector(paint.brightness) &&
+              l?.activeAttribute === 'false' &&
+              l.opacity === 0 &&
+              l.visible
+            ) {
+              window.clearTimeout(timeout);
+              resolve({
+                beforeShot: { paint, l },
+                captureFrom: performance.now(),
+              });
+              return;
+            }
+            frame = window.requestAnimationFrame(read);
+          };
+          read();
+        }),
       { vector, seekFrom },
-      { timeout: 20_000 },
     );
-    const beforeShot = JSON.parse(
-      await page.evaluate(() => {
-        const probe = window as D2Window;
-        return JSON.stringify({ paint: probe.__ownerPaint!.at(-1)!, l: probe.__d2L!.at(-1)! });
-      }),
-    ) as { paint: PaintReceipt; l: D2LReceipt };
     const name = `d2-d4-native-${index}-${vector}`;
     const path = resolve(artifactRoot, name + '.png');
-    // The original full-viewport screenshot takes longer than a complete LED
-    // phase on loaded CI. Crop only the actual three LED bodies and D13 L while
-    // retaining every original independent native pixel sample and assertion.
-    const regions = [...beforeShot.paint.images.map((image) => image.rect), beforeShot.l.rect];
-    if (regions.some((rect) => rect == null))
-      throw new Error('native screenshot requires all four actual visible geometries');
-    const actualRegions = regions as Array<NonNullable<D2NativeImageWitness['rect']>>;
-    const clipX = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.x)) - 12));
-    const clipY = Math.max(0, Math.floor(Math.min(...actualRegions.map((r) => r.y)) - 12));
-    const clipRight = Math.min(
-      viewport.width,
-      Math.ceil(Math.max(...actualRegions.map((r) => r.x + r.width)) + 12),
-    );
-    const clipBottom = Math.min(
-      viewport.height,
-      Math.ceil(Math.max(...actualRegions.map((r) => r.y + r.height)) + 12),
-    );
-    const clip = { x: clipX, y: clipY, width: clipRight - clipX, height: clipBottom - clipY };
-    if (clip.width <= 0 || clip.height <= 0)
-      throw new Error('native screenshot clip is outside the editor viewport');
     // Chromium compositor capture avoids Playwright's full screenshot stabilization
     // wait. It is still one genuine screenshot of the mounted page, not a
     // reconstructed image from Worker, React or a detached canvas.
     const captureStartedAt = performance.now();
-    // Browser monotonic timestamps bracket the actual compositor operation;
-    // no CDP session creation or detach occurs inside a live LED phase.
-    const captureFrom = await page.evaluate(() => performance.now());
+    // Capture starts after the browser returns its verified frame and
+    // timestamp. The terminal marker still follows the real PNG response.
     const captured = await cdp.send('Page.captureScreenshot', {
       format: 'png',
       fromSurface: true,
