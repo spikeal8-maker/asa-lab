@@ -4115,7 +4115,7 @@ test('runtime compresses and caches exactly the versioned bundle and stock media
   const staleVersion = `${version?.startsWith('0') ? '1' : '0'}${version?.slice(1)}`;
   const stale = await request.head(`${legacy}?v=${staleVersion}`);
   expect(stale.status()).toBe(404);
-  expect(stale.headers()['cache-control'] ?? '').not.toContain('immutable');
+  expect(stale.headers()['cache-control']).toBe('no-store');
   const sound = await request.get(`${runtimeUrl}/library-assets/${barkAssetId}.wav`);
   expect(sound.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
   for (const pathname of [

@@ -62,6 +62,7 @@ server {
     location = /vendor/scratch/scratch-gui-standalone.js {
         # An old HTML entry must never prime the cache with another version.
         if ($scratch_standalone_cache_control = "") {
+            add_header Cache-Control "no-store" always;
             return 404;
         }
         add_header Cache-Control $scratch_standalone_cache_control;
