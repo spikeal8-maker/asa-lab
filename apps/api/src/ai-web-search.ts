@@ -701,8 +701,13 @@ export class AiWebSearchService {
         ),
       );
       const hasResults = sources.length > 0 || filteredImages.length > 0;
-      const allFiltered = !hasResults && (found.sources.length > 0 || found.images.length > 0);
-      const outcome = reason ?? (allFiltered ? 'domains_filtered' : undefined);
+      const hasUsableResults = found.sources.length > 0 || found.images.length > 0;
+      let outcome = reason;
+      if (!outcome) {
+        if (found.partial) outcome = 'provider_partial_failure';
+        else if (!hasResults && hasUsableResults) outcome = 'domains_filtered';
+        else if (!hasUsableResults && found.reportedResults) outcome = 'invalid_results';
+      }
       return {
         ...base,
         sources,
@@ -710,8 +715,12 @@ export class AiWebSearchService {
         status: hasResults ? 'ready' : 'empty',
         ...(outcome ? { reason: outcome } : {}),
       };
-    } catch {
-      return { ...base, reason: reason ?? 'provider_unavailable' };
+    } catch (error) {
+      const unavailable =
+        error instanceof AiWebProviderError && error.kind === 'invalid_response'
+          ? 'invalid_results'
+          : 'provider_unavailable';
+      return { ...base, reason: reason ?? unavailable };
     }
   }
   async evidence(

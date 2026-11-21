@@ -189,6 +189,8 @@ export function readWebEvidence(value: unknown): AiWebSearchEvidence | null {
       'not_configured',
       'provider_unavailable',
       'domains_filtered',
+      'invalid_results',
+      'provider_partial_failure',
       'weather_unavailable',
       'location_required',
       'location_ambiguous',

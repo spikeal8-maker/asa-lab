@@ -185,6 +185,15 @@ describe('server-issued internet evidence', () => {
     expect(filtered).toContain('Результаты найдены, но не прошли фильтр сайтов.');
     expect(filtered).not.toContain('источники не найдены');
   });
+  it('explains partial search without suppressing the validated sources', () => {
+    const html = renderToStaticMarkup(
+      createElement(AiWebEvidence, {
+        evidence: { ...evidence, reason: 'provider_partial_failure' },
+      }),
+    );
+    expect(html).toContain('Выдача может быть неполной.');
+    expect(html).toContain('https://example.org/research');
+  });
   it('renders a scrollable multi-image gallery with distinct source links and a truthful temperature card', () => {
     const basePath =
       '/api/ai/threads/11111111-1111-4111-8111-111111111111/web-search/22222222-2222-4222-8222-222222222222/images/';

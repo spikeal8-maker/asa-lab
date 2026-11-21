@@ -4,8 +4,12 @@ import { createHash } from 'node:crypto';
 const MAX_BODY = 2 * 1024 * 1024;
 const USER_AGENT = 'ASA-Lab/1.0 (+https://github.com/spikeal8-maker/asa-lab)';
 export class AiWebProviderError extends Error {
-  constructor() {
-    super('Internet provider unavailable');
+  constructor(readonly kind: 'unavailable' | 'invalid_response' = 'unavailable') {
+    super(
+      kind === 'invalid_response'
+        ? 'Invalid internet provider response'
+        : 'Internet provider unavailable',
+    );
   }
 }
 export interface PublicCacheReceipt {
@@ -72,9 +76,21 @@ export function parseSearxResults(
   value: unknown,
   imageMode: boolean,
   limit = 8,
-): { sources: AiWebSource[]; images: AiWebImage[] } {
+): { sources: AiWebSource[]; images: AiWebImage[]; reportedResults: boolean; partial: boolean } {
   const data = record(value);
-  if (!Array.isArray(data['results'])) throw new AiWebProviderError();
+  if (!Array.isArray(data['results'])) throw new AiWebProviderError('invalid_response');
+  const engines = data['unresponsive_engines'];
+  const metadata = {
+    reportedResults: data['results'].length > 0,
+    partial:
+      Array.isArray(engines) &&
+      engines
+        .slice(0, 32)
+        .some(
+          (engine) =>
+            Array.isArray(engine) && typeof engine[0] === 'string' && engine[0].length > 0,
+        ),
+  };
   const sources: AiWebSource[] = [],
     images: AiWebImage[] = [],
     seen = new Set<string>();
@@ -110,13 +126,14 @@ export function parseSearxResults(
     }
     if (!imageMode && sources.length === count) break;
   }
-  if (!imageMode) return { sources: sources.slice(0, count), images };
+  if (!imageMode) return { sources: sources.slice(0, count), images, ...metadata };
   // Keep relevance order within each group, prefer an available original, and remove duplicates.
   const selected = images
     .sort((a, b) => Number(!!b.originalUrl) - Number(!!a.originalUrl))
     .slice(0, count)
     .map((image, index) => ({ ...image, id: index + 1 }));
   return {
+    ...metadata,
     images: selected,
     sources: selected.flatMap((image, index) => {
       const source = sources.find((item) => item.url === image.sourceUrl);
@@ -455,9 +472,12 @@ export class FreeInternetProvider {
     throw new AiWebProviderError();
   }
   private async json(response: Response): Promise<unknown> {
-    return JSON.parse(
-      new TextDecoder('utf-8', { fatal: true }).decode(await boundedWebResponse(response)),
-    );
+    const bytes = await boundedWebResponse(response);
+    try {
+      return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      throw new AiWebProviderError('invalid_response');
+    }
   }
   async search(query: string, images: boolean, signal: AbortSignal, limit = 8) {
     if (!this.searchBase) throw new AiWebProviderError();

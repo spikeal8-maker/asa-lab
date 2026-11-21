@@ -47,23 +47,24 @@ async function identity(elevated = false) {
     );
   return principal;
 }
-function upstream(empty = false) {
+function upstream(empty = false, searchResponse?: string) {
   return vi.fn<typeof fetch>(async (url, options) => {
     const u = new URL(String(url));
     if (u.hostname === 'search')
       return new Response(
-        JSON.stringify({
-          results: empty
-            ? []
-            : [
-                {
-                  title: 'Источник',
-                  url: 'https://example.org/fact',
-                  content: 'Подтверждённый факт.',
-                  thumbnail_src: 'https://tse1.mm.bing.net/th?id=image',
-                },
-              ],
-        }),
+        searchResponse ??
+          JSON.stringify({
+            results: empty
+              ? []
+              : [
+                  {
+                    title: 'Источник',
+                    url: 'https://example.org/fact',
+                    content: 'Подтверждённый факт.',
+                    thumbnail_src: 'https://tse1.mm.bing.net/th?id=image',
+                  },
+                ],
+          }),
       );
     if (u.hostname === 'tse1.mm.bing.net')
       return new Response(new Uint8Array(aiAttachmentImageFixture('png')), {
@@ -197,6 +198,36 @@ it('persists distinct filtered and empty receipts without exposing rejected resu
     );
   }
 });
+it.each([
+  { searchResponse: '{}', status: 'unavailable', reason: 'invalid_results', sourceCount: 0 },
+  {
+    searchResponse: '{"results":[{"title":"missing URL"}]}',
+    status: 'empty',
+    reason: 'invalid_results',
+    sourceCount: 0,
+  },
+  {
+    searchResponse:
+      '{"results":[{"url":"https://example.org/fact","title":"Факт"}],"unresponsive_engines":[["internal engine","private failure"]]}',
+    status: 'ready',
+    reason: 'provider_partial_failure',
+    sourceCount: 1,
+  },
+])(
+  'records $reason when the provider response has status $status',
+  async ({ searchResponse, status, reason, sourceCount }) => {
+    const owner = await identity();
+    const fetchImpl = upstream(false, searchResponse);
+    const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+    const thread = await chat.createThread(owner);
+    const request = randomUUID();
+    await chat.send(owner, thread.id, 'Найди факт', request, 'web');
+    const receipt = await new AiWebSearchService(pool).evidence(owner, thread.id, request);
+    expect(receipt).toMatchObject({ status, reason });
+    expect(receipt?.sources).toHaveLength(sourceCount);
+    expect(JSON.stringify(receipt)).not.toMatch(/internal engine|private failure/);
+  },
+);
 it('keeps image original URLs private and authenticates the same-origin raster proxy', async () => {
   const owner = await identity(),
     stranger = await identity(),
