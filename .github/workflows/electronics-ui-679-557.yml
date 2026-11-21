@@ -86,7 +86,15 @@ jobs:
           compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml
             -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
           root=reports/electronics-trace-abba
-          test_artifacts=e2e/artifacts/electronics-simulation/ready-cadence-539
+          artifact_mount="$RUNNER_TEMP/electronics-trace-artifacts.yaml"
+          cat > "$artifact_mount" <<'YAML'
+          services:
+            test-runner:
+              volumes:
+                - type: bind
+                  source: "${ASA_TRACE_TRIAL_ARTIFACTS:?}"
+                  target: /workspace/e2e/artifacts
+          YAML
           failure_report=reports/electronics-failures.ndjson
           title='Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness$'
           docker image inspect --format '{{.Id}} {{range .RepoTags}}{{.}} {{end}}' \
@@ -100,8 +108,15 @@ jobs:
             index=$((index + 1))
             trial="$root/$index-$trace_variant"
             static_har="reports/.electronics-static-trace-$index.har"
-            mkdir -m 0777 -- "$trial"
-            if "${compose[@]}" run --rm --no-deps -e NX_SKIP_NX_CACHE=true \
+            mkdir -m 0777 -- "$trial" "$trial/test-artifacts"
+            export ASA_TRACE_TRIAL_ARTIFACTS="$PWD/$trial/test-artifacts"
+            test_artifacts="$trial/test-artifacts/electronics-simulation/ready-cadence-539"
+            "${compose[@]}" -f "$artifact_mount" config --format json |
+              jq -e --arg host "$ASA_TRACE_TRIAL_ARTIFACTS" '
+                .services["test-runner"].volumes
+                | any(.[]; .target == "/workspace/e2e/artifacts" and .source == $host)
+              ' >/dev/null
+            if "${compose[@]}" -f "$artifact_mount" run --rm --no-deps -e NX_SKIP_NX_CACHE=true \
               -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE \
               -e ASA_ELECTRONICS_FAILURE_REPORT -e "ASA_ELECTRONICS_DIAGNOSTIC_TRACE=$trace_variant" \
               -e "ASA_ELECTRONICS_DIAGNOSTIC_STATIC_HAR=$static_har" test-runner \
@@ -111,9 +126,6 @@ jobs:
             else
               trial_exit=$?
               result=1
-            fi
-            if [[ -d "$test_artifacts" ]]; then
-              mv -- "$test_artifacts" "$trial/test-artifacts"
             fi
             if [[ -f "$failure_report" ]]; then
               mv -- "$failure_report" "$trial/electronics-failures.ndjson"
@@ -138,8 +150,8 @@ jobs:
             # The raw HAR is outside the upload root even if filtering fails.
             rm -f -- "$static_har"
             trace_files=("$trial"/playwright/*/trace.zip)
-            if [[ ! -s "$trial/test-artifacts/owner-r18-blink-1-raw.json" ||
-                  ! -s "$trial/test-artifacts/owner-r18-blink-1-frame.png" ||
+            if [[ ! -s "$test_artifacts/owner-r18-blink-1-raw.json" ||
+                  ! -s "$test_artifacts/owner-r18-blink-1-frame.png" ||
                   ! -s "$trial/electronics-failures.ndjson" || ! -s "${trace_files[0]}" ]]; then
               evidence=missing
               result=1
