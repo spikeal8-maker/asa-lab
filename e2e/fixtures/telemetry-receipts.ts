@@ -58,9 +58,7 @@ export function telemetryReceipt(request: Pick<Request, 'url' | 'method' | 'post
       '/api/analytics/v2/quality',
       '/api/diagnostics/quality',
       DIAGNOSTIC_PATH,
-    ].includes(
-      path,
-    )
+    ].includes(path)
   )
     return null;
   let body: unknown;
