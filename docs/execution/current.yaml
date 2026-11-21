@@ -19526,12 +19526,79 @@ parallel_lanes:
           model/profile readback, dispatch/resource caps, units and expected analytic values
           before native. Pure tests cover rotated and level geometry, L/H/angle round-trips,
           invalid inputs and immutable callers; default native test is skipped. After independent
-          exact-source review the controller may dispatch one bounded acquisition of the six
-          preregistered fresh worlds, including exact repeat streams for each case. Retain every
+          exact-source review the controller may dispatch only the acquisition authorized by
+          selected_retry below. The original acquisition is consumed and preserved in first_attempt.
+          Retain every
           PRE/POST state, contact/force/clock and cleanup event in an exclusive external immutable
           raw receipt; enforce capture capacity before advancing. Preserve failures and partial
           evidence before assertions. Independent raw recomputation and focused TS/lint/format,
           regression and applicable protected CI follow. This registers future work only.
+        first_attempt:
+          observed_on: '2026-11-21'
+          source_commit: 41a2c912632ffa53ad887f51631da771a194d03e
+          source_tree: cc2b6cca502b93277935decfb954aab5e4ad24bc
+          spec_sha256: 85a7703c214365502ed1ab7aaf0b874cc341bd749dc9caca948e3a0094153d34
+          raw: {file: editable-ramp-rolling.jsonl, bytes: 16214, sha256: b2ad67759fc12a84068a27000bf6187001e2820f5134c5fdcc39303d4b854aed}
+          runtime: ERROR
+          physical: UNRESOLVED
+          primary_error: WARNING_WIDTH
+          terminal_error: NATIVE_RESOURCE_LEAK
+          native_census: {step1: 1, step1_returned: 1, step2: 1, step2_returned: 1}
+          retained_interval:
+            case: nominal10
+            repeat: 0
+            tick: 1
+            native_time_us: [0, 500]
+            contacts: 0
+            constraint_rows: 0
+            jacobian_words: 0
+            decoded_bytes: 296
+            decoded_sha256: dae3c5615e8c545ba55e36dc15ee7d2c1fa4a8d2368707a56b835f2d6f5736b6
+          cleanup: {created: 14, deleted: 12, native_abort_errors: 2}
+          diagnosis: >-
+            The pinned MuJoCo binding exposes MjData::warning as a borrowed member vector with
+            reference() policy. The adapter incorrectly owned and deleted that vector after its
+            initial successful seven-warning read. The next read after one actual native interval
+            failed WARNING_WIDTH. Repeated deletion and MjData destruction then aborted, and the
+            outer resource assertion replaced the terminal error with NATIVE_RESOURCE_LEAK.
+            Pinned mjNWARNING remains seven. Contact vectors are returned by value and their
+            existing owned cleanup is correct. Preserve the original receipt and source unchanged.
+            The retained interval ends at 0.0005 s with vertical speed -0.004905 m/s and zero
+            angular speed; no registered analysis window or acceleration assessment was reached.
+        selected_retry:
+          id: E1-EDITABLE-RAMP-SPHERE-ROLLING-ADAPTER-R2
+          scope: TEST_ONLY
+          repaired_source_commit: 7d7fa52c74c9d6892ffde2c953e0eefc2f590565
+          repaired_source_tree: 1cb111580a1cd18a33ccf6509744115b8a5f299a
+          preservation_ref: refs/heads/codex/robotics-editable-ramp-rolling-1071
+          repaired_spec_sha256: d7a08dd2e0fe7aa6e561b923d20463ef249a17e4962e177de1e6c287a284ab06
+          unchanged_geometry_sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848
+          unchanged_fixture_sha256: a19ee99f42914311771ef54c5c69fedde0a403b5a9dec9224b3e71bf5ba2a83a
+          source_review: >-
+            Controller verified the published preservation ref at the repaired source commit,
+            with the first source retained as its parent. Independent exact-source HIGH review,
+            TypeScript, ESLint, formatting, exact path plan, control-plane and eight pure tests
+            passed with one native test skipped. These receipts cover source readiness only;
+            no repaired native acquisition has occurred.
+          adapter_repair: >-
+            Borrow the warning member vector across repeated reads and delete only the owned
+            wrappers returned by get(). Preserve the first runtime error together with secondary
+            cleanup failures. The pure regression must exercise repeated reads, zero deletion of
+            the borrowed vector, balanced copied-item cleanup, wrong-width and nonzero-warning
+            rejection, and primary-error retention through a copied-item cleanup failure.
+          admission: >-
+            After protected acceptance of this registration on main, exact repaired source pins,
+            default pure tests with native skipped, focused typing/lint/format and independent
+            exact-source HIGH review, the controller may dispatch one fresh acquisition of the
+            same six registered worlds under the existing schedule and caps. The prior one-step
+            acquisition remains consumed historical evidence and is excluded from the new
+            acquisition's 12000-interval cap. Geometry, cases, release, solver and artifact,
+            material, physical prerequisites and all tolerances remain byte-identical to the
+            pinned fixture and geometry. Use a new exclusive external receipt, retain the full
+            bounded raw and independently recompute its result. Any dispatched partial failure
+            consumes this new acquisition and requires a separately selected follow-up.
+            Keep native-only motion and the parent product/D01/D02 acceptance blocker. This
+            registration records source readiness and does not claim a repaired physical result.
         prior_rapier_failures:
           - source_commit: 2dcd83bc009666ac5e8f459c4755b2425648e4de
             source_ref: refs/heads/codex/robotics-phy05-20261115
