@@ -249,13 +249,23 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
       ),
     ).toBe(true);
   };
-  const waitForSave = (learner: Learner) =>
+  const waitForSave = (learner: Learner, x = learner.x) =>
     learner.page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname ===
-          `/api/blocks/runtime/projects/${learner.projectId}/draft` &&
-        response.request().method() === 'PUT' &&
-        response.request().postData()?.includes(JSON.stringify(learner.name)) === true,
+      (response) => {
+        const request = response.request();
+        if (
+          new URL(response.url()).pathname !==
+            `/api/blocks/runtime/projects/${learner.projectId}/draft` ||
+          request.method() !== 'PUT'
+        )
+          return false;
+        const targets = request.postDataJSON()?.document?.projectJson?.targets as
+          { name: string; x: number }[] | undefined;
+        return (
+          Array.isArray(targets) &&
+          targets.some((target) => target.name === learner.name && target.x === x)
+        );
+      },
       { timeout: 110_000 },
     );
 
@@ -399,11 +409,13 @@ test('30 real pupil contexts open, autosave and reopen Scratch with independent 
 
     const leaving = learners[1]!;
     const beforeExit = (await draft(leaving)).revision;
-    await editPosition(leaving, 112);
     const [exitSave] = await Promise.all([
-      waitForSave(leaving),
+      waitForSave(leaving, 112),
       leaving.page.waitForURL('**/#/home'),
-      editor(leaving).getByRole('button', { name: 'ASA Lab', exact: true }).click(),
+      (async () => {
+        await editPosition(leaving, 112);
+        await editor(leaving).getByRole('button', { name: 'Home', exact: true }).click();
+      })(),
     ]);
     expect(exitSave.status()).toBe(200);
     await verifyDraft(leaving, beforeExit);
