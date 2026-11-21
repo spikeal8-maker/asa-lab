@@ -689,6 +689,11 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           ],
         };
         try {
+          // The report already captured the baseline counters. Restore the
+          // real repository methods before the optional profiler wraps them.
+          opened.mockRestore();
+          projectLoads.mockRestore();
+          draftTargets.mockRestore();
           mkdirSync('reports/capacity', { recursive: true });
           writeFileSync('reports/capacity/backend30.json', JSON.stringify(report, null, 2));
           if (success && process.env.ASA_CAPACITY_SCRATCH_PROFILE === '1') {
@@ -787,9 +792,6 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             });
           }
         } finally {
-          opened.mockRestore();
-          projectLoads.mockRestore();
-          draftTargets.mockRestore();
           await observer.end();
           if (app) await app.close();
           else {
