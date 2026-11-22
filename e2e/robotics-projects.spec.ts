@@ -538,7 +538,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     .getByTestId('robotics-field-palette')
     .getByRole('button', { name: 'Мяч', exact: true });
   const card = await paletteBall.boundingBox();
-  const svg = page.locator('svg.robotics-field');
+  const svg = page.getByTestId('robotics-field');
   const drop = await svg.evaluate((element) => {
     if (!(element instanceof SVGSVGElement)) throw new Error('Actual Top SVG missing');
     const matrix = element.getScreenCTM();
