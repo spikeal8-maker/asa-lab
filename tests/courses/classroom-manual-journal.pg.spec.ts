@@ -729,20 +729,40 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
       'grade',
       input(f.columnId, f.a.seatId, 5, 1, 'Исправлена опечатка'),
     );
-    expect(five).toMatchObject({ value: 5, revision: 2, supersedesId: zero.id });
+    expect(five).toMatchObject({
+      value: 5,
+      revision: 2,
+      supersedesId: zero.id,
+      reason: 'Исправлена опечатка',
+    });
     expect(await write(f.classId, 'grade', zeroInput)).toEqual(zero); // receipt before stale revision
     expect(
       await write(f.classId, 'grade', input(f.columnId, f.a.seatId, 4, 1, 'Другой педагог')),
     ).toEqual({ error: 'revision_conflict' });
-    expect(await write(f.classId, 'grade', input(f.columnId, f.a.seatId, 4, 2))).toEqual({
+    const correction = input(f.columnId, f.a.seatId, 0, 2);
+    const corrected = await write(f.classId, 'grade', correction);
+    expect(corrected).toMatchObject({
+      value: 0,
+      revision: 3,
+      supersedesId: five.id,
+      reason: null,
+    });
+    expect(await write(f.classId, 'grade', correction)).toEqual(corrected);
+    expect(await write(f.classId, 'grade', input(f.columnId, f.a.seatId, null, 3))).toEqual({
       error: 'reason_required',
     });
+    expect((await read(f.classId)).grades).toEqual([corrected]);
     const clear = await write(
       f.classId,
       'grade',
-      input(f.columnId, f.a.seatId, null, 2, 'Оценка снята'),
+      input(f.columnId, f.a.seatId, null, 3, 'Оценка снята'),
     );
-    expect(clear).toMatchObject({ value: null, revision: 3, supersedesId: five.id });
+    expect(clear).toMatchObject({
+      value: null,
+      revision: 4,
+      supersedesId: corrected.id,
+      reason: 'Оценка снята',
+    });
     expect((await read(f.classId)).grades).toEqual([clear]);
     const history = (
       await app.query('SELECT classroom_journal_history($1,$2,$3,$4) AS value', [
@@ -752,10 +772,13 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
         f.a.seatId,
       ])
     ).rows[0].value.items;
-    expect(history.map((g: Grade) => g.value)).toEqual([null, 5, 0]);
+    expect(history.map((g: Grade) => g.value)).toEqual([null, 0, 5, 0]);
     expect(history.every((g: Grade) => g.authorId === teacherActor)).toBe(true);
     expect((await results(f.a.principalId))[0]).toMatchObject({ id: clear.id, value: null });
     expect(await results(f.b.principalId)).toEqual([]);
+    const restored = await write(f.classId, 'grade', input(f.columnId, f.a.seatId, 5, 4));
+    expect(restored).toMatchObject({ value: 5, revision: 5, supersedesId: clear.id, reason: null });
+    expect((await results(f.a.principalId))[0]).toMatchObject({ id: restored.id, value: 5 });
     const count = (
       await admin.query(
         `SELECT count(*)::integer AS count FROM learning_notifications WHERE event_key=$1`,

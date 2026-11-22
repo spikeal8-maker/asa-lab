@@ -89,7 +89,7 @@ function GradeHistory({
           <li key={r.id}>
             <strong>{journalRevisionLabel(column.preset, r.value)}</strong> · {r.authorName} ·{' '}
             {schoolTimeFormats(timeZone).dateTime(r.publishedAt)}
-            <p>{r.reason}</p>
+            {r.reason ? <p>{r.reason}</p> : null}
           </li>
         ))}
       </ol>
@@ -257,7 +257,9 @@ function CellEditor({
     mounted.current = true;
     panel.current
       ?.querySelector<HTMLElement>(
-        archived ? 'button:not(:disabled), summary' : 'input, button[data-level]:not(:disabled)',
+        archived
+          ? 'button:not(:disabled), summary'
+          : 'input[type="number"]:not(:disabled), button[data-level]:not(:disabled)',
       )
       ?.focus({ preventScroll: true });
     return () => {
@@ -269,8 +271,8 @@ function CellEditor({
   }, [grade?.revision, column.headerRevision, scaleVersion]);
   async function save(next: number | null) {
     if (saving.current || archived || conflict) return;
-    if (!mutation.current?.uncertain && grade && !reason.trim()) {
-      setError('Укажите причину исправления или очистки оценки.');
+    if (!mutation.current?.uncertain && next === null && grade && !reason.trim()) {
+      setError('Укажите причину очистки оценки.');
       return;
     }
     if (
@@ -382,10 +384,9 @@ function CellEditor({
         {grade ? <small>Сейчас: {journalRevisionLabel(column.preset, grade.value)}</small> : null}
         {grade && !archived && !uncertain ? (
           <label>
-            Причина изменения{' '}
+            Причина изменения (обязательна при очистке){' '}
             <input
               autoComplete="off"
-              required
               maxLength={500}
               value={reason}
               disabled={busy}
@@ -426,9 +427,7 @@ function CellEditor({
                 key={v}
                 data-level={v}
                 aria-label={journalAccessibleLabel(column.preset, v)}
-                disabled={
-                  busy || archived || conflict || uncertain || Boolean(grade && !reason.trim())
-                }
+                disabled={busy || archived || conflict || uncertain}
                 onClick={() => void save(v)}
               >
                 {journalGradeLabel(column.preset, v)}

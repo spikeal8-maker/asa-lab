@@ -377,7 +377,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   const correctionPayloads: {
     requestId: string;
     columnId: string;
-    reason: string;
+    reason: string | null;
     expectedRevision: number;
   }[] = [];
   await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
@@ -392,7 +392,10 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   });
   await cell(names[2], 3).click();
   const correctionEditor = journal.getByRole('region', { name: `Оценка: ${names[2]}` });
-  await correctionEditor.getByLabel('Причина изменения').fill('Точная причина исправления');
+  await expect(
+    correctionEditor.getByRole('button', { name: 'Очистить оценку', exact: true }),
+  ).toBeDisabled();
+  await expect(correctionEditor.getByRole('button', { name: '0', exact: true })).toBeFocused();
   await correctionEditor
     .getByRole('group', { name: 'Оценка' })
     .getByRole('button', { name: '4', exact: true })
@@ -409,7 +412,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   expect(correctionPayloads).toHaveLength(2);
   expect(correctionPayloads[1]).toEqual(correctionPayloads[0]);
   expect(correctionPayloads[0]).toMatchObject({
-    reason: 'Точная причина исправления',
+    reason: null,
     expectedRevision: 1,
   });
   const correctionSnapshot = await page.request
@@ -427,7 +430,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   expect(correctionHistory.items[0]).toMatchObject({
     value: 4,
     revision: 2,
-    reason: 'Точная причина исправления',
+    reason: null,
   });
   expect(await counts(classId)).toEqual({
     columns: 3,

@@ -9735,7 +9735,7 @@ components:
         Explicit header confirmation or atomic first grade. Supply exactly one of columnId and slotKey.
         slotKey is month:index and is stable across teachers. Virtual slots never write on GET.
         New slot dates must belong to the slot month. Supply seatId, value and expectedRevision together
-        to publish a grade, including zero. Existing grades require a reason for correction or null clear.
+        to publish a grade, including zero. Clearing an existing grade requires a reason. A non-null grade can omit it.
         New columns compare expectedScaleVersion; existing columns retain their pinned scale.
         Headers are append-only corrections with expectedHeaderRevision (0 initially).
         Current Account teacher authority and active class state precede replay. Retry the identical requestId
@@ -9963,7 +9963,7 @@ components:
           maximum: 100
           description:
             'Pinned preset: five 0..5, hundred 0..100, three_five 3/4/5, smileys/symbols 1..5.
-            Null clears an existing grade; zero is a grade.'
+            Null clears an existing grade and requires a reason. Zero is a grade and the reason is optional for a non-null value.'
         reason:
           type:
             - string
