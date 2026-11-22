@@ -1,0 +1,708 @@
+{
+  "actualPConfigGate": {
+    "bytes": 2392,
+    "file": "actual-p-gate.json",
+    "result": "PASS_WITH_TAMPER_REJECTED_NO_NATIVE",
+    "sha256": "b9eda5e70400396001b0ed41aaccb22770ec7e66fdc5393dd2b730aa47b42c6b"
+  },
+  "actual_archive": {
+    "changed": [
+      "engine_collision_gjk.c.o"
+    ],
+    "members": 72,
+    "same_member_order": true,
+    "unchanged": 71
+  },
+  "actual_main_scope": {
+    "convergence": "NOT_PERFORMED_READ_ONLY_REVIEW",
+    "main": "699ea3a2641e46c7d339ac888c2abeba517613ec",
+    "merge_base": "16af8e74f604aad9dee98e1129467d389a873861",
+    "robotics_lane_text": "EXACT_UNCHANGED",
+    "unrelated_paths": [
+      "docs/product/electronics/generated/component-coverage.json",
+      "e2e/electronics-classroom-timing.spec.ts",
+      "e2e/electronics-interactions.spec.ts",
+      "e2e/electronics-selection-outline.spec.ts",
+      "e2e/electronics-simulation.spec.ts",
+      "tests/electronics/classroom-qualification.spec.ts"
+    ]
+  },
+  "actual_shared_trees": {
+    "emscripten-sdk-tree": {
+      "bytes": 1560318872,
+      "files": 18937,
+      "sha256": "1575cbcfcda9494fca1b08a81cc846b461cfafe40e37a44657db40bfb7aea324"
+    },
+    "python-tool-tree": {
+      "bytes": 162813819,
+      "files": 5074,
+      "sha256": "9b83bb14781dca52274f6f912fcb0faa6c0b8de8a38672cfd781279ed7f5b230"
+    },
+    "seed-cache-tree": {
+      "bytes": 394412848,
+      "files": 1877,
+      "sha256": "1f4158a797617e279f45ee9363de8356e75ec3ee3312a5e29cd574a89a349647"
+    }
+  },
+  "artifact_files": {
+    "archive": {
+      "bytes": 7738554,
+      "file": "input/lib/libmujoco.a",
+      "sha256": "116e077595f58d6d669a5a232da3c4bd1960cb77deb0082c433d3ee4ad6068f7"
+    },
+    "declarations": {
+      "bytes": 151568,
+      "file": "artifact/mujoco.d.ts",
+      "sha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff"
+    },
+    "glue": {
+      "bytes": 331846,
+      "file": "artifact/mujoco.js",
+      "sha256": "1d54896f5b56bc073316d369a2819f334738ce7c2f90e84999d98fb84ffc7faf"
+    },
+    "object": {
+      "bytes": 262040,
+      "file": "object/engine_collision_gjk.c.o",
+      "sha256": "4483b6ff37e660aa99fd42543fde622e5371ecdcacda35f742987b85e9576f40"
+    },
+    "patchedSource": {
+      "bytes": 117133,
+      "file": "source/engine_collision_gjk.c",
+      "sha256": "50a0993e1052667e101bf43fc267877b23a8d3b89a2d9fa2a439506b8162430e"
+    },
+    "wasm": {
+      "bytes": 11236359,
+      "file": "artifact/mujoco.wasm",
+      "sha256": "a5152088cf06d4167e71890fd8e4df244b4860d07dd077e24f16f084cd5506da"
+    }
+  },
+  "auditor": {
+    "bytes": 18327,
+    "sha256": "7abfbeee27aa51eb2f9242918528e8b74e8f5ce9fecabeb5c5deea39acd51840"
+  },
+  "checks": [
+    "23 actual WASM exported API names and kinds unchanged",
+    "72 archive objects",
+    "AOT no runtime dynamic code creation",
+    "Git blob binding fixture",
+    "Git blob binding patch",
+    "Git blob binding spec",
+    "Node compile cache disabled",
+    "V2 inverse actual V1 artifact source",
+    "V2 inverse exact previously linked V1 source",
+    "WASM full section",
+    "WASM header",
+    "actual SDK metadata suppresses programMain and final factory mode",
+    "actual archive equality flag",
+    "actual archive member digests",
+    "actual compiled GJK bytes in archive",
+    "actual config selected",
+    "actual current main accepted ancestor",
+    "actual inherited GJK compile database row",
+    "actual main robotics selection whole lane text exact",
+    "actual private copied cache byte-identical and unchanged",
+    "all inherited license notices",
+    "all link flags input roles/order output roles exact",
+    "all mutable child output roles private",
+    "all numerical source operations inverse BYTE_EXACT",
+    "all progress final/app native counters zero",
+    "all reported final/app native counters zero",
+    "archive exact end unique names",
+    "archive exact member order",
+    "archive header",
+    "archive member full bytes",
+    "both V2 framing markers in private artifact",
+    "bounded ULEB",
+    "builder static has exactly compile/archive/link invocations no app module load",
+    "command returned exit0 archive",
+    "command returned exit0 compile",
+    "command returned exit0 link",
+    "compile flags/includes/order exact only declared source-output relocations",
+    "compile private cwd with absolute inputs",
+    "complete WASM sections",
+    "current accepted main only six unrelated electronics paths",
+    "declarations byte exact unchanged",
+    "declared exact build and app limits",
+    "exact one GJK replaced 71 byte-identical",
+    "exact original context",
+    "exact pin actual compiled patched GJK",
+    "exact pin archive stderr",
+    "exact pin archive stdout",
+    "exact pin compile database",
+    "exact pin compile stderr",
+    "exact pin compile stdout",
+    "exact pin final progress",
+    "exact pin inherited Temp/a1168b-2678fb17/build/CMakeFiles/mujoco.dir/src/engine/engine_collision_gjk.c.o",
+    "exact pin inherited Temp/a1168b-2678fb17/build/lib/libccd.a",
+    "exact pin inherited Temp/a1168b-2678fb17/build/lib/libminiz.a",
+    "exact pin inherited Temp/a1168b-2678fb17/build/lib/libmujoco.a",
+    "exact pin inherited Temp/a1168b-2678fb17/build/lib/libqhullstatic_r.a",
+    "exact pin inherited Temp/a1168b-2678fb17/build/lib/libtinyobjloader.a",
+    "exact pin inherited Temp/a1168b-2678fb17/build/lib/libtinyxml2.a",
+    "exact pin inherited Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/codegen/generated/bindings.cc.o",
+    "exact pin inherited Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/unpack.cc.o",
+    "exact pin inherited build receipt",
+    "exact pin link stderr",
+    "exact pin link stdout",
+    "exact pin original license Emscripten-LICENSE",
+    "exact pin original license MuJoCo-LICENSE",
+    "exact pin original license ccd-BSD-LICENSE",
+    "exact pin original license compiler-rt-LICENSE",
+    "exact pin original license libc-musl-COPYRIGHT",
+    "exact pin original license libcxx-LICENSE",
+    "exact pin original license libcxxabi-LICENSE",
+    "exact pin original license libunwind-LICENSE",
+    "exact pin original license llvm-libc-LICENSE",
+    "exact pin original license lodepng-LICENSE",
+    "exact pin original license marchingcubecpp-README.md",
+    "exact pin original license mimalloc-LICENSE",
+    "exact pin original license miniz-LICENSE",
+    "exact pin original license qhull-COPYING.txt",
+    "exact pin original license tinyobjloader-LICENSE",
+    "exact pin original license tinyxml2-LICENSE.txt",
+    "exact pin private archive",
+    "exact pin private config",
+    "exact pin private declarations",
+    "exact pin private glue",
+    "exact pin private license Emscripten-LICENSE",
+    "exact pin private license MuJoCo-LICENSE",
+    "exact pin private license ccd-BSD-LICENSE",
+    "exact pin private license compiler-rt-LICENSE",
+    "exact pin private license libc-musl-COPYRIGHT",
+    "exact pin private license libcxx-LICENSE",
+    "exact pin private license libcxxabi-LICENSE",
+    "exact pin private license libunwind-LICENSE",
+    "exact pin private license llvm-libc-LICENSE",
+    "exact pin private license lodepng-LICENSE",
+    "exact pin private license marchingcubecpp-README.md",
+    "exact pin private license mimalloc-LICENSE",
+    "exact pin private license miniz-LICENSE",
+    "exact pin private license qhull-COPYING.txt",
+    "exact pin private license tinyobjloader-LICENSE",
+    "exact pin private license tinyxml2-LICENSE.txt",
+    "exact pin private object",
+    "exact pin private patchedSource",
+    "exact pin private receipt",
+    "exact pin private wasm",
+    "exact pin reused input/lib/libccd.a",
+    "exact pin reused input/lib/libminiz.a",
+    "exact pin reused input/lib/libqhullstatic_r.a",
+    "exact pin reused input/lib/libtinyobjloader.a",
+    "exact pin reused input/lib/libtinyxml2.a",
+    "exact pin reused input/wasm/CMakeFiles/mujoco_wasm.dir/codegen/generated/bindings.cc.o",
+    "exact pin reused input/wasm/CMakeFiles/mujoco_wasm.dir/unpack.cc.o",
+    "exact pin reviewed fixture",
+    "exact pin reviewed patch",
+    "exact pin reviewed spec",
+    "exact pin sealed controller builder",
+    "exact pin shared unchanged GJK",
+    "exact pin unchanged build recipe Temp/a1168b-2678fb17/build/CMakeFiles/rules.ninja",
+    "exact pin unchanged build recipe Temp/a1168b-2678fb17/build/build.ninja",
+    "exact three build command identities",
+    "existing printErr channel retained",
+    "export section exact end",
+    "five empty build streams",
+    "glue exact except one ASM_CONSTS address relocation",
+    "hunk length identities",
+    "independent actual shared tree hash Programs/Python/Python313",
+    "independent actual shared tree hash Temp/a1168t-be981f4a/cache",
+    "independent actual shared tree hash Temp/a1168t-be981f4a/sdk/install",
+    "independent full patch application exact",
+    "inherited frozen recipes verbatim",
+    "link cwd same private role",
+    "logged actual command binding",
+    "member identity same",
+    "metadata distinction correctly reported",
+    "no engine trace during build archivestderr",
+    "no engine trace during build archivestdout",
+    "no engine trace during build compilestderr",
+    "no engine trace during build compilestdout",
+    "no engine trace during build linkstderr",
+    "no engine trace during build linkstdout",
+    "normal archive magic",
+    "old AOT glue unchanged",
+    "old WASM unchanged",
+    "one exports section",
+    "only inherited debug-info optimization warning",
+    "ordered patch hunks",
+    "ordinary inherited declaration/AOT metadata phase explicit",
+    "patch line type",
+    "private baseline object original",
+    "private baseline source original",
+    "private frozen cache config",
+    "progress commands match final receipt",
+    "progress complete without errors",
+    "reported protected trees unchanged",
+    "reused input bytes equal original",
+    "same Python isolated driver",
+    "same SDK compiler driver",
+    "same inherited compiler versions/receipts",
+    "same modularized ES factory export",
+    "seven reused binding/dependency inputs",
+    "shared tree has no symlink",
+    "single GJK patch file",
+    "single trace-only signature/context rewrite",
+    "source HIGH exact commit",
+    "source HIGH exact tree",
+    "source clean no mutation",
+    "trace marker belongs only to private WASM",
+    "valid patch hunk"
+  ],
+  "checks_passed": 31624,
+  "commands": {
+    "archive_exit": 0,
+    "compile_exit": 0,
+    "link_exit": 0,
+    "stderr_bytes": [
+      0,
+      0,
+      144
+    ],
+    "stdout_bytes": [
+      0,
+      0,
+      0
+    ],
+    "warning": "inherited limited Binaryen optimization with DWARF only"
+  },
+  "declared_app_lifecycle": {
+    "data": 0,
+    "finalFactoryCalls": 0,
+    "finalGlueImports": 0,
+    "forward": 0,
+    "fwdPosition": 0,
+    "geomDistance": 0,
+    "model": 0,
+    "step1": 0,
+    "step2": 0
+  },
+  "glue": "byte-exact except one ASM_CONSTS address relocation; same printErr and factory contract",
+  "metadata_limit": "Ordinary inherited Emscripten AOT/emit-tsd binding-metadata generation is present. It is distinct from importing/calling the final candidate factory or creating an application model/data; no claim of zero compiler metadata WASM activity.",
+  "pins": {
+    "actual compiled patched GJK": {
+      "bytes": 117133,
+      "sha256": "50a0993e1052667e101bf43fc267877b23a8d3b89a2d9fa2a439506b8162430e"
+    },
+    "archive stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "archive stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "compile database": {
+      "bytes": 213635,
+      "sha256": "1fe62051e1b08cf198997ba08c2041c559d3af40d84d04c0b684c4a35d959ab3"
+    },
+    "compile stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "compile stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "final progress": {
+      "bytes": 27367,
+      "sha256": "890b2e80cb97d9b1d9272fa84ffde26abe22197483b1a9e1e8dd31f5579aab97"
+    },
+    "inherited Temp/a1168b-2678fb17/build/CMakeFiles/mujoco.dir/src/engine/engine_collision_gjk.c.o": {
+      "bytes": 53584,
+      "sha256": "018025bb9b4aa97263637d38660be5df98fbc3c12f62d45f1c9b1bf36005b5fd"
+    },
+    "inherited Temp/a1168b-2678fb17/build/lib/libccd.a": {
+      "bytes": 28778,
+      "sha256": "9f1142d029705678ede7e2ba1ff3c04233c2f153168405fa3fd978f2c17b5608"
+    },
+    "inherited Temp/a1168b-2678fb17/build/lib/libminiz.a": {
+      "bytes": 100328,
+      "sha256": "07630a753da107ac9edd35e5dae8a270bfb10b13f402851b830e07677bed9e2c"
+    },
+    "inherited Temp/a1168b-2678fb17/build/lib/libmujoco.a": {
+      "bytes": 7530098,
+      "sha256": "75d00019baa48eff25c1ee189f9b1eb3494c1c2e2a395d31112532a5b1ab6b68"
+    },
+    "inherited Temp/a1168b-2678fb17/build/lib/libqhullstatic_r.a": {
+      "bytes": 594956,
+      "sha256": "03cc84a446e9dfd1049aab3ab39d1208efb2a598147fb5a69318f4fdb3a7dfcc"
+    },
+    "inherited Temp/a1168b-2678fb17/build/lib/libtinyobjloader.a": {
+      "bytes": 182248,
+      "sha256": "5c54b2ebb1787029f62896b5e6f45ec042f5659b7ea8a72154809caeb6b84d14"
+    },
+    "inherited Temp/a1168b-2678fb17/build/lib/libtinyxml2.a": {
+      "bytes": 106432,
+      "sha256": "2d558c7c815d92e8814033428b8b02f49554c013ec3d1952fa90823841e41df3"
+    },
+    "inherited Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/codegen/generated/bindings.cc.o": {
+      "bytes": 3061548,
+      "sha256": "3949561c1a9333d3d2ed28bf4566a71ee9c0748e9016bd48343776a17ee20df7"
+    },
+    "inherited Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/unpack.cc.o": {
+      "bytes": 2200,
+      "sha256": "6ee15dfa98944fc77dc92ea43f5ef09fc3c01a526f0614a047a21858ab790ac8"
+    },
+    "inherited build receipt": {
+      "bytes": 15869,
+      "sha256": "c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9"
+    },
+    "link stderr": {
+      "bytes": 144,
+      "sha256": "a896512ef0da044d420e6c7f1b359c4efefdb4232da2daae38f31b606780b28c"
+    },
+    "link stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "original license Emscripten-LICENSE": {
+      "bytes": 5093,
+      "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86"
+    },
+    "original license MuJoCo-LICENSE": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "original license ccd-BSD-LICENSE": {
+      "bytes": 2070,
+      "sha256": "b175a981bfccf7e1e6c2f6fbda3fde0827aaa51808a983b10c8c7e6183c44a11"
+    },
+    "original license compiler-rt-LICENSE": {
+      "bytes": 16708,
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    "original license libc-musl-COPYRIGHT": {
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    "original license libcxx-LICENSE": {
+      "bytes": 16703,
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    "original license libcxxabi-LICENSE": {
+      "bytes": 16706,
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    "original license libunwind-LICENSE": {
+      "bytes": 16706,
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    },
+    "original license llvm-libc-LICENSE": {
+      "bytes": 15140,
+      "sha256": "ebcd9bbf783a73d05c53ba4d586b8d5813dcdf3bbec50265860ccc885e606f47"
+    },
+    "original license lodepng-LICENSE": {
+      "bytes": 886,
+      "sha256": "bdafa318b8e637d600ca1b60545e894881977a16a16b74809c95e805701621e3"
+    },
+    "original license marchingcubecpp-README.md": {
+      "bytes": 1899,
+      "sha256": "ffeb6411f3030f8fcdf8ac11d3cd957f129bfab35ef624f5566e84e4d0172285"
+    },
+    "original license mimalloc-LICENSE": {
+      "bytes": 1096,
+      "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+    },
+    "original license miniz-LICENSE": {
+      "bytes": 1184,
+      "sha256": "0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3"
+    },
+    "original license qhull-COPYING.txt": {
+      "bytes": 1720,
+      "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d"
+    },
+    "original license tinyobjloader-LICENSE": {
+      "bytes": 1902,
+      "sha256": "19e1b0242709694c6671369609544993a2dfcef8477f1aa19bd30de35ec58caa"
+    },
+    "original license tinyxml2-LICENSE.txt": {
+      "bytes": 808,
+      "sha256": "9332252e9b9e46db8285d4a3f0bf25f139bf1dca6781b956d57f2302efca6432"
+    },
+    "private archive": {
+      "bytes": 7738554,
+      "sha256": "116e077595f58d6d669a5a232da3c4bd1960cb77deb0082c433d3ee4ad6068f7"
+    },
+    "private config": {
+      "bytes": 410,
+      "sha256": "ce2d0c430d1b44829d8a31800339b4a759653f61286799e42a690cf7dfffd434"
+    },
+    "private declarations": {
+      "bytes": 151568,
+      "sha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff"
+    },
+    "private glue": {
+      "bytes": 331846,
+      "sha256": "1d54896f5b56bc073316d369a2819f334738ce7c2f90e84999d98fb84ffc7faf"
+    },
+    "private license Emscripten-LICENSE": {
+      "bytes": 5093,
+      "sha256": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86"
+    },
+    "private license MuJoCo-LICENSE": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "private license ccd-BSD-LICENSE": {
+      "bytes": 2070,
+      "sha256": "b175a981bfccf7e1e6c2f6fbda3fde0827aaa51808a983b10c8c7e6183c44a11"
+    },
+    "private license compiler-rt-LICENSE": {
+      "bytes": 16708,
+      "sha256": "1a8f1058753f1ba890de984e48f0242a3a5c29a6a8f2ed9fd813f36985387e8d"
+    },
+    "private license libc-musl-COPYRIGHT": {
+      "bytes": 6204,
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af"
+    },
+    "private license libcxx-LICENSE": {
+      "bytes": 16703,
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    "private license libcxxabi-LICENSE": {
+      "bytes": 16706,
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    "private license libunwind-LICENSE": {
+      "bytes": 16706,
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    },
+    "private license llvm-libc-LICENSE": {
+      "bytes": 15140,
+      "sha256": "ebcd9bbf783a73d05c53ba4d586b8d5813dcdf3bbec50265860ccc885e606f47"
+    },
+    "private license lodepng-LICENSE": {
+      "bytes": 886,
+      "sha256": "bdafa318b8e637d600ca1b60545e894881977a16a16b74809c95e805701621e3"
+    },
+    "private license marchingcubecpp-README.md": {
+      "bytes": 1899,
+      "sha256": "ffeb6411f3030f8fcdf8ac11d3cd957f129bfab35ef624f5566e84e4d0172285"
+    },
+    "private license mimalloc-LICENSE": {
+      "bytes": 1096,
+      "sha256": "19c99805e7a44a34b297a75d1edea9985e300066dfc024d5c99d4236d4573b5d"
+    },
+    "private license miniz-LICENSE": {
+      "bytes": 1184,
+      "sha256": "0115478d567121238cf6cc1c0c361926cf07a49d9e4c9e66da97fac6a01646b3"
+    },
+    "private license qhull-COPYING.txt": {
+      "bytes": 1720,
+      "sha256": "106d55c931fd6a84822e5345d900273d059f1c27310d02567ccb313c5d18c55d"
+    },
+    "private license tinyobjloader-LICENSE": {
+      "bytes": 1902,
+      "sha256": "19e1b0242709694c6671369609544993a2dfcef8477f1aa19bd30de35ec58caa"
+    },
+    "private license tinyxml2-LICENSE.txt": {
+      "bytes": 808,
+      "sha256": "9332252e9b9e46db8285d4a3f0bf25f139bf1dca6781b956d57f2302efca6432"
+    },
+    "private object": {
+      "bytes": 262040,
+      "sha256": "4483b6ff37e660aa99fd42543fde622e5371ecdcacda35f742987b85e9576f40"
+    },
+    "private patchedSource": {
+      "bytes": 117133,
+      "sha256": "50a0993e1052667e101bf43fc267877b23a8d3b89a2d9fa2a439506b8162430e"
+    },
+    "private receipt": {
+      "bytes": 42486,
+      "sha256": "8b6261d26e82f02976befc6370164b9ca8f529850a62005534d2b9a508fcd73f"
+    },
+    "private wasm": {
+      "bytes": 11236359,
+      "sha256": "a5152088cf06d4167e71890fd8e4df244b4860d07dd077e24f16f084cd5506da"
+    },
+    "reused input/lib/libccd.a": {
+      "bytes": 28778,
+      "sha256": "9f1142d029705678ede7e2ba1ff3c04233c2f153168405fa3fd978f2c17b5608"
+    },
+    "reused input/lib/libminiz.a": {
+      "bytes": 100328,
+      "sha256": "07630a753da107ac9edd35e5dae8a270bfb10b13f402851b830e07677bed9e2c"
+    },
+    "reused input/lib/libqhullstatic_r.a": {
+      "bytes": 594956,
+      "sha256": "03cc84a446e9dfd1049aab3ab39d1208efb2a598147fb5a69318f4fdb3a7dfcc"
+    },
+    "reused input/lib/libtinyobjloader.a": {
+      "bytes": 182248,
+      "sha256": "5c54b2ebb1787029f62896b5e6f45ec042f5659b7ea8a72154809caeb6b84d14"
+    },
+    "reused input/lib/libtinyxml2.a": {
+      "bytes": 106432,
+      "sha256": "2d558c7c815d92e8814033428b8b02f49554c013ec3d1952fa90823841e41df3"
+    },
+    "reused input/wasm/CMakeFiles/mujoco_wasm.dir/codegen/generated/bindings.cc.o": {
+      "bytes": 3061548,
+      "sha256": "3949561c1a9333d3d2ed28bf4566a71ee9c0748e9016bd48343776a17ee20df7"
+    },
+    "reused input/wasm/CMakeFiles/mujoco_wasm.dir/unpack.cc.o": {
+      "bytes": 2200,
+      "sha256": "6ee15dfa98944fc77dc92ea43f5ef09fc3c01a526f0614a047a21858ab790ac8"
+    },
+    "reviewed fixture": {
+      "bytes": 47796,
+      "sha256": "a7a18ecd8cbd9227ab16514265458b0dfb5bf953ef72c711ca3d400cc7c073de"
+    },
+    "reviewed patch": {
+      "bytes": 21248,
+      "sha256": "58e663444cb6855d28affcdb6dcf856fb2e1f86d972bd9976e1320a52594df27"
+    },
+    "reviewed spec": {
+      "bytes": 193331,
+      "sha256": "ec3197fba825a111aa9de288507ceeb60742ab9217995c19c62e3da23312e688"
+    },
+    "sealed controller builder": {
+      "bytes": 17008,
+      "sha256": "2522b403ac8feb4ea37ed5058a0abc12b17ffcbe8bfef88b2089ce55cf576264"
+    },
+    "shared unchanged GJK": {
+      "bytes": 97882,
+      "sha256": "ae835b6af989458e3e30f4f9b76609afb62a81fdd3f4f13fbdbb18f40100e5c7"
+    },
+    "unchanged build recipe Temp/a1168b-2678fb17/build/CMakeFiles/rules.ninja": {
+      "bytes": 33350,
+      "sha256": "44b93a4ffd899d26a1fd606644bcec9c76cd184e9d645659308aecefdc1b32d7"
+    },
+    "unchanged build recipe Temp/a1168b-2678fb17/build/build.ninja": {
+      "bytes": 376230,
+      "sha256": "eb39d66333520f63cb2fbd4f9d4d0cbbe4b4b1bc863aee352d6de073983285b6"
+    }
+  },
+  "private_receipt": {
+    "bytes": 42486,
+    "sha256": "8b6261d26e82f02976befc6370164b9ca8f529850a62005534d2b9a508fcd73f"
+  },
+  "remaining_admission": "Controller must freeze same source/fixture/private receipt/assets and unique output, reject ambiguous tokens, enforce public exact-bit old-output parity and four-only trace/call budgets. This HIGH is not observed runtime parity or physical/D01/D02 acceptance.",
+  "reviewer_actions": "Disk/source/hash/ar/WASM-section parsing and read-only Git only. No JS import, WASM compilation/instantiation, native call, build/relink or repository mutation.",
+  "schema": "ASA_INDEPENDENT_PRIVATE_EPA_POLYTOPE_ARTIFACT_AUDIT_V2",
+  "source": {
+    "commit": "e9106acc78a9610fbf374495e3dc233a34c782db",
+    "fixture": {
+      "bytes": 47796,
+      "sha256": "a7a18ecd8cbd9227ab16514265458b0dfb5bf953ef72c711ca3d400cc7c073de"
+    },
+    "numericalInverse": "BYTE_EXACT",
+    "originalC": {
+      "bytes": 97882,
+      "sha256": "ae835b6af989458e3e30f4f9b76609afb62a81fdd3f4f13fbdbb18f40100e5c7"
+    },
+    "patch": {
+      "bytes": 21248,
+      "sha256": "58e663444cb6855d28affcdb6dcf856fb2e1f86d972bd9976e1320a52594df27"
+    },
+    "patchedC": {
+      "bytes": 117133,
+      "sha256": "50a0993e1052667e101bf43fc267877b23a8d3b89a2d9fa2a439506b8162430e"
+    },
+    "spec": {
+      "bytes": 193331,
+      "sha256": "ec3197fba825a111aa9de288507ceeb60742ab9217995c19c62e3da23312e688"
+    },
+    "tree": "23235f13b8e4c0cbd3ae364ce42b03530390adb0",
+    "v1Source": {
+      "bytes": 107828,
+      "sha256": "a54744118374a7f809cd8d708ba729888f9d988591ce198de4a6b6e70c5da90f"
+    },
+    "v1ToOriginalInverse": "BYTE_EXACT",
+    "v2ToV1Inverse": "BYTE_EXACT"
+  },
+  "verdict": "HIGH_GO_FOR_ONE_FROZEN_CONTROLLER_POSITION_ONLY_TRACE",
+  "wasm_exports": [
+    {
+      "kind": 2,
+      "name": "memory"
+    },
+    {
+      "kind": 0,
+      "name": "__wasm_call_ctors"
+    },
+    {
+      "kind": 0,
+      "name": "__getTypeName"
+    },
+    {
+      "kind": 0,
+      "name": "malloc"
+    },
+    {
+      "kind": 0,
+      "name": "__cxa_free_exception"
+    },
+    {
+      "kind": 1,
+      "name": "__indirect_function_table"
+    },
+    {
+      "kind": 0,
+      "name": "free"
+    },
+    {
+      "kind": 0,
+      "name": "fflush"
+    },
+    {
+      "kind": 0,
+      "name": "emscripten_stack_get_end"
+    },
+    {
+      "kind": 0,
+      "name": "emscripten_stack_get_base"
+    },
+    {
+      "kind": 0,
+      "name": "strerror"
+    },
+    {
+      "kind": 0,
+      "name": "setThrew"
+    },
+    {
+      "kind": 0,
+      "name": "_emscripten_tempret_set"
+    },
+    {
+      "kind": 0,
+      "name": "emscripten_stack_init"
+    },
+    {
+      "kind": 0,
+      "name": "emscripten_stack_get_free"
+    },
+    {
+      "kind": 0,
+      "name": "_emscripten_stack_restore"
+    },
+    {
+      "kind": 0,
+      "name": "_emscripten_stack_alloc"
+    },
+    {
+      "kind": 0,
+      "name": "emscripten_stack_get_current"
+    },
+    {
+      "kind": 0,
+      "name": "__cxa_decrement_exception_refcount"
+    },
+    {
+      "kind": 0,
+      "name": "__cxa_increment_exception_refcount"
+    },
+    {
+      "kind": 0,
+      "name": "__get_exception_message"
+    },
+    {
+      "kind": 0,
+      "name": "__cxa_can_catch"
+    },
+    {
+      "kind": 0,
+      "name": "__cxa_get_exception_ptr"
+    }
+  ]
+}

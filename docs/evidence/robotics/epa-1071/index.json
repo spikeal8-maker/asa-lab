@@ -1,0 +1,127 @@
+{
+  "baselineMain": "8041120bd9d27c7989c89f58b66b54504054aee1",
+  "files": {
+    "README.md": {
+      "bytes": 4875,
+      "sha256": "48d4d5845bfc99cb20ecdbde4ad573b34a40e0f82e7b363b77a590e7c0bb765f"
+    },
+    "independent-epa-polytope-raw-audit.public.json": {
+      "bytes": 91859,
+      "sha256": "c1b29fe8780a9ec4b91161d0af6e97a9b16981fcd6b346ddbebac4b310cb9e16"
+    },
+    "independent-private-artifact-high.public.json": {
+      "bytes": 25969,
+      "sha256": "6ad8594a84386ec051e0e3ebad7626dd00d5d1c1b1684dc8cf16b6bfd3f2c14e"
+    },
+    "mujoco-cylinder-epa-polytope-trace.jsonl": {
+      "bytes": 1567508,
+      "sha256": "f86a1361069b3f83279826b9cac354143efc6a0722d0ad8fdaf9a26beb058520"
+    }
+  },
+  "historicalInputsIndexedOnly": {
+    "mujoco-cylinder-primary-trace.jsonl": {
+      "bytes": 400171,
+      "sha256": "ced5f7250dd108cd039bac61d8a45af4f0d10437ce38228877532eab90b3a758"
+    },
+    "mujoco-union-cylinder-static-witness.jsonl": {
+      "bytes": 324264,
+      "sha256": "d1a98b2f0debebf457b3978646331ff6e0379d6c7af328d470e22d70750c4a17"
+    },
+    "private-build-receipt.json": {
+      "bytes": 42486,
+      "sha256": "8b6261d26e82f02976befc6370164b9ca8f529850a62005534d2b9a508fcd73f"
+    }
+  },
+  "knownOutcome": "COMPLETE_VALID_POSITION_ONLY_POLYTOPE_OBSERVATION_PHYSICAL_FAIL_GAP_UNCHANGED",
+  "originalReports": {
+    "independent-epa-polytope-raw-audit.json": {
+      "bytes": 96157,
+      "sha256": "8f09ea2bdedde2cd8c56b4fc0224fd7c26e730291d7db9a14ca4dbebafd6ca0c"
+    },
+    "independent-private-artifact-high.json": {
+      "bytes": 26077,
+      "sha256": "1698d5c06f23efc06a5cfada590b29b8fa4ab68fa9395ffc3bb1da9a9205d399"
+    }
+  },
+  "sanitation": {
+    "credentialsAndLocalPaths": "NONE_IN_PUBLIC_PAYLOAD",
+    "numericalEvidence": "UNCHANGED",
+    "publicReportTransformations": {
+      "independent-epa-polytope-raw-audit.public.json": [
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "mujoco-cylinder-epa-polytope-trace.jsonl"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "mujoco-cylinder-primary-trace.jsonl"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "mujoco-union-cylinder-static-witness.jsonl"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "mujoco.js"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "mujoco.wasm"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "private-build-receipt.json"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "mujoco-cylinder-epa-polytope-trace.fixture.json"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/pins",
+          "publicKey": "mujoco-union-cylinder-static-witness.spec.ts"
+        }
+      ],
+      "independent-private-artifact-high.public.json": [
+        {
+          "kind": "portable-key",
+          "parent": "/actual_shared_trees",
+          "publicKey": "python-tool-tree"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/actual_shared_trees",
+          "publicKey": "seed-cache-tree"
+        },
+        {
+          "kind": "portable-key",
+          "parent": "/actual_shared_trees",
+          "publicKey": "emscripten-sdk-tree"
+        },
+        {
+          "field": "/actualPConfigGate/file",
+          "kind": "portable-value"
+        }
+      ]
+    },
+    "raw": "NONE_BYTE_EXACT"
+  },
+  "schema": "ASA_PUBLIC_EPA_1071_EVIDENCE_V1",
+  "scope": "archival-evidence-only; no native execution or product acceptance",
+  "source": {
+    "commit": "e9106acc78a9610fbf374495e3dc233a34c782db",
+    "tree": "23235f13b8e4c0cbd3ae364ce42b03530390adb0"
+  },
+  "sourcePublication": {
+    "head": "189f1a4a275a52c8f6ccbd9ccfbb82e5c40cc3b5",
+    "pr": 1314,
+    "snapshot": "OPEN_PROTECTED_CI_PENDING"
+  }
+}
