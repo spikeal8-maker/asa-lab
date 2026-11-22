@@ -35,6 +35,7 @@ function ProjectList({
   const [limit, setLimit] = useState(30);
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<ObservationProjectsPage | null>(null);
+  const [snapshotRefresh, setSnapshotRefresh] = useState(0);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [learners, setLearners] = useState<ObservationProjectsPage['learners']>([]);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +95,9 @@ function ProjectList({
         return;
       }
       setPage(result.data);
+      // A new snapshot can arrive without changing the project's draft date.
+      const refreshedAt = Date.now();
+      setSnapshotRefresh((previous) => Math.max(refreshedAt, previous + 1));
       setPreviewId((id) => (result.data.items.some((work) => work.id === id) ? id : null));
       setLearners(result.data.learners);
       setBusy(false);
@@ -224,6 +228,7 @@ function ProjectList({
                     <span className="observation-project-picture">
                       <WorkSnapshot
                         projectId={work.id}
+                        refresh={snapshotRefresh}
                         alt=""
                         lazy
                         fallback={<span>Без снимка</span>}
@@ -294,6 +299,7 @@ function ProjectList({
         <WorkPreview
           key={preview.id}
           readOnly
+          snapshotRefresh={snapshotRefresh}
           projectId={preview.id}
           moduleKey={preview.moduleKey}
           learnerName={preview.student}

@@ -27,6 +27,7 @@ const BADGES: ReadonlyArray<{ value: string; label: string }> = [
 export function WorkSnapshot({
   projectId,
   revision,
+  refresh,
   alt,
   lazy = false,
   fallback,
@@ -35,19 +36,23 @@ export function WorkSnapshot({
   readonly projectId: string;
   /** Undefined requests the latest protected snapshot; null means none is known to exist. */
   readonly revision?: number | null | undefined;
+  /** Revalidate the current snapshot after an accepted classroom list refresh. */
+  readonly refresh?: number | undefined;
   readonly alt: string;
   readonly lazy?: boolean;
   readonly fallback: ReactNode;
   readonly testId?: string;
 }): JSX.Element {
+  const latestQuery = refresh === undefined ? '' : `?refresh=${refresh}`;
   const source =
     revision === null
       ? null
-      : `/api/projects/${encodeURIComponent(projectId)}/snapshot${revision === undefined ? '' : `?rev=${revision}`}`;
+      : `/api/projects/${encodeURIComponent(projectId)}/snapshot${revision === undefined ? latestQuery : `?rev=${revision}`}`;
   const [failedSource, setFailedSource] = useState<string | null>(null);
   if (!source || failedSource === source) return <>{fallback}</>;
   return (
     <img
+      key={source}
       src={source}
       alt={alt}
       loading={lazy ? 'lazy' : 'eager'}
@@ -62,6 +67,7 @@ export function WorkSnapshot({
 export function WorkPreview({
   projectId,
   snapshotRevision,
+  snapshotRefresh,
   moduleKey,
   learnerName,
   workTitle,
@@ -89,10 +95,16 @@ export function WorkPreview({
   readonly onClose: () => void;
   readonly onOpenEditor: () => void;
 } & (
-  | { readonly readOnly: true; readonly snapshotRevision?: never; readonly onGraded?: never }
+  | {
+      readonly readOnly: true;
+      readonly snapshotRevision?: never;
+      readonly snapshotRefresh: number;
+      readonly onGraded?: never;
+    }
   | {
       readonly readOnly?: false;
       readonly snapshotRevision: number | null;
+      readonly snapshotRefresh?: never;
       readonly onGraded: () => void;
     }
 )): JSX.Element {
@@ -182,6 +194,7 @@ export function WorkPreview({
             <WorkSnapshot
               projectId={projectId}
               revision={snapshotRevision}
+              refresh={snapshotRefresh}
               alt={`Работа ученика ${learnerName}`}
               testId="work-preview-image"
               fallback={

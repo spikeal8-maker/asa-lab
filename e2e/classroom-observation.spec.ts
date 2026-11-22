@@ -137,11 +137,6 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       data: { status: 'archived' },
     });
     expect(archived.ok(), await archived.text()).toBe(true);
-    // A real successful explicit logout; closing the page is never evidence.
-    const logout = await student.request.post('/api/class-join/logout', {
-      headers: { origin: new URL(student.url()).origin },
-    });
-    expect(logout.ok()).toBe(true);
     await page.reload();
     await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
     const works = page.getByRole('region', { name: 'Работы учеников' });
@@ -168,7 +163,10 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     await works.getByLabel('Задание', { exact: true }).selectOption('unassigned');
     await expect(workRow).toBeVisible();
     const cardPicture = workRow.locator('img');
-    await expect(cardPicture).toHaveAttribute('src', snapshotPath);
+    await expect(cardPicture).toHaveAttribute(
+      'src',
+      new RegExp(`^${snapshotPath}\\?refresh=\\d+$`),
+    );
     await expect(cardPicture).toHaveAttribute('loading', 'lazy');
 
     // A real authenticated teacher, server API and isolated PostgreSQL. At a
@@ -244,12 +242,39 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     const preview = page.getByRole('dialog', { name: `Работа: ${projectTitle}` });
     await expect(preview.getByRole('button', { name: 'Закрыть', exact: true })).toBeFocused();
     const previewImage = preview.getByRole('img');
-    await expect(previewImage).toHaveAttribute('src', snapshotPath);
+    const firstSnapshotSrc = (await cardPicture.getAttribute('src'))!;
+    await expect(previewImage).toHaveAttribute('src', firstSnapshotSrc);
     await expect
       .poll(() => previewImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
       .toBeGreaterThan(0);
     await expect(page.getByTestId('asa3d-viewport')).toHaveCount(0);
     await expect(preview.getByText('Отклик на проект', { exact: true })).toHaveCount(0);
+    // Republish the real scene snapshot at the same draft revision.
+    const originalWidth = await previewImage.evaluate(
+      (image: HTMLImageElement) => image.naturalWidth,
+    );
+    const replacementWidth = originalWidth === 192 ? 168 : 192;
+    const replacement = await student.evaluate(
+      async ({ path, width }) => {
+        const image = new Image();
+        image.src = path;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = Math.max(
+          16,
+          Math.round((image.naturalHeight * width) / image.naturalWidth),
+        );
+        canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/png');
+      },
+      { path: snapshotPath, width: replacementWidth },
+    );
+    const savedSnapshot = await student.request.put(snapshotPath, {
+      headers,
+      data: { sourceRevision: revision, imageDataUrl: replacement },
+    });
+    expect(savedSnapshot.ok(), await savedSnapshot.text()).toBe(true);
     const refreshedProjects = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname === `/api/classrooms/${classId}/observation/projects`,
@@ -258,6 +283,15 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     expect((await refreshedProjects).ok()).toBe(true);
     await expect(works).toHaveAttribute('aria-busy', 'false');
     await expect(preview).toBeVisible();
+    await expect
+      .poll(() => previewImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(replacementWidth);
+    await expect
+      .poll(() => cardPicture.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(replacementWidth);
+    const refreshedSnapshotSrc = (await previewImage.getAttribute('src'))!;
+    expect(refreshedSnapshotSrc).not.toBe(firstSnapshotSrc);
+    await expect(cardPicture).toHaveAttribute('src', refreshedSnapshotSrc);
     await page.keyboard.press('Shift+Tab');
     await expect(preview.getByRole('button', { name: 'Открыть в редакторе' })).toBeFocused();
     await page.keyboard.press('Escape');
@@ -265,6 +299,9 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     await expect(previewTrigger).toBeFocused();
     page.off('request', collectRequest);
     expect(unexpectedPreviewRequests).toEqual([]);
+    // A real successful explicit logout; closing the page is never evidence.
+    const logout = await student.request.post('/api/class-join/logout', { headers });
+    expect(logout.ok()).toBe(true);
     await previewTrigger.click();
     await page.setViewportSize({ width: 390, height: 900 });
     await expect(preview).toBeVisible();
