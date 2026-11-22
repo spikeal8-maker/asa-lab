@@ -18796,6 +18796,542 @@ parallel_lanes:
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
+      checkpoint: e1_cylinder_epa_polytope_trace_selected
+      slice: E1-CYLINDER-EPA-POLYTOPE-TRACE
+      planned_paths:
+      - tests/robotics/field-core-qualification/mujoco-cylinder-epa-polytope-trace.patch
+      - tests/robotics/field-core-qualification/mujoco-cylinder-epa-polytope-trace.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+      preserved_recovery_history: parallel_lanes.robotics.historical_composed_terrain_exterior_union_recovery_task
+      owner_authorization: The continuing owner programme selects ONE new bounded TEST_ONLY EPA polytope logging experiment
+        on the same four fixed direct queries after protected1309. This docs-only slice permits no source/build/native
+        action. Protected registration, exact three-path preflight and independent HIGH on sealed pure/style/strict
+        source precede ONE private logging-only build; separate independent artifact provenance/HIGH and controller
+        frozen admission precede ONE position-only invocation. No automatic retry, numerical/support/geometry/state/profile
+        change, dependency replacement, dynamics or product action.
+      scope: Explain the observed selected EPA face using initialized polytope geometry, ordered map and actual selection/expansion/exit
+        history. Preserve the exact original V1 witness output and all public API results before interpreting V2 evidence.
+        This is observation only, not a closest-triangle clamp or engine repair. All prior source/raw, physical FAIL,
+        energy PASS, causal GAP, other tasks and D01/D02/toolbox/bridge/4630 limitations remain unchanged.
+      selected_acquisition:
+        id: E1-MUJOCO-CYLINDER-EPA-POLYTOPE-TRACE-01
+        registration_baseline:
+          main: cc3f5a6c8a20307b2b20d9939de0109993c0ff84
+          tested_source: dc9e9b5fe73f41ced807455a99d4cd90654047f2
+          tested_tree: 9cbc1b9fb614d201e39413666ec85515e537add4
+          acquired_source: f393e076678367e78adf326e2341982e0ede2500
+          acquired_tree: 60ddf0aecfe4ae719441258c3dea44d39ef2609f
+          required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45044743843/job/137285965810
+        immutable_inputs:
+          recovered_source_spec:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+            bytes: 198464
+            sha256: 04c2c1ed04200f179eeebee58bc0f8f8bf50913a4d8f9c5b802de9196cc823f4
+          five_mesh_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+            bytes: 42551
+            sha256: d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271
+          union_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+            bytes: 59130
+            sha256: eb1b88ef37a9589f0df23b91793a9d9197e8fd326361af8df3baf22dc07fd74f
+          union_raw_binary:
+            file: arduino-tt-composed-terrain-union.bin
+            bytes: 138827760
+            sha256: 970cb5acdb7cc19a667041282adbfbea1bd3906c445078344a67f82f9bf46ce8
+          union_raw_metadata:
+            file: arduino-tt-composed-terrain-union.jsonl
+            bytes: 213154
+            sha256: 1ae24e2dc91e25a725b17ad5bb84d32e73f1f5da180cb52ad1a3f368fd3e5947
+          independent_full_replay:
+            file: independent-union-replay.json
+            bytes: 35911
+            sha256: 2da230579125bc772215aa263532269ac2205d246a1dff81ba42fe925ab6910f
+          finite_cylinder_certificate:
+            file: finite-cylinder-contact-certificate-final.json
+            bytes: 35220
+            sha256: de3bfd67496bd0841e34c71fea4f58a5f4e5658cca78eaec62b6dd58eae91edc
+          old_five_mesh_source: a206a73ebb0e3672b1747be97d60471168ec9414
+          old_five_mesh_binary:
+            file: arduino-tt-composed-terrain-seams.bin
+            bytes: 138842016
+            sha256: e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38
+          old_five_mesh_metadata:
+            file: arduino-tt-composed-terrain-seams.jsonl
+            bytes: 133568
+            sha256: 58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098
+          old_five_mesh_independent_replay:
+            file: independent-terrain-replay.json
+            bytes: 35271
+            sha256: 2b05b92c65d7085bcf5d05bed2b0f2c72c9bf5f7ef297fef6f44442b60ce40cb
+          engine: 'Exact current-transfer fixture pins: MuJoCo4.0.0 upstream ac60eae30fa7e0d31315c38d9476752fb81be67e,
+            AOT glue9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8, WASMd2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241,
+            declarations779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff, licence/build/browser receipts
+            and exact implicitfast/Newton/dense/elliptic profile, gravity/CCD/contact/iteration/damping settings (disableflags65536/enableflags32,
+            iterations100/ls50/noslip20/ccd100). No engine option or dependency change. Wheel contacts do not use
+            the specially named finite-can patch branch.'
+          static_source:
+            commit: 797678beae0a73c51f29f733f8f67d585d33c02c
+            tree: df973efc904e916a491bb39972af2e6329b06e8a
+            spec:
+              path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+              bytes: 77857
+              sha256: 9c3c1d2049893654d2ddf4007b5f9b3f54dde882d51111943dc67b956cc7764a
+            fixture:
+              path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.fixture.json
+              bytes: 106323
+              sha256: 6c23b162a3fbc0935afd0f80d489bffb9bcb3dd04e4063ec8e3ac50c95daec65
+          static_raw:
+            file: mujoco-union-cylinder-static-witness.jsonl
+            bytes: 324264
+            sha256: d1a98b2f0debebf457b3978646331ff6e0379d6c7af328d470e22d70750c4a17
+          independent_static_audit:
+            file: independent-static-wheel-audit.json
+            bytes: 34831
+            sha256: 7f90ce0adaa6078f976b4c2d705d4d90c951fca54e7a2408ae61e17f8edd526d
+          upstream_gjk:
+            upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+            path: src/engine/engine_collision_gjk.c
+            sha256: ae835b6af989458e3e30f4f9b76609afb62a81fdd3f4f13fbdbb18f40100e5c7
+          inherited_aot_build_receipt:
+            bytes: 15869
+            sha256: c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9
+          inherited_aot_browser_receipt:
+            bytes: 449526
+            sha256: 70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5
+          primary_trace_source:
+            acquired_commit: f393e076678367e78adf326e2341982e0ede2500
+            tree: 60ddf0aecfe4ae719441258c3dea44d39ef2609f
+            spec:
+              path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+              bytes: 133753
+              sha256: c7c84fe4a2e6e26ba424c497f3d6ae5eadc59771d8d8412a55250ddfe7a41b13
+            fixture:
+              path: tests/robotics/field-core-qualification/mujoco-cylinder-primary-trace.fixture.json
+              bytes: 35371
+              sha256: f575915bf82d969288d1be4214a40b2851c4bce3002d980d2a89ffb302c889c8
+            patch:
+              path: tests/robotics/field-core-qualification/mujoco-cylinder-primary-trace.patch
+              bytes: 11145
+              sha256: 3452017cad795a11e38bd2ba3a25c2c69d3c346636837be901b50e58e4fca52a
+          primary_trace_raw:
+            file: mujoco-cylinder-primary-trace.jsonl
+            bytes: 400171
+            sha256: ced5f7250dd108cd039bac61d8a45af4f0d10437ce38228877532eab90b3a758
+          independent_primary_trace_audit:
+            file: independent-primary-epa-trace-audit.json
+            bytes: 56922
+            sha256: c00b33a9fa6a25897488ae3f7ffee9e5da6540f09b505e6488a81504233c0545
+          selected_triangle_offline_report:
+            file: selected-triangle-closest-point.json
+            bytes: 24052
+            sha256: 6268780c89afc6973798d4f3d10e74889fe8dce0aeafab151cd92e2039c86da4
+          primary_private_build_receipt:
+            file: private-build-receipt.json
+            bytes: 41729
+            sha256: 0cd4c491cb7379d3b38f3c22e87fae87c9f592eed40dfaf337876cca500b4082
+          primary_linked_gjk_source:
+            bytes: 107828
+            sha256: a54744118374a7f809cd8d708ba729888f9d988591ce198de4a6b6e70c5da90f
+          primary_private_wasm:
+            bytes: 11233802
+            sha256: e2f88f39f4888c35e3a5ee375033d43c792fccaf682d1626ec8e21fd2e5e80e7
+          primary_private_glue:
+            bytes: 331846
+            sha256: c122ad5b0a00891bd5aa75728716c2e100a0e12efd53d261b7da3eb7e972a2c2
+        fixed_cases:
+        - id: recovered_union_PRE_4729500
+          source: 9d96b85e82a0167246b7b327279f0e49dc6d11de
+          fixture: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+          xml_sha256: a204f26f1f2130e565d707f69cfe02c135af5b5bfbafdbe24205ea4b14aadd8e
+          world: powered
+          raw_from_us: 4729500
+          frame_offset: 32938624
+          frame_bytes: 3104
+          frame_sha256: 665b7a33d83ccee587e6d7825a0cad6c4f2ff20717795f8efcefac0547ff953d
+          native_pairs_in_exact_input_order:
+          - - 5
+            - 1
+          - - 6
+            - 1
+          archived_target_contact_ordinals:
+          - 0
+          - 1
+          native_counts:
+          - 3
+          - 28
+          - 44
+          - 9
+        - id: old_five_mesh_PRE_4729500_descriptive
+          source: a206a73ebb0e3672b1747be97d60471168ec9414
+          fixture: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+          xml_sha256: 63bc0c697c6cd363710e791a0b8c6d7405c30f4524b70654cc832e2bbc8af7fc
+          world: powered
+          raw_from_us: 4729500
+          frame_offset: 32952352
+          frame_bytes: 3808
+          frame_sha256: 5f78165a2ae374c36846d8f1f67351bdb2c1833f3d4e2669ead4982bd7a89b0f
+          native_pairs_in_exact_input_order:
+          - - 7
+            - 3
+          - - 8
+            - 3
+          archived_target_contact_ordinals:
+          - 4
+          - 5
+          native_counts:
+          - 5
+          - 40
+          - 60
+          - 11
+          limit: Physical cylinder-axis witness valid only; old whole-course physical FAIL remains unchanged.
+        state_and_model: Hash-check complete raw/receipts/certificate, source and fixture inputs BEFORE native import.
+          Read qpos10, qvel9 and actual nativeTime directly from each exact frame F64 bytes including signed zero,
+          never reconstruct time from logical microseconds or substitute rounded poses. Build each original complete
+          XML as fixture.xml.join(newline)+newline with the pinned hash. One fresh model/data per case, sequential;
+          retain all original compiled model/geom transforms, closed-hull/readback identities, masses/inertias/armature,
+          scales, materials and solver options. Restore qpos/qvel/nativeTime exactly ONCE per data as input; no later
+          state assignment, profile/flag/margin/gap/pose repair or rebuild to fit archived geometry.
+        position_protocol: Use the actual exported mj_fwdPosition (pinned declaration3478), not bare mj_collision,
+          mj_forward or STEP1. It is the normal position portion used by original STEP1. First position call per case
+          captures ALL native geometry contacts, their actual pair order/ordinals/positions/frames/normals/distances/excludes/geometry
+          row ordering plus full true compiled transforms. Bit-preserving byte-exact geometry comparison must reproduce
+          the archived corresponding native IDs/positions/normals/distances/order. If it cannot, preserve exact differences
+          and classify comparator INCONCLUSIVE, never retune, relax, swap cases or claim archived reproduction. No
+          solver-driven contact force or time evolution is evaluated. Trace context must remain disabled for all four
+          normal position calls; no traces from four-contact position/manifold generation.
+        distance_protocol: 'After that normal position capture, call actual public mj_geomDistance (pinned declaration3480)
+          twice per case, in EXACT archived native pair order: union[5,1],[6,1]; old[7,3],[8,3]. Each call uses distmax=0
+          and a real new DoubleBuffer(6) per declared ownership scheme. Record actual signed distance and all two
+          fromto XYZ endpoints, retaining binary64 bits/sign-zero and before/after state/geometry. Never swap pair
+          IDs/endpoints or negate/replace returned distance. Negative penetration is retained. Zero means touch/unresolved
+          and does not certify meaningful fromto; do not cook endpoints. The native support query sets max_contacts1/no
+          MultiCCD internally; preserve the same current engine/nativeCCD flags and all options, not a new profile.
+          Preserve archived actual geom input order and exact case transforms; do not swap objects to make tracing
+          easier. The trace dispatch additionally admits only these four identities with both margins zero, cutoff0,
+          max_contacts1, cylinder then mesh and the exact original no-polygon/no-mesh-degree query configuration (npolygonmax0/nmeshdegmax0).
+          Any other configuration cannot emit an admitted trace.'
+        repeat_and_parity: After both distance calls, repeat the SAME normal mj_fwdPosition once per case, compare
+          exact geometry/state with its first capture and record every discrepancy. Before/after EACH public API assert
+          exact state bytes including nativeTime and signed zero, retain actual geometry/results and all call/error/resource
+          counters. Attempted and returned calls are separate. Any unexpected mutation, mismatch or unavailable binding
+          fails closed with first evidence preserved, no extra API call, fallback or retry.
+        logging_only_patch: New cumulative patch ONLY src/engine/engine_collision_gjk.c against exact upstreamac60/ae835b6af989458e3e30f4f9b76609afb62a81fdd3f4f13fbdbb18f40100e5c7,
+          preserving verified V1 logging plus strictly additive V2 observations. Pure inverse removing V2 must reproduce
+          prior linked GJK sourcea5474411 exactly; full numerical-source inverse must reproduce uninstrumented ac60
+          exactly. Do not modify prior patch/fixture. No new bindings, support calls, solver/API calls, floating calculation
+          feeding primary output, comparison/order changes, clamping, model/state assignments, engine options, tolerance
+          or flags. Diagnostic arithmetic/copies are separate and never affect selection or result. No observations
+          outside the four frozen zero-margin direct queries; all normal position calls stay trace-disabled.
+        trace_payload: Retain the exact four V1 witness lines byte-for-byte. Add bounded delta records or snapshots
+          sufficient to reconstruct EVERY initialized EPA vertex with both support points/indices and Minkowski vertex;
+          ordered map slots to actual face IDs; initialized face IDs/packed vertices/adjacency/index/deletion flags/projection/dist2;
+          seed, initialized polytope center and counts. Record every real previous/current candidate and selection
+          with original ordered minimum, support invocation result/ID, actual upper/lower values, horizon and partial-expansion
+          transitions, attach return/results/flags and the exact exit branch. Do not read uninitialized fields of
+          a face after rejected/degenerate attach or invent its projection/adjacency. Use defined-field flags and
+          preserve actual IDs/sign-zero/binary64 bits. Snapshots/deltas must cover all executed mutations needed to
+          replay actual map order/selection/termination, not only the final face or successful path.
+        private_build: After protected selection and independent exact source HIGH, ONE new private copied offline
+          build replaces ONLY original GJK object in the inherited72-member archive using the cumulative V1+V2 source.
+          All other71 objects, original dependency/binding inputs, compiler/link flags and normalized roles/order
+          remain exact; public WASM export names/kinds and declarations remain unchanged. Reuse pinned Emscripten4.0.10/recipe/SDK/cache/licenses
+          and original AOT inputs; seal new object/archive/source/toolchain/command/glue/WASM/declaration/receipt
+          hashes. Never mutate shared artifacts or public dependencies, install/update tools, relink another profile
+          or import a candidate during build review. Separate independent artifact provenance/HIGH is required before
+          the one controller invocation. Compiler AOT/emit-tsd metadata is distinguished from final factory/application
+          model initialization as in the accepted build.
+        trace_and_geometry_admission: Mandatory inputs include static d1a98b receipt and V1 ced5f725 receipt plus
+          both independent audits and exact source/build pins. Require exact full public8-call geometry/matrices/model/state/sign-zero/fromto/dist/order/ownership
+          parity with static baseline and additionally exact same four V1 witness streams with ced5f725 BEFORE interpreting
+          V2. Match raw actual nativeTime4.729500000000095 and qpos10/qvel9 from archived F64 bytes, never rounded4.729500
+          or synthesized logical time. One module, two sequential original model/data cases; original pair order union[5,1],[6,1],
+          old[7,3],[8,3]. Same4fwdPosition+4zero-cutoff mj_geomDistance calls, no extra native/support API. Missing/extra/malformed/overflow/mismatching
+          V1/V2 or parity failure is INCONCLUSIVE with first raw evidence/cleanup retained, never a cause assumption
+          or retry.
+        offline_inference: 'Pure tests and later independent disk replay reconstruct every complete initialized state
+          from ordered deltas/snapshots, validate framing/case/pair/event identities, row/state/cleanup and mocked
+          actual-path boundaries, then replay strict original ordered minimum and explicit exit. Independently assess
+          topology closure, adjacency, convexity and origin relation, and find the globally nearest finite face/edge/vertex
+          over the captured initialized final hull with nonnegative admissible witnesses and the original gap. Record
+          ambiguity, incomplete/degenerate topology or geometric defects as observations, not parser rejection, a
+          new acceptance tolerance or a physical PASS. Do not silently substitute a selected-triangle clamp: its prospective
+          edge distances/directions are different and it never certified the globally closest full-hull feature. No
+          repair, threshold fitting, hidden extra poses or generic engine correctness claim.'
+        capture:
+          max_module_initializations: 1
+          max_models: 2
+          max_data: 2
+          max_concurrent_model_data: 1
+          max_position_calls: 4
+          max_distance_calls: 4
+          max_step1_calls: 0
+          max_step2_calls: 0
+          max_mj_forward_calls: 0
+          existing_native_capacity:
+            ccd_iterations_N: 100
+            max_vertices: 105
+            max_faces: 600
+            max_ordered_map_slots: 600
+            max_horizon_entries_each: 89
+            original_ccd_buffer_bytes: 45120
+            policy: Pinned existing C capacity; do not enlarge or repurpose the native CCD scratch buffer.
+          max_v1_witness_records: 4
+          max_polytope_query_records: 4
+          max_separate_binary_recorder_bytes_per_query: 196608
+          max_framed_stderr_bytes_per_query: 524288
+          max_stderr_bytes_total: 2097152
+          max_external_bytes: 16777216
+          encoded_budget_proof: Prospective source must specify exact tagged binary layout and compute a pure worst-case
+            bound for every admitted snapshot/delta/event, hex/framing overhead and all durable duplicate representations/reserved
+            first-error/cleanup before build. Binary196608 bytes produces393216 hex characters before framing; all
+            V1/V2 framing must fit524288 per query and2097152 total. Durable16MiB includes repeated lines, decoded
+            evidence, original snapshots and error/footer reservations. Admission may be narrowed to the immutable
+            prior V1 queries; their FINAL snapshots show9vertices,18faces,map5 and status.epa_iterations counter4
+            (zero-based k, possibly5selection visits), not intermediate maxima. Source must independently bound all
+            intermediate initialized states/events; final counts alone are not a recorder-sizing proof. Do not falsely
+            claim all N100 full snapshots fit192KiB. Overflow is never accepted truncation.
+          policy: Use separate bounded private diagnostic storage, not modified CCD scratch or unbounded stack. If
+            recorder capacity overflows, latch complete first diagnostic error/actual counts and stop recording safely
+            while the original C computation continues unmodified to return. Harness retains public result/first error/hash
+            and cleanup, then stops BEFORE any next API. Missing/extra/truncated/incomplete records are INCONCLUSIVE,
+            no additional call, fallback, automatic retry or budget extension. Unique exclusive new OS Temp receipt;
+            previous attempts remain immutable.
+        source_and_dispatch: Only new polytope patch, new fixture and narrow mutually exclusive additive mode in existing
+          static spec. Preserve all prior fixtures/patches/helpers and published source. Default pure tests dry/SKIP
+          with no assets, build or native; distinct new once-only opt-in denies old static/V1/union/recovery/sphere
+          and overlapping modes pre-import. Required pure tests include exact C inverse, bounded layout/overflow/defined-field
+          safety, complete delta replay, mocked real call/trace lifecycle, map ties/strict ordered selection and exit,
+          malformed/partial ERROR and original V1/public parity. Style/strict typing and separate independent source
+          HIGH precede private build; separate artifact HIGH plus frozen source/fixture/build/raw pins and preflight
+          precede the sole controller invocation. No dynamic advance, product/editor/stand/4630/deployment/working
+          DB or closure claim.
+      downstream_user_outcomes: historical_e1_task.downstream_user_outcomes remains exact and authoritative for the
+        later editor/toolbox. This course prepares only joined-ramp/platform evidence. The optional true bridge is
+        separate volumes for slab/supports and an open underpass, with whole continuous lower floor and actual full-rover
+        underside clearance; no heightmap or filled-ramp interpretation. Current nominal H69.991mm with a20mm slab
+        would leave49.991mm beneath versus declared level rover height119.608mm, so it cannot prove underpass. No
+        bridge acquisition or editor/schema action is selected.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      gate_boundary: 'Sole registry docs slice: exact scoped PLAN/control-plane, actual Electronics tests/routing,
+        strict YAML and text/semantic inverse, full governance on final bytes before local commit. Future three-path
+        source, one private build and source/artifact HIGH precede one position-only controller dispatch separately
+        after protected docs. D01/D02/full physics/product/bridge/toolbox/deployment/owner acceptance remain blocked;
+        do not reuse old opt-ins or infer upgrade as a correction.'
+      deployment: not_authorized
+      database_actions: none
+      preserved_static_history: parallel_lanes.robotics.historical_union_cylinder_static_witness_task
+      preserved_epa_history: parallel_lanes.robotics.historical_cylinder_primary_epa_trace_task
+    epa_primary_trace_result:
+      runtime: COMPLETE
+      diagnostic: COMPLETE
+      acquisition: CONSUMED
+      physical: NOT_REASSESSED_HISTORICAL_FAIL_UNCHANGED
+      energy: HISTORICAL_PASS_UNCHANGED
+      causal: HISTORICAL_GAP_UNCHANGED
+      formal: D01_D02_OPEN
+      acquired_source:
+        acquired_commit: f393e076678367e78adf326e2341982e0ede2500
+        tree: 60ddf0aecfe4ae719441258c3dea44d39ef2609f
+        spec:
+          path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+          bytes: 133753
+          sha256: c7c84fe4a2e6e26ba424c497f3d6ae5eadc59771d8d8412a55250ddfe7a41b13
+        fixture:
+          path: tests/robotics/field-core-qualification/mujoco-cylinder-primary-trace.fixture.json
+          bytes: 35371
+          sha256: f575915bf82d969288d1be4214a40b2851c4bce3002d980d2a89ffb302c889c8
+        patch:
+          path: tests/robotics/field-core-qualification/mujoco-cylinder-primary-trace.patch
+          bytes: 11145
+          sha256: 3452017cad795a11e38bd2ba3a25c2c69d3c346636837be901b50e58e4fca52a
+      protected_integration:
+        main: cc3f5a6c8a20307b2b20d9939de0109993c0ff84
+        pr: 1309
+        tested_head: dc9e9b5fe73f41ced807455a99d4cd90654047f2
+        tested_tree: 9cbc1b9fb614d201e39413666ec85515e537add4
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45044743843/job/137285965810
+        acquired_and_tested_three_source_blobs: BYTE_IDENTICAL
+        pure_tests_passed: 32
+        opt_in_tests_skipped: 2
+        robotics_tests_passed: 430
+        fresh_Nx_tasks: 3
+      private_build_receipt:
+        file: private-build-receipt.json
+        bytes: 41729
+        sha256: 0cd4c491cb7379d3b38f3c22e87fae87c9f592eed40dfaf337876cca500b4082
+      raw:
+        file: mujoco-cylinder-primary-trace.jsonl
+        bytes: 400171
+        sha256: ced5f7250dd108cd039bac61d8a45af4f0d10437ce38228877532eab90b3a758
+      independent_full_offline_audit:
+        file: independent-primary-epa-trace-audit.json
+        bytes: 56922
+        sha256: c00b33a9fa6a25897488ae3f7ffee9e5da6540f09b505e6488a81504233c0545
+        checks_passed: 2159
+        f64_packets: 634
+        packet_f64_words: 8704
+        packet_negative_zero_words: 28
+        trace_records: 4
+        trace_integer_words: 128
+        trace_f64_words: 300
+        stderr_bytes: 5226
+        public_regular_records_exact_old_baseline: 24
+      calls_and_parity:
+        module_initializations: 1
+        cases: 2
+        position_attempted_returned:
+        - 4
+        - 4
+        distance_attempted_returned:
+        - 4
+        - 4
+        step1: 0
+        step2: 0
+        forward: 0
+        native_time_advance_seconds: 0
+        all8_public_operations_with_complete_before_after_snapshots: BIT_EXACT_STATIC_BASELINE
+        all_model_state_signed_zero_geometry_order_fromto_dist_warnings_cleanup: EXACT
+        non_distance_stderr: ZERO
+      observed_queries:
+      - pair:
+        - 5
+        - 1
+        lambda:
+        - 0.8426592799424864
+        - -0.262411108280772
+        - 0.4197518283382856
+        primary_axial_cap_excess_m: 0.005248222165615435
+        nverts: 9
+        nfaces: 18
+        nmap: 5
+        gjk_iterations: 14
+        epa_iteration_counter: 4
+      - pair:
+        - 6
+        - 1
+        lambda:
+        - 0.8387948001870965
+        - 0.5472785828432929
+        - -0.38607338303038935
+        primary_axial_cap_excess_m: 0.007721467660607771
+        nverts: 9
+        nfaces: 18
+        nmap: 5
+        gjk_iterations: 15
+        epa_iteration_counter: 4
+      - pair:
+        - 7
+        - 3
+        lambda:
+        - 0.1706885064912655
+        - 0.39638380772949927
+        - 0.43292768577923535
+        primary_axial_cap_excess_m: 0
+        nverts: 9
+        nfaces: 17
+        nmap: 4
+        gjk_iterations: 15
+        epa_iteration_counter: 4
+      - pair:
+        - 8
+        - 3
+        lambda:
+        - 0.16934642840516606
+        - 0.394379071226842
+        - 0.4362745003679919
+        primary_axial_cap_excess_m: 0
+        nverts: 9
+        nfaces: 17
+        nmap: 4
+        gjk_iterations: 15
+        epa_iteration_counter: 4
+      measured_mechanism: All12 selected paired support points are valid in actual finite cylinder and compiled convex
+        mesh; mesh support indices agree with compiled vertices. Original triAffineCoord, lincomb, face dot3 squared
+        distance and negative sqrt reconstruct native F64 bits exactly. Union negative coefficients extrapolate finite-valid
+        supports to5.248222166/7.721467661mm cap excess. Exact-rational endpoint error max1.8812137296509187e-16m
+        lies within gamma5 arithmetic bound. This establishes the immediate affine-extrapolation mechanism for these
+        outputs, not why the selected face/projection was chosen or a unique selector/clipping defect.
+      lifetime:
+        module_attempted_returned:
+        - 1
+        - 1
+        module_delete: NO_NATIVE_DELETE_BINDING_NO_DISPOSAL_CLAIM
+        model_created_deleted:
+        - 2
+        - 2
+        data_created_deleted:
+        - 2
+        - 2
+        buffer_created_deleted:
+        - 4
+        - 4
+        contact_vectors_created_deleted:
+        - 16
+        - 16
+        contact_copies_created_deleted:
+        - 112
+        - 112
+        warning_copies_created_deleted:
+        - 70
+        - 70
+        first_error: null
+        cleanup_errors: []
+      discarded_selected_triangle_proposal:
+        file: selected-triangle-closest-point.json
+        bytes: 24052
+        sha256: 6268780c89afc6973798d4f3d10e74889fe8dce0aeafab151cd92e2039c86da4
+        status: PURE_OFFLINE_ONLY_NOT_APPLIED_ENGINE_REPAIR
+        method: Independent floating Voronoi/edge/vertex and exact-rational all-feature enumeration with exact KKT
+          proof on each captured triangle.
+        union_features:
+        - edge02
+        - edge01
+        union_distances_m:
+        - 1.0884920389451844e-05
+        - 1.599338109970192e-05
+        union_direction_changes_degrees:
+        - 89.57761987883664
+        - 89.73108092617863
+        old_positive_controls: Interior face solutions with essentially unchanged distance/direction; descriptive
+          only.
+        limit: New mathematical witness pairs finite-valid, but only selected triangles were known. Other final hull
+          features may be closer. Do not promote this local projection or a coefficient clamp into a global EPA or
+          physics fix.
+      upstream_reference:
+        observed_main: f5a936990fbbb1728ed3fbf99c4738346e18717e
+        same_direct_functions:
+        - triAffineCoord
+        - attachFace
+        - epaWitness
+        - epa
+        - mjc_ccd
+        - mj_geomDistanceCCD
+        - mj_geomDistance
+        same_direct_path: BYTE_IDENTICAL_VS_PINNED_ac60
+        released_4_0_1_multicontact_fix: 409f981ab837ea273689cae22919d423d5aebd21
+        released_fix_url: https://github.com/google-deepmind/mujoco/commit/409f981ab837ea273689cae22919d423d5aebd21
+        related_open_multicontact_pr: https://github.com/google-deepmind/mujoco/pull/3892
+        related_open_warp_issue: https://github.com/google-deepmind/mujoco_warp/issues/1782
+        limit: Verified released fix and proposed PR affect multicontact, not our max_contacts1 primary path. Warp
+          analogue is not a confirmed ready C repair. No upgrade is presumed correction.
+      preservation: No state/force/trajectory reassessment. Every old five-mesh/union physical FAIL, prior PRE_DISPATCH,
+        energy PASS, shared-startup and older late R5 causal GAP, archived source/raw, D01/D02, downstream adjustable-ramp/platform/true-bridge
+        requirements and product/stand/deployment blockers remain unchanged.
+    historical_cylinder_primary_epa_trace_task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
       checkpoint: e1_cylinder_primary_epa_trace_selected
       slice: E1-CYLINDER-PRIMARY-EPA-TRACE
       planned_paths:
