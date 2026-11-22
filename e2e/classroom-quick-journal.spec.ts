@@ -335,7 +335,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await page.setViewportSize({ width: 390, height: 844 });
   await summary.click();
   await expect(toggle).not.toBeChecked();
-  const option = chooser.locator('label').filter({ has: toggle });
+  const option = toggle.locator('..');
   const label = option.locator('span');
   await expect(label).toBeVisible();
   await expect(label.locator('time')).toHaveText('09.10');
