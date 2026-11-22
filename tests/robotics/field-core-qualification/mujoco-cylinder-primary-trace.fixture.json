@@ -1,0 +1,865 @@
+{
+  "schema": "ASA_CYLINDER_PRIMARY_EPA_TRACE_FIXTURE_V1",
+  "id": "E1-MUJOCO-CYLINDER-PRIMARY-EPA-TRACE-01",
+  "registration": {
+    "main": "26b42dd72215cd9341d640593779f4f76fc80c49",
+    "head": "092b2e8dee3441b35fccc75301ac65cc33ca0cc1",
+    "requiredJob": "https://github.com/spikeal8-maker/asa-lab/actions/runs/45033833892/job/137252205074"
+  },
+  "immutableInputs": {
+    "recovered_source_spec": {
+      "path": "tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts",
+      "bytes": 198464,
+      "sha256": "04c2c1ed04200f179eeebee58bc0f8f8bf50913a4d8f9c5b802de9196cc823f4"
+    },
+    "five_mesh_fixture": {
+      "path": "tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json",
+      "bytes": 42551,
+      "sha256": "d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271"
+    },
+    "union_fixture": {
+      "path": "tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json",
+      "bytes": 59130,
+      "sha256": "eb1b88ef37a9589f0df23b91793a9d9197e8fd326361af8df3baf22dc07fd74f"
+    },
+    "union_raw_binary": {
+      "file": "arduino-tt-composed-terrain-union.bin",
+      "bytes": 138827760,
+      "sha256": "970cb5acdb7cc19a667041282adbfbea1bd3906c445078344a67f82f9bf46ce8"
+    },
+    "union_raw_metadata": {
+      "file": "arduino-tt-composed-terrain-union.jsonl",
+      "bytes": 213154,
+      "sha256": "1ae24e2dc91e25a725b17ad5bb84d32e73f1f5da180cb52ad1a3f368fd3e5947"
+    },
+    "independent_full_replay": {
+      "file": "independent-union-replay.json",
+      "bytes": 35911,
+      "sha256": "2da230579125bc772215aa263532269ac2205d246a1dff81ba42fe925ab6910f"
+    },
+    "finite_cylinder_certificate": {
+      "file": "finite-cylinder-contact-certificate-final.json",
+      "bytes": 35220,
+      "sha256": "de3bfd67496bd0841e34c71fea4f58a5f4e5658cca78eaec62b6dd58eae91edc"
+    },
+    "old_five_mesh_source": "a206a73ebb0e3672b1747be97d60471168ec9414",
+    "old_five_mesh_binary": {
+      "file": "arduino-tt-composed-terrain-seams.bin",
+      "bytes": 138842016,
+      "sha256": "e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38"
+    },
+    "old_five_mesh_metadata": {
+      "file": "arduino-tt-composed-terrain-seams.jsonl",
+      "bytes": 133568,
+      "sha256": "58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098"
+    },
+    "old_five_mesh_independent_replay": {
+      "file": "independent-terrain-replay.json",
+      "bytes": 35271,
+      "sha256": "2b05b92c65d7085bcf5d05bed2b0f2c72c9bf5f7ef297fef6f44442b60ce40cb"
+    },
+    "engine": "Exact current-transfer fixture pins: MuJoCo4.0.0 upstream ac60eae30fa7e0d31315c38d9476752fb81be67e, AOT glue9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8, WASMd2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241, declarations779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff, licence/build/browser receipts and exact implicitfast/Newton/dense/elliptic profile, gravity/CCD/contact/iteration/damping settings (disableflags65536/enableflags32, iterations100/ls50/noslip20/ccd100). No engine option or dependency change. Wheel contacts do not use the specially named finite-can patch branch.",
+    "static_source": {
+      "commit": "797678beae0a73c51f29f733f8f67d585d33c02c",
+      "tree": "df973efc904e916a491bb39972af2e6329b06e8a",
+      "spec": {
+        "path": "tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts",
+        "bytes": 77857,
+        "sha256": "9c3c1d2049893654d2ddf4007b5f9b3f54dde882d51111943dc67b956cc7764a"
+      },
+      "fixture": {
+        "path": "tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.fixture.json",
+        "bytes": 106323,
+        "sha256": "6c23b162a3fbc0935afd0f80d489bffb9bcb3dd04e4063ec8e3ac50c95daec65"
+      }
+    },
+    "static_raw": {
+      "file": "mujoco-union-cylinder-static-witness.jsonl",
+      "bytes": 324264,
+      "sha256": "d1a98b2f0debebf457b3978646331ff6e0379d6c7af328d470e22d70750c4a17"
+    },
+    "independent_static_audit": {
+      "file": "independent-static-wheel-audit.json",
+      "bytes": 34831,
+      "sha256": "7f90ce0adaa6078f976b4c2d705d4d90c951fca54e7a2408ae61e17f8edd526d"
+    },
+    "upstream_gjk": {
+      "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+      "path": "src/engine/engine_collision_gjk.c",
+      "sha256": "ae835b6af989458e3e30f4f9b76609afb62a81fdd3f4f13fbdbb18f40100e5c7"
+    },
+    "inherited_aot_build_receipt": {
+      "bytes": 15869,
+      "sha256": "c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9"
+    },
+    "inherited_aot_browser_receipt": {
+      "bytes": 449526,
+      "sha256": "70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5"
+    }
+  },
+  "caps": {
+    "max_module_initializations": 1,
+    "max_models": 2,
+    "max_data": 2,
+    "max_concurrent_model_data": 1,
+    "max_position_calls": 4,
+    "max_distance_calls": 4,
+    "max_step1_calls": 0,
+    "max_step2_calls": 0,
+    "max_mj_forward_calls": 0,
+    "max_external_bytes": 4194304,
+    "policy": "ONE module and two sequential fresh original model/data cases. Exactly four normal position and four direct distance calls, zero STEP1/STEP2/mj_forward/time evolution, no session/controller. Exclusive unique OS Temp receipt; total raw, framed stderr, first-error and cleanup stay within4MiB, stderr within64KiB and admitted trace records exactly4. Enforce counters/byte reservations before writes/calls; retain complete first error and cleanup even on overflow. Extra/missing records, capacity error or comparator mismatch is INCONCLUSIVE; no dropping, overwriting archive or automatic retry.",
+    "max_trace_records": 4,
+    "max_stderr_bytes": 65536
+  },
+  "patch": {
+    "file": "mujoco-cylinder-primary-trace.patch",
+    "bytes": 11145,
+    "sha256": "3452017cad795a11e38bd2ba3a25c2c69d3c346636837be901b50e58e4fca52a",
+    "upstreamBytes": 97882,
+    "patchedBytes": 107828,
+    "patchedSha256": "a54744118374a7f809cd8d708ba729888f9d988591ce198de4a6b6e70c5da90f",
+    "inverseRewrites": [
+      {
+        "before": "static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {",
+        "after": "static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3],\n                          ASAPrimaryTrace* asa_trace) {"
+      },
+      {
+        "before": "static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);",
+        "after": "static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,\n                 ASAPrimaryTrace* asa_trace);"
+      },
+      {
+        "before": "static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {",
+        "after": "static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,\n                 ASAPrimaryTrace* asa_trace) {"
+      },
+      {
+        "before": "status->dist[0] = epaWitness(pt, face, status->x1, status->x2);",
+        "after": "status->dist[0] = epaWitness(pt, face, status->x1, status->x2, asa_trace);"
+      },
+      {
+        "before": "Face* face = epa(status, &pt, obj1, obj2);",
+        "after": "Face* face = epa(status, &pt, obj1, obj2, &asa_trace);"
+      }
+    ],
+    "format": "standard unified zero-context; full original SHA required; git apply --unidiff-zero"
+  },
+  "queries": [
+    {
+      "index": 1,
+      "case": "recovered_union_PRE_4729500",
+      "pair": [5, 1],
+      "objectF64le": [
+        "178f0f0d0634f33f68146f35d6a3b03f847eccc9f498b93ff16f2d759defeb3f180bb0aacf36dfbf00000073fe2954be00000090dd4f0f3e0000807ec5cb63bef7ffffffffffef3f1e0bb0aacf36dfbfeb6f2d759defebbf000000f4130b61beb81e85eb51b89e3f7b14ae47e17a843f0000000000000000",
+        "90916b010000f03f00000000000000001659ce9ac00c53bf00000000000000000000000000000000120000000000f03f0000000000000000120000000000f0bf0000000000000000120000000000f03f0000000000000000000000000000000078396b022037b23f120000000000e03fa2916b010000f03f"
+      ],
+      "distance": {
+        "values": [-8.024211152075258e-8],
+        "f64le": "23568b27328a75be"
+      },
+      "fromto": {
+        "values": [
+          1.200000052477642, 0.08024817166171455, 0.06999085213768166, 1.2000000529743362,
+          0.08024817166171466, 0.06999093237825593
+        ],
+        "f64le": "a46f49413333f33fd4d1d9e8248bb43fea54f3a4ebeab13f94916b413333f33fdcd1d9e8248bb43fb0c694fdeceab13f"
+      }
+    },
+    {
+      "index": 2,
+      "case": "recovered_union_PRE_4729500",
+      "pair": [6, 1],
+      "objectF64le": [
+        "e152b70d0634f33fd6cc0bdfd7a3b0bf641886dbf498b93ff16f2d759defeb3f180bb0aacf36dfbf00000073fe2954be00000090dd4f0f3e0000807ec5cb63bef7ffffffffffef3f1e0bb0aacf36dfbfeb6f2d759defebbf000000f4130b61beb81e85eb51b89e3f7b14ae47e17a843f0000000000000000",
+        "90916b010000f03f00000000000000001659ce9ac00c53bf00000000000000000000000000000000120000000000f03f0000000000000000120000000000f0bf0000000000000000120000000000f03f0000000000000000000000000000000078396b022037b23f120000000000e03fa2916b010000f03f"
+      ],
+      "distance": {
+        "values": [-7.506503210593832e-8],
+        "f64le": "8ff09e026e2674be"
+      },
+      "fromto": {
+        "values": [
+          1.2000000525069006, -0.04727858284329299, 0.06999085731467922, 1.2000000529743362,
+          -0.04727858284329309, 0.06999093237825593
+        ],
+        "f64le": "5d724b413333f33f6ef139fee534a8bf2e802fbbebeab13f94916b413333f33f7cf139fee534a8bfb0c694fdeceab13f"
+      }
+    },
+    {
+      "index": 3,
+      "case": "old_five_mesh_PRE_4729500_descriptive",
+      "pair": [7, 3],
+      "objectF64le": [
+        "a29c8eb38732f33f39dcebe4d6a3b03f754327ccf398b93ffb077bc4ed1fec3f1f75cd595787debf0000000e46454e3e00000034163d5dbe0000008b9c2456be000000000000f03f1575cd595787debffa077bc4ed1fecbf000000124cb460beb81e85eb51b89e3f7b14ae47e17a843f0000000000000000",
+        "a9d41a23bdb8f83f0000000000000000984439b593e474bf400ea0f225b1a63f51c76248f3f7efbf0000000000000000000000000000000000000000000000000c0000000000f0bf51c76248f3f7ef3f400ea0f225b1a63f0000000000000000defaf2bafecbae3f6c26440e5336dd3f0c0000000000e03f"
+      ],
+      "distance": {
+        "values": [-3.6645409461879667e-7],
+        "f64le": "8c4ffe26a29798be"
+      },
+      "fromto": {
+        "values": [
+          1.2000000473715815, 0.06707231422076304, 0.06999056684155845, 1.2000000454881299,
+          0.0670723142207649, 0.06999093329081288
+        ],
+        "f64le": "e08cea3f3333f33f14930bb4a62bb13f47ed9cdbe6eab13fd81e693f3333f33f9a930bb4a62bb13fa2248001edeab13f"
+      }
+    },
+    {
+      "index": 4,
+      "case": "old_five_mesh_PRE_4729500_descriptive",
+      "pair": [8, 3],
+      "objectF64le": [
+        "a8af10b38732f33f0b058f2fd7a3b0bfcf9c86ddf398b93ffb077bc4ed1fec3f1f75cd595787debf0000000e46454e3e00000034163d5dbe0000008b9c2456be000000000000f03f1575cd595787debffa077bc4ed1fecbf000000124cb460beb81e85eb51b89e3f7b14ae47e17a843f0000000000000000",
+        "a9d41a23bdb8f83f0000000000000000984439b593e474bf400ea0f225b1a63f51c76248f3f7efbf0000000000000000000000000000000000000000000000000c0000000000f0bf51c76248f3f7ef3f400ea0f225b1a63f0000000000000000defaf2bafecbae3f6c26440e5336dd3f0c0000000000e03f"
+      ],
+      "distance": {
+        "values": [-3.623734184668015e-7],
+        "f64le": "5e111826875198be"
+      },
+      "fromto": {
+        "values": [
+          1.2000000473451218, -0.0637254996320068, 0.06999057092215255, 1.2000000454881299,
+          -0.06372549963200824, 0.06999093329081288
+        ],
+        "f64le": "64bbe83f3333f33f083ad7785050b0bf689623ede6eab13fd81e693f3333f33f703ad7785050b0bfa2248001edeab13f"
+      }
+    }
+  ],
+  "frame": {
+    "prefix": "ASA_PRIMARY_EPA_V1",
+    "ints": [
+      "query",
+      "geom1",
+      "geom2",
+      "type1",
+      "type2",
+      "maxIterations",
+      "maxContacts",
+      "npolygonmax",
+      "nmeshdegmax",
+      "gjkIterations",
+      "epaIterations",
+      "epaStatus",
+      "nx",
+      "facePacked",
+      "faceIndex",
+      "polytopeVertices",
+      "polytopeFaces",
+      "polytopeMap",
+      "faceVertex0",
+      "faceVertex1",
+      "faceVertex2",
+      "support0index1",
+      "support0index2",
+      "support1index1",
+      "support1index2",
+      "support2index1",
+      "support2index2",
+      "obj1nsupp",
+      "obj2nsupp",
+      "meshNvert",
+      "meshGraphPresent",
+      "payloadCopies"
+    ],
+    "f64": [
+      {
+        "name": "lambda",
+        "offset": 0,
+        "count": 3
+      },
+      {
+        "name": "faceV",
+        "offset": 3,
+        "count": 3
+      },
+      {
+        "name": "faceDist2",
+        "offset": 6,
+        "count": 1
+      },
+      {
+        "name": "vertex0",
+        "offset": 7,
+        "count": 9
+      },
+      {
+        "name": "vertex1",
+        "offset": 16,
+        "count": 9
+      },
+      {
+        "name": "vertex2",
+        "offset": 25,
+        "count": 9
+      },
+      {
+        "name": "x1",
+        "offset": 34,
+        "count": 3
+      },
+      {
+        "name": "x2",
+        "offset": 37,
+        "count": 3
+      },
+      {
+        "name": "distance",
+        "offset": 40,
+        "count": 1
+      },
+      {
+        "name": "object1",
+        "offset": 41,
+        "count": 16
+      },
+      {
+        "name": "object2",
+        "offset": 57,
+        "count": 16
+      },
+      {
+        "name": "tolerance",
+        "offset": 73,
+        "count": 1
+      },
+      {
+        "name": "cutoff",
+        "offset": 74,
+        "count": 1
+      }
+    ],
+    "words": 75,
+    "maxRecordBytes": 4096,
+    "hexEncoding": "literal little-endian binary64 memory bytes, no decimal conversion"
+  },
+  "build": {
+    "schema": "ASA_CYLINDER_PRIMARY_TRACE_PRIVATE_BUILD_V1",
+    "compileCommands": {
+      "bytes": 213635,
+      "sha256": "1fe62051e1b08cf198997ba08c2041c559d3af40d84d04c0b684c4a35d959ab3"
+    },
+    "command": {
+      "directory": "C:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build",
+      "command": "C:\\Users\\spike\\AppData\\Local\\Temp\\a1168t-be981f4a\\sdk\\install\\emscripten\\emcc.bat -DCCD_STATIC_DEFINE -DMC_IMPLEM_ENABLE -DMINIZ_STATIC_DEFINE -DMUJOCO_DLL_EXPORTS -DTINYOBJLOADER_IMPLEMENTATION -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -DmjUSEPLATFORMSIMD -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/marchingcubecpp-src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/src/include -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/src/src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/tinyobjloader-src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/miniz-src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/miniz-build -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/ccd-src/src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/ccd-build/src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/lodepng-src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/qhull-src/src -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/qhull-src/src/libqhull_r -IC:/Users/spike/AppData/Local/Temp/a1168b-2678fb17/build/_deps/tinyxml2-src -O3 -DNDEBUG -std=gnu11 -fPIC -fvisibility=hidden -fdata-sections -ffunction-sections -Werror -Wall -Wpedantic -Wimplicit-fallthrough -Wunused -Wvla -Wno-int-in-bool-context -Wno-sign-compare -Wno-unknown-pragmas -o CMakeFiles\\mujoco.dir\\src\\engine\\engine_collision_gjk.c.o -c C:\\Users\\spike\\AppData\\Local\\Temp\\a1168b-2678fb17\\src\\src\\engine\\engine_collision_gjk.c",
+      "file": "C:\\Users\\spike\\AppData\\Local\\Temp\\a1168b-2678fb17\\src\\src\\engine\\engine_collision_gjk.c",
+      "output": "CMakeFiles\\mujoco.dir\\src\\engine\\engine_collision_gjk.c.o"
+    },
+    "inheritedLink": {
+      "executable": "C:\\Users\\spike\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "argv": [
+        "-E",
+        "-B",
+        "-X",
+        "pycache_prefix=C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\scratch\\pycache",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\a1168t-be981f4a\\sdk\\install\\emscripten\\em++.py",
+        "-std=c++20",
+        "-O3",
+        "-fexceptions",
+        "-fexceptions",
+        "-O3",
+        "-DNDEBUG",
+        "--bind",
+        "-s",
+        "ASSERTIONS=1",
+        "-s",
+        "ALLOW_MEMORY_GROWTH=1",
+        "-s",
+        "EXPORT_ES6=1",
+        "-s",
+        "MODULARIZE=1",
+        "-s",
+        "FORCE_FILESYSTEM=1",
+        "-s",
+        "EXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','MEMFS']",
+        "-s",
+        "EXPORT_NAME=loadMujoco",
+        "-s",
+        "DISABLE_EXCEPTION_CATCHING=0",
+        "-fexceptions",
+        "-gsource-map",
+        "-g",
+        "--emit-tsd",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\artifact\\mujoco.d.ts",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\wasm\\CMakeFiles\\mujoco_wasm.dir\\codegen\\generated\\bindings.cc.o",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\wasm\\CMakeFiles\\mujoco_wasm.dir\\unpack.cc.o",
+        "-o",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\artifact\\mujoco.js",
+        "-LC:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\lib",
+        "-Wl,--whole-archive",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\lib\\libmujoco.a",
+        "-Wl,--no-whole-archive",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\lib\\libccd.a",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\lib\\libtinyxml2.a",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\lib\\libqhullstatic_r.a",
+        "-lm",
+        "-lm",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\lib\\libtinyobjloader.a",
+        "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\input\\lib\\libminiz.a",
+        "-sDYNAMIC_EXECUTION=0",
+        "-sEMBIND_AOT=1"
+      ],
+      "cwd": "C:\\Users\\spike\\AppData\\Local\\Temp\\asa-mujoco-aot-worker-nC9CkB\\scratch",
+      "configSha256": "b61f135291de4b27e9063110db9bed4326a1146eda9e505d89df6fb04f398322"
+    },
+    "compiler": {
+      "emcc": "4.0.10-git b7dc6e5747465580df5984e723b9d1f10d8e804b",
+      "cmake": "3.31.8",
+      "ninja": "1.13.1",
+      "node": "22.23.3",
+      "python": "3.13.15",
+      "smokeReceipt": {
+        "bytes": 1987,
+        "sha256": "55d7eff8f7a0c8a665185b3bf93d1a41e0532fbc28f09f3c994086777b503bab"
+      },
+      "declarationDependencies": {
+        "bytes": 2910,
+        "sha256": "40462db9552b899cf68df4bc0807d6f64268c17c619d5bdda8268fb09d9ec4da"
+      }
+    },
+    "inheritedInputs": [
+      {
+        "path": "Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/codegen/generated/bindings.cc.o",
+        "bytes": 3061548,
+        "sha256": "3949561c1a9333d3d2ed28bf4566a71ee9c0748e9016bd48343776a17ee20df7"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/wasm/CMakeFiles/mujoco_wasm.dir/unpack.cc.o",
+        "bytes": 2200,
+        "sha256": "6ee15dfa98944fc77dc92ea43f5ef09fc3c01a526f0614a047a21858ab790ac8"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libmujoco.a",
+        "bytes": 7530098,
+        "sha256": "75d00019baa48eff25c1ee189f9b1eb3494c1c2e2a395d31112532a5b1ab6b68"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libccd.a",
+        "bytes": 28778,
+        "sha256": "9f1142d029705678ede7e2ba1ff3c04233c2f153168405fa3fd978f2c17b5608"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libtinyxml2.a",
+        "bytes": 106432,
+        "sha256": "2d558c7c815d92e8814033428b8b02f49554c013ec3d1952fa90823841e41df3"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libqhullstatic_r.a",
+        "bytes": 594956,
+        "sha256": "03cc84a446e9dfd1049aab3ab39d1208efb2a598147fb5a69318f4fdb3a7dfcc"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libtinyobjloader.a",
+        "bytes": 182248,
+        "sha256": "5c54b2ebb1787029f62896b5e6f45ec042f5659b7ea8a72154809caeb6b84d14"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/lib/libminiz.a",
+        "bytes": 100328,
+        "sha256": "07630a753da107ac9edd35e5dae8a270bfb10b13f402851b830e07677bed9e2c"
+      },
+      {
+        "path": "Temp/a1168b-2678fb17/build/CMakeFiles/mujoco.dir/src/engine/engine_collision_gjk.c.o",
+        "bytes": 53584,
+        "sha256": "018025bb9b4aa97263637d38660be5df98fbc3c12f62d45f1c9b1bf36005b5fd"
+      }
+    ],
+    "archive": {
+      "bytes": 7530098,
+      "sha256": "75d00019baa48eff25c1ee189f9b1eb3494c1c2e2a395d31112532a5b1ab6b68",
+      "members": [
+        {
+          "name": "lodepng.cpp.o",
+          "bytes": 142431,
+          "sha256": "d768e72e198b0b1bd65f3c2de059d607383044a546cdb2d23df5698a6912b0e6"
+        },
+        {
+          "name": "gmsh_decoder.cc.o",
+          "bytes": 44060,
+          "sha256": "94af268888295f771cceedd7c2abfb924b6afb01dde9dd434d01002d14cbbf93"
+        },
+        {
+          "name": "obj_decoder.cc.o",
+          "bytes": 193040,
+          "sha256": "00e01703c0fb8b794f3aa02e2a27c500c0a237e7746f477aad529cc860c10cfe"
+        },
+        {
+          "name": "stl_decoder.cc.o",
+          "bytes": 7728,
+          "sha256": "4d0284363fda8075ad76705ae7696bbf7854e28e81a722ae890ea7a556a22eb1"
+        },
+        {
+          "name": "engine_callback.c.o",
+          "bytes": 1121,
+          "sha256": "3553f66ccb858f23cdc9c72653381300484a804ba0f69fd44dbfd47a634ddf04"
+        },
+        {
+          "name": "engine_collision_box.c.o",
+          "bytes": 13079,
+          "sha256": "9f166825473303c9ed9e867e16c80fe3b993fe7c12d2888b464ddedba5ab7817"
+        },
+        {
+          "name": "engine_collision_continuous.c.o",
+          "bytes": 39027,
+          "sha256": "a526d590341ab1c26aa3029a1bcc0ee9063b1536f1294d46a64399a58fea9887"
+        },
+        {
+          "name": "engine_collision_convex.c.o",
+          "bytes": 30898,
+          "sha256": "5bf329dbac4c2e00890bf1f9315b558798189c2339575d600f2483e3bdfbe87c"
+        },
+        {
+          "name": "engine_collision_driver.c.o",
+          "bytes": 61820,
+          "sha256": "aebc5432e3d5204b0c785e7c6b753ed23300a6803313a76a6992d9da4c1fc986"
+        },
+        {
+          "name": "engine_collision_flex.c.o",
+          "bytes": 19436,
+          "sha256": "ea1f1db54ef8fdc1759af0353699f0e7c15182ed4b4f17eb3f27cffc226545ff"
+        },
+        {
+          "name": "engine_collision_gjk.c.o",
+          "bytes": 53584,
+          "sha256": "018025bb9b4aa97263637d38660be5df98fbc3c12f62d45f1c9b1bf36005b5fd"
+        },
+        {
+          "name": "engine_collision_primitive.c.o",
+          "bytes": 9128,
+          "sha256": "e5275f28071b053c21b9e10ddf36399876503ae2a281a4087e68fcbc273ba940"
+        },
+        {
+          "name": "engine_collision_sdf.c.o",
+          "bytes": 37953,
+          "sha256": "23668e359f501811de1114019f678465ad5b1a86c66dce4006134ac0c5b55a0c"
+        },
+        {
+          "name": "engine_core_constraint.c.o",
+          "bytes": 84397,
+          "sha256": "24f98ef1c9aa48a3cf2661011834f2a08faf4b5997fc622d721c1be86d50544f"
+        },
+        {
+          "name": "engine_core_util.c.o",
+          "bytes": 96673,
+          "sha256": "5f4142181829c8b0f762b236fadcfff4c80adbe0689d79bf20e920af190506d1"
+        },
+        {
+          "name": "engine_core_smooth.c.o",
+          "bytes": 54806,
+          "sha256": "3c429fedb1f7433d4601df7ec3fc9972700898023d23e504ae968f687b4ebbd2"
+        },
+        {
+          "name": "engine_crossplatform.cc.o",
+          "bytes": 333,
+          "sha256": "69cc1fe690a8156987561952534198f41b60c41a8293732307e44a40f97a2d93"
+        },
+        {
+          "name": "engine_derivative.c.o",
+          "bytes": 104957,
+          "sha256": "49591999c7379c98cd63a48f0d5edac63631d3d8515e95647df02a1b3523182f"
+        },
+        {
+          "name": "engine_derivative_fd.c.o",
+          "bytes": 27910,
+          "sha256": "e1ef85922797888e233ee616300fe9182b983c4032cabc5912084e7a14a69a35"
+        },
+        {
+          "name": "engine_forward.c.o",
+          "bytes": 72606,
+          "sha256": "1bb350dd704e869704c5661ac0e1ef6dcaba5b250c11979011be1245d7a195ef"
+        },
+        {
+          "name": "engine_inverse.c.o",
+          "bytes": 9395,
+          "sha256": "bceef2ce44cfaddc123f124233b29de717bf13edca3059fc3b48048fa504b2bd"
+        },
+        {
+          "name": "engine_ipc.c.o",
+          "bytes": 39821,
+          "sha256": "96b187737b39160819a7d6bcabcf86f6858cd5282612c10d96fc51ec8aa4b6e1"
+        },
+        {
+          "name": "engine_init.c.o",
+          "bytes": 2568,
+          "sha256": "cb810f0ae2c192243a956ded7279a8e6ff403c69ce13b944d45cbe6ba8a4b7e4"
+        },
+        {
+          "name": "engine_island.c.o",
+          "bytes": 32841,
+          "sha256": "fda9999f1410c46039dc762f13127a74274c3374fd52bfcf223035008257de78"
+        },
+        {
+          "name": "engine_io.c.o",
+          "bytes": 444433,
+          "sha256": "034c8c38333c6dbb6b236967844807fc68be34ecf6590852532abead4b7db537"
+        },
+        {
+          "name": "engine_memory.c.o",
+          "bytes": 5928,
+          "sha256": "70770c3dda5ab1e7f219c4e4ca91e71408590a7a0bb5053b2b1f115d664fd210"
+        },
+        {
+          "name": "engine_metric.c.o",
+          "bytes": 69704,
+          "sha256": "d0f0584d4e8d829e0ecebf01202e339abdf29cc1749a228831e9d34d5e2665b4"
+        },
+        {
+          "name": "engine_name.c.o",
+          "bytes": 4258,
+          "sha256": "e762a0b57bc13261ced972ba69f9b6bf305ede6d1b0736fcc6ab8e15eefbdf4c"
+        },
+        {
+          "name": "engine_passive.c.o",
+          "bytes": 42866,
+          "sha256": "e2c77b9bb1d99840eae597a93c3e782968327d890d2cb07ac269502d5af361f2"
+        },
+        {
+          "name": "engine_plugin.cc.o",
+          "bytes": 51516,
+          "sha256": "2024a24804584d0e6eb6a97c999ea100b9b80f3794e6e04210dc663d38ea8245"
+        },
+        {
+          "name": "engine_print.c.o",
+          "bytes": 208459,
+          "sha256": "231bc6dbfbc846d237b4954a2341a0b4e016790d23a81425588428a13a0ac686"
+        },
+        {
+          "name": "engine_ray.c.o",
+          "bytes": 33297,
+          "sha256": "751c7b71eaa8ece339663a7c6676e1e944ca267cd694fa9f95b54054c29bc238"
+        },
+        {
+          "name": "engine_sensor.c.o",
+          "bytes": 36744,
+          "sha256": "26374026ba12bbae86277ad08c677ca63550e6eec08227029f3b6e12751356ec"
+        },
+        {
+          "name": "engine_setconst.c.o",
+          "bytes": 46315,
+          "sha256": "1752de34fa9099f293407e0731b6e672d7f80ac9a27cfe8fa382cf3b8fc448a4"
+        },
+        {
+          "name": "engine_sleep.c.o",
+          "bytes": 29131,
+          "sha256": "141d64ace8ef0e867deb2032fc817ca14abcd3c4603b9070a864acd10e6a998d"
+        },
+        {
+          "name": "engine_solver.c.o",
+          "bytes": 58538,
+          "sha256": "c8f9dcf473a92ae257a619eebb49db7a8f793d74af400ff8990163f685226261"
+        },
+        {
+          "name": "engine_support.c.o",
+          "bytes": 47133,
+          "sha256": "3f441ebebcc3d41608eb5514d5e92a1fac6af40816d9e4577e4825055a463c7b"
+        },
+        {
+          "name": "engine_thread.cc.o",
+          "bytes": 9494,
+          "sha256": "52acdfa4942f74b060176db08f80503fb06bbde84753216a3018d3cf3bbad236"
+        },
+        {
+          "name": "engine_util_blas.c.o",
+          "bytes": 12829,
+          "sha256": "9426dbbe5406d3c713c06299cad58a7d44ac933964f2b5c7ff9112654d4c4758"
+        },
+        {
+          "name": "engine_util_errmem.c.o",
+          "bytes": 10433,
+          "sha256": "2d4d941628b7cd62f0639a40c30a6d0d7afe12b5668db01b14d3bd65536c24d2"
+        },
+        {
+          "name": "engine_util_misc.c.o",
+          "bytes": 44394,
+          "sha256": "ca0c2b26472511f01fe5029deb50de71789bcee00c5e5b7a4136451411358dbf"
+        },
+        {
+          "name": "engine_util_solve.c.o",
+          "bytes": 53949,
+          "sha256": "cf94bd98e5472108ec34f0800c3eb7b07fecdedec2aca2c8f5f72719e9618135"
+        },
+        {
+          "name": "engine_util_sparse.c.o",
+          "bytes": 30173,
+          "sha256": "d68f64a5a39ab9636ad9b1e60f541385c6c1af8726d6e9b17233581b66087b69"
+        },
+        {
+          "name": "engine_util_spatial.c.o",
+          "bytes": 19288,
+          "sha256": "e430d69331726bf79189f7315927dc1d76c16689b188048db5d0716ec25bba2f"
+        },
+        {
+          "name": "engine_vis_init.c.o",
+          "bytes": 13938,
+          "sha256": "9634948e680dbf7d3bd66c100c8a53cb5925bfd7efddca6d5fd4b108ec9d5dd4"
+        },
+        {
+          "name": "engine_vis_interact.c.o",
+          "bytes": 33595,
+          "sha256": "1d6ae2833ecb217c56b3dd57f46f546cdc1bf1967980725d9712abc8f29faad5"
+        },
+        {
+          "name": "engine_vis_visualize.c.o",
+          "bytes": 96796,
+          "sha256": "11847722d63db7b97d565b161605fe022c25929cf58d5fba400cb23d131c2c23"
+        },
+        {
+          "name": "user_api.cc.o",
+          "bytes": 164730,
+          "sha256": "61df265092603f055fb6b691b539ae2aa7910f0d5bdd33df21767aca61ed18bb"
+        },
+        {
+          "name": "user_cache.cc.o",
+          "bytes": 45655,
+          "sha256": "50cd3369e9dd965a862764e5c7f1213c5aa18aa78ae34a14c3726af95cf0d9c8"
+        },
+        {
+          "name": "user_flexcomp.cc.o",
+          "bytes": 364732,
+          "sha256": "8cb35d23b7f766d8f877b2fc600e2cba41ca1aefc3a5bf455af7ab0c162678e8"
+        },
+        {
+          "name": "user_init.c.o",
+          "bytes": 4025,
+          "sha256": "0863d2ddab10fc366f1891fa504ebea04c60be8ebff96a13c169ef5b2a3b2adf"
+        },
+        {
+          "name": "user_mesh.cc.o",
+          "bytes": 282172,
+          "sha256": "76cdc71ac95de3e3208faec44f4341be4b2a51a75dc870d3c2293e3f0ed2943a"
+        },
+        {
+          "name": "user_model.cc.o",
+          "bytes": 871692,
+          "sha256": "29f2862f7e6cdad2991c0b7761a34bb0d6d7a15140965d958caf47b5ab086afe"
+        },
+        {
+          "name": "user_objects.cc.o",
+          "bytes": 646489,
+          "sha256": "68299a10e31a3b13cbd4efcb6f52bbffbd54368f6ccddc6dab52148df82feece"
+        },
+        {
+          "name": "user_resolver.cc.o",
+          "bytes": 153095,
+          "sha256": "575cf981bced6abc27eeae8bbd07da32404da7be681b1491d6c9898d6b4018fe"
+        },
+        {
+          "name": "user_resource.cc.o",
+          "bytes": 6583,
+          "sha256": "3eec58e548654635951d5e6db7ca5efd96410245f8ce1f34d31296c5a9477582"
+        },
+        {
+          "name": "user_threadpool.cc.o",
+          "bytes": 14146,
+          "sha256": "48d5bcfb4836d03723bf9c4b63d8d47398bd5c5b7bf570137edb086f133b5d09"
+        },
+        {
+          "name": "user_util.cc.o",
+          "bytes": 67302,
+          "sha256": "72c0e20bb6468b3a8d67f078db96417c40bac8fc4649bb8c45fad832bdb454fb"
+        },
+        {
+          "name": "user_vfs.cc.o",
+          "bytes": 59991,
+          "sha256": "2233214d0a6fdd6562f7c821e6a4ba40a500a2c910448d8a091ca96a7a782be4"
+        },
+        {
+          "name": "xml_api.cc.o",
+          "bytes": 17859,
+          "sha256": "c86db3439c968f77040c6dba8f8cc22192fec51e117928fabfa395ebcbff4571"
+        },
+        {
+          "name": "xml_base.cc.o",
+          "bytes": 7562,
+          "sha256": "2a3a2871d472d14707d55bd6d78473e28c9ec47174e7cbb77c7f379b68d7ed24"
+        },
+        {
+          "name": "xml_global.cc.o",
+          "bytes": 3536,
+          "sha256": "9f83fb5d469026fc6397e277c3c0fa9c72517d3ad73a4272b4116646ca49938c"
+        },
+        {
+          "name": "xml.cc.o",
+          "bytes": 33740,
+          "sha256": "5f572a34ed05a194fc5f9c65a334f1aaca3df955cdb6e8aaf3a7769841fa0e5a"
+        },
+        {
+          "name": "xml_native_reader.cc.o",
+          "bytes": 407566,
+          "sha256": "f5f8d792780749d8ec49a08df26fc59d9237a5c544b6f8d0ac78435537763f3a"
+        },
+        {
+          "name": "xml_numeric_format.cc.o",
+          "bytes": 3672,
+          "sha256": "34e914fb8df76fd9619e7772c3e41ace26b3043b34b944a44c82785833c764ed"
+        },
+        {
+          "name": "xml_native_writer.cc.o",
+          "bytes": 494782,
+          "sha256": "757c2d9590fa25a8e918ddc44dd9b3915780a04cdf82aa64343ffce72f9237ce"
+        },
+        {
+          "name": "xml_urdf.cc.o",
+          "bytes": 85604,
+          "sha256": "ea0c9a754f5b58a4c7a617f9cb28245c32f548ea1d65bc728a014e49e2c9ab38"
+        },
+        {
+          "name": "xml_util.cc.o",
+          "bytes": 189654,
+          "sha256": "a48eb04c3a95612037dde7eaf85afc7433301db640a5e6e81bde997917603622"
+        },
+        {
+          "name": "mjz_archive_provider.cc.o",
+          "bytes": 17848,
+          "sha256": "30a660366498082fa467dabd0a210a5e2453718c030860d806d8804f9f66ea2e"
+        },
+        {
+          "name": "mjz_decoder.cc.o",
+          "bytes": 21172,
+          "sha256": "54e426140522e53efc8830c820ab5e959aa47378bb19574952b3c4de7835ec85"
+        },
+        {
+          "name": "mjz_encoder.cc.o",
+          "bytes": 59065,
+          "sha256": "9556291b974ae13c8bcbba68fb9033e72636ea6c969f0a151ffca9b5010c116d"
+        },
+        {
+          "name": "batch.cc.o",
+          "bytes": 619376,
+          "sha256": "8fec183b9bb0fdd173fc11071cca9dbf80f06022ce6cc9027808d7d743dac328"
+        }
+      ],
+      "changedMember": "engine_collision_gjk.c.o"
+    },
+    "policy": "Read-only original inputs; compile ONE copied patched GJK source to private object with identical flags, replace only that member in private archive, relink inherited AOT argv with only private path relocation. No other bytes/options/exports/declarations/dependencies changed. Separate source HIGH, then controller build, separate artifact HIGH, then one native invocation.",
+    "receiptContract": {
+      "required": [
+        "schema",
+        "patchSha256",
+        "originalGjkSha256",
+        "patchedGjkSha256",
+        "inheritedBuildSha256",
+        "compileCommand",
+        "linkCommand",
+        "actualCompile",
+        "actualLink",
+        "files",
+        "reused"
+      ],
+      "actualCommand": "executable,argv,cwd; Python-E-B-X private pycache prefix; emcc.py compile and original em++.py AOT link; no new flags",
+      "layout": {
+        "archive": "input/lib/libmujoco.a",
+        "glue": "artifact/mujoco.js",
+        "wasm": "artifact/mujoco.wasm",
+        "declarations": "artifact/mujoco.d.ts",
+        "object": "object/engine_collision_gjk.c.o",
+        "patchedSource": "source/engine_collision_gjk.c"
+      },
+      "files": "Each file entry has relative file,bytes,sha256; exact original reused link input paths under input/; approved receipt SHA supplied separately after independent artifact review."
+    }
+  },
+  "inference": {
+    "policy": "After full measured public parity for both cases ONLY; reconstruct actual chosen affine operation and finite support membership, preserve FAIL/GAP; no assumed sign or unique algorithm cause.",
+    "arithmeticEnvelope": "Each elementary binary64 op is bounded by u/(1-u) times its result magnitude plus Number.MIN_VALUE for subnormal rounding. Evaluate 3-term lincomb, Minkowski subtraction and coefficient sum with prospectively accumulated absolute error; no fitting to observed trace.",
+    "maxTermCount": 3
+  }
+}

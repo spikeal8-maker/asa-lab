@@ -17,6 +17,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
 import type fixtureData from './mujoco-union-cylinder-static-witness.fixture.json';
+import type traceFixtureData from './mujoco-cylinder-primary-trace.fixture.json';
 
 // This module imports no previous spec, engine glue, session, CLI or numerical solver.
 // Only the explicitly enabled final test may dynamically import the verified AOT glue.
@@ -108,9 +109,13 @@ const sourcePath = fileURLToPath(import.meta.url);
 const fixturePath = join(dirname(sourcePath), 'mujoco-union-cylinder-static-witness.fixture.json');
 // Read the immutable JSON bytes through the same codec; bundler JSON transforms can normalize -0.
 const f = parseSigned(readFileSync(fixturePath, 'utf8')) as typeof fixtureData;
+const traceFixturePath = join(dirname(sourcePath), 'mujoco-cylinder-primary-trace.fixture.json');
+const t = parseSigned(readFileSync(traceFixturePath, 'utf8')) as typeof traceFixtureData;
 const repo = resolve(dirname(sourcePath), '../../..');
 const token = 'one-union-cylinder-static-witness-1071';
-const nativeEnabled = process.env.ASA_STATIC_WITNESS_NATIVE !== undefined;
+const nativeEnabled =
+  process.env.ASA_CCD_TRACE_NATIVE !== undefined ||
+  process.env.ASA_STATIC_WITNESS_NATIVE !== undefined;
 const sha = (input: Uint8Array | string) => createHash('sha256').update(input).digest('hex');
 function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -900,7 +905,11 @@ function rawModel(model: Model, c: Case) {
 function modelSnapshot(model: Model, c: Case) {
   return modelReadback(model, c);
 }
-function runCase(M: Native, c: Case, l: Ledger, sink: Sink) {
+type OperationHooks = {
+  before(kind: 'position' | 'distance', c: Case, pair?: number[]): void;
+  after(event: ReplayRecord): void;
+};
+function runCase(M: Native, c: Case, l: Ledger, sink: Sink, hooks?: OperationHooks) {
   let model: Model | undefined, data: Data | undefined, first: unknown;
   let phase = 'factory',
     baseline: Snapshot | undefined;
@@ -954,6 +963,7 @@ function runCase(M: Native, c: Case, l: Ledger, sink: Sink) {
       const counter = l[kind],
         cap = kind === 'position' ? f.caps.max_position_calls : f.caps.max_distance_calls;
       check(counter.attempted < cap, 'API_CAP_' + kind);
+      hooks?.before(kind, c, pair);
       let out: DoubleBuffer | undefined,
         result: number | undefined,
         fromto: Packet | undefined,
@@ -987,7 +997,7 @@ function runCase(M: Native, c: Case, l: Ledger, sink: Sink) {
         } catch (error) {
           apiError ??= error;
         }
-        remember({
+        const event = {
           kind,
           case: c.id,
           pair: pair ?? null,
@@ -999,7 +1009,13 @@ function runCase(M: Native, c: Case, l: Ledger, sink: Sink) {
           warnings: warnings ?? null,
           error: apiError ? String(apiError) : null,
           counters: structuredClone(l),
-        });
+        };
+        remember(event);
+        try {
+          hooks?.after(event as ReplayRecord);
+        } catch (error) {
+          apiError ??= error;
+        }
       }
       if (apiError) throw apiError;
       check(after, 'AFTER_CAPTURE');
@@ -1072,14 +1088,64 @@ function runCase(M: Native, c: Case, l: Ledger, sink: Sink) {
   check(l.cleanupErrors.length === 0, 'FINAL_CLEANUP_ERRORS');
   return { conclusions, calls };
 }
+type CaseExecutor = typeof runCase;
+function exactCaseTerminals(actual: unknown[]) {
+  const terminals = (actual as ReplayRecord[]).filter((v) => v.kind === 'case-finish');
+  check(
+    terminals.length === f.cases.length &&
+      f.cases.every((c) => terminals.filter((v) => v.case === c.id).length === 1),
+    'TRACE_EXACT_CASE_TERMINALS',
+  );
+}
+function acquireTraceCases(
+  M: Native,
+  l: Ledger,
+  sink: Sink,
+  collector: TraceCollector,
+  baseline: unknown[],
+  execute: CaseExecutor = runCase,
+) {
+  const parity = new PublicParity(baseline),
+    actual: unknown[] = [];
+  const durable: Sink = {
+    reserve: () => sink.reserve(),
+    write(record, footer) {
+      sink.write(record, footer);
+      actual.push(structuredClone(record));
+    },
+  };
+  const hooks: OperationHooks = {
+    before: (kind, c, pair) => collector.begin(kind, c, pair),
+    after: (event) => {
+      collector.end(event);
+      parity.observe(event);
+    },
+  };
+  // runCase.calls deliberately excludes its finally-written terminal. The shared
+  // actual path therefore records the full durable sink stream, including cleanup.
+  for (const c of f.cases) {
+    const start = actual.length;
+    execute(M, c, l, durable, hooks);
+    const terminal = (actual.slice(start) as ReplayRecord[]).filter(
+      (v) => v.kind === 'case-finish',
+    );
+    check(terminal.length === 1 && terminal[0]!.case === c.id, 'TRACE_EXACT_CASE_TERMINALS');
+  }
+  exactCaseTerminals(actual);
+  parity.complete();
+  replay(actual, false);
+  sink.write({ kind: 'trace-public-parity', exact: true, operations: 8, position: 4, distance: 4 });
+  return { actual, parity };
+}
 async function nativeRun(env: NodeJS.ProcessEnv) {
-  deniedEnvironment(env);
-  const expectedSource = required(env, 'ASA_STATIC_SOURCE_SHA256'),
+  traceAdmission(env);
+  const expectedSource = required(env, 'ASA_CCD_TRACE_SOURCE_SHA256'),
     expectedFixture = required(env, 'ASA_STATIC_FIXTURE_SHA256');
-  const path = required(env, 'ASA_STATIC_RECEIPT');
+  const path = required(env, 'ASA_CCD_TRACE_RECEIPT');
   const journal = new Journal(path),
     l = ledger();
   let first: unknown,
+    collector: TraceCollector | undefined,
     phase = 'PRE_IMPORT';
   try {
     journal.write({
@@ -1092,9 +1158,16 @@ async function nativeRun(env: NodeJS.ProcessEnv) {
     check(sha(readFileSync(sourcePath)) === expectedSource, 'CURRENT_SOURCE_PIN');
     check(sha(readFileSync(fixturePath)) === expectedFixture, 'CURRENT_FIXTURE_PIN');
     const inputs = readInputs(env);
+    const traceInputs = tracePreflight(env, inputs);
+    collector = new TraceCollector(journal);
     journal.write({
       kind: 'header',
       schema: f.receipt.schema,
+      traceFixture: {
+        bytes: readFileSync(traceFixturePath).length,
+        sha256: sha(readFileSync(traceFixturePath)),
+      },
+      traceAdmission: traceInputs.proof,
       profile: f.profile,
       source: { bytes: readFileSync(sourcePath).length, sha256: expectedSource },
       fixture: { bytes: readFileSync(fixturePath).length, sha256: expectedFixture },
@@ -1111,16 +1184,17 @@ async function nativeRun(env: NodeJS.ProcessEnv) {
     );
     journal.reserve();
     phase = 'MODULE_IMPORT';
-    const factory = (
-      await import(pathToFileURL(join(inputs.paths.engine, f.engine.glue.file)).href)
-    ).default as (options: Record<string, unknown>) => Promise<Native>;
+    const factory = (await import(pathToFileURL(traceInputs.gluePath).href)).default as (
+      options: Record<string, unknown>,
+    ) => Promise<Native>;
     check(l.handles.module.attempted === 0, 'MODULE_CAP');
     l.handles.module.attempted++;
     const M = await factory({
-      wasmBinary: inputs.wasm,
+      wasmBinary: traceInputs.wasm,
+      printErr: (...args: unknown[]) => collector!.accept(args),
       locateFile: (name: string) => {
         check(name === f.engine.wasm.file, 'NO_UNREGISTERED_NATIVE_RESOURCE');
-        return join(inputs.paths.engine, name);
+        return traceInputs.wasmPath;
       },
     });
     l.handles.module.returned++;
@@ -1131,8 +1205,15 @@ async function nativeRun(env: NodeJS.ProcessEnv) {
         typeof M.DoubleBuffer === 'function',
       'EXACT_BINDINGS',
     );
+    collector.endStartup();
     phase = 'POSITION_DISPATCH';
-    for (const c of f.cases) runCase(M, c, l, journal);
+    const { parity } = acquireTraceCases(M, l, journal, collector, traceInputs.baseline);
+    const evidence = interpretTraces(collector.complete(), parity);
+    journal.write({
+      kind: 'trace-evidence',
+      evidence,
+      scope: 'CHOSEN_EPA_INPUTS_AND_AFFINE_OPERATION_ONLY_NO_PHYSICS_ACCEPTANCE',
+    });
     phase = 'COMPLETE';
   } catch (error) {
     first = error;
@@ -1150,6 +1231,7 @@ async function nativeRun(env: NodeJS.ProcessEnv) {
           physical: 'NOT_REASSESSED_HISTORICAL_FAIL_UNCHANGED',
           causal: 'HISTORICAL_GAP_UNCHANGED',
           formal: 'D01_D02_OPEN',
+          traceStream: collector?.snapshot() ?? null,
         },
         true,
       );
@@ -1381,6 +1463,874 @@ function replay(records: unknown[], fullReceipt = false) {
     }
   }
   return result;
+}
+
+// Separately selected logging-only mode. These helpers perform no compilation or engine import.
+const traceToken = 'one-cylinder-primary-epa-trace-1071';
+function traceAdmission(env: NodeJS.ProcessEnv) {
+  check(env.ASA_CCD_TRACE_NATIVE === traceToken, 'EXACT_TRACE_OPT_IN_OLD_STATIC_CONSUMED');
+  for (const key of Object.keys(env))
+    if (key !== 'ASA_CCD_TRACE_NATIVE' && /^ASA_/.test(key) && /(?:NATIVE|ACQUIRE)/.test(key))
+      check(env[key] === undefined, 'AMBIGUOUS_OR_CONSUMED_MODE_' + key);
+}
+function applyTracePatch(original: string, patch: string) {
+  const input = original.split('\n');
+  if (input.at(-1) === '') input.pop();
+  const output: string[] = [];
+  let cursor = 0,
+    hunks = 0;
+  const lines = patch.split('\n');
+  check(
+    lines[0] === '--- a/src/engine/engine_collision_gjk.c' &&
+      lines[1] === '+++ b/src/engine/engine_collision_gjk.c',
+    'PATCH_ONLY_GJK',
+  );
+  for (let i = 2; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line === '') continue;
+    const h = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@$/.exec(line);
+    check(h, 'PATCH_HUNK');
+    const oldCount = h[2] === undefined ? 1 : Number(h[2]),
+      newCount = h[4] === undefined ? 1 : Number(h[4]);
+    const from = Number(h[1]) - (oldCount === 0 ? 0 : 1);
+    check(from >= cursor, 'PATCH_ORDER');
+    output.push(...input.slice(cursor, from));
+    cursor = from;
+    let removed = 0,
+      added = 0;
+    hunks++;
+    while (i + 1 < lines.length && !lines[i + 1]!.startsWith('@@ ')) {
+      const row = lines[++i]!;
+      if (row === '' && i === lines.length - 1) break;
+      const tag = row[0],
+        body = row.slice(1);
+      check(tag === ' ' || tag === '+' || tag === '-', 'PATCH_LINE');
+      if (tag !== '+') {
+        check(input[cursor] === body, 'PATCH_CONTEXT_EXACT');
+        cursor++;
+        removed++;
+      }
+      if (tag !== '-') {
+        output.push(body);
+        added++;
+      }
+    }
+    check(removed === oldCount && added === newCount, 'PATCH_HUNK_COUNTS');
+  }
+  check(hunks > 0, 'PATCH_NONEMPTY');
+  output.push(...input.slice(cursor));
+  return output.join('\n') + '\n';
+}
+function traceOperationInverse(patched: string) {
+  let inverse = patched
+    .replace(
+      /^\/\/ ASA_PRIMARY_EPA_TRACE_BEGIN helpers\n[\s\S]*?^\/\/ ASA_PRIMARY_EPA_TRACE_END helpers\n\n/gm,
+      '',
+    )
+    .replace(
+      /^\/\/ ASA_PRIMARY_EPA_TRACE_BEGIN [a-z]+\n[\s\S]*?^\/\/ ASA_PRIMARY_EPA_TRACE_END [a-z]+\n/gm,
+      '',
+    );
+  for (const rewrite of t.patch.inverseRewrites) {
+    check(inverse.split(rewrite.after).length === 2, 'EXACT_PRIVATE_ARGUMENT_REWRITE');
+    inverse = inverse.replace(rewrite.after, rewrite.before);
+  }
+  check(
+    !inverse.includes('asa_primary') &&
+      !inverse.includes('asa_trace') &&
+      !inverse.includes('ASAPrimary'),
+    'NO_UNACCOUNTED_TRACE_OPERATIONS',
+  );
+  return inverse;
+}
+function patchPreflight(env: NodeJS.ProcessEnv) {
+  const raw = pinFile(required(env, 'ASA_CCD_TRACE_UPSTREAM_GJK'), {
+    bytes: t.patch.upstreamBytes,
+    sha256: t.immutableInputs.upstream_gjk.sha256,
+  });
+  const patch = pinFile(join(dirname(sourcePath), t.patch.file), t.patch),
+    patched = applyTracePatch(raw.toString(), patch.toString());
+  check(
+    Buffer.byteLength(patched) === t.patch.patchedBytes && sha(patched) === t.patch.patchedSha256,
+    'PATCHED_GJK_EXACT',
+  );
+  check(
+    Buffer.from(traceOperationInverse(patched)).equals(raw),
+    'UNCHANGED_NUMERICAL_OPERATIONS_INVERSE',
+  );
+  return { patch: sha(patch), original: sha(raw), patched: sha(patched) };
+}
+function archiveMembers(raw: Buffer) {
+  check(raw.subarray(0, 8).toString() === '!<arch>\n', 'AR_MAGIC');
+  let at = 8,
+    table: Buffer = Buffer.alloc(0);
+  const out = new Map<string, Buffer>();
+  while (at < raw.length) {
+    check(at + 60 <= raw.length, 'AR_HEADER');
+    const h = raw.subarray(at, at + 60);
+    check(h.subarray(58).toString() === '`\n', 'AR_HEADER_END');
+    const sizeText = h.subarray(48, 58).toString().trim();
+    check(/^\d+$/.test(sizeText), 'AR_SIZE');
+    const size = Number(sizeText);
+    check(Number.isSafeInteger(size) && at + 60 + size <= raw.length, 'AR_BODY');
+    let name = h.subarray(0, 16).toString().trim(),
+      body = raw.subarray(at + 60, at + 60 + size);
+    at += 60 + size + (size % 2);
+    check(at <= raw.length, 'AR_PADDING');
+    if (name === '//') {
+      table = body;
+      continue;
+    }
+    if (name === '/' || name === '/SYM64/') continue;
+    if (/^\/\d+$/.test(name)) {
+      const start = Number(name.slice(1)),
+        end = table.indexOf('/\n', start);
+      check(end >= start, 'AR_LONG_NAME');
+      name = table.subarray(start, end).toString();
+    } else if (name.startsWith('#1/')) {
+      const n = Number(name.slice(3));
+      check(Number.isInteger(n) && n > 0 && n <= body.length, 'AR_BSD_NAME');
+      name = body.subarray(0, n).toString().replace(/\0+$/, '');
+      body = body.subarray(n);
+    } else name = name.replace(/\/$/, '');
+    check(name.length > 0 && !out.has(name), 'AR_UNIQUE_MEMBER');
+    out.set(name, body);
+  }
+  check(at === raw.length, 'AR_END');
+  return out;
+}
+function verifyArchive(raw: Buffer, candidate = false) {
+  const members = archiveMembers(raw);
+  check(members.size === t.build.archive.members.length, 'AR_72_MEMBERS');
+  for (const expected of t.build.archive.members) {
+    const body = members.get(expected.name);
+    check(body, 'AR_MISSING_MEMBER');
+    if (candidate && expected.name === t.build.archive.changedMember)
+      check(sha(body) !== expected.sha256, 'AR_GJK_ACTUALLY_CHANGED');
+    else
+      check(
+        body.length === expected.bytes && sha(body) === expected.sha256,
+        'AR_UNCHANGED_MEMBER_' + expected.name,
+      );
+  }
+  return members.get(t.build.archive.changedMember)!;
+}
+function wasmExports(raw: Buffer) {
+  check(
+    raw.subarray(0, 8).equals(Buffer.from([0, 97, 115, 109, 1, 0, 0, 0])),
+    'WASM_BINARY_HEADER',
+  );
+  let at = 8;
+  const leb = () => {
+    let value = 0,
+      shift = 0;
+    let b: number;
+    do {
+      check(at < raw.length && shift < 35, 'WASM_ULEB');
+      b = raw[at++]!;
+      value += (b & 127) * 2 ** shift;
+      shift += 7;
+    } while (b & 128);
+    return value;
+  };
+  while (at < raw.length) {
+    const id = raw[at++]!,
+      size = leb(),
+      end = at + size;
+    check(end <= raw.length, 'WASM_SECTION_CAP');
+    if (id === 7) {
+      const count = leb(),
+        exports: { name: string; kind: number }[] = [];
+      check(count < 10000, 'WASM_EXPORT_CAP');
+      for (let i = 0; i < count; i++) {
+        const n = leb();
+        check(at + n <= end, 'WASM_EXPORT_NAME');
+        const name = raw.subarray(at, at + n).toString();
+        at += n;
+        const kind = raw[at++]!;
+        leb();
+        exports.push({ name, kind });
+      }
+      check(at === end, 'WASM_EXPORT_SECTION_END');
+      return exports;
+    }
+    at = end;
+  }
+  throw new Error('WASM_EXPORTS_REQUIRED');
+}
+function historicalTraceInputs(env: NodeJS.ProcessEnv) {
+  const p = t.immutableInputs;
+  pinFile(required(env, 'ASA_CCD_TRACE_ARCHIVED_SPEC'), p.static_source.spec);
+  pinFile(fixturePath, p.static_source.fixture);
+  const patch = patchPreflight(env),
+    raw = pinFile(required(env, 'ASA_CCD_TRACE_BASELINE'), p.static_raw),
+    baseline = raw
+      .toString()
+      .trim()
+      .split('\n')
+      .map((line) => parseSigned(line)) as ReplayRecord[];
+  replay(baseline, false);
+  const header = baseline.find((v) => v.kind === 'header'),
+    finish = baseline.at(-1);
+  check(
+    header?.source?.sha256 === p.static_source.spec.sha256 &&
+      header.fixture?.sha256 === p.static_source.fixture.sha256,
+    'BASELINE_SOURCE_BINDING',
+  );
+  check(
+    finish?.kind === 'finish' &&
+      finish.runtime === 'COMPLETE' &&
+      finish.diagnostic === 'COMPLETE' &&
+      finish.acquisition === 'CONSUMED' &&
+      finish.firstError === null &&
+      finish.ledger,
+    'BASELINE_COMPLETE_CONSUMED',
+  );
+  const l = finish.ledger;
+  check(
+    l.position.attempted === 4 &&
+      l.position.returned === 4 &&
+      l.distance.attempted === 4 &&
+      l.distance.returned === 4 &&
+      l.step1 === 0 &&
+      l.step2 === 0 &&
+      l.forward === 0 &&
+      l.cleanupErrors.length === 0,
+    'BASELINE_CALLS',
+  );
+  const audit = parseSigned(
+    pinFile(required(env, 'ASA_CCD_TRACE_BASELINE_AUDIT'), p.independent_static_audit).toString(),
+  );
+  check(
+    audit.schema === 'ASA_INDEPENDENT_STATIC_WHEEL_DISK_AUDIT_V1' &&
+      audit.source_commit === p.static_source.commit &&
+      audit.source_tree === p.static_source.tree &&
+      audit.input_pins.position_receipt.sha256 === p.static_raw.sha256 &&
+      audit.input_pins.source.sha256 === p.static_source.spec.sha256 &&
+      audit.input_pins.fixture.sha256 === p.static_source.fixture.sha256 &&
+      audit.verdict === 'COMPLETE_VALID_POSITION_ONLY_OBSERVATION',
+    'BASELINE_INDEPENDENT_AUDIT',
+  );
+  const archive = pinFile(required(env, 'ASA_CCD_TRACE_BASE_ARCHIVE'), t.build.archive);
+  verifyArchive(archive);
+  pinFile(required(env, 'ASA_CCD_TRACE_COMPILE_COMMANDS'), t.build.compileCommands);
+  return {
+    baseline,
+    proof: {
+      patch,
+      baseline: p.static_raw,
+      audit: p.independent_static_audit,
+      originalArchive: t.build.archive.sha256,
+    },
+  };
+}
+type BuildCommand = { executable: string; argv: string[]; cwd: string };
+type TraceBuild = {
+  schema: string;
+  patchSha256: string;
+  originalGjkSha256: string;
+  patchedGjkSha256: string;
+  inheritedBuildSha256: string;
+  compileCommand: typeof t.build.command;
+  actualCompile: BuildCommand;
+  actualLink: BuildCommand;
+  linkCommand: typeof t.build.inheritedLink;
+  files: Record<
+    'archive' | 'object' | 'glue' | 'wasm' | 'declarations' | 'patchedSource',
+    Pin & { file: string }
+  >;
+  reused: { inheritedPath: string; file: string }[];
+};
+function childFile(root: string, file: string) {
+  check(!isAbsolute(file) && file.length > 0, 'PRIVATE_RELATIVE_FILE');
+  const path = resolve(root, file);
+  check(inside(root, path) && path !== root, 'PRIVATE_FILE_SCOPE');
+  check(
+    inside(root, realpathSync(path)) && !lstatSync(path).isSymbolicLink(),
+    'PRIVATE_REAL_FILE_SCOPE',
+  );
+  return path;
+}
+
+function commandRecipe(b: TraceBuild, root: string) {
+  const norm = (value: string) => value.replace(/\\/g, '/'),
+    oldRoot = norm(t.build.inheritedLink.cwd).replace(/\/scratch$/, ''),
+    newRoot = norm(root);
+  const old = t.build.command.command.split(/\s+/).map(norm),
+    expected = old.slice(1);
+  const inputIndex = expected.indexOf('-c') + 1,
+    outputIndex = expected.indexOf('-o') + 1;
+  check(inputIndex > 0 && outputIndex > 0, 'ORIGINAL_COMPILE_ROLES');
+  expected[inputIndex] = '<GJK_SOURCE>';
+  expected[outputIndex] = '<GJK_OBJECT>';
+  check(
+    norm(b.actualCompile.executable) === norm(t.build.inheritedLink.executable) &&
+      norm(b.actualLink.executable) === norm(t.build.inheritedLink.executable),
+    'PINNED_PYTHON_EXECUTABLE',
+  );
+  const emxx = norm(t.build.inheritedLink.argv[4]!),
+    emcc = emxx.replace(/em\+\+\.py$/, 'emcc.py');
+  check(
+    norm(b.actualCompile.argv[4]!) === emcc && norm(b.actualLink.argv[4]!) === emxx,
+    'PINNED_COMPILER_ENTRY',
+  );
+  check(
+    same(b.actualCompile.argv.slice(0, 3), t.build.inheritedLink.argv.slice(0, 3)) &&
+      b.actualCompile.argv[3]!.startsWith('pycache_prefix=') &&
+      inside(root, resolve(b.actualCompile.argv[3]!.slice('pycache_prefix='.length))),
+    'PROCESS_LOCAL_COMPILER_PREFIX',
+  );
+  check(
+    inside(root, resolve(b.actualCompile.cwd)) && inside(root, resolve(b.actualLink.cwd)),
+    'PRIVATE_COMMAND_CWD',
+  );
+  const actual = b.actualCompile.argv.slice(5).map(norm),
+    actualInput = actual.indexOf('-c') + 1,
+    actualOutput = actual.indexOf('-o') + 1;
+  check(
+    actualInput > 0 &&
+      actualOutput > 0 &&
+      resolve(b.actualCompile.cwd, actual[actualInput]!) ===
+        resolve(root, b.files.patchedSource.file) &&
+      resolve(b.actualCompile.cwd, actual[actualOutput]!) === resolve(root, b.files.object.file),
+    'PRIVATE_EXACT_COMPILE_SOURCE_OUTPUT',
+  );
+  actual[actualInput] = '<GJK_SOURCE>';
+  actual[actualOutput] = '<GJK_OBJECT>';
+  check(same(actual, expected), 'UNCHANGED_ALL_COMPILE_FLAGS_AND_HEADERS');
+  const relocate = (args: string[], prefix: string) =>
+    args.map((v) => norm(v).split(prefix).join('<PRIVATE>'));
+  check(
+    same(relocate(b.actualLink.argv, newRoot), relocate(t.build.inheritedLink.argv, oldRoot)) &&
+      norm(b.actualLink.cwd).split(newRoot).join('<PRIVATE>') ===
+        norm(t.build.inheritedLink.cwd).split(oldRoot).join('<PRIVATE>'),
+    'UNCHANGED_LINK_FLAGS_ONLY_PRIVATE_RELOCATION',
+  );
+  check(
+    norm(b.files.glue.file) === 'artifact/mujoco.js' &&
+      norm(b.files.wasm.file) === 'artifact/mujoco.wasm' &&
+      norm(b.files.declarations.file) === 'artifact/mujoco.d.ts' &&
+      norm(b.files.archive.file) === 'input/lib/libmujoco.a',
+    'EXACT_PRIVATE_INHERITED_LAYOUT',
+  );
+  for (const item of b.reused) {
+    const pin = t.build.inheritedInputs.find((v) => v.path === item.inheritedPath);
+    check(pin, 'REUSED_COMMAND_PIN');
+    const suffix = pin.path.split('/build/')[1]!;
+    const original = t.build.inheritedLink.argv.find((v) => norm(v).endsWith('/' + suffix));
+    check(original && norm(original).startsWith(oldRoot + '/'), 'REUSED_ORIGINAL_LINK_INPUT');
+    check(
+      norm(item.file) === norm(original).slice(oldRoot.length + 1),
+      'REUSED_BYTES_ARE_ACTUAL_LINK_INPUT',
+    );
+  }
+}
+function privateArtifact(env: NodeJS.ProcessEnv, baselineWasm: Buffer) {
+  const path = required(env, 'ASA_CCD_TRACE_BUILD_RECEIPT'),
+    digest = required(env, 'ASA_CCD_TRACE_BUILD_RECEIPT_SHA256');
+  check(/^[0-9a-f]{64}$/.test(digest), 'REVIEWED_BUILD_RECEIPT_SHA256');
+  const raw = readFileSync(path);
+  check(raw.length < 1048576 && sha(raw) === digest, 'REVIEWED_PRIVATE_BUILD_RECEIPT');
+  const root = dirname(realpathSync(path));
+  check(inside(realpathSync(tmpdir()), root) && !inside(repo, root), 'PRIVATE_BUILD_OS_TEMP');
+  const b = parseSigned(raw.toString()) as TraceBuild;
+  check(
+    b.schema === t.build.schema &&
+      b.patchSha256 === t.patch.sha256 &&
+      b.originalGjkSha256 === t.immutableInputs.upstream_gjk.sha256 &&
+      b.patchedGjkSha256 === t.patch.patchedSha256 &&
+      b.inheritedBuildSha256 === f.engine.buildReceipt.sha256,
+    'PRIVATE_BUILD_SOURCE_LINK',
+  );
+  // The reviewed build receipt records the frozen original recipe verbatim. Actual commands
+  // may relocate only source/object/output/archive paths under its owned private workspace.
+  check(
+    same(b.compileCommand, t.build.command) && same(b.linkCommand, t.build.inheritedLink),
+    'PRIVATE_BUILD_INHERITED_RECIPES',
+  );
+  commandRecipe(b, root);
+  const read = (key: keyof TraceBuild['files']) => {
+    const pin = b.files[key];
+    check(pin && typeof pin.file === 'string', 'PRIVATE_ARTIFACT_FIELD');
+    return pinFile(childFile(root, pin.file), pin);
+  };
+  const archive = read('archive'),
+    object = read('object'),
+    member = verifyArchive(archive, true);
+  check(member.equals(object), 'PRIVATE_EXACT_REPLACEMENT_OBJECT');
+  check(
+    b.files.patchedSource.bytes === t.patch.patchedBytes &&
+      b.files.patchedSource.sha256 === t.patch.patchedSha256,
+    'PRIVATE_PATCHED_SOURCE_PIN',
+  );
+  read('patchedSource');
+  const inherited = t.build.inheritedInputs.filter(
+    (v) => !v.path.endsWith('/libmujoco.a') && !v.path.endsWith('/engine_collision_gjk.c.o'),
+  );
+  check(
+    b.reused.length === inherited.length &&
+      new Set(b.reused.map((v) => v.inheritedPath)).size === inherited.length,
+    'PRIVATE_REUSED_INPUT_CENSUS',
+  );
+  for (const pin of inherited) {
+    const found = b.reused.find((v) => v.inheritedPath === pin.path);
+    check(found, 'PRIVATE_REUSED_INPUT_REQUIRED');
+    pinFile(childFile(root, found.file), pin);
+  }
+  const glue = read('glue'),
+    wasm = read('wasm'),
+    declarations = read('declarations');
+  check(
+    sha(wasm) !== f.engine.wasm.sha256 && wasm.includes(Buffer.from(t.frame.prefix + ' ints=')),
+    'PRIVATE_LOGGING_WASM_REQUIRED',
+  );
+  check(
+    declarations.length === f.engine.declarations.bytes &&
+      sha(declarations) === f.engine.declarations.sha256,
+    'NO_DECLARATION_API_CHANGE',
+  );
+  check(same(wasmExports(baselineWasm), wasmExports(wasm)), 'NO_WASM_EXPORT_API_CHANGE');
+  check(
+    b.files.glue.file.endsWith('/mujoco.js') && b.files.wasm.file.endsWith('/mujoco.wasm'),
+    'PRIVATE_ORIGINAL_RESOURCE_NAMES',
+  );
+  return {
+    gluePath: childFile(root, b.files.glue.file),
+    wasmPath: childFile(root, b.files.wasm.file),
+    wasm,
+    proof: {
+      receipt: { bytes: raw.length, sha256: digest },
+      files: b.files,
+      reused: b.reused,
+      archiveMembers: 72,
+      oneReplacedObjectSha256: sha(object),
+      glueSha256: sha(glue),
+      exports: wasmExports(wasm),
+    },
+  };
+}
+function tracePreflight(env: NodeJS.ProcessEnv, inputs: ReturnType<typeof readInputs>) {
+  check(
+    sha(readFileSync(traceFixturePath)) === required(env, 'ASA_CCD_TRACE_FIXTURE_SHA256'),
+    'CURRENT_TRACE_FIXTURE_PIN',
+  );
+  const historical = historicalTraceInputs(env),
+    artifact = privateArtifact(env, inputs.wasm);
+  return {
+    ...artifact,
+    baseline: historical.baseline,
+    proof: { historical: historical.proof, artifact: artifact.proof },
+  };
+}
+function publicProjection(v: ReplayRecord) {
+  const {
+    kind,
+    case: id,
+    pair,
+    distmax,
+    before,
+    after,
+    result,
+    fromto,
+    warnings,
+    error,
+    counters,
+  } = v as ReplayRecord & { warnings?: unknown };
+  return {
+    kind,
+    case: id,
+    pair,
+    distmax,
+    before,
+    after,
+    result,
+    fromto,
+    warnings,
+    error,
+    counters,
+  };
+}
+class PublicParity {
+  private index = 0;
+  private completed = false;
+  readonly actual: ReplayRecord[] = [];
+  private expected: ReplayRecord[];
+  constructor(records: unknown[]) {
+    this.expected = (records as ReplayRecord[]).filter(
+      (v) => v.kind === 'position' || v.kind === 'distance',
+    );
+    check(this.expected.length === 8, 'PARITY_EXACT_8_EXPECTED');
+  }
+  observe(event: ReplayRecord) {
+    check(!this.completed && this.index < 8, 'PARITY_NO_EXTRA_API');
+    check(
+      same(publicProjection(event), publicProjection(this.expected[this.index]!)),
+      'PUBLIC_F64_GEOMETRY_STATE_FROMTO_DIST_COUNTER_PARITY',
+    );
+    this.actual.push(event);
+    this.index++;
+  }
+  complete() {
+    check(
+      this.index === 8 && this.actual.filter((v) => v.kind === 'distance').length === 4,
+      'PUBLIC_BOTH_CASES_COMPLETE',
+    );
+    this.completed = true;
+  }
+  admitted() {
+    check(this.completed, 'NO_TRACE_INTERPRETATION_BEFORE_PUBLIC_PARITY');
+    return this.actual;
+  }
+}
+type TraceContext = {
+  kind: 'module' | 'position' | 'distance';
+  case?: string;
+  pair?: number[];
+  lines: string[];
+  bytes: number;
+};
+class TraceCollector {
+  private startupDone = false;
+  private active: TraceContext = { kind: 'module', lines: [], bytes: 0 };
+  private errors: string[] = [];
+  private used = 0;
+  private completed: TraceContext[] = [];
+  constructor(private sink: Sink) {}
+  accept(args: unknown[]) {
+    // Never throw out of an engine print callback. Capture/latch, then stop after return.
+    try {
+      const text = args.map(String).join(' '),
+        count = Buffer.byteLength(text) + 1,
+        remaining = t.caps.max_stderr_bytes - this.used;
+      if (args.length !== 1 || typeof args[0] !== 'string')
+        this.errors.push('TRACE_CALLBACK_ARGUMENTS');
+      if (count > remaining) {
+        this.errors.push('TRACE_STDERR_OVERFLOW bytes=' + count + ' sha256=' + sha(text));
+        this.sink.write(
+          {
+            kind: 'trace-stderr-overflow',
+            context: this.active.kind,
+            case: this.active.case,
+            bytes: count,
+            sha256: sha(text),
+            prefix: text.slice(0, Math.max(0, remaining - 1)),
+          },
+          true,
+        );
+        this.used = t.caps.max_stderr_bytes;
+        return;
+      }
+      if (this.startupDone && this.active.kind === 'module')
+        this.errors.push('TRACE_OUTSIDE_PUBLIC_API');
+      this.used += count;
+      this.active.bytes += count;
+      this.active.lines.push(text);
+      this.sink.write({
+        kind: 'trace-stderr-raw',
+        context: this.active.kind,
+        case: this.active.case,
+        pair: this.active.pair ?? null,
+        text,
+        bytes: count,
+      });
+      if (count > t.frame.maxRecordBytes) this.errors.push('TRACE_RECORD_OVERFLOW');
+    } catch (error) {
+      this.errors.push('TRACE_CAPTURE_ERROR: ' + String(error));
+    }
+  }
+  endStartup() {
+    this.sink.write({ kind: 'trace-startup-stderr', stream: this.active, errors: this.errors });
+    check(this.active.lines.length === 0 && this.errors.length === 0, 'UNEXPECTED_STARTUP_STDERR');
+    this.active = { kind: 'module', lines: [], bytes: 0 };
+    this.startupDone = true;
+  }
+  begin(kind: 'position' | 'distance', c: Case, pair?: number[]) {
+    check(
+      this.startupDone && this.active.kind === 'module' && this.active.lines.length === 0,
+      'TRACE_NO_OVERWRITTEN_CONTEXT',
+    );
+    check(this.errors.length === 0, 'TRACE_PENDING_ERROR');
+    check(
+      this.used + t.frame.maxRecordBytes <= t.caps.max_stderr_bytes,
+      'TRACE_PRECALL_BYTE_RESERVE',
+    );
+    check(this.completed.length < 8, 'TRACE_API_CONTEXT_CAP');
+    this.active = { kind, case: c.id, pair, lines: [], bytes: 0 };
+  }
+  end(event: ReplayRecord) {
+    const active = this.active;
+    this.sink.write({ kind: 'trace-api-stderr', stream: active, errors: this.errors });
+    check(
+      event.kind === active.kind &&
+        event.case === active.case &&
+        same(event.pair ?? undefined, active.pair),
+      'TRACE_API_CONTEXT',
+    );
+    check(this.errors.length === 0, 'TRACE_CAPTURE_FAILED: ' + this.errors[0]);
+    check(
+      active.lines.length === (active.kind === 'distance' ? 1 : 0),
+      'TRACE_EXACT_CONTEXT_RECORD_COUNT',
+    );
+    if (active.kind === 'distance') {
+      check(active.lines[0]!.startsWith(t.frame.prefix + ' ints='), 'TRACE_FRAMED_PREFIX');
+      const envelope = traceEnvelope(active.lines[0]!);
+      // Only integer identity/context is inspected here. Coefficients and all
+      // floating-point semantic interpretation remain behind complete public parity.
+      const identity = envelope[1]!.split(',').slice(0, 5).map(Number),
+        query = t.queries.find((q) => q.case === active.case && same(q.pair, active.pair));
+      check(
+        query && same(identity, [query.index, ...query.pair, 5, 7]),
+        'TRACE_INTEGER_QUERY_CONTEXT',
+      );
+    }
+    this.completed.push(structuredClone(active));
+    this.active = { kind: 'module', lines: [], bytes: 0 };
+  }
+  snapshot() {
+    return {
+      bytes: this.used,
+      errors: this.errors,
+      completed: this.completed,
+      active: this.active,
+    };
+  }
+  complete() {
+    check(
+      this.errors.length === 0 &&
+        this.completed.length === 8 &&
+        this.active.kind === 'module' &&
+        this.active.lines.length === 0,
+      'TRACE_STREAM_COMPLETE',
+    );
+    const queries = this.completed.filter((v) => v.kind === 'distance');
+    check(
+      queries.length === t.caps.max_trace_records && queries.every((v) => v.lines.length === 1),
+      'TRACE_EXACT_FOUR',
+    );
+    return queries;
+  }
+}
+type DecodedTrace = { ints: number[]; words: Packet; query: (typeof t.queries)[number] };
+function traceEnvelope(line: string) {
+  check(!line.includes('\n') && !line.includes('\r'), 'TRACE_SINGLE_LINE');
+  const match = /^ASA_PRIMARY_EPA_V1 ints=([-0-9,]+) f64le=([0-9a-f]+)$/.exec(line);
+  check(
+    match && match[1]!.split(',').length === 32 && match[2]!.length === 75 * 16,
+    'TRACE_FRAMING',
+  );
+  check(
+    match[1]!.split(',').every((v) => /^(?:0|-?[1-9][0-9]*)$/.test(v)),
+    'TRACE_INTEGER_ENCODING',
+  );
+  return match;
+}
+function decodeTrace(line: string, index: number): DecodedTrace {
+  check(Buffer.byteLength(line) + 1 <= t.frame.maxRecordBytes, 'TRACE_LINE_CAP');
+  check(!line.includes('\n') && !line.includes('\r'), 'TRACE_SINGLE_LINE');
+  const match = /^ASA_PRIMARY_EPA_V1 ints=([-0-9,]+) f64le=([0-9a-f]+)$/.exec(line);
+  check(match, 'TRACE_FRAMING');
+  const parts = match[1]!.split(',');
+  check(
+    parts.length === t.frame.ints.length && parts.every((p) => /^(?:0|-?[1-9][0-9]*)$/.test(p)),
+    'TRACE_INTEGER_ENCODING',
+  );
+  const ints = parts.map(Number);
+  check(
+    ints.every((n) => Number.isSafeInteger(n) && n >= -2147483648 && n <= 2147483647),
+    'TRACE_INT32',
+  );
+  check(match[2]!.length === t.frame.words * 16, 'TRACE_75_F64');
+  const words = packet(decodePacket(match[2]!));
+  validatePacket(words, 75, 'TRACE_WORDS');
+  const query = t.queries[index];
+  check(
+    query && ints[0] === query.index && same(ints.slice(1, 5), [...query.pair, 5, 7]),
+    'TRACE_QUERY_IDENTITY',
+  );
+  check(
+    same(ints.slice(5, 9), [100, 1, 0, 0]) &&
+      ints[11] === 0 &&
+      ints[12] === 1 &&
+      ints[27] === 3 &&
+      ints[28] === 3 &&
+      ints[31] === 1,
+    'TRACE_FROZEN_DISPATCH',
+  );
+  check(
+    ints[9]! >= 0 &&
+      ints[9]! <= 100 &&
+      ints[10]! >= 0 &&
+      ints[10]! <= 100 &&
+      ints[15]! >= 3 &&
+      ints[15]! <= 105 &&
+      ints[16]! >= 0 &&
+      ints[16]! <= 600 &&
+      ints[17]! >= 0 &&
+      ints[17]! <= 600,
+    'TRACE_INTERNAL_CAPS',
+  );
+  check(
+    same(ints.slice(18, 21), [
+      ints[13]! & 1023,
+      (ints[13]! >>> 10) & 1023,
+      (ints[13]! >>> 20) & 1023,
+    ]) && ints.slice(18, 21).every((n) => n >= 0 && n < ints[15]!),
+    'TRACE_FACE_VERTEX_IDS',
+  );
+  const c = f.cases.find((c) => c.id === query.case)!,
+    native = c.archivedFactory.mesh.native,
+    mesh = native.integers.geom_dataid[query.pair[1]!]!,
+    vertices = native.integers.mesh_vertnum[mesh]!;
+  check(
+    ints[29] === vertices &&
+      (ints[30] === 0 || ints[30] === 1) &&
+      (vertices >= 10 || ints[30] === 0),
+    'TRACE_ACTUAL_MESH_DISPATCH',
+  );
+  for (let i = 0; i < 3; i++)
+    check(
+      (ints[21 + 2 * i] === 0 || ints[21 + 2 * i] === 1) &&
+        ints[22 + 2 * i]! >= 0 &&
+        ints[22 + 2 * i]! < vertices,
+      'TRACE_SELECTED_SUPPORT_IDS',
+    );
+  const hex = words.f64le;
+  check(
+    hex.slice(41 * 16, 56 * 16) === query.objectF64le[0] &&
+      hex.slice(57 * 16, 72 * 16) === query.objectF64le[1] &&
+      hex.slice(56 * 16, 57 * 16) === packet([0]).f64le &&
+      hex.slice(72 * 16, 73 * 16) === packet([0]).f64le &&
+      hex.slice(73 * 16) === packet([1e-8, 0]).f64le,
+    'TRACE_EXACT_CONTEXT_BITS',
+  );
+  check(
+    hex.slice(34 * 16, 40 * 16) === query.fromto.f64le &&
+      hex.slice(40 * 16, 41 * 16) === query.distance.f64le,
+    'TRACE_PUBLIC_OUTPUT_BITS',
+  );
+  return { ints, words, query };
+}
+function nextUpPositive(value: number) {
+  check(Number.isFinite(value) && value >= 0, 'FINITE_ARITHMETIC_ENVELOPE');
+  if (value === 0) return Number.MIN_VALUE;
+  const raw = bytes([value]);
+  raw.writeBigUInt64LE(raw.readBigUInt64LE() + 1n);
+  return raw.readDoubleLE();
+}
+const upSum = (values: number[]) => values.reduce((a, b) => nextUpPositive(a + b), 0);
+function arithmeticEnvelope(a: number[], b: number[]) {
+  check(a.length === b.length && a.length > 0, 'ARITHMETIC_TERMS');
+  const u = Number.EPSILON / 2,
+    ops = 2 * a.length - 1,
+    gamma = nextUpPositive((ops * u) / (1 - ops * u)),
+    magnitude = upSum(a.map((x, i) => nextUpPositive(Math.abs(x) * Math.abs(b[i]!))));
+  return nextUpPositive(nextUpPositive(gamma * magnitude) + ops * Number.MIN_VALUE);
+}
+function interpretTraces(stream: TraceContext[], parity: PublicParity) {
+  const operations = parity.admitted(),
+    distance = operations.filter((v) => v.kind === 'distance');
+  check(stream.length === 4 && distance.length === 4, 'TRACE_INTERPRET_COMPLETE_PAIR');
+  return stream.map((raw, index) => {
+    const decoded = decodeTrace(raw.lines[0]!, index),
+      v = decoded.words.values,
+      lambda = v.slice(0, 3),
+      vertices = [7, 16, 25].map((at) => ({
+        minkowski: v.slice(at, at + 3) as Vec,
+        first: v.slice(at + 3, at + 6) as Vec,
+        second: v.slice(at + 6, at + 9) as Vec,
+      }));
+    const operation = distance[index]!;
+    check(
+      operation.case === raw.case &&
+        same(operation.pair, raw.pair) &&
+        operation.after &&
+        operation.result &&
+        operation.fromto,
+      'TRACE_RETAINED_QUERY_CONTEXT',
+    );
+    check(
+      operation.fromto.f64le === decoded.words.f64le.slice(34 * 16, 40 * 16) &&
+        operation.result.f64le === decoded.words.f64le.slice(40 * 16, 41 * 16),
+      'TRACE_ACTUAL_MEASURED_OUTPUT_LINK',
+    );
+    const components = (key: 'first' | 'second', native: number[]) =>
+      [0, 1, 2].map((axis) => {
+        const a = vertices.map((p) => p[key][axis]!),
+          predicted = lambda[0]! * a[0]! + lambda[1]! * a[1]! + lambda[2]! * a[2]!,
+          bound = arithmeticEnvelope(lambda, a),
+          allowance = nextUpPositive(2 * bound),
+          residual = Math.abs(predicted - native[axis]!);
+        check(residual <= allowance, 'TRACE_AFFINE_RECONSTRUCTION');
+        return { predicted, actual: native[axis]!, residual, bound: allowance };
+      });
+    const reconstructed = {
+      first: components('first', v.slice(34, 37)),
+      second: components('second', v.slice(37, 40)),
+    };
+    const minkowski = vertices.map((point) =>
+      point.minkowski.map((actual, axis) => {
+        const predicted = point.first[axis]! - point.second[axis]!,
+          bound = nextUpPositive(
+            2 * arithmeticEnvelope([1, -1], [point.first[axis]!, point.second[axis]!]),
+          );
+        check(Math.abs(predicted - actual) <= bound, 'TRACE_MINKOWSKI_RECONSTRUCTION');
+        return { actual, predicted, bound };
+      }),
+    );
+    const sum = lambda[0]! + lambda[1]! + lambda[2]!,
+      sumBound = arithmeticEnvelope([1, 1, 1], lambda),
+      negativeMass = lambda.reduce((a, b) => a + Math.max(0, -b), 0);
+    const c = f.cases.find((c) => c.id === operation.case)!,
+      readbackModel = traceModelFromCase(c),
+      shape = wheelShape(readbackModel, operation.after, raw.pair![0]!);
+    const supports = vertices.map((point) => ({
+      first: packet(point.first),
+      second: packet(point.second),
+      cylinder: cylinder(point.first, shape.center, shape.axis, shape.radius, shape.halfWidth),
+      mesh: meshEndpoint(readbackModel, operation.after!, raw.pair![1]!, point.second),
+    }));
+    const final = cylinder(
+      v.slice(34, 37) as Vec,
+      shape.center,
+      shape.axis,
+      shape.radius,
+      shape.halfWidth,
+    );
+    return {
+      query: decoded.query.index,
+      case: raw.case,
+      pair: raw.pair,
+      raw: decoded,
+      lambda: packet(lambda),
+      sum,
+      sumBound,
+      negativeMass,
+      reconstructed,
+      minkowski,
+      supports,
+      final,
+      observation:
+        final.outside && supports.every((s) => !s.cylinder.outside) && Math.abs(sum - 1) <= sumBound
+          ? 'AFFINE_RECOVERY_OUTSIDE_WITH_VALID_CHOSEN_CYLINDER_INPUTS'
+          : supports.some((s) => s.cylinder.outside)
+            ? 'CHOSEN_CYLINDER_INPUT_ALREADY_OUTSIDE'
+            : 'DESCRIPTIVE_CHOSEN_INPUTS_ONLY',
+      scope: 'NOT_A_UNIQUE_ROOT_CAUSE_NO_PHYSICS_OR_EPA_FIX_ACCEPTANCE',
+    };
+  });
+}
+function traceModelFromCase(c: Case): Model {
+  // Pure model shape reconstruction only, with actual native compiled dictionary.
+  const m = c.archivedFactory.mesh.native,
+    model = {
+      ngeom: c.native_counts[3],
+      nmesh: c.native_counts[0],
+      mesh_vert: new Float32Array(m.verticesF32),
+      mesh_face: new Int32Array(m.facesI32),
+    } as unknown as Model;
+  for (const [k, v] of Object.entries(m.integers)) model[k] = new Int32Array(v);
+  for (const [k, v] of Object.entries(m.doubles)) model[k] = new Float64Array(v);
+  return model;
 }
 function mockNative(
   c: Case,
@@ -1843,7 +2793,7 @@ it.runIf(process.env.ASA_STATIC_VERIFY_INPUTS === 'verify')(
   },
 );
 it.runIf(nativeEnabled)(
-  'acquires the once-only registered position comparator with immutable exclusive raw and zero dynamics',
+  'acquires only the selected isolated EPA trace mode with exact old public parity and zero dynamics',
   async () => {
     await nativeRun(process.env);
   },
@@ -2115,4 +3065,508 @@ it('blocks position and distance dispatch on a contact-vector cleanup failure in
   const finish = sink.events.at(-1) as { firstError: string; ledger: Ledger };
   expect(finish.firstError).toBe(raw.firstError);
   expect(finish.ledger.cleanupErrors).toContain('contactVector: Error: MOCK_CONTACT_VECTOR_DELETE');
+});
+
+// Pure source-only trace tests. Mocks are transport/parity inputs, never physical evidence.
+function syntheticTraceLine(index: number) {
+  const q = t.queries[index]!,
+    ints = Array<number>(32).fill(0),
+    v = Array<number>(75).fill(0);
+  ints[0] = q.index;
+  ints[1] = q.pair[0]!;
+  ints[2] = q.pair[1]!;
+  ints[3] = 5;
+  ints[4] = 7;
+  ints[5] = 100;
+  ints[6] = 1;
+  ints[9] = 3;
+  ints[10] = 4;
+  ints[11] = 0;
+  ints[12] = 1;
+  ints[13] = 0 + (1 << 10) + (2 << 20);
+  ints[14] = -1;
+  ints[15] = 5;
+  ints[16] = 6;
+  ints[17] = 6;
+  ints[18] = 0;
+  ints[19] = 1;
+  ints[20] = 2;
+  ints[27] = 3;
+  ints[28] = 3;
+  ints[29] = index < 2 ? 12 : 8;
+  ints[30] = index < 2 ? 1 : 0;
+  ints[31] = 1;
+  v[0] = 1;
+  const fromto = decodePacket(q.fromto.f64le),
+    distance = decodePacket(q.distance.f64le)[0]!;
+  v[6] = distance * distance;
+  for (const at of [7, 16, 25]) {
+    v.splice(
+      at,
+      9,
+      ...fromto.slice(0, 3).map((x, i) => x - fromto[i + 3]!),
+      ...fromto.slice(0, 3),
+      ...fromto.slice(3),
+    );
+  }
+  v.splice(34, 6, ...fromto);
+  v[40] = distance;
+  v.splice(41, 15, ...decodePacket(q.objectF64le[0]!));
+  v[56] = 0;
+  v.splice(57, 15, ...decodePacket(q.objectF64le[1]!));
+  v[72] = 0;
+  v[73] = 1e-8;
+  v[74] = 0;
+  return t.frame.prefix + ' ints=' + ints.join(',') + ' f64le=' + packet(v).f64le;
+}
+function traceTestOperations() {
+  const sink = memorySink(),
+    l = ledger();
+  for (const c of f.cases) runCase(mockNative(c).M, c, l, sink);
+  return sink.events.filter((v) =>
+    ['position', 'distance'].includes((v as ReplayRecord).kind),
+  ) as ReplayRecord[];
+}
+it('isolates the selected trace opt-in and denies consumed/ambiguous actual native entry before files, import or initialization', async () => {
+  expect(() => traceAdmission({ ASA_CCD_TRACE_NATIVE: traceToken })).not.toThrow();
+  for (const env of [
+    {},
+    { ASA_STATIC_WITNESS_NATIVE: token },
+    { ASA_CCD_TRACE_NATIVE: 'yes' },
+    { ASA_CCD_TRACE_NATIVE: traceToken, ASA_STATIC_WITNESS_NATIVE: token },
+    { ASA_CCD_TRACE_NATIVE: traceToken, ASA_TT_UNION_RECOVERY_NATIVE: 'old' },
+  ]) {
+    expect(() => traceAdmission(env)).toThrow();
+    await expect(nativeRun(env)).rejects.toThrow();
+  }
+});
+it('parses only the four exact framed trace identities with75 actual binary64 words and rejects malformed/context/output bits', () => {
+  for (let i = 0; i < 4; i++) {
+    const line = syntheticTraceLine(i),
+      decoded = decodeTrace(line, i);
+    expect(decoded.words.values).toHaveLength(75);
+    expect(decoded.ints[0]).toBe(i + 1);
+    expect(() => decodeTrace(line, (i + 1) % 4)).toThrow('TRACE_QUERY_IDENTITY');
+    expect(() => decodeTrace(line + '00', i)).toThrow('TRACE_75_F64');
+  }
+  const line = syntheticTraceLine(0);
+  expect(() => decodeTrace(line.replace('ints=1,', 'ints=01,'), 0)).toThrow(
+    'TRACE_INTEGER_ENCODING',
+  );
+  expect(() => decodeTrace(line.replace('ASA_PRIMARY', 'OTHER'), 0)).toThrow('TRACE_FRAMING');
+  const raw = decodeTrace(line, 0).words;
+  raw.values[41] = 0;
+  expect(() => decodeTrace(line.replace(raw.f64le, packet(raw.values).f64le), 0)).toThrow(
+    'TRACE_EXACT_CONTEXT_BITS',
+  );
+});
+it('does not interpret any trace until exact all8 public operations match; preserves signed-zero/counter/output mismatches', () => {
+  const ops = traceTestOperations(),
+    parity = new PublicParity(ops);
+  expect(() => interpretTraces([], parity)).toThrow('NO_TRACE_INTERPRETATION_BEFORE_PUBLIC_PARITY');
+  for (const op of ops.slice(0, 7)) parity.observe(op);
+  expect(() => parity.complete()).toThrow('PUBLIC_BOTH_CASES_COMPLETE');
+  parity.observe(ops[7]!);
+  parity.complete();
+  expect(parity.admitted()).toHaveLength(8);
+  expect(() => parity.observe(ops[0]!)).toThrow('PARITY_NO_EXTRA_API');
+  for (const edit of [
+    (v: ReplayRecord) => {
+      v.after!.state = packet([0, ...v.after!.state.values.slice(1)]);
+    },
+    (v: ReplayRecord) => {
+      v.counters!.position.returned = 0;
+    },
+    (v: ReplayRecord) => {
+      v.after!.geometry.transforms.geom_xmat!.values[0] = -0;
+    },
+  ]) {
+    const mutated = structuredClone(ops[0]!);
+    edit(mutated);
+    expect(() => new PublicParity(ops).observe(mutated)).toThrow(
+      'PUBLIC_F64_GEOMETRY_STATE_FROMTO_DIST_COUNTER_PARITY',
+    );
+  }
+});
+it('keeps printErr callback nonthrowing but rejects missing/extra/unrelated/overflow records after actual return, with raw retained', () => {
+  const sink = memorySink(),
+    stream = new TraceCollector(sink);
+  stream.endStartup();
+  stream.begin('position', f.cases[0]!);
+  expect(() => stream.accept([syntheticTraceLine(0)])).not.toThrow();
+  expect(() => stream.end({ kind: 'position', case: f.cases[0]!.id, pair: undefined })).toThrow(
+    'TRACE_EXACT_CONTEXT_RECORD_COUNT',
+  );
+  expect(sink.events.some((v) => (v as { kind: string }).kind === 'trace-stderr-raw')).toBe(true);
+  const missing = new TraceCollector(memorySink());
+  missing.endStartup();
+  missing.begin('distance', f.cases[0]!, [5, 1]);
+  expect(() => missing.end({ kind: 'distance', case: f.cases[0]!.id, pair: [5, 1] })).toThrow(
+    'TRACE_EXACT_CONTEXT_RECORD_COUNT',
+  );
+  const overflow = new TraceCollector(memorySink());
+  expect(() => overflow.accept(['x'.repeat(t.caps.max_stderr_bytes + 1)])).not.toThrow();
+  expect(() => overflow.endStartup()).toThrow('UNEXPECTED_STARTUP_STDERR');
+  expect(overflow.snapshot().errors[0]).toContain('TRACE_STDERR_OVERFLOW');
+});
+it('rounds a prospective5-operation affine envelope upward without coefficient sign assumptions', () => {
+  expect(arithmeticEnvelope([1, -1, 1], [1e8, 1e8, 1])).toBeGreaterThan(0);
+  expect(arithmeticEnvelope([0, 0, 0], [0, 0, 0])).toBeGreaterThan(0);
+  expect(nextUpPositive(1)).toBe(1 + Number.EPSILON);
+  expect(nextUpPositive(0)).toBe(Number.MIN_VALUE);
+  expect(() => nextUpPositive(Infinity)).toThrow('FINITE_ARITHMETIC_ENVELOPE');
+});
+it.runIf(process.env.ASA_CCD_TRACE_VERIFY_INPUTS === 'verify')(
+  'dry-applies exact trace patch and proves original numerical source inverse, full baseline replay and original72-member archive, without any build/native',
+  () => {
+    const proof = historicalTraceInputs(process.env);
+    expect(proof.baseline).toHaveLength(27);
+    expect(proof.proof.patch.patched).toBe(t.patch.patchedSha256);
+    const ops = proof.baseline.filter((v) => v.kind === 'position' || v.kind === 'distance');
+    const parity = new PublicParity(ops);
+    for (const op of ops) parity.observe(op);
+    parity.complete();
+    for (let i = 0; i < 4; i++)
+      expect(decodeTrace(syntheticTraceLine(i), i).query.index).toBe(i + 1);
+  },
+);
+
+it('requires unchanged actual compiler/link flags and verified private input layout, rather than a provenance label alone', () => {
+  const root = resolve(tmpdir(), 'asa-trace-recipe-pure'),
+    norm = (s: string) => s.replace(/\\/g, '/'),
+    oldRoot = norm(t.build.inheritedLink.cwd).replace(/\/scratch$/, ''),
+    argv = t.build.command.command.split(/\s+/).slice(1),
+    input = argv.indexOf('-c') + 1,
+    output = argv.indexOf('-o') + 1;
+  argv[input] = join(root, 'source/engine_collision_gjk.c');
+  argv[output] = join(root, 'object/engine_collision_gjk.c.o');
+  const paths = {
+      archive: 'input/lib/libmujoco.a',
+      object: 'object/engine_collision_gjk.c.o',
+      glue: 'artifact/mujoco.js',
+      wasm: 'artifact/mujoco.wasm',
+      declarations: 'artifact/mujoco.d.ts',
+      patchedSource: 'source/engine_collision_gjk.c',
+    },
+    files = Object.fromEntries(
+      Object.entries(paths).map(([k, file]) => [k, { file, bytes: 1, sha256: '0'.repeat(64) }]),
+    ) as TraceBuild['files'];
+  const reused = t.build.inheritedInputs
+    .filter(
+      (v) => !v.path.endsWith('/libmujoco.a') && !v.path.endsWith('/engine_collision_gjk.c.o'),
+    )
+    .map((pin) => {
+      const suffix = pin.path.split('/build/')[1]!,
+        old = t.build.inheritedLink.argv.find((v) => norm(v).endsWith('/' + suffix))!;
+      return { inheritedPath: pin.path, file: norm(old).slice(oldRoot.length + 1) };
+    });
+  const link = t.build.inheritedLink.argv.map((v) => norm(v).split(oldRoot).join(norm(root))),
+    compile = [...link.slice(0, 5), ...argv];
+  compile[4] = norm(t.build.inheritedLink.argv[4]!).replace(/em\+\+\.py$/, 'emcc.py');
+  const b = {
+    files,
+    reused,
+    actualCompile: {
+      executable: t.build.inheritedLink.executable,
+      argv: compile,
+      cwd: join(root, 'scratch'),
+    },
+    actualLink: {
+      executable: t.build.inheritedLink.executable,
+      argv: link,
+      cwd: join(root, 'scratch'),
+    },
+  } as TraceBuild;
+  expect(() => commandRecipe(b, root)).not.toThrow();
+  const bad = structuredClone(b);
+  bad.actualCompile.argv.push('-ffast-math');
+  expect(() => commandRecipe(bad, root)).toThrow('UNCHANGED_ALL_COMPILE_FLAGS_AND_HEADERS');
+  const other = structuredClone(b);
+  other.reused[0]!.file = 'unverified.o';
+  expect(() => commandRecipe(other, root)).toThrow('REUSED_BYTES_ARE_ACTUAL_LINK_INPUT');
+  const flags = structuredClone(b);
+  flags.actualLink.argv.push('-sDYNAMIC_EXECUTION=1');
+  expect(() => commandRecipe(flags, root)).toThrow('UNCHANGED_LINK_FLAGS_ONLY_PRIVATE_RELOCATION');
+});
+
+it('reconstructs synthetic chosen coefficients without assuming signs and rejects a forged affine calculation after full public parity', () => {
+  const ops = traceTestOperations();
+  let q = 0;
+  for (const op of ops)
+    if (op.kind === 'distance') {
+      op.result = t.queries[q]!.distance;
+      op.fromto = t.queries[q]!.fromto;
+      q++;
+    }
+  const parity = new PublicParity(ops);
+  for (const op of ops) parity.observe(op);
+  parity.complete();
+  const stream: TraceContext[] = t.queries.map((query, i) => ({
+    kind: 'distance',
+    case: query.case,
+    pair: query.pair,
+    lines: [syntheticTraceLine(i)],
+    bytes: Buffer.byteLength(syntheticTraceLine(i)) + 1,
+  }));
+  const evidence = interpretTraces(stream, parity);
+  expect(evidence).toHaveLength(4);
+  expect(evidence.every((v) => v.lambda.values[0] === 1 && v.negativeMass === 0)).toBe(true);
+  // A separate purely synthetic affine construction supplies valid finite-cap inputs
+  // with a negative weight. It demonstrates the prospective oracle, not actual EPA data.
+  const d = decodeTrace(stream[0]!.lines[0]!, 0),
+    v = d.words.values,
+    first = ops.find((v) => v.kind === 'distance')!,
+    model = traceModelFromCase(f.cases[0]!),
+    shape = wheelShape(model, first.after!, 5),
+    out = v.slice(34, 37) as Vec,
+    axial = dot(sub(out, shape.center), shape.axis),
+    a = (axial / shape.halfWidth + 1) / 2,
+    lambda = [a, 1 - a, 0];
+  v.splice(0, 3, ...lambda);
+  const points = [
+    add(out, mul(shape.axis, shape.halfWidth - axial)),
+    add(out, mul(shape.axis, -shape.halfWidth - axial)),
+    add(out, mul(shape.axis, shape.halfWidth - axial)),
+  ];
+  for (let i = 0; i < 3; i++) {
+    const second = v.slice(37, 40) as Vec;
+    v.splice(7 + i * 9, 9, ...sub(points[i]!, second), ...points[i]!, ...second);
+  }
+  const prefix = stream[0]!.lines[0]!.split(' f64le=')[0]!;
+  stream[0]!.lines = [prefix + ' f64le=' + packet(v).f64le];
+  const negative = interpretTraces(stream, parity)[0]!;
+  expect(negative.negativeMass).toBeGreaterThan(0);
+  expect(negative.supports.every((v) => !v.cylinder.outside)).toBe(true);
+  expect(negative.observation).toBe('AFFINE_RECOVERY_OUTSIDE_WITH_VALID_CHOSEN_CYLINDER_INPUTS');
+  v[0] = 5;
+  stream[0]!.lines = [prefix + ' f64le=' + packet(v).f64le];
+  expect(() => interpretTraces(stream, parity)).toThrow('TRACE_AFFINE_RECONSTRUCTION');
+});
+it('latches stderr outside an active public API instead of overwriting its context', () => {
+  const c = new TraceCollector(memorySink());
+  c.endStartup();
+  c.accept([syntheticTraceLine(0)]);
+  expect(c.snapshot().errors).toContain('TRACE_OUTSIDE_PUBLIC_API');
+  expect(() => c.begin('distance', f.cases[0]!, [5, 1])).toThrow('TRACE_NO_OVERWRITTEN_CONTEXT');
+});
+
+it('validates archive and WASM metadata purely, rejecting duplicate/truncated members and changed export API without compiling them', () => {
+  const member = (name: string, body: string) => {
+    const h =
+      (name + '/').padEnd(16) +
+      '0'.padEnd(12) +
+      '0'.padEnd(6) +
+      '0'.padEnd(6) +
+      '100644'.padEnd(8) +
+      String(Buffer.byteLength(body)).padEnd(10) +
+      '`\n';
+    return Buffer.concat([
+      Buffer.from(h),
+      Buffer.from(body),
+      Buffer.from(body.length % 2 ? '\n' : ''),
+    ]);
+  };
+  const raw = Buffer.concat([Buffer.from('!<arch>\n'), member('a.o', 'abc')]);
+  expect(archiveMembers(raw).get('a.o')!.toString()).toBe('abc');
+  expect(() => archiveMembers(raw.subarray(0, -1))).toThrow('AR_PADDING');
+  expect(() => archiveMembers(Buffer.concat([raw, member('a.o', 'abc')]))).toThrow(
+    'AR_UNIQUE_MEMBER',
+  );
+  expect(() => archiveMembers(Buffer.from('not-an-archive'))).toThrow('AR_MAGIC');
+  const a = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0, 7, 5, 1, 1, 120, 0, 0]),
+    b = Buffer.from(a);
+  b[12] = 121;
+  expect(wasmExports(a)).toEqual([{ name: 'x', kind: 0 }]);
+  expect(same(wasmExports(a), wasmExports(b))).toBe(false);
+  expect(() => wasmExports(a.subarray(0, -1))).toThrow('WASM_SECTION_CAP');
+});
+it('validates zero-context patch insertion/replacement and never accepts a second file or unproved numerical edit', () => {
+  const prefix =
+    '--- a/src/engine/engine_collision_gjk.c\n+++ b/src/engine/engine_collision_gjk.c\n';
+  expect(applyTracePatch('a\nb\n', prefix + '@@ -1,0 +2 @@\n+x\n')).toBe('a\nx\nb\n');
+  expect(applyTracePatch('a\nb\n', prefix + '@@ -2 +2 @@\n-b\n+x\n')).toBe('a\nx\n');
+  expect(() => applyTracePatch('a\nb\n', prefix + '@@ -2 +2 @@\n-c\n+x\n')).toThrow(
+    'PATCH_CONTEXT_EXACT',
+  );
+  expect(() => applyTracePatch('a\n', prefix.replace('+++ b/src', '+++ b/other'))).toThrow(
+    'PATCH_ONLY_GJK',
+  );
+});
+
+it('binds the actual checked-in C patch filters and75-word recorder to four pinned query transforms without building C', () => {
+  const patch = pinFile(join(dirname(sourcePath), t.patch.file), t.patch).toString(),
+    added = patch
+      .split('\n')
+      .filter((v) => v.startsWith('+') && !v.startsWith('+++'))
+      .map((v) => v.slice(1))
+      .join('\n');
+  const records = [...added.matchAll(/\{(\d+), (\d+), \{([^}]+)\}\}/g)];
+  expect(records).toHaveLength(4);
+  records.forEach((match, i) => {
+    expect([Number(match[1]), Number(match[2])]).toEqual(t.queries[i]!.pair);
+    const bits = [...match[3]!.matchAll(/UINT64_C\(0x([0-9a-f]{16})\)/g)]
+      .map((v) => {
+        const raw = Buffer.alloc(8);
+        raw.writeBigUInt64LE(BigInt('0x' + v[1]));
+        return raw.toString('hex');
+      })
+      .join('');
+    expect(bits).toBe(t.queries[i]!.objectF64le.join(''));
+  });
+  expect(added).toContain('config->max_contacts != 1');
+  expect(added).toContain('config->npolygonmax != 0 || config->nmeshdegmax != 0');
+  expect(added).toContain('mjtNum words[75]');
+  expect(added).toContain('const int ints[32]');
+  expect(added).not.toMatch(
+    /(?:->support\s*\(|\bgjkSupport\s*\(|\bepaSupport\s*\(|\bmjc_multicontact\s*\()/,
+  );
+  expect(added).not.toContain('mju_sqrt(');
+});
+
+it('rejects malformed textual framing immediately after its actual return without decoding coefficients or starting another API', () => {
+  const sink = memorySink(),
+    stream = new TraceCollector(sink);
+  stream.endStartup();
+  stream.begin('distance', f.cases[0]!, [5, 1]);
+  stream.accept(['ASA_PRIMARY_EPA_V1 ints=broken f64le=00']);
+  expect(() => stream.end({ kind: 'distance', case: f.cases[0]!.id, pair: [5, 1] })).toThrow(
+    'TRACE_FRAMING',
+  );
+  expect(() => stream.begin('distance', f.cases[0]!, [6, 1])).toThrow(
+    'TRACE_NO_OVERWRITTEN_CONTEXT',
+  );
+  expect(() => decodeTrace(syntheticTraceLine(0) + '\n', 0)).toThrow('TRACE_SINGLE_LINE');
+});
+
+function mockAssembledTrace(collector?: TraceCollector, duplicateAt?: number) {
+  const mocks = f.cases.map((c) => mockNative(c));
+  let active = -1,
+    queries = 0;
+  const M: Native = {
+    MjModel: {
+      from_xml_string(text) {
+        active++;
+        check(
+          active < mocks.length && sha(text) === f.cases[active]!.xml_sha256,
+          'MOCK_ASSEMBLED_FACTORY',
+        );
+        return mocks[active]!.M.MjModel.from_xml_string(text);
+      },
+    },
+    MjData: function (model: Model) {
+      return new mocks[active]!.M.MjData(model);
+    } as unknown as Native['MjData'],
+    DoubleBuffer: function (n: number) {
+      return new mocks[active]!.M.DoubleBuffer(n);
+    } as unknown as Native['DoubleBuffer'],
+    mj_version: () => 4000000,
+    mj_versionString: () => f.engine.version,
+    mj_fwdPosition(model, data) {
+      mocks[active]!.M.mj_fwdPosition(model, data);
+    },
+    mj_geomDistance(model, data, first, second, cutoff, out) {
+      mocks[active]!.M.mj_geomDistance(model, data, first, second, cutoff, out);
+      const q = t.queries[queries]!;
+      check(
+        q.case === f.cases[active]!.id && same(q.pair, [first, second]),
+        'MOCK_ASSEMBLED_QUERY',
+      );
+      out.GetView().set(decodePacket(q.fromto.f64le));
+      collector?.accept([syntheticTraceLine(queries === duplicateAt ? queries - 1 : queries)]);
+      queries++;
+      return decodePacket(q.distance.f64le)[0]!;
+    },
+  };
+  return { M, mocks, queryCount: () => queries };
+}
+function assembledBaseline() {
+  const stub = mockAssembledTrace(),
+    l = ledger(),
+    sink = memorySink();
+  l.handles.module.attempted = 1;
+  l.handles.module.returned = 1;
+  for (const c of f.cases) runCase(stub.M, c, l, sink);
+  return sink.events;
+}
+it('executes the same live acquisition assembly and hooks with injected mocks, retaining exactly both durable terminals before replay/parity and before coefficients', () => {
+  const baseline = assembledBaseline(),
+    sink = memorySink(),
+    stream = new TraceCollector(sink),
+    mock = mockAssembledTrace(stream),
+    l = ledger();
+  l.handles.module.attempted = 1;
+  l.handles.module.returned = 1;
+  stream.endStartup();
+  const result = acquireTraceCases(mock.M, l, sink, stream, baseline);
+  expect(result.parity.admitted()).toHaveLength(8);
+  expect(result.actual.filter((v) => (v as ReplayRecord).kind === 'case-finish')).toHaveLength(2);
+  expect(replay(result.actual, false)).toHaveLength(2);
+  expect(stream.complete()).toHaveLength(4);
+  expect(interpretTraces(stream.complete(), result.parity)).toHaveLength(4);
+  expect(sink.events.filter((v) => (v as ReplayRecord).kind === 'case-finish')).toEqual(
+    result.actual.filter((v) => (v as ReplayRecord).kind === 'case-finish'),
+  );
+  expect(l.position).toEqual({ attempted: 4, returned: 4 });
+  expect(l.distance).toEqual({ attempted: 4, returned: 4 });
+  for (const mode of ['missing', 'duplicate']) {
+    const journal = memorySink(),
+      collector = new TraceCollector(journal),
+      native = mockAssembledTrace(collector),
+      counts = ledger();
+    counts.handles.module.attempted = 1;
+    counts.handles.module.returned = 1;
+    collector.endStartup();
+    const altered: CaseExecutor = (M, c, l, sink, hooks) =>
+      runCase(
+        M,
+        c,
+        l,
+        {
+          reserve: () => sink.reserve(),
+          write(record, footer) {
+            if ((record as ReplayRecord).kind === 'case-finish') {
+              if (mode === 'missing') return;
+              sink.write(record, footer);
+            }
+            sink.write(record, footer);
+          },
+        },
+        hooks,
+      );
+    expect(() =>
+      acquireTraceCases(native.M, counts, journal, collector, baseline, altered),
+    ).toThrow('TRACE_EXACT_CASE_TERMINALS');
+    expect(counts.handles.model.returned).toBe(1);
+    expect(counts.position.attempted).toBe(2);
+    expect(counts.distance.attempted).toBe(2);
+  }
+});
+it('rejects a prior valid query trace in the next live API context and never advances to another public API/model', () => {
+  const baseline = assembledBaseline(),
+    sink = memorySink(),
+    stream = new TraceCollector(sink),
+    mock = mockAssembledTrace(stream, 1),
+    l = ledger();
+  l.handles.module.attempted = 1;
+  l.handles.module.returned = 1;
+  stream.endStartup();
+  expect(() => acquireTraceCases(mock.M, l, sink, stream, baseline)).toThrow(
+    'TRACE_INTEGER_QUERY_CONTEXT',
+  );
+  expect(l.position).toEqual({ attempted: 1, returned: 1 });
+  expect(l.distance).toEqual({ attempted: 2, returned: 2 });
+  expect(l.handles.model.returned).toBe(1);
+  expect(l.handles.model.deleted).toBe(1);
+  expect(l.handles.data.deleted).toBe(1);
+  expect(stream.snapshot().completed).toHaveLength(2);
+  expect(stream.snapshot().active.pair).toEqual([6, 1]);
+  const finish = sink.events.find(
+    (v) => (v as ReplayRecord).kind === 'case-finish',
+  ) as ReplayRecord;
+  expect(finish.firstError).toContain('TRACE_INTEGER_QUERY_CONTEXT');
+  expect(sink.events.filter((v) => (v as ReplayRecord).kind === 'distance')).toHaveLength(2);
+  expect(
+    sink.events.filter((v) => (v as { kind: string }).kind === 'trace-stderr-raw'),
+  ).toHaveLength(2);
+  expect(() => stream.begin('position', f.cases[0]!)).toThrow('TRACE_NO_OVERWRITTEN_CONTEXT');
 });
