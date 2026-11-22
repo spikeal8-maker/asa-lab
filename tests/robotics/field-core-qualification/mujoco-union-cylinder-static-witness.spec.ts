@@ -1088,6 +1088,55 @@ function runCase(M: Native, c: Case, l: Ledger, sink: Sink, hooks?: OperationHoo
   check(l.cleanupErrors.length === 0, 'FINAL_CLEANUP_ERRORS');
   return { conclusions, calls };
 }
+type CaseExecutor = typeof runCase;
+function exactCaseTerminals(actual: unknown[]) {
+  const terminals = (actual as ReplayRecord[]).filter((v) => v.kind === 'case-finish');
+  check(
+    terminals.length === f.cases.length &&
+      f.cases.every((c) => terminals.filter((v) => v.case === c.id).length === 1),
+    'TRACE_EXACT_CASE_TERMINALS',
+  );
+}
+function acquireTraceCases(
+  M: Native,
+  l: Ledger,
+  sink: Sink,
+  collector: TraceCollector,
+  baseline: unknown[],
+  execute: CaseExecutor = runCase,
+) {
+  const parity = new PublicParity(baseline),
+    actual: unknown[] = [];
+  const durable: Sink = {
+    reserve: () => sink.reserve(),
+    write(record, footer) {
+      sink.write(record, footer);
+      actual.push(structuredClone(record));
+    },
+  };
+  const hooks: OperationHooks = {
+    before: (kind, c, pair) => collector.begin(kind, c, pair),
+    after: (event) => {
+      collector.end(event);
+      parity.observe(event);
+    },
+  };
+  // runCase.calls deliberately excludes its finally-written terminal. The shared
+  // actual path therefore records the full durable sink stream, including cleanup.
+  for (const c of f.cases) {
+    const start = actual.length;
+    execute(M, c, l, durable, hooks);
+    const terminal = (actual.slice(start) as ReplayRecord[]).filter(
+      (v) => v.kind === 'case-finish',
+    );
+    check(terminal.length === 1 && terminal[0]!.case === c.id, 'TRACE_EXACT_CASE_TERMINALS');
+  }
+  exactCaseTerminals(actual);
+  parity.complete();
+  replay(actual, false);
+  sink.write({ kind: 'trace-public-parity', exact: true, operations: 8, position: 4, distance: 4 });
+  return { actual, parity };
+}
 async function nativeRun(env: NodeJS.ProcessEnv) {
   traceAdmission(env);
   const expectedSource = required(env, 'ASA_CCD_TRACE_SOURCE_SHA256'),
@@ -1158,25 +1207,7 @@ async function nativeRun(env: NodeJS.ProcessEnv) {
     );
     collector.endStartup();
     phase = 'POSITION_DISPATCH';
-    const parity = new PublicParity(traceInputs.baseline);
-    const hooks: OperationHooks = {
-      before: (kind, c, pair) => collector!.begin(kind, c, pair),
-      after: (event) => {
-        collector!.end(event);
-        parity.observe(event);
-      },
-    };
-    const actual: unknown[] = [];
-    for (const c of f.cases) actual.push(...runCase(M, c, l, journal, hooks).calls);
-    parity.complete();
-    replay(actual, false);
-    journal.write({
-      kind: 'trace-public-parity',
-      exact: true,
-      operations: 8,
-      position: 4,
-      distance: 4,
-    });
+    const { parity } = acquireTraceCases(M, l, journal, collector, traceInputs.baseline);
     const evidence = interpretTraces(collector.complete(), parity);
     journal.write({
       kind: 'trace-evidence',
@@ -2028,7 +2059,6 @@ class TraceCollector {
   }
   end(event: ReplayRecord) {
     const active = this.active;
-    this.completed.push(structuredClone(active));
     this.sink.write({ kind: 'trace-api-stderr', stream: active, errors: this.errors });
     check(
       event.kind === active.kind &&
@@ -2043,8 +2073,17 @@ class TraceCollector {
     );
     if (active.kind === 'distance') {
       check(active.lines[0]!.startsWith(t.frame.prefix + ' ints='), 'TRACE_FRAMED_PREFIX');
-      traceEnvelope(active.lines[0]!); // syntax only; never read coefficients before full public parity
+      const envelope = traceEnvelope(active.lines[0]!);
+      // Only integer identity/context is inspected here. Coefficients and all
+      // floating-point semantic interpretation remain behind complete public parity.
+      const identity = envelope[1]!.split(',').slice(0, 5).map(Number),
+        query = t.queries.find((q) => q.case === active.case && same(q.pair, active.pair));
+      check(
+        query && same(identity, [query.index, ...query.pair, 5, 7]),
+        'TRACE_INTEGER_QUERY_CONTEXT',
+      );
     }
+    this.completed.push(structuredClone(active));
     this.active = { kind: 'module', lines: [], bytes: 0 };
   }
   snapshot() {
@@ -3397,4 +3436,137 @@ it('rejects malformed textual framing immediately after its actual return withou
     'TRACE_NO_OVERWRITTEN_CONTEXT',
   );
   expect(() => decodeTrace(syntheticTraceLine(0) + '\n', 0)).toThrow('TRACE_SINGLE_LINE');
+});
+
+function mockAssembledTrace(collector?: TraceCollector, duplicateAt?: number) {
+  const mocks = f.cases.map((c) => mockNative(c));
+  let active = -1,
+    queries = 0;
+  const M: Native = {
+    MjModel: {
+      from_xml_string(text) {
+        active++;
+        check(
+          active < mocks.length && sha(text) === f.cases[active]!.xml_sha256,
+          'MOCK_ASSEMBLED_FACTORY',
+        );
+        return mocks[active]!.M.MjModel.from_xml_string(text);
+      },
+    },
+    MjData: function (model: Model) {
+      return new mocks[active]!.M.MjData(model);
+    } as unknown as Native['MjData'],
+    DoubleBuffer: function (n: number) {
+      return new mocks[active]!.M.DoubleBuffer(n);
+    } as unknown as Native['DoubleBuffer'],
+    mj_version: () => 4000000,
+    mj_versionString: () => f.engine.version,
+    mj_fwdPosition(model, data) {
+      mocks[active]!.M.mj_fwdPosition(model, data);
+    },
+    mj_geomDistance(model, data, first, second, cutoff, out) {
+      mocks[active]!.M.mj_geomDistance(model, data, first, second, cutoff, out);
+      const q = t.queries[queries]!;
+      check(
+        q.case === f.cases[active]!.id && same(q.pair, [first, second]),
+        'MOCK_ASSEMBLED_QUERY',
+      );
+      out.GetView().set(decodePacket(q.fromto.f64le));
+      collector?.accept([syntheticTraceLine(queries === duplicateAt ? queries - 1 : queries)]);
+      queries++;
+      return decodePacket(q.distance.f64le)[0]!;
+    },
+  };
+  return { M, mocks, queryCount: () => queries };
+}
+function assembledBaseline() {
+  const stub = mockAssembledTrace(),
+    l = ledger(),
+    sink = memorySink();
+  l.handles.module.attempted = 1;
+  l.handles.module.returned = 1;
+  for (const c of f.cases) runCase(stub.M, c, l, sink);
+  return sink.events;
+}
+it('executes the same live acquisition assembly and hooks with injected mocks, retaining exactly both durable terminals before replay/parity and before coefficients', () => {
+  const baseline = assembledBaseline(),
+    sink = memorySink(),
+    stream = new TraceCollector(sink),
+    mock = mockAssembledTrace(stream),
+    l = ledger();
+  l.handles.module.attempted = 1;
+  l.handles.module.returned = 1;
+  stream.endStartup();
+  const result = acquireTraceCases(mock.M, l, sink, stream, baseline);
+  expect(result.parity.admitted()).toHaveLength(8);
+  expect(result.actual.filter((v) => (v as ReplayRecord).kind === 'case-finish')).toHaveLength(2);
+  expect(replay(result.actual, false)).toHaveLength(2);
+  expect(stream.complete()).toHaveLength(4);
+  expect(interpretTraces(stream.complete(), result.parity)).toHaveLength(4);
+  expect(sink.events.filter((v) => (v as ReplayRecord).kind === 'case-finish')).toEqual(
+    result.actual.filter((v) => (v as ReplayRecord).kind === 'case-finish'),
+  );
+  expect(l.position).toEqual({ attempted: 4, returned: 4 });
+  expect(l.distance).toEqual({ attempted: 4, returned: 4 });
+  for (const mode of ['missing', 'duplicate']) {
+    const journal = memorySink(),
+      collector = new TraceCollector(journal),
+      native = mockAssembledTrace(collector),
+      counts = ledger();
+    counts.handles.module.attempted = 1;
+    counts.handles.module.returned = 1;
+    collector.endStartup();
+    const altered: CaseExecutor = (M, c, l, sink, hooks) =>
+      runCase(
+        M,
+        c,
+        l,
+        {
+          reserve: () => sink.reserve(),
+          write(record, footer) {
+            if ((record as ReplayRecord).kind === 'case-finish') {
+              if (mode === 'missing') return;
+              sink.write(record, footer);
+            }
+            sink.write(record, footer);
+          },
+        },
+        hooks,
+      );
+    expect(() =>
+      acquireTraceCases(native.M, counts, journal, collector, baseline, altered),
+    ).toThrow('TRACE_EXACT_CASE_TERMINALS');
+    expect(counts.handles.model.returned).toBe(1);
+    expect(counts.position.attempted).toBe(2);
+    expect(counts.distance.attempted).toBe(2);
+  }
+});
+it('rejects a prior valid query trace in the next live API context and never advances to another public API/model', () => {
+  const baseline = assembledBaseline(),
+    sink = memorySink(),
+    stream = new TraceCollector(sink),
+    mock = mockAssembledTrace(stream, 1),
+    l = ledger();
+  l.handles.module.attempted = 1;
+  l.handles.module.returned = 1;
+  stream.endStartup();
+  expect(() => acquireTraceCases(mock.M, l, sink, stream, baseline)).toThrow(
+    'TRACE_INTEGER_QUERY_CONTEXT',
+  );
+  expect(l.position).toEqual({ attempted: 1, returned: 1 });
+  expect(l.distance).toEqual({ attempted: 2, returned: 2 });
+  expect(l.handles.model.returned).toBe(1);
+  expect(l.handles.model.deleted).toBe(1);
+  expect(l.handles.data.deleted).toBe(1);
+  expect(stream.snapshot().completed).toHaveLength(2);
+  expect(stream.snapshot().active.pair).toEqual([6, 1]);
+  const finish = sink.events.find(
+    (v) => (v as ReplayRecord).kind === 'case-finish',
+  ) as ReplayRecord;
+  expect(finish.firstError).toContain('TRACE_INTEGER_QUERY_CONTEXT');
+  expect(sink.events.filter((v) => (v as ReplayRecord).kind === 'distance')).toHaveLength(2);
+  expect(
+    sink.events.filter((v) => (v as { kind: string }).kind === 'trace-stderr-raw'),
+  ).toHaveLength(2);
+  expect(() => stream.begin('position', f.cases[0]!)).toThrow('TRACE_NO_OVERWRITTEN_CONTEXT');
 });
