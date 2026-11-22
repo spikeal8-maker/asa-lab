@@ -18796,6 +18796,421 @@ parallel_lanes:
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
       profile: TEST_ONLY
+      checkpoint: e1_cylinder_primary_epa_trace_selected
+      slice: E1-CYLINDER-PRIMARY-EPA-TRACE
+      planned_paths:
+      - tests/robotics/field-core-qualification/mujoco-cylinder-primary-trace.patch
+      - tests/robotics/field-core-qualification/mujoco-cylinder-primary-trace.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+      preserved_recovery_history: parallel_lanes.robotics.historical_composed_terrain_exterior_union_recovery_task
+      owner_authorization: The continuing owner programme selects ONE separately bounded TEST_ONLY logging-only EPA
+        trace on the same two fixed archived cases after the consumed position-only comparator. This sole-file docs
+        slice changes no engine or test source and permits no build or native initialization. Protected registration,
+        exact three-path preflight, pure/style/strict tests and independent HIGH source review must precede a private
+        logging-only build; separate independent artifact provenance/HIGH and controller admission must precede one
+        position-only trace invocation. No automatic retry, support/math/geometry change, time advance, public dependency
+        replacement or product action.
+      scope: Observe the exact EPA witness calculation underlying the four already negative direct cylinder-to-mesh
+        queries, retaining all accepted positions, contacts, matrices, fromto endpoints, distances and state bits.
+        Instrument only the existing calculation after its unchanged affine-coordinate and linear-combination operations.
+        The evidence may identify chosen supports and weights, but the prior invalid endpoint alone did not prove
+        those weights or a unique EPA/MultiCCD cause. All historical physical FAIL, energy PASS, causal GAP, D01/D02
+        and downstream toolbox/bridge blockers remain unchanged.
+      selected_acquisition:
+        id: E1-MUJOCO-CYLINDER-PRIMARY-EPA-TRACE-01
+        registration_baseline:
+          main: 90fe8032d83312c5cff538178a7fea90eb06738b
+          tested_source: 797678beae0a73c51f29f733f8f67d585d33c02c
+          source_tree: df973efc904e916a491bb39972af2e6329b06e8a
+          required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45027050792/job/137229290992
+        immutable_inputs:
+          recovered_source_spec:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+            bytes: 198464
+            sha256: 04c2c1ed04200f179eeebee58bc0f8f8bf50913a4d8f9c5b802de9196cc823f4
+          five_mesh_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+            bytes: 42551
+            sha256: d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271
+          union_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+            bytes: 59130
+            sha256: eb1b88ef37a9589f0df23b91793a9d9197e8fd326361af8df3baf22dc07fd74f
+          union_raw_binary:
+            file: arduino-tt-composed-terrain-union.bin
+            bytes: 138827760
+            sha256: 970cb5acdb7cc19a667041282adbfbea1bd3906c445078344a67f82f9bf46ce8
+          union_raw_metadata:
+            file: arduino-tt-composed-terrain-union.jsonl
+            bytes: 213154
+            sha256: 1ae24e2dc91e25a725b17ad5bb84d32e73f1f5da180cb52ad1a3f368fd3e5947
+          independent_full_replay:
+            file: independent-union-replay.json
+            bytes: 35911
+            sha256: 2da230579125bc772215aa263532269ac2205d246a1dff81ba42fe925ab6910f
+          finite_cylinder_certificate:
+            file: finite-cylinder-contact-certificate-final.json
+            bytes: 35220
+            sha256: de3bfd67496bd0841e34c71fea4f58a5f4e5658cca78eaec62b6dd58eae91edc
+          old_five_mesh_source: a206a73ebb0e3672b1747be97d60471168ec9414
+          old_five_mesh_binary:
+            file: arduino-tt-composed-terrain-seams.bin
+            bytes: 138842016
+            sha256: e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38
+          old_five_mesh_metadata:
+            file: arduino-tt-composed-terrain-seams.jsonl
+            bytes: 133568
+            sha256: 58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098
+          old_five_mesh_independent_replay:
+            file: independent-terrain-replay.json
+            bytes: 35271
+            sha256: 2b05b92c65d7085bcf5d05bed2b0f2c72c9bf5f7ef297fef6f44442b60ce40cb
+          engine: 'Exact current-transfer fixture pins: MuJoCo4.0.0 upstream ac60eae30fa7e0d31315c38d9476752fb81be67e,
+            AOT glue9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8, WASMd2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241,
+            declarations779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff, licence/build/browser receipts
+            and exact implicitfast/Newton/dense/elliptic profile, gravity/CCD/contact/iteration/damping settings (disableflags65536/enableflags32,
+            iterations100/ls50/noslip20/ccd100). No engine option or dependency change. Wheel contacts do not use
+            the specially named finite-can patch branch.'
+          static_source:
+            commit: 797678beae0a73c51f29f733f8f67d585d33c02c
+            tree: df973efc904e916a491bb39972af2e6329b06e8a
+            spec:
+              path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+              bytes: 77857
+              sha256: 9c3c1d2049893654d2ddf4007b5f9b3f54dde882d51111943dc67b956cc7764a
+            fixture:
+              path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.fixture.json
+              bytes: 106323
+              sha256: 6c23b162a3fbc0935afd0f80d489bffb9bcb3dd04e4063ec8e3ac50c95daec65
+          static_raw:
+            file: mujoco-union-cylinder-static-witness.jsonl
+            bytes: 324264
+            sha256: d1a98b2f0debebf457b3978646331ff6e0379d6c7af328d470e22d70750c4a17
+          independent_static_audit:
+            file: independent-static-wheel-audit.json
+            bytes: 34831
+            sha256: 7f90ce0adaa6078f976b4c2d705d4d90c951fca54e7a2408ae61e17f8edd526d
+          upstream_gjk:
+            upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+            path: src/engine/engine_collision_gjk.c
+            sha256: ae835b6af989458e3e30f4f9b76609afb62a81fdd3f4f13fbdbb18f40100e5c7
+          inherited_aot_build_receipt:
+            bytes: 15869
+            sha256: c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9
+          inherited_aot_browser_receipt:
+            bytes: 449526
+            sha256: 70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5
+        fixed_cases:
+        - id: recovered_union_PRE_4729500
+          source: 9d96b85e82a0167246b7b327279f0e49dc6d11de
+          fixture: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+          xml_sha256: a204f26f1f2130e565d707f69cfe02c135af5b5bfbafdbe24205ea4b14aadd8e
+          world: powered
+          raw_from_us: 4729500
+          frame_offset: 32938624
+          frame_bytes: 3104
+          frame_sha256: 665b7a33d83ccee587e6d7825a0cad6c4f2ff20717795f8efcefac0547ff953d
+          native_pairs_in_exact_input_order:
+          - - 5
+            - 1
+          - - 6
+            - 1
+          archived_target_contact_ordinals:
+          - 0
+          - 1
+          native_counts:
+          - 3
+          - 28
+          - 44
+          - 9
+        - id: old_five_mesh_PRE_4729500_descriptive
+          source: a206a73ebb0e3672b1747be97d60471168ec9414
+          fixture: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+          xml_sha256: 63bc0c697c6cd363710e791a0b8c6d7405c30f4524b70654cc832e2bbc8af7fc
+          world: powered
+          raw_from_us: 4729500
+          frame_offset: 32952352
+          frame_bytes: 3808
+          frame_sha256: 5f78165a2ae374c36846d8f1f67351bdb2c1833f3d4e2669ead4982bd7a89b0f
+          native_pairs_in_exact_input_order:
+          - - 7
+            - 3
+          - - 8
+            - 3
+          archived_target_contact_ordinals:
+          - 4
+          - 5
+          native_counts:
+          - 5
+          - 40
+          - 60
+          - 11
+          limit: Physical cylinder-axis witness valid only; old whole-course physical FAIL remains unchanged.
+        state_and_model: Hash-check complete raw/receipts/certificate, source and fixture inputs BEFORE native import.
+          Read qpos10, qvel9 and actual nativeTime directly from each exact frame F64 bytes including signed zero,
+          never reconstruct time from logical microseconds or substitute rounded poses. Build each original complete
+          XML as fixture.xml.join(newline)+newline with the pinned hash. One fresh model/data per case, sequential;
+          retain all original compiled model/geom transforms, closed-hull/readback identities, masses/inertias/armature,
+          scales, materials and solver options. Restore qpos/qvel/nativeTime exactly ONCE per data as input; no later
+          state assignment, profile/flag/margin/gap/pose repair or rebuild to fit archived geometry.
+        position_protocol: Use the actual exported mj_fwdPosition (pinned declaration3478), not bare mj_collision,
+          mj_forward or STEP1. It is the normal position portion used by original STEP1. First position call per case
+          captures ALL native geometry contacts, their actual pair order/ordinals/positions/frames/normals/distances/excludes/geometry
+          row ordering plus full true compiled transforms. Bit-preserving byte-exact geometry comparison must reproduce
+          the archived corresponding native IDs/positions/normals/distances/order. If it cannot, preserve exact differences
+          and classify comparator INCONCLUSIVE, never retune, relax, swap cases or claim archived reproduction. No
+          solver-driven contact force or time evolution is evaluated. Trace context must remain disabled for all four
+          normal position calls; no traces from four-contact position/manifold generation.
+        distance_protocol: 'After that normal position capture, call actual public mj_geomDistance (pinned declaration3480)
+          twice per case, in EXACT archived native pair order: union[5,1],[6,1]; old[7,3],[8,3]. Each call uses distmax=0
+          and a real new DoubleBuffer(6) per declared ownership scheme. Record actual signed distance and all two
+          fromto XYZ endpoints, retaining binary64 bits/sign-zero and before/after state/geometry. Never swap pair
+          IDs/endpoints or negate/replace returned distance. Negative penetration is retained. Zero means touch/unresolved
+          and does not certify meaningful fromto; do not cook endpoints. The native support query sets max_contacts1/no
+          MultiCCD internally; preserve the same current engine/nativeCCD flags and all options, not a new profile.
+          Preserve archived actual geom input order and exact case transforms; do not swap objects to make tracing
+          easier. The trace dispatch additionally admits only these four identities with both margins zero, cutoff0,
+          max_contacts1, cylinder then mesh and the exact original no-polygon/no-mesh-degree query configuration (npolygonmax0/nmeshdegmax0).
+          Any other configuration cannot emit an admitted trace.'
+        repeat_and_parity: After both distance calls, repeat the SAME normal mj_fwdPosition once per case, compare
+          exact geometry/state with its first capture and record every discrepancy. Before/after EACH public API assert
+          exact state bytes including nativeTime and signed zero, retain actual geometry/results and all call/error/resource
+          counters. Attempted and returned calls are separate. Any unexpected mutation, mismatch or unavailable binding
+          fails closed with first evidence preserved, no extra API call, fallback or retry.
+        logging_only_patch: Patch ONLY src/engine/engine_collision_gjk.c against its exact immutable SHA. Read-only
+          diagnostic context/thread arguments are permitted inside that file solely to associate the four registered
+          direct queries with their existing EPA call. Do not add support calls, alter dispatch, vertices, iteration
+          flow, coefficients, clamping, affine coordinates, lincomb order/results, return values or model options.
+          No new WASM binding, wrapper export, external engine source edit or generic support logging. Exact independent
+          source HIGH must prove unchanged computational operations and narrowly guarded tracing before build.
+        trace_payload: After unchanged epaWitness triAffineCoord and both lincomb operations, emit ONE bounded framed
+          record per intended EPA direct query via existing Emscripten printErr/stderr. Record exact binary64 bits
+          of lambda3, selected face.v/dist2/vertex IDs, all three selected paired support points and their Minkowski
+          vertices, actual x1/x2/returned result, and relevant frozen config/iteration/dispatch provenance and case/query
+          identity. Preserve negative distance and signed zero. No stdout-only decimal reconstruction or inferred
+          supports. No records from fwdPosition, extra poses or unrelated queries. Missing/extra/malformed/overflow/context
+          mismatch is INCONCLUSIVE with first evidence retained, never a request for fallback or retry.
+        private_build: Only after protected docs and separate exact source HIGH, create a private copied build/archive
+          under new OS Temp, using existing offline pinned upstream/Emscripten4.0.10 and the inherited AOT compile/link
+          recipe. Replace ONLY the instrumented GJK object in that copied archive; all other object/input bytes, flags
+          and link inputs must be independently compared to the admitted inherited build. Record complete source/patch/toolchain/command/object/archive/glue/WASM/declaration/license
+          hashes and exact differences. Do not install/update tools, modify shared sources/artifacts/archive, change
+          linker/compiler optimization or publish/replace the admitted AOT dependency. If inherited objects or exact
+          recipe equivalence cannot be established, STOP before native; do not silently rebuild a different engine.
+          New private artifact pin is sealed and independently reviewed separately before import/init.
+        trace_and_geometry_admission: Before any trace interpretation, independently replay old sealed static raw
+          and require exact public final contact geometry/matrices, pair ordering, fromto/dist F64 bits, distance
+          and position call counts, nativeTime/qpos/qvel/signed-zero parity for both original cases. Trace instrumentation
+          must not change those bits. Record every API before/after snapshot and warning/ownership ledger. A missing,
+          extra, mismatching or nonreproducing query/trace yields INCONCLUSIVE and preserves first error and hashes.
+          It may not be retuned, hidden, replaced by best-face selection or called a cause.
+        offline_inference: Independently reconstruct the chosen affine combination, sum and signs of lambda, paired
+          support membership in the actual compiled finite cylinder/mesh, Minkowski differences and x1/x2 prediction
+          using recorded exact bits and a prospectively derived arithmetic envelope. Distinguish direct evidence of
+          the chosen weights/supports from conditional mathematical implications. No assumed negative coefficients,
+          EPA versus clipping root label, physical correction or retuning. Original physics FAIL and causal GAP remain;
+          the old five-mesh case is descriptive, not a physical PASS. Later4732500 remains offline archive only.
+        capture:
+          max_module_initializations: 1
+          max_models: 2
+          max_data: 2
+          max_concurrent_model_data: 1
+          max_position_calls: 4
+          max_distance_calls: 4
+          max_step1_calls: 0
+          max_step2_calls: 0
+          max_mj_forward_calls: 0
+          max_external_bytes: 4194304
+          policy: ONE module and two sequential fresh original model/data cases. Exactly four normal position and
+            four direct distance calls, zero STEP1/STEP2/mj_forward/time evolution, no session/controller. Exclusive
+            unique OS Temp receipt; total raw, framed stderr, first-error and cleanup stay within4MiB, stderr within64KiB
+            and admitted trace records exactly4. Enforce counters/byte reservations before writes/calls; retain complete
+            first error and cleanup even on overflow. Extra/missing records, capacity error or comparator mismatch
+            is INCONCLUSIVE; no dropping, overwriting archive or automatic retry.
+          max_trace_records: 4
+          max_stderr_bytes: 65536
+        source_and_dispatch: 'The three planned paths only: new patch, new trace fixture, and narrow additive explicitly
+          isolated mode in the existing static witness spec. Old static fixture and all archive/helper/physics inputs
+          remain byte exact; historical executable source stays at797678. Dry default works without assets and skips
+          native/build. Distinct exact once-only trace opt-in rejects old static/union/recovery/sphere modes and ambiguous
+          combinations before import. Pure routing/wrong-token/trace framing/overflow/parity/provenance/resource tests,
+          style/strict types and independent HIGH source review precede private build; independent artifact provenance/HIGH
+          then controller frozen preflight precede the single trace invocation. No original consumed mode, implicit
+          build/native, extra support query, retry or new pose. Complete first attempt stays immutable.'
+      downstream_user_outcomes: historical_e1_task.downstream_user_outcomes remains exact and authoritative for the
+        later editor/toolbox. This course prepares only joined-ramp/platform evidence. The optional true bridge is
+        separate volumes for slab/supports and an open underpass, with whole continuous lower floor and actual full-rover
+        underside clearance; no heightmap or filled-ramp interpretation. Current nominal H69.991mm with a20mm slab
+        would leave49.991mm beneath versus declared level rover height119.608mm, so it cannot prove underpass. No
+        bridge acquisition or editor/schema action is selected.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      gate_boundary: This sole-file docs slice requires exact PLAN/control-plane, Electronics routing, strict YAML
+        and full governance with byte/semantic inverse. Later three-path source, logging-only private build, separate
+        independent source/artifact HIGH and one controller position-only trace are separately admitted stages. No
+        D01/D02, full physics, product/editor, bridge, 4630, schema, deployment, working DB, release or owner acceptance.
+      deployment: not_authorized
+      database_actions: none
+      preserved_static_history: parallel_lanes.robotics.historical_union_cylinder_static_witness_task
+    static_witness_result:
+      runtime: COMPLETE
+      diagnostic: COMPLETE
+      acquisition: CONSUMED
+      physical: NOT_REASSESSED_HISTORICAL_FAIL_UNCHANGED
+      causal: HISTORICAL_GAP_UNCHANGED
+      formal: D01_D02_OPEN
+      source:
+        commit: 797678beae0a73c51f29f733f8f67d585d33c02c
+        tree: df973efc904e916a491bb39972af2e6329b06e8a
+        spec:
+          path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+          bytes: 77857
+          sha256: 9c3c1d2049893654d2ddf4007b5f9b3f54dde882d51111943dc67b956cc7764a
+        fixture:
+          path: tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.fixture.json
+          bytes: 106323
+          sha256: 6c23b162a3fbc0935afd0f80d489bffb9bcb3dd04e4063ec8e3ac50c95daec65
+      protected_integration:
+        main: 90fe8032d83312c5cff538178a7fea90eb06738b
+        pr: 1305
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45027050792/job/137229290992
+      raw:
+        file: mujoco-union-cylinder-static-witness.jsonl
+        bytes: 324264
+        sha256: d1a98b2f0debebf457b3978646331ff6e0379d6c7af328d470e22d70750c4a17
+      independent_audit:
+        file: independent-static-wheel-audit.json
+        bytes: 34831
+        sha256: 7f90ce0adaa6078f976b4c2d705d4d90c951fca54e7a2408ae61e17f8edd526d
+        checks: 1834
+        f64_packets: 582
+        f64_words: 8256
+        negative_zero_words: 28
+        method: Standalone independent stdlib-only disk replay; no engine/application import or new native execution.
+      calls:
+        module_initializations: 1
+        cases: 2
+        position_attempted_returned:
+        - 4
+        - 4
+        distance_attempted_returned:
+        - 4
+        - 4
+        step1: 0
+        step2: 0
+        mj_forward: 0
+        time_advance_seconds: 0
+      parity:
+        all_archived_contact_counts:
+        - 6
+        - 10
+        all_archived_constraint_rows:
+        - 18
+        - 30
+        all_state_time_signed_zero_bytes: EXACT
+        all_archived_contacts_rows_order_body_and_static_transforms: EXACT
+        every_API_state_and_complete_baseline_geometry: UNCHANGED
+        original_model_metadata_and_mesh_F32_I32: EXACT
+        private_engine_and_license_build_browser_pins: VERIFIED
+        independent_geometry_inertial_quaternion_closure_max_arithmetic_difference: 4.413136522884997e-15
+      direct_queries:
+      - case: recovered_union_PRE_4729500
+        pairs:
+        - - 5
+          - 1
+        - - 6
+          - 1
+        signed_distances_m:
+        - -8.024211152075258e-08
+        - -7.506503210593832e-08
+        primary_axial_m:
+        - 0.015248222165615435
+        - 0.01772146766060777
+        half_width_m: 0.01
+        primary_cap_excess_m:
+        - 0.005248222165615435
+        - 0.007721467660607771
+        terrain_endpoint_compiled_convex_hull: WITHIN
+        interpretation: Primary direct endpoints already outside finite wheel caps before successful manifold recovery;
+          not binary64 roundoff.
+      - case: old_five_mesh_PRE_4729500_descriptive
+        pairs:
+        - - 7
+          - 3
+        - - 8
+          - 3
+        signed_distances_m:
+        - -3.6645409461879667e-07
+        - -3.623734184668015e-07
+        primary_axial_m:
+        - 0.0020723238454100285
+        - 0.0012745099926401622
+        half_width_m: 0.01
+        primary_cap_excess_m:
+        - 0
+        - 0
+        terrain_endpoint_compiled_convex_hull: WITHIN
+        interpretation: Direct wheel endpoints within physical caps; old trajectory physical FAIL is not reassessed.
+      lifetime:
+        module:
+          attempted: 1
+          returned: 1
+          deleted: 0
+          limit: JS module has no native delete binding; no disposal claim.
+        all_owned_wrappers_attempted_returned_delete_attempted_deleted:
+          model:
+          - 2
+          - 2
+          - 2
+          - 2
+          data:
+          - 2
+          - 2
+          - 2
+          - 2
+          buffer:
+          - 4
+          - 4
+          - 4
+          - 4
+          contactVector:
+          - 16
+          - 16
+          - 16
+          - 16
+          contactCopy:
+          - 112
+          - 112
+          - 112
+          - 112
+          warningCopy:
+          - 70
+          - 70
+          - 70
+          - 70
+        warnings: ZERO
+        first_error: null
+        cleanup_errors: []
+      source_level_path: Zero-margin cylinder-to-mesh direct max_contacts1/no MultiCCD path supplies the observed
+        negative penetration via EPA witness calculation. This static code path and invalid output do not by themselves
+        prove actual selected support weights, coefficient signs or a unique EPA/clipping/MultiCCD implementation
+        origin; separately admitted logging is required.
+      preservation: Position-only consumed observation, not mechanical force/trajectory qualification. Original old-five
+        and recovered-union physical FAIL, energy PASS, shared startup and older late R5 causal GAP, D01/D02/toolbox/bridge/4630
+        and all blockers stay unchanged.
+    historical_union_cylinder_static_witness_task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
       checkpoint: e1_union_cylinder_position_only_witness_selected
       slice: E1-UNION-CYLINDER-STATIC-WITNESS
       planned_paths:
