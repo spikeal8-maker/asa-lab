@@ -3950,7 +3950,7 @@ function parsePolyLines(lines: string[], query: number) {
 }
 function polyOrderedMinimum(s: PolySnapshot) {
   let face = s.header[11]!,
-    lower = 1e10;
+    lower = Number.MAX_VALUE;
   for (const id of s.map) {
     const f = s.faces[id]!;
     check(f.flags === 31 && f.index === s.map.indexOf(id), 'POLY_ACTUAL_ORDERED_MAP');
@@ -5203,4 +5203,35 @@ it('V2 separates complete allocated support pool from ACTIVE hull vertices when 
   expect(observed.issues).toEqual([]);
   expect(observed.closedConvexOriginCandidate).toBe(true);
   expect(observed.unusedSupportOutside[0]!.maxSignedPlaneDistance).toBeGreaterThan(0);
+});
+it('V2 ordered minimum uses pinned binary64 DBL_MAX for empty map, large legal distances, first ties and the exact sentinel boundary', () => {
+  // ac60 engine_collision_gjk.h:40 defines mjMAX_LIMIT DBL_MAX in binary64 builds.
+  const state = polyMockRecords(0).find((r): r is PolySnapshot => r.tag === 1)!;
+  state.map = [];
+  state.header[11] = -1;
+  expect(polyOrderedMinimum(state)).toEqual({ face: -1, lower: Number.MAX_VALUE });
+  state.header[11] = 3;
+  expect(polyOrderedMinimum(state)).toEqual({ face: 3, lower: Number.MAX_VALUE });
+  const set = (id: number, distanceSquared: number, index: number) => {
+    const face = state.faces[id]!;
+    face.index = index;
+    face.words = packet([...face.words.values.slice(0, 3), distanceSquared]);
+  };
+  state.map = [0, 1];
+  set(0, 3e10, 0);
+  set(1, 2e10, 1);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 1, lower: 2e10 });
+  set(0, 2e10, 0);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 0, lower: 2e10 });
+  state.map = [1, 0];
+  set(1, 2e10, 0);
+  set(0, 2e10, 1);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 1, lower: 2e10 });
+  set(0, Number.MAX_VALUE, 1);
+  set(1, Number.MAX_VALUE, 0);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 3, lower: Number.MAX_VALUE });
+  const nextBelowMax = Number.MAX_VALUE - 2 ** 971;
+  expect(nextBelowMax).toBeLessThan(Number.MAX_VALUE);
+  set(0, nextBelowMax, 1);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 0, lower: nextBelowMax });
 });
