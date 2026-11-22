@@ -10168,6 +10168,14 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
+  // The no-source message shifts the stage when the first simulation result arrives.
+  await expect(
+    page.locator('.workbench-simulation-message[data-simulation-code="no_source"]'),
+  ).toBeVisible();
   await page.evaluate(() => {
     document
       .querySelector('[data-testid="schematic-component"][data-component-id="meter"]')
