@@ -2,13 +2,9 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { adminDashboardApi } from '../admin-dashboard-api';
 import { AdminDashboard, chartLabelIndexes, chartCountAxis } from '../AdminDashboard';
-import {
-  adminApi,
-  type AdminScope,
-  type AdminApiResult,
-  type AdminProductDashboard,
-} from '../admin-api';
+import { type AdminScope, type AdminApiResult, type AdminProductDashboard } from '../admin-api';
 import { adminSessionIdentity, adminProfileMatchesSession } from '../admin-session-access';
 import type { SessionPayload } from '../../api';
 import { adminDashboardFixture } from './admin-dashboard.fixture';
@@ -77,7 +73,7 @@ describe('admin overview lifecycle', () => {
   });
   it('retains mounted charts on matching refresh, reports refreshing/error, and splits learning tools from games with all colors', async () => {
     const pending = deferred();
-    vi.spyOn(adminApi, 'dashboard')
+    vi.spyOn(adminDashboardApi, 'dashboard')
       .mockResolvedValueOnce(success())
       .mockReturnValueOnce(pending.promise);
     await show();
@@ -110,7 +106,7 @@ describe('admin overview lifecycle', () => {
   it('renders new accounts, AI outcomes and both error colors in the partly collected first hour', async () => {
     const sample = adminDashboardFixture('today');
     const at = sample.timeline[0]!.at;
-    vi.spyOn(adminApi, 'dashboard').mockResolvedValue({
+    vi.spyOn(adminDashboardApi, 'dashboard').mockResolvedValue({
       ok: true,
       status: 200,
       data: {
@@ -125,7 +121,7 @@ describe('admin overview lifecycle', () => {
         },
       },
     });
-    vi.spyOn(adminApi, 'errorTrend').mockResolvedValue({
+    vi.spyOn(adminDashboardApi, 'errorTrend').mockResolvedValue({
       ok: true,
       status: 200,
       data: {
@@ -169,7 +165,7 @@ describe('admin overview lifecycle', () => {
   it('immediately removes stale scope and range data and rejects their late response', async () => {
     const old = deferred(),
       fresh = deferred();
-    vi.spyOn(adminApi, 'dashboard')
+    vi.spyOn(adminDashboardApi, 'dashboard')
       .mockResolvedValueOnce(success())
       .mockReturnValueOnce(old.promise)
       .mockReturnValueOnce(fresh.promise);
@@ -181,7 +177,7 @@ describe('admin overview lifecycle', () => {
     expect(host.querySelector('.admin-chart-card')).toBeNull();
     await act(async () => fresh.resolve(success(42)));
     expect(host.querySelector('.admin-chart-card')).not.toBeNull();
-    vi.mocked(adminApi.dashboard).mockReturnValueOnce(new Promise(() => undefined));
+    vi.mocked(adminDashboardApi.dashboard).mockReturnValueOnce(new Promise(() => undefined));
     await act(async () => {
       const select = host.querySelector<HTMLSelectElement>('[aria-label="Период дашборда"]')!;
       select.value = '7d';
@@ -192,7 +188,7 @@ describe('admin overview lifecycle', () => {
   });
   it.each([401, 403])('clears chart data on %s even during refresh', async (status) => {
     const denied = vi.fn();
-    vi.spyOn(adminApi, 'dashboard')
+    vi.spyOn(adminDashboardApi, 'dashboard')
       .mockResolvedValueOnce(success())
       .mockResolvedValueOnce({ ok: false, status, error: { code: 'denied', message: 'denied' } });
     await show(scope, denied);

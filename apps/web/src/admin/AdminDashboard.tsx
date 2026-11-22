@@ -1,4 +1,5 @@
 import { adminDashboardDateBounds, moscowDateKey } from '@asa-lab/contracts';
+import { adminDashboardApi } from './admin-dashboard-api';
 import { AdminEmailSettings } from './AdminEmailSettings';
 import {
   useCallback,
@@ -533,7 +534,7 @@ export function AdminDashboard({
           ? { ...current, refreshing: true, refreshError: null }
           : { kind: 'loading', key },
       );
-      const result = await adminApi.dashboard({
+      const result = await adminDashboardApi.dashboard({
         scope: { kind: scopeKind, id: scopeId },
         ...period,
       });
@@ -1241,10 +1242,12 @@ function ErrorsChart({
   const failed = resolved && !trend;
   useEffect(() => {
     const request = new AbortController();
-    void adminApi.errorTrend({ from, to, bucketSeconds }, request.signal).then((result) => {
-      if (request.signal.aborted) return;
-      setResult({ key, trend: result.ok ? result.data : null });
-    });
+    void adminDashboardApi
+      .errorTrend({ from, to, bucketSeconds }, request.signal)
+      .then((result) => {
+        if (request.signal.aborted) return;
+        setResult({ key, trend: result.ok ? result.data : null });
+      });
     return () => request.abort();
   }, [from, to, bucketSeconds, key, dashboard.generatedAt]);
 
