@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it, vi } from 'vitest';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { OrthographicCamera, PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { createRoboticsRuntime } from '@asa-lab/robotics/runtime';
 import {
@@ -11,11 +13,23 @@ import {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { moveFieldObject } from '../RobotFieldEditor';
 import { createFieldSpatialScene } from '../field-spatial-scene';
-import {
+import RobotFieldSpatialView, {
   bindSpatialFieldGestures,
   spatialEditPoint,
   readSideMetricScale,
 } from '../RobotFieldSpatialView';
+
+const rendererFailure = vi.hoisted(() => ({ render: vi.fn(), dispose: vi.fn() }));
+vi.mock('three', async (original) => ({
+  ...(await original<typeof import('three')>()),
+  WebGLRenderer: class {
+    render = rendererFailure.render;
+    dispose = rendererFailure.dispose;
+    setPixelRatio() {}
+    setClearColor() {}
+    setSize() {}
+  },
+}));
 
 it('calibrates the side ruler against actual orthographic projections in CSS pixels', () => {
   const camera = new OrthographicCamera(-2, 2, 1, -1, 0.01, 20);
@@ -389,5 +403,131 @@ it('keeps an elevated ball surface under its grabbed ray without moving its anch
   } finally {
     scene.dispose();
     spy.mockRestore();
+  }
+});
+
+it('cancels a captured real viewport edit synchronously when its renderer fails, before fallback or late release', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const queue = new Map<number, FrameRequestCallback>();
+  let nextFrame = 0;
+  const area = {
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 600,
+    right: 800,
+    bottom: 600,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  };
+  const captured = new Set<number>();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    queue.set(++nextFrame, callback);
+    return nextFrame;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => queue.delete(id));
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(element: Element) {
+        this.callback(
+          [{ target: element, contentRect: area } as unknown as ResizeObserverEntry],
+          this as unknown as ResizeObserver,
+        );
+      }
+      disconnect() {}
+    },
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue(area);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const world = createRoboticsWorldV3Document('practice');
+  const before = JSON.stringify(world);
+  const finish = vi.fn();
+  const cancel = vi.fn();
+  const begin = vi.fn(() => true);
+  const preview = vi.fn(() => ({ key: 'robot' as const, dxMeters: 0.1, dyMeters: 0 }));
+  rendererFailure.render.mockReset();
+  rendererFailure.dispose.mockReset();
+  async function flush() {
+    await act(async () => {
+      const callbacks = [...queue.values()];
+      queue.clear();
+      for (const callback of callbacks) callback(0);
+    });
+  }
+  try {
+    await act(async () =>
+      root.render(
+        createElement(RobotFieldSpatialView, {
+          world,
+          view: 'orbit',
+          selection: 'robot',
+          active: true,
+          edit: { begin, preview, finish, cancel },
+        }),
+      ),
+    );
+    const canvas = container.querySelector('canvas')!;
+    canvas.setPointerCapture = (id) => {
+      captured.add(id);
+    };
+    canvas.hasPointerCapture = (id) => captured.has(id);
+    canvas.releasePointerCapture = vi.fn((id) => {
+      captured.delete(id);
+    });
+    Object.defineProperties(canvas, { clientWidth: { value: 800 }, clientHeight: { value: 600 } });
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="К роботу в объёмном виде"]')!
+        .click(),
+    );
+    await flush();
+    async function pointer(type: string, x: number, y: number) {
+      const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+      Object.defineProperties(event, {
+        pointerId: { value: 7 },
+        pointerType: { value: 'mouse' },
+        isPrimary: { value: true },
+      });
+      await act(async () => {
+        canvas.dispatchEvent(event);
+      });
+    }
+    await pointer('pointerdown', 400, 300);
+    await pointer('pointermove', 435, 290);
+    expect(begin).toHaveBeenCalledTimes(1);
+    expect(preview).toHaveBeenCalledTimes(1);
+    expect(captured.has(7)).toBe(true);
+    expect(canvas.classList.contains('robotics-object-dragging')).toBe(true);
+    rendererFailure.render.mockImplementationOnce(() => {
+      throw new Error('actual render failure');
+    });
+    await flush();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(canvas.releasePointerCapture).toHaveBeenCalledWith(7);
+    expect(captured.size).toBe(0);
+    expect(canvas.classList.contains('robotics-object-dragging')).toBe(false);
+    expect(canvas.dataset.editPreview).toBe('null');
+    expect(container.querySelector('.robotics-spatial-notice')?.textContent).toContain(
+      'недоступен',
+    );
+    await pointer('pointerup', 435, 290);
+    await pointer('pointerdown', 400, 300);
+    await pointer('pointermove', 435, 290);
+    await pointer('pointerup', 435, 290);
+    expect(finish).not.toHaveBeenCalled();
+    expect(begin).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(world)).toBe(before);
+  } finally {
+    await act(async () => root.unmount());
+    expect(rendererFailure.dispose).toHaveBeenCalledTimes(1);
+    container.remove();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   }
 });

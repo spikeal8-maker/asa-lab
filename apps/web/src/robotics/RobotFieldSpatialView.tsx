@@ -367,9 +367,7 @@ function createViewport(
           ),
         );
       } catch {
-        renderFailed = true;
-        setScale(null);
-        setUnavailable(true);
+        fail();
       }
     });
   }
@@ -539,8 +537,23 @@ function createViewport(
     invalidate();
   }
 
+  function interactive(): boolean {
+    return !disposed && !renderFailed && !contextLost && visible && getProps().active;
+  }
+  function fail(): void {
+    // Invalidate ownership before publishing fallback. A late release can never commit
+    // an invisible draft, even before React processes the unavailable state.
+    renderFailed = true;
+    press = null;
+    gestures.cancel();
+    preview = null;
+    canvas.dataset.editPreview = 'null';
+    if (controls) controls.enabled = false;
+    setScale(null);
+    setUnavailable(true);
+  }
   function hit(x: number, y: number) {
-    if (!drawing) return undefined;
+    if (!interactive() || !drawing) return undefined;
     const area = canvas.getBoundingClientRect();
     if (area.width <= 0 || area.height <= 0) return undefined;
     point.set(((x - area.left) / area.width) * 2 - 1, 1 - ((y - area.top) / area.height) * 2);
@@ -551,7 +564,7 @@ function createViewport(
   const gestures = bindSpatialFieldGestures(canvas, {
     current: () => ({
       world: getProps().world,
-      enabled: getProps().active && getProps().view === 'orbit' && !contextLost,
+      enabled: interactive() && getProps().view === 'orbit',
       edit: getProps().edit,
       controls,
     }),
@@ -563,11 +576,11 @@ function createViewport(
     },
     select: (key) => getProps().onSelect?.(key),
     resetControls: () => {
-      if (selectedView) switchView(selectedView);
+      if (selectedView && !disposed) switchView(selectedView);
     },
   });
   function pointerDown(event: PointerEvent): void {
-    if (gestures.owns() || !event.isPrimary || event.button !== 0) {
+    if (!interactive() || gestures.owns() || !event.isPrimary || event.button !== 0) {
       press = null;
       return;
     }
@@ -600,6 +613,7 @@ function createViewport(
   function restoreContext(): void {
     contextLost = false;
     renderFailed = false;
+    if (controls) controls.enabled = true;
     setUnavailable(false);
     update();
   }
@@ -615,8 +629,8 @@ function createViewport(
   resize.observe(canvas);
 
   function dispose(): void {
-    gestures.dispose();
     disposed = true;
+    gestures.dispose();
     if (frame) window.cancelAnimationFrame(frame);
     resize.disconnect();
     canvas.removeEventListener('pointerdown', pointerDown);
@@ -631,6 +645,7 @@ function createViewport(
 
   return {
     update,
+    fail,
     fit: () => {
       gestures.cancel();
       fit();
@@ -701,7 +716,7 @@ export default function RobotFieldSpatialView({
     try {
       viewport.current?.update();
     } catch {
-      setUnavailable(true);
+      viewport.current?.fail();
     }
   }, [world, state, distance, selection, showGrid, view, active, Boolean(edit)]);
 
