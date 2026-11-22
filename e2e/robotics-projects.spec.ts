@@ -579,6 +579,8 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   for (const width of [1440, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.getByRole('button', { name: 'Сверху', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Привязка', exact: true }).check();
+    await expect(page.getByRole('checkbox', { name: 'Привязка', exact: true })).toBeChecked();
     await selectFieldObject(page, 'ball:' + id);
     const close = page.getByRole('button', { name: 'Закрыть параметры объекта' });
     if (await close.isVisible()) await close.click();
