@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Request } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
@@ -101,6 +101,42 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     );
     await titleInput.press('Enter');
     expect((await renamed).ok()).toBe(true);
+    const draftSave = student.waitForResponse(
+      (r) =>
+        r.request().method() === 'PUT' &&
+        new URL(r.url()).pathname === `/api/projects/${project.id}/draft`,
+    );
+    await student.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+    const savedDraft = await draftSave;
+    expect(savedDraft.ok(), await savedDraft.text()).toBe(true);
+    const revision = (await savedDraft.json()).draft.revision as number;
+    await expect(student.locator('.asa3d-save-state')).toHaveClass(/save-saved/);
+    const snapshotPath = `/api/projects/${project.id}/snapshot`;
+    // Ask the real editor to capture the saved scene, as on switching tabs.
+    await student.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect
+      .poll(
+        async () =>
+          (await student.request.get(`${snapshotPath}?rev=${revision}`)).headers()['cache-control'],
+        { timeout: 20_000 },
+      )
+      .toContain('immutable');
+    const blankTitle = 'Эскиз без снимка';
+    const headers = { origin: new URL(student.url()).origin };
+    const blankProject = await student.request.post('/api/projects', {
+      headers: { ...headers, 'idempotency-key': randomUUID() },
+      data: { scope: 'personal', module: 'three-d', title: blankTitle },
+    });
+    expect(blankProject.status(), await blankProject.text()).toBe(201);
+    const blankId = (await blankProject.json()).project.id as string;
+    const archived = await student.request.post(`/api/projects/${blankId}/status`, {
+      headers,
+      data: { status: 'archived' },
+    });
+    expect(archived.ok(), await archived.text()).toBe(true);
     // A real successful explicit logout; closing the page is never evidence.
     const logout = await student.request.post('/api/class-join/logout', {
       headers: { origin: new URL(student.url()).origin },
@@ -112,6 +148,18 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     const workRow = works.locator('li').filter({ hasText: projectTitle });
     await expect(workRow).toContainText('Анна Наблюдаемая');
     await expect(workRow).toContainText('Без задания');
+    const blankCard = works.locator('li').filter({ hasText: blankTitle });
+    await expect(blankCard).toHaveCount(0);
+    const showArchive = works.getByLabel('Включить архив');
+    await showArchive.check();
+    await expect(blankCard).toContainText('Архив');
+    await expect(blankCard.getByText('Без снимка', { exact: true })).toBeVisible();
+    await blankCard.getByRole('button', { name: /^Предпросмотр работы / }).click();
+    const blankPreview = page.getByRole('dialog', { name: `Работа: ${blankTitle}` });
+    await expect(blankPreview.getByText('Снимок недоступен', { exact: true })).toBeVisible();
+    await blankPreview.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await showArchive.uncheck();
+    await expect(blankCard).toHaveCount(0);
     await works.getByLabel('Редактор', { exact: true }).selectOption('three-d');
     await works.getByLabel('Название', { exact: true }).fill(projectTitle);
     await expect(workRow).toBeVisible();
@@ -119,6 +167,9 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     await expect(works.getByText('По этим фильтрам доступных работ нет.')).toBeVisible();
     await works.getByLabel('Задание', { exact: true }).selectOption('unassigned');
     await expect(workRow).toBeVisible();
+    const cardPicture = workRow.locator('img');
+    await expect(cardPicture).toHaveAttribute('src', snapshotPath);
+    await expect(cardPicture).toHaveAttribute('loading', 'lazy');
 
     // A real authenticated teacher, server API and isolated PostgreSQL. At a
     // narrow CSS viewport the title must not be crushed by the Open action.
@@ -128,7 +179,7 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       await expect(workRow).toBeVisible();
       const geometry = await workRow.evaluate((row) => {
         const title = row.querySelector<HTMLElement>('.observation-project-title strong')!;
-        const action = row.querySelector<HTMLButtonElement>('button')!;
+        const action = row.querySelector<HTMLButtonElement>('.observation-editor-action')!;
         const textNode = title.firstChild as Text;
         const brokenWords: string[] = [];
         const value = textNode.textContent ?? '';
@@ -161,9 +212,64 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
         fullPage: true,
       });
     }
-    await workRow
-      .getByRole('button', { name: `Открыть работу ${projectTitle}`, exact: true })
-      .click();
+    const previewTrigger = workRow.getByRole('button', { name: /^Предпросмотр работы / });
+    const cardSize = await workRow.evaluate((element) => [
+      element.clientWidth,
+      element.clientHeight,
+    ]);
+    await previewTrigger.hover();
+    expect(
+      await workRow.evaluate((element) => [element.clientWidth, element.clientHeight]),
+    ).toEqual(cardSize);
+    const unauthorized = await browser.newContext();
+    try {
+      expect((await unauthorized.request.get(snapshotPath)).status()).toBe(401);
+    } finally {
+      await unauthorized.close();
+    }
+
+    const unexpectedPreviewRequests: string[] = [];
+    const collectRequest = (request: Request) => {
+      const path = new URL(request.url()).pathname;
+      if (
+        path.startsWith('/api/gallery') ||
+        (path.startsWith('/api/projects/') && (path !== snapshotPath || request.method() !== 'GET'))
+      ) {
+        unexpectedPreviewRequests.push(path);
+      }
+    };
+    page.on('request', collectRequest);
+    await previewTrigger.focus();
+    await page.keyboard.press('Enter');
+    const preview = page.getByRole('dialog', { name: `Работа: ${projectTitle}` });
+    await expect(preview.getByRole('button', { name: 'Закрыть', exact: true })).toBeFocused();
+    const previewImage = preview.getByRole('img');
+    await expect(previewImage).toHaveAttribute('src', snapshotPath);
+    await expect
+      .poll(() => previewImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
+    await expect(page.getByTestId('asa3d-viewport')).toHaveCount(0);
+    await expect(preview.getByText('Отклик на проект', { exact: true })).toHaveCount(0);
+    await page.keyboard.press('Shift+Tab');
+    await expect(preview.getByRole('button', { name: 'Открыть в редакторе' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(preview).toHaveCount(0);
+    await expect(previewTrigger).toBeFocused();
+    page.off('request', collectRequest);
+    expect(unexpectedPreviewRequests).toEqual([]);
+    await previewTrigger.click();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await expect(preview).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: 'e2e/artifacts/owner-preview/classroom-observation/preview-390.png',
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.keyboard.press('Escape');
+    await workRow.getByRole('button', { name: /^Открыть в редакторе:/ }).click();
     await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
       timeout: 30_000,
     });
@@ -205,7 +311,7 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       waiting: 0,
       notSubmitted: 0,
     });
-    expect(actual).toBe(1);
+    expect(actual).toBe(2);
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(history).toBeVisible();
@@ -238,11 +344,14 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     const filter = works.getByLabel('Ученик', { exact: true });
     await filter.selectOption(removedSeatId);
     await expect(workRow).toBeVisible();
+    await previewTrigger.click();
+    await expect(preview).toBeVisible();
     const removal = await page.request.delete(`/api/classrooms/${classId}/seats/${removedSeatId}`, {
       headers: { origin: new URL(classUrl).origin },
     });
     expect(removal.ok(), await removal.text()).toBe(true);
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(preview).toHaveCount(0);
     await expect(filter).toHaveValue('');
     await expect(filter.getByRole('option', { name: 'Анна Наблюдаемая' })).toHaveCount(0);
     await expect(workRow).toHaveCount(0);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { observationApi, type ObservationProjectsPage } from '../classroom-observation-api';
-import { seatAvatar } from '../creator-portal/default-avatars';
 import { useSchoolTime } from './school-time';
+import { WorkPreview, WorkSnapshot } from './WorkPreview';
 import './classroom-observation.css';
 
 const EDITORS: Record<string, string> = {
@@ -35,6 +35,7 @@ function ProjectList({
   const [limit, setLimit] = useState(30);
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<ObservationProjectsPage | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [learners, setLearners] = useState<ObservationProjectsPage['learners']>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
@@ -45,6 +46,7 @@ function ProjectList({
     setBusy(true);
     setError(null);
     setPage(null);
+    setPreviewId(null);
     void (async () => {
       if (!prepared) {
         const result = await observationApi.prepare([classroomId]);
@@ -104,15 +106,13 @@ function ProjectList({
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
   }, []);
+  const preview = page?.items.find((work) => work.id === previewId);
   return (
     <section className="classroom-observation" aria-label="Работы учеников" aria-busy={busy}>
       <div className="observation-heading">
         <h3>Работы учеников</h3>
         <span>Последнее изменение ↓</span>
       </div>
-      <p className="observation-note">
-        Проекты в 3D, электронике и Scratch, в том числе без задания. Архив включается отдельно.
-      </p>
       <div className="observation-filters">
         <label>
           Название
@@ -212,33 +212,40 @@ function ProjectList({
           ) : (
             <ul className="observation-projects">
               {page.items.map((work) => (
-                <li key={work.id} data-project-id={work.id}>
-                  <img
-                    src={seatAvatar(work.seatId, work.avatarKey).src}
-                    alt=""
-                    width={32}
-                    height={32}
-                  />
-                  <div className="observation-project-title">
-                    <strong>{work.title}</strong>
-                    <span>{work.student}</span>
-                  </div>
-                  <div className="observation-project-meta">
-                    <span className="observation-editor-badge">
-                      {EDITORS[work.moduleKey] ?? work.moduleKey}
-                    </span>
-                    <span className="observation-assignment-status">
-                      {work.assigned ? 'По заданию' : 'Без задания'}
-                      {work.status === 'archived' ? ' · Архив' : ''}
-                    </span>
-                    <time dateTime={work.updatedAt}>{time.dateTime(work.updatedAt)}</time>
-                  </div>
+                <li className="observation-project-card" key={work.id} data-project-id={work.id}>
                   <button
                     type="button"
-                    aria-label={`Открыть работу ${work.title}`}
+                    className="observation-preview-trigger"
+                    aria-label={`Предпросмотр работы ${work.title}, ${work.student}`}
+                    aria-haspopup="dialog"
+                    onClick={() => setPreviewId(work.id)}
+                  >
+                    <span className="observation-project-picture">
+                      <WorkSnapshot
+                        projectId={work.id}
+                        alt=""
+                        lazy
+                        fallback={<span>Без снимка</span>}
+                      />
+                    </span>
+                    <span className="observation-project-title">
+                      <strong>{work.title}</strong>
+                      <span>{work.student}</span>
+                      <span className="observation-project-meta">
+                        <span>{EDITORS[work.moduleKey] ?? work.moduleKey}</span>
+                        <span>{work.assigned ? 'По заданию' : 'Без задания'}</span>
+                        {work.status === 'archived' ? <span>Архив</span> : null}
+                      </span>
+                      <time dateTime={work.updatedAt}>{time.dateTime(work.updatedAt)}</time>
+                    </span>
+                  </button>
+                  <button
+                    className="observation-editor-action"
+                    type="button"
+                    aria-label={`Открыть в редакторе: ${work.title}`}
                     onClick={() => onOpenProject(work.id, work.moduleKey, work.seatId)}
                   >
-                    Открыть
+                    Открыть в редакторе
                   </button>
                 </li>
               ))}
@@ -282,6 +289,22 @@ function ProjectList({
           </div>
         </>
       )}
+      {preview ? (
+        <WorkPreview
+          key={preview.id}
+          readOnly
+          projectId={preview.id}
+          moduleKey={preview.moduleKey}
+          learnerName={preview.student}
+          workTitle={preview.title}
+          submittedAt={null}
+          onClose={() => setPreviewId(null)}
+          onOpenEditor={() => {
+            setPreviewId(null);
+            onOpenProject(preview.id, preview.moduleKey, preview.seatId);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
