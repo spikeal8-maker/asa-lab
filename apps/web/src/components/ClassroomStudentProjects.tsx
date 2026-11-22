@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { observationApi, type ObservationProjectsPage } from '../classroom-observation-api';
-import { seatAvatar } from '../creator-portal/default-avatars';
 import { useSchoolTime } from './school-time';
+import { WorkPreview, WorkSnapshot } from './WorkPreview';
 import './classroom-observation.css';
 
 const EDITORS: Record<string, string> = {
@@ -35,16 +35,25 @@ function ProjectList({
   const [limit, setLimit] = useState(30);
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<ObservationProjectsPage | null>(null);
+  const [snapshotRefresh, setSnapshotRefresh] = useState(0);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [learners, setLearners] = useState<ObservationProjectsPage['learners']>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [retry, setRetry] = useState(0);
   const [prepared, setPrepared] = useState(false);
+  const filters = useMemo(
+    () => ({ module, learner, search, assignment, archive: String(archive), offset, limit }),
+    [module, learner, search, assignment, archive, offset, limit],
+  );
+  useEffect(() => {
+    setPage(null);
+    setPreviewId(null);
+  }, [filters]);
   useEffect(() => {
     let current = true;
     setBusy(true);
     setError(null);
-    setPage(null);
     void (async () => {
       if (!prepared) {
         const result = await observationApi.prepare([classroomId]);
@@ -57,62 +66,58 @@ function ProjectList({
         setPrepared(true);
         return;
       }
-      const filters = {
-        module,
-        learner,
-        search,
-        assignment,
-        archive: String(archive),
-        offset,
-        limit,
-      };
       const result = await observationApi.projects(classroomId, filters);
       if (!current) return;
-      // A scoped 404 also covers loss of classroom access. Reset the filter only
-      // after an authorized read confirms that this learner is no longer listed.
-      if (learner && !result.ok && result.status === 404) {
-        const currentClass = await observationApi.projects(classroomId, {
-          ...filters,
-          learner: '',
-          offset: 0,
-        });
-        if (!current) return;
-        if (
-          currentClass.ok &&
-          !currentClass.data.learners.some((student) => student.id === learner)
-        ) {
-          setLearners(currentClass.data.learners);
-          setLearner('');
-          setOffset(0);
-          return;
-        }
-      }
-      setBusy(false);
       if (!result.ok) {
+        setPage(null);
+        setPreviewId(null);
+        // A scoped 404 also covers loss of classroom access. Reset the filter only
+        // after an authorized read confirms that this learner is no longer listed.
+        if (filters.learner && result.status === 404) {
+          const currentClass = await observationApi.projects(classroomId, {
+            ...filters,
+            learner: '',
+            offset: 0,
+          });
+          if (!current) return;
+          if (
+            currentClass.ok &&
+            !currentClass.data.learners.some((student) => student.id === filters.learner)
+          ) {
+            setLearners(currentClass.data.learners);
+            setLearner('');
+            setOffset(0);
+            return;
+          }
+        }
+        setBusy(false);
         setError(result.error.message);
         return;
       }
       setPage(result.data);
+      // A new snapshot can arrive without changing the project's draft date.
+      const refreshedAt = Date.now();
+      setSnapshotRefresh((previous) => Math.max(refreshedAt, previous + 1));
+      setPreviewId((id) => (result.data.items.some((work) => work.id === id) ? id : null));
       setLearners(result.data.learners);
+      setBusy(false);
     })();
     return () => {
       current = false;
     };
-  }, [classroomId, module, learner, search, assignment, archive, offset, limit, retry, prepared]);
+  }, [classroomId, filters, retry, prepared]);
   useEffect(() => {
     const refresh = () => setRetry((value) => value + 1);
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
   }, []);
+  const preview = page?.items.find((work) => work.id === previewId);
   return (
     <section className="classroom-observation" aria-label="Работы учеников" aria-busy={busy}>
       <div className="observation-heading">
         <h3>Работы учеников</h3>
         <span>Последнее изменение ↓</span>
       </div>
-      <p className="observation-note">
-        Проекты в 3D, электронике и Scratch, в том числе без задания. Архив включается отдельно.
-      </p>
       <div className="observation-filters">
         <label>
           Название
@@ -199,7 +204,7 @@ function ProjectList({
           </button>
         </p>
       )}
-      {busy && <p role="status">Загружаем работы…</p>}
+      {busy && !page && <p role="status">Загружаем работы…</p>}
       {page && (
         <>
           <p className="observation-note">
@@ -212,33 +217,41 @@ function ProjectList({
           ) : (
             <ul className="observation-projects">
               {page.items.map((work) => (
-                <li key={work.id} data-project-id={work.id}>
-                  <img
-                    src={seatAvatar(work.seatId, work.avatarKey).src}
-                    alt=""
-                    width={32}
-                    height={32}
-                  />
-                  <div className="observation-project-title">
-                    <strong>{work.title}</strong>
-                    <span>{work.student}</span>
-                  </div>
-                  <div className="observation-project-meta">
-                    <span className="observation-editor-badge">
-                      {EDITORS[work.moduleKey] ?? work.moduleKey}
-                    </span>
-                    <span className="observation-assignment-status">
-                      {work.assigned ? 'По заданию' : 'Без задания'}
-                      {work.status === 'archived' ? ' · Архив' : ''}
-                    </span>
-                    <time dateTime={work.updatedAt}>{time.dateTime(work.updatedAt)}</time>
-                  </div>
+                <li className="observation-project-card" key={work.id} data-project-id={work.id}>
                   <button
                     type="button"
-                    aria-label={`Открыть работу ${work.title}`}
+                    className="observation-preview-trigger"
+                    aria-label={`Предпросмотр работы ${work.title}, ${work.student}`}
+                    aria-haspopup="dialog"
+                    onClick={() => setPreviewId(work.id)}
+                  >
+                    <span className="observation-project-picture">
+                      <WorkSnapshot
+                        projectId={work.id}
+                        refresh={snapshotRefresh}
+                        alt=""
+                        lazy
+                        fallback={<span>Без снимка</span>}
+                      />
+                    </span>
+                    <span className="observation-project-title">
+                      <strong>{work.title}</strong>
+                      <span>{work.student}</span>
+                      <span className="observation-project-meta">
+                        <span>{EDITORS[work.moduleKey] ?? work.moduleKey}</span>
+                        <span>{work.assigned ? 'По заданию' : 'Без задания'}</span>
+                        {work.status === 'archived' ? <span>Архив</span> : null}
+                      </span>
+                      <time dateTime={work.updatedAt}>{time.dateTime(work.updatedAt)}</time>
+                    </span>
+                  </button>
+                  <button
+                    className="observation-editor-action"
+                    type="button"
+                    aria-label={`Открыть в редакторе: ${work.title}`}
                     onClick={() => onOpenProject(work.id, work.moduleKey, work.seatId)}
                   >
-                    Открыть
+                    Открыть в редакторе
                   </button>
                 </li>
               ))}
@@ -282,6 +295,23 @@ function ProjectList({
           </div>
         </>
       )}
+      {preview ? (
+        <WorkPreview
+          key={preview.id}
+          readOnly
+          snapshotRefresh={snapshotRefresh}
+          projectId={preview.id}
+          moduleKey={preview.moduleKey}
+          learnerName={preview.student}
+          workTitle={preview.title}
+          submittedAt={null}
+          onClose={() => setPreviewId(null)}
+          onOpenEditor={() => {
+            setPreviewId(null);
+            onOpenProject(preview.id, preview.moduleKey, preview.seatId);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
