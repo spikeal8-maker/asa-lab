@@ -200,6 +200,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0328', // Safe Mode blocks new publications and retroactive public reads.
         '0329', // Dated journal corrections can omit a reason.
         '0330', // Aggregate AI usage and new registrations over the dashboard window.
+        '0331', // Limit session revocation to the removed classroom seat.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -559,6 +560,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0328', // Safe Mode blocks new publications and retroactive public reads.
           '0329', // Dated journal corrections can omit a reason.
           '0330', // Aggregate AI usage and new registrations over the dashboard window.
+          '0331', // Limit session revocation to the removed classroom seat.
         ]);
         expect(
           await applyIsolatedTestPlan(
