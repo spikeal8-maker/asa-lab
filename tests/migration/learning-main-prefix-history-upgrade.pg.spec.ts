@@ -534,6 +534,11 @@ const upgradeArtifacts = [
     '0331_classroom_seat_scoped_session_revoke.sql',
     '37244b5a7bbaca3535e37695e6fb216b9d78058b00bb2c0de22defd9bb9d3114',
   ],
+  [
+    '0332',
+    '0332_classroom_removed_assessment_read_only.sql',
+    '0267f24afc0126f8101ff7b15f178064244606e67c18af3d9428a8c0f8f796fa',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

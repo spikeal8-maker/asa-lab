@@ -35,6 +35,16 @@ function error(code: string, message: string) {
   return { error: { code, message } };
 }
 
+function rethrowAssessmentWriteError(cause: unknown): never {
+  if (cause && typeof cause === 'object' && 'code' in cause && cause.code === 'P5L03') {
+    throw new HttpException(
+      error('learner_removed', 'Ученик удалён из класса. История доступна для просмотра.'),
+      409,
+    );
+  }
+  throw cause;
+}
+
 function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
@@ -905,9 +915,8 @@ export class LearningAssessmentsController {
     this.requireUuid(String(shape.body['attemptId']), 'attempt');
     if (shape.body['expectedAttemptId'] != null)
       this.requireUuid(String(shape.body['expectedAttemptId']), 'expectedAttempt');
-    const result = await this.requirePool().query(
-      'SELECT learning_teacher_select_attempt($1,$2,$3,$4,$5,$6,$7,$8) AS code',
-      [
+    const result = await this.requirePool()
+      .query('SELECT learning_teacher_select_attempt($1,$2,$3,$4,$5,$6,$7,$8) AS code', [
         context.accountId,
         context.principalId,
         classroomId,
@@ -916,8 +925,8 @@ export class LearningAssessmentsController {
         shape.body['expectedAttemptId'] ?? null,
         shape.body['reason'],
         shape.body['requestId'],
-      ],
-    );
+      ])
+      .catch(rethrowAssessmentWriteError);
     if (result.rows[0]?.['code'] !== 'ok')
       throw new HttpException(
         error(String(result.rows[0]?.['code']), 'Не удалось выбрать попытку. Обновите историю.'),
@@ -978,22 +987,24 @@ export class LearningAssessmentsController {
     if (reason !== null && (typeof reason !== 'string' || reason.length > 1000)) {
       throw new HttpException(error('validation_error', 'Причина слишком длинная.'), 400);
     }
-    const result = await this.requirePool().query(
-      `SELECT result_code, assessment_result_id, gradebook_entry_id,
+    const result = await this.requirePool()
+      .query(
+        `SELECT result_code, assessment_result_id, gradebook_entry_id,
               attempt_state, percentage_basis_points
          FROM ${requestId ? 'learning_attempt_review_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)' : 'learning_attempt_review($1,$2,$3,$4,$5,$6,$7,$8)'}`,
-      [
-        context.accountId,
-        context.principalId,
-        classroomId,
-        attemptId,
-        decision,
-        points,
-        feedback,
-        reason,
-        ...(requestId ? [expected, requestId] : []),
-      ],
-    );
+        [
+          context.accountId,
+          context.principalId,
+          classroomId,
+          attemptId,
+          decision,
+          points,
+          feedback,
+          reason,
+          ...(requestId ? [expected, requestId] : []),
+        ],
+      )
+      .catch(rethrowAssessmentWriteError);
     const row = result.rows[0] as
       | {
           result_code: string;
