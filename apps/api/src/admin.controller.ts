@@ -16,6 +16,7 @@ import type { FastifyRequest } from 'fastify';
 import { isIP } from 'node:net';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import type { AdminScopeKind } from '@asa-lab/authz';
+import { adminDashboardDateBounds, type AdminDashboardPeriod } from '@asa-lab/contracts';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import {
   AdminControlPlaneService,
@@ -474,12 +475,14 @@ export class AdminController {
     @Query('scopeKind') scopeKindRaw: string | undefined,
     @Query('scopeId') scopeIdRaw: string | undefined,
     @Query('range') rangeRaw: string | undefined,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
   ) {
     const { access } = await this.requireAdmin(request);
     try {
       return await this.controlPlane.productDashboard(access, {
         scope: this.scope(scopeKindRaw, scopeIdRaw),
-        range: this.dashboardRange(rangeRaw),
+        ...this.dashboardPeriod(rangeRaw, fromDate, toDate),
       });
     } catch (failure) {
       this.rethrowAdminFailure(failure);
@@ -833,6 +836,24 @@ export class AdminController {
       throw new HttpException(error('validation_error', 'limit must be between 1 and 200'), 400);
     }
     return limit;
+  }
+
+  private dashboardPeriod(
+    range: string | undefined,
+    fromDate: string | undefined,
+    toDate: string | undefined,
+  ): AdminDashboardPeriod {
+    if (range !== 'custom') return { range: this.dashboardRange(range) };
+    if (!fromDate || !toDate || !adminDashboardDateBounds(fromDate, toDate)) {
+      throw new HttpException(
+        error(
+          'validation_error',
+          'Выберите даты по МСК, не позже сегодняшнего дня, в пределах 365 дней.',
+        ),
+        400,
+      );
+    }
+    return { range, fromDate, toDate };
   }
 
   private dashboardRange(value: string | undefined): AdminDashboardRange {

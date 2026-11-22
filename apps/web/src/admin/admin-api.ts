@@ -1,4 +1,8 @@
-import type { AiDashboardUsage } from '@asa-lab/contracts';
+import type {
+  AdminDashboardPeriod,
+  AdminDashboardRange,
+  AiDashboardUsage,
+} from '@asa-lab/contracts';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { authRequest, authRequestFailure } from '../auth-request';
 import { notifyAccountVerificationRequired } from '../auth-verification';
@@ -458,8 +462,7 @@ export interface AdminOperationsStatus {
   } | null;
 }
 
-export type AdminDashboardRange =
-  'today' | 'yesterday' | '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+export type { AdminDashboardPeriod, AdminDashboardRange } from '@asa-lab/contracts';
 
 export interface AdminDashboardPoint {
   readonly at: string;
@@ -503,7 +506,7 @@ export interface AdminProductDashboard {
   readonly from: string;
   readonly to: string;
   readonly bucketSeconds: number;
-  readonly range: AdminDashboardRange;
+  readonly range: AdminDashboardPeriod['range'];
   readonly todayMsk?: {
     readonly from: string;
     readonly to: string;
@@ -718,12 +721,15 @@ export const adminApi = {
       ...(signal ? { signal } : {}),
     }),
   me: () => call<AdminProfile>('/api/admin/v1/me'),
-  dashboard: (input: {
-    readonly scope: Pick<AdminScope, 'kind' | 'id'>;
-    readonly range: AdminDashboardRange;
-  }) => {
+  dashboard: (
+    input: { readonly scope: Pick<AdminScope, 'kind' | 'id'> } & AdminDashboardPeriod,
+  ) => {
     const query = new URLSearchParams({ scopeKind: input.scope.kind, range: input.range });
     if (input.scope.id !== null) query.set('scopeId', input.scope.id);
+    if (input.range === 'custom') {
+      query.set('fromDate', input.fromDate);
+      query.set('toDate', input.toDate);
+    }
     return call<AdminProductDashboard>(`/api/admin/v1/dashboard?${query.toString()}`);
   },
   errorTrend: (input: { from: string; to: string; bucketSeconds: number }, signal: AbortSignal) => {

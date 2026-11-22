@@ -1,3 +1,4 @@
+import { adminDashboardDateBounds, moscowDateKey } from '@asa-lab/contracts';
 import { AdminEmailSettings } from './AdminEmailSettings';
 import {
   useCallback,
@@ -10,6 +11,7 @@ import {
 } from 'react';
 import {
   adminApi,
+  type AdminDashboardPeriod,
   type AdminDashboardRange,
   type AdminErrorTrend,
   type AdminIpActivity,
@@ -61,9 +63,8 @@ const MOSCOW_TIME = new Intl.DateTimeFormat('ru-RU', {
   minute: '2-digit',
   timeZone: 'Europe/Moscow',
 });
-const MOSCOW_DAY = new Intl.DateTimeFormat('ru-RU', {
-  day: 'numeric',
-  month: 'long',
+const MOSCOW_DATE = new Intl.DateTimeFormat('ru-RU', {
+  dateStyle: 'short',
   timeZone: 'Europe/Moscow',
 });
 const MOSCOW_DATE_TIME = new Intl.DateTimeFormat('ru-RU', {
@@ -485,31 +486,37 @@ function MultiLineChart({
   );
 }
 
-function timeLabels(
-  points: readonly { readonly at: string }[],
-  range: AdminDashboardRange,
-): string[] {
-  const formatter = ['today', 'yesterday', '1h', '6h', '12h', '24h'].includes(range)
-    ? MOSCOW_TIME
-    : new Intl.DateTimeFormat('ru-RU', {
-        day: '2-digit',
-        month: 'short',
-        timeZone: 'Europe/Moscow',
-      });
+function timeLabels(points: readonly { readonly at: string }[], bucketSeconds: number): string[] {
+  const formatter =
+    bucketSeconds <= 3600
+      ? MOSCOW_TIME
+      : new Intl.DateTimeFormat('ru-RU', {
+          day: '2-digit',
+          month: 'short',
+          timeZone: 'Europe/Moscow',
+        });
   return points.map((point) => formatter.format(new Date(point.at)));
 }
 
 export function AdminDashboard({
   scope,
   onAccessDenied,
+  heading,
 }: {
   readonly scope: AdminScope;
   readonly onAccessDenied: () => void;
+  readonly heading?: ReactNode;
 }): JSX.Element {
-  const [range, setRange] = useState<AdminDashboardRange>('today');
+  const [period, setPeriod] = useState<AdminDashboardPeriod>({ range: 'today' });
+  const [dateForm, setDateForm] = useState<{ from: string; to: string; error?: string } | null>(
+    null,
+  );
+  const dateButton = useRef<HTMLButtonElement>(null);
+  const dateFormId = useId();
+  const range = period.range;
   const scopeKind = scope.kind;
   const scopeId = scope.id;
-  const key = `${scopeKind}:${scopeId ?? ''}:${range}`;
+  const key = JSON.stringify([scopeKind, scopeId, period]);
   const [storedState, setState] = useState<DashboardState>({ kind: 'loading', key });
   const state: DashboardState = storedState.key === key ? storedState : { kind: 'loading', key };
   const requestVersion = useRef(0);
@@ -526,7 +533,10 @@ export function AdminDashboard({
           ? { ...current, refreshing: true, refreshError: null }
           : { kind: 'loading', key },
       );
-      const result = await adminApi.dashboard({ scope: { kind: scopeKind, id: scopeId }, range });
+      const result = await adminApi.dashboard({
+        scope: { kind: scopeKind, id: scopeId },
+        ...period,
+      });
       if (version !== requestVersion.current || contextKey.current !== key) return;
       if (!result.ok) {
         if (result.status === 401 || result.status === 403) {
@@ -557,7 +567,7 @@ export function AdminDashboard({
         refreshError: null,
       });
     },
-    [range, scopeKind, scopeId, key],
+    [period, range, scopeKind, scopeId, key],
   );
 
   useEffect(() => {
@@ -567,40 +577,132 @@ export function AdminDashboard({
     };
   }, [load]);
 
+  const today = moscowDateKey(Date.now());
+  const displayedInterval =
+    state.kind !== 'ready'
+      ? null
+      : period.range === 'custom'
+        ? `${MOSCOW_DATE.format(new Date(state.dashboard.from))} — ${MOSCOW_DATE.format(new Date(Date.parse(state.dashboard.to) - 1))} МСК`
+        : moscowInterval(state.dashboard.from, state.dashboard.to);
+
+  const closeDates = () => {
+    setDateForm(null);
+    dateButton.current?.focus();
+  };
+
   return (
-    <section className="admin-dashboard" aria-labelledby="admin-dashboard-title">
-      <h2 id="admin-dashboard-title" className="sr-only">
-        Обзор
-      </h2>
-      <div className="admin-dashboard-toolbar">
-        <label className="admin-range-picker">
-          <span>Период</span>
-          <select
-            aria-label="Период дашборда"
-            value={range}
-            onChange={(event) => setRange(event.target.value as AdminDashboardRange)}
+    <section className="admin-dashboard" aria-label="Обзор">
+      <header className="admin-heading admin-heading-compact admin-dashboard-heading">
+        {heading}
+        <div className="admin-dashboard-toolbar">
+          <label className="admin-range-picker">
+            <span className="sr-only">Период</span>
+            <select
+              aria-label="Период дашборда"
+              value={range}
+              onChange={(event) => {
+                setDateForm(null);
+                setPeriod({ range: event.target.value as AdminDashboardRange });
+              }}
+            >
+              {range === 'custom' ? (
+                <option value="custom" disabled>
+                  Выбранные даты
+                </option>
+              ) : null}
+              {RANGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="admin-dashboard-dates">
+            <button
+              type="button"
+              className="admin-dashboard-refresh"
+              ref={dateButton}
+              aria-expanded={dateForm !== null}
+              aria-controls={dateForm ? dateFormId : undefined}
+              onClick={() => {
+                if (dateForm) return closeDates();
+                if (period.range === 'custom') {
+                  setDateForm({ from: period.fromDate, to: period.toDate });
+                  return;
+                }
+                setDateForm(
+                  state.kind === 'ready'
+                    ? {
+                        from: moscowDateKey(Date.parse(state.dashboard.from)),
+                        to: moscowDateKey(Date.parse(state.dashboard.to) - 1),
+                      }
+                    : { from: today, to: today },
+                );
+              }}
+            >
+              Даты
+            </button>
+            {dateForm ? (
+              <form
+                id={dateFormId}
+                className="admin-dashboard-date-form"
+                aria-label="Диапазон дат по Москве"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') closeDates();
+                }}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!adminDashboardDateBounds(dateForm.from, dateForm.to)) {
+                    setDateForm({
+                      ...dateForm,
+                      error: 'Выберите даты по порядку, не позже сегодня. Максимум 365 дней.',
+                    });
+                    return;
+                  }
+                  setPeriod({ range: 'custom', fromDate: dateForm.from, toDate: dateForm.to });
+                  closeDates();
+                }}
+              >
+                <label>
+                  С даты
+                  <input
+                    type="date"
+                    required
+                    max={today}
+                    value={dateForm.from}
+                    onChange={(event) => setDateForm({ from: event.target.value, to: dateForm.to })}
+                  />
+                </label>
+                <label>
+                  По дату включительно
+                  <input
+                    type="date"
+                    required
+                    max={today}
+                    value={dateForm.to}
+                    onChange={(event) =>
+                      setDateForm({ from: dateForm.from, to: event.target.value })
+                    }
+                  />
+                </label>
+                {dateForm.error ? <p role="alert">{dateForm.error}</p> : null}
+                <button className="admin-dashboard-refresh" type="submit">
+                  Показать
+                </button>
+              </form>
+            ) : null}
+          </div>
+          {displayedInterval ? <p className="admin-range-interval">{displayedInterval}</p> : null}
+          <button
+            type="button"
+            className="admin-dashboard-refresh"
+            disabled={state.kind === 'ready' && state.refreshing}
+            onClick={() => void load(true)}
           >
-            {RANGE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {state.kind === 'ready' ? (
-          <p className="admin-range-interval">
-            {moscowInterval(state.dashboard.from, state.dashboard.to)}
-          </p>
-        ) : null}
-        <button
-          type="button"
-          className="admin-dashboard-refresh"
-          disabled={state.kind === 'ready' && state.refreshing}
-          onClick={() => void load(true)}
-        >
-          {state.kind === 'ready' && state.refreshing ? 'Обновляем…' : 'Обновить'}
-        </button>
-      </div>
+            {state.kind === 'ready' && state.refreshing ? 'Обновляем…' : 'Обновить'}
+          </button>
+        </div>
+      </header>
 
       {state.kind === 'loading' ? (
         <div className="admin-dashboard-skeleton" aria-busy="true">
@@ -629,7 +731,7 @@ export function AdminDashboard({
             <p role="alert">{state.refreshError} Показаны предыдущие данные за выбранный период.</p>
           ) : null}
           <div aria-busy={state.refreshing} className="admin-dashboard-content">
-            {range !== 'yesterday' ? <TodayAttendance dashboard={state.dashboard} /> : null}
+            <AttendanceSummary dashboard={state.dashboard} />
             <DashboardContent
               dashboard={state.dashboard}
               canReadErrors={
@@ -644,40 +746,27 @@ export function AdminDashboard({
   );
 }
 
-function TodayAttendance({
+function AttendanceSummary({
   dashboard,
 }: {
   readonly dashboard: AdminProductDashboard;
 }): JSX.Element {
-  const today = dashboard.todayMsk;
+  const summary = (dashboard.range === 'today' ? dashboard.todayMsk : null) ?? dashboard.summary;
   return (
-    <section className="admin-dashboard-today" aria-labelledby="admin-dashboard-today-title">
-      <div className="admin-today-heading">
-        <h3 id="admin-dashboard-today-title">Посещаемость сегодня</h3>
-        {today ? (
-          <p>
-            <time dateTime={today.from}>{MOSCOW_DAY.format(new Date(today.from))}</time>
-            {' · '}00:00 — {MOSCOW_TIME.format(new Date(today.to))} МСК
-          </p>
-        ) : null}
+    <section className="admin-dashboard-attendance" aria-label="Посещаемость за выбранный период">
+      <div className="admin-dashboard-kpis">
+        {[
+          ['Активные аккаунты', summary.activeAccounts],
+          ['Активные ученики', summary.activeStudents],
+          ['Входы по коду класса', summary.studentLogins],
+          ['Созданные ученические места', summary.newStudents],
+        ].map(([label, value]) => (
+          <article key={label}>
+            <span>{label}</span>
+            <strong>{value ?? '—'}</strong>
+          </article>
+        ))}
       </div>
-      {today ? (
-        <div className="admin-dashboard-kpis">
-          {[
-            ['Активные аккаунты', today.activeAccounts],
-            ['Активные ученики', today.activeStudents],
-            ['Входы по коду класса', today.studentLogins],
-            ['Созданные ученические места', today.newStudents],
-          ].map(([label, value]) => (
-            <article key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <p>Сводка за сегодня недоступна.</p>
-      )}
     </section>
   );
 }
@@ -704,7 +793,7 @@ function DashboardContent({
       accountSeconds: null,
       studentSeconds: null,
     }));
-  const labels = timeLabels(points, dashboard.range);
+  const labels = timeLabels(points, dashboard.bucketSeconds);
   const pointLabels = points.map((point) => moscowInterval(point.from, point.to));
   const axes = { labels, pointLabels };
   const durations = audienceMetric === 'time';
@@ -795,7 +884,7 @@ function DashboardContent({
         emptyMessage={durations ? 'В этом периоде нет замеров активного времени.' : undefined}
         controls={
           <>
-            {overview && dashboard.range !== 'yesterday' ? (
+            {overview && dashboard.range !== 'yesterday' && dashboard.range !== 'custom' ? (
               <span
                 className="admin-chart-recent"
                 title="Уникальные аккаунты и ученики с активностью за последние пять минут к моменту обновления."

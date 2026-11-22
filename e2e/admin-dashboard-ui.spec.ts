@@ -10,7 +10,8 @@ import {
   catalogUserFixture,
   catalogPageFixture,
 } from '../apps/web/src/admin/testing/admin-user-catalog.fixture';
-import type { AdminDashboardRange } from '../apps/web/src/admin/admin-api';
+import type { AdminProductDashboard } from '../apps/web/src/admin/admin-api';
+import { adminDashboardDateBounds } from '../packages/contracts/src/admin-dashboard-period';
 
 const ACCOUNT = '20000000-0000-4000-8000-000000000001';
 const OTHER = '20000000-0000-4000-8000-000000000002';
@@ -284,10 +285,26 @@ async function fixture(page: Page) {
       return reply(profile);
     }
     if (path === '/api/admin/v1/dashboard') {
-      const range = (url.searchParams.get('range') ?? '24h') as AdminDashboardRange;
+      const range = (url.searchParams.get('range') ?? '24h') as AdminProductDashboard['range'];
       const marker =
         account === ACCOUNT && url.searchParams.get('scopeKind') === 'platform' ? 8 : 42;
-      const fixture = adminDashboardFixture(range, marker, empty);
+      const baseFixture = adminDashboardFixture(range, marker, empty);
+      const custom =
+        range === 'custom'
+          ? adminDashboardDateBounds(
+              url.searchParams.get('fromDate'),
+              url.searchParams.get('toDate'),
+              Date.parse('2026-11-01T01:00:00Z'),
+            )
+          : null;
+      const fixture = custom
+        ? {
+            ...baseFixture,
+            from: custom.from.toISOString(),
+            to: custom.to.toISOString(),
+            bucketSeconds: custom.bucketSeconds,
+          }
+        : baseFixture;
       const dashboard =
         marker === 8
           ? {
@@ -582,9 +599,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.goto('/#/admin');
     await expect(learning(page)).toBeVisible();
     await noPageOverflow(page);
-    const attendance = page.getByRole('region', { name: 'Посещаемость сегодня' });
+    const attendance = page.getByRole('region', { name: 'Посещаемость за выбранный период' });
     await expect(attendance).toBeInViewport();
-    await expect(attendance).toContainText('00:00 — 02:10 МСК');
+    await expect(page.getByText('Посещаемость сегодня', { exact: true })).toHaveCount(0);
+    const overviewHeader = page.locator('.admin-dashboard-heading');
+    await expect(overviewHeader.getByRole('heading', { level: 1 })).toContainText('Обзор');
+    await expect(overviewHeader.getByRole('combobox', { name: 'Период дашборда' })).toBeVisible();
     await expect(
       attendance.getByRole('article').filter({ hasText: 'Входы по коду класса' }),
     ).toContainText('24');
@@ -953,6 +973,38 @@ for (const width of [1440, 1024, 390, 320]) {
     await noPageOverflow(page);
   });
 }
+
+test('admin overview applies calendar dates to both analytics and errors', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await fixture(page);
+  await page.goto('/#/admin');
+  await expect(learning(page)).toBeVisible();
+  const header = page.locator('.admin-dashboard-heading');
+  await header.getByRole('button', { name: 'Даты', exact: true }).click();
+  const form = header.getByRole('form', { name: 'Диапазон дат по Москве' });
+  await form.getByLabel('С даты').fill('2026-10-25');
+  await form.getByLabel('По дату включительно').fill('2026-10-26');
+  const trend = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return (
+      url.pathname.endsWith('/logs/trend') &&
+      url.searchParams.get('from') === '2026-10-24T21:00:00.000Z'
+    );
+  });
+  const bounds = await form.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  await form.getByRole('button', { name: 'Показать' }).click();
+  const params = new URL((await trend).url()).searchParams;
+  expect(params.get('to')).toBe('2026-10-26T21:00:00.000Z');
+  expect(params.get('bucketSeconds')).toBe('21600');
+  await expect(header.locator('.admin-range-interval')).toHaveText('25.10.2026 — 26.10.2026 МСК');
+  await expect(page.getByRole('heading', { name: 'Ошибки по системам' })).toBeVisible();
+  await expect(
+    page.getByText('Журнал за этот период может быть неполным.', { exact: false }),
+  ).toBeVisible();
+  await noPageOverflow(page);
+});
 
 test('admin overview keeps matching refresh charts, then shows clear error/retry/empty states', async ({
   page,

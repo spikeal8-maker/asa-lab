@@ -1,5 +1,10 @@
 import type pg from 'pg';
-import type { AiDashboardUsage } from '@asa-lab/contracts';
+import {
+  adminDashboardDateBounds,
+  type AdminDashboardPeriod,
+  type AdminDashboardRange,
+  type AiDashboardUsage,
+} from '@asa-lab/contracts';
 import type { AdminHistoryPage, HistoryCategory } from './admin-user-history.js';
 import type { RuntimeMetrics, RuntimeMetricsSnapshot } from '@asa-lab/observability';
 import { runtimeBuildMetadata } from './build-metadata.js';
@@ -200,8 +205,7 @@ export interface AdminOperationsStatusView {
   readonly runtime: RuntimeMetricsSnapshot | null;
 }
 
-export type AdminDashboardRange =
-  'today' | 'yesterday' | '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+export type { AdminDashboardPeriod, AdminDashboardRange } from '@asa-lab/contracts';
 
 export interface AdminProductDashboardView {
   readonly generatedAt: string;
@@ -209,7 +213,7 @@ export interface AdminProductDashboardView {
   readonly from: string;
   readonly to: string;
   readonly bucketSeconds: number;
-  readonly range: AdminDashboardRange;
+  readonly range: AdminDashboardPeriod['range'];
   readonly todayMsk: {
     readonly from: string;
     readonly to: string;
@@ -1054,11 +1058,14 @@ export class AdminControlPlaneService {
     access: ResolvedAdminAccess,
     input: {
       readonly scope: { readonly kind: AdminScopeKind; readonly id: string | null };
-      readonly range: AdminDashboardRange;
-    },
+    } & AdminDashboardPeriod,
   ): Promise<AdminProductDashboardView> {
     this.requirePermission(access, 'administration.open', input.scope);
-    const range = dashboardWindow(input.range);
+    const range =
+      input.range === 'custom'
+        ? adminDashboardDateBounds(input.fromDate, input.toDate)
+        : dashboardWindow(input.range);
+    if (!range) throw Object.assign(new Error('Invalid dashboard date range'), { code: '22023' });
     const result = await this.pool.query<{
       payload: Record<string, unknown>;
       ai_usage: AiDashboardUsage | null;

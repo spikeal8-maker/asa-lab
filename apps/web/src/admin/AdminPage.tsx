@@ -1690,46 +1690,52 @@ function AdminWorkspace({
     selectedScope.kind === 'platform' &&
     selectedScope.permissions.includes('administration.security.manage');
 
+  const heading = (
+    <>
+      <div className="admin-title-line">
+        <h1>
+          <span>Админ</span>
+          <b aria-hidden="true">/</b>
+          <span>{adminSectionLabel(visibleSection)}</span>
+        </h1>
+      </div>
+      {profile.scopes.length > 1 ? (
+        <label className="admin-scope-select">
+          <span className="sr-only">Область управления</span>
+          <select
+            value={selectedScopeKey}
+            onChange={(event) => {
+              const nextKey = event.target.value;
+              setSelectedKey(nextKey);
+              const nextScope = profile.scopes.find((scope) => scopeKey(scope) === nextKey);
+              if (nextScope && !scopeSupportsAdminSection(nextScope, section)) {
+                onNavigate('overview');
+              }
+            }}
+          >
+            {profile.scopes.map((scope) => (
+              <option key={scopeKey(scope)} value={scopeKey(scope)}>
+                {adminScopeLabel(scope)} · {adminRoleLabel(scope.role)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+    </>
+  );
+
   return (
     <main
       id="main-content"
       className={`portal-content admin-page${visibleSection === 'overview' ? ' admin-overview-page' : ''}`}
       tabIndex={-1}
     >
-      <header className="admin-heading admin-heading-compact">
-        <div className="admin-title-line">
-          <h1>
-            <span>Админ</span>
-            <b aria-hidden="true">/</b>
-            <span>{adminSectionLabel(visibleSection)}</span>
-          </h1>
-        </div>
-        {profile.scopes.length > 1 ? (
-          <label className="admin-scope-select">
-            <span className="sr-only">Область управления</span>
-            <select
-              value={selectedScopeKey}
-              onChange={(event) => {
-                const nextKey = event.target.value;
-                setSelectedKey(nextKey);
-                const nextScope = profile.scopes.find((scope) => scopeKey(scope) === nextKey);
-                if (nextScope && !scopeSupportsAdminSection(nextScope, section)) {
-                  onNavigate('overview');
-                }
-              }}
-            >
-              {profile.scopes.map((scope) => (
-                <option key={scopeKey(scope)} value={scopeKey(scope)}>
-                  {adminScopeLabel(scope)} · {adminRoleLabel(scope.role)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-      </header>
+      {visibleSection !== 'overview' ? (
+        <header className="admin-heading admin-heading-compact">{heading}</header>
+      ) : null}
 
       {visibleSection === 'overview' ? (
-        <AdminDashboard scope={selectedScope} onAccessDenied={onAccessDenied} />
+        <AdminDashboard scope={selectedScope} onAccessDenied={onAccessDenied} heading={heading} />
       ) : visibleSection === 'confirmations' ? (
         <VerificationMethodsSection scope={selectedScope} onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'operations' ? (

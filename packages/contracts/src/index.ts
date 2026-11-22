@@ -29,6 +29,8 @@ export type {
   AiGenerationPolicy,
   AiGenerationPolicyUpdate,
 } from './ai-generation-policy.js';
+export { adminDashboardDateBounds, moscowDateKey } from './admin-dashboard-period.js';
+export type { AdminDashboardPeriod, AdminDashboardRange } from './admin-dashboard-period.js';
 export type { AiDashboardUsage, AiUsageOverview, AiUsageTokenTotal } from './ai-usage-overview.js';
 export type {
   AiWebSearchMode,
