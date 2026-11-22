@@ -942,8 +942,9 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
 
     const classUrl = '/#/classrooms/' + classId;
     await page.goto(classUrl);
-    const classTabs = page.getByRole('navigation', { name: 'Разделы класса' });
-    await classTabs.getByRole('button', { name: 'Журнал', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Раздел класса', exact: true }).selectOption({
+      label: 'Журнал',
+    });
     const dated = page.getByRole('region', { name: 'Ручной журнал', exact: true });
     await expect(dated.getByRole('rowheader', { name: /Илья История/ })).toBeVisible();
     await page
@@ -960,11 +961,19 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
       detail.getByRole('button', { name: 'Принять выполнение', exact: true }),
     ).toBeEnabled();
 
+    await rosterTab.setViewportSize({ width: 1440, height: 900 });
     await rosterTab.goto(classUrl);
     const departingRow = rosterTab.getByRole('row').filter({ hasText: 'Илья История' });
-    await departingRow.getByRole('button', { name: 'Действия: Илья История' }).click();
+    await departingRow.getByRole('button', { name: 'Действия: Илья История', exact: true }).click();
+    const removal = rosterTab.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        new URL(response.url()).pathname ===
+          '/api/classrooms/' + classId + '/seats/' + third.seatId,
+    );
     rosterTab.once('dialog', (dialog) => void dialog.accept());
     await departingRow.getByRole('button', { name: 'Удалить из класса', exact: true }).click();
+    expect((await removal).ok()).toBe(true);
     await expect(departingRow).toHaveCount(0);
     await expect(rosterTab.getByRole('row').filter({ hasText: 'Лена Главная' })).toBeVisible();
 
