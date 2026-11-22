@@ -84,7 +84,8 @@
   cursor: pointer;
 }
 .manual-journal-cell:hover,
-.manual-journal-cell:focus-visible {
+.manual-journal-cell:focus-visible,
+.manual-journal-cell[aria-expanded='true'] {
   background: var(--surface-hover, #eaf2ff);
   outline: 2px solid var(--accent, #2563eb);
 }
@@ -309,6 +310,14 @@
   background: var(--surface, #fff);
   color: inherit;
   box-shadow: 0 8px 36px #0003;
+}
+.manual-journal-cell-dialog {
+  inset: auto;
+  margin: 0;
+}
+.manual-journal-cell-dialog header strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .manual-journal-popover header {
   display: flex;

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   journalApi,
   journalAccessibleLabel,
@@ -110,8 +118,67 @@ function GradeHistory({
     </div>
   );
 }
+function placeCellEditor(dialog: HTMLDialogElement, cell: HTMLButtonElement | undefined) {
+  const viewport = window.visualViewport;
+  const left = viewport?.offsetLeft ?? 0;
+  const top = viewport?.offsetTop ?? 0;
+  const width = viewport?.width ?? document.documentElement.clientWidth;
+  const height = viewport?.height ?? window.innerHeight;
+  const margin = 8;
+  const gap = 6;
+  const right = left + width - margin;
+  const bottom = top + height - margin;
+  const editorWidth = Math.max(1, Math.min(360, width - 2 * margin));
+  const availableHeight = Math.max(1, height - 2 * margin);
+  dialog.style.width = editorWidth + 'px';
+
+  const cellRect = cell?.getBoundingClientRect();
+  const matrix = cell?.closest('.manual-journal-scroll')?.getBoundingClientRect();
+  const stickyColumn = cell?.closest('tr')?.firstElementChild?.getBoundingClientRect();
+  const stickyHeader = cell?.closest('table')?.tHead?.getBoundingClientRect();
+  // Track the exposed part of the selected cell, including the journal's sticky edges.
+  const cellLeft = Math.max(
+    cellRect?.left ?? right,
+    matrix?.left ?? left,
+    stickyColumn?.right ?? left,
+    left,
+  );
+  const cellRight = Math.min(cellRect?.right ?? left, matrix?.right ?? right, right);
+  const cellTop = Math.max(
+    cellRect?.top ?? bottom,
+    matrix?.top ?? top,
+    stickyHeader?.bottom ?? top,
+    top,
+  );
+  const cellBottom = Math.min(cellRect?.bottom ?? top, matrix?.bottom ?? bottom, bottom);
+  const visible = cellLeft < cellRight && cellTop < cellBottom;
+  const naturalHeight = Math.min(
+    availableHeight,
+    dialog.scrollHeight + dialog.offsetHeight - dialog.clientHeight,
+  );
+  const below = bottom - cellBottom - gap;
+  const above = cellTop - top - margin - gap;
+  const showAbove = below < naturalHeight && above > below;
+  const sideHeight = showAbove ? above : below;
+  const fitsBesideCell = visible && sideHeight >= Math.min(naturalHeight, 144);
+
+  dialog.style.left =
+    (visible
+      ? Math.max(left + margin, Math.min(cellLeft, right - editorWidth))
+      : left + (width - editorWidth) / 2) + 'px';
+  dialog.style.maxHeight = Math.max(1, fitsBesideCell ? sideHeight : availableHeight) + 'px';
+  dialog.style.top = fitsBesideCell
+    ? showAbove
+      ? 'auto'
+      : cellBottom + gap + 'px'
+    : top + margin + 'px';
+  dialog.style.bottom =
+    fitsBesideCell && showAbove ? window.innerHeight - cellTop + gap + 'px' : 'auto';
+}
+
 function CellEditor({
   classroomId,
+  getAnchor,
   column,
   student,
   grade,
@@ -124,6 +191,7 @@ function CellEditor({
   timeZone,
 }: {
   classroomId: string;
+  getAnchor: () => HTMLButtonElement | undefined;
   column: JournalSlot;
   student: Student;
   grade: JournalGrade | undefined;
@@ -146,14 +214,52 @@ function CellEditor({
   const mutation = useRef<JournalQuickMutation | null>(null);
   const mounted = useRef(false),
     saving = useRef(false),
-    panel = useRef<HTMLElement>(null);
+    panel = useRef<HTMLElement>(null),
+    dialogRef = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const viewport = window.visualViewport;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const anchor = getAnchor();
+      if (anchor !== observedAnchor) {
+        if (observedAnchor) observer?.unobserve(observedAnchor);
+        if (anchor) observer?.observe(anchor);
+        observedAnchor = anchor;
+      }
+      placeCellEditor(dialog, anchor);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(place);
+    };
+    let observedAnchor: HTMLButtonElement | undefined;
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
+    if (panel.current) observer?.observe(panel.current);
+    const matrix = getAnchor()?.closest('.manual-journal-scroll');
+    if (matrix) observer?.observe(matrix);
+    place();
+    window.addEventListener('scroll', schedule, true);
+    window.addEventListener('resize', schedule);
+    viewport?.addEventListener('scroll', schedule);
+    viewport?.addEventListener('resize', schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('scroll', schedule, true);
+      window.removeEventListener('resize', schedule);
+      viewport?.removeEventListener('scroll', schedule);
+      viewport?.removeEventListener('resize', schedule);
+    };
+  }, [getAnchor]);
   useEffect(() => {
     mounted.current = true;
     panel.current
       ?.querySelector<HTMLElement>(
         archived ? 'button:not(:disabled), summary' : 'input, button[data-level]:not(:disabled)',
       )
-      ?.focus();
+      ?.focus({ preventScroll: true });
     return () => {
       mounted.current = false;
     };
@@ -219,8 +325,9 @@ function CellEditor({
   }
   return (
     <dialog
+      ref={dialogRef}
       open
-      className="manual-journal-popover"
+      className="manual-journal-popover manual-journal-cell-dialog"
       aria-label={`Быстрая оценка: ${student.name}`}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -654,12 +761,16 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
         (c) => c.id === header.id || (header.slotKey && c.slotKey === header.slotKey),
       ) ?? header)
     : null;
+  const openedCellKey = opened && openedColumn ? `${openedColumn.id}:${opened.student.id}` : '';
+  const getOpenedCell = useCallback(() => cells.current.get(openedCellKey), [openedCellKey]);
   function closeCell(step = 0) {
-    const key = opened ? `${openedColumn!.id}:${opened.student.id}` : '',
-      ordered = students.flatMap((s) => columns.map((c) => `${c.id}:${s.id}`));
-    const next = cells.current.get(ordered[ordered.indexOf(key) + step]);
+    const ordered = students.flatMap((s) => columns.map((c) => `${c.id}:${s.id}`));
+    const index = ordered.indexOf(openedCellKey);
+    const next = index < 0 ? undefined : cells.current.get(ordered[index + step]);
     setOpened(null);
-    (next ?? origin.current)?.focus();
+    const target = next ?? getOpenedCell() ?? origin.current;
+    if (target?.isConnected) target.focus();
+    else if (openedColumn) focusHeader(openedColumn.id);
   }
   function updateColumn(result: JournalQuickResult) {
     const visibleMonth = month || data?.range.from.slice(0, 7);
@@ -939,6 +1050,8 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
                             }}
                             className="manual-journal-cell"
                             data-slot-key={c.slotKey ?? ''}
+                            aria-haspopup="dialog"
+                            aria-expanded={openedCellKey === `${c.id}:${s.id}`}
                             disabled={loadBusy}
                             aria-label={`${s.name}, ${c.date}, ${c.category}: ${grade ? journalRevisionLabel(c.preset, grade.value) : journalAccessibleLabel(c.preset, null)}`}
                             onKeyDown={(e) => {
@@ -1025,6 +1138,7 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
             <CellEditor
               key={opened.editorKey}
               classroomId={classroomId}
+              getAnchor={getOpenedCell}
               column={openedColumn!}
               student={opened.student}
               grade={grades.get(`${openedColumn!.id}:${opened.student.id}`)}
