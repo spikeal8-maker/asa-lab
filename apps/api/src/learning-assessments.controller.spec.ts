@@ -203,8 +203,8 @@ describe('learning assessments API', () => {
     });
   });
 
-  it('returns one canonical gradebook row', async () => {
-    const target = controller([
+  it('marks removed legacy gradebook rows without changing stored results', async () => {
+    const rows = [
       {
         seat_id: 'seat-id',
         display_label: 'Анна',
@@ -221,7 +221,14 @@ describe('learning assessments API', () => {
         feedback: 'Хорошая работа',
         published_at: '2026-08-22T11:00:00.000Z',
       },
-    ]);
+    ];
+    const target = controller(rows);
+    target.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('classroom_management_roster')) return { rows: [{ id: 'seat-id' }] };
+      if (sql.includes('classroom_gradebook_list'))
+        return { rows: [...rows, { ...rows[0], seat_id: 'old-seat', display_label: 'Борис' }] };
+      return { rows: [] };
+    });
 
     await expect(target.value.gradebook(request(), CLASSROOM_ID)).resolves.toEqual({
       scheme: null,
@@ -235,6 +242,14 @@ describe('learning assessments API', () => {
           percentage: 84,
           outcome: 'passed',
           displayGrade: null,
+          removedFromClass: false,
+        }),
+        expect.objectContaining({
+          seatId: 'old-seat',
+          displayLabel: 'Борис',
+          attemptId: ATTEMPT_ID,
+          points: 84,
+          removedFromClass: true,
         }),
       ],
     });

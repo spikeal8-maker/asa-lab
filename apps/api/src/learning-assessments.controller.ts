@@ -437,18 +437,35 @@ export class LearningAssessmentsController {
           bands: Array<{ minBasisPoints: number; label: string }>;
         }
       | undefined;
+    const projectionFor = (row: Record<string, unknown>) =>
+      projections.get(canonicalProjectionKey(String(row['seat_id']), String(row['assignment_id'])));
+    // The legacy read switch skips projections. Check the existing scoped roster
+    // only for gradebook rows that have no canonical seat status.
+    const compatibilityRoster = result.rows.some((row) => !projectionFor(row)?.seatStatus)
+      ? new Set(
+          (
+            await this.requirePool().query<{ id: string }>(
+              'SELECT id FROM classroom_management_roster($1,$2)',
+              [context.accountId, classroomId],
+            )
+          ).rows.map((row) => row.id),
+        )
+      : null;
     const bands = schemeRow?.bands ?? [];
     return {
       scheme: schemeRow
         ? { title: schemeRow.title, version: Number(schemeRow.version_number), bands }
         : null,
       items: result.rows.map((row) => {
-        const canonical = projections.get(
-          canonicalProjectionKey(String(row['seat_id']), String(row['assignment_id'])),
-        )?.surface;
+        const projection = projectionFor(row);
+        const canonical = projection?.surface;
         const selected = canonical?.selectedResult ?? null;
+        const status = projection?.seatStatus;
         return {
           seatId: String(row['seat_id']),
+          removedFromClass: status
+            ? status === 'removed'
+            : compatibilityRoster?.has(String(row['seat_id'])) === false,
           displayLabel: String(row['display_label']),
           assignmentId: String(row['assignment_id']),
           assignmentTitle: String(row['assignment_title']),
