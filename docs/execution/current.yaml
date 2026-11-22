@@ -14832,7 +14832,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d13_whole_board_viewport_test_precondition_selected
+      checkpoint: d2_d4_native_acquisition_repair_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -14877,7 +14877,27 @@ parallel_lanes:
       workflow_capacity_selection: 'Select browser50min with actual D13 job26m41s and the existing14min D2 case budget; preserve review-images35min and immutable545 receipt via reviewed narrow consumer projection; actual D2 duration remains pending'
       path_coordination: Root assigns one D2 test author after FET smoke STOP, independent reviewer never D2 author, and root sole integrator. Publish this amendment on main before source writes. Compose retained PR65224c forward with fresh accepted main; freeze its production implementation and all foreign lanes. Only D2 test orchestration and these own controller documents may change; earlier runtime write selection is historical, not renewed permission. No workflow, fixture, lesson or global observer/pin/API change; only existing D2-local helper wrappers may implement the selected lossless rotation. Preserve all source history, failed runs, attempts, budgets, R27 stop/resume rule and acceptance blockers; no force or counter reset.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
-      owner_authorization: Existing explicit 2026-10-19 instruction selects continuous visible classroom slices after accepted D13; no additional permission round is required for D2-D4 development and checked main integration. School deployment and working data remain separate.
+      owner_authorization: >-
+        Existing explicit 2026-10-19 instruction selects continuous visible classroom slices after accepted D13;
+        no additional permission round is required for D2-D4 development and checked main integration.
+        School deployment and working data remain separate. The owner explicitly approved the D2–D4 PNG capture
+        correction in the same isolated Blockly worktree, replying “Да, в том же отдельном worktree”.
+        The later instruction to fix the full run and bring verified changes to main keeps that scope in effect.
+      shared_path_coordination:
+        status: owner_approved
+        purpose: isolated_development_only
+        repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+        author:
+          worktree: C:/Users/spike/.codex/worktrees/strict-blockly-wait/ASA-lab
+          branch: codex/electronics-d2-d4-native-main
+        peer:
+          worktree: E:/ASA-previews/electronics-classroom-d13-candidate-20261019
+          branch: codex/electronics-classroom-d2-d4-649
+          head: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+          path_sha256:
+            e2e/electronics-ready-cadence.spec.ts: ad12f9652bb1bcba8aaaa69f7540780a28b6b833149c9397034695753476ad2c
+        paths:
+        - e2e/electronics-ready-cadence.spec.ts
       preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
       preserved_r27_sha: 1669d7b2f1f630b3c4da045147500a343e139ca9
       full_realtime_task: TASK-ELECTRONICS-SOLVER-PREPARATION-001
@@ -14952,7 +14972,19 @@ parallel_lanes:
         evidence: Temp/asa-767-d13-range/d13-cause.json SHA256c20fa87e09dd77928dd453d3d24c29b845e03b6e9e99ce9dcd1cacf64f91687c; board x-41.816,width363 leaves it clipped despite56 actual LED/L edges; assetsReadyfalse. Corrected x39 replay passes the visibility predicate.
         preservation: Keep native visibility and readiness,50ms publication,45s acquisition and8 cycles; do not skip visibility or weaken any assertion, timeout, physics, pace or lifecycle rule. Stop above1s remains unresolved and requires separate diagnosis.
         actors: Root assigns one NEW bounded test author and a different NEW independent exact-SHA reviewer after canonical publication; no oracle or deduplication implementation is folded into this author's commit.
-      next_action: Publish this minimal canonical selection separately, then repair only the D13 test's viewport precondition using actual Fit UI and whole-board visibility before acquisition. Require positive corrected framing and negative clipped-board checks, preserve original timing/native assertions, freeze one separate exact SHA for NEW independent review. Do not claim product acceptance, real-time speed, resolved Stop or blocker closure from this precondition repair.
+        historical_next_action: Publish this minimal canonical selection separately, then repair only the D13 test's viewport precondition using actual Fit UI and whole-board visibility before acquisition. Require positive corrected framing and negative clipped-board checks, preserve original timing/native assertions, freeze one separate exact SHA for NEW independent review. Do not claim product acceptance, real-time speed, resolved Stop or blocker closure from this precondition repair.
+        main_precondition_receipt: PR 1300 integrated the missing Fit and whole-board viewport precondition for the sustained D13 scenario in 699ea3a2641e46c7d339ac888c2abeba517613ec.
+      d2_native_acquisition_selection:
+        baseline_main_sha: 699ea3a2641e46c7d339ac888c2abeba517613ec
+        prepared_d2_source_commit: f42249c18aa0a216fdfc2a61bb7a266a5d1c3a9e
+        source_path: e2e/electronics-ready-cadence.spec.ts
+        baseline_evidence: GitHub run 45054878547, job 137309100945 and artifact 14767501827. Full-viewport PNG 3 captured 100 after the live 000 phase ended.
+        prior_candidate_evidence: GitHub run 44997923367, artifact 14745276183, records all seven native PNGs and the complete D2–D4 scenario on its own SHA.
+        scope: Apply only the prepared D2–D4 test orchestration and keep all native pixels, loaded-image geometry, same-generation electrical witnesses, Save, Reset, reopen, phase order, pace, timeouts and thresholds.
+      next_action: >-
+        Publish this registry-only coordination in main, then run exact-path preflight from the approved isolated author
+        worktree before applying the prepared D2–D4 acquisition repair. Require independent review and exact source browser
+        verification under the existing qualification rules.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
