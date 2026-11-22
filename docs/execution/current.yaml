@@ -18786,6 +18786,160 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ROBOTICS-FIELD-SIDE-SCALE-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: ui_only_e3_side_metric_scale_selected
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: UI_ONLY
+      slice: E3
+      planned_paths:
+      - apps/web/src/robotics/RobotFieldSpatialView.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/testing/robotics-field-spatial.spec.ts
+      - e2e/robotics-projects.spec.ts
+      owner_authorization: >-
+        The owner's continuing Robotics Field programme and latest request for a better normal
+        Field with precise ramp dimensions authorize one separately selected UI_ONLY E3 scale
+        for the existing orthographic side view. The controller selects this narrow slice on
+        2026-11-22 after the stage6 diagnostic source was protected-integrated. Use the same
+        robotics lane and Issue1071 with a distinct task, without reopening the closed camera
+        feature or inventing a new physics/product approval. This documentation slice activates
+        source work only after ordinary protected integration and a fresh exact four-path
+        preflight. It authorizes no stand, deployment or working database operation.
+      registration_baseline:
+        main: 1bb1002edb989a9e36ddd34db98b61ed34c465a8
+        tree: 404261faf46d296a5334aa453f9e0938c9ccba35
+        tested_source: 737a018c9dcce63dbd2c2356fadad20a00a380e6
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44971530011/job/137058711548
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements: [REQ-VIEW-03, REQ-DEL-02, REQ-DEL-05]
+      scope: >-
+        Only add a calibrated metric ruler to normal Robotics Field -> Сбоку, using the
+        existing orthographic camera and existing scene. Derive the displayed distance from
+        actual CSS viewport dimensions, orthographic frustum and camera zoom; horizontal
+        metres per CSS pixel=(right-left)/(zoom*CSS width), with the corresponding vertical
+        consistency check. Device-pixel ratio must not multiply CSS scale. Choose readable
+        metric length/units and a compact accessible overlay; scale is a camera measurement,
+        not a dimension editor, sensor reading, spatial terrain or physics accuracy claim.
+      constraints:
+      - Preserve camera controls, world/scene geometry, source assets, selection, save/history, project document, runtime and committed model time.
+      - Update the ruler on zoom, resize, pan, fit/focus, mode and active/inactive transitions through the existing coalesced RAF/update lifecycle; no extra timers, animation loop, listener leak or idle render loop.
+      - Show it only in the existing orthographic side view; hide it in Perspective and Top, when inactive/unavailable, and when dimensions or projection are invalid. Never display a fabricated or nonfinite scale.
+      - Preserve keyboard/pointer/touch controls and focus, including accessibility; the overlay must fit at320px and not intercept scene interaction or cover necessary controls.
+      - No world/schema/physics/engine/Worker/electronics/program/API/database/dependency/configuration/runtime asset changes, native acquisition or alteration of E1 raw/evidence.
+      - Keep historical_e1_task lossless, stage6_result and all earlier physical FAIL/GAP/UNKNOWN evidence, downstream terrain requirements and global blocker entries unchanged.
+      - ROBOTICS-FIELD-CORE-D01-D02 remains open with its original E1 task binding; changing the execution projection does not close or bypass it. No spatial_product_integration, full_physics_acceptance, release_claim, owner acceptance, deployment or stand activation.
+      - This explicit E3 UI_ONLY exception uses the existing display under REQ-DEL-02/05 and does not assert E1/D01/D02/E2/E6/E7 completion. Historical archived selections never authorize another native dispatch.
+      verification:
+        pure: >-
+          In the existing spatial unit spec, verify finite calibrated metres/CSS-pixel and
+          displayed-length parity using real Three orthographic camera/frustum/zoom inputs,
+          zoom/resize and DPR-independent expectations. Cover invalid/zero dimensions,
+          side-only/inactive hiding and deterministic scale choices. Preserve existing scene,
+          picking, camera, teardown and model/document/time assertions; no mocked physics
+          result or weakened old assertion.
+        browser: >-
+          Extend only the existing e2e/robotics-projects.spec.ts journey via normal Field ->
+          Сбоку. Use real side-view WebGL and actual camera actions: ruler before/after zoom,
+          resize and fit/focus, mode switch/hide, representative1440px and320px widths and
+          DPR1/2. Verify the metric label against actual CSS endpoints/projection with at most
+          one CSS pixel raster/rounding error, readable accessible placement, unchanged
+          saved/reopened project document and committed model-time identity. This checks the
+          display transform only, never a physical distance oracle.
+        gates: >-
+          Registration: sole-path PLAN/control-plane, strict YAML/semantic history checks and
+          full pnpm gate:governance. Source: existing pnpm test:robotics, changed-file style/
+          lint/strict typing and independent exact-source review, applicable required General
+          on the final SHA, plus actual pnpm gate:projects-publication:browser in the existing
+          .github/workflows/projects-publication.yml Public Projects Publication workflow.
+          Require the isolated built Web/API/real PostgreSQL browser job and evidence of this
+          normal-entry side journey; applicability-only, cached/NOT_RUN or WebGL fallback
+          evidence is not a browser PASS. No new workflow, local server, stand or working DB.
+      deferred_terrain_requirements: >-
+        Preserve historical_e1_task.downstream_user_outcomes exactly: adjustable dimensions,
+        ramp/platform/snapping and optional volumetric bridge remain downstream under the
+        unchanged physical blockers, outside this scale-only selection.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    stage6_result:
+      observed_on: '2026-11-22'
+      scope: TEST_ONLY
+      acquisition_source: 0ca0fae333cb8de50e442b71ef525d8dc688ce04
+      accepted_source: 737a018c9dcce63dbd2c2356fadad20a00a380e6
+      protected_merge: 1bb1002edb989a9e36ddd34db98b61ed34c465a8
+      protected_tree: 404261faf46d296a5334aa453f9e0938c9ccba35
+      required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44971530011/job/137058711548
+      acquisition_spec: {file: mujoco-finite-cap-near-threshold.spec.ts, bytes: 139598, sha256: 07933945a7f51d4ed0b6a8e1d87167121ed5dddaa0d886f27ca56cc6e6247a1a}
+      diagnostic_fixture: {file: mujoco-finite-cap-stage6-diagnostic.fixture.json, bytes: 2673, sha256: 007a810d502b37f211665623563cc5f50b2997de6a99cd9fe6b7e96bfb0ef273}
+      raw_binary: {file: mujoco-finite-cap-stage6-diagnostic.bin, bytes: 79560000, sha256: a870551062e95904e8f44e1de22c9e1d6b39f997b3a4736ddb98a16c172cae08}
+      raw_receipt: {file: mujoco-finite-cap-stage6-diagnostic.jsonl, bytes: 275888, sha256: 58bd76fa03601441b4f757e00deda1c6f1eae7dfd8b69325a1cea183dceb3cd5}
+      outcome: {runtime: COMPLETE, diagnostic_validity: VALID, physical: FAIL, acquisition: CONSUMED, formal_acceptance: D01_D02_OPEN}
+      intervals: {ramp250: 21000, ramp500: 21500, total: 42500}
+      native_horizons_us: {ramp250: 10500000, ramp500: 10750000}
+      exact_history:
+        both_worlds_normal_prefix: {intervals_each: 16500, bytes_each: 30888000, sha256: eafd5f3f3be826b3c6d5c2cbd5717d582ce4791a27e890714ee2d899ce60e09c}
+        ramp250_original_normal_repeat: {intervals: 19000, bytes: 35568000, sha256: 9c3296fc6c3634f18e27c5e4e90cb66e340918ce769f26fb41e8453ae352f7a5}
+        normalization: Only byte4 world identity; every other byte exact to consumed prior raw. Both passed stable settling and stages1-5; no replayed state/pose writes.
+      fixed_checkpoints:
+        ramp250_1s: {at_us: 9500000, stable: false, tip: false, max_relative_omega_radps: 0.008358760645978312, states_above_0_005_of_201: 123}
+        ramp250_2s: {at_us: 10500000, stable: true, tip: false, max_relative_omega_radps: 0.003609434145513731, states_above_0_005_of_201: 0}
+        ramp500_1s: {at_us: 9750000, stable: true, tip: false, max_relative_omega_radps: 0.0013690059228348246, states_above_0_005_of_201: 0}
+        ramp500_2s: {at_us: 10750000, stable: true, tip: false, max_relative_omega_radps: 0.0006636992714854591, states_above_0_005_of_201: 0}
+        interpretation: >-
+          Each checkpoint is the complete last100ms/200 intervals plus201 unique state samples.
+          At the ramp250 one-second checkpoint only the relative-angular-speed stable bound fails;
+          tilt/tracking/deck speed/range/support/no-slip pass. Relative Y speed stays negative
+          there and beta decreases; no tip anywhere in either new world. The additional-second
+          stable window is diagnostic recovery, never a revised original1s verdict or a retry.
+          Slower stage6 ramp passes both windows under exactly matched prior normal history.
+      physical_details:
+        ramp250: {peak_stage_point_slip_mps: 2.900484591560674e-8, cumulative_slip_m: 1.5920709422412364e-8, min_outward_support_n: 4.266628495525461, max_beta_deg: 0.08923286566148565}
+        ramp500: {peak_stage_point_slip_mps: 1.4379879102989806e-8, cumulative_slip_m: 5.5577587003485e-9, min_outward_support_n: 4.270517274268136, max_beta_deg: 0.046759669777690166}
+        support: At least three loaded contacts with positive outward force and valid finite support throughout both staged trajectories; all four checkpoint windows pass original no-slip/contact guards.
+      independent_replay:
+        intervals: 42500
+        max_same_point_velocity_error_mps: 8.673617379884035e-18
+        max_row_projection_error_mps: 6.938893903907228e-18
+        max_force_aggregation_error_n: 3.552713678800501e-15
+        max_native_clock_error_s: 1.7141843500212417e-12
+        temporary_created_and_deleted: {ramp250: 462029, ramp500: 473029}
+        module_initializations: 1
+        models_created_and_deleted: 2
+        data_created_and_deleted: 2
+        buffers_created_and_deleted: 4
+        phases: >-
+          All42500 PRE states match preceding POST bitwise; phase fingerprint, native
+          census/row identity, signed force/point velocity, control/servo bounds and zero
+          warnings checked from raw.42500 step1/step2 calls returned; primary and cleanup
+          errors absent. Deduplicated phase fingerprints do not imply independently stored
+          duplicate STEP1 pose arrays.
+      source_ci_history: >-
+        Acquisition0ca0fae3 remains immutable. Its General run44968820870 Data job137046073522
+        failed in a default pure test because the Git-free Data image could not run Git-based
+        originalSourceAdmission (ENOENT). Commit737a018c removes that admission call only from
+        the default pure test and corrects its title; explicit archived and pre-native source
+        admissions remain. No geometry, fixture, control, native input or acquired raw changed,
+        and no new native dispatch occurred. Required success belongs to737a018c, not to the
+        earlier red head; CI repair is source portability and does not repair or qualify physics.
+      boundary: >-
+        The diagnostic completed validly while its original one-second physical FAIL remains
+        FAIL, including the old58000-interval acquisition's FAIL and all R1-R6/R5 causal GAP
+        history. No new threshold crossing, stage7 or whole PHY-06 qualification was obtained.
+        Preserve historical_e1_task, all global blockers and downstream terrain requirements;
+        UI execution selection grants no E1/D01/D02/E2/product/owner/deployment closure.
+    historical_e1_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
       issue: 1071
       branch: main
@@ -20331,6 +20485,7 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:governance
+          - pnpm test:robotics
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
