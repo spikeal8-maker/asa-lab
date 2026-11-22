@@ -694,6 +694,7 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     origin = useRef<HTMLElement | null>(null);
   const headerButtons = useRef(new Map<string, HTMLButtonElement>());
   const journalRoot = useRef<HTMLElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const columnPickerSummary = useRef<HTMLElement>(null);
   const headerEditorKey = useRef('');
   const contextRevision = useRef(0);
@@ -801,7 +802,24 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
   const hiddenColumns = new Set(preference?.hidden);
   const hiddenOnPage = selectableColumns.filter((c) => hiddenColumns.has(c.id));
   const columns = filteredColumns.filter((c) => c.virtual || !hiddenColumns.has(c.id));
-  const roster = useMemo(() => journalRoster(data?.students ?? []), [data?.students]);
+  const roster = useMemo(
+    () => journalRoster(data?.students ?? [], data?.status === 'archived'),
+    [data?.students, data?.status],
+  );
+  const removedEditor =
+    data?.status === 'active' &&
+    opened !== null &&
+    data.students.some(
+      (student) => student.id === opened.student.id && student.status === 'removed',
+    );
+  useLayoutEffect(() => {
+    if (!removedEditor) return;
+    contextRevision.current += 1;
+    setOpened(null);
+    setNotice('');
+    origin.current = null;
+    if (document.activeElement === document.body) searchInput.current?.focus();
+  }, [removedEditor]);
   const students = roster.filter((s) =>
       s.name.toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru')),
     ),
@@ -921,6 +939,9 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     }
     generation.current += 1;
     setLoadBusy(false);
+    setData((old) =>
+      old ? { ...old, scale: r.data.scale, status: r.data.status, students: r.data.students } : old,
+    );
     const latest = r.data.columns[0];
     if (!latest && !openedColumn.virtual) {
       setError('Столбец недоступен. Введённые данные сохранены в форме.');
@@ -936,7 +957,6 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
         scale: r.data.scale,
       });
     }
-    setData((old) => (old ? { ...old, scale: r.data.scale, status: r.data.status } : old));
     setError('');
     return true;
   }
@@ -959,6 +979,7 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
           onChange={changeMonth}
         />
         <input
+          ref={searchInput}
           aria-label="Поиск ученика"
           placeholder="Поиск ученика"
           type="search"
@@ -1239,7 +1260,7 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
               работы сохраняются только при подтверждении заголовка или первой оценке.
             </p>
           </details>
-          {opened ? (
+          {opened && !removedEditor ? (
             <CellEditor
               key={opened.editorKey}
               classroomId={classroomId}
