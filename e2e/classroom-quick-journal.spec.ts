@@ -335,6 +335,17 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await page.setViewportSize({ width: 390, height: 844 });
   await summary.click();
   await expect(toggle).not.toBeChecked();
+  const option = chooser.locator('label').filter({ has: toggle });
+  const label = option.locator('span');
+  await expect(label).toBeVisible();
+  await expect(label.locator('time')).toHaveText('09.10');
+  const rowBounds = (await option.boundingBox())!;
+  const checkboxBounds = (await toggle.boundingBox())!;
+  const labelBounds = (await label.boundingBox())!;
+  expect(checkboxBounds.width).toBeLessThanOrEqual(24);
+  expect(labelBounds.width).toBeGreaterThan(checkboxBounds.width);
+  expect(labelBounds.x).toBeGreaterThan(checkboxBounds.x + checkboxBounds.width);
+  expect(labelBounds.x + labelBounds.width).toBeLessThanOrEqual(rowBounds.x + rowBounds.width + 1);
   await restore.click();
   await expect(summary).toBeFocused();
   await expect(toggle).toBeChecked();
