@@ -1,0 +1,78 @@
+{
+  "id": "E1-STAGE6-IDENTICAL-PREFIX-RATE-DIAGNOSTIC-01",
+  "scope": "TEST_ONLY",
+  "selectedMain": "0e2513f9b3b5c39ae92e286201cc19d0eb9870a6",
+  "nativeToken": "identical-normal-prefix-stage6-1071",
+  "frozenSource": {
+    "commit": "758804247bd4181f001ce929d68509c3e1312b39",
+    "path": "tests/robotics/field-core-qualification/mujoco-finite-cap-near-threshold.spec.ts",
+    "bytes": 108394,
+    "sha256": "c1dca4ca62befbf828d9aa444f175edc02adf210517afb67d1073c1f481d97c2"
+  },
+  "originalFixture": {
+    "file": "mujoco-finite-cap-near-threshold.fixture.json",
+    "bytes": 228048,
+    "sha256": "33d33145157e3e19b0208f3eaadadd9d31b6560f3479d648c4d7810d375e171d"
+  },
+  "priorRaw": {
+    "binary": {
+      "file": "mujoco-finite-cap-near-threshold.bin",
+      "bytes": 108576000,
+      "sha256": "c5d03b9de5d019e3e400b37555238606610e793681dd374afe2f2a1cd80f11b5"
+    },
+    "meta": {
+      "file": "mujoco-finite-cap-near-threshold.jsonl",
+      "bytes": 247493,
+      "sha256": "b64e3d5ad17c0a93cd6ff6a0730ad3830d822b3d20a42c046b9252b0de5703e0"
+    }
+  },
+  "modelSha256": "b39f6f4b2e5cca9c81086faa1a29fb6f25e7f4d103e4900be0aef78fec019e39",
+  "prefix": {
+    "intervals": 16500,
+    "throughUs": 8250000,
+    "bytes": 30888000,
+    "sha256": "eafd5f3f3be826b3c6d5c2cbd5717d582ce4791a27e890714ee2d899ce60e09c",
+    "onlyNormalizedByte": 4
+  },
+  "descriptive": {
+    "intervals": 19000,
+    "sha256": "9c3296fc6c3634f18e27c5e4e90cb66e340918ce769f26fb41e8453ae352f7a5"
+  },
+  "schedule": {
+    "stepUs": 500,
+    "holdUs": 2000000,
+    "stage": 6,
+    "targetDeg": 29.44,
+    "normal": {
+      "rampUs": 250000,
+      "checkpoint1Us": 9500000,
+      "checkpoint2Us": 10500000,
+      "maxIntervals": 21000
+    },
+    "slow": {
+      "rampUs": 500000,
+      "checkpoint1Us": 9750000,
+      "checkpoint2Us": 10750000,
+      "maxIntervals": 21500
+    },
+    "maxIntervals": 42500,
+    "maxWorlds": 2,
+    "maxConcurrent": 1,
+    "maxModuleInitializations": 1,
+    "maxContacts": 4,
+    "maxRows": 12
+  },
+  "files": {
+    "meta": "mujoco-finite-cap-stage6-diagnostic.jsonl",
+    "binary": "mujoco-finite-cap-stage6-diagnostic.bin"
+  },
+  "capture": {
+    "recordBytes": 1872,
+    "maxBinaryBytes": 79560000,
+    "metadataBytes": 4194304,
+    "errorBytes": 8388608,
+    "worstCaseBytes": 92142912,
+    "maxBytes": 268435456
+  },
+  "meaning": "One controller acquisition, fresh matched normal prefix then only stage6 ramp duration differs. First1s physical verdict is immutable;2s checkpoint/classification is diagnostic, never a threshold/D01/D02/toolbox PASS. Old acquisition consumed, no old token. Full native raw replay before VALID; model/material/guards unchanged."
+}
