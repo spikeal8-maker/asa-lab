@@ -108,6 +108,7 @@ const expectedPending = [
   '0327', // Expand supported task attachment formats.
   '0328', // Safe Mode blocks new publications and retroactive public reads.
   '0329', // Dated journal corrections can omit a reason.
+  '0330', // Aggregate AI usage and new registrations over the dashboard window.
 ];
 
 interface Identity {

@@ -1,3 +1,4 @@
+import { adminDashboardApi } from '../admin-dashboard-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { adminApi, type AdminProfile } from '../admin-api';
 
@@ -150,7 +151,7 @@ describe('administrative API client', () => {
       id: '30000000-0000-4000-8000-000000000001',
     };
 
-    await adminApi.dashboard({ scope, range: '90d' });
+    await adminDashboardApi.dashboard({ scope, range: '90d' });
     await adminApi.ipActivity({ scope, range: '24h', minimumDistinct: 2 });
 
     const dashboard = new URL(String(request.mock.calls[0]?.[0]), 'https://asa.test');
