@@ -444,6 +444,35 @@ describe('administrative control-plane transport', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
+  it('passes calendar dates only for custom and rejects invalid or oversized dates', async () => {
+    const target = controller({ context: CONTEXT, access: access([SCHOOL_ADMIN_SCOPE]) });
+    const call = (from: string, to: string) =>
+      target.value.dashboard(
+        request({ asa_session: 'session' }),
+        'organization',
+        ORGANIZATION_ID,
+        'custom',
+        from,
+        to,
+      );
+    await expect(call('2025-11-19', '2025-11-21')).resolves.toMatchObject({ range: 'custom' });
+    expect(target.controlPlane.productDashboard).toHaveBeenCalledWith(expect.anything(), {
+      scope: { kind: 'organization', id: ORGANIZATION_ID },
+      range: 'custom',
+      fromDate: '2025-11-19',
+      toDate: '2025-11-21',
+    });
+    for (const [from, to] of [
+      ['2025-02-29', '2025-03-01'],
+      ['2025-11-22', '2025-11-21'],
+      ['2024-02-28', '2025-03-01'],
+      ['9999-01-01', '9999-01-01'],
+    ] as const) {
+      await expect(call(from, to)).rejects.toMatchObject({ status: 400 });
+    }
+    expect(target.controlPlane.productDashboard).toHaveBeenCalledTimes(1);
+  });
+
   it('requires a valid threshold for concrete IP activity', async () => {
     const target = controller({ context: CONTEXT, access: access([SCHOOL_ADMIN_SCOPE]) });
 
