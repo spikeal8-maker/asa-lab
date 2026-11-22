@@ -95,6 +95,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   const journal = page.getByRole('region', { name: 'Ручной журнал', exact: true });
   await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
   await expect(journal.getByRole('columnheader')).toHaveCount(11);
+  await expect(journal.getByText('Столбцы журнала', { exact: true })).toHaveCount(0);
   await expect(journal.getByRole('rowheader')).toHaveCount(30);
   await expect(journal.getByRole('rowheader').nth(0)).toContainText('1Иван');
   await expect(journal.getByRole('rowheader').nth(9)).toContainText('10Артем');
@@ -281,22 +282,71 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await expect(header.getByLabel('Категория занятия')).toHaveValue('Самостоятельная');
   await expect(header.getByLabel('Дата занятия')).toHaveValue('2026-10-09');
   await header.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
-  await expect(
-    journal.getByRole('button', {
-      name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
-    }),
-  ).toBeVisible();
+  const renamedGrade = journal.getByRole('button', {
+    name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
+  });
+  await expect(renamedGrade).toBeVisible();
+  const chooser = journal.locator('.manual-journal-column-picker');
+  const summary = chooser.locator('summary');
+  const toggle = chooser.getByRole('checkbox', {
+    name: 'Показывать столбец: Самостоятельная, 2026-10-09',
+  });
+  const restore = chooser.getByRole('button', { name: 'Показать все столбцы в этом списке' });
+  const stableCounts = await counts(classId);
+  const { account } = (await page.request.get('/api/auth/me').then((r) => r.json())) as {
+    account: { id: string };
+  };
+  const manual = `asa-manual-journal-columns:v1:${account.id}:${classId}`;
+  const otherScopes = [
+    `asa-manual-journal-columns:v1:${randomUUID()}:${classId}`,
+    `asa-manual-journal-columns:v1:${account.id}:${randomUUID()}`,
+    `asa-journal-columns:v1:${account.id}:${classId}`,
+  ];
+  const stored = JSON.stringify([workOne.id]);
+  await page.evaluate(
+    ({ otherScopes, stored }) => {
+      for (const key of otherScopes) localStorage.setItem(key, stored);
+    },
+    { otherScopes, stored },
+  );
+  await summary.click();
+  await expect(chooser.getByRole('checkbox')).toHaveCount(3);
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await expect(summary).toHaveText('Столбцы журнала · скрыто: 1');
+  await expect(renamedGrade).toHaveCount(0);
+  await expect(journal.getByRole('columnheader')).toHaveCount(10);
+  await expect(cell(names[0], 10)).toHaveText('—');
+  await expect(cell(names[1], 2)).toHaveText('4');
+  await journal.getByLabel('Категория', { exact: true }).selectOption('Работа 2');
+  await expect(summary).toHaveText('Столбцы журнала');
+  await expect(restore).toHaveCount(0);
+  await journal.getByLabel('Категория', { exact: true }).selectOption('');
+  await expect(summary).toHaveText('Столбцы журнала · скрыто: 1');
+  await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-11');
+  await expect(journal.getByRole('columnheader')).toHaveCount(11);
+  await expect(chooser).toHaveCount(0);
   await page.reload();
   await page.getByRole('button', { name: 'Журнал', exact: true }).click();
   await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
-  await expect(
-    journal.getByRole('button', {
-      name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
-    }),
-  ).toBeVisible();
+  await expect(summary).toHaveText('Столбцы журнала · скрыто: 1');
+  await expect(renamedGrade).toHaveCount(0);
+  expect(await page.evaluate((key) => localStorage.getItem(key), manual)).toBe(stored);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await summary.click();
+  await expect(toggle).not.toBeChecked();
+  await restore.click();
+  await expect(summary).toBeFocused();
+  await expect(toggle).toBeChecked();
+  await expect(renamedGrade).toHaveText('0');
+  const keys = [manual, ...otherScopes];
+  expect(await page.evaluate((keys) => keys.map((key) => localStorage.getItem(key)), keys)).toEqual(
+    [null, stored, stored, stored],
+  );
+  expect(await counts(classId)).toEqual(stableCounts);
+  await summary.click();
   await expect(cell(names[1], 2)).toHaveText('4');
   await expect(cell(names[2], 3)).toHaveText('5');
-  await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

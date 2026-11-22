@@ -5,8 +5,10 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { api } from '../api';
 import {
   journalApi,
   journalAccessibleLabel,
@@ -23,6 +25,8 @@ import {
 import './manual-classroom-journal.css';
 import { JournalMonthNavigation } from './JournalMonthNavigation';
 import { useJournalDestination } from '../learning/journal-destination';
+import { portalSessionBinding, subscribePortalSession } from '../portal-requests';
+import { onSessionLoggedOut } from '../session-fetch';
 import { schoolTimeFormats } from './school-time';
 import {
   journalRoster,
@@ -634,6 +638,17 @@ type ManualClassroomJournalProps = {
   onOpenStudent?: ((seatId: string) => void) | undefined;
 };
 
+type ColumnsPreference = { binding: object; key: string; hidden: string[] };
+
+function readHiddenColumns(key: string): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
+    return Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export function ManualClassroomJournal({
   classroomId,
   modeControl,
@@ -650,6 +665,13 @@ export function ManualClassroomJournal({
 }
 function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJournalProps) {
   const destination = useJournalDestination();
+  const binding = useSyncExternalStore(
+    subscribePortalSession,
+    portalSessionBinding,
+    portalSessionBinding,
+  );
+  const [columnsPreference, setColumnsPreference] = useState<ColumnsPreference | null>(null);
+  const preference = columnsPreference?.binding === binding ? columnsPreference : null;
   const [month, setMonth] = useState(destination.month),
     [offset, setOffset] = useState(0),
     [data, setData] = useState<JournalSnapshot | null>(null),
@@ -672,9 +694,39 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     origin = useRef<HTMLElement | null>(null);
   const headerButtons = useRef(new Map<string, HTMLButtonElement>());
   const journalRoot = useRef<HTMLElement>(null);
+  const columnPickerSummary = useRef<HTMLElement>(null);
   const headerEditorKey = useRef('');
   const contextRevision = useRef(0);
   const contextVersion = contextRevision.current;
+  useEffect(() => {
+    const controller = new AbortController();
+    const unsubscribe = onSessionLoggedOut(() => {
+      controller.abort();
+      setColumnsPreference(null);
+    });
+    void api.me(controller.signal).then((result) => {
+      if (controller.signal.aborted || binding !== portalSessionBinding()) return;
+      if (!result.ok || !result.data.authenticated) return;
+      const key = `asa-manual-journal-columns:v1:${result.data.account.id}:${classroomId}`;
+      setColumnsPreference({ binding, key, hidden: readHiddenColumns(key) });
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [binding, classroomId]);
+
+  function updateHiddenColumns(hidden: string[]) {
+    if (!preference || preference.binding !== portalSessionBinding()) return;
+    setColumnsPreference({ ...preference, hidden });
+    try {
+      if (hidden.length) localStorage.setItem(preference.key, JSON.stringify(hidden));
+      else localStorage.removeItem(preference.key);
+    } catch {
+      // The current view still works if the browser blocks persistence.
+    }
+  }
+
   const load = useCallback(async () => {
     const current = ++generation.current;
     setLoadBusy(true);
@@ -742,8 +794,14 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     () => (data ? journalSlots(classroomId, data, minimum) : []),
     [classroomId, data, minimum],
   );
-  const columns = allColumns.filter((c) => !categoryFilter || c.category === categoryFilter),
-    roster = useMemo(() => journalRoster(data?.students ?? []), [data?.students]);
+  const filteredColumns = allColumns.filter(
+    (c) => !categoryFilter || c.category === categoryFilter,
+  );
+  const selectableColumns = filteredColumns.filter((c) => !c.virtual);
+  const hiddenColumns = new Set(preference?.hidden);
+  const hiddenOnPage = selectableColumns.filter((c) => hiddenColumns.has(c.id));
+  const columns = filteredColumns.filter((c) => c.virtual || !hiddenColumns.has(c.id));
+  const roster = useMemo(() => journalRoster(data?.students ?? []), [data?.students]);
   const students = roster.filter((s) =>
       s.name.toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru')),
     ),
@@ -967,6 +1025,53 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
       {data ? (
         <>
           {archived ? <p>Архивный класс: только просмотр.</p> : null}
+          {preference && selectableColumns.length ? (
+            <details className="manual-journal-column-picker">
+              <summary ref={columnPickerSummary}>
+                Столбцы журнала{hiddenOnPage.length ? ` · скрыто: ${hiddenOnPage.length}` : ''}
+              </summary>
+              <fieldset disabled={loadBusy || !!opened || !!header}>
+                <legend>Видны в моей таблице</legend>
+                <div className="manual-journal-column-options">
+                  {selectableColumns.map((column) => (
+                    <label key={column.id}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Показывать столбец: ${column.category}, ${column.date}`}
+                        checked={!hiddenColumns.has(column.id)}
+                        onChange={(event) => {
+                          const next = new Set(hiddenColumns);
+                          if (event.currentTarget.checked) next.delete(column.id);
+                          else next.add(column.id);
+                          updateHiddenColumns([...next]);
+                        }}
+                      />
+                      <span>
+                        {column.category} ·{' '}
+                        <time dateTime={column.date}>
+                          {column.date.slice(8)}.{column.date.slice(5, 7)}
+                        </time>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {hiddenOnPage.length ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      const next = new Set(hiddenColumns);
+                      for (const column of hiddenOnPage) next.delete(column.id);
+                      columnPickerSummary.current?.focus();
+                      updateHiddenColumns([...next]);
+                    }}
+                  >
+                    Показать все столбцы в этом списке
+                  </button>
+                ) : null}
+              </fieldset>
+            </details>
+          ) : null}
           <div
             className="manual-journal-scroll"
             tabIndex={0}
