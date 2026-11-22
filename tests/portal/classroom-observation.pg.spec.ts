@@ -301,6 +301,63 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     expect(await f.summary([f.classId, outsider.classId])).toBeNull();
   }, 60_000);
 
+  it('revokes only the removed seat sessions and records a single scoped audit event', async () => {
+    const f = await fixture();
+    const leaving = f.seats[0]!;
+    const peer = f.seats[1]!;
+    const otherClass = await f.createClass();
+    const other = await f.seat(otherClass);
+    const remove = (classroomId: string, seatId: string) =>
+      read<boolean>('classroom_management_remove_seat', [f.actor.account_id, classroomId, seatId]);
+    const sessionClass = async (token: string) =>
+      (
+        await runtime.query<{ classroom_id: string }>(
+          'SELECT classroom_id FROM classroom_student_session_context($1)',
+          [hashSessionToken(token)],
+        )
+      ).rows.map((row) => row.classroom_id);
+    const audit = async () =>
+      (
+        await admin.query(
+          `SELECT entity_id, tenant_id, actor_user_id, payload_json
+             FROM audit_events
+            WHERE entity_id=ANY($1::uuid[]) AND action='classroom.student_seat_removed'`,
+          [[leaving.id, peer.id, other.id]],
+        )
+      ).rows;
+
+    expect(await sessionClass(leaving.token)).toEqual([f.classId]);
+    expect(await sessionClass(other.token)).toEqual([otherClass]);
+
+    // Even a teacher of both classes must identify the seat in its own class.
+    expect(await remove(f.classId, other.id)).toBe(false);
+    expect(await sessionClass(other.token)).toEqual([otherClass]);
+    expect(await audit()).toEqual([]);
+
+    expect(await remove(f.classId, leaving.id)).toBe(true);
+    expect(await remove(f.classId, leaving.id)).toBe(false);
+    expect(await sessionClass(leaving.token)).toEqual([]);
+    expect(await sessionClass(peer.token)).toEqual([f.classId]);
+    expect(await sessionClass(other.token)).toEqual([otherClass]);
+
+    const removed = await admin.query(
+      `SELECT s.status, ss.revoked_at IS NOT NULL AS revoked
+         FROM classroom_student_seats s
+         JOIN classroom_student_sessions ss ON ss.seat_id=s.id
+        WHERE s.id=$1`,
+      [leaving.id],
+    );
+    expect(removed.rows).toEqual([{ status: 'removed', revoked: true }]);
+    expect(await audit()).toEqual([
+      {
+        entity_id: leaving.id,
+        tenant_id: f.teacher.tenantId,
+        actor_user_id: f.teacher.teacherId,
+        payload_json: { classroomId: f.classId, teacherRole: 'owner' },
+      },
+    ]);
+  }, 30_000);
+
   it('records confirmed first admission transactionally without allocating an identity principal', async () => {
     const f = await fixture(0);
     const id = randomUUID(),
