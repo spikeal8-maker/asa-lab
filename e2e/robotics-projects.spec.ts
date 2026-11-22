@@ -575,17 +575,28 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
+  // The desktop dock becomes an overlay at the compact breakpoint. Close it
+  // through its real user control before navigating to the camera underneath.
+  const closeFieldOverlay = async () => {
+    const close = page.getByRole('button', { name: 'Закрыть панель поля', exact: true });
+    if (await close.isVisible()) {
+      await close.click();
+      await expect(
+        page.locator('.robotics-field-toolbar .robotics-field-catalog-toggle'),
+      ).toHaveAttribute('aria-expanded', 'false');
+    }
+  };
   const observations: unknown[] = [];
   for (const width of [1440, 320]) {
     await page.setViewportSize({ width, height: 900 });
+    await closeFieldOverlay();
     await page.getByRole('button', { name: 'Сверху', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Привязка', exact: true }).check();
     await expect(page.getByRole('checkbox', { name: 'Привязка', exact: true })).toBeChecked();
     await selectFieldObject(page, 'ball:' + id);
     const close = page.getByRole('button', { name: 'Закрыть параметры объекта' });
     if (await close.isVisible()) await close.click();
-    const closeDock = page.getByRole('button', { name: 'Закрыть панель поля', exact: true });
-    if (await closeDock.isVisible()) await closeDock.click();
+    await closeFieldOverlay();
     await page.getByRole('button', { name: 'Перспектива', exact: true }).click();
     const canvas = page.getByTestId('robotics-field-spatial').locator('canvas');
     await expect(canvas).toBeVisible();
@@ -695,12 +706,12 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
   expect((await readProject(page, projectId)).draft.document).toEqual(committed.draft.document);
   await page.getByRole('tab', { name: 'Поле', exact: true }).click();
+  await closeFieldOverlay();
   await page.getByRole('button', { name: 'Сверху', exact: true }).click();
   await selectFieldObject(page, 'ball:' + id);
   const inspector = page.getByRole('button', { name: 'Закрыть параметры объекта' });
   if (await inspector.isVisible()) await inspector.click();
-  const dockClose = page.getByRole('button', { name: 'Закрыть панель поля', exact: true });
-  if (await dockClose.isVisible()) await dockClose.click();
+  await closeFieldOverlay();
   await page.getByRole('button', { name: 'Запустить', exact: true }).click();
   await expect
     .poll(async () =>
