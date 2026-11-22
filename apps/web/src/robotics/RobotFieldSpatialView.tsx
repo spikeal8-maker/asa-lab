@@ -9,6 +9,63 @@ import type { RoboticsDistanceMeasurement, RoboticsWorldState } from './world';
 type FieldView = 'orbit' | 'side';
 type ViewportCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 
+interface SideMetricScale {
+  meters: number;
+  cssPixels: number;
+  label: string;
+  /** Actual render inputs: left/right/top/bottom/zoom/CSS width/CSS height. */
+  projection: readonly [number, number, number, number, number, number, number];
+}
+
+const metricFormat = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 });
+
+/** CSS pixels, not drawing-buffer pixels: DPR never changes a physical ruler. */
+export function readSideMetricScale(
+  camera: ViewportCamera,
+  width: number,
+  height: number,
+  enabled = true,
+): SideMetricScale | null {
+  if (!enabled || !(camera instanceof THREE.OrthographicCamera)) return null;
+  if (
+    ![width, height, camera.left, camera.right, camera.top, camera.bottom, camera.zoom].every(
+      Number.isFinite,
+    ) ||
+    width <= 32 ||
+    height <= 0 ||
+    camera.zoom <= 0 ||
+    camera.right <= camera.left ||
+    camera.top <= camera.bottom
+  )
+    return null;
+  const metersPerPixel = (camera.right - camera.left) / (camera.zoom * width);
+  const verticalMetersPerPixel = (camera.top - camera.bottom) / (camera.zoom * height);
+  // The side camera has square CSS pixels and no view offset. Hide invalid projections.
+  if (
+    !Number.isFinite(metersPerPixel) ||
+    metersPerPixel <= 0 ||
+    Math.abs(metersPerPixel - verticalMetersPerPixel) > metersPerPixel * 1e-9 ||
+    camera.view?.enabled
+  )
+    return null;
+  const maxPixels = Math.min(84, width - 32);
+  const target = maxPixels * metersPerPixel;
+  const power = 10 ** Math.floor(Math.log10(target));
+  const meters = [5, 2, 1].map((factor) => factor * power).find((value) => value <= target);
+  if (!meters || !Number.isFinite(meters)) return null;
+  const cssPixels = meters / metersPerPixel;
+  if (!Number.isFinite(cssPixels) || cssPixels <= 0 || cssPixels > maxPixels) return null;
+  const unit = meters < 0.01 ? 'мм' : meters < 1 ? 'см' : 'м';
+  const value = meters * (unit === 'мм' ? 1000 : unit === 'см' ? 100 : 1);
+  if (!Number.isFinite(value) || value < 0.001) return null;
+  return {
+    meters,
+    cssPixels,
+    label: metricFormat.format(value) + ' ' + unit,
+    projection: [camera.left, camera.right, camera.top, camera.bottom, camera.zoom, width, height],
+  };
+}
+
 interface SpatialViewProps {
   world: RoboticsFieldGeometry;
   state?: RoboticsWorldState | undefined;
@@ -35,6 +92,7 @@ function createViewport(
   canvas: HTMLCanvasElement,
   getProps: () => SceneProps,
   setUnavailable: (unavailable: boolean) => void,
+  setScale: (scale: SideMetricScale | null) => void,
 ) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -85,9 +143,8 @@ function createViewport(
   }
 
   function invalidate(): void {
+    if (disposed) return;
     if (
-      frame ||
-      disposed ||
       renderFailed ||
       contextLost ||
       !visible ||
@@ -95,15 +152,27 @@ function createViewport(
       !drawing ||
       size.x <= 0 ||
       size.y <= 0
-    )
+    ) {
+      setScale(null);
       return;
+    }
+    if (frame) return;
     frame = window.requestAnimationFrame(() => {
       frame = 0;
       if (disposed || contextLost || !visible || !getProps().active || !drawing) return;
       try {
         renderer.render(drawing.scene, camera());
+        setScale(
+          readSideMetricScale(
+            camera(),
+            size.x,
+            size.y,
+            selectedView === 'side' && getProps().view === 'side',
+          ),
+        );
       } catch {
         renderFailed = true;
+        setScale(null);
         setUnavailable(true);
       }
     });
@@ -162,7 +231,10 @@ function createViewport(
   function setSize(width: number, height: number): void {
     const wasVisible = visible;
     visible = width > 0 && height > 0;
-    if (!visible) return;
+    if (!visible) {
+      setScale(null);
+      return;
+    }
     if (size.x !== width || size.y !== height) {
       size.set(width, height);
       renderer.setSize(width, height, false);
@@ -175,7 +247,10 @@ function createViewport(
 
   function update(): void {
     const { world, state, distance, showGrid, selection, active, view } = getProps();
-    if (!active || !visible || disposed || contextLost || renderFailed) return;
+    if (!active || !visible || disposed || contextLost || renderFailed) {
+      if (!disposed) setScale(null);
+      return;
+    }
     if (source !== world) {
       const resize =
         !source ||
@@ -301,6 +376,7 @@ function createViewport(
   function loseContext(event: Event): void {
     event.preventDefault();
     contextLost = true;
+    setScale(null);
     setUnavailable(true);
   }
 
@@ -362,11 +438,26 @@ export default function RobotFieldSpatialView({
   props.current = { world, state, distance, selection, showGrid, view, active, onSelect };
   const viewport = useRef<ReturnType<typeof createViewport> | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [scale, setScale] = useState<SideMetricScale | null>(null);
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
     try {
-      viewport.current = createViewport(element, () => props.current, setUnavailable);
+      viewport.current = createViewport(
+        element,
+        () => props.current,
+        setUnavailable,
+        (next) => {
+          setScale((previous) => {
+            if (!previous || !next) return previous === next ? previous : next;
+            return previous.meters === next.meters &&
+              previous.cssPixels === next.cssPixels &&
+              previous.projection.every((value, index) => value === next.projection[index])
+              ? previous
+              : next;
+          });
+        },
+      );
     } catch {
       setUnavailable(true);
     }
@@ -435,6 +526,24 @@ export default function RobotFieldSpatialView({
         aria-hidden={unavailable}
         aria-label={view === 'side' ? 'Поле робота, вид сбоку' : 'Поле робота, объёмный вид'}
       />
+      {view === 'side' && active && !unavailable && scale ? (
+        <div
+          className="robotics-side-scale"
+          data-testid="robotics-side-scale"
+          data-meters={scale.meters}
+          data-projection={JSON.stringify(scale.projection)}
+          role="img"
+          aria-label={'Масштаб бокового вида: ' + scale.label}
+        >
+          <span
+            className="robotics-side-scale-bar"
+            data-testid="robotics-side-scale-bar"
+            style={{ inlineSize: scale.cssPixels }}
+            aria-hidden="true"
+          />
+          <span aria-hidden="true">{scale.label}</span>
+        </div>
+      ) : null}
       {unavailable ? (
         <p className="robotics-spatial-notice" role="status">
           Объёмный вид недоступен. Выберите «Сверху» для работы с полем.

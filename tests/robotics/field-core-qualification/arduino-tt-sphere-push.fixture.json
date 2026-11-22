@@ -1,0 +1,563 @@
+{
+  "id": "E1-ARDUINO-FREE-SPHERE-PUSH-01",
+  "scope": "TEST_ONLY",
+  "registration": "cf42723b1b933df3aa90d347cb1e2b59fdcc1dc1",
+  "specification": {
+    "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+    "sha256": "0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3",
+    "requirements": ["REQ-TERR-01", "REQ-TERR-02", "REQ-VERIFY-01", "REQ-VERIFY-02"],
+    "test": "PHY-05"
+  },
+  "provenance": {
+    "r5Source": "cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42",
+    "r5FixtureSha256": "6a1b46d96489db96e927f24cdbc59d497a11b864b36572287adc05fa51dcf07d",
+    "r5BrowserSource": "acf2fbbff6f682a5a148732ab878fcd5f6d82fd9",
+    "roverBlockSha256": "904b91d3778b7c1a6863e65b11d3f45e6c9edeb2f9c93da58b3c818ce8da1ba3",
+    "passiveSource": "7d7fa52c74c9d6892ffde2c953e0eefc2f590565",
+    "geometrySha256": "80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848",
+    "motorProfileSha256": "d39047ff800115bceff63d6ee8e94f34ddd02886c213d4f6ea1db5a1ece678bc",
+    "r5HistoricalPrefixSha256": "dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16"
+  },
+  "engine": {
+    "version": "4.0.0",
+    "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "glue": {
+      "file": "mujoco.js",
+      "bytes": 331846,
+      "sha256": "9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8"
+    },
+    "wasm": {
+      "file": "mujoco.wasm",
+      "bytes": 11229000,
+      "sha256": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241"
+    },
+    "declarations": {
+      "file": "mujoco.d.ts",
+      "bytes": 151568,
+      "sha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff"
+    },
+    "license": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "buildReceipt": {
+      "bytes": 15869,
+      "sha256": "c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9"
+    },
+    "browserReceipt": {
+      "bytes": 449526,
+      "sha256": "70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5"
+    },
+    "profile": {
+      "gravity": [0, 0, -9.81],
+      "integrator": 3,
+      "solver": 2,
+      "jacobian": 0,
+      "cone": 1,
+      "iterations": 100,
+      "ls_iterations": 50,
+      "noslip_iterations": 20,
+      "ccd_iterations": 100,
+      "disableflags": 65536,
+      "enableflags": 32
+    }
+  },
+  "motor": {
+    "profileId": "adafruit-3777-tt-48to1",
+    "gearRatio": 48,
+    "rotorInertiaKgM2": 2e-7,
+    "reflectedInertiaKgM2": 0.0004608
+  },
+  "programs": {
+    "powered": {
+      "receiptSha256": "e1d5fb5939d639d1cc0b5e6d3aa518c2ed77e7518721012a2162fb7b06909832",
+      "sketchSha256": "acfc2b3854ed2cc4161a6f9a7dcff50af9777310b85ba07043b6f350a2047c90",
+      "gpioSha256": "22a338b8385ce5ff644d1f258e4cfb40bea805ced20c023e2938aaae1ea173d5",
+      "source": "void setup() {\n  pinMode(5, OUTPUT);\n  digitalWrite(5, LOW);\n  delay(250);\n  digitalWrite(5, HIGH);\n  delay(1200);\n  for (int cycle = 0; cycle < 8; cycle++) {\n    digitalWrite(5, LOW);\n    delayMicroseconds(320);\n    digitalWrite(5, HIGH);\n    delayMicroseconds(180);\n  }\n  delay(2886);\n  digitalWrite(5, LOW);\n}\n\nvoid loop() {\n  delay(1000);\n}\r\n",
+      "gpio": [
+        {
+          "sequence": 0,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "pin-mode-change",
+          "mode": "OUTPUT"
+        },
+        {
+          "sequence": 1,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 2,
+          "atMicroseconds": 250003,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 3,
+          "atMicroseconds": 1450009,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 4,
+          "atMicroseconds": 1450331,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 5,
+          "atMicroseconds": 1450518,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 6,
+          "atMicroseconds": 1450840,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 7,
+          "atMicroseconds": 1451027,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 8,
+          "atMicroseconds": 1451349,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 9,
+          "atMicroseconds": 1451536,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 10,
+          "atMicroseconds": 1451858,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 11,
+          "atMicroseconds": 1452045,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 12,
+          "atMicroseconds": 1452367,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 13,
+          "atMicroseconds": 1452554,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 14,
+          "atMicroseconds": 1452876,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 15,
+          "atMicroseconds": 1453063,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 16,
+          "atMicroseconds": 1453385,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 17,
+          "atMicroseconds": 1453572,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        },
+        {
+          "sequence": 18,
+          "atMicroseconds": 1453894,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 5
+        },
+        {
+          "sequence": 19,
+          "atMicroseconds": 4340082,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        }
+      ]
+    },
+    "control": {
+      "source": "void setup() {\n  pinMode(5, OUTPUT);\n  digitalWrite(5, LOW);\n  delay(250);\n  digitalWrite(5, LOW);\n  delay(1200);\n  for (int cycle = 0; cycle < 8; cycle++) {\n    digitalWrite(5, LOW);\n    delayMicroseconds(320);\n    digitalWrite(5, LOW);\n    delayMicroseconds(180);\n  }\n  delay(2886);\n  digitalWrite(5, LOW);\n}\n\nvoid loop() {\n  delay(1000);\n}\r\n",
+      "sketchSha256": "80115f2df9e1dcbf8265d2c1a0284954c5cec69aba8b9aa1038a20e694ea94dc",
+      "gpio": [
+        {
+          "sequence": 0,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "pin-mode-change",
+          "mode": "OUTPUT"
+        },
+        {
+          "sequence": 1,
+          "atMicroseconds": 0,
+          "terminal": "d5",
+          "kind": "output-change",
+          "voltageVolt": 0
+        }
+      ],
+      "gpioSha256": "d84549a5061a1d54a7a4b5470c7d8f6d5f936301e36b0f441cdb1894290edbb8",
+      "method": "Exact accepted powered source with replacement of D5 HIGH writes only. Independently executed pure Uno with budgets 1 and 256."
+    },
+    "divergeUs": 250003,
+    "offUs": 4340082
+  },
+  "comparison": {
+    "interventionUs": 250003,
+    "lastLegacyFromUs": 250000,
+    "prefixIntervals": 503
+  },
+  "circuitSha256": {
+    "powered": "ce2494ba0736c27b045096f38324174df2691eb241317aefdb6c53fc1cebd49e",
+    "control": "4a4b9d3d8cedec0cfdc25ffc91ca8b7fb0a5e411e8b8f65b0356dee0879fbf06"
+  },
+  "physical": {
+    "floor": {
+      "origin": [-1, 0, 0],
+      "length": 20,
+      "width": 1,
+      "height": 0,
+      "thickness": 0.05,
+      "vertices": [
+        [-1, -0.5, -0.05],
+        [19, -0.5, -0.05],
+        [19, 0.5, -0.05],
+        [-1, 0.5, -0.05],
+        [-1, -0.5, 0],
+        [19, -0.5, 0],
+        [19, 0.5, 0],
+        [-1, 0.5, 0]
+      ],
+      "faces": [
+        [0, 2, 1],
+        [0, 3, 2],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 1, 5],
+        [0, 5, 4],
+        [1, 2, 6],
+        [1, 6, 5],
+        [3, 0, 4],
+        [3, 4, 7],
+        [4, 5, 6],
+        [4, 6, 7]
+      ]
+    },
+    "sphere": {
+      "startX": 0.8,
+      "mass": 0.1,
+      "radius": 0.075,
+      "height": 0.15,
+      "comHeight": 0.075,
+      "initialComZ": 0.075,
+      "inertia": 0.000225
+    },
+    "chassisMass": 0.6,
+    "wheelMass": 0.04,
+    "wheelRadius": 0.03,
+    "wheelHalfWidth": 0.01,
+    "boom": {
+      "description": "Same closed formed 5052-H32 shell tilted nose-up about the rear lower mounting seam. Educational mass and rigid-body model.",
+      "materialSource": "https://www.hulamin.com/sites/default/files/downloads/5052%20Data%20Sheet.pdf",
+      "densityKgM3": 2680,
+      "wallM": 0.0005,
+      "centerM": [0.15694712210921707, 0, 0.03730399557423576],
+      "halfSizeM": [0.0975, 0.035, 0.0105],
+      "frontStrikeRegionLengthM": 0.02,
+      "frontStrikeRegionCenterXM": 0.245,
+      "deltaXM": 0.15,
+      "remainingChassisBlockM": [0.1, 0.08, 0.02],
+      "combinedChassisMassKg": 0.44,
+      "pitchUpDeg": 7,
+      "rearLowerAnchorM": [0.061453500429942215, 0, 0.015],
+      "quatWxyz": [0.9981347984218669, 0, -0.06104853953485687, 0],
+      "tipFrontX": 0.255
+    },
+    "limits": {
+      "staticUs": 50000,
+      "rollingUs": 100000,
+      "minimumDisplacementM": 0.075,
+      "minimumAccumulatedRotationRad": 1,
+      "tangentSlipMps": 0.001,
+      "normalVelocityMps": 0.001,
+      "clearanceM": 0.001,
+      "normalVectorDistance": 3e-5,
+      "controlDriftM": 0.001,
+      "controlAngleRad": 0.008726646259971648,
+      "controlSpeedMps": 0.001,
+      "controlRadiusOmegaMps": 0.001,
+      "controlRoverTravelM": 0.02,
+      "deltaV": 1e-9
+    }
+  },
+  "rover": {
+    "xml": [
+      "<body name=\"rover\" pos=\"-0.25 0 0.06\"><freejoint name=\"rover-free\"/>",
+      "<inertial pos=\"0 0 0\" mass=\"0.44\" fullinertia=\"0.00033639597389362885 0.002018023863011864 0.002154899964851568 0 -0.00035747329369297735 0\"/>",
+      "<geom name=\"chassis\" type=\"box\" size=\"0.08 0.05 0.016\"/>",
+      "<geom name=\"bumper\" type=\"box\" pos=\"0.15694712210921707 0 0.03730399557423576\" size=\"0.0975 0.035 0.0105\" quat=\"0.9981347984218669 0 -0.06104853953485687 0\"/>",
+      "<body name=\"rear-axle\" pos=\"-0.07 0 -0.03\">",
+      "<joint name=\"tt-output\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0.0004608\" damping=\"0\" frictionloss=\"0\"/>",
+      "<inertial pos=\"0 0 0\" mass=\"0.08\" diaginertia=\"0.0003586666666666667 0.000036 0.0003586666666666667\"/>",
+      "<geom name=\"rear-left\" type=\"cylinder\" pos=\"0 0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+      "<geom name=\"rear-right\" type=\"cylinder\" pos=\"0 -0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+      "</body>",
+      "<body name=\"front-left-wheel\" pos=\"0.07 0.065 -0.03\">",
+      "<joint name=\"front-left-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+      "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+      "<geom name=\"front-left\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+      "</body>",
+      "<body name=\"front-right-wheel\" pos=\"0.07 -0.065 -0.03\">",
+      "<joint name=\"front-right-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+      "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+      "<geom name=\"front-right\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+      "</body>",
+      "</body>"
+    ],
+    "fullInertia": [
+      0.00033639597389362885, 0.002018023863011864, 0.002154899964851568, 0,
+      -0.00035747329369297735, 0
+    ]
+  },
+  "expected": {
+    "bodies": [
+      "world",
+      "rover",
+      "rear-axle",
+      "front-left-wheel",
+      "front-right-wheel",
+      "sphere-body"
+    ],
+    "geoms": [
+      "floor",
+      "chassis",
+      "bumper",
+      "rear-left",
+      "rear-right",
+      "front-left",
+      "front-right",
+      "sphere"
+    ],
+    "joints": [
+      "rover-free",
+      "tt-output",
+      "front-left-passive",
+      "front-right-passive",
+      "sphere-free"
+    ],
+    "qposAdr": [0, 7, 8, 9, 10],
+    "dofAdr": [0, 6, 7, 8, 9],
+    "pairs": [
+      {
+        "ids": [0, 1],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 2],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 3],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 4],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 5],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 6],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 7],
+        "friction": 0.5
+      },
+      {
+        "ids": [1, 7],
+        "friction": 0.2
+      },
+      {
+        "ids": [2, 7],
+        "friction": 0.2
+      },
+      {
+        "ids": [3, 7],
+        "friction": 0.2
+      },
+      {
+        "ids": [4, 7],
+        "friction": 0.2
+      },
+      {
+        "ids": [5, 7],
+        "friction": 0.2
+      },
+      {
+        "ids": [6, 7],
+        "friction": 0.2
+      }
+    ]
+  },
+  "budgets": {
+    "horizonUs": 10000000,
+    "maxStepUs": 500,
+    "maxEvents": 256,
+    "timeoutMs": 360000,
+    "clockToleranceUs": 0.01,
+    "velocityParityMps": 1e-9,
+    "terminalReadTolerance": 2e-5,
+    "forceFrameTolerance": 1e-12,
+    "motionWorkAbsJ": 1e-6,
+    "motionWorkRel": 0.01,
+    "relativeEnergyLimit": 0.01,
+    "absoluteEnergyLimitJ": 0.0001
+  },
+  "raw": {
+    "intervalByteCap": 2048,
+    "contactBytes": 176,
+    "maxIntervalsPerWorld": 22000,
+    "maxSessionCalls": 24000,
+    "maxContactsPerWorld": 450000,
+    "maxContactsPerInterval": 132,
+    "maxRowsPerInterval": 396,
+    "metadataByteCap": 1048576,
+    "footerByteCap": 8388608,
+    "byteCap": 268435456
+  },
+  "xml": [
+    "<mujoco model=\"asa1181_tt_rover\">",
+    "<compiler angle=\"radian\" inertiafromgeom=\"false\" autolimits=\"false\"/>",
+    "<option timestep=\"0.0005\" gravity=\"0 0 -9.81\" integrator=\"implicitfast\" solver=\"Newton\" jacobian=\"dense\" cone=\"elliptic\" iterations=\"100\" tolerance=\"1e-10\" ls_iterations=\"50\" ls_tolerance=\"0.01\" noslip_iterations=\"20\" noslip_tolerance=\"1e-12\" impratio=\"1\" ccd_iterations=\"100\" ccd_tolerance=\"1e-8\" density=\"0\" viscosity=\"0\" wind=\"0 0 0\">",
+    "<flag warmstart=\"enable\" island=\"enable\" refsafe=\"enable\" nativeccd=\"enable\" multiccd=\"enable\" diagexact=\"enable\" autoreset=\"disable\" sleep=\"disable\" override=\"disable\" fwdinv=\"disable\" invdiscrete=\"disable\" energy=\"disable\" ipc=\"disable\" speculative=\"disable\"/>",
+    "</option>",
+    "<default><geom contype=\"0\" conaffinity=\"0\" condim=\"3\" margin=\"0\" gap=\"0\"/></default>",
+    "<asset><mesh name=\"floor-mesh\" vertex=\"-1 -0.5 -0.050000000000000003 19 -0.5 -0.050000000000000003 19 0.5 -0.050000000000000003 -1 0.5 -0.050000000000000003 -1 -0.5 0 19 -0.5 0 19 0.5 0 -1 0.5 0\" face=\"0 2 1 0 3 2 2 3 7 2 7 6 0 1 5 0 5 4 1 2 6 1 6 5 3 0 4 3 4 7 4 5 6 4 6 7\"/></asset>",
+    "<worldbody><geom name=\"floor\" type=\"mesh\" mesh=\"floor-mesh\"/>",
+    "<body name=\"rover\" pos=\"-0.25 0 0.06\"><freejoint name=\"rover-free\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.44\" fullinertia=\"0.00033639597389362885 0.002018023863011864 0.002154899964851568 0 -0.00035747329369297735 0\"/>",
+    "<geom name=\"chassis\" type=\"box\" size=\"0.08 0.05 0.016\"/>",
+    "<geom name=\"bumper\" type=\"box\" pos=\"0.15694712210921707 0 0.03730399557423576\" size=\"0.0975 0.035 0.0105\" quat=\"0.9981347984218669 0 -0.06104853953485687 0\"/>",
+    "<body name=\"rear-axle\" pos=\"-0.07 0 -0.03\">",
+    "<joint name=\"tt-output\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0.0004608\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.08\" diaginertia=\"0.0003586666666666667 0.000036 0.0003586666666666667\"/>",
+    "<geom name=\"rear-left\" type=\"cylinder\" pos=\"0 0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "<geom name=\"rear-right\" type=\"cylinder\" pos=\"0 -0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "<body name=\"front-left-wheel\" pos=\"0.07 0.065 -0.03\">",
+    "<joint name=\"front-left-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+    "<geom name=\"front-left\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "<body name=\"front-right-wheel\" pos=\"0.07 -0.065 -0.03\">",
+    "<joint name=\"front-right-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+    "<geom name=\"front-right\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "</body>",
+    "<body name=\"sphere-body\" pos=\"0.8 0 0.075\"><freejoint name=\"sphere-free\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.1\" diaginertia=\"0.000225 0.000225 0.000225\"/>",
+    "<geom name=\"sphere\" type=\"sphere\" size=\"0.075\"/>",
+    "</body></worldbody><contact>",
+    "<pair geom1=\"floor\" geom2=\"chassis\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"floor\" geom2=\"bumper\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"floor\" geom2=\"rear-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"floor\" geom2=\"rear-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"floor\" geom2=\"front-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"floor\" geom2=\"front-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"floor\" geom2=\"sphere\" condim=\"3\" friction=\"0.5 0.5 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"chassis\" geom2=\"sphere\" condim=\"3\" friction=\"0.20000000000000001 0.20000000000000001 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"bumper\" geom2=\"sphere\" condim=\"3\" friction=\"0.20000000000000001 0.20000000000000001 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"rear-left\" geom2=\"sphere\" condim=\"3\" friction=\"0.20000000000000001 0.20000000000000001 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"rear-right\" geom2=\"sphere\" condim=\"3\" friction=\"0.20000000000000001 0.20000000000000001 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"front-left\" geom2=\"sphere\" condim=\"3\" friction=\"0.20000000000000001 0.20000000000000001 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"front-right\" geom2=\"sphere\" condim=\"3\" friction=\"0.20000000000000001 0.20000000000000001 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "</contact></mujoco>"
+  ],
+  "xmlSha256": "d0ea4952ba94f6879a40503953b4190152e5ef30b3f35dfe2f897d50aefb2d3a",
+  "protocol": {
+    "purpose": "Fresh real Uno/MNA/TT powered and LOW pair with native free sphere, single ownership and actual signed momentum/rotation. Preserve R5 GAP_CAUSAL_ALT; no full D01/D02/product acceptance.",
+    "geometry": "Exact source R5 rover block retained; only the finite environment and free sphere differ. The level plate comes from accepted editable-ramp-geometry at H=0. No body pose/velocity is assigned after construction.",
+    "phase": "Native STEP1 freezes PRE contacts, Jacobian rows and body twists. STEP2 receives exactly one left-held axle effort; measured endpoint is replied with the original query token before electrical commit. Pending physical records flush at the next native PRE or terminal forward observation with exact pose/qpos parity.",
+    "raw": "Binary V1 has fixed 2048-byte interval header and 176 bytes per active dim3 contact. Header stores from/to, PRE/POST time+qpos17/qvel15, both five-body position/quaternion sets, all PRE COM/world linear/world angular velocities and ordered electrical fields. Full native contact identities/exclude/active rows fit fixed uint16 slots. Seven extra F64 slots retain native contact distance for every sphere/other-geom pair (sphere pairs have native maximum one). Native active rows store geom IDs,index,address/types,point,frame,force3,PRE contact velocity3,J_PRE times generalized tangent displacement3. Dense full Jacobians remain temporary. Header schema is emitted with byte offsets before native.",
+    "admission": "Explicit ASA_TT_SPHERE_NATIVE=one-frozen-pair-1071; exact ASA_TT_SPHERE_FIXTURE_SHA256 and ASA_TT_SPHERE_SOURCE_SHA256. ASA_TT_SPHERE_ENGINE is the absolute admitted AOT artifact folder; ASA_TT_SPHERE_LICENSE is the pinned upstream LICENSE. ASA_TT_SPHERE_OUTPUT is an existing unique absolute OS-Temp receipt directory. Both raw files open wx; all source/fixture/artifact/license header pins verified before native import. No automatic retry; any dynamic dispatch consumes acquisition.",
+    "failure": "All raw acquired frames and partial/error/cleanup evidence precede verdict. Physical failures latch and retain the full horizon. Runtime/row/nonfinite/ownership errors preserve first cause and stop further dynamics. PRE_DISPATCH is distinguished from consumed STEP1/STEP2 counters.",
+    "momentum": "For every interval signed contact J=F*h and lever moments about PRE central sphere COM independently reconstruct m*Delta-v and I*Delta-world-omega, plus gravity only in linear momentum. Bounds use readback m/I/r, delta_v1e-9 and128eps scales exactly from canonical selection. Normal force is radial; no imposed immediate spin.",
+    "energy": "Preserve R5 signed source/circuit/winding/shaft/transmission and native endpoint assembly energy with armature once. Native PRE Jacobian/tangent contact work is compared to an independent PRE rigid-point tangent; finite attachment chord differs by a derived second-order remainder. No positive-contact/negative-dissipation credit or silent energy-gap cancellation."
+  },
+  "nativeRuntimeSources": [
+    {
+      "path": "contexts/electronics/engine.ts",
+      "sha256": "5bc65bd9a3a00528b10f01ca3bc170db3c3ca1e9d4270c594fc0e5570552c1e5",
+      "bytes": 37086
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "sha256": "462877d813528bbbbae9944bd8de0bf3fc2ede4a51fe2099c2b10a7af6b27c7e",
+      "bytes": 89858
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-program-runtime.ts",
+      "sha256": "175222b32c4133ad428aaef02dfb024d791b49fc72a8b0cef35af6c9cdefcd1f",
+      "bytes": 153077
+    },
+    {
+      "path": "contexts/electronics/domain/solver.ts",
+      "sha256": "22c73babce6329a7b1ab32d9fb2e9a3739eb95c6327a46f5b9410e07343dc4cb",
+      "bytes": 220845
+    },
+    {
+      "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+      "sha256": "5ad83f4678163716463aeeeceb0c62a2a00340ef5a3572fe82e071a78719a927",
+      "bytes": 31117
+    },
+    {
+      "path": "contexts/robotics/domain/default-project.ts",
+      "sha256": "796e3cf2388a79eb4b9e3b399b2b47885fe0b66849a06822b297e15d4cced81e",
+      "bytes": 23222
+    }
+  ]
+}

@@ -73,8 +73,10 @@ export function journalSlots(
   });
 }
 const rosterOrder = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' });
-export function journalRoster(students: JournalSnapshot['students']) {
-  return [...students].sort(
-    (a, b) => rosterOrder.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-  );
+export function journalRoster(students: JournalSnapshot['students'], includeRemoved = false) {
+  return students
+    .filter((student) => includeRemoved || student.status !== 'removed')
+    .sort(
+      (a, b) => rosterOrder.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
 }

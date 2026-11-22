@@ -294,14 +294,27 @@ function parseEntry(line: string): LogEntry {
   return entry;
 }
 
-async function* entries(root: string, segment: Segment): AsyncGenerator<LogEntry> {
+async function* entries(
+  root: string,
+  segment: Segment,
+  errorsOnly = false,
+): AsyncGenerator<LogEntry> {
   const { raw } = await segmentData(root, segment);
   for (const line of raw.toString('utf8').split('\n')) {
-    if (line) yield parseEntry(line);
+    if (!line) continue;
+    // The trend measures recorded error severity. The detailed log reader
+    // still projects historical events independently of their stored level.
+    if (errorsOnly && !/"level"\s*:\s*"error"/.test(line)) continue;
+    yield parseEntry(line);
   }
 }
 
 function errorSystem(event: LogEntry): string {
+  if (
+    event.source === 'postgres' &&
+    /\bERROR:\s+(?:quality stream conflict|telemetry project denied)(?:\s|$)/i.test(event.message)
+  )
+    return 'diagnostics';
   if (
     event.origin === 'ai_image_jobs' ||
     event.origin === 'ai_usage_journal' ||
@@ -369,19 +382,28 @@ export async function errorTrend(root: string, window: LogTrendWindow): Promise<
 
   const selected = catalog.segments
     .filter((part) => Date.parse(part.last) >= from && Date.parse(part.first) < to)
+    .filter((part) => {
+      return (
+        part.schema !== LOG_STORE_FORMAT ||
+        !part.sha256 ||
+        !part.levels?.length ||
+        part.levels.includes('error')
+      );
+    })
     .sort((a, b) => b.last.localeCompare(a.last));
   const seen = new Set<string>();
   const buckets = new Map<number, Record<string, number>>();
   const started = performance.now();
-  let scanned = 0;
+  let scannedBytes = 0;
   for (const part of selected) {
-    if (scanned >= 160_000 || performance.now() - started > 5_000) {
+    const rawBytes = part.rawBytes ?? MAX_SEGMENT_BYTES;
+    if (scannedBytes + rawBytes > 512 * 1024 * 1024 || performance.now() - started > 8_000) {
       // An unread segment can overlap any preceding bucket. Do not show a partial count as its total.
       from = Math.max(from, origin + Math.ceil((Date.parse(part.last) + 1 - origin) / step) * step);
       break;
     }
-    for await (const event of entries(root, part)) {
-      scanned++;
+    scannedBytes += rawBytes;
+    for await (const event of entries(root, part, true)) {
       const time = Date.parse(event.time);
       if (
         event.level !== 'error' ||

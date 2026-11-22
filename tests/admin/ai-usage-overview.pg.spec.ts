@@ -164,6 +164,30 @@ it('agrees on all three metrics and seven UTC days, with inclusive start/exclusi
   }
 });
 
+it('returns aligned Moscow dashboard counts for chat and images, only to a platform admin', async () => {
+  const a = await owner();
+  const b = await owner();
+  await record(a, '2042-03-08T00:15:00+03:00', '12', '3');
+  await record(a, '2042-03-08T00:20:00+03:00', null, null, { status: 'failed' });
+  await record(b, '2042-03-08T01:10:00+03:00', null, null, { operation: 'image' });
+  await record(b, '2042-03-08T02:00:00+03:00', '1', '1');
+  const sql = 'SELECT admin_get_ai_dashboard_usage($1,$2,$3,$4) AS overview';
+  const window = ['2042-03-08T00:12:00+03:00', '2042-03-08T02:00:00+03:00', 3600];
+  const value = (await runtime.query(sql, [platform.principal_id, ...window])).rows[0]!.overview;
+  expect([value.requests, value.completed, value.people]).toEqual([3, 2, 2]);
+  expect(value.points.map((point: { at: string }) => new Date(point.at).toISOString())).toEqual([
+    '2042-03-07T21:00:00.000Z',
+    '2042-03-07T22:00:00.000Z',
+  ]);
+  expect(value.points).toMatchObject([
+    { requests: 2, completed: 1, people: 1 },
+    { requests: 1, completed: 1, people: 1 },
+  ]);
+  await expect(runtime.query(sql, [a.principal_id, ...window])).rejects.toMatchObject({
+    code: '42501',
+  });
+});
+
 it('distinguishes an empty period, unknown token usage, known zero and exact totals above Number.MAX_SAFE_INTEGER', async () => {
   const empty = await overview('2035-01-07T12:00:00Z');
   expect(empty).toMatchObject({
