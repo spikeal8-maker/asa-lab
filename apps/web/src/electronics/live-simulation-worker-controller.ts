@@ -103,9 +103,10 @@ const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 // A 100 ms observation grid aliases a 50 ms HIGH / 50 ms LOW sketch.
 // This is a model-time bound, not a wall-time/throughput promise.
 const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
-// On a 50 ms sketch, complete checkpoints finishing up to 4.144 ms before the
-// accepted wake occupied the sole Worker without observing the upcoming edge.
-const ARDUINO_WAKE_RESERVATION_MICROSECONDS = 5_000;
+const MIN_ARDUINO_SLEEP_MICROSECONDS = 5_000;
+// In a 30 ms blink, a checkpoint 5.209 ms before the next edge occupied the
+// Worker across that edge. Reserve the slot within the existing observation window.
+const ARDUINO_WAKE_RESERVATION_MICROSECONDS = 6_000;
 const ARDUINO_WAKE_OBSERVATION_MICROSECONDS = 1_000;
 
 function boundedInputObservationHorizon(
@@ -927,8 +928,7 @@ export class ElectronicsLiveSimulationWorkerController {
     if (
       Number.isSafeInteger(wake + ARDUINO_WAKE_OBSERVATION_MICROSECONDS) &&
       wake > committed &&
-      (wake === previous ||
-        wake - runtime.virtualTimeMs * 1000 >= ARDUINO_WAKE_RESERVATION_MICROSECONDS)
+      (wake === previous || wake - runtime.virtualTimeMs * 1000 >= MIN_ARDUINO_SLEEP_MICROSECONDS)
     )
       this.acknowledgedWake = wake;
   }

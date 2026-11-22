@@ -3244,14 +3244,20 @@ describe('ordinary demand near an accepted Arduino wake', () => {
     { checkpoint: 35_900, preWake: 49_200, fallingEdge: 50_004 },
     { checkpoint: 135_900, preWake: 146_900, fallingEdge: 150_009 },
     { checkpoint: 835_800, preWake: 845_900, fallingEdge: 850_044 },
+    { checkpoint: 73_800, preWake: 84_800, fallingEdge: 90_009, delayMs: 30 },
   ])(
     'keeps the sole Worker free ahead of the physical fall at $fallingEdge',
-    async ({ checkpoint, preWake, fallingEdge }) => {
+    async ({ checkpoint, preWake, fallingEdge, delayMs = 50 }) => {
       vi.useFakeTimers();
       const executor = new FakeExecutor();
       const controller = new ElectronicsLiveSimulationWorkerController(executor);
       try {
-        const probe = await establishWake(controller, executor, checkpoint);
+        const probe = await establishWake(
+          controller,
+          executor,
+          checkpoint,
+          source.replaceAll('delay(50)', `delay(${delayMs})`),
+        );
         expect(probe.wake).toBeLessThanOrEqual(fallingEdge);
         expect(probe.wake).toBeGreaterThan(preWake);
         const before = executor.advances.length;
@@ -3302,9 +3308,9 @@ describe('ordinary demand near an accepted Arduino wake', () => {
           434_000,
           source.replaceAll('delay(50)', 'delay(30)'),
         );
-        // The actual short30 request ended 5.439 ms before its fall, just
-        // outside reservation. At its ACK, the fresh horizon was 448.300 ms.
-        probe.update(444_600);
+        // Start a checkpoint outside the reservation and move the fresh host
+        // horizon to 448.300 ms before its ACK so the idle path has to arm.
+        probe.update(443_600);
         probe.setHost(448_300);
         const checkpoint = await probe.advance();
         expect(controller.hasPendingAdvance).toBe(false);
@@ -3368,7 +3374,7 @@ describe('ordinary demand near an accepted Arduino wake', () => {
         source.replaceAll('delay(50)', 'delay(30)'),
         () => onReadPace?.(),
       );
-      probe.update(444_600);
+      probe.update(443_600);
       probe.setHost(448_300);
       if (phase === 'firing') {
         await probe.advance();
