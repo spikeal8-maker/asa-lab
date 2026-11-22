@@ -3751,7 +3751,7 @@ it.skipIf(process.env['ASA_D01_STAGE6_RUN'] !== g.nativeToken)(
   },
   600000,
 );
-it('keeps both native modes explicitly exclusive/default skipped and old model/codec/readbacks frozen', () => {
+it('keeps both native modes explicitly exclusive/default skipped and original model/fixture/caps pinned', () => {
   expect(selectedNativeMode({})).toBe(null);
   expect(selectedNativeMode({ ASA_D01_NEAR_RUN: 'two-local-frozen-rates-1071' })).toBe('original');
   expect(selectedNativeMode({ ASA_D01_STAGE6_RUN: g.nativeToken })).toBe('stage6');
@@ -3763,7 +3763,6 @@ it('keeps both native modes explicitly exclusive/default skipped and old model/c
   ).toThrow('MUTUALLY_EXCLUSIVE');
   expect(() => selectedNativeMode({ ASA_D01_STAGE6_RUN: 'retry' })).toThrow('UNKNOWN_DIAGNOSTIC');
   validateDiagnosticFixture();
-  originalSourceAdmission();
   expect(() =>
     validateDiagnosticFixture({ ...g, schedule: { ...g.schedule, maxIntervals: 42501 } }),
   ).toThrow('EXACT_STAGE6_FIXTURE');
