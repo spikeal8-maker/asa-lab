@@ -24,6 +24,7 @@ import {
 } from '../../../contexts/electronics/engine.js';
 import { createInitialRoboticsProject } from '../../../contexts/robotics/domain/default-project.js';
 import f from './arduino-tt-composed-terrain-seams.fixture.json';
+import u from './arduino-tt-composed-terrain-union.fixture.json';
 import { createEditableRampGeometry, rampRiseForAngle } from './editable-ramp-geometry.js';
 
 type World = 'powered' | 'control';
@@ -148,6 +149,7 @@ type Frame = {
   applied?: AppliedShaft;
   contacts: Entry[];
   census: ContactCensus;
+  layout?: Layout;
   phaseHash: string;
   kinematics: ReturnType<typeof bodyVelocities>;
 };
@@ -216,9 +218,83 @@ const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).dige
 const same = (a: readonly number[], b: readonly number[]) =>
   a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
 const ints = (x: number, cap: number) => Number.isSafeInteger(x) && x >= 0 && x <= cap;
-const pairKey = (a: number, b: number) => Math.min(a, b) * ngeom + Math.max(a, b);
-const indexedPairs = new Map(f.expected.pairs.map((p) => [pairKey(p.ids[0]!, p.ids[1]!), p]));
 
+type Layout = {
+  id: string;
+  union: boolean;
+  ngeom: number;
+  terrainCount: number;
+  geomBodies: number[];
+  wheels: number[];
+  chassis: number;
+  bumper: number;
+  expected: typeof f.expected;
+  cap: typeof cap;
+  xml: string;
+  xmlSha256: string;
+  meshes: Array<{ id: number; name: string; vertices: number[][]; faces: number[][] }>;
+  counts: { ngeom: number; nmesh: number; nmeshvert: number; nmeshface: number; npair: number };
+  files: typeof kindNames;
+};
+const legacyLayout: Layout = {
+  id: f.id,
+  union: false,
+  ngeom,
+  terrainCount: 5,
+  geomBodies,
+  wheels,
+  chassis: names.chassis,
+  bumper: names.bumper,
+  expected: f.expected,
+  cap,
+  xml,
+  xmlSha256: f.xmlSha256,
+  meshes: physics.terrain,
+  counts: { ngeom: 11, nmesh: 5, nmeshvert: 40, nmeshface: 60, npair: 30 },
+  files: {
+    meta: 'arduino-tt-composed-terrain-seams.jsonl',
+    intervals: 'arduino-tt-composed-terrain-seams.bin',
+  },
+};
+const unionLayout: Layout = {
+  id: u.id,
+  union: true,
+  ngeom: 9,
+  terrainCount: 3,
+  geomBodies: u.geometry.geomBodies,
+  wheels: [5, 6, 7, 8],
+  chassis: 3,
+  bumper: 4,
+  expected: u.expected,
+  cap: u.raw,
+  xml: u.xml.join('\n') + '\n',
+  xmlSha256: u.xmlSha256,
+  meshes: u.geometry.nativeMeshes,
+  counts: u.geometry.nativeCounts,
+  files: {
+    meta: 'arduino-tt-composed-terrain-union.jsonl',
+    intervals: 'arduino-tt-composed-terrain-union.bin',
+  },
+};
+function layoutPairKey(layout: Layout, a: number, b: number) {
+  return Math.min(a, b) * layout.ngeom + Math.max(a, b);
+}
+function layoutPairs(layout: Layout) {
+  return new Map(
+    layout.expected.pairs.map((pair) => [layoutPairKey(layout, pair.ids[0]!, pair.ids[1]!), pair]),
+  );
+}
+function workContact(layout: Layout, contact: Entry): Entry {
+  if (!layout.union) return contact;
+  const aliases = u.geometry.workAliases;
+  for (const id of [contact.first, contact.second])
+    requireThat(
+      ints(id, layout.ngeom - 1) && geomBodies[aliases[id]!] === layout.geomBodies[id],
+      'WORK_LAYOUT_BODY_IDENTITY',
+    );
+  // Pure body-index projection only. Actual native IDs/row ordinals remain unmodified in raw.
+  return { ...contact, first: aliases[contact.first]!, second: aliases[contact.second]! };
+}
 function requireThat(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
@@ -530,12 +606,13 @@ function inertiaInBodyFrame(diagonal: Vec, axes: Quat): Inertia {
   return [product(0, 0), product(1, 1), product(2, 2), product(0, 1), product(0, 2), product(1, 2)];
 }
 
-function widths(model: Model) {
+function widths(model: Model, layout = legacyLayout) {
+  const { ngeom, geomBodies } = layout,
+    names = { bumper: layout.bumper };
   const counts = {
     nq,
     nv,
     nbody,
-    ngeom,
     njnt: 4,
     nmocap: 0,
     nu: 0,
@@ -545,15 +622,12 @@ function widths(model: Model) {
     neq: 0,
     ntendon: 0,
     nflex: 0,
-    npair: 30,
-    nmesh: 5,
-    nmeshvert: 40,
-    nmeshface: 60,
+    ...layout.counts,
   };
   for (const [k, count] of Object.entries(counts))
     requireThat(model[k] === count, 'FACTORY_COUNT ' + k);
   const ints = {
-    geom_type: [7, 7, 7, 7, 7, 6, 6, 5, 5, 5, 5],
+    geom_type: [...Array<number>(layout.terrainCount).fill(7), 6, 6, 5, 5, 5, 5],
     geom_bodyid: geomBodies,
     body_parentid: bodyParents,
     jnt_bodyid: [1, 2, 3, 4],
@@ -703,8 +777,11 @@ function widths(model: Model) {
     bumperQuat,
   };
 }
-function modelReadback(M: Native, model: Model, data: Data) {
-  const w = widths(model);
+function modelReadback(M: Native, model: Model, data: Data, layout = legacyLayout) {
+  const { ngeom, geomBodies, cap } = layout,
+    pairKey = (a: number, b: number) => layoutPairKey(layout, a, b),
+    indexedPairs = layoutPairs(layout);
+  const w = widths(model, layout);
   const names = [
     Array.from({ length: nbody }, (_, id) => M.mj_id2name(model, 1, id)),
     Array.from({ length: ngeom }, (_, id) => M.mj_id2name(model, 5, id)),
@@ -712,7 +789,7 @@ function modelReadback(M: Native, model: Model, data: Data) {
   ];
   requireThat(
     JSON.stringify(names) ===
-      JSON.stringify([f.expected.bodies, f.expected.geoms, f.expected.joints]),
+      JSON.stringify([layout.expected.bodies, layout.expected.geoms, layout.expected.joints]),
     'FACTORY_NAMES',
   );
   requireThat(M.mj_isSparse(model) === 0, 'EXPLICIT_DENSE_JACOBIAN');
@@ -942,7 +1019,11 @@ function nativeContacts(
   data: Data,
   ledger: Ledger,
   pairCapacity: Map<number, number>,
+  layout = legacyLayout,
 ): ContactSnapshot[] {
+  const { cap, ngeom } = layout,
+    pairKey = (a: number, b: number) => layoutPairKey(layout, a, b),
+    indexedPairs = layoutPairs(layout);
   requireThat(ints(data.ncon, cap.maxContactsPerInterval), 'NATIVE_CONTACT_COUNT');
   const contacts = data.contact;
   ledger.created++;
@@ -1017,7 +1098,8 @@ function nativeContacts(
     release(contacts, ledger);
   }
 }
-function rowSnapshot(data: Data) {
+function rowSnapshot(data: Data, layout = legacyLayout) {
+  const cap = layout.cap;
   requireThat(ints(data.nefc, cap.maxRowsPerInterval), 'BOUNDED_EFC_ROW_COUNT');
   const size = data.nefc;
   return {
@@ -1085,6 +1167,55 @@ function preConstraints(
   requireThat(observedRows.size === rows.size, 'UNREGISTERED_EFC_ROW');
   return { contacts, rows, jac, velocity, kinematic };
 }
+function layoutPreConstraints(
+  M: Native,
+  model: Model,
+  data: Data,
+  before: State,
+  buffer: BufferView,
+  ledger: Ledger,
+  capacity: Map<number, number>,
+  layout: Layout,
+) {
+  const geomBodies = layout.geomBodies;
+  const contacts = nativeContacts(data, ledger, capacity, layout);
+  const rows = rowSnapshot(data, layout);
+  requireThat(data.nJ === rows.size * nv, 'DENSE_ROWS_NOT_MATERIALIZED');
+  const jac = Array.from(floatView(data.efc_J, data.nJ, 'PRE_EFC_J'));
+  const velocity = Array.from(floatView(data.efc_vel, rows.size, 'PRE_EFC_VEL'));
+  const kinematic = bodyVelocities(M, model, data, buffer, ledger);
+  const observedRows = new Set<number>();
+  contacts.forEach((c, id) => {
+    if (c.address < 0) return;
+    requireThat(c.exclude === 0 && c.address + 3 <= rows.size, 'INACTIVE_CONSTRAINT_HAS_ROWS');
+    const relative = sub(
+      contactPointVelocity(c.point, kinematic[geomBodies[c.second]!]!),
+      contactPointVelocity(c.point, kinematic[geomBodies[c.first]!]!),
+    );
+    for (let local = 0; local < 3; local++) {
+      const row = c.address + local;
+      requireThat(
+        rows.type[row] === 7 && rows.id[row] === id && !observedRows.has(row),
+        'PRE_ELLIPTIC_ROW_IDENTITIES',
+      );
+      observedRows.add(row);
+      near(
+        dot(relative, vec(c.frame, local * 3)),
+        velocity[row]!,
+        budgets.velocityParityMps,
+        'POINT_SPEED_NATIVE_EFC_PARITY',
+      );
+      near(
+        dot(jac.slice(row * nv, row * nv + nv), before.qvel),
+        velocity[row]!,
+        budgets.velocityParityMps,
+        'J_QVEL_NATIVE_EFC_PARITY',
+      );
+    }
+  });
+  requireThat(observedRows.size === rows.size, 'UNREGISTERED_EFC_ROW');
+  return { contacts, rows, jac, velocity, kinematic };
+}
 function solvedRows(
   M: Native,
   model: Model,
@@ -1095,14 +1226,15 @@ function solvedRows(
   ledger: Ledger,
   capacity: Map<number, number>,
   attempt?: Record<string, unknown>,
+  layout = legacyLayout,
 ) {
-  const post = rowSnapshot(data);
+  const post = rowSnapshot(data, layout);
   if (attempt) attempt.postRows = post;
   requireThat(
     pre.rows.size === post.size && same(pre.rows.type, post.type) && same(pre.rows.id, post.id),
     'POST_EFC_IDENTITY',
   );
-  const contacts = nativeContacts(data, ledger, capacity);
+  const contacts = nativeContacts(data, ledger, capacity, layout);
   if (attempt) attempt.postContacts = contacts;
   requireThat(
     JSON.stringify(contacts) === JSON.stringify(pre.contacts) &&
@@ -1199,16 +1331,36 @@ function stateBytes(v: State) {
 function endpointBytes(e: Endpoint) {
   return Buffer.concat([stateBytes(e.state), doubles(e.poses.flatMap((p) => [...p.p, ...p.q]))]);
 }
-function validateContactCensus(contacts: Entry[], census: ContactCensus) {
+function validateContactCensus(contacts: Entry[], census: ContactCensus, layout = legacyLayout) {
+  const { ngeom, cap } = layout,
+    pairKey = (a: number, b: number) => layoutPairKey(layout, a, b),
+    indexedPairs = layoutPairs(layout);
   requireThat(
-    ints(contacts.length, 132) &&
+    ints(contacts.length, cap.maxContactsPerInterval) &&
       contacts.length === census.identities.length &&
-      ints(census.nativeRowCount, 396),
+      ints(census.nativeRowCount, cap.maxRowsPerInterval),
     'COMPLETE_NATIVE_CENSUS',
   );
   let rank = 0;
   const pairCounts = new Map<number, number>();
   contacts.forEach((ct, index) => {
+    if (layout.union) {
+      const basis = [vec(ct.frame), vec(ct.frame, 3), vec(ct.frame, 6)];
+      for (let a = 0; a < 3; a++)
+        for (let b = 0; b < 3; b++)
+          near(
+            dot(basis[a]!, basis[b]!),
+            a === b ? 1 : 0,
+            budgets.forceFrameTolerance,
+            'RAW_CONTACT_FRAME_ORTHONORMAL',
+          );
+      near(
+        norm(sub(cross(basis[0]!, basis[1]!), basis[2]!)),
+        0,
+        budgets.forceFrameTolerance,
+        'RAW_CONTACT_FRAME_RIGHT_HANDED',
+      );
+    }
     const id = census.identities[index]!;
     const key = pairKey(ct.first, ct.second),
       pairCount = (pairCounts.get(key) ?? 0) + 1;
@@ -1242,7 +1394,7 @@ function validateContactCensus(contacts: Entry[], census: ContactCensus) {
   requireThat(census.nativeRowCount === 3 * rank, 'NO_ORPHAN_NATIVE_ROWS');
 }
 function encodeInterval(frame: Frame, successor?: Endpoint) {
-  validateContactCensus(frame.contacts, frame.census);
+  validateContactCensus(frame.contacts, frame.census, frame.layout);
   const actual: Endpoint = { state: frame.post, poses: frame.after };
   if (successor)
     requireThat(
@@ -1333,7 +1485,7 @@ function decodeHead(item: Buffer) {
   requireThat(ref === 1 || ref === 2, 'EXACT_POST_REFERENCE_KIND');
   return { from, to, pre, before, kinematics, circuit, count, ref };
 }
-function decodeInterval(item: Buffer, endpoint: Endpoint): Frame {
+function decodeInterval(item: Buffer, endpoint: Endpoint, layout = legacyLayout): Frame {
   const h = decodeHead(item);
   requireThat(
     hash(endpointBytes(endpoint)) ===
@@ -1389,7 +1541,7 @@ function decodeInterval(item: Buffer, endpoint: Endpoint): Frame {
       distance: ct.distance,
     })),
   };
-  validateContactCensus(contacts, census);
+  validateContactCensus(contacts, census, layout);
   const applied = appliesAlternative(h.from)
     ? { torque: item.readDoubleLE(appliedOffset), impulse: item.readDoubleLE(appliedOffset + 8) }
     : undefined;
@@ -1399,6 +1551,7 @@ function decodeInterval(item: Buffer, endpoint: Endpoint): Frame {
       'RAW_LEGACY_EFFORT_DICTIONARY',
     );
   return {
+    ...(layout.union ? { layout } : {}),
     from: h.from,
     to: h.to,
     pre: h.pre,
@@ -1813,6 +1966,61 @@ function terrainGeometry() {
   });
   return out;
 }
+function closedHull(
+  vertices: Vec[],
+  faces: number[][],
+  planes?: { normal: number[]; offset: number }[],
+  representation = 0,
+) {
+  const edges = new Map<string, { count: number; direction: number }>();
+  let volume = 0;
+  const radius = Math.max(...vertices.map(norm)),
+    arithmetic = 256 * f.geometry.float64UnitRoundoff * (1 + radius),
+    distance = representation + arithmetic;
+  for (const ids of faces) {
+    requireThat(
+      ids.length === 3 &&
+        new Set(ids).size === 3 &&
+        ids.every((id) => ints(id, vertices.length - 1)),
+      'HULL_TRIANGLE',
+    );
+    const [a, b, c] = ids.map((id) => vertices[id]!) as [Vec, Vec, Vec],
+      normal = cross(sub(b, a), sub(c, a)),
+      length = norm(normal);
+    requireThat(length > 0, 'HULL_AREA');
+    requireThat(
+      vertices.every((v) => dot(normal, sub(v, a)) <= length * 2 * distance),
+      'HULL_CONVEX',
+    );
+    if (planes)
+      requireThat(
+        planes.some(
+          (plane) =>
+            [a, b, c].every(
+              (v) => Math.abs(dot(vec(plane.normal), v) - plane.offset) <= distance,
+            ) && dot(normal, plane.normal) > 0,
+        ),
+        'EXTERIOR_PLANES_ONLY_NO_INTERNAL_CAP',
+      );
+    volume += dot(a, cross(b, c)) / 6;
+    for (let i = 0; i < 3; i++) {
+      const from = ids[i]!,
+        to = ids[(i + 1) % 3]!,
+        key = Math.min(from, to) + ':' + Math.max(from, to),
+        entry = edges.get(key) ?? { count: 0, direction: 0 };
+      entry.count++;
+      entry.direction += from < to ? 1 : -1;
+      edges.set(key, entry);
+    }
+  }
+  requireThat(
+    Array.from(edges.values()).every((v) => v.count === 2 && v.direction === 0) &&
+      vertices.length - edges.size + faces.length === 2,
+    'CLOSED_ORIENTED_HULL',
+  );
+  requireThat(volume > 0, 'HULL_POSITIVE_VOLUME');
+  return { volume, vertices: vertices.length, triangles: faces.length, edges: edges.size };
+}
 function ulp32(value: number) {
   const a = Math.abs(value);
   return a === 0 ? 2 ** -149 : 2 ** (Math.max(-126, Math.floor(Math.log2(a))) - 23);
@@ -1858,6 +2066,29 @@ const meshDoubleFields = {
   geom_quat: ngeom * 4,
   geom_size: ngeom * 3,
 } as const;
+function meshIntegerWidths(layout: Layout) {
+  return {
+    ...meshIntegerFields,
+    mesh_vertadr: layout.counts.nmesh,
+    mesh_vertnum: layout.counts.nmesh,
+    mesh_faceadr: layout.counts.nmesh,
+    mesh_facenum: layout.counts.nmesh,
+    geom_dataid: layout.ngeom,
+    geom_type: layout.ngeom,
+    geom_bodyid: layout.ngeom,
+  };
+}
+function meshDoubleWidths(layout: Layout) {
+  return {
+    ...meshDoubleFields,
+    mesh_scale: layout.counts.nmesh * 3,
+    mesh_pos: layout.counts.nmesh * 3,
+    mesh_quat: layout.counts.nmesh * 4,
+    geom_pos: layout.ngeom * 3,
+    geom_quat: layout.ngeom * 4,
+    geom_size: layout.ngeom * 3,
+  };
+}
 type MeshSnapshot = {
   schema: 'ACTUAL_NATIVE_COMPILED_MESH_V1';
   counts: number[];
@@ -1873,19 +2104,25 @@ function signedJson(value: unknown) {
     typeof item === 'number' && Object.is(item, -0) ? 'float64:-0' : item,
   );
 }
-function captureMesh(model: Model, data: Data): MeshSnapshot {
+function captureMesh(model: Model, data: Data, layout = legacyLayout): MeshSnapshot {
+  const { ngeom, counts: c } = layout,
+    meshIntegerFields = meshIntegerWidths(layout),
+    meshDoubleFields = meshDoubleWidths(layout);
   requireThat(
     model.mesh_vert instanceof Float32Array &&
-      model.mesh_vert.length === 120 &&
+      model.mesh_vert.length === c.nmeshvert * 3 &&
       model.mesh_face instanceof Int32Array &&
-      model.mesh_face.length === 180,
+      model.mesh_face.length === c.nmeshface * 3,
     'FIVE_COMPILED_MESH_SHAPES',
   );
   return {
     schema: 'ACTUAL_NATIVE_COMPILED_MESH_V1',
     counts: ['nmesh', 'nmeshvert', 'nmeshface', 'ngeom'].map((key, i) => {
       const value = model[key];
-      requireThat(value === [5, 40, 60, ngeom][i], 'COMPILED_MESH_COUNT_' + key);
+      requireThat(
+        value === [c.nmesh, c.nmeshvert, c.nmeshface, ngeom][i],
+        'COMPILED_MESH_COUNT_' + key,
+      );
       return value as number;
     }),
     verticesF32: Array.from(model.mesh_vert),
@@ -1906,7 +2143,10 @@ function captureMesh(model: Model, data: Data): MeshSnapshot {
     worldRotationsF64: Array.from(floatView(data.geom_xmat, ngeom * 9, 'geom_xmat')),
   };
 }
-function restoreMesh(snapshot: MeshSnapshot) {
+function restoreMesh(snapshot: MeshSnapshot, layout = legacyLayout) {
+  const { ngeom, counts: c } = layout,
+    meshIntegerFields = meshIntegerWidths(layout),
+    meshDoubleFields = meshDoubleWidths(layout);
   requireThat(snapshot.schema === 'ACTUAL_NATIVE_COMPILED_MESH_V1', 'MESH_RECEIPT_SCHEMA');
   const array = (value: unknown, size: number, label: string, kind: 'f64' | 'f32' | 'i32') => {
     requireThat(Array.isArray(value) && value.length === size, 'MESH_RECEIPT_WIDTH_' + label);
@@ -1926,16 +2166,16 @@ function restoreMesh(snapshot: MeshSnapshot) {
     return values as number[];
   };
   requireThat(
-    same(array(snapshot.counts, 4, 'counts', 'i32'), [5, 40, 60, ngeom]),
+    same(array(snapshot.counts, 4, 'counts', 'i32'), [c.nmesh, c.nmeshvert, c.nmeshface, ngeom]),
     'MESH_RECEIPT_COUNTS',
   );
   const model = {
-    nmesh: 5,
-    nmeshvert: 40,
-    nmeshface: 60,
+    nmesh: c.nmesh,
+    nmeshvert: c.nmeshvert,
+    nmeshface: c.nmeshface,
     ngeom,
-    mesh_vert: Float32Array.from(array(snapshot.verticesF32, 120, 'vertices', 'f32')),
-    mesh_face: Int32Array.from(array(snapshot.facesI32, 180, 'faces', 'i32')),
+    mesh_vert: Float32Array.from(array(snapshot.verticesF32, c.nmeshvert * 3, 'vertices', 'f32')),
+    mesh_face: Int32Array.from(array(snapshot.facesI32, c.nmeshface * 3, 'faces', 'i32')),
   } as unknown as Model;
   for (const [key, size] of Object.entries(meshIntegerFields))
     model[key] = Int32Array.from(
@@ -1955,40 +2195,48 @@ function restoreMesh(snapshot: MeshSnapshot) {
   } as unknown as Data;
   return { model, data };
 }
-function replayMesh(value: unknown) {
+function replayMesh(value: unknown, layout = legacyLayout) {
   requireThat(value !== null && typeof value === 'object', 'MESH_RECEIPT_REQUIRED');
   const receipt = value as ReturnType<typeof assertMesh>;
   requireThat(receipt.nativeSha256 === hash(signedJson(receipt.native)), 'MESH_RECEIPT_DIGEST');
-  const restored = restoreMesh(receipt.native),
-    recomputed = assertMesh(restored.model, restored.data);
+  const restored = restoreMesh(receipt.native, layout),
+    recomputed = assertMesh(restored.model, restored.data, layout);
   requireThat(signedJson(recomputed) === signedJson(receipt), 'RECOMPUTED_COMPILED_MESH_ADMISSION');
   return recomputed;
 }
-function assertMesh(model: Model, data: Data) {
-  const native = captureMesh(model, data);
+function assertMesh(model: Model, data: Data, layout = legacyLayout) {
+  const { ngeom, geomBodies, counts: c } = layout;
+  const native = captureMesh(model, data, layout);
   requireThat(
-    same(native.integers.geom_type, [7, 7, 7, 7, 7, 6, 6, 5, 5, 5, 5]) &&
-      same(native.integers.geom_bodyid, geomBodies),
+    same(native.integers.geom_type, [
+      ...Array<number>(layout.terrainCount).fill(7),
+      6,
+      6,
+      5,
+      5,
+      5,
+      5,
+    ]) && same(native.integers.geom_bodyid, geomBodies),
     'COMPILED_NATIVE_GEOM_IDENTITIES',
   );
   requireThat(
     native.doubles.mesh_scale.every((v) => v === 1),
     'COMPILED_UNIT_ASSET_SCALE',
   );
-  const made = terrainGeometry(),
+  const made = layout.union ? layout.meshes : terrainGeometry(),
     vertices = model.mesh_vert,
     faces = model.mesh_face;
   requireThat(
     vertices instanceof Float32Array &&
-      vertices.length === 120 &&
+      vertices.length === c.nmeshvert * 3 &&
       faces instanceof Int32Array &&
-      faces.length === 180,
+      faces.length === c.nmeshface * 3,
     'FIVE_COMPILED_MESH_SHAPES',
   );
-  const adr = intView(model.mesh_vertadr, 5, 'mesh_vertadr'),
-    count = intView(model.mesh_vertnum, 5, 'mesh_vertnum'),
-    fa = intView(model.mesh_faceadr, 5, 'mesh_faceadr'),
-    fc = intView(model.mesh_facenum, 5, 'mesh_facenum'),
+  const adr = intView(model.mesh_vertadr, c.nmesh, 'mesh_vertadr'),
+    count = intView(model.mesh_vertnum, c.nmesh, 'mesh_vertnum'),
+    fa = intView(model.mesh_faceadr, c.nmesh, 'mesh_faceadr'),
+    fc = intView(model.mesh_facenum, c.nmesh, 'mesh_facenum'),
     geomIds = intView(model.geom_dataid, ngeom, 'geom_dataid');
   const gp = floatView(data.geom_xpos, ngeom * 3, 'geom_xpos'),
     gm = floatView(data.geom_xmat, ngeom * 9, 'geom_xmat'),
@@ -1996,14 +2244,23 @@ function assertMesh(model: Model, data: Data) {
   const actual = made.map((g, i) => {
     const mesh = geomIds[i]!;
     requireThat(
-      ints(mesh, 4) && !used.has(mesh) && count[mesh] === 8 && fc[mesh] === 12,
+      ints(mesh, c.nmesh - 1) &&
+        !used.has(mesh) &&
+        count[mesh] === g.vertices.length &&
+        fc[mesh] === g.faces.length,
       'ONE_CLOSED_MESH_PER_VOLUME',
     );
     used.add(mesh);
-    requireThat(adr[mesh] === mesh * 8 && fa[mesh] === mesh * 12, 'COMPILED_MESH_ADDRESSES');
+    requireThat(
+      adr[mesh] === made.slice(0, mesh).reduce((sum, v) => sum + v.vertices.length, 0) &&
+        fa[mesh] === made.slice(0, mesh).reduce((sum, v) => sum + v.faces.length, 0),
+      'COMPILED_MESH_ADDRESSES',
+    );
     const matrix = Array.from(gm.slice(i * 9, i * 9 + 9)),
       position = vec(gp, i * 3),
-      local = Array.from({ length: 8 }, (_, j) => vec(vertices, (adr[mesh]! + j) * 3));
+      local = Array.from({ length: g.vertices.length }, (_, j) =>
+        vec(vertices, (adr[mesh]! + j) * 3),
+      );
     const geomPosition = vec(native.doubles.geom_pos, i * 3),
       geomQuaternion = quat(native.doubles.geom_quat, i * 4),
       quaternionMatrix = [0, 1, 2].flatMap((row) =>
@@ -2038,21 +2295,40 @@ function assertMesh(model: Model, data: Data) {
     });
     const centre = scale(
       transformed.reduce<Vec>((a, v) => add(a, v.p), [0, 0, 0]),
-      1 / 8,
+      1 / g.vertices.length,
     );
-    for (let j = 0; j < 12; j++) {
+    for (let j = 0; j < g.faces.length; j++) {
       const ids = Array.from(faces.slice((fa[mesh]! + j) * 3, (fa[mesh]! + j + 1) * 3));
       requireThat(
-        ids.every((x) => ints(x, 7)),
+        ids.every((x) => ints(x, g.vertices.length - 1)),
         'COMPILED_FACE_INDICES',
       );
       const [a, b, c] = ids.map((k) => transformed[k]!.p) as [Vec, Vec, Vec];
       requireThat(dot(cross(sub(b, a), sub(c, a)), sub(centre, a)) < 0, 'COMPILED_OUTWARD_HULL');
     }
+    if (layout.union)
+      closedHull(
+        transformed.map((v) => v.p),
+        Array.from({ length: g.faces.length }, (_, j) =>
+          Array.from(faces.slice((fa[mesh]! + j) * 3, (fa[mesh]! + j + 1) * 3)),
+        ),
+        i === 1 ? u.geometry.upperPlanes : undefined,
+        compiledDisplacementBudget(),
+      );
     return { id: i, mesh, vertices: transformed };
   });
-  const seams = actual.slice(1).map((right, index) => {
-    const left = actual[index]!,
+  const seams = (
+    layout.union
+      ? [
+          [0, 1],
+          [1, 1],
+          [1, 1],
+          [1, 2],
+        ]
+      : actual.slice(1).map((_, i) => [i, i + 1])
+  ).map(([leftId, rightId], index) => {
+    const left = actual[leftId!]!,
+      right = actual[rightId!]!,
       x = physics.terrain[index]!.x[1]!,
       z = physics.terrain[index]!.top[1]!;
     return [-0.5, 0.5].map((y) => {
@@ -2097,7 +2373,13 @@ function terrainTop(id: number, point: Vec) {
     Math.abs(projected[1]) <= 0.5 + domainBudget
   );
 }
-function wheelPoint(frame: Frame, wheel: number, point: Vec) {
+function wheelPoint(
+  frame: Frame,
+  wheel: number,
+  point: Vec,
+  layout = frame.layout ?? legacyLayout,
+) {
+  const { wheels, geomBodies } = layout;
   const index = wheels.indexOf(wheel);
   requireThat(index >= 0, 'DECLARED_WHEEL');
   const body = geomBodies[wheel]!,
@@ -2118,8 +2400,44 @@ function wheelPoint(frame: Frame, wheel: number, point: Vec) {
       Math.abs(axial) <= physics.wheelHalfWidth + limits.faceDistanceM,
   };
 }
+function atlasRow(terrain: number, point: Vec, normal: Vec, layout: Layout) {
+  if (!layout.union)
+    return {
+      faces: [terrain],
+      mask: 1 << terrain,
+      certain: 1 << terrain,
+      valid:
+        terrainTop(terrain, point) &&
+        dot(normal, vec(physics.terrain[terrain]!.normal)) >=
+          Math.cos((limits.faceNormalAllowDeg * Math.PI) / 180),
+    };
+  requireThat(ints(terrain, 2), 'ATLAS_NATIVE_TERRAIN');
+  requireThat(
+    point.every(Number.isFinite) && normal.every(Number.isFinite),
+    'ATLAS_FINITE_WITNESS',
+  );
+  near(norm(normal), 1, budgets.forceFrameTolerance, 'ATLAS_UNIT_NORMAL');
+  const epsilon = compiledDisplacementBudget();
+  let faces: number[];
+  if (terrain === 0) faces = [0];
+  else if (terrain === 2) faces = [4];
+  else if (Math.abs(point[0] - 0.8) <= epsilon) faces = [1, 2];
+  else if (Math.abs(point[0] - 1.2) <= epsilon) faces = [2, 3];
+  else faces = [point[0] < 0.8 ? 1 : point[0] < 1.2 ? 2 : 3];
+  const valid = faces.every(
+    (id) =>
+      terrainTop(id, point) &&
+      dot(normal, vec(physics.terrain[id]!.normal)) >=
+        Math.cos((limits.faceNormalAllowDeg * Math.PI) / 180),
+  );
+  const mask = faces.reduce((a, id) => a | (1 << id), 0);
+  return { faces, mask, certain: faces.length === 1 ? mask : 0, valid };
+}
 function supportLabels(frame: Frame) {
+  const layout = frame.layout ?? legacyLayout,
+    { wheels } = layout;
   const masks = [0, 0, 0, 0],
+    certainMasks = [0, 0, 0, 0],
     invalid = [0, 0, 0, 0],
     failures: string[] = [],
     outward = [0, 0, 0, 0],
@@ -2128,9 +2446,17 @@ function supportLabels(frame: Frame) {
   for (const ct of frame.contacts) {
     if (ct.force[0] <= 0) continue;
     const wheel = wheels.find((v) => ct.first === v || ct.second === v),
-      terrain = ct.first < 5 ? ct.first : ct.second < 5 ? ct.second : -1;
+      terrain =
+        ct.first < layout.terrainCount
+          ? ct.first
+          : ct.second < layout.terrainCount
+            ? ct.second
+            : -1;
     if (wheel === undefined) {
-      if (terrain >= 0 && (isPair(ct, terrain, names.chassis) || isPair(ct, terrain, names.bumper)))
+      if (
+        terrain >= 0 &&
+        (isPair(ct, terrain, layout.chassis) || isPair(ct, terrain, layout.bumper))
+      )
         failures.push('BODY_TERRAIN_CONTACT');
       continue;
     }
@@ -2139,31 +2465,45 @@ function supportLabels(frame: Frame) {
       continue;
     }
     const i = wheels.indexOf(wheel),
-      n = vec(physics.terrain[terrain]!.normal),
       force = [vec(ct.frame), vec(ct.frame, 3), vec(ct.frame, 6)].reduce<Vec>(
         (a, v, j) => add(a, scale(v, ct.force[j]!)),
         [0, 0, 0],
       ),
       normal = forceOn(ct, wheel, vec(ct.frame)),
       worldForce = forceOn(ct, wheel, force),
-      signed = dot(worldForce, n),
-      point = wheelPoint(frame, wheel, ct.point);
-    const valid =
-      terrain >= 0 &&
-      terrainTop(terrain, ct.point) &&
-      point.valid &&
-      dot(normal, n) >= Math.cos((limits.faceNormalAllowDeg * Math.PI) / 180) &&
-      signed > 0 &&
-      dot(worldForce, up) > 0;
+      terrainPoint = layout.union ? sub(ct.point, scale(normal, ct.distance / 2)) : ct.point,
+      atlas = atlasRow(terrain, terrainPoint, normal, layout),
+      point = wheelPoint(frame, wheel, ct.point, layout),
+      signed = Math.min(
+        ...atlas.faces.map((id) => dot(worldForce, vec(physics.terrain[id]!.normal))),
+      );
+    const valid = atlas.valid && point.valid && signed > 0 && dot(worldForce, up) > 0;
     if (!valid) {
       failures.push('INVALID_LOADED_WHEEL_TOP_FACE');
       invalid[i] = 1;
-    } else masks[i] = masks[i]! | (1 << terrain);
+    } else {
+      masks[i] = masks[i]! | atlas.mask;
+      certainMasks[i] = certainMasks[i]! | atlas.certain;
+    }
     slip = Math.max(slip, Math.hypot(ct.velocity[1], ct.velocity[2]));
     outward[i]! += signed;
     impulses[i]! += signed * (frame.to - frame.from) * 1e-6;
   }
-  return { masks, invalid, failures, slip, outward, impulses };
+  return { masks, certainMasks, invalid, failures, slip, outward, impulses };
+}
+function mixedSupport(labels: ReturnType<typeof supportLabels>, seam: number, layout: Layout) {
+  const a = 1 << seam,
+    b = 1 << (seam + 1);
+  return (
+    labels.failures.length === 0 &&
+    labels.masks.every((mask) => mask > 0 && (mask & ~(a | b)) === 0) &&
+    (layout.union
+      ? labels.certainMasks.some(
+          (mask, i) =>
+            !!(mask & a) && labels.certainMasks.some((other, j) => i !== j && !!(other & b)),
+        )
+      : labels.masks.some((mask) => !!(mask & a)) && labels.masks.some((mask) => !!(mask & b)))
+  );
 }
 const boxShapes = [
   { offset: [0, 0, 0] as Vec, half: [0.08, 0.05, 0.016] as Vec, axes: boxAxes },
@@ -2204,7 +2544,8 @@ function bodyClearances(poses: Pose[]) {
     }),
   );
 }
-function completeEnvelope(poses: Pose[]) {
+function completeEnvelope(poses: Pose[], layout = legacyLayout) {
+  const { wheels, geomBodies } = layout;
   const root = poses[roverBody]!,
     boxes = boxShapes.map((shape) => ({
       body: roverBody,
@@ -2296,8 +2637,14 @@ class Witness {
   constructor(
     readonly world: World,
     private readonly profile: ReturnType<typeof sourcePins>,
+    private readonly layout = legacyLayout,
   ) {
     this.gears = gearbox(profile);
+    if (layout.union)
+      this.wheelDossier = this.wheelDossier.map((entry, i) => ({
+        ...entry,
+        id: layout.wheels[i]!,
+      }));
   }
   configure(readback: ReturnType<typeof widths>) {
     this.masses = readback.masses;
@@ -2329,7 +2676,8 @@ class Witness {
     }
     checkPoseState(frame.pre, frame.before);
     checkPoseState(frame.post, frame.after);
-    validateContactCensus(frame.contacts, frame.census);
+    requireThat((frame.layout ?? legacyLayout).id === this.layout.id, 'FRAME_LAYOUT_IDENTITY');
+    validateContactCensus(frame.contacts, frame.census, this.layout);
     const labels = supportLabels(frame);
     requireThat(
       same(Array.from(encoded.subarray(2016, 2020)), labels.masks),
@@ -2361,7 +2709,7 @@ class Witness {
     const motion = preparePointMotion(frame);
     for (const ct of frame.contacts) {
       if (ct.address < 0) continue;
-      const w = pairWork(frame, ct, motion);
+      const w = pairWork(frame, workContact(this.layout, ct), motion);
       a.contact += w.fromRows;
       a.positiveContact += Math.max(0, w.fromRows);
       a.contactAbsorption += Math.max(0, -w.fromRows);
@@ -2382,15 +2730,7 @@ class Witness {
         if (mask & (1 << surface)) d.firstBySurface[surface] ??= frame.from;
     });
     for (let seam = 0; seam < 4; seam++)
-      if (
-        !this.mixed[seam] &&
-        labels.failures.length === 0 &&
-        labels.masks.every(
-          (mask) => mask > 0 && (mask & ~((1 << seam) | (1 << (seam + 1)))) === 0,
-        ) &&
-        labels.masks.some((mask) => !!(mask & (1 << seam))) &&
-        labels.masks.some((mask) => !!(mask & (1 << (seam + 1))))
-      )
+      if (!this.mixed[seam] && mixedSupport(labels, seam, this.layout))
         this.mixed[seam] = { from: frame.from, to: frame.to, masks: [...labels.masks] };
     const z0 = assemblyZ(frame.before, this.masses),
       z1 = assemblyZ(frame.after, this.masses);
@@ -2432,8 +2772,8 @@ class Witness {
       );
     if (this.world === 'control' && this.maxControlMove > 0.02)
       this.fail('LOW_CONTROL_TRAVEL', frame.to);
-    const before = completeEnvelope(frame.before),
-      after = completeEnvelope(frame.after);
+    const before = completeEnvelope(frame.before, this.layout),
+      after = completeEnvelope(frame.after, this.layout);
     for (const shapes of [before, after])
       if (
         shapes.some(
@@ -2555,6 +2895,7 @@ type Census = {
   sessionsDisposed: number;
 };
 const nativeMode = process.env['ASA_TT_TERRAIN_NATIVE'] === 'one-composed-terrain-pair-1071';
+const unionMode = process.env['ASA_TT_UNION_NATIVE'] === 'one-exterior-union-pair-1071';
 function externalReceiptRoot(path: string) {
   requireThat(isAbsolute(path), 'ABSOLUTE_EXTERNAL_RECEIPT_ROOT');
   const actual = realpathSync(path),
@@ -2605,10 +2946,15 @@ function enginePins(path: string) {
   requireThat(wasm.subarray(0, 4).equals(Buffer.from([0, 97, 115, 109])), 'WASM_MAGIC');
   return { path, glue, wasm, declarations };
 }
-function exactSourcePins() {
+function exactSourcePins(layout = legacyLayout) {
   return [
-    [fixtureUrl, 'ASA_TT_TERRAIN_FIXTURE_SHA256'],
-    [sourceUrl, 'ASA_TT_TERRAIN_SOURCE_SHA256'],
+    [
+      layout.union
+        ? new URL('./arduino-tt-composed-terrain-union.fixture.json', import.meta.url)
+        : fixtureUrl,
+      layout.union ? 'ASA_TT_UNION_FIXTURE_SHA256' : 'ASA_TT_TERRAIN_FIXTURE_SHA256',
+    ],
+    [sourceUrl, layout.union ? 'ASA_TT_UNION_SOURCE_SHA256' : 'ASA_TT_TERRAIN_SOURCE_SHA256'],
   ].map(([url, key]) => {
     const expected = process.env[key as string] ?? '';
     requireThat(/^[a-f0-9]{64}$/.test(expected), 'EXPLICIT_FROZEN_SOURCE_DIGEST');
@@ -2624,8 +2970,9 @@ function exactSourcePins() {
   });
 }
 const initialization = { attempted: 0, returned: 0, phase: 'not-imported' };
-async function loadNative(input: ReturnType<typeof enginePins>) {
-  assertNativeAdmission(nativeMode, initialization.attempted);
+async function loadNative(input: ReturnType<typeof enginePins>, layout = legacyLayout) {
+  assertUnionAdmission(layout);
+  assertNativeAdmission(unionMode, initialization.attempted);
   initialization.attempted++;
   initialization.phase = 'glue-import';
   const path = join(input.path, eng.glue.file);
@@ -2660,10 +3007,13 @@ class Journal {
   private intervals = 0;
   private contacts = 0;
   lastFrame: { to: number; postHash: string } | undefined;
-  constructor(root: string) {
-    this.meta = openSync(join(root, kindNames.meta), 'wx', 0o600);
+  constructor(
+    root: string,
+    readonly layout = legacyLayout,
+  ) {
+    this.meta = openSync(join(root, layout.files.meta), 'wx', 0o600);
     try {
-      this.bin = openSync(join(root, kindNames.intervals), 'wx', 0o600);
+      this.bin = openSync(join(root, layout.files.intervals), 'wx', 0o600);
     } catch (error) {
       const terminal = Buffer.from(
         JSON.stringify({ kind: 'admission-error', message: String(error), step1: 0, step2: 0 }) +
@@ -2685,20 +3035,25 @@ class Journal {
   }
   reserveHeader() {
     requireThat(
-      this.intervals < cap.maxIntervalsPerWorld &&
-        this.contacts <= cap.maxContactsPerWorld &&
-        this.binaryBytes + recordFootprint + cap.metadataByteCap + cap.footerByteCap <= cap.byteCap,
+      this.intervals < this.layout.cap.maxIntervalsPerWorld &&
+        this.contacts <= this.layout.cap.maxContactsPerWorld &&
+        this.binaryBytes +
+          recordFootprint +
+          this.layout.cap.metadataByteCap +
+          this.layout.cap.footerByteCap <=
+          this.layout.cap.byteCap,
       'PRE_STEP1_CAPTURE_CAP',
     );
   }
   reserve(n: number) {
-    const bytes = recordFootprint + n * cap.contactBytes;
-    const reserved = this.binaryBytes + bytes + cap.metadataByteCap + cap.footerByteCap;
+    const bytes = recordFootprint + n * this.layout.cap.contactBytes;
+    const reserved =
+      this.binaryBytes + bytes + this.layout.cap.metadataByteCap + this.layout.cap.footerByteCap;
     if (
-      !ints(n, cap.maxContactsPerInterval) ||
-      this.contacts + n > cap.maxContactsPerWorld ||
-      this.intervals >= cap.maxIntervalsPerWorld ||
-      reserved > cap.byteCap
+      !ints(n, this.layout.cap.maxContactsPerInterval) ||
+      this.contacts + n > this.layout.cap.maxContactsPerWorld ||
+      this.intervals >= this.layout.cap.maxIntervalsPerWorld ||
+      reserved > this.layout.cap.byteCap
     ) {
       this.write(
         {
@@ -2732,7 +3087,7 @@ class Journal {
       ) + '\n',
     );
     const size = emergency ? this.footerBytes + line.length : this.metadataBytes + line.length;
-    if (size > (emergency ? cap.footerByteCap : cap.metadataByteCap))
+    if (size > (emergency ? this.layout.cap.footerByteCap : this.layout.cap.metadataByteCap))
       throw new Error('METADATA_CAPTURE_LIMIT');
     requireThat(writeSync(this.meta, line) === line.length, 'METADATA_SHORT_WRITE');
     if (emergency) this.footerBytes = size;
@@ -2765,8 +3120,10 @@ function dynamicWorld(
   journal: Journal,
   profile: ReturnType<typeof sourcePins>,
   dispatch: Census,
+  layout = legacyLayout,
 ) {
-  const history = new Witness(world, profile);
+  const { cap, xml } = layout;
+  const history = new Witness(world, profile, layout);
   const ledger = newLedger();
   const baseOffset = journal.binaryBytes;
   const circuit = buildCircuit(world);
@@ -2776,7 +3133,7 @@ function dynamicWorld(
     createElectronicsTtNativeDriveTestSession(circuit, {
       componentId: motorId,
       port,
-      runId: 'terrain-seams:' + world,
+      runId: (layout.union ? 'terrain-union:' : 'terrain-seams:') + world,
       generation: 1,
       requestedHorizonMicroseconds: budgets.horizonUs,
       maxEvents: budgets.maxEvents,
@@ -2818,7 +3175,7 @@ function dynamicWorld(
       world,
       baseOffset,
       circuitProjectionSha,
-      xmlSha256: f.xmlSha256,
+      xmlSha256: layout.xmlSha256,
       ledger,
     });
     dispatch.modelAttempted++;
@@ -2840,7 +3197,7 @@ function dynamicWorld(
     const tangentBuffer = size(nv);
     const massBuffer = size(nv);
     stage = 'factory-readback';
-    const readback = modelReadback(M, model, data);
+    const readback = modelReadback(M, model, data, layout);
     history.configure(readback);
     const capacity = new Map(readback.pairAllocation.map((pair) => [pair.key, pair.max]));
     warnings(data, ledger);
@@ -2848,8 +3205,8 @@ function dynamicWorld(
     stage = 'initial-forward-observation';
     requireThat(ledger.cleanupErrors.length === 0, 'INITIAL_NATIVE_HANDLE_CLEANUP');
     const initial = endpointEnergy(M, model, data, massBuffer, vectorBuffer, readback, ledger);
-    const mesh = assertMesh(model, data);
-    const initialEnvelope = completeEnvelope(initial.poses);
+    const mesh = assertMesh(model, data, layout);
+    const initialEnvelope = completeEnvelope(initial.poses, layout);
     requireThat(
       initialEnvelope.every(
         (v) =>
@@ -2865,6 +3222,7 @@ function dynamicWorld(
     warnings(data, ledger);
     journal.write({
       kind: 'world-start',
+      ...(layout.union ? { layout: layoutIdentity(layout) } : {}),
       world,
       baseOffset,
       initial,
@@ -3029,7 +3387,9 @@ function dynamicWorld(
         flush(resolvedActualPost, { state: pre, poses: before });
       }
       stage = 'pre-constraint-observation';
-      const constraints = preConstraints(M, model, data, pre, vectorBuffer, ledger, capacity);
+      const constraints = layout.union
+        ? layoutPreConstraints(M, model, data, pre, vectorBuffer, ledger, capacity, layout)
+        : preConstraints(M, model, data, pre, vectorBuffer, ledger, capacity);
       pendingAttempt.constraints = constraints;
       journal.reserve(constraints.contacts.length);
       requireThat(ledger.cleanupErrors.length === 0, 'PRE_SOLVE_NATIVE_HANDLE_CLEANUP');
@@ -3062,11 +3422,13 @@ function dynamicWorld(
         ledger,
         capacity,
         pendingAttempt,
+        layout,
       );
       warnings(data, ledger);
       action(data, effort.torque);
       const applied = finite(data.qfrc_applied[axleV], 'NATIVE_APPLIED_SHAFT_READBACK');
       pending = {
+        ...(layout.union ? { layout } : {}),
         from: query.fromMicroseconds,
         to: query.toMicroseconds,
         pre,
@@ -3250,8 +3612,10 @@ function checkPoseState(s: State, poses: Pose[]) {
   });
 }
 
-function rawSchema() {
+function rawSchema(layout = legacyLayout) {
+  const { ngeom, geomBodies, wheels } = layout;
   return {
+    ...(layout.union ? { layout: layoutIdentity(layout) } : {}),
     version: 'ASA_COMPOSED_TERRAIN_LE_V1',
     byteOrder: 'little-endian',
     headerBytes: 2048,
@@ -3310,7 +3674,13 @@ function readMetadata(path: string) {
     .split('\n')
     .map((line) => JSON.parse(line, (_k, v: unknown) => (v === 'float64:-0' ? -0 : v)) as JsonLine);
 }
-function replayPair(root: string, outcomes: Outcome[]) {
+function replayPair(
+  root: string,
+  outcomes: Outcome[],
+  layout = legacyLayout,
+  onFrame?: (frame: Frame, world: World) => void,
+) {
+  const kindNames = layout.files;
   const bytes = readFileSync(join(root, kindNames.intervals)),
     metadata = readMetadata(join(root, kindNames.meta)),
     profile = sourcePins();
@@ -3327,14 +3697,19 @@ function replayPair(root: string, outcomes: Outcome[]) {
       final = end.final as Energy;
     checkEndpointEnergy(initial);
     checkEndpointEnergy(final);
-    replayMesh(start.mesh);
-    const witness = new Witness(outcome.world, profile);
+    if (layout.union)
+      requireThat(
+        signedJson(start.layout) === signedJson(layoutIdentity(layout)),
+        'REPLAY_LAYOUT_IDENTITY',
+      );
+    replayMesh(start.mesh, layout);
+    const witness = new Witness(outcome.world, profile, layout);
     witness.configure(start.readback as ReturnType<typeof widths>);
     let count = 0;
     for (let tick = 0; tick < outcome.step; tick++) {
       requireThat(offset + 2048 <= bytes.length, 'RAW_HEADER_BOUND');
       const n = bytes.readDoubleLE(offset + 24);
-      requireThat(ints(n, 132), 'RAW_CONTACT_CAP');
+      requireThat(ints(n, layout.cap.maxContactsPerInterval), 'RAW_CONTACT_CAP');
       const size = 2048 + n * 176;
       requireThat(offset + size <= (end.endOffset as number), 'RAW_FRAME_BOUND');
       const raw = bytes.subarray(offset, offset + size),
@@ -3343,7 +3718,7 @@ function replayPair(root: string, outcomes: Outcome[]) {
       if (head.ref === 1) {
         requireThat(offset + size < (end.endOffset as number), 'SUCCESSOR_REQUIRED');
         const nextN = bytes.readDoubleLE(offset + size + 24);
-        requireThat(ints(nextN, 132), 'NEXT_CONTACT_CAP');
+        requireThat(ints(nextN, layout.cap.maxContactsPerInterval), 'NEXT_CONTACT_CAP');
         const next = decodeHead(bytes.subarray(offset + size, offset + size + 2048 + nextN * 176));
         requireThat(next.from === head.to, 'ACTUAL_SUCCESSOR_CLOCK');
         endpoint = { state: next.pre, poses: next.before };
@@ -3359,7 +3734,8 @@ function replayPair(root: string, outcomes: Outcome[]) {
           'INDEPENDENT_ACTUAL_FINAL_ENDPOINT',
         );
       }
-      const frame = decodeInterval(raw, endpoint);
+      const frame = decodeInterval(raw, endpoint, layout);
+      onFrame?.(frame, outcome.world);
       witness.observe(frame, raw);
       count += n;
       offset += size;
@@ -3435,187 +3811,399 @@ function priorAdmission(rawRoot: string, receiptPath: string) {
   };
 }
 
-it.skipIf(!nativeMode)(
-  'acquires the one composed-terrain real Arduino powered and LOW native pair',
-  async () => {
-    const root = externalReceiptRoot(process.env['ASA_TT_TERRAIN_OUTPUT'] ?? '');
-    const journal = new Journal(root);
-    const census: Census = {
-      modelAttempted: 0,
-      modelReturned: 0,
-      dataAttempted: 0,
-      dataReturned: 0,
-      step1: 0,
-      step1Returned: 0,
-      step2: 0,
-      step2Returned: 0,
-      sessionsDisposed: 0,
+function layoutIdentity(layout: Layout) {
+  return {
+    id: layout.id,
+    nativeGeoms: layout.ngeom,
+    counts: layout.counts,
+    geomBodies: layout.geomBodies,
+    wheels: layout.wheels,
+    chassis: layout.chassis,
+    bumper: layout.bumper,
+    expected: layout.expected,
+    authoredTopFaces: physics.terrain.map(({ id, name, x, y, top, normal }) => ({
+      id,
+      name,
+      x,
+      y,
+      top,
+      normal,
+    })),
+    workBodyAliases: layout.union ? u.geometry.workAliases : null,
+    atlas: layout.union ? u.atlas : null,
+    contactCap: layout.cap.maxContactsPerInterval,
+    rowCap: layout.cap.maxRowsPerInterval,
+    xmlSha256: layout.xmlSha256,
+  };
+}
+function assertUnionAdmission(layout: Layout, environment: NodeJS.ProcessEnv = process.env) {
+  requireThat(
+    layout.union &&
+      environment['ASA_TT_UNION_NATIVE'] === 'one-exterior-union-pair-1071' &&
+      !['ASA_TT_TERRAIN_NATIVE', 'ASA_TT_SPHERE_NATIVE'].some((key) => Boolean(environment[key])),
+    'ONLY_NEW_UNION_ACQUISITION_NO_CONSUMED_OR_AMBIGUOUS_TOKENS',
+  );
+}
+function unionGeometryProof() {
+  requireThat(
+    hash(unionLayout.xml) === u.xmlSha256 &&
+      unionLayout.xml.split(f.rover.xml.join('\n')).length === 2,
+    'UNION_XML_AND_EXACT_ROVER',
+  );
+  requireThat(
+    unionLayout.xml.split('<option')[1]!.split('</option>')[0] ===
+      xml.split('<option')[1]!.split('</option>')[0] &&
+      unionLayout.xml.split('<default>')[1]!.split('</default>')[0] ===
+        xml.split('<default>')[1]!.split('</default>')[0],
+    'UNCHANGED_OPTIONS_MATERIAL_DEFAULTS',
+  );
+  const height = f.geometry.height,
+    slope = height / 0.8;
+  requireThat(
+    slope > 0 &&
+      -slope < 0 &&
+      u.geometry.nativeCounts.nmeshvert === 28 &&
+      u.geometry.nativeCounts.nmeshface === 44,
+    'EXACT_CONCAVE_ROOF_THREE_NATIVE',
+  );
+  // The min of these three affine roofs is concave. Its hypograph over the
+  // finite rectangle, intersected with z>=-.05, is exactly the adjacent union.
+  const roofs = [(x: number) => slope * x, () => height, (x: number) => slope * (2 - x)];
+  for (const [i, piece] of physics.terrain.slice(1, 4).entries())
+    for (const [end, x] of piece.x.entries()) {
+      const own = roofs[i]!(x),
+        expected = piece.top[end]!,
+        roundoff = 256 * f.geometry.float64UnitRoundoff;
+      near(own, expected, roundoff, 'ANALYTIC_UNION_ROOF');
+      // Differences of affine roofs attain minima at interval endpoints. The own
+      // roof agrees at BOTH endpoints; the other roofs lie above at BOTH. Thus
+      // equality holds over each whole segment, not only a sampled grid.
+      requireThat(
+        roofs.every((roof) => roof(x) >= own - roundoff),
+        'UNION_HALFSPACE_ENTIRE_SEGMENT',
+      );
+    }
+  const upper = u.geometry.nativeMeshes[1]!,
+    proof = closedHull(
+      upper.vertices.map((v) => vec(v)),
+      upper.faces,
+      u.geometry.upperPlanes,
+    );
+  near(
+    proof.volume,
+    0.1 + 1.2 * height,
+    256 * f.geometry.float64UnitRoundoff,
+    'EXACT_UNION_OCCUPIED_VOLUME',
+  );
+  requireThat(proof.vertices === 12 && proof.triangles === 20, 'UPPER_CLOSED_TRIANGULATION');
+  for (const [native, old] of [
+    [0, 0],
+    [2, 4],
+  ])
+    requireThat(
+      signedJson(u.geometry.nativeMeshes[native!]!.vertices) ===
+        signedJson(physics.terrain[old!]!.vertices) &&
+        signedJson(u.geometry.nativeMeshes[native!]!.faces) ===
+          signedJson(physics.terrain[old!]!.faces),
+      'UNCHANGED_LOWER_SOLIDS',
+    );
+  requireThat(
+    unionLayout.expected.pairs.length === 18 &&
+      unionLayout.expected.pairs.every((p) => p.friction === 0.8) &&
+      18 * 4 === 72,
+    'EXACT_UNION_MATERIAL_PAIR_CAP',
+  );
+  return proof;
+}
+function verifyTerrainReceipt(receipt: unknown) {
+  requireThat(receipt !== null && typeof receipt === 'object', 'OLD_TERRAIN_RECEIPT_OBJECT');
+  const r = receipt as Record<string, unknown>,
+    p = u.predecessor,
+    verdict = r.verdict as Record<string, unknown>,
+    full = r.full_replay as Record<string, unknown>;
+  requireThat(
+    r.schema === 'ASA_INDEPENDENT_COMPOSED_TERRAIN_AUDIT_V1' &&
+      r.source_commit === p.commit &&
+      r.source_tree === p.tree &&
+      signedJson(r.source) === signedJson(p.source) &&
+      signedJson(r.inputs) === signedJson(p.inputs) &&
+      signedJson(r.artifacts) === signedJson(p.artifacts),
+    'OLD_TERRAIN_SOURCE_INPUT_LINKAGE',
+  );
+  requireThat(
+    verdict.runtime === 'COMPLETE' &&
+      verdict.acquisition === 'CONSUMED' &&
+      verdict.physical === 'FAIL' &&
+      verdict.causal === 'GAP' &&
+      verdict.energy === 'PASS' &&
+      verdict.formal === 'D01_D02_OPEN' &&
+      full.parsed_intervals === 40180 &&
+      full.native_calls === 0 &&
+      signedJson(r.invalid_interval_pairs) === signedJson(u.atlas.negativePairs),
+    'PRESERVE_OLD_TERRAIN_FAIL',
+  );
+}
+function terrainPriorAdmission(rawRoot: string, receiptPath: string, archivedSource: string) {
+  const p = u.predecessor,
+    raw = pinned(join(rawRoot, p.inputs.binary.file), p.inputs.binary),
+    meta = pinned(join(rawRoot, p.inputs.jsonl.file), p.inputs.jsonl),
+    receipt = pinned(receiptPath, p.receipt);
+  pinned(archivedSource, p.source.spec);
+  pinned(fileURLToPath(fixtureUrl), p.source.fixture);
+  verifyTerrainReceipt(JSON.parse(receipt.toString()));
+  for (const entry of p.artifacts) pinned(join(dirname(receiptPath), entry.file), entry);
+  const records = readMetadata(join(rawRoot, p.inputs.jsonl.file)),
+    outcomes = records.filter((v) => v.kind === 'world-end').map((v) => v.outcome as Outcome),
+    rejected: unknown[] = [];
+  requireThat(
+    outcomes.length === 2 &&
+      outcomes[0]!.world === 'powered' &&
+      outcomes[1]!.world === 'control' &&
+      outcomes.every((v) => v.step === 20090),
+    'OLD_FULL_PAIR_COUNTS',
+  );
+  const replay = replayPair(rawRoot, outcomes, legacyLayout, (frame, world) => {
+    if (world !== 'powered') return;
+    const pairs = (u.atlas.negativePairs as Record<string, number[][]>)[String(frame.from)];
+    if (!pairs) return;
+    for (const [terrain, wheel] of pairs) {
+      const contacts = frame.contacts.filter((c) => isPair(c, terrain!, wheel!));
+      const failed = contacts.filter((c) => {
+        if (c.force[0] <= 0) return false;
+        const normal = forceOn(c, wheel!, vec(c.frame)),
+          point = sub(c.point, scale(normal, c.distance / 2)),
+          prospective = atlasRow(1, point, normal, unionLayout);
+        if (prospective.valid) return false;
+        rejected.push({
+          from: frame.from,
+          terrain,
+          wheel,
+          index: c.index,
+          normal,
+          terrainPoint: point,
+          distance: c.distance,
+          force: c.force,
+        });
+        return true;
+      });
+      requireThat(failed.length === 1, 'ALL_EIGHT_REAL_SIGNED_ROWS_REJECTED');
+    }
+  });
+  requireThat(
+    rejected.length === 8 && replay.worlds.reduce((n, w) => n + w.step, 0) === 40180,
+    'COMPLETE_PRIOR_AND_EIGHT_NEGATIVES',
+  );
+  return {
+    source: p.commit,
+    binary: { bytes: raw.length, sha256: hash(raw) },
+    jsonl: { bytes: meta.length, sha256: hash(meta) },
+    receipt: { bytes: receipt.length, sha256: hash(receipt) },
+    replay,
+    rejected,
+    noNative: true,
+  };
+}
+async function acquireUnionPair(layout: Layout) {
+  assertUnionAdmission(layout);
+  const root = externalReceiptRoot(process.env['ASA_TT_UNION_OUTPUT'] ?? '');
+  const journal = new Journal(root, layout);
+  const census: Census = {
+    modelAttempted: 0,
+    modelReturned: 0,
+    dataAttempted: 0,
+    dataReturned: 0,
+    step1: 0,
+    step1Returned: 0,
+    step2: 0,
+    step2Returned: 0,
+    sessionsDisposed: 0,
+  };
+  let initialized = false,
+    physical = 'UNRESOLVED',
+    energyBudget = 'UNRESOLVED',
+    failure: unknown;
+  try {
+    requireThat(unionMode && layout.union, 'ONLY_NEW_TERRAIN_ACQUISITION');
+    requireThat(
+      rawUpperBytes === 257949184 && rawSchema(layout).headerWords === 109,
+      'REGISTERED_COMPLETE_CAPTURE',
+    );
+    const sources = exactSourcePins(layout),
+      profile = sourcePins();
+    const prior = priorAdmission(
+      process.env['ASA_TT_TERRAIN_PRIOR_RAW'] ?? '',
+      process.env['ASA_TT_TERRAIN_PRIOR_REPLAY'] ?? '',
+    );
+    const terrainPrior = terrainPriorAdmission(
+      process.env['ASA_TT_UNION_PRIOR_RAW'] ?? '',
+      process.env['ASA_TT_UNION_PRIOR_REPLAY'] ?? '',
+      process.env['ASA_TT_UNION_ARCHIVED_SPEC'] ?? '',
+    );
+    unionGeometryProof();
+    const runtimeSources = f.nativeRuntimeSources.map((entry) => {
+      pinned(resolve(fileURLToPath(new URL('../../../', import.meta.url)), entry.path), entry);
+      return entry;
+    });
+    const circuits = Object.fromEntries(
+      (['powered', 'control'] as const).map((world) => [
+        world,
+        hash(JSON.stringify(buildCircuit(world))),
+      ]),
+    );
+    requireThat(
+      JSON.stringify(circuits) === JSON.stringify(f.circuitSha256),
+      'PURE_CIRCUIT_PINS_BEFORE_NATIVE',
+    );
+    const pureGpio = Object.fromEntries(
+      (['powered', 'control'] as const).map((world) => {
+        const events = pureUno(world, 256);
+        requireThat(
+          JSON.stringify(events) === JSON.stringify(f.programs[world].gpio),
+          'ACTUAL_PURE_GPIO_BEFORE_NATIVE',
+        );
+        return [world, events];
+      }),
+    );
+    const engine = enginePins(process.env['ASA_TT_TERRAIN_ENGINE'] ?? '');
+    journal.write({
+      kind: 'header',
+      scope: layout.id,
+      terrainPrior,
+      prior,
+      sources,
+      runtimeSources,
+      fixture: u,
+      baselineFixture: f,
+      layout: layoutIdentity(layout),
+      schema: rawSchema(layout),
+      circuitHashes: circuits,
+      pureGpio,
+      runtime: { node: process.version, platform: process.platform, arch: process.arch },
+      nativeInitialized: false,
+      initialization,
+      census,
+    });
+    fsyncSync(journal.meta);
+    const header = readFileSync(join(root, layout.files.meta));
+    const decodedHeader = JSON.parse(header.toString(), (_key, value: unknown) =>
+      value === 'float64:-0' ? -0 : value,
+    ) as {
+      layout: unknown;
+      sources: unknown;
+      runtimeSources: unknown;
+      fixture: { xmlSha256: string };
+      schema: { version: string };
     };
-    let initialized = false,
-      physical = 'UNRESOLVED',
-      energyBudget = 'UNRESOLVED',
-      failure: unknown;
+    requireThat(
+      header.length === journal.metadataBytes &&
+        JSON.stringify(decodedHeader.sources) === JSON.stringify(sources) &&
+        JSON.stringify(decodedHeader.runtimeSources) === JSON.stringify(runtimeSources) &&
+        decodedHeader.fixture.xmlSha256 === layout.xmlSha256 &&
+        decodedHeader.schema.version === rawSchema(layout).version &&
+        signedJson(decodedHeader.layout) === signedJson(layoutIdentity(layout)) &&
+        signedJson(decodedHeader.fixture) === signedJson(u),
+      'ON_DISK_HEADER_PINS_BEFORE_NATIVE',
+    );
+    journal.write({
+      kind: 'header-readback',
+      bytes: header.length,
+      sha256: hash(header),
+      nativeInitialized: false,
+      initialization,
+      census,
+    });
+    const M = await loadNative(engine, layout);
+    initialized = true;
+    const powered = dynamicWorld(M, 'powered', journal, profile, census, layout);
+    const control = dynamicWorld(M, 'control', journal, profile, census, layout);
+    requireThat(
+      powered.prefix.intervals === comparison.prefixIntervals &&
+        powered.prefix.throughUs === comparison.interventionUs &&
+        control.prefix.throughUs === comparison.interventionUs &&
+        powered.prefix.lastFromUs === comparison.lastLegacyFromUs &&
+        control.prefix.lastFromUs === comparison.lastLegacyFromUs &&
+        control.prefix.intervals === comparison.prefixIntervals &&
+        powered.prefix.sha256 === control.prefix.sha256,
+      'EXACT_NEW_SCENE_COMMON_PREFIX',
+    );
+    requireThat(
+      census.step1 === census.step1Returned &&
+        census.step2 === census.step2Returned &&
+        census.step2 === powered.step + control.step &&
+        census.sessionsDisposed === 2,
+      'PAIR_NATIVE_LIFETIME_CENSUS',
+    );
+    fsyncSync(journal.bin);
+    const replay = replayPair(root, [powered, control], layout);
+    physical =
+      powered.physical === 'FAIL' || control.physical === 'FAIL'
+        ? 'FAIL'
+        : powered.physical === 'NOT_REACHED'
+          ? 'NOT_REACHED'
+          : 'PASS';
+    energyBudget = powered.energy.budgetAccepted && control.energy.budgetAccepted ? 'PASS' : 'FAIL';
+    journal.write(
+      {
+        kind: 'finish',
+        runtime: 'COMPLETE',
+        acquisition: 'CONSUMED',
+        physical,
+        energyBudget:
+          powered.energy.budgetAccepted && control.energy.budgetAccepted ? 'PASS' : 'FAIL',
+        formalAcceptance: 'D01_D02_OPEN',
+        causal:
+          powered.energy.causal === 'GAP' || control.energy.causal === 'GAP'
+            ? 'GAP'
+            : 'NO_NEW_GAP_OBSERVED',
+        historicalR5Causal: 'GAP_CAUSAL_ALT',
+        initialized,
+        initialization,
+        census,
+        outcomes: [powered, control],
+        replay,
+        binary: { bytes: journal.binaryBytes, sha256: journal.digest.copy().digest('hex') },
+      },
+      true,
+    );
+  } catch (error) {
+    failure = error;
     try {
-      requireThat(
-        nativeMode && !process.env['ASA_TT_SPHERE_NATIVE'],
-        'ONLY_NEW_TERRAIN_ACQUISITION',
-      );
-      requireThat(
-        rawUpperBytes === 257949184 && rawSchema().headerWords === 109,
-        'REGISTERED_COMPLETE_CAPTURE',
-      );
-      const sources = exactSourcePins(),
-        profile = sourcePins();
-      const prior = priorAdmission(
-        process.env['ASA_TT_TERRAIN_PRIOR_RAW'] ?? '',
-        process.env['ASA_TT_TERRAIN_PRIOR_REPLAY'] ?? '',
-      );
-      const runtimeSources = f.nativeRuntimeSources.map((entry) => {
-        pinned(resolve(fileURLToPath(new URL('../../../', import.meta.url)), entry.path), entry);
-        return entry;
-      });
-      const circuits = Object.fromEntries(
-        (['powered', 'control'] as const).map((world) => [
-          world,
-          hash(JSON.stringify(buildCircuit(world))),
-        ]),
-      );
-      requireThat(
-        JSON.stringify(circuits) === JSON.stringify(f.circuitSha256),
-        'PURE_CIRCUIT_PINS_BEFORE_NATIVE',
-      );
-      const pureGpio = Object.fromEntries(
-        (['powered', 'control'] as const).map((world) => {
-          const events = pureUno(world, 256);
-          requireThat(
-            JSON.stringify(events) === JSON.stringify(f.programs[world].gpio),
-            'ACTUAL_PURE_GPIO_BEFORE_NATIVE',
-          );
-          return [world, events];
-        }),
-      );
-      const engine = enginePins(process.env['ASA_TT_TERRAIN_ENGINE'] ?? '');
-      journal.write({
-        kind: 'header',
-        scope: f.id,
-        prior,
-        sources,
-        runtimeSources,
-        fixture: f,
-        schema: rawSchema(),
-        circuitHashes: circuits,
-        pureGpio,
-        runtime: { node: process.version, platform: process.platform, arch: process.arch },
-        nativeInitialized: false,
-        initialization,
-        census,
-      });
-      fsyncSync(journal.meta);
-      const header = readFileSync(join(root, kindNames.meta));
-      const decodedHeader = JSON.parse(header.toString()) as {
-        sources: unknown;
-        runtimeSources: unknown;
-        fixture: typeof f;
-        schema: { version: string };
-      };
-      requireThat(
-        header.length === journal.metadataBytes &&
-          JSON.stringify(decodedHeader.sources) === JSON.stringify(sources) &&
-          JSON.stringify(decodedHeader.runtimeSources) === JSON.stringify(runtimeSources) &&
-          decodedHeader.fixture.xmlSha256 === f.xmlSha256 &&
-          decodedHeader.schema.version === rawSchema().version,
-        'ON_DISK_HEADER_PINS_BEFORE_NATIVE',
-      );
-      journal.write({
-        kind: 'header-readback',
-        bytes: header.length,
-        sha256: hash(header),
-        nativeInitialized: false,
-        initialization,
-        census,
-      });
-      const M = await loadNative(engine);
-      initialized = true;
-      const powered = dynamicWorld(M, 'powered', journal, profile, census);
-      const control = dynamicWorld(M, 'control', journal, profile, census);
-      requireThat(
-        powered.prefix.intervals === comparison.prefixIntervals &&
-          powered.prefix.throughUs === comparison.interventionUs &&
-          control.prefix.throughUs === comparison.interventionUs &&
-          powered.prefix.lastFromUs === comparison.lastLegacyFromUs &&
-          control.prefix.lastFromUs === comparison.lastLegacyFromUs &&
-          control.prefix.intervals === comparison.prefixIntervals &&
-          powered.prefix.sha256 === control.prefix.sha256,
-        'EXACT_NEW_SCENE_COMMON_PREFIX',
-      );
-      requireThat(
-        census.step1 === census.step1Returned &&
-          census.step2 === census.step2Returned &&
-          census.step2 === powered.step + control.step &&
-          census.sessionsDisposed === 2,
-        'PAIR_NATIVE_LIFETIME_CENSUS',
-      );
-      fsyncSync(journal.bin);
-      const replay = replayPair(root, [powered, control]);
-      physical =
-        powered.physical === 'FAIL' || control.physical === 'FAIL'
-          ? 'FAIL'
-          : powered.physical === 'NOT_REACHED'
-            ? 'NOT_REACHED'
-            : 'PASS';
-      energyBudget =
-        powered.energy.budgetAccepted && control.energy.budgetAccepted ? 'PASS' : 'FAIL';
       journal.write(
         {
-          kind: 'finish',
-          runtime: 'COMPLETE',
-          acquisition: 'CONSUMED',
-          physical,
-          energyBudget:
-            powered.energy.budgetAccepted && control.energy.budgetAccepted ? 'PASS' : 'FAIL',
-          formalAcceptance: 'D01_D02_OPEN',
-          causal:
-            powered.energy.causal === 'GAP' || control.energy.causal === 'GAP'
-              ? 'GAP'
-              : 'NO_NEW_GAP_OBSERVED',
-          historicalR5Causal: 'GAP_CAUSAL_ALT',
+          kind: 'first-error',
+          runtime: 'ERROR',
+          physical: 'UNRESOLVED',
+          acquisition: census.step1 > 0 || census.step2 > 0 ? 'CONSUMED' : 'PRE_DISPATCH',
           initialized,
-          initialization,
           census,
-          outcomes: [powered, control],
-          replay,
+          error: String(error),
           binary: { bytes: journal.binaryBytes, sha256: journal.digest.copy().digest('hex') },
         },
         true,
       );
-    } catch (error) {
-      failure = error;
-      try {
-        journal.write(
-          {
-            kind: 'first-error',
-            runtime: 'ERROR',
-            physical: 'UNRESOLVED',
-            acquisition: census.step1 > 0 || census.step2 > 0 ? 'CONSUMED' : 'PRE_DISPATCH',
-            initialized,
-            census,
-            error: String(error),
-            binary: { bytes: journal.binaryBytes, sha256: journal.digest.copy().digest('hex') },
-          },
-          true,
-        );
-      } catch (receiptError) {
-        failure = Object.assign(error instanceof Error ? error : new Error(String(error)), {
-          receiptError: String(receiptError),
-        });
-      }
-    } finally {
-      const closed = journal.close();
-      if (closed.length) failure ??= new Error('RECEIPT_CLOSE ' + closed.join('; '));
+    } catch (receiptError) {
+      failure = Object.assign(error instanceof Error ? error : new Error(String(error)), {
+        receiptError: String(receiptError),
+      });
     }
-    if (failure) throw failure;
-    expect(physical).toBe('PASS');
-    expect(energyBudget).toBe('PASS');
+  } finally {
+    const closed = journal.close();
+    if (closed.length) failure ??= new Error('RECEIPT_CLOSE ' + closed.join('; '));
+  }
+  if (failure) throw failure;
+  expect(physical).toBe('PASS');
+  expect(energyBudget).toBe('PASS');
+}
+it.skipIf(!nativeMode)(
+  'acquires the one composed-terrain real Arduino powered and LOW native pair',
+  async () => {
+    throw new Error('OLD_CONSUMED_TERRAIN_ACQUISITION_REQUIRES_SEPARATE_SELECTION');
+  },
+);
+it.skipIf(!unionMode)(
+  'acquires the one exterior-union real Arduino powered and LOW native pair',
+  async () => {
+    await acquireUnionPair(unionLayout);
   },
   360000,
 );
@@ -4292,6 +4880,258 @@ it('retains transient full-horizon slip but applies0.02 only to continuous decla
   expect(interrupted).toHaveProperty('maxSlip', 0.03);
   expect(interrupted).toHaveProperty('failures', new Map());
   expect(interrupted.windows[0]).toBeNull();
+});
+
+function syntheticUnionMesh() {
+  const meshes = u.geometry.nativeMeshes;
+  const model = {
+    ...unionLayout.counts,
+    mesh_vert: Float32Array.from(meshes.flatMap((m) => m.vertices.flat())),
+    mesh_face: Int32Array.from(meshes.flatMap((m) => m.faces.flat())),
+    mesh_vertadr: Int32Array.from([0, 8, 20]),
+    mesh_vertnum: Int32Array.from([8, 12, 8]),
+    mesh_faceadr: Int32Array.from([0, 12, 32]),
+    mesh_facenum: Int32Array.from([12, 20, 12]),
+    geom_dataid: Int32Array.from([0, 1, 2, -1, -1, -1, -1, -1, -1]),
+    geom_type: Int32Array.from([7, 7, 7, 6, 6, 5, 5, 5, 5]),
+    geom_bodyid: Int32Array.from(unionLayout.geomBodies),
+    mesh_scale: Float64Array.from(Array(9).fill(1)),
+    mesh_pos: new Float64Array(9),
+    mesh_quat: Float64Array.from(Array.from({ length: 3 }, () => [1, 0, 0, 0]).flat()),
+    geom_pos: new Float64Array(27),
+    geom_quat: Float64Array.from(Array.from({ length: 9 }, () => [1, 0, 0, 0]).flat()),
+    geom_size: new Float64Array(27),
+  } as unknown as Model;
+  const data = {
+    geom_xpos: new Float64Array(27),
+    geom_xmat: Float64Array.from(
+      Array.from({ length: 9 }, () => [1, 0, 0, 0, 1, 0, 0, 0, 1]).flat(),
+    ),
+  } as unknown as Data;
+  return { model, data };
+}
+function unionSyntheticFrame() {
+  const frame = syntheticContacts(syntheticFrame());
+  frame.layout = unionLayout;
+  for (const ct of frame.contacts) ct.second -= 2;
+  frame.census.identities = frame.contacts.map((c) => ({
+    first: c.first,
+    second: c.second,
+    exclude: c.exclude,
+    active: c.address >= 0,
+    distance: c.distance,
+  }));
+  return frame;
+}
+function sampleAtlas(sample: (typeof u.atlas.negativeSamples)[number]) {
+  const raw = Buffer.from(sample.entryHex, 'hex'),
+    first = raw.readUInt16LE(0),
+    second = raw.readUInt16LE(2),
+    point = vec(Array.from({ length: 3 }, (_, i) => raw.readDoubleLE(8 + i * 8))),
+    normal = scale(
+      vec(Array.from({ length: 3 }, (_, i) => raw.readDoubleLE(32 + i * 8))),
+      second === sample.wheel ? 1 : -1,
+    ),
+    distance = Buffer.from(sample.distanceHex, 'hex').readDoubleLE();
+  requireThat(
+    (first === sample.terrain || second === sample.terrain) && raw.readDoubleLE(104) > 0,
+    'REAL_ARCHIVED_LOADED_PAIR',
+  );
+  return atlasRow(1, sub(point, scale(normal, distance / 2)), normal, unionLayout);
+}
+it('proves the exact three-mesh convex exterior union preserves five authored pieces, materials and full native layout', () => {
+  const proof = unionGeometryProof();
+  expect(proof.volume).toBeCloseTo(0.18398911698488704, 15);
+  const made = syntheticUnionMesh(),
+    receipt = assertMesh(made.model, made.data, unionLayout);
+  expect(receipt.seams).toHaveLength(4);
+  expect(replayMesh(receipt, unionLayout)).toEqual(receipt);
+  expect(() => replayMesh(receipt, legacyLayout)).toThrow();
+  const bad = structuredClone(receipt);
+  bad.native.integers.geom_bodyid[5] = 1;
+  bad.nativeSha256 = hash(signedJson(bad.native));
+  expect(() => replayMesh(bad, unionLayout)).toThrow('COMPILED_NATIVE_GEOM_IDENTITIES');
+  const broken = u.geometry.nativeMeshes[1]!.faces.map((v) => [...v]);
+  broken.pop();
+  expect(() =>
+    closedHull(
+      u.geometry.nativeMeshes[1]!.vertices.map((v) => vec(v)),
+      broken,
+      u.geometry.upperPlanes,
+    ),
+  ).toThrow('CLOSED_ORIENTED_HULL');
+});
+it('requires BOTH full3D normal dots at actual upper ridge witnesses and rejects all eight signed archived rows', () => {
+  const H = f.geometry.height,
+    normal = (deg: number): Vec => [
+      Math.sin((deg * Math.PI) / 180),
+      0,
+      Math.cos((deg * Math.PI) / 180),
+    ];
+  expect(atlasRow(1, [0.4, 0, H / 2], normal(-5), unionLayout).mask).toBe(2);
+  expect(atlasRow(1, [1, 0, H], up, unionLayout).mask).toBe(4);
+  expect(atlasRow(1, [1.6, 0, H / 2], normal(5), unionLayout).mask).toBe(8);
+  for (const [x, a, b] of [
+    [0.8, -5, 0],
+    [1.2, 0, 5],
+  ]) {
+    expect(atlasRow(1, [x!, 0, H], normal((a! + b!) / 2), unionLayout).valid).toBe(true);
+    expect(atlasRow(1, [x!, 0, H], normal(a! - 0.1), unionLayout).valid).toBe(false);
+    expect(atlasRow(1, [x!, 0, H], normal(b! + 0.1), unionLayout).valid).toBe(false);
+  }
+  const positiveY = normal(-2.5);
+  positiveY[1] = 0.01;
+  expect(atlasRow(1, [0.8, 0, H], scale(positiveY, 1 / norm(positiveY)), unionLayout).valid).toBe(
+    true,
+  );
+  const tilted = normal(-2.5);
+  tilted[1] = 0.1;
+  const n = scale(tilted, 1 / norm(tilted));
+  expect(atlasRow(1, [0.8, 0, H], n, unionLayout).valid).toBe(false);
+  expect(atlasRow(1, [0, 0, 0], normal(-7.5), unionLayout).valid).toBe(true);
+  expect(atlasRow(1, [2, 0, 0], normal(7.5), unionLayout).valid).toBe(true);
+  expect(atlasRow(1, [1, 0.51, H], up, unionLayout).valid).toBe(false);
+  expect(atlasRow(1, [1, 0, -0.05], up, unionLayout).valid).toBe(false);
+  expect(u.atlas.negativeSamples).toHaveLength(8);
+  for (const sample of u.atlas.negativeSamples) expect(sampleAtlas(sample).valid).toBe(false);
+});
+it('cannot manufacture mixed support from one ambiguous union row and keeps actual native IDs in raw', () => {
+  const frame = unionSyntheticFrame(),
+    labels = supportLabels(frame),
+    endpoint = { state: frame.post, poses: frame.after },
+    raw = encodeInterval(frame, endpoint),
+    decoded = decodeInterval(raw, endpoint, unionLayout);
+  expect(decoded.contacts.map((c) => c.second)).toEqual([5, 6, 7, 8]);
+  expect(encodeInterval(decoded, endpoint).equals(raw)).toBe(true);
+  expect(workContact(unionLayout, frame.contacts[0]!).second).toBe(7);
+  expect(frame.contacts[0]!.second).toBe(5);
+  expect(
+    mixedSupport({ ...labels, masks: [6, 2, 2, 2], certainMasks: [0, 2, 2, 2] }, 1, unionLayout),
+  ).toBe(false);
+  expect(
+    mixedSupport({ ...labels, masks: [6, 6, 6, 6], certainMasks: [0, 0, 0, 0] }, 1, unionLayout),
+  ).toBe(false);
+  expect(
+    mixedSupport({ ...labels, masks: [4, 2, 2, 2], certainMasks: [4, 2, 2, 2] }, 1, unionLayout),
+  ).toBe(true);
+  const invalid = { ...unionLayout, geomBodies: [...unionLayout.geomBodies] };
+  invalid.geomBodies[5] = 1;
+  expect(() => workContact(invalid, frame.contacts[0]!)).toThrow('WORK_LAYOUT_BODY_IDENTITY');
+  expect(() =>
+    validateContactCensus(
+      Array(73).fill(frame.contacts[0]),
+      { nativeRowCount: 219, identities: Array(73).fill(frame.census.identities[0]) },
+      unionLayout,
+    ),
+  ).toThrow('COMPLETE_NATIVE_CENSUS');
+});
+it('keeps the frozen PRE observer unchanged while the union adapter resolves actual native body IDs and rows', () => {
+  const make = (layout: Layout) => {
+    const velocityByBody = [0, 0.2, 0.4, 0.7, 0.8],
+      output = new Float64Array(6),
+      buffer = { GetView: () => output, delete() {} },
+      ledger = newLedger();
+    const normalFrame = Float64Array.from([0, 0, 1, 1, 0, 0, 0, 1, 0]);
+    const contact = {
+      geom: Int32Array.from([0, layout.wheels[0]!]),
+      dim: 3,
+      exclude: 0,
+      efc_address: 0,
+      dist: -1e-6,
+      pos: Float64Array.from([-0.32, 0.065, 0]),
+      frame: normalFrame,
+      friction: Float64Array.from([0.8, 0.8, 1e-5, 1e-5, 1e-5]),
+      surfacevel: new Float64Array(3),
+      adhesion: 0,
+      delete() {},
+    };
+    const data = {
+      ncon: 1,
+      nefc: 3,
+      nJ: 27,
+      contact: { size: () => 1, get: () => contact, delete() {} },
+      efc_type: Int32Array.from([7, 7, 7]),
+      efc_id: new Int32Array(3),
+      efc_J: new Float64Array(27),
+      efc_vel: Float64Array.from([0, 0.4, 0]),
+      xipos: new Float64Array(15),
+    } as unknown as Data;
+    data.efc_J[9] = 1;
+    const M = {
+      mj_objectVelocity(_model: Model, _data: Data, _kind: number, id: number) {
+        output.fill(0);
+        output[3] = velocityByBody[id]!;
+      },
+    } as unknown as Native;
+    const before = initialState();
+    before.qvel[0] = 0.4;
+    const capacity = new Map(
+      layout.expected.pairs.map((p) => [layoutPairKey(layout, p.ids[0]!, p.ids[1]!), 4]),
+    );
+    const result = layout.union
+      ? layoutPreConstraints(M, {} as Model, data, before, buffer, ledger, capacity, layout)
+      : preConstraints(M, {} as Model, data, before, buffer, ledger, capacity);
+    expect(ledger.created).toBe(ledger.deleted);
+    return result;
+  };
+  const old = make(legacyLayout),
+    next = make(unionLayout);
+  expect(next.contacts[0]!.second).toBe(5);
+  expect(old.contacts[0]!.second).toBe(7);
+  expect(next.rows).toEqual(old.rows);
+  expect(next.jac).toEqual(old.jac);
+  expect(next.velocity).toEqual(old.velocity);
+  expect(next.kinematic).toEqual(old.kinematic);
+});
+it('refuses the new72-contact capture before native STEP2 and uses collision-free union receipt names', () => {
+  const root = mkdtempSync(join(tmpdir(), 'asa-union-cap-pure-')),
+    journal = new Journal(root, unionLayout);
+  try {
+    expect(() => journal.reserve(73)).toThrow('GAP_CAPTURE');
+    expect(journal.binaryBytes).toBe(0);
+    expect(unionLayout.files.meta).not.toBe(legacyLayout.files.meta);
+  } finally {
+    expect(journal.close()).toEqual([]);
+    unlinkSync(join(root, unionLayout.files.meta));
+    unlinkSync(join(root, unionLayout.files.intervals));
+    rmdirSync(root);
+  }
+});
+it('pins the old independent complete FAIL and denies consumed or ambiguous tokens before all native loading', () => {
+  expect(hash(u.predecessor.receipt.utf8)).toBe(u.predecessor.receipt.sha256);
+  verifyTerrainReceipt(JSON.parse(u.predecessor.receipt.utf8));
+  const changed = JSON.parse(u.predecessor.receipt.utf8);
+  changed.verdict.physical = 'PASS';
+  expect(() => verifyTerrainReceipt(changed)).toThrow('PRESERVE_OLD_TERRAIN_FAIL');
+  expect(() => assertUnionAdmission(unionLayout, {})).toThrow();
+  const admitted = { ASA_TT_UNION_NATIVE: 'one-exterior-union-pair-1071' };
+  expect(() => assertUnionAdmission(unionLayout, admitted)).not.toThrow();
+  for (const old of ['ASA_TT_TERRAIN_NATIVE', 'ASA_TT_SPHERE_NATIVE'])
+    expect(() =>
+      assertUnionAdmission(unionLayout, { ...admitted, [old]: 'old-consumed' }),
+    ).toThrow();
+  expect(() => assertUnionAdmission(legacyLayout, admitted)).toThrow();
+});
+it.skipIf(
+  !process.env['ASA_TT_UNION_PRIOR_RAW'] ||
+    !process.env['ASA_TT_UNION_PRIOR_REPLAY'] ||
+    !process.env['ASA_TT_UNION_ARCHIVED_SPEC'],
+)(
+  'independently decodes the entire old40180 pair and all eight prospective negatives without native or oldspec import',
+  () => {
+    const result = terrainPriorAdmission(
+      process.env['ASA_TT_UNION_PRIOR_RAW']!,
+      process.env['ASA_TT_UNION_PRIOR_REPLAY']!,
+      process.env['ASA_TT_UNION_ARCHIVED_SPEC']!,
+    );
+    expect(result.rejected).toHaveLength(8);
+  },
+  120000,
+);
+it.skipIf(
+  !process.env['ASA_TT_UNION_FIXTURE_SHA256'] || !process.env['ASA_TT_UNION_SOURCE_SHA256'],
+)('dry-preflights exact union source and fixture without native import', () => {
+  expect(exactSourcePins(unionLayout)).toHaveLength(2);
 });
 
 function assertNativeAdmission(enabled: boolean, attempts: number) {

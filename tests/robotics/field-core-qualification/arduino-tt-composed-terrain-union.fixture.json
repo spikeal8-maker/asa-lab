@@ -1,0 +1,492 @@
+{
+  "id": "E1-ARDUINO-COMPOSED-TERRAIN-EXTERIOR-UNION-01",
+  "scope": "TEST_ONLY_D01_D02_OPEN; preserve consumed five-mesh physical FAIL and historical R5 GAP_CAUSAL_ALT",
+  "registration": {
+    "main": "29255e18d83eef42d4929257a324c1842fc10480",
+    "head": "3996f321d9c85be6389a88ecad70057da6ea464e",
+    "requiredJob": 137144292658
+  },
+  "predecessor": {
+    "commit": "a206a73ebb0e3672b1747be97d60471168ec9414",
+    "tree": "121fe27667509248867258b2e48cafe681c825e2",
+    "source": {
+      "fixture": {
+        "bytes": 42551,
+        "file": "arduino-tt-composed-terrain-seams.fixture.json",
+        "sha256": "d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271"
+      },
+      "spec": {
+        "bytes": 155007,
+        "file": "arduino-tt-composed-terrain-seams.spec.ts",
+        "sha256": "22c0606ba0e13762473a6bbcdb1ffcc116a03490a5033dc502440332be691653"
+      }
+    },
+    "inputs": {
+      "binary": {
+        "bytes": 138842016,
+        "file": "arduino-tt-composed-terrain-seams.bin",
+        "sha256": "e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38"
+      },
+      "jsonl": {
+        "bytes": 133568,
+        "file": "arduino-tt-composed-terrain-seams.jsonl",
+        "sha256": "58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098"
+      }
+    },
+    "receipt": {
+      "file": "independent-terrain-replay.json",
+      "bytes": 35271,
+      "sha256": "2b05b92c65d7085bcf5d05bed2b0f2c72c9bf5f7ef297fef6f44442b60ce40cb",
+      "utf8": "{\"artifacts\":[{\"bytes\":34518,\"file\":\"inspect_terrain_archive.py\",\"sha256\":\"286eb11ea865192828aeb7c9fa0a809449b0e2806a7d5ecbabdc09b0e9b3c85c\"},{\"bytes\":9866,\"file\":\"contact_mesh_audit.py\",\"sha256\":\"3a542a745a5137eb8a3cb4db37f194483762948de0d482295b2719b43233d8ad\"},{\"bytes\":5090,\"file\":\"scalar_audit.py\",\"sha256\":\"ee2dbaea7ecf9675b131ed144ad0a910e97284a612f6837be974741f8478fc5a\"},{\"bytes\":1112,\"file\":\"verify_mesh_digest.cjs\",\"sha256\":\"e7c2fa6cd0f1e8b5ec7f663d522f0bc933aced99b78c30d9425f6180b159fcf5\"},{\"bytes\":7298,\"file\":\"initial-full-replay.json\",\"sha256\":\"f2c3b4808f6c24128079877d70d73fef8976b05f148b255e4b5516f9218e5498\"},{\"bytes\":19673,\"file\":\"contact-mesh-audit.json\",\"sha256\":\"9ced3e1383830d1fac3da906e88ff03d9b7fbf648d66b666330e3dd90f6a5c83\"},{\"bytes\":4038,\"file\":\"scalar-audit.json\",\"sha256\":\"403bcad84e2ab2a4b2e626f65eb4acd037958bf080e8a56aa6a769b4e38cbafa\"},{\"bytes\":295,\"file\":\"mesh-digests.json\",\"sha256\":\"20380d0d064be52177ba8f3bd9d93b6dbc18d2c7e25a94891a0392271e8de07c\"}],\"audit\":\"PURE_SAVED_RAW_NO_NATIVE\",\"contact_mesh\":{\"interpretation\":\"STRICT_ORIGINAL_FAIL_PRESERVED; edge normal outside exposed union-top cone but in individual mesh top/left-wall cone; cannot infer false mesh gap or replace criterion\",\"invalid_contacts\":[{\"adjacent_exposed_top_cone_deg\":[-5.0,0.0],\"angle_deg\":5.162679889294365,\"axial_m\":-0.0012745097777003625,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-5.963142741190235e-07,\"force_world_n\":[-0.129433007433924,0.00025426991311296106,1.4344511283319032],\"friction_components_n\":[-0.00025426991311296106,-0.00016955600173332406],\"friction_ratio\":0.00021219371795624242,\"from_us\":3376500,\"impulse_world_ns\":[-6.4716503716962e-05,1.2713495655648054e-07,0.0007172255641659516],\"individual_mesh_top_plus_leftwall_coefficients\":[0.9959432216802102,0.08998388294157919],\"leftwall_normal_impulse_ns\":6.480093779227275e-05,\"native_index\":6,\"normal\":[-0.08998388294157919,-0.0,0.9959432216802102],\"normal_force_n\":1.440278762683399,\"normal_impulse_ns\":[-6.480093779227275e-05,-0.0,0.0007172179355122457],\"normal_world_n\":[-0.1296018755845455,-0.0,1.4344358710244913],\"normal_xz_angle_deg\":-5.1626798892944175,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.16267988929441746,\"outward_n\":1.4344511283319032,\"plane_error_m\":-2.929642367588414e-07,\"point\":[0.8000000387502653,0.06372548888501814,0.06999063785650245],\"radial_error_m\":-3.0191541799257093e-07,\"radial_m\":0.029999698084582006,\"slip_mps\":1.8659757718975156e-06,\"tangent_impulse_ns\":[8.443407531075198e-08,1.2713495655648054e-07,7.628653705959997e-09],\"tangent_world_n\":[0.00016886815062150395,0.00025426991311296106,1.5257307411919996e-05],\"terrain\":2,\"terrain_point\":[0.8000000119209283,0.06372548888501814,0.0699909348040821],\"terrain_point_plane_m\":3.983342891644703e-09,\"to_us\":3377000,\"wheel\":9,\"wheel_center\":[0.7972925164893151,0.06499999866325194,0.09986790694809067],\"world\":\"powered\"},{\"adjacent_exposed_top_cone_deg\":[-5.0,0.0],\"angle_deg\":5.162680072385882,\"axial_m\":0.0012745098301427929,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-5.963121826873533e-07,\"force_world_n\":[-0.12943630308793277,1.8919340612547207e-05,1.4344870778598633],\"friction_components_n\":[-1.8919206532549353e-05,-0.00016951319817473407],\"friction_ratio\":0.0001184225146517215,\"from_us\":3376500,\"impulse_world_ns\":[-6.47181515439664e-05,9.459670306273603e-09,0.0007172435389299316],\"individual_mesh_top_plus_leftwall_coefficients\":[0.9959432213926622,0.08998388612416455],\"leftwall_normal_impulse_ns\":6.480256430429583e-05,\"native_index\":9,\"normal\":[-0.08998388612416455,9.309075487997849e-11,0.9959432213926622],\"normal_force_n\":1.440314862927298,\"normal_impulse_ns\":[-6.480256430429583e-05,6.703999892737744e-14,0.000717235912201772],\"normal_world_n\":[-0.12960512860859166,1.340799978547549e-10,1.434471824403544],\"normal_xz_angle_deg\":-5.162680072385888,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.16268007238588833,\"outward_n\":1.4344870778598633,\"plane_error_m\":-2.9296319521698866e-07,\"point\":[0.800000038750172,-0.0637254915071388,0.06999063785754399],\"radial_error_m\":-3.0191419742031655e-07,\"radial_m\":0.02999969808580258,\"slip_mps\":1.8659953860966778e-06,\"tangent_impulse_ns\":[8.441276032944423e-08,9.459603266274676e-09,7.626728159682016e-09],\"tangent_world_n\":[0.00016882552065888845,1.8919206532549353e-05,1.5253456319364034e-05],\"terrain\":2,\"terrain_point\":[0.8000000119209283,-0.06372549150713877,0.06999093480408208],\"terrain_point_plane_m\":3.9833428777669155e-09,\"to_us\":3377000,\"wheel\":10,\"wheel_center\":[0.7972925156901848,-0.06500000133674814,0.09986790687799336],\"world\":\"powered\"},{\"adjacent_exposed_top_cone_deg\":[-5.0,0.0],\"angle_deg\":5.270168123021784,\"axial_m\":-0.009999999999992282,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-5.812795089860209e-07,\"force_world_n\":[0.06470092341971108,-0.0009433164544902941,1.7843906807155947],\"friction_components_n\":[0.0009433200059726755,-0.22832750676784552],\"friction_ratio\":0.12893380264062074,\"from_us\":3799500,\"impulse_world_ns\":[3.235046170985554e-05,-4.7165822724514706e-07,0.0008921953403577973],\"individual_mesh_top_plus_leftwall_coefficients\":[0.9957726572996111,0.09185213647200419],\"leftwall_normal_impulse_ns\":8.133068236446381e-05,\"native_index\":4,\"normal\":[-0.09185213647200419,2.005462359930093e-09,0.9957726572996111],\"normal_force_n\":1.7709045317471253,\"normal_impulse_ns\":[-8.133068236446381e-05,1.775741190724243e-12,0.0008817091557008792],\"normal_world_n\":[-0.16266136472892762,3.551482381448486e-09,1.7634183114017583],\"normal_xz_angle_deg\":-5.2701681230218895,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.27016812302188953,\"outward_n\":1.7843906807155947,\"plane_error_m\":-2.8542777777418316e-07,\"point\":[0.8000000386168107,0.054999999209484174,0.06999064539296143],\"radial_error_m\":-2.915642354460457e-07,\"radial_m\":0.029999708435764553,\"slip_mps\":1.4458304648677492e-06,\"tangent_impulse_ns\":[0.00011368114407431934,-4.7166000298633777e-07,1.0486184656918195e-05],\"tangent_world_n\":[0.22736228814863868,-0.0009433200059726755,0.020972369313836392],\"terrain\":2,\"terrain_point\":[0.8000000119209283,0.05499999920948476,0.06999093480408208],\"terrain_point_plane_m\":3.9833428777669155e-09,\"to_us\":3800000,\"wheel\":7,\"wheel_center\":[0.7972514831116317,0.06499999847831371,0.0998641782186767],\"world\":\"powered\"},{\"adjacent_exposed_top_cone_deg\":[-5.0,0.0],\"angle_deg\":5.2686858772316585,\"axial_m\":-0.0009264502998712682,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-5.842263425288827e-07,\"force_world_n\":[0.05248796900887511,0.00020439384987119824,1.492755696765749],\"friction_components_n\":[-0.00020439726376756396,-0.18934055457137744],\"friction_ratio\":0.12779221755328296,\"from_us\":3799500,\"impulse_world_ns\":[2.6243984504437557e-05,1.0219692493559912e-07,0.0007463778483828745],\"individual_mesh_top_plus_leftwall_coefficients\":[0.9957750331875367,0.09182637573355638],\"leftwall_normal_impulse_ns\":6.80263140015708e-05,\"native_index\":5,\"normal\":[-0.09182637573355638,-2.304150496723009e-09,0.9957750331875367],\"normal_force_n\":1.4816290735236268,\"normal_impulse_ns\":[-6.80263140015708e-05,-1.7069481828593583e-12,0.0007376846199298044],\"normal_world_n\":[-0.1360526280031416,-3.4138963657187164e-09,1.4753692398596088],\"normal_xz_angle_deg\":-5.268685877231677,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.26868587723167714,\"outward_n\":1.492755696765749,\"plane_error_m\":-2.868956599372252e-07,\"point\":[0.8000000387446219,-0.06592645109039483,0.06999064392507927],\"radial_error_m\":-2.9303807616912203e-07,\"radial_m\":0.02999970696192383,\"slip_mps\":1.4996981783395532e-06,\"tangent_impulse_ns\":[9.427029850600837e-05,1.0219863188378199e-07,8.693228453070078e-06],\"tangent_world_n\":[0.18854059701201673,0.00020439726376756396,0.017386456906140157],\"terrain\":2,\"terrain_point\":[0.8000000119209281,-0.0659264510903955,0.06999093480408208],\"terrain_point_plane_m\":3.9833428777669155e-09,\"to_us\":3800000,\"wheel\":8,\"wheel_center\":[0.7972514814323952,-0.06500000152168624,0.09986417488239126],\"world\":\"powered\"},{\"adjacent_exposed_top_cone_deg\":[0.0,5.0],\"angle_deg\":5.023398526859385,\"axial_m\":-0.0012745096636171266,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-9.602693948294867e-07,\"force_world_n\":[0.009982030232919771,-0.0003030229928619322,1.5519174486103395],\"friction_components_n\":[0.00030301150961892687,-0.01061580350055788],\"friction_ratio\":0.00684324794875427,\"from_us\":4396500,\"impulse_world_ns\":[4.991015116459886e-06,-1.5151149643096611e-07,0.0007759587243051698],\"individual_mesh_top_plus_leftwall_coefficients\":[1.0038197538371645,0.08789703755291202],\"leftwall_normal_impulse_ns\":6.820428828742339e-05,\"native_index\":6,\"normal\":[-0.0004083813224625585,-7.399410411107025e-09,0.9999999166123443],\"normal_force_n\":1.551913242727116,\"normal_impulse_ns\":[-3.168861912060286e-07,-5.741621502684943e-12,0.0007759565566583546],\"normal_world_n\":[-0.0006337723824120572,-1.1483243005369885e-08,1.551913113316709],\"normal_xz_angle_deg\":-0.023398526859458493,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.023398526859458493,\"outward_n\":1.5468819254407689,\"plane_error_m\":-4.7186528467670637e-07,\"point\":[1.200000045684208,0.0637254831806815,0.0699904531561555],\"radial_error_m\":-4.831544912244079e-07,\"radial_m\":0.029999516845508774,\"slip_mps\":8.885816875615136e-09,\"tangent_impulse_ns\":[5.307901307665914e-06,-1.5150575480946342e-07,2.167646815265378e-09],\"tangent_world_n\":[0.010615802615331828,-0.00030301150961892687,4.3352936305307566e-06],\"terrain\":3,\"terrain_point\":[1.2000000454881299,0.06372548318067794,0.06999093329081288],\"terrain_point_plane_m\":6.425226047516732e-09,\"to_us\":4397000,\"wheel\":9,\"wheel_center\":[1.1999820857276549,0.06499999284506178,0.09998996462554413],\"world\":\"powered\"},{\"adjacent_exposed_top_cone_deg\":[0.0,5.0],\"angle_deg\":5.023399245027466,\"axial_m\":0.0012745099442327968,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-9.60267107425697e-07,\"force_world_n\":[0.009981504430439993,-1.721660128821254e-05,1.5523241052049532],\"friction_components_n\":[1.7227952962761694e-05,-0.010615463226473538],\"friction_ratio\":0.006838459785582973,\"from_us\":4396500,\"impulse_world_ns\":[4.990752215219997e-06,-8.60830064410627e-09,0.0007761620526024767],\"individual_mesh_top_plus_leftwall_coefficients\":[1.003819753832026,0.08789705008686],\"leftwall_normal_impulse_ns\":6.822216997275068e-05,\"native_index\":9,\"normal\":[-0.0004083938568583862,7.312715989651281e-09,0.9999999166072253],\"normal_force_n\":1.5523198993671214,\"normal_impulse_ns\":[-3.169789553902803e-07,5.675837274577909e-12,0.000776159884957429],\"normal_world_n\":[-0.0006339579107805607,1.1351674549155817e-08,1.5523197699148579],\"normal_xz_angle_deg\":-0.023399245027498062,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.023399245027498062,\"outward_n\":1.5472869887575613,\"plane_error_m\":-4.7186414483493053e-07,\"point\":[1.2000000456842135,-0.06372549721146893,0.06999045315729921],\"radial_error_m\":-4.831523922124714e-07,\"radial_m\":0.029999516847607786,\"slip_mps\":8.905905989791733e-09,\"tangent_impulse_ns\":[5.307731170610277e-06,-8.613976481380847e-09,2.1676450476793007e-09],\"tangent_world_n\":[0.010615462341220554,-1.7227952962761694e-05,4.3352900953586015e-06],\"terrain\":3,\"terrain_point\":[1.2000000454881299,-0.06372549721146542,0.06999093329081288],\"terrain_point_plane_m\":6.425226047516732e-09,\"to_us\":4397000,\"wheel\":10,\"wheel_center\":[1.199982080158076,-0.06500000715493834,0.09998996462551682],\"world\":\"powered\"},{\"adjacent_exposed_top_cone_deg\":[0.0,5.0],\"angle_deg\":5.29448246115393,\"axial_m\":0.0020723238454052532,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-3.6645409461879667e-07,\"force_world_n\":[-0.1616678122114161,0.0007212594367411757,1.505236029912276],\"friction_components_n\":[-0.0007212517940905439,0.15392926656922742],\"friction_ratio\":0.10220859605176763,\"from_us\":4729500,\"impulse_world_ns\":[-8.083390610570805e-05,3.606297183705879e-07,0.000752618014956138],\"individual_mesh_top_plus_leftwall_coefficients\":[1.0038065789202335,0.0926271738686458],\"leftwall_normal_impulse_ns\":6.975044176678498e-05,\"native_index\":4,\"normal\":[-0.005139665907867096,5.074642618473233e-09,0.99998679182995],\"normal_force_n\":1.5060470670453097,\"normal_impulse_ns\":[-3.870289383068004e-06,3.821325315927371e-12,0.0007530135874597724],\"normal_world_n\":[-0.0077405787661360085,7.642650631854742e-09,1.5060271749195449],\"normal_xz_angle_deg\":-0.2944824611540087,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.2944824611540087,\"outward_n\":1.4854178741236026,\"plane_error_m\":-1.760200993370066e-07,\"point\":[1.2000000464298557,0.06707231422076397,0.06999075006618566],\"radial_error_m\":-1.8664138777893524e-07,\"radial_m\":0.02999981335861222,\"slip_mps\":2.621859328201336e-07,\"tangent_impulse_ns\":[-7.696361672264004e-05,3.6062589704527197e-07,-3.9557250363442266e-07],\"tangent_world_n\":[-0.1539272334452801,0.0007212517940905439,-0.0007911450072688453],\"terrain\":3,\"terrain_point\":[1.2000000454881299,0.0670723142207649,0.06999093329081288],\"terrain_point_plane_m\":6.425226047516732e-09,\"to_us\":4730000,\"wheel\":7,\"wheel_center\":[1.1998364461849538,0.06499999131106982,0.09999011739934167],\"world\":\"powered\"},{\"adjacent_exposed_top_cone_deg\":[0.0,5.0],\"angle_deg\":5.293614979352883,\"axial_m\":0.0012745099926337717,\"checks\":{\"axial\":true,\"finite_xy\":true,\"normal_alignment\":false,\"outward\":true,\"plane\":true,\"radial\":true,\"up\":true},\"distance_m\":-3.623734184668015e-07,\"force_world_n\":[-0.16898159564487894,-0.0002947734211167844,1.5875015796639154],\"friction_components_n\":[0.00029476709492213816,0.16084418420378543],\"friction_ratio\":0.10126533191092761,\"from_us\":4729500,\"impulse_world_ns\":[-8.449079782243947e-05,-1.473867105583922e-07,0.0007937507898319577],\"individual_mesh_top_plus_leftwall_coefficients\":[1.003806656919096,0.09261204045245364],\"leftwall_normal_impulse_ns\":7.355001374757175e-05,\"native_index\":5,\"normal\":[-0.005124525693626129,-3.982880251380203e-09,0.9999868695320032],\"normal_force_n\":1.5883466855550346,\"normal_impulse_ns\":[-4.069761700256338e-06,-3.163097323121174e-12,0.000794162914909856],\"normal_world_n\":[-0.008139523400512676,-6.326194646242348e-09,1.588325829819712],\"normal_xz_angle_deg\":-0.29361497935294945,\"outside_adjacent_cone\":true,\"outside_exposed_top_cone_angle_deg\":0.29361497935294945,\"outward_n\":1.5667329403943493,\"plane_error_m\":-1.73988719285402e-07,\"point\":[1.2000000464166258,-0.06372549963200752,0.06999075210648271],\"radial_error_m\":-1.846020689991179e-07,\"radial_m\":0.029999815397931,\"slip_mps\":2.762009903152842e-07,\"tangent_impulse_ns\":[-8.042103612218313e-05,-1.4738354746106909e-07,-4.1212507789833986e-07],\"tangent_world_n\":[-0.16084207224436625,-0.00029476709492213816,-0.0008242501557966797],\"terrain\":3,\"terrain_point\":[1.2000000454881299,-0.06372549963200824,0.06999093329081288],\"terrain_point_plane_m\":6.425226047516732e-09,\"to_us\":4730000,\"wheel\":8,\"wheel_center\":[1.1998364443524938,-0.0650000086889301,0.09999012144418205],\"world\":\"powered\"}],\"native_calls\":0,\"schema\":\"ASA_TERRAIN_CONTACT_MESH_AUDIT_V1\",\"source\":{\"fixture\":{\"bytes\":42551,\"file\":\"arduino-tt-composed-terrain-seams.fixture.json\",\"sha256\":\"d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271\"},\"spec\":{\"bytes\":155007,\"file\":\"arduino-tt-composed-terrain-seams.spec.ts\",\"sha256\":\"22c0606ba0e13762473a6bbcdb1ffcc116a03490a5033dc502440332be691653\"}},\"total_invalid_impulse_world_ns\":[-0.00022618314564310294,-1.797434647096705e-07,0.006171531873532297],\"total_invalid_normal_impulse_ns\":0.006165877062788015,\"total_invalid_tangent_magnitude_impulse_ns\":0.00037707865951811274,\"total_leftwall_equivalent_normal_impulse_ns\":0.000558687412237134,\"worlds\":[{\"active_contacts\":160610,\"impulses\":{\"(0, 10)\":{\"contacts\":4212,\"normal\":1.5009491881071064,\"tangent_abs\":0.00784802629418646,\"world\":[-0.007847983693459517,1.2728366175049735e-05,1.5009491881071064]},\"(0, 7)\":{\"contacts\":5595,\"normal\":2.124527789366473,\"tangent_abs\":0.17665620469182358,\"world\":[0.17477890839568141,-0.0003529700088431874,2.124527789368227]},\"(0, 8)\":{\"contacts\":5595,\"normal\":2.1245188761069027,\"tangent_abs\":0.17602549523591965,\"world\":[0.17415642572749904,9.685077519484241e-05,2.1245188761069005]},\"(0, 9)\":{\"contacts\":4212,\"normal\":1.5009491878820156,\"tangent_abs\":0.007851802086269132,\"world\":[-0.007847983697808435,0.00016648184186602997,1.5009491878820156]},\"(1, 10)\":{\"contacts\":9450,\"normal\":3.2229758859235966,\"tangent_abs\":0.0028945479076513386,\"world\":[-0.27894995620759927,5.3014597214280204e-05,3.2108812893098926]},\"(1, 7)\":{\"contacts\":9757,\"normal\":3.73074547570617,\"tangent_abs\":0.5521438904128553,\"world\":[0.22465358191159124,-0.0011475000034886869,3.764652768989319]},\"(1, 8)\":{\"contacts\":9758,\"normal\":3.7330933559991024,\"tangent_abs\":0.5501149535608384,\"world\":[0.22237240347534365,0.0002712959676853804,3.766813016544303]},\"(1, 9)\":{\"contacts\":9452,\"normal\":3.2257054780514514,\"tangent_abs\":0.0031450207375248325,\"world\":[-0.27915784505165275,0.0007234873016170694,3.2136024647982175]},\"(2, 10)\":{\"contacts\":4065,\"normal\":1.4543179695632458,\"tangent_abs\":0.00480717976844055,\"world\":[-0.0035661228497882386,6.143492632930017e-05,1.4543076851003358]},\"(2, 7)\":{\"contacts\":3709,\"normal\":1.3550540179883668,\"tangent_abs\":0.12824757341546014,\"world\":[-0.03958173071736899,0.00042562253413533987,1.3551141725670652]},\"(2, 8)\":{\"contacts\":3707,\"normal\":1.349289890070707,\"tangent_abs\":0.12653737291688016,\"world\":[-0.03863974541802281,-7.667633481184217e-05,1.3493176829490363]},\"(2, 9)\":{\"contacts\":4064,\"normal\":1.450907246811606,\"tangent_abs\":0.004821248450333327,\"world\":[-0.003579541250067066,0.0002473226357030731,1.4508965174053527]},\"(3, 10)\":{\"contacts\":8435,\"normal\":3.2914721833645086,\"tangent_abs\":0.002771326041612068,\"world\":[0.28869848066769704,-0.00024217100375629956,3.2787839069079205]},\"(3, 7)\":{\"contacts\":8813,\"normal\":3.0298938889795624,\"tangent_abs\":0.5396504232030249,\"world\":[-0.27345679850085075,0.0010586092107494082,3.0653488510723608]},\"(3, 8)\":{\"contacts\":8814,\"normal\":3.0285886527536947,\"tangent_abs\":0.538010561621502,\"world\":[-0.27191163415082337,-0.00031675055375374997,3.0639157591916746]},\"(3, 9)\":{\"contacts\":8435,\"normal\":3.28910287285311,\"tangent_abs\":0.003141195565177563,\"world\":[0.2884912325684362,-0.0008580474572966355,3.2764236792063492]},\"(4, 10)\":{\"contacts\":13974,\"normal\":5.203414788703151,\"tangent_abs\":0.0072791464359410725,\"world\":[0.007242438175044504,-1.330411924043622e-05,5.203414788703151]},\"(4, 7)\":{\"contacts\":12260,\"normal\":4.476103936979174,\"tangent_abs\":0.09127478666396087,\"world\":[-0.08922777904050448,0.0001899010208179499,4.476103936979174]},\"(4, 8)\":{\"contacts\":12260,\"normal\":4.476103937495762,\"tangent_abs\":0.09100051620935998,\"world\":[-0.08896184101944135,-4.417546252878083e-05,4.476103937495762]},\"(4, 9)\":{\"contacts\":13974,\"normal\":5.203374501118899,\"tangent_abs\":0.007291447599383435,\"world\":[0.007242438145569898,-0.00025515422371583,5.203374501118899]}},\"inactive_contacts\":0,\"intervals\":20090,\"invalid_intervals\":4,\"loaded_body_contacts\":0,\"max_friction_ratio\":0.8000000000000002,\"max_normal_force_n\":2.7367514741935146,\"mesh\":{\"actual_native_meshes\":5,\"closed_faces\":60,\"max_shared_edge_gap_m\":1.4494572898106967e-08,\"max_vertex_error_m\":5.882390641254176e-08,\"native_sha256\":\"02648417ddf476fe6e78a48dd782e8627e60f5f2295bae999701c733dcbcb37d\",\"no_extra_foundation\":true,\"status\":\"PASS\"},\"world\":\"powered\"},{\"active_contacts\":160716,\"impulses\":{\"(0, 10)\":{\"contacts\":40178,\"normal\":14.715002708835438,\"tangent_abs\":6.088708693056063e-06,\"world\":[-6.0693768367080765e-06,2.0312533080137814e-09,14.715002708835438]},\"(0, 7)\":{\"contacts\":40178,\"normal\":14.714997291163964,\"tangent_abs\":6.695828481013651e-06,\"world\":[6.6758017382229965e-06,-1.711959752970973e-08,14.714997291163964]},\"(0, 8)\":{\"contacts\":40178,\"normal\":14.71499729116584,\"tangent_abs\":6.671210053518597e-06,\"world\":[6.651303001588921e-06,3.841625939203915e-09,14.71499729116584]},\"(0, 9)\":{\"contacts\":40178,\"normal\":14.715002708834872,\"tangent_abs\":6.0887271642169375e-06,\"world\":[-6.069376850974807e-06,1.1246992576615494e-08,14.715002708834872]}},\"inactive_contacts\":0,\"intervals\":20090,\"invalid_intervals\":0,\"loaded_body_contacts\":0,\"max_friction_ratio\":1.316634894377887e-05,\"max_normal_force_n\":0.8548784519100701,\"mesh\":{\"actual_native_meshes\":5,\"closed_faces\":60,\"max_shared_edge_gap_m\":1.4494572898106967e-08,\"max_vertex_error_m\":5.882390641254176e-08,\"native_sha256\":\"02648417ddf476fe6e78a48dd782e8627e60f5f2295bae999701c733dcbcb37d\",\"no_extra_foundation\":true,\"status\":\"PASS\"},\"world\":\"control\"}]},\"full_replay\":{\"bridge\":\"NOT_IN_SCOPE\",\"evidence_issues\":[],\"first_errors\":[],\"historical_r5_causal\":\"GAP_CAUSAL_ALT\",\"inputs\":{\"binary\":{\"bytes\":138842016,\"file\":\"arduino-tt-composed-terrain-seams.bin\",\"sha256\":\"e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38\"},\"jsonl\":{\"bytes\":133568,\"file\":\"arduino-tt-composed-terrain-seams.jsonl\",\"sha256\":\"58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098\"}},\"native_calls\":0,\"parsed_intervals\":40180,\"physical\":\"FAIL\",\"prefix\":\"PASS\",\"runtime\":\"COMPLETE\",\"schema\":\"ASA_INDEPENDENT_TERRAIN_REPLAY_V1\",\"scope\":\"TEST_ONLY_D01_D02_OPEN\",\"source\":{\"fixture\":{\"bytes\":42551,\"file\":\"arduino-tt-composed-terrain-seams.fixture.json\",\"sha256\":\"d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271\"},\"spec\":{\"bytes\":155007,\"file\":\"arduino-tt-composed-terrain-seams.spec.ts\",\"sha256\":\"22c0606ba0e13762473a6bbcdb1ffcc116a03490a5033dc502440332be691653\"}},\"source_commit\":\"a206a73ebb0e3672b1747be97d60471168ec9414\",\"verifier\":{\"bytes\":34518,\"file\":\"inspect_terrain_archive.py\",\"sha256\":\"286eb11ea865192828aeb7c9fa0a809449b0e2806a7d5ecbabdc09b0e9b3c85c\"},\"worlds\":[{\"active_contacts\":160610,\"all_native_contacts\":160610,\"captured_intervals\":20090,\"causal_gaps\":{\"gear\":{\"from_us\":1,\"loss\":-1.2382143968468998e-27},\"reverse\":{\"from_us\":2000,\"work\":1.0241074335449105e-21},\"winding\":null},\"energy\":{\"delta_stored\":3.501768893865431e-05,\"dissipation\":7.890292007349338,\"final\":{\"body_count\":4,\"kinetic\":3.9863226754246694e-05,\"mass_dot\":3.986322675424669e-05,\"potential\":0.3060671544621844,\"reflected_inertia\":0.0004608},\"initial\":{\"body_count\":4,\"kinetic\":0.0,\"mass_dot\":0.0,\"potential\":0.306072,\"reflected_inertia\":0.0004608},\"ledger\":{\"circuit\":3.3005682981614246,\"contact\":-0.0005113250107044938,\"contactAbsorption\":0.0013934428668573797,\"contactCurvatureBound\":0.07446719289427564,\"copper\":1.728110839343427,\"electricalEuler\":0.00019371069943169845,\"epsilon\":-0.0006199203681852125,\"geometricContact\":0.042673421481620594,\"input\":7.889432331084094,\"legacyTransmission\":3.2631805206931053,\"magnet\":-1.1265535835937112e-19,\"positiveContact\":0.000882117856152863,\"positiveInput\":7.889432331084094,\"positiveShaft\":0.560309064782492,\"shaft\":0.0009331898160662345,\"signedCircuit\":3.3005682981614246,\"signedTransmission\":1.6330231032283014,\"transmission\":1.6330231032283014,\"viscous\":1.2270026130498952},\"limit\":0.07889432331084094,\"residual\":0.0008946939541827348,\"status\":\"PASS\"},\"fall\":0.06998909862555053,\"final_low_us\":4340082,\"first_by_surface\":[[1,1398000,3800000,4730000,6938000],[1,1398000,3800000,4730000,6938000],[1,1052000,3377000,4397000,6509500],[1,1052000,3377000,4397000,6509500]],\"flyback_a\":0.210963320475,\"max_control_travel\":2.5638327957348914,\"max_slip\":0.009826537970584935,\"max_tangent_error\":3.4188764514495982e-18,\"max_velocity_error\":5.992694574353131e-16,\"min_body_sweep_clearance\":0.040740280753686214,\"missing\":[],\"mixed\":[{\"from_us\":1052000,\"masks\":[1,1,2,2],\"to_us\":1052500},{\"from_us\":3377000,\"masks\":[2,2,6,6],\"to_us\":3377500},{\"from_us\":4397000,\"masks\":[4,4,12,12],\"to_us\":4397500},{\"from_us\":6509500,\"masks\":[8,8,16,16],\"to_us\":6510000}],\"native_returned_minus_captured\":{\"step1\":0,\"step2\":0},\"observed_failures\":{\"INVALID_LOADED_WHEEL_TOP_FACE\":3376500},\"parsed_end_offset\":69411680,\"physical\":\"FAIL\",\"prefix\":{\"interval_count\":503,\"last_from_us\":250000,\"sha256\":\"b94b6a04338b86ce202f6296c817fe2a2a96cd559ae138bb93a17d114910078b\",\"through_us\":250003},\"resources\":{\"calls\":20170,\"cleanup\":[],\"deletedPersistent\":5,\"kind\":\"world-resources\",\"ledger\":{\"buffer\":3,\"cleanupErrors\":[],\"created\":642681,\"data\":1,\"deleted\":642681,\"force\":160610,\"forwards\":2,\"model\":1,\"step1\":20090,\"step1Returned\":20090,\"step2\":20090,\"step2Returned\":20090,\"velocity\":100460},\"persistentCleanup\":{\"bufferAttempted\":3,\"bufferDeleted\":3,\"dataAttempted\":1,\"dataDeleted\":1,\"modelAttempted\":1,\"modelDeleted\":1},\"sessionDisposeAttempted\":1,\"sessionDisposed\":1,\"stage\":\"complete\",\"world\":\"powered\"},\"rise\":0.0699890984764432,\"runtime_complete\":true,\"through_us\":10000000,\"unresolved_actual_post\":[],\"windows\":[{\"from_us\":50000,\"maximum_z\":0.05199917691906984,\"minimum_z\":0.051999176768934154,\"to_us\":150000},{\"from_us\":1398000,\"maximum_z\":0.06158004439730826,\"minimum_z\":0.05801939337549773,\"to_us\":1498000},{\"from_us\":3808000,\"maximum_z\":0.12199011339493213,\"minimum_z\":0.12198827539551305,\"to_us\":3908000},{\"from_us\":4738000,\"maximum_z\":0.11564983205664903,\"minimum_z\":0.1123508759335607,\"to_us\":4838000},{\"from_us\":6938000,\"maximum_z\":0.051999176769962525,\"minimum_z\":0.05198382038180087,\"to_us\":7038000}],\"world\":\"powered\"},{\"active_contacts\":160716,\"all_native_contacts\":160716,\"captured_intervals\":20090,\"causal_gaps\":{\"gear\":{\"from_us\":1,\"loss\":-1.2382143968468998e-27},\"reverse\":{\"from_us\":2000,\"work\":1.0241074335449105e-21},\"winding\":null},\"energy\":{\"delta_stored\":-4.845535754971486e-06,\"dissipation\":4.845201260072006e-06,\"final\":{\"body_count\":4,\"kinetic\":2.337970622243107e-12,\"mass_dot\":2.337970622243107e-12,\"potential\":0.3060671544619071,\"reflected_inertia\":0.0004608},\"initial\":{\"body_count\":4,\"kinetic\":0.0,\"mass_dot\":0.0,\"potential\":0.306072,\"reflected_inertia\":0.0004608},\"ledger\":{\"circuit\":0.0,\"contact\":-4.845082144577464e-06,\"contactAbsorption\":4.845154251519526e-06,\"contactCurvatureBound\":2.8124003408182647e-12,\"copper\":5.759922491109232e-21,\"electricalEuler\":2.5200051397398534e-26,\"epsilon\":1.3617575983079432e-15,\"geometricContact\":-4.845080485920607e-06,\"input\":0.0,\"legacyTransmission\":1.3685409126778725e-10,\"magnet\":2.51994223191688e-26,\"positiveContact\":7.210694210556798e-11,\"positiveInput\":0.0,\"positiveShaft\":1.024107433545704e-21,\"shaft\":-4.7008445292427955e-11,\"signedCircuit\":0.0,\"signedTransmission\":5.086611308901455e-14,\"transmission\":5.086611385150453e-14,\"viscous\":4.695768636006171e-11},\"limit\":0.0001,\"residual\":-3.3449489948016875e-10,\"status\":\"PASS\"},\"fall\":0,\"final_low_us\":4340082,\"first_by_surface\":[[1,null,null,null,null],[1,null,null,null,null],[1,null,null,null,null],[1,null,null,null,null]],\"flyback_a\":0.0,\"max_control_travel\":1.7887472745865048e-05,\"max_slip\":8.714063096037056e-12,\"max_tangent_error\":1.7363525231785213e-16,\"max_velocity_error\":1.3552527156068805e-20,\"min_body_sweep_clearance\":0.04399422033746336,\"missing\":[],\"mixed\":[null,null,null,null],\"native_returned_minus_captured\":{\"step1\":0,\"step2\":0},\"observed_failures\":{},\"parsed_end_offset\":138842016,\"physical\":\"PASS\",\"prefix\":{\"interval_count\":503,\"last_from_us\":250000,\"sha256\":\"b94b6a04338b86ce202f6296c817fe2a2a96cd559ae138bb93a17d114910078b\",\"through_us\":250003},\"resources\":{\"calls\":20170,\"cleanup\":[],\"deletedPersistent\":5,\"kind\":\"world-resources\",\"ledger\":{\"buffer\":3,\"cleanupErrors\":[],\"created\":642893,\"data\":1,\"deleted\":642893,\"force\":160716,\"forwards\":2,\"model\":1,\"step1\":20090,\"step1Returned\":20090,\"step2\":20090,\"step2Returned\":20090,\"velocity\":100460},\"persistentCleanup\":{\"bufferAttempted\":3,\"bufferDeleted\":3,\"dataAttempted\":1,\"dataDeleted\":1,\"modelAttempted\":1,\"modelDeleted\":1},\"sessionDisposeAttempted\":1,\"sessionDisposed\":1,\"stage\":\"complete\",\"world\":\"control\"},\"rise\":0,\"runtime_complete\":true,\"through_us\":10000000,\"unresolved_actual_post\":[],\"windows\":[{\"from_us\":50000,\"maximum_z\":0.05199917691906984,\"minimum_z\":0.051999176768934154,\"to_us\":150000},null,null,null,null],\"world\":\"control\"}]},\"inputs\":{\"binary\":{\"bytes\":138842016,\"file\":\"arduino-tt-composed-terrain-seams.bin\",\"sha256\":\"e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38\"},\"jsonl\":{\"bytes\":133568,\"file\":\"arduino-tt-composed-terrain-seams.jsonl\",\"sha256\":\"58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098\"}},\"interpretation\":{\"geometry\":\"All failed midpoint finite XY, plane, cylinder radial/axial and signed upward force tests pass; terrain-side witnesses coincide with the upper shared mesh edges. Actual shared top-edge differences are at most14.495nm within prospective representation budgets.\",\"impulse\":\"No loaded chassis or boom contacts in either full world; no near-horizontal pure-wall normal. The wall-equivalent normal impulse is an analytic decomposition of the observed oblique normal and must not be counted as a separately measured contact impulse.\",\"limit\":\"No post-data threshold change, no PASS substitution for consumed FAIL; no new simulation, calibration, D01/D02, product, bridge or deployment claim.\",\"normal\":\"Signed normal is outside both relevant adjacent exposed top-face cones, but admits nonnegative top-plus-left-wall decomposition of the individual closed terrain hull. This supports a finite-hull seam-edge hypothesis. It does not by itself prove a distinct wall collision or establish general native-collision defect.\",\"primary\":\"Frozen physical FAIL is independently reproduced: eight wheel contacts, four 500us intervals, solely five-degree top-normal gate; no missing route or energy failure.\"},\"invalid_interval_pairs\":{\"3376500\":[[2,9],[2,10]],\"3799500\":[[2,7],[2,8]],\"4396500\":[[3,9],[3,10]],\"4729500\":[[3,7],[3,8]]},\"mesh_digests\":{\"native_calls\":0,\"schema\":\"ASA_RAW_STATIC_MESH_DIGEST_V1\",\"worlds\":[{\"sha256\":\"02648417ddf476fe6e78a48dd782e8627e60f5f2295bae999701c733dcbcb37d\",\"status\":\"PASS\",\"world\":\"powered\"},{\"sha256\":\"02648417ddf476fe6e78a48dd782e8627e60f5f2295bae999701c733dcbcb37d\",\"status\":\"PASS\",\"world\":\"control\"}]},\"native_calls\":0,\"scalar\":{\"native_calls\":0,\"schema\":\"ASA_TERRAIN_SCALAR_AUDIT_V1\",\"scope\":\"Signed mechanical discrepancy retained, no hardware calibration or altered tolerance\",\"worlds\":[{\"clock_error_s\":1.716848885280342e-12,\"final_low_flyback_a\":0.210963320475,\"first_gaps\":{\"negative_gear\":{\"applied_torque_nm\":6.276252885375751e-13,\"delta_angle_rad\":-6.769096959399476e-16,\"epsilon_j\":1.663063146612457e-27,\"from_us\":1,\"input_torque_nm\":2.4568418063000104e-12,\"native_loss_j\":-1.2382143968468998e-27,\"native_work_j\":-4.248456432281919e-28,\"post_omega_rads\":-6.769096959399476e-10,\"pre_omega_rads\":1.2644433831449822e-15,\"to_us\":2},\"reverse\":{\"applied_torque_nm\":1.0058859605799959e-10,\"delta_angle_rad\":1.0181148496738218e-11,\"epsilon_j\":-5.002472763638961e-22,\"from_us\":2000,\"input_torque_nm\":2.5696382429916374e-11,\"native_loss_j\":-7.62488748196957e-22,\"native_work_j\":1.0241074335449105e-21,\"post_omega_rads\":2.0362296993476482e-08,\"pre_omega_rads\":-1.8572932720531523e-08,\"to_us\":2500},\"winding\":null},\"first_us\":0,\"gpio_changes\":[{\"at_us\":0,\"level_v\":0.0},{\"at_us\":250003,\"level_v\":5.0},{\"at_us\":1450009,\"level_v\":0.0},{\"at_us\":1450331,\"level_v\":5.0},{\"at_us\":1450518,\"level_v\":0.0},{\"at_us\":1450840,\"level_v\":5.0},{\"at_us\":1451027,\"level_v\":0.0},{\"at_us\":1451349,\"level_v\":5.0},{\"at_us\":1451536,\"level_v\":0.0},{\"at_us\":1451858,\"level_v\":5.0},{\"at_us\":1452045,\"level_v\":0.0},{\"at_us\":1452367,\"level_v\":5.0},{\"at_us\":1452554,\"level_v\":0.0},{\"at_us\":1452876,\"level_v\":5.0},{\"at_us\":1453063,\"level_v\":0.0},{\"at_us\":1453385,\"level_v\":5.0},{\"at_us\":1453572,\"level_v\":0.0},{\"at_us\":1453894,\"level_v\":5.0},{\"at_us\":4340082,\"level_v\":0.0}],\"high_intervals\":8239,\"intervals\":20090,\"last_us\":10000000,\"low_intervals\":11851,\"max_step_us\":500.0,\"min_step_us\":1.0,\"prefix503_bytes\":1737664,\"prefix503_sha256\":\"b94b6a04338b86ce202f6296c817fe2a2a96cd559ae138bb93a17d114910078b\",\"totals\":{\"epsilon_j\":-0.0006199203681852125,\"held_transmission_j\":3.2631805206931053,\"max_bridge_residual_j\":1.0842021724855044e-19,\"max_winding_bound_fraction\":0.037675626240009294,\"max_winding_residual_j\":2.168404344971009e-19,\"native_shaft_j\":0.0009331898160662345,\"native_signed_transmission_j\":1.6330231032283014,\"negative_gear_count\":4199,\"negative_gear_j\":-3.84281241493317e-17,\"reverse_count\":11847,\"reverse_negative_j\":-0.5593758749664262,\"reverse_positive_count\":1,\"reverse_positive_j\":1.0241074335449105e-21},\"world\":\"powered\"},{\"clock_error_s\":1.716848885280342e-12,\"final_low_flyback_a\":0.0,\"first_gaps\":{\"negative_gear\":{\"applied_torque_nm\":6.276252885375751e-13,\"delta_angle_rad\":-6.769096959399476e-16,\"epsilon_j\":1.663063146612457e-27,\"from_us\":1,\"input_torque_nm\":2.4568418063000104e-12,\"native_loss_j\":-1.2382143968468998e-27,\"native_work_j\":-4.248456432281919e-28,\"post_omega_rads\":-6.769096959399476e-10,\"pre_omega_rads\":1.2644433831449822e-15,\"to_us\":2},\"reverse\":{\"applied_torque_nm\":1.0058859605799959e-10,\"delta_angle_rad\":1.0181148496738218e-11,\"epsilon_j\":-5.002472763638961e-22,\"from_us\":2000,\"input_torque_nm\":2.5696382429916374e-11,\"native_loss_j\":-7.62488748196957e-22,\"native_work_j\":1.0241074335449105e-21,\"post_omega_rads\":2.0362296993476482e-08,\"pre_omega_rads\":-1.8572932720531523e-08,\"to_us\":2500},\"winding\":null},\"first_us\":0,\"gpio_changes\":[{\"at_us\":0,\"level_v\":0.0}],\"high_intervals\":0,\"intervals\":20090,\"last_us\":10000000,\"low_intervals\":20090,\"max_step_us\":500.0,\"min_step_us\":1.0,\"prefix503_bytes\":1737664,\"prefix503_sha256\":\"b94b6a04338b86ce202f6296c817fe2a2a96cd559ae138bb93a17d114910078b\",\"totals\":{\"epsilon_j\":1.3617575983079436e-15,\"held_transmission_j\":1.3685409126778725e-10,\"max_bridge_residual_j\":7.888609052210118e-31,\"max_winding_bound_fraction\":0.029878639533434927,\"max_winding_residual_j\":3.9237211498244204e-31,\"native_shaft_j\":-4.7008445292427955e-11,\"native_signed_transmission_j\":5.086611308901455e-14,\"negative_gear_count\":7510,\"negative_gear_j\":-7.624930671303602e-22,\"reverse_count\":20088,\"reverse_negative_j\":-4.700844529345206e-11,\"reverse_positive_count\":1,\"reverse_positive_j\":1.0241074335449105e-21},\"world\":\"control\"}]},\"schema\":\"ASA_INDEPENDENT_COMPOSED_TERRAIN_AUDIT_V1\",\"source\":{\"fixture\":{\"bytes\":42551,\"file\":\"arduino-tt-composed-terrain-seams.fixture.json\",\"sha256\":\"d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271\"},\"spec\":{\"bytes\":155007,\"file\":\"arduino-tt-composed-terrain-seams.spec.ts\",\"sha256\":\"22c0606ba0e13762473a6bbcdb1ffcc116a03490a5033dc502440332be691653\"}},\"source_commit\":\"a206a73ebb0e3672b1747be97d60471168ec9414\",\"source_tree\":\"121fe27667509248867258b2e48cafe681c825e2\",\"verdict\":{\"acquisition\":\"CONSUMED\",\"bridge\":\"NOT_IN_SCOPE\",\"causal\":\"GAP\",\"clock\":\"PASS\",\"control\":\"PASS\",\"energy\":\"PASS\",\"formal\":\"D01_D02_OPEN\",\"lifecycle\":\"PASS\",\"mesh\":\"PASS\",\"physical\":\"FAIL\",\"prefix\":\"PASS\",\"raw\":\"PASS\",\"route\":\"PASS\",\"runtime\":\"COMPLETE\"}}\n"
+    },
+    "artifacts": [
+      {
+        "bytes": 34518,
+        "file": "inspect_terrain_archive.py",
+        "sha256": "286eb11ea865192828aeb7c9fa0a809449b0e2806a7d5ecbabdc09b0e9b3c85c"
+      },
+      {
+        "bytes": 9866,
+        "file": "contact_mesh_audit.py",
+        "sha256": "3a542a745a5137eb8a3cb4db37f194483762948de0d482295b2719b43233d8ad"
+      },
+      {
+        "bytes": 5090,
+        "file": "scalar_audit.py",
+        "sha256": "ee2dbaea7ecf9675b131ed144ad0a910e97284a612f6837be974741f8478fc5a"
+      },
+      {
+        "bytes": 1112,
+        "file": "verify_mesh_digest.cjs",
+        "sha256": "e7c2fa6cd0f1e8b5ec7f663d522f0bc933aced99b78c30d9425f6180b159fcf5"
+      },
+      {
+        "bytes": 7298,
+        "file": "initial-full-replay.json",
+        "sha256": "f2c3b4808f6c24128079877d70d73fef8976b05f148b255e4b5516f9218e5498"
+      },
+      {
+        "bytes": 19673,
+        "file": "contact-mesh-audit.json",
+        "sha256": "9ced3e1383830d1fac3da906e88ff03d9b7fbf648d66b666330e3dd90f6a5c83"
+      },
+      {
+        "bytes": 4038,
+        "file": "scalar-audit.json",
+        "sha256": "403bcad84e2ab2a4b2e626f65eb4acd037958bf080e8a56aa6a769b4e38cbafa"
+      },
+      {
+        "bytes": 295,
+        "file": "mesh-digests.json",
+        "sha256": "20380d0d064be52177ba8f3bd9d93b6dbc18d2c7e25a94891a0392271e8de07c"
+      }
+    ]
+  },
+  "geometry": {
+    "nativeMeshes": [
+      {
+        "id": 0,
+        "name": "lower",
+        "x": [-0.8, 0],
+        "y": [-0.5, 0.5],
+        "top": [0, 0],
+        "bottom": -0.05,
+        "vertices": [
+          [-0.8, -0.5, -0.05],
+          [0, -0.5, -0.05],
+          [0, 0.5, -0.05],
+          [-0.8, 0.5, -0.05],
+          [-0.8, -0.5, 0],
+          [0, -0.5, 0],
+          [0, 0.5, 0],
+          [-0.8, 0.5, 0]
+        ],
+        "faces": [
+          [0, 2, 1],
+          [0, 3, 2],
+          [2, 3, 7],
+          [2, 7, 6],
+          [0, 1, 5],
+          [0, 5, 4],
+          [1, 2, 6],
+          [1, 6, 5],
+          [3, 0, 4],
+          [3, 4, 7],
+          [4, 5, 6],
+          [4, 6, 7]
+        ],
+        "normal": [0.0, 0, 1.0]
+      },
+      {
+        "id": 1,
+        "name": "upper-union",
+        "vertices": [
+          [0, -0.5, -0.05],
+          [2, -0.5, -0.05],
+          [2, 0.5, -0.05],
+          [0, 0.5, -0.05],
+          [0, -0.5, 0],
+          [0.8, -0.5, 0.0699909308207392],
+          [1.2, -0.5, 0.0699909308207392],
+          [2, -0.5, 0],
+          [0, 0.5, 0],
+          [0.8, 0.5, 0.0699909308207392],
+          [1.2, 0.5, 0.0699909308207392],
+          [2, 0.5, 0]
+        ],
+        "faces": [
+          [0, 2, 1],
+          [0, 3, 2],
+          [0, 4, 8],
+          [0, 8, 3],
+          [1, 2, 11],
+          [1, 11, 7],
+          [4, 5, 9],
+          [4, 9, 8],
+          [5, 6, 10],
+          [5, 10, 9],
+          [6, 7, 11],
+          [6, 11, 10],
+          [0, 1, 7],
+          [0, 7, 6],
+          [0, 6, 5],
+          [0, 5, 4],
+          [3, 8, 9],
+          [3, 9, 10],
+          [3, 10, 11],
+          [3, 11, 2]
+        ]
+      },
+      {
+        "id": 2,
+        "name": "terminal-lower",
+        "x": [2, 19],
+        "y": [-0.5, 0.5],
+        "top": [0, 0],
+        "bottom": -0.05,
+        "vertices": [
+          [2, -0.5, -0.05],
+          [19, -0.5, -0.05],
+          [19, 0.5, -0.05],
+          [2, 0.5, -0.05],
+          [2, -0.5, 0],
+          [19, -0.5, 0],
+          [19, 0.5, 0],
+          [2, 0.5, 0]
+        ],
+        "faces": [
+          [0, 2, 1],
+          [0, 3, 2],
+          [2, 3, 7],
+          [2, 7, 6],
+          [0, 1, 5],
+          [0, 5, 4],
+          [1, 2, 6],
+          [1, 6, 5],
+          [3, 0, 4],
+          [3, 4, 7],
+          [4, 5, 6],
+          [4, 6, 7]
+        ],
+        "normal": [0.0, 0, 1.0]
+      }
+    ],
+    "upperPlanes": [
+      {
+        "normal": [-0.08715574274765817, 0, 0.9961946980917455],
+        "offset": 0
+      },
+      {
+        "normal": [0, 0, 1],
+        "offset": 0.0699909308207392
+      },
+      {
+        "normal": [0.08715574274765817, 0, 0.9961946980917455],
+        "offset": 0.17431148549531633
+      },
+      {
+        "normal": [0, 0, -1],
+        "offset": 0.05
+      },
+      {
+        "normal": [-1, 0, 0],
+        "offset": 0
+      },
+      {
+        "normal": [1, 0, 0],
+        "offset": 2
+      },
+      {
+        "normal": [0, -1, 0],
+        "offset": 0.5
+      },
+      {
+        "normal": [0, 1, 0],
+        "offset": 0.5
+      }
+    ],
+    "upperVolume": 0.18398911698488704,
+    "authoredFaces": 5,
+    "nativeCounts": {
+      "ngeom": 9,
+      "nmesh": 3,
+      "nmeshvert": 28,
+      "nmeshface": 44,
+      "npair": 18
+    },
+    "geomBodies": [0, 0, 0, 1, 1, 2, 2, 3, 4],
+    "workAliases": [0, 1, 4, 5, 6, 7, 8, 9, 10]
+  },
+  "expected": {
+    "bodies": ["world", "rover", "rear-axle", "front-left-wheel", "front-right-wheel"],
+    "geoms": [
+      "lower",
+      "upper-union",
+      "terminal-lower",
+      "chassis",
+      "bumper",
+      "rear-left",
+      "rear-right",
+      "front-left",
+      "front-right"
+    ],
+    "joints": ["rover-free", "tt-output", "front-left-passive", "front-right-passive"],
+    "qposAdr": [0, 7, 8, 9],
+    "dofAdr": [0, 6, 7, 8],
+    "pairs": [
+      {
+        "ids": [0, 3],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 4],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 5],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 6],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 7],
+        "friction": 0.8
+      },
+      {
+        "ids": [0, 8],
+        "friction": 0.8
+      },
+      {
+        "ids": [1, 3],
+        "friction": 0.8
+      },
+      {
+        "ids": [1, 4],
+        "friction": 0.8
+      },
+      {
+        "ids": [1, 5],
+        "friction": 0.8
+      },
+      {
+        "ids": [1, 6],
+        "friction": 0.8
+      },
+      {
+        "ids": [1, 7],
+        "friction": 0.8
+      },
+      {
+        "ids": [1, 8],
+        "friction": 0.8
+      },
+      {
+        "ids": [2, 3],
+        "friction": 0.8
+      },
+      {
+        "ids": [2, 4],
+        "friction": 0.8
+      },
+      {
+        "ids": [2, 5],
+        "friction": 0.8
+      },
+      {
+        "ids": [2, 6],
+        "friction": 0.8
+      },
+      {
+        "ids": [2, 7],
+        "friction": 0.8
+      },
+      {
+        "ids": [2, 8],
+        "friction": 0.8
+      }
+    ]
+  },
+  "raw": {
+    "intervalByteCap": 2048,
+    "contactBytes": 176,
+    "maxIntervalsPerWorld": 22000,
+    "maxSessionCalls": 24000,
+    "maxContactsPerWorld": 450000,
+    "maxContactsPerInterval": 72,
+    "maxRowsPerInterval": 216,
+    "metadataByteCap": 1048576,
+    "footerByteCap": 8388608,
+    "byteCap": 268435456
+  },
+  "atlas": {
+    "upperNative": 1,
+    "facesByNative": [[0], [1, 2, 3], [4]],
+    "internalCreases": [0.8, 1.2],
+    "boundaryRule": "terrain-side witness; both full-3D dot5deg tests at internal upper creases; own face at0/2; no best-face; distinct certain wheel support for mixed transitions",
+    "negativePairs": {
+      "3376500": [
+        [2, 9],
+        [2, 10]
+      ],
+      "3799500": [
+        [2, 7],
+        [2, 8]
+      ],
+      "4396500": [
+        [3, 9],
+        [3, 10]
+      ],
+      "4729500": [
+        [3, 7],
+        [3, 8]
+      ]
+    },
+    "negativeSamples": [
+      {
+        "fromUs": 3376500,
+        "terrain": 2,
+        "wheel": 9,
+        "index": 6,
+        "entryHex": "09000200778706065a6567ae9999e93fa6c9ae4a5050b03ffcae9e0ce8eab13f66b3660a2f09b73f00000000000000009c42b951c4deefbf0000000000000000000000000000f03f00000000000000009c42b951c4deef3f000000000000008066b3660a2f09b73fa3936dbe610bf73ff5b00ff6f0a930bf2414eef65a3926bfb0082a085f274ebf67fc21921aff43bd0000f00e4e4ebf3e20d364bf0f1b98be0080d3b89bca8dbc00000c4943f6073e",
+        "distanceHex": "05fbd6f44c02a4be"
+      },
+      {
+        "fromUs": 3376500,
+        "terrain": 2,
+        "wheel": 10,
+        "index": 9,
+        "entryHex": "0a00020077870909126267ae9999e93f00d7f1555050b0bf27d49f0ce8eab13f8afd11182f09b73fa28fb9f4ad96d9bd6abd9151c4deefbf1f186111a56ba23d000000000000f03ff8f708d81a7cd9bd6abd9151c4deef3f00000000000000008afd11182f09b73f8e720399870bf73f7d2222f995d6f3bea1c3e848eb3726bf8cff24b26f274ebf0050731fbf0650bd0000d89f634ebf3e6828f2721f1b98be004075cba48898bc000030ce53f6073e",
+        "distanceHex": "7ce9775b4802a4be"
+      },
+      {
+        "fromUs": 3799500,
+        "terrain": 2,
+        "wheel": 7,
+        "index": 4,
+        "entryHex": "0700020077870404d60d55ae9999e93f50ffc4bbf528ac3f9a1bfd2ce8eab13f600937229f83b73f102d2ef10e3a21be824aab9e5eddefbfff28d42a2c51e93d000000000000f03f2927cd606a2721be824aab9e5eddef3f0000000000000000600937229f83b73fd41283fd9f55fc3f67eda34924e94e3fbc2c2cf3d539cdbfd97fe297a7935abfe6aeb12633cd38be32c48bbabe41b8bed23c853edbfba4be5ed39351b98688bd000000a8968602be",
+        "distanceHex": "5c2982282781a3be"
+      },
+      {
+        "fromUs": 3799500,
+        "terrain": 2,
+        "wheel": 8,
+        "index": 5,
+        "entryHex": "0800020077870505cb9e66ae9999e93f16e55f4f8ee0b0bf8127af26e8eab13fbb92aff0ee81b73f5db8306ae1ca233e53d7369a63ddefbf26a3a3555f14edbd000000000000f03ff43bb01e79b5233e53d7369a63ddef3f0000000000000000bb92aff0ee81b73f5b63f9afc0b4f73fcd6465206fca2abf9464d8b04f3cc8bfcbe9aaf8c8935abfe73bd78783c538beab381a641b29b9bee29d87df0bfca4be9dce25d5a78088bd000040c1a34403be",
+        "distanceHex": "596b5050779aa3be"
+      },
+      {
+        "fromUs": 4396500,
+        "terrain": 3,
+        "wheel": 9,
+        "index": 6,
+        "entryHex": "09000300778706064998763f3333f33fa0cd2e325050b03f218156f3e4eab13f2e379d6c80c33a3f840886dfbcc73f3eb2493bd3ffffefbffdbd602772948abd000000000000f03f5e0810b3bcc73f3eb2493bd3ffffef3f00000000000000002e379d6c80c33a3f5ae0fbfaa2d4f83f540c2d86b0db333f7063d806bdbd85bfe39c30fe077b32bf49d6b8aebda47f3d000000860715433ebc293efaa2a47fbe00808d649cd7ce3c00000098b0378d3d",
+        "distanceHex": "7eab8b5d531cb0be"
+      },
+      {
+        "fromUs": 4396500,
+        "terrain": 3,
+        "wheel": 10,
+        "index": 9,
+        "entryHex": "0a000300778709096298763f3333f33f31d1716e5050b0bf0ec357f3e4eab13f3ffd5342b6c33a3f23d218906a683fbe96953ad3ffffefbfb7206ac1ed448a3d000000000000f03f5b7c27646a683fbe96953ad3ffffef3f00000000000000003ffd5342b6c33a3f86630b644dd6f83f3373afe99710f23eb7e31d5b8fbd85bfb5dc9fbf737c32bf000076ca0bad84bd000000cc1220433efb876e454ea77fbe00402debbda6cfbc00000050b7468d3d",
+        "distanceHex": "31dbb2d9501cb0be"
+      },
+      {
+        "fromUs": 4729500,
+        "terrain": 3,
+        "wheel": 7,
+        "index": 4,
+        "entryHex": "0700030077870404dcd5a93f3333f33f57930bb4a62bb13ff4888eeee9eab13f1857c98f540d753fd983b0e9a0cb35be59eeea4ce4ffefbf398a60d66badbc3d000000000000f03fe958e70b8ecb35be59eeea4ce4ffef3f00000000000070ba1857c98f540d753f252433cfc418f83fcd13146f4ca247bfd3f2e746f4b3c33f712453a3ed0761bf52b9d58106aa403e5e9c36c6589691bed99d911ca1ceaabedae1c74a4f82843d0000e0a439a1dabd",
+        "distanceHex": "8c4ffe26a29798be"
+      },
+      {
+        "fromUs": 4729500,
+        "terrain": 3,
+        "wheel": 8,
+        "index": 5,
+        "entryHex": "08000300778705051eeda83f3333f33f3c3ad7785050b0bf85dd51f7e9eab13f2ba92f6474fd743f4c714120391b313e4d38a276e4ffefbf281c1b500271b6bd000000000000f03fa48fda672a1b313e4d38a276e4ffef3f00000000000000002ba92f6474fd743fb0b3d236de69f93fcd465a085f51333f7c1a74cf8a96c43f9ed4b8b5f30761bf353b6aad60b4403ec45e22f6368792bedbf8c7a93eceaabef499f42a9a92843d00002051b36fdcbd",
+        "distanceHex": "5e111826875198be"
+      }
+    ]
+  },
+  "xml": [
+    "<mujoco model=\"asa1181_tt_rover\">",
+    "<compiler angle=\"radian\" inertiafromgeom=\"false\" autolimits=\"false\"/>",
+    "<option timestep=\"0.0005\" gravity=\"0 0 -9.81\" integrator=\"implicitfast\" solver=\"Newton\" jacobian=\"dense\" cone=\"elliptic\" iterations=\"100\" tolerance=\"1e-10\" ls_iterations=\"50\" ls_tolerance=\"0.01\" noslip_iterations=\"20\" noslip_tolerance=\"1e-12\" impratio=\"1\" ccd_iterations=\"100\" ccd_tolerance=\"1e-8\" density=\"0\" viscosity=\"0\" wind=\"0 0 0\">",
+    "<flag warmstart=\"enable\" island=\"enable\" refsafe=\"enable\" nativeccd=\"enable\" multiccd=\"enable\" diagexact=\"enable\" autoreset=\"disable\" sleep=\"disable\" override=\"disable\" fwdinv=\"disable\" invdiscrete=\"disable\" energy=\"disable\" ipc=\"disable\" speculative=\"disable\"/>",
+    "</option>",
+    "<default><geom contype=\"0\" conaffinity=\"0\" condim=\"3\" margin=\"0\" gap=\"0\"/></default>",
+    "<asset>",
+    "<mesh name=\"lower-mesh\" vertex=\"-0.80000000000000004 -0.5 -0.050000000000000003 0 -0.5 -0.050000000000000003 0 0.5 -0.050000000000000003 -0.80000000000000004 0.5 -0.050000000000000003 -0.80000000000000004 -0.5 0 0 -0.5 0 0 0.5 0 -0.80000000000000004 0.5 0\" face=\"0 2 1 0 3 2 2 3 7 2 7 6 0 1 5 0 5 4 1 2 6 1 6 5 3 0 4 3 4 7 4 5 6 4 6 7\"/>",
+    "<mesh name=\"upper-union-mesh\" vertex=\"0 -0.5 -0.050000000000000003 2 -0.5 -0.050000000000000003 2 0.5 -0.050000000000000003 0 0.5 -0.050000000000000003 0 -0.5 0 0.80000000000000004 -0.5 0.069990930820739206 1.2 -0.5 0.069990930820739206 2 -0.5 0 0 0.5 0 0.80000000000000004 0.5 0.069990930820739206 1.2 0.5 0.069990930820739206 2 0.5 0\" face=\"0 2 1 0 3 2 0 4 8 0 8 3 1 2 11 1 11 7 4 5 9 4 9 8 5 6 10 5 10 9 6 7 11 6 11 10 0 1 7 0 7 6 0 6 5 0 5 4 3 8 9 3 9 10 3 10 11 3 11 2\"/>",
+    "<mesh name=\"terminal-lower-mesh\" vertex=\"2 -0.5 -0.050000000000000003 19 -0.5 -0.050000000000000003 19 0.5 -0.050000000000000003 2 0.5 -0.050000000000000003 2 -0.5 0 19 -0.5 0 19 0.5 0 2 0.5 0\" face=\"0 2 1 0 3 2 2 3 7 2 7 6 0 1 5 0 5 4 1 2 6 1 6 5 3 0 4 3 4 7 4 5 6 4 6 7\"/>",
+    "</asset>",
+    "<worldbody>",
+    "<geom name=\"lower\" type=\"mesh\" mesh=\"lower-mesh\"/>",
+    "<geom name=\"upper-union\" type=\"mesh\" mesh=\"upper-union-mesh\"/>",
+    "<geom name=\"terminal-lower\" type=\"mesh\" mesh=\"terminal-lower-mesh\"/>",
+    "<body name=\"rover\" pos=\"-0.25 0 0.06\"><freejoint name=\"rover-free\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.44\" fullinertia=\"0.00033639597389362885 0.002018023863011864 0.002154899964851568 0 -0.00035747329369297735 0\"/>",
+    "<geom name=\"chassis\" type=\"box\" size=\"0.08 0.05 0.016\"/>",
+    "<geom name=\"bumper\" type=\"box\" pos=\"0.15694712210921707 0 0.03730399557423576\" size=\"0.0975 0.035 0.0105\" quat=\"0.9981347984218669 0 -0.06104853953485687 0\"/>",
+    "<body name=\"rear-axle\" pos=\"-0.07 0 -0.03\">",
+    "<joint name=\"tt-output\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0.0004608\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.08\" diaginertia=\"0.0003586666666666667 0.000036 0.0003586666666666667\"/>",
+    "<geom name=\"rear-left\" type=\"cylinder\" pos=\"0 0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "<geom name=\"rear-right\" type=\"cylinder\" pos=\"0 -0.065 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "<body name=\"front-left-wheel\" pos=\"0.07 0.065 -0.03\">",
+    "<joint name=\"front-left-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+    "<geom name=\"front-left\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "<body name=\"front-right-wheel\" pos=\"0.07 -0.065 -0.03\">",
+    "<joint name=\"front-right-passive\" type=\"hinge\" axis=\"0 1 0\" limited=\"false\" armature=\"0\" damping=\"0\" frictionloss=\"0\"/>",
+    "<inertial pos=\"0 0 0\" mass=\"0.04\" diaginertia=\"0.000010333333333333333 0.000018 0.000010333333333333333\"/>",
+    "<geom name=\"front-right\" type=\"cylinder\" pos=\"0 0 0\" size=\"0.03 0.01\" quat=\"0.7071067811865476 -0.7071067811865476 0 0\"/>",
+    "</body>",
+    "</body>",
+    "</worldbody><contact>",
+    "<pair geom1=\"lower\" geom2=\"chassis\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"bumper\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"rear-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"rear-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"front-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"lower\" geom2=\"front-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper-union\" geom2=\"chassis\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper-union\" geom2=\"bumper\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper-union\" geom2=\"rear-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper-union\" geom2=\"rear-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper-union\" geom2=\"front-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"upper-union\" geom2=\"front-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"terminal-lower\" geom2=\"chassis\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"terminal-lower\" geom2=\"bumper\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"terminal-lower\" geom2=\"rear-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"terminal-lower\" geom2=\"rear-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"terminal-lower\" geom2=\"front-left\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "<pair geom1=\"terminal-lower\" geom2=\"front-right\" condim=\"3\" friction=\"0.80000000000000004 0.80000000000000004 0 0 0\" solref=\"0.004 1\" solreffriction=\"0 0\" solimp=\"0.99 0.99 0.001 0.5 2\" margin=\"0\" gap=\"0\"/>",
+    "</contact></mujoco>"
+  ],
+  "xmlSha256": "a204f26f1f2130e565d707f69cfe02c135af5b5bfbafdbe24205ea4b14aadd8e"
+}
