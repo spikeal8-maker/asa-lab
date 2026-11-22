@@ -18786,6 +18786,205 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: e1_composed_terrain_wheel_transitions_selected
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      slice: E1-COMPOSED-TERRAIN-WHEEL-TRANSITIONS
+      planned_paths:
+      - tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+      - tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+      preserved_e1_history: parallel_lanes.robotics.historical_e1_task
+      owner_authorization: >-
+        The owner's continuing Robotics Field programme and latest ramp height/width/angle,
+        joining platform and optional bridge request authorize this one bounded TEST_ONLY
+        composed-terrain/wheel-transition slice. Resume the canonical E1 ID and Issue1071
+        after the separately selected UI_ONLY scale source was protected-integrated.
+        Preserve historical_e1_task and its exact old requirements, every physical FAIL/GAP,
+        stage6_result, historical_side_scale_task, side_scale_result and all global blockers.
+        Only this selected acquisition may execute after protected registration, fresh exact
+        two-path source preflight, frozen pure/style/type checks and independent HIGH review.
+        No additional native retry, product/editor/schema/Worker/asset/deployment or working DB action.
+      scope: >-
+        E1 only: one finite, physically driven lower/ascent/platform/descent/lower course.
+        Test-local plan/profile/query and native mesh use the same canonical metric geometry.
+        This prepares evidence for the user's terrain toolkit without activating product
+        spatial integration or treating a display ruler as physics acceptance. The immutable
+        historical_e1_task retains all six-scene D01/D02 requirements and original E0 safety,
+        public-API-only, no-live-stand and no-product-mutation constraints; this selection
+        supersedes only its consumed execution projection, never its scientific history.
+      selected_acquisition:
+        id: E1-ARDUINO-COMPOSED-TERRAIN-WHEEL-SEAMS-01
+        registration_baseline:
+          main: e6bb205dbf6bd47159b59fc3bda1c416377d7094
+          tree: 9e4cc1d2bf8f937dbd40b29b9f89bf4b818df766
+          tested_source: 8118c0c2b70dbf333b62f77fc04162283ffe13f4
+          required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44980433921/job/137086946136
+        immutable_inputs:
+          geometry: {path: tests/robotics/field-core-qualification/editable-ramp-geometry.ts, bytes: 4549, sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848}
+          r5_source: cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42
+          r5_fixture_sha256: 6a1b46d96489db96e927f24cdbc59d497a11b864b36572287adc05fa51dcf07d
+          rover_block_sha256: 904b91d3778b7c1a6863e65b11d3f45e6c9edeb2f9c93da58b3c818ce8da1ba3
+          current_transfer_source: d62a774dad2fbb0e4b874122e342cfb6129911e3
+          current_fixture: {path: tests/robotics/field-core-qualification/arduino-tt-sphere-push.fixture.json, bytes: 25475, sha256: 1408eea509829091d9b190d07539cbe7fb0103c863a2497970a4a115def25d36}
+          current_spec: {path: tests/robotics/field-core-qualification/arduino-tt-sphere-push.spec.ts, bytes: 121215, sha256: e594505f80bfae69e3cd384b8fdc7ca9f908e47ec44bfff67caa808cea6d2a22}
+          prior_raw_binary: {file: arduino-tt-sphere-push.bin, bytes: 145827456, sha256: b3359ee35b5b083d75cd4196b55de605986baf3281c8e2ce949f54fb3a142629}
+          prior_raw_receipt: {file: arduino-tt-sphere-push.jsonl, bytes: 62104, sha256: 93e8e607e44ac0564414e99655571d386fa39135609dbe4e7bc5f90fe7851bcc}
+          engine: >-
+            Exact current-transfer fixture pins: MuJoCo4.0.0 upstream ac60eae30fa7e0d31315c38d9476752fb81be67e,
+            AOT glue9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8,
+            WASMd2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241,
+            declarations779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff,
+            licence/build/browser receipts and exact implicitfast/Newton/dense/elliptic profile,
+            gravity/CCD/contact/iteration/damping settings (disableflags65536/enableflags32,
+            iterations100/ls50/noslip20/ccd100). No engine option or dependency change.
+            Wheel contacts do not use the specially named finite-can patch branch.
+        geometry:
+          units: metres_radians
+          horizontal_ramp_length_m: 0.8
+          width_m: 1
+          angle_deg: 5
+          rise_m: 0.0699909308207392
+          platform_length_m: 0.4
+          base_bottom_z_m: -0.05
+          top_route_x_m: {lower: [-0.8, 0], ascent: [0, 0.8], platform: [0.8, 1.2], descent: [1.2, 2], terminal_lower: [2, 19]}
+          y_extent_m: [-0.5, 0.5]
+          rules: >-
+            Exactly five declared closed contiguous solids, with lower tops0 and platform topH;
+            no added foundation, overlapping global top-zero plane, hidden support or extra wall.
+            Use the unchanged helper's positive L/W/thickness, theta=atan2(H,L), H=L*tan(theta)
+            with horizontal L fixed for angle edits, sloping length hypot(L,H) and volume
+            LW(T+H/2). Derive the descent by the mirrored orientation of the same ramp.
+            One canonical table of shared edge coordinates feeds plan/profile/query/mesh;
+            adjacent interiors are disjoint and top edge heights/widths coincide. Preserve
+            invalid-input rejection and test L/W/H/angle/heading consistency purely, without
+            claiming physical success at unacquired dimensions.
+          compiled_admission: >-
+            Verify actual compiled native vertices/transforms and every common edge before
+            stepping. Derive any unavoidable Float32 vertex/Float64 transform allowance from
+            the existing admitted representation/ULP arithmetic, freeze it in the source
+            fixture before dispatch and independently review it; never fit a seam tolerance
+            to new contact results. Detect gaps, penetrations, reversed faces, vertical
+            technical support and wrong collider hulls; retain failure rather than hide it
+            with another collider. Check the full rover/boom/wheel envelope at initialization.
+        drive_and_clock:
+          powered_sketch_sha256: acfc2b3854ed2cc4161a6f9a7dcff50af9777310b85ba07043b6f350a2047c90
+          powered_gpio_sha256: 22a338b8385ce5ff644d1f258e4cfb40bea805ced20c023e2938aaae1ea173d5
+          low_sketch_sha256: 80115f2df9e1dcbf8265d2c1a0284954c5cec69aba8b9aa1038a20e694ea94dc
+          low_gpio_sha256: d84549a5061a1d54a7a4b5470c7d8f6d5f936301e36b0f441cdb1894290edbb8
+          horizon_us_each: 10000000
+          max_native_step_us: 500
+          first_differing_gpio_us: 250003
+          final_low_us: 4340082
+          legacy_prefix_intervals: 503
+          last_legacy_interval_from_us: 250000
+          historical_r5_prefix_sha256: dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16
+          requirements: >-
+            Keep the exact accepted R5 rover block,0.6kg assembly,3cm wheel radius,7-degree
+            boom, TT profile/circuit/Uno programs and independently pure-verified GPIO traces.
+            Reuse the actual existing one-component session, left-held MNA/winding, native
+            axle feedback, token identity and PRE/STEP1/STEP2/commit ordering. Legacy effort
+            through the accepted250003us endpoint, then the exact current-transfer R5
+            lower-loss reverse method; no controller, program, duration or cutoff change.
+            Require the new powered/LOW native physical/electrical prefixes through503
+            intervals to match bitwise apart from declared identity metadata. The old R5
+            prefix hash is immutable provenance, not a claim that different scene schemas
+            reproduce its entire old binary framing. Native owns all subsequent poses/
+            velocities; no assigned terrain Z, rolling pose, speed reset or kinematic push.
+        witnesses_and_outcomes: >-
+          Acquire one powered/LOW pair, one module and one world at a time, through the full
+          fixed10s. Only the environment changes: no ball/can or scripted striker. For each
+          wheel retain all solved PRE contact identities, geom pairs, row addresses/types/IDs,
+          points/normals/forces and actual COM/rotation/velocity. Reconstruct signed outward
+          forces and same-point body velocities; top support must lie on the correct finite
+          top face with valid radial/axial wheel witnesses, not a side/bottom seam wall.
+          Keep the inherited1mm face and5-degree normal bounds,0.02m/s wheel-slip bound,
+          phase/force/clock/servo/finite/warning guards and exact materials. Do not omit an
+          invalid loaded row because another valid support exists.
+          Record chronological four-wheel transitions lower->ascent->platform->descent->lower,
+          including actual mixed-support intervals and distinct native per-wheel labels.
+          Require a continuous supported100ms lower baseline before power divergence,
+          platform100ms and terminal-lower100ms, with positive top support for all four
+          wheels and unchanged slip gates. Native whole-assembly elevation must rise at
+          least0.06m from baseline and fall at least0.06m from platform; measure all real
+          body poses and full-assembly clearances, never infer pose from terrain height.
+          Record actual power/cutoff/flyback, displacement, contact impulses, all later
+          collisions and out-of-bounds through10s. LOW keeps the inherited0.02m maximum
+          travel. Preserve signed full-horizon electrical/magnetic/mechanical/native energy,
+          COM/inertia/armature counted once, first-variation J_PRE work and finite-chord
+          remainder diagnostics, max(0.0001J,1% positive input) unexplained-energy bound.
+          Keep left/native coupling and transmission signs separate, no residual credit;
+          prior R5 late GAP remains and any new causal GAP is reported separately.
+          If a required seam/plateau/descent is not reached, retain physical NOT_REACHED
+          and the complete observed horizon; no extension, retiming or geometry tuning.
+          Unsafe runtime/adapter/capacity errors stop with first-error/cleanup preserved.
+          No local result substitutes for PHY-06, all D01 scenes, D02 or hardware calibration.
+        capture:
+          max_worlds: 2
+          max_concurrent_worlds: 1
+          max_module_initializations: 1
+          max_intervals_per_world: 22000
+          max_session_calls_per_world: 24000
+          max_step1_calls_total: 44000
+          max_step2_calls_total: 44000
+          max_contacts_per_interval: 132
+          max_rows_per_interval: 396
+          max_contacts_per_world: 450000
+          header_bytes_per_interval: 2048
+          bytes_per_contact: 176
+          metadata_bytes: 1048576
+          footer_error_bytes: 8388608
+          worst_case_total_bytes: 257949184
+          max_external_bytes: 268435456
+          admission: >-
+            The cumulative contact cap is independent of the local132-contact cap:
+            44000*2048+900000*176+1MiB+8MiB=257949184 bytes. Freeze a complete LE schema
+            proving that all new native poses/rows/forces/seam geometry data fit the same
+            bounds, with static geometry in metadata and independently reconstructible
+            derived metrics; never drop inactive contacts or deciding intervals. Check
+            per-step/cumulative/native-call budgets before advance and reserve the full
+            observed PRE census record before STEP2. If the full codec cannot fit, stop
+            before dispatch and report a preregistration gap rather than enlarge the cap.
+        source_and_dispatch: >-
+          Only the two new planned fixture/spec files may change; import the unchanged
+          metric helper. Before any native import, hash-check the immutable inputs, complete
+          prior current-artifact raw and offline replay, declared source/profile/licence/
+          build receipts. Pure/default tests must never initialize native or invoke old
+          fixture/CLI wrappers. Pure-test readback width/ownership validators and geometry/ULP
+          allowances; perform actual compiled-model admission before the first native advance.
+          Test actual Uno programs, token/clock/phase denial, force signs, support
+          classifiers, missing transitions and capture/error guards. Freeze exact source/
+          fixture/model/schema digests after scoped pure/style/strict typing and independent
+          HIGH review. Only then one controller opt-in pair with unique exclusive external
+          raw, full cleanup and independent complete replay. Any actual dispatch consumes
+          this selection; preserve the first result and never retry or tune blindly.
+      downstream_user_outcomes: >-
+        historical_e1_task.downstream_user_outcomes remains exact and authoritative for the
+        later editor/toolbox. This course prepares only joined-ramp/platform evidence.
+        The optional true bridge is separate volumes for slab/supports and an open underpass,
+        with whole continuous lower floor and actual full-rover underside clearance; no
+        heightmap or filled-ramp interpretation. Current nominal H69.991mm with a20mm slab
+        would leave49.991mm beneath versus declared level rover height119.608mm, so it
+        cannot prove underpass. No bridge acquisition or editor/schema action is selected.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      gate_boundary: >-
+        This registration uses exact-path PLAN/control-plane, YAML history/inverse checks,
+        actual pnpm validate:electronics-agent-docs and full pnpm gate:governance. Source
+        admission and one future acquisition are solely the selected contract above;
+        existing D01/D02 blockers still prohibit product integration/closure/deployment.
+      deployment: not_authorized
+      database_actions: none
+    historical_side_scale_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-SIDE-SCALE-001
       issue: 1071
       branch: main
@@ -18873,6 +19072,30 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    side_scale_result:
+      scope: UI_ONLY
+      source: 8118c0c2b70dbf333b62f77fc04162283ffe13f4
+      protected_merge: e6bb205dbf6bd47159b59fc3bda1c416377d7094
+      protected_tree: 9e4cc1d2bf8f937dbd40b29b9f89bf4b818df766
+      required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44980433921/job/137086946136
+      built_browser_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44980433911/job/137079615065
+      artifact: https://github.com/spikeal8-maker/asa-lab/actions/runs/44980433911/artifacts/14737403212
+      relative_directory: e2e/artifacts/robotics-projects
+      receipt: {file: side-scale.json, bytes: 11735, sha256: e65bc9e671841f7cf15a5edde8c2727b764268cb1a57a5c252c1025929928526}
+      screenshots:
+      - {file: side-scale-1440-dpr1.png, bytes: 8710, sha256: 292a9a1e52e00fb35cc18287b7c28d0264006f9adeea740a6b6e085144b11121}
+      - {file: side-scale-1440-dpr2.png, bytes: 22009, sha256: 521354a7ace35afb3e620dd768a00ab05558f59c9f02432e907553ac93ded6ae}
+      - {file: side-scale-320-dpr1.png, bytes: 6233, sha256: 87178f2a28b86cc05a04131a1aa6b3a1978253bfb62e1e63011642fa333bb8e0}
+      - {file: side-scale-320-dpr2.png, bytes: 14473, sha256: fb7e21446911832ed475b88dc5af6dfcfa718c04a9ce44a1e1ab234a2439f913}
+      measured: {width_dpr_cases: 4, fitted_zoomed_focused_measurements: 12, max_css_pixel_error: 0.012867647058826037}
+      delivered: >-
+        The exact built Web/API/isolated PostgreSQL browser job passed the normal Field
+        side-view journey, real WebGL without fallback, camera/mode/resize/focus controls,
+        unchanged paused clock/pose and saved/reopened document assertions. Independently
+        rehashed the receipt/screenshots and recomputed all12 metric pixel errors from
+        stored values; four stored paused clock/pose tuples are identical. This is the
+        delivered orthographic display ruler only, with owner acceptance still pending;
+        no spatial terrain/physics qualification, stand update or deployment is claimed.
     stage6_result:
       observed_on: '2026-11-22'
       scope: TEST_ONLY
@@ -20485,7 +20708,6 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:governance
-          - pnpm test:robotics
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
