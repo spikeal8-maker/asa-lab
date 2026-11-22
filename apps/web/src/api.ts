@@ -1006,6 +1006,7 @@ export interface GradebookEntry {
   courseRunId?: string | null;
   courseTitle?: string | null;
   seatId: string;
+  removedFromClass?: boolean;
   displayLabel: string;
   assignmentId: string;
   assignmentTitle: string;
