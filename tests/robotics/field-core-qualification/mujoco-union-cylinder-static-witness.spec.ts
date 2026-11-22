@@ -3,17 +3,20 @@ import {
   closeSync,
   fsyncSync,
   lstatSync,
+  mkdtempSync,
   openSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  rmdirSync,
+  unlinkSync,
   writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
-import f from './mujoco-union-cylinder-static-witness.fixture.json';
+import type fixtureData from './mujoco-union-cylinder-static-witness.fixture.json';
 
 // This module imports no previous spec, engine glue, session, CLI or numerical solver.
 // Only the explicitly enabled final test may dynamically import the verified AOT glue.
@@ -103,6 +106,8 @@ type Snapshot = { state: Packet; geometry: Geometry };
 type Sink = { write(record: unknown, footer?: boolean): void; reserve(): void };
 const sourcePath = fileURLToPath(import.meta.url);
 const fixturePath = join(dirname(sourcePath), 'mujoco-union-cylinder-static-witness.fixture.json');
+// Read the immutable JSON bytes through the same codec; bundler JSON transforms can normalize -0.
+const f = parseSigned(readFileSync(fixturePath, 'utf8')) as typeof fixtureData;
 const repo = resolve(dirname(sourcePath), '../../..');
 const token = 'one-union-cylinder-static-witness-1071';
 const nativeEnabled = process.env.ASA_STATIC_WITNESS_NATIVE !== undefined;
@@ -122,6 +127,26 @@ function bytes(values: ArrayLike<number>) {
 function packet(values: ArrayLike<number>): Packet {
   return { values: Array.from(values), f64le: bytes(values).toString('hex') };
 }
+// The reserved scalar matches the historical raw convention. Every durable JSON
+// writer AND reader uses this codec, including model readbacks and header inputs.
+// Packet.f64le remains the independent exact-bit authority; inconsistent values fail.
+function stringifySigned(value: unknown) {
+  return JSON.stringify(value, (_key, v: unknown) => {
+    if (typeof v === 'number' && Object.is(v, -0)) return 'float64:-0';
+    if (typeof v === 'string' && v.startsWith('float64:'))
+      check(v === 'float64:-0', 'SIGNED_ZERO_LABEL');
+    return v;
+  });
+}
+function parseSigned(text: string): ReturnType<typeof JSON.parse> {
+  return JSON.parse(text, (_key, v: unknown) => {
+    if (typeof v === 'string' && v.startsWith('float64:')) {
+      check(v === 'float64:-0', 'SIGNED_ZERO_LABEL');
+      return -0;
+    }
+    return v;
+  });
+}
 function legacyFloats(values: readonly (number | string)[]) {
   return values.map((v) => {
     if (v === 'float64:-0') return -0;
@@ -135,7 +160,7 @@ function decodePacket(raw: string) {
   return Array.from({ length: b.length / 8 }, (_, i) => b.readDoubleLE(i * 8));
 }
 function same(a: unknown, b: unknown) {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return stringifySigned(a) === stringifySigned(b);
 }
 function doubles(value: unknown, length: number, label: string): Float64Array {
   check(value instanceof Float64Array && value.length === length, 'F64_WIDTH_' + label);
@@ -303,7 +328,7 @@ function xml(c: Case) {
     : f.immutableInputs.five_mesh_fixture;
   const raw = readFileSync(join(repo, pin.path));
   check(raw.length === pin.bytes && sha(raw) === pin.sha256, 'XML_FIXTURE_PIN');
-  const value = JSON.parse(raw.toString()) as { xml: string[] };
+  const value = parseSigned(raw.toString()) as { xml: string[] };
   check(
     Array.isArray(value.xml) && value.xml.every((line) => typeof line === 'string'),
     'XML_ARRAY',
@@ -675,7 +700,7 @@ class Journal implements Sink {
     );
   }
   write(record: unknown, footer = false) {
-    const encoded = Buffer.from(JSON.stringify(record) + '\n');
+    const encoded = Buffer.from(stringifySigned(record) + '\n');
     check(
       this.used + encoded.length <= f.receipt.maxBytes - (footer ? 0 : f.receipt.footerReserve),
       'RECEIPT_CAP',
@@ -740,11 +765,11 @@ function readInputs(env: NodeJS.ProcessEnv) {
     metaUnion = pinFile(join(paths.union, p.union_raw_metadata.file), p.union_raw_metadata),
     rawFive = pinFile(join(paths.five, p.old_five_mesh_binary.file), p.old_five_mesh_binary),
     metaFive = pinFile(join(paths.five, p.old_five_mesh_metadata.file), p.old_five_mesh_metadata);
-  const unionReplay = JSON.parse(pinFile(paths.unionReplay, p.independent_full_replay).toString()),
-    fiveReplay = JSON.parse(
+  const unionReplay = parseSigned(pinFile(paths.unionReplay, p.independent_full_replay).toString()),
+    fiveReplay = parseSigned(
       pinFile(paths.fiveReplay, p.old_five_mesh_independent_replay).toString(),
     ),
-    certificate = JSON.parse(pinFile(paths.certificate, p.finite_cylinder_certificate).toString());
+    certificate = parseSigned(pinFile(paths.certificate, p.finite_cylinder_certificate).toString());
   check(
     unionReplay.source_commit === f.cases[0]!.source &&
       unionReplay.source_tree === 'f9b81501a2a0e6aa46accb945520afcd6ad867a8' &&
@@ -784,7 +809,7 @@ function readInputs(env: NodeJS.ProcessEnv) {
       .toString()
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line));
+      .map((line) => parseSigned(line));
     const start = metadata.find((x) => x.kind === 'world-start' && x.world === 'powered');
     check(
       start &&
@@ -907,6 +932,24 @@ function runCase(M: Native, c: Case, l: Ledger, sink: Sink) {
       sink.reserve();
       const before = capture(data!, c, l);
       validateSnapshot(before, c);
+      // Sampling owns temporary copies. A failed release is already a known error,
+      // so preserve that sample and STOP before any public native call/counter.
+      if (l.cleanupErrors.length) {
+        const error = new Error('PRE_API_OWNERSHIP_CLEANUP: ' + l.cleanupErrors[0]);
+        try {
+          remember({
+            kind: 'pre-api-error',
+            case: c.id,
+            api: kind,
+            before,
+            firstError: String(error),
+            ledger: structuredClone(l),
+          });
+        } catch (io) {
+          l.cleanupErrors.push('pre-api-receipt: ' + String(io));
+        }
+        throw error;
+      }
       check(before.state.f64le === expected, 'PRE_API_STATE_EXACT');
       const counter = l[kind],
         cap = kind === 'position' ? f.caps.max_position_calls : f.caps.max_distance_calls;
@@ -1061,7 +1104,7 @@ async function nativeRun(env: NodeJS.ProcessEnv) {
       counters: l,
     });
     // Persisted header is read back BEFORE any glue import, module init or restore.
-    const header = JSON.parse(readFileSync(path, 'utf8').trim().split('\n').at(-1)!);
+    const header = parseSigned(readFileSync(path, 'utf8').trim().split('\n').at(-1)!);
     check(
       header.source.sha256 === expectedSource && header.fixture.sha256 === expectedFixture,
       'HEADER_READBACK',
@@ -1349,6 +1392,7 @@ function mockNative(
     zero?: boolean;
     nan?: boolean;
     warnings?: boolean;
+    contactVectorDeleteError?: boolean;
   } = {},
 ) {
   let current: Data | undefined,
@@ -1449,7 +1493,9 @@ function mockNative(
             delete() {},
           };
         },
-        delete() {},
+        delete() {
+          if (options.contactVectorDeleteError) throw new Error('MOCK_CONTACT_VECTOR_DELETE');
+        },
       };
     }
     warning = {
@@ -1534,7 +1580,7 @@ function memorySink() {
   return {
     events,
     write(record: unknown) {
-      const raw = JSON.stringify(record);
+      const raw = stringifySigned(record);
       used += Buffer.byteLength(raw);
       check(used < f.receipt.maxBytes, 'MOCK_EXTERNAL_CAP');
       events.push(structuredClone(record));
@@ -1845,7 +1891,7 @@ it.runIf(process.env.ASA_STATIC_REPLAY_RECEIPT !== undefined)(
         .toString()
         .trim()
         .split('\n')
-        .map((v) => JSON.parse(v)),
+        .map((v) => parseSigned(v)),
       true,
     );
   },
@@ -1972,5 +2018,101 @@ it('bounds the full largest original contact census operation below the reserved
       frame.geometry.transforms[k] = packet(Array<number>(v.values.length).fill(-Number.MAX_VALUE));
     frame.state = packet(Array<number>(20).fill(Number.MAX_VALUE));
   }
-  expect(Buffer.byteLength(JSON.stringify(event))).toBeLessThan(f.receipt.footerReserve);
+  expect(Buffer.byteLength(stringifySigned(event))).toBeLessThan(f.receipt.footerReserve);
+});
+
+it('durably round-trips both complete mock cases through the actual Journal and replay, preserving the real archived minus-zero and rejecting bit/label tampering', () => {
+  const root = mkdtempSync(join(tmpdir(), 'asa-static-witness-codec-')),
+    path = join(root, 'mock-static-witness.jsonl');
+  let journal: Journal | undefined;
+  try {
+    check(inside(realpathSync(tmpdir()), realpathSync(root)), 'OWNED_CODEC_TEMP');
+    const archived = decodeFrame(f.cases[1]!).identity.contacts[0]!.frame;
+    expect(Object.is(archived.values[7], -0)).toBe(true);
+    const l = ledger();
+    l.handles.module.attempted = 1;
+    l.handles.module.returned = 1; // mock-only module ledger, no engine import
+    journal = new Journal(path);
+    journal.write({
+      kind: 'header',
+      source: { bytes: readFileSync(sourcePath).length, sha256: sha(readFileSync(sourcePath)) },
+      fixture: { bytes: readFileSync(fixturePath).length, sha256: sha(readFileSync(fixturePath)) },
+    });
+    for (const c of f.cases) runCase(mockNative(c).M, c, l, journal);
+    journal.write(
+      {
+        kind: 'finish',
+        runtime: 'COMPLETE',
+        diagnostic: 'COMPLETE',
+        acquisition: 'CONSUMED',
+        firstError: null,
+        ledger: l,
+      },
+      true,
+    );
+    journal.close();
+    const text = readFileSync(path, 'utf8'),
+      records = text
+        .trim()
+        .split('\n')
+        .map((line) => parseSigned(line)) as ReplayRecord[];
+    expect(text).toContain('float64:-0');
+    expect(replay(records, true)).toHaveLength(2);
+    const op = records.find((v) => v.kind === 'position' && v.case === f.cases[1]!.id)!;
+    expect(Object.is(op.after!.geometry.contacts[0]!.frame.values[7], -0)).toBe(true);
+    expect(op.after!.geometry.contacts[0]!.frame.f64le).toBe(archived.f64le);
+    const mutated = parseSigned(stringifySigned(records)) as ReplayRecord[];
+    mutated.find((v) => v.kind === 'distance')!.after!.state.values[0] = 0;
+    expect(() => replay(mutated, true)).toThrow('PACKET_STATE');
+    const badZero = parseSigned(stringifySigned(records)) as ReplayRecord[];
+    badZero.find(
+      (v) => v.kind === 'position' && v.case === f.cases[1]!.id,
+    )!.after!.geometry.contacts[0]!.frame.values[7] = 0;
+    expect(() => replay(badZero, true)).toThrow('REPLAY_ARCHIVED_GEOMETRY');
+    for (const label of ['float64:+0', 'float64:-00', 'float64:NaN']) {
+      expect(() => parseSigned(JSON.stringify({ value: label }))).toThrow('SIGNED_ZERO_LABEL');
+      expect(() => stringifySigned({ value: label })).toThrow('SIGNED_ZERO_LABEL');
+    }
+    expect(Object.is(parseSigned(stringifySigned({ value: -0 })).value, -0)).toBe(true);
+  } finally {
+    journal?.close();
+    check(
+      inside(realpathSync(tmpdir()), realpathSync(root)) &&
+        path === join(root, 'mock-static-witness.jsonl'),
+      'OWNED_CODEC_TEMP_CLEANUP',
+    );
+    if (journal) unlinkSync(path);
+    rmdirSync(root);
+  }
+});
+it('blocks position and distance dispatch on a contact-vector cleanup failure in pre-API sampling, retaining the sample and first error', () => {
+  const mock = mockNative(f.cases[0]!, { contactVectorDeleteError: true }),
+    l = ledger(),
+    sink = memorySink();
+  expect(() => runCase(mock.M, f.cases[0]!, l, sink)).toThrow(
+    'PRE_API_OWNERSHIP_CLEANUP: contactVector: Error: MOCK_CONTACT_VECTOR_DELETE',
+  );
+  expect(l.position).toEqual({ attempted: 0, returned: 0 });
+  expect(l.distance).toEqual({ attempted: 0, returned: 0 });
+  expect(mock.counts().positions).toBe(0);
+  expect(mock.counts().distances).toBe(0);
+  expect(l.handles.contactVector).toEqual({
+    attempted: 1,
+    returned: 1,
+    deleteAttempted: 1,
+    deleted: 0,
+  });
+  expect(l.handles.data.deleted).toBe(1);
+  expect(l.handles.model.deleted).toBe(1);
+  const raw = sink.events.find((v) => (v as { kind: string }).kind === 'pre-api-error') as {
+    before: Snapshot;
+    firstError: string;
+    ledger: Ledger;
+  };
+  expect(raw.before.state.f64le).toBe(decodeFrame(f.cases[0]!).pre.f64le);
+  expect(raw.firstError).toContain('MOCK_CONTACT_VECTOR_DELETE');
+  expect(raw.ledger.position.attempted).toBe(0);
+  const finish = sink.events.at(-1) as { firstError: string; ledger: Ledger };
+  expect(finish.firstError).toBe(raw.firstError);
+  expect(finish.ledger.cleanupErrors).toContain('contactVector: Error: MOCK_CONTACT_VECTOR_DELETE');
 });
