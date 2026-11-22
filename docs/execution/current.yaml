@@ -18793,6 +18793,345 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      checkpoint: e1_union_cylinder_position_only_witness_selected
+      slice: E1-UNION-CYLINDER-STATIC-WITNESS
+      planned_paths:
+      - tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.fixture.json
+      - tests/robotics/field-core-qualification/mujoco-union-cylinder-static-witness.spec.ts
+      preserved_recovery_history: parallel_lanes.robotics.historical_composed_terrain_exterior_union_recovery_task
+      owner_authorization: The continuing owner programme selects one new bounded TEST_ONLY position-only comparator
+        after the consumed recovery. This docs-only registration neither repairs the trajectory nor admits product integration.
+        Only protected docs, exact two-path preflight, frozen pure/style/strict tests and independent HIGH source review
+        permit one controller position-diagnostic invocation; no native step, solver force/time evolution, automatic
+        retry, model/profile retune or deployment.
+      scope: Compare direct native distance witnesses with normal position-generated contacts on TWO exact archived
+        PRE states of the unchanged union and old five-mesh models. Restore each state once as an explicitly declared
+        input datum, not a trajectory update. Preserve every previous physical FAIL, startup/late causal GAP, source/raw
+        archive, other task and D01/D02 blocker. No Arduino session, coordinator, drive/controller/tick or new modeled
+        trajectory is selected.
+      selected_acquisition:
+        id: E1-MUJOCO-UNION-CYLINDER-STATIC-WITNESS-01
+        registration_baseline:
+          main: 82b4e5e4fa2d7c26ae935be8c60e08aece33e75d
+          tested_source: 9d96b85e82a0167246b7b327279f0e49dc6d11de
+          source_tree: f9b81501a2a0e6aa46accb945520afcd6ad867a8
+          required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45015120756/job/137192885143
+        immutable_inputs:
+          recovered_source_spec:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+            bytes: 198464
+            sha256: 04c2c1ed04200f179eeebee58bc0f8f8bf50913a4d8f9c5b802de9196cc823f4
+          five_mesh_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+            bytes: 42551
+            sha256: d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271
+          union_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+            bytes: 59130
+            sha256: eb1b88ef37a9589f0df23b91793a9d9197e8fd326361af8df3baf22dc07fd74f
+          union_raw_binary:
+            file: arduino-tt-composed-terrain-union.bin
+            bytes: 138827760
+            sha256: 970cb5acdb7cc19a667041282adbfbea1bd3906c445078344a67f82f9bf46ce8
+          union_raw_metadata:
+            file: arduino-tt-composed-terrain-union.jsonl
+            bytes: 213154
+            sha256: 1ae24e2dc91e25a725b17ad5bb84d32e73f1f5da180cb52ad1a3f368fd3e5947
+          independent_full_replay:
+            file: independent-union-replay.json
+            bytes: 35911
+            sha256: 2da230579125bc772215aa263532269ac2205d246a1dff81ba42fe925ab6910f
+          finite_cylinder_certificate:
+            file: finite-cylinder-contact-certificate-final.json
+            bytes: 35220
+            sha256: de3bfd67496bd0841e34c71fea4f58a5f4e5658cca78eaec62b6dd58eae91edc
+          old_five_mesh_source: a206a73ebb0e3672b1747be97d60471168ec9414
+          old_five_mesh_binary:
+            file: arduino-tt-composed-terrain-seams.bin
+            bytes: 138842016
+            sha256: e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38
+          old_five_mesh_metadata:
+            file: arduino-tt-composed-terrain-seams.jsonl
+            bytes: 133568
+            sha256: 58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098
+          old_five_mesh_independent_replay:
+            file: independent-terrain-replay.json
+            bytes: 35271
+            sha256: 2b05b92c65d7085bcf5d05bed2b0f2c72c9bf5f7ef297fef6f44442b60ce40cb
+          engine: 'Exact current-transfer fixture pins: MuJoCo4.0.0 upstream ac60eae30fa7e0d31315c38d9476752fb81be67e,
+            AOT glue9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8, WASMd2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241,
+            declarations779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff, licence/build/browser receipts
+            and exact implicitfast/Newton/dense/elliptic profile, gravity/CCD/contact/iteration/damping settings (disableflags65536/enableflags32,
+            iterations100/ls50/noslip20/ccd100). No engine option or dependency change. Wheel contacts do not use the
+            specially named finite-can patch branch.'
+        fixed_cases:
+        - id: recovered_union_PRE_4729500
+          source: 9d96b85e82a0167246b7b327279f0e49dc6d11de
+          fixture: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+          xml_sha256: a204f26f1f2130e565d707f69cfe02c135af5b5bfbafdbe24205ea4b14aadd8e
+          world: powered
+          raw_from_us: 4729500
+          frame_offset: 32938624
+          frame_bytes: 3104
+          frame_sha256: 665b7a33d83ccee587e6d7825a0cad6c4f2ff20717795f8efcefac0547ff953d
+          native_pairs_in_exact_input_order:
+          - - 5
+            - 1
+          - - 6
+            - 1
+          archived_target_contact_ordinals:
+          - 0
+          - 1
+          native_counts:
+          - 3
+          - 28
+          - 44
+          - 9
+        - id: old_five_mesh_PRE_4729500_descriptive
+          source: a206a73ebb0e3672b1747be97d60471168ec9414
+          fixture: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+          xml_sha256: 63bc0c697c6cd363710e791a0b8c6d7405c30f4524b70654cc832e2bbc8af7fc
+          world: powered
+          raw_from_us: 4729500
+          frame_offset: 32952352
+          frame_bytes: 3808
+          frame_sha256: 5f78165a2ae374c36846d8f1f67351bdb2c1833f3d4e2669ead4982bd7a89b0f
+          native_pairs_in_exact_input_order:
+          - - 7
+            - 3
+          - - 8
+            - 3
+          archived_target_contact_ordinals:
+          - 4
+          - 5
+          native_counts:
+          - 5
+          - 40
+          - 60
+          - 11
+          limit: Physical cylinder-axis witness valid only; old whole-course physical FAIL remains unchanged.
+        state_and_model: Hash-check complete raw/receipts/certificate, source and fixture inputs BEFORE native import.
+          Read qpos10, qvel9 and actual nativeTime directly from each exact frame F64 bytes including signed zero, never
+          reconstruct time from logical microseconds or substitute rounded poses. Build each original complete XML as
+          fixture.xml.join(newline)+newline with the pinned hash. One fresh model/data per case, sequential; retain
+          all original compiled model/geom transforms, closed-hull/readback identities, masses/inertias/armature, scales,
+          materials and solver options. Restore qpos/qvel/nativeTime exactly ONCE per data as input; no later state
+          assignment, profile/flag/margin/gap/pose repair or rebuild to fit archived geometry.
+        position_protocol: Use the actual exported mj_fwdPosition (pinned declaration3478), not bare mj_collision, mj_forward
+          or STEP1. It is the normal position portion used by original STEP1. First position call per case captures
+          ALL native geometry contacts, their actual pair order/ordinals/positions/frames/normals/distances/excludes/geometry
+          row ordering plus full true compiled transforms. Bit-preserving byte-exact geometry comparison must reproduce
+          the archived corresponding native IDs/positions/normals/distances/order. If it cannot, preserve exact differences
+          and classify comparator INCONCLUSIVE, never retune, relax, swap cases or claim archived reproduction. No solver-driven
+          contact force or time evolution is evaluated.
+        distance_protocol: 'After that normal position capture, call actual public mj_geomDistance (pinned declaration3480)
+          twice per case, in EXACT archived native pair order: union[5,1],[6,1]; old[7,3],[8,3]. Each call uses distmax=0
+          and a real new DoubleBuffer(6) per declared ownership scheme. Record actual signed distance and all two fromto
+          XYZ endpoints, retaining binary64 bits/sign-zero and before/after state/geometry. Never swap pair IDs/endpoints
+          or negate/replace returned distance. Negative penetration is retained. Zero means touch/unresolved and does
+          not certify meaningful fromto; do not cook endpoints. The native support query sets max_contacts1/no MultiCCD
+          internally; preserve the same current engine/nativeCCD flags and all options, not a new profile.'
+        repeat_and_parity: After both distance calls, repeat the SAME normal mj_fwdPosition once per case, compare exact
+          geometry/state with its first capture and record every discrepancy. Before/after EACH public API assert exact
+          state bytes including nativeTime and signed zero, retain actual geometry/results and all call/error/resource
+          counters. Attempted and returned calls are separate. Any unexpected mutation, mismatch or unavailable binding
+          fails closed with first evidence preserved, no extra API call, fallback or retry.
+        mathematical_and_interpretation: 'Pure-test the exact certificate finite-cylinder/axis bounds and signed midpoint/fromto
+          geometry, necessary negative affine-mass inequality and actual compiled descent triangle membership. Replay
+          later4732500 atlas behavior ONLY offline from unchanged archive/certificate; no native case or relaxed angular/domain
+          gate for that time. Analytic infinite-plane/cylinder support control is mathematical only: its minimizer can
+          be outside the finite descent, so it is not a finite-contact PASS. If direct native primary wheel endpoint
+          already exceeds actual finite cylinder cap and archived geometry reproduction holds, the discrepancy exists
+          before successful manifold recovery. If direct endpoints are valid but the normal final contact witness is
+          invalid, record a downstream manifold/driver locus to investigate, not a proven particular algorithm. Unknown/ambiguous
+          stays INCONCLUSIVE. No individual EPA lambda/negative-weight root cause may be asserted without later separately
+          admitted instrumentation. Original physical FAILs never become PASS.'
+        capture:
+          max_module_initializations: 1
+          max_models: 2
+          max_data: 2
+          max_concurrent_model_data: 1
+          max_position_calls: 4
+          max_distance_calls: 4
+          max_step1_calls: 0
+          max_step2_calls: 0
+          max_mj_forward_calls: 0
+          max_external_bytes: 4194304
+          policy: Exclusive unique OS Temp output, bounded full raw of every point/result plus first-error and ownership
+            cleanup. Check all capacities before calls/writes and reserve an error/footer portion within4MiB. No dropping
+            points, hidden advancement, overwritten prior receipt or automatic retry.
+        source_and_dispatch: Only the TWO newly planned static-witness fixture/spec paths may be authored after this
+          registration is protected. All previous fixtures/helpers/source/raw and canonical state remain immutable.
+          Default tests must SKIP native; an exact distinct once-only position opt-in (reject legacy/union/recovery/sphere
+          tokens and ambiguity pre-import), frozen source/fixture/input/engine pins, pure/style/strict typing and independent
+          HIGH precede one controller diagnostic. Public binding/type/ownership and per-API state/cap probes must be
+          tested purely. Preserve all first results and cleanup; no old unconditional test/CLI/runtime invocation, additional
+          native attempt, trajectory, force solver, session/controller/tick, animation or product physics claim.
+      downstream_user_outcomes: historical_e1_task.downstream_user_outcomes remains exact and authoritative for the
+        later editor/toolbox. This course prepares only joined-ramp/platform evidence. The optional true bridge is separate
+        volumes for slab/supports and an open underpass, with whole continuous lower floor and actual full-rover underside
+        clearance; no heightmap or filled-ramp interpretation. Current nominal H69.991mm with a20mm slab would leave49.991mm
+        beneath versus declared level rover height119.608mm, so it cannot prove underpass. No bridge acquisition or
+        editor/schema action is selected.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      gate_boundary: This sole-file docs slice requires exact PLAN/control-plane, Electronics routing, strict YAML and
+        full governance plus byte/semantic history inverse. Future source/HIGH/one position invocation are separate
+        prerequisites; no D01/D02/product/bridge/release/deployment acceptance.
+      deployment: not_authorized
+      database_actions: none
+    exterior_union_recovery_result:
+      runtime: COMPLETE
+      acquisition: CONSUMED
+      physical: FAIL
+      energy: PASS
+      causal: GAP
+      source:
+        commit: 9d96b85e82a0167246b7b327279f0e49dc6d11de
+        tree: f9b81501a2a0e6aa46accb945520afcd6ad867a8
+        spec:
+          path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+          bytes: 198464
+          sha256: 04c2c1ed04200f179eeebee58bc0f8f8bf50913a4d8f9c5b802de9196cc823f4
+        union_fixture:
+          path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+          bytes: 59130
+          sha256: eb1b88ef37a9589f0df23b91793a9d9197e8fd326361af8df3baf22dc07fd74f
+      protected_integration:
+        main: 82b4e5e4fa2d7c26ae935be8c60e08aece33e75d
+        pr: 1303
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45015120756/job/137192885143
+      raw_binary:
+        file: arduino-tt-composed-terrain-union.bin
+        bytes: 138827760
+        sha256: 970cb5acdb7cc19a667041282adbfbea1bd3906c445078344a67f82f9bf46ce8
+      raw_metadata:
+        file: arduino-tt-composed-terrain-union.jsonl
+        bytes: 213154
+        sha256: 1ae24e2dc91e25a725b17ad5bb84d32e73f1f5da180cb52ad1a3f368fd3e5947
+      independent_full_replay:
+        file: independent-union-replay.json
+        bytes: 35911
+        sha256: 2da230579125bc772215aa263532269ac2205d246a1dff81ba42fe925ab6910f
+      finite_cylinder_certificate:
+        file: finite-cylinder-contact-certificate-final.json
+        bytes: 35220
+        sha256: de3bfd67496bd0841e34c71fea4f58a5f4e5658cca78eaec62b6dd58eae91edc
+      total_intervals: 40180
+      intervals_per_world: 20090
+      contacts:
+        powered: 160529
+        control: 160716
+        inactive: 0
+      horizon_us_each: 10000000
+      prefix503:
+        intervals: 503
+        through_us: 250003
+        last_from_us: 250000
+        equal: true
+        sha256: 460bf56f64758801f4dfedff0c34a3f90134544554ace59a6da50e25b66d0bf4
+      failure:
+        code: INVALID_LOADED_WHEEL_TOP_FACE
+        rows: 4
+        intervals: 2
+        from_us:
+        - 4729500
+        - 4732500
+        native_pairs:
+        - - 5
+          - 1
+        - - 6
+          - 1
+        per_wheel_invalid_intervals:
+          rear_left: 2
+          rear_right: 1
+          front_left: 0
+          front_right: 0
+        first_two_rows: At4729500 both upper-ridge normal/plane/domain/radial/force predicates pass, but actual wheel-side
+          witnesses exceed physical10mm cap by5.248222166/7.721467661mm (original11mm allowance also fails). This is
+          not53nm compilation roundoff or the former normal-cone failure.
+        later_two_rows: At4732500 two rear-left midpoint witnesses are valid; true terrain-side points lie about+0.450um
+          inside compiled descent triangle11, plane residual about3.4e-16m. Frozen4.955um band still assigns BOTH with
+          flat face; native5.000000444deg fails nominal flat5deg although compiled descent is5.000000405871deg. Preserve
+          the conservative-boundary classification and strict originalFAIL, no retroactive tolerance widening.
+        boundary: These are independent finite-wheel-domain and atlas/compiled-feature observations, not a proven individual
+          EPA/root algorithm defect. All earlier old eight signed rows remain rejected.
+      route:
+        missing: []
+        mixed_from_us:
+        - 1052000
+        - 3379000
+        - 4396000
+        - 6508000
+        platform_100ms_us:
+        - 3881000
+        - 3981000
+        terminal_100ms_us:
+        - 6937000
+        - 7037000
+        rise_m: 0.06998820717554505
+        fall_m: 0.06998820732471406
+        maximum_slip_mps: 0.009651794582078417
+        minimum_swept_body_clearance_m: 0.040739996378635845
+        powered_travel_after_prefix_m: 2.563749063276206
+        control_maximum_travel_m: 1.7887472745865048e-05
+        final_low_us: 4340082
+        flyback_a: 0.210897143078
+      energy_diagnostics:
+        powered_residual_j: 0.0008680650427788095
+        powered_limit_j: 0.07888387080758535
+        control_residual_j: -3.3449489948016875e-10
+        control_limit_j: 0.0001
+        first_shared_negative_gear_us:
+        - 1
+        - 2
+        first_shared_negative_gear_j: -1.2382143968468998e-27
+        first_shared_reverse_positive_work_us:
+        - 2000
+        - 2500
+        first_shared_reverse_positive_work_j: 1.0241074335449105e-21
+        first_winding_gap: null
+        limit: Strict sign GAP occurs in common legacy startup before different GPIO; it remains separate from old R5
+          late6.003s reversal and from physical terrainFAIL.
+      lifecycle:
+        module_attempted_returned:
+        - 1
+        - 1
+        step1_attempted_returned:
+        - 40180
+        - 40180
+        step2_attempted_returned:
+        - 40180
+        - 40180
+        powered_handles_created_deleted:
+        - 642519
+        - 642519
+        control_handles_created_deleted:
+        - 642893
+        - 642893
+        persistent_created_deleted_each:
+        - 5
+        - 5
+        session_dispose_each:
+        - 1
+        - 1
+        cleanup_errors: []
+        actual_POST_to_PRE_signed_zero: PASS
+      preservation: Consumed result and both first attempts stay immutable; no generic physical PASS, owner acceptance,
+        product, D01/D02, bridge or deployment closure.
+    historical_composed_terrain_exterior_union_recovery_task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
       checkpoint: e1_composed_terrain_exterior_union_controlled_recovery_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
