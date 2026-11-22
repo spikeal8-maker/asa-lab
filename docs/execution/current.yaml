@@ -18786,7 +18786,7 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
-      id: TASK-ROBOTICS-FIELD-SIDE-SCALE-001
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-SIDE-SCALE-001
       issue: 1071
       branch: main
       base_branch: main
