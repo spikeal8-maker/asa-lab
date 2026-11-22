@@ -551,6 +551,27 @@ describe('explicit Public Projects on real PostgreSQL', () => {
       runtime.query('SELECT * FROM learning_teacher_exact_submission($1,$2,$3)', submissionScope);
     const frozen = (await exactSubmission()).rows;
     expect(frozen).toHaveLength(1);
+    const readAssessmentState = async () =>
+      (
+        await admin.query(
+          `SELECT attempt.state,
+             (SELECT jsonb_agg(to_jsonb(evaluation) ORDER BY evaluation.id)
+                FROM learning_evaluations evaluation WHERE evaluation.attempt_id=attempt.id) AS evaluations,
+             (SELECT count(*)::int FROM assessment_results WHERE attempt_id=attempt.id) AS results,
+             (SELECT count(*)::int FROM gradebook_entries
+                WHERE classroom_assignment_id=attempt.classroom_assignment_id AND seat_id=attempt.seat_id)
+                AS official_results
+           FROM learning_attempts attempt WHERE attempt.id=$1`,
+          [submitted.attempt_id],
+        )
+      ).rows[0];
+    const beforeRemoval = await readAssessmentState();
+    expect(beforeRemoval).toMatchObject({
+      state: 'evaluating',
+      evaluations: [{ evaluator_kind: 'automatic', status: 'needs_review' }],
+      results: 0,
+      official_results: 0,
+    });
     expect(
       (
         await runtime.query('SELECT classroom_management_remove_seat($1,$2,$3) AS removed', [
@@ -568,17 +589,7 @@ describe('explicit Public Projects on real PostgreSQL', () => {
       ),
     ).rejects.toMatchObject({ code: 'P5L03' });
     expect((await exactSubmission()).rows).toEqual(frozen);
-    expect(
-      (
-        await admin.query(
-          `SELECT attempt.state,
-         (SELECT count(*)::int FROM learning_evaluations WHERE attempt_id=attempt.id) AS evaluations,
-         (SELECT count(*)::int FROM assessment_results WHERE attempt_id=attempt.id) AS results
-       FROM learning_attempts attempt WHERE attempt.id=$1`,
-          [submitted.attempt_id],
-        )
-      ).rows[0],
-    ).toEqual({ state: 'evaluating', evaluations: 0, results: 0 });
+    expect(await readAssessmentState()).toEqual(beforeRemoval);
   }, 30_000);
 
   it('freezes an exact version, metadata and raster until explicit republish, then deduplicates retries', async () => {

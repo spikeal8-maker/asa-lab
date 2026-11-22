@@ -401,6 +401,27 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ]);
     const frozen = (await exactSubmission()).rows;
     expect(frozen).toHaveLength(1);
+    const readAssessmentState = async () =>
+      (
+        await admin.query(
+          `SELECT
+             ARRAY(SELECT id FROM learning_evaluations
+               WHERE attempt_id=$1 AND evaluator_kind='teacher' ORDER BY id) AS teacher_evaluations,
+             ARRAY(SELECT id FROM assessment_results WHERE attempt_id=$1 ORDER BY id) AS results,
+             ARRAY(SELECT id FROM audit_events
+               WHERE entity_id=$2 AND action='learning.result.selected' ORDER BY id) AS selection_events,
+             (SELECT assessment_result_id FROM gradebook_entries
+               WHERE classroom_assignment_id=$3 AND seat_id=$4) AS official_result`,
+          [attempt.attempt_id, attempt.participation_id, assignment, seat],
+        )
+      ).rows[0];
+    const beforeRemoval = await readAssessmentState();
+    expect(beforeRemoval.teacher_evaluations).toHaveLength(1);
+    expect(beforeRemoval.selection_events).toHaveLength(1);
+    expect(beforeRemoval).toMatchObject({
+      results: [reviewed.assessment_result_id],
+      official_result: reviewed.assessment_result_id,
+    });
 
     const pendingReview = [
       ...teacherScope,
@@ -469,22 +490,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ]),
     ).rejects.toMatchObject({ code: 'P5L03' });
     expect((await exactSubmission()).rows).toEqual(frozen);
-    const persisted = await admin.query(
-      `SELECT
-         (SELECT count(*)::int FROM learning_evaluations WHERE attempt_id=$1) AS evaluations,
-         (SELECT count(*)::int FROM assessment_results WHERE attempt_id=$1) AS results,
-         (SELECT count(*)::int FROM audit_events
-           WHERE entity_id=$2 AND action='learning.result.selected') AS selection_events,
-         (SELECT assessment_result_id FROM gradebook_entries
-           WHERE classroom_assignment_id=$3 AND seat_id=$4) AS official_result`,
-      [attempt.attempt_id, attempt.participation_id, assignment, seat],
-    );
-    expect(persisted.rows[0]).toEqual({
-      evaluations: 1,
-      results: 1,
-      selection_events: 1,
-      official_result: reviewed.assessment_result_id,
-    });
+    expect(await readAssessmentState()).toEqual(beforeRemoval);
   }, 60_000);
 
   it('counts only current named Direct Seats and their exact origin attempts', async () => {
