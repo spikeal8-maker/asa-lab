@@ -19002,16 +19002,27 @@ parallel_lanes:
           upper_volume_m3: 0.18398911698488704
           total_vertices: 28
           total_triangles: 44
-          rules: Retain actual native geom/contact ordinal/row/type/address/IDs and signed force. Use actual terrain-side
-            witness p-distance*n_out/2 (n_out is signed outward toward wheel), with unchanged finite-domain/compiled-edge
-            bounds,1mm plane/radial/axial and positive top/upward force tests. The five logical top faces are an observer
-            atlas over three native meshes, not extra colliders. Strict interiors retain their own5-degree normal gate.
-            At a shared adjacent face boundary require the same normal to satisfy BOTH incident5-degree gates; for these
-            roof slopes their intersection is the exterior top-normal cone. No best-face/nearest-normal reassignment.
-            One ambiguous native row must not alone create a mixed-support transition; require independently attributable
-            distinct wheel/contact support on both sides. Preserve every failed loaded row, including non-top/side/bottom
-            support. Freeze exact domain/boundary and label semantics with pure tests and native static readbacks before
-            dispatch.
+          rules: >-
+            Retain actual native geom/contact ordinal/row/type/address/IDs and signed force.
+            Use actual terrain-side witness p-distance*n_out/2 (n_out is signed outward toward
+            wheel) ONLY for terrain atlas finite-domain and plane tests with unchanged
+            compiled-edge bounds. The original ct.point contact midpoint remains unchanged
+            for radial/axial wheel witnesses, raw force/J_PRE point geometry, point velocity,
+            work and finite-chord/Taylor calculations. Keep1mm and positive top/upward force
+            gates exact. The five logical top faces form an observer atlas over three native
+            meshes, never extra colliders. Strict interiors retain their own5-degree normal
+            gate. ONLY at the upper union internal creases x=0.8 and x=1.2 require the same
+            actual signed unit normal to satisfy BOTH incident full-3D5-degree dot gates.
+            These simultaneous spherical-cap checks are conservative; exact equality with
+            the adjacent exterior top-normal cone holds only for unit normals constrained
+            to XZ. Retain actual normal Y diagnostics without a new angular tolerance or a
+            requirement to force Y to zero. At the retained independent lower/upper native
+            seams x=0 and x=2 keep the original own-native-face test, not the both-face rule.
+            No best-face/nearest-normal reassignment. One ambiguous native row must not
+            alone create a mixed-support transition; require independently attributable
+            distinct wheel/contact support on both sides. Preserve every failed loaded row,
+            including non-top/side/bottom support. Freeze exact domain/boundary and label
+            semantics with pure tests and native static readbacks before dispatch.
           mandatory_negative_replay: Before any import, independently decode the complete immutable five-mesh pair and
             validate its unchanged independent receipt; replay all eight original exact signed terrain-side witnesses
             at3376500,3799500,4396500,4729500us through the new atlas and reject ALL eight. Original frozen FAIL is
