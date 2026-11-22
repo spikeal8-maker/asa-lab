@@ -217,6 +217,44 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
         fullPage: true,
       });
     }
+    // Reopen a real session so removal must revoke it while the project stays in storage.
+    const login = await student.request.post('/api/class-join/studentseat', {
+      headers: { origin: new URL(classUrl).origin },
+      data: { code: classCode, studentCode },
+    });
+    expect(login.ok(), await login.text()).toBe(true);
+    const { items: activeSeats } = await (
+      await page.request.get(`/api/classrooms/${classId}/roster`)
+    ).json();
+    const removedSeatId: string = activeSeats.find(
+      (seat: { displayLabel: string }) => seat.displayLabel === 'Анна Наблюдаемая',
+    ).id;
+    const storedProject = async () =>
+      (await admin.query('SELECT id, title, status FROM projects WHERE id=$1', [project.id])).rows;
+    const savedProject = await storedProject();
+    expect(savedProject).toEqual([{ id: project.id, title: projectTitle, status: 'active' }]);
+
+    await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+    const filter = works.getByLabel('Ученик', { exact: true });
+    await filter.selectOption(removedSeatId);
+    await expect(workRow).toBeVisible();
+    const removal = await page.request.delete(`/api/classrooms/${classId}/seats/${removedSeatId}`, {
+      headers: { origin: new URL(classUrl).origin },
+    });
+    expect(removal.ok(), await removal.text()).toBe(true);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(filter).toHaveValue('');
+    await expect(filter.getByRole('option', { name: 'Анна Наблюдаемая' })).toHaveCount(0);
+    await expect(workRow).toHaveCount(0);
+    await expect(works.getByText('По этим фильтрам доступных работ нет.')).toBeVisible();
+    expect(await storedProject()).toEqual(savedProject);
+    const lostSession = await student.request.get('/api/class-join/me');
+    expect(await lostSession.json()).toEqual({ authenticated: false });
+    const rejectedLogin = await student.request.post('/api/class-join/studentseat', {
+      headers: { origin: new URL(classUrl).origin },
+      data: { code: classCode, studentCode },
+    });
+    expect(rejectedLogin.status()).toBe(401);
   } finally {
     await studentContext.close();
   }

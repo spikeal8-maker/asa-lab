@@ -51,11 +51,13 @@ type Frozen = ExactLearningSubmission;
 function ReviewDetail({
   classroomId,
   item,
+  readOnly,
   onChanged,
   onClose,
 }: {
   classroomId: string;
   item: GradebookEntry;
+  readOnly: boolean;
   onChanged: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -106,7 +108,7 @@ function ReviewDetail({
     };
   }, [classroomId, attemptId, attempt?.submissionId, latest?.id, latest?.feedback, latest?.points]);
   async function review(decision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused') {
-    if (!attempt || !context || !frozen || busy) return;
+    if (readOnly || !attempt || !context || !frozen || busy) return;
     const input = {
       decision,
       points: decision === 'accepted' && context.resultMode === 'graded' ? Number(points) : null,
@@ -142,7 +144,11 @@ function ReviewDetail({
           <h3>
             {item.displayLabel} · {item.assignmentTitle}
           </h3>
-          <p>Проверяется зафиксированная сдача.</p>
+          <p>
+            {readOnly
+              ? 'Ученик удалён из класса. Сдача доступна для просмотра.'
+              : 'Проверяется зафиксированная сдача.'}
+          </p>
         </div>
         <button className="btn-secondary" onClick={onClose}>
           Закрыть проверку
@@ -153,17 +159,21 @@ function ReviewDetail({
       {context ? (
         <>
           <p>{context.instructions}</p>
-          <LearningConditions
-            classroomId={classroomId}
-            assignmentId={item.assignmentId}
-            onChanged={() => void onChanged()}
-          />
-          <LearningConditions
-            classroomId={classroomId}
-            assignmentId={item.assignmentId}
-            seatId={item.seatId}
-            onChanged={() => void onChanged()}
-          />
+          {!readOnly ? (
+            <>
+              <LearningConditions
+                classroomId={classroomId}
+                assignmentId={item.assignmentId}
+                onChanged={() => void onChanged()}
+              />
+              <LearningConditions
+                classroomId={classroomId}
+                assignmentId={item.assignmentId}
+                seatId={item.seatId}
+                onChanged={() => void onChanged()}
+              />
+            </>
+          ) : null}
           <p>
             {context.resultMode === 'graded'
               ? `Баллы: максимум ${context.maxPoints}`
@@ -267,7 +277,7 @@ function ReviewDetail({
               </details>
             </div>
           ) : null}
-          {canReview && frozen ? (
+          {!readOnly && canReview && frozen ? (
             <div className="gradebook-review">
               {context.resultMode === 'graded' ? (
                 <label>
@@ -335,7 +345,7 @@ function ReviewDetail({
               </div>
             </div>
           ) : null}
-          {attempt && terminal && context.selectionPolicy === 'teacher_selected' ? (
+          {!readOnly && attempt && terminal && context.selectionPolicy === 'teacher_selected' ? (
             <button
               className="btn-secondary"
               disabled={busy || !reason.trim()}
@@ -473,6 +483,7 @@ function AssignedClassroomGradebook({
   } | null>(null);
   const hiddenColumns = columnsPreference?.hidden ?? [];
   const openedFrom = useRef<HTMLButtonElement | null>(null);
+  const loadRevision = useRef(0);
   useEffect(() => {
     const controller = new AbortController();
     const unsubscribe = onSessionLoggedOut(() => {
@@ -519,10 +530,24 @@ function AssignedClassroomGradebook({
     }
   }, [items, destination.assignment, destination.seat, destination.attempt]);
   const reload = useCallback(async () => {
+    const revision = ++loadRevision.current;
     const result = await api.classroomGradebook(classroomId);
+    if (revision !== loadRevision.current) return;
     if (result.ok) {
-      setItems(result.data.items);
+      const nextItems = result.data.items;
+      setItems(nextItems);
       setError(null);
+      setOpened((current) =>
+        current &&
+        nextItems.some(
+          (item) =>
+            item.seatId === current.seatId &&
+            item.assignmentId === current.assignmentId &&
+            Boolean(item.removedFromClass) === Boolean(current.removedFromClass),
+        )
+          ? current
+          : null,
+      );
     } else setError(result.error.message);
   }, [classroomId]);
   useEffect(() => {
@@ -540,6 +565,7 @@ function AssignedClassroomGradebook({
     const focus = () => void reload();
     window.addEventListener('focus', focus);
     return () => {
+      loadRevision.current += 1;
       window.clearInterval(timer);
       window.removeEventListener('focus', focus);
     };
@@ -567,19 +593,23 @@ function AssignedClassroomGradebook({
     ],
     [items, course],
   );
+  const activeItems = useMemo(
+    () => (items ?? []).filter((item) => !item.removedFromClass),
+    [items],
+  );
   const rows = useMemo(
     () =>
-      [...new Map((items ?? []).map((item) => [item.seatId, item.displayLabel])).entries()].filter(
+      [...new Map(activeItems.map((item) => [item.seatId, item.displayLabel])).entries()].filter(
         ([, label]) => label.toLowerCase().includes(search.toLowerCase()),
       ),
-    [items, search],
+    [activeItems, search],
   );
   const visibleColumns = columns.filter(([id]) => !hiddenColumns.includes(id));
   const cells = useMemo(
-    () => new Map((items ?? []).map((item) => [`${item.seatId}:${item.assignmentId}`, item])),
-    [items],
+    () => new Map(activeItems.map((item) => [`${item.seatId}:${item.assignmentId}`, item])),
+    [activeItems],
   );
-  const awaiting = (items ?? []).filter(
+  const awaiting = activeItems.filter(
     (item) =>
       !item.canonicalState?.flags.includes('legacy_unresolved') &&
       ['submitted', 'waiting_review', 'evaluating'].includes(item.state),
@@ -806,6 +836,7 @@ function AssignedClassroomGradebook({
             key={`${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
             classroomId={classroomId}
             item={opened}
+            readOnly={opened.removedFromClass === true}
             onChanged={reload}
             onClose={closeWork}
           />
@@ -814,6 +845,7 @@ function AssignedClassroomGradebook({
             key={`${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
             classroomId={classroomId}
             item={opened}
+            readOnly={opened.removedFromClass === true}
             onChanged={reload}
             onClose={closeWork}
           />
