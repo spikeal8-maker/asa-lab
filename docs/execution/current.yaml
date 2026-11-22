@@ -18793,6 +18793,407 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: ready
+      checkpoint: e1_composed_terrain_exterior_union_controlled_recovery_selected
+      owner_acceptance: pending
+      program: ROBOTICS-FIELD-CORE-001
+      profile: TEST_ONLY
+      slice: E1-COMPOSED-TERRAIN-EXTERIOR-UNION-RECOVERY
+      planned_paths:
+      - tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+      - tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+      preserved_e1_history: parallel_lanes.robotics.historical_e1_task
+      owner_authorization: The continuing owner programme explicitly selects ONE controlled recovery after the archived
+        union harness PRE_DISPATCH identity error. The first attempt initialized one module but advanced no native time;
+        preserve its complete immutable source and receipts. This is separate once-only admission, never an automatic
+        retry or physical retuning. Protected registration, exact two-path preflight, frozen pure/style/strict tests
+        and separate independent HIGH must precede one controller acquisition with ONE new module budget and unique
+        new external raw. This docs slice changes no source, product, editor, schema, Worker, assets, Docker, deployment
+        or working DB.
+      scope: Recover the identical registered TEST_ONLY exterior-union experiment by correcting only harness session
+        creation and narrowly specified admission/retention tests. The public electrical session was not defective.
+        Keep original fixture/XML, geometry, observer including BOTH3D crease gates and midpoint/terrain-side distinction,
+        physics/materials, winding/clock/program, all quantitative criteria and capture caps unchanged. Historical union
+        task remains lossless; five-mesh FAIL, earlier R5 causal GAP, all other tasks and D01/D02/product blockers remain
+        authoritative. No blind retry, additional mechanics or unselected acquisition.
+      selected_acquisition:
+        id: E1-ARDUINO-COMPOSED-TERRAIN-EXTERIOR-UNION-RECOVERY-01
+        registration_baseline:
+          main: 29255e18d83eef42d4929257a324c1842fc10480
+          tested_docs_head: 3996f321d9c85be6389a88ecad70057da6ea464e
+          required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44999358087/job/137144292658
+        immutable_inputs:
+          geometry:
+            path: tests/robotics/field-core-qualification/editable-ramp-geometry.ts
+            bytes: 4549
+            sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848
+          r5_source: cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42
+          r5_fixture_sha256: 6a1b46d96489db96e927f24cdbc59d497a11b864b36572287adc05fa51dcf07d
+          rover_block_sha256: 904b91d3778b7c1a6863e65b11d3f45e6c9edeb2f9c93da58b3c818ce8da1ba3
+          current_transfer_source: d62a774dad2fbb0e4b874122e342cfb6129911e3
+          current_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-sphere-push.fixture.json
+            bytes: 25475
+            sha256: 1408eea509829091d9b190d07539cbe7fb0103c863a2497970a4a115def25d36
+          current_spec:
+            path: tests/robotics/field-core-qualification/arduino-tt-sphere-push.spec.ts
+            bytes: 121215
+            sha256: e594505f80bfae69e3cd384b8fdc7ca9f908e47ec44bfff67caa808cea6d2a22
+          prior_raw_binary:
+            file: arduino-tt-sphere-push.bin
+            bytes: 145827456
+            sha256: b3359ee35b5b083d75cd4196b55de605986baf3281c8e2ce949f54fb3a142629
+          prior_raw_receipt:
+            file: arduino-tt-sphere-push.jsonl
+            bytes: 62104
+            sha256: 93e8e607e44ac0564414e99655571d386fa39135609dbe4e7bc5f90fe7851bcc
+          engine: 'Exact current-transfer fixture pins: MuJoCo4.0.0 upstream ac60eae30fa7e0d31315c38d9476752fb81be67e,
+            AOT glue9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8, WASMd2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241,
+            declarations779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff, licence/build/browser receipts
+            and exact implicitfast/Newton/dense/elliptic profile, gravity/CCD/contact/iteration/damping settings (disableflags65536/enableflags32,
+            iterations100/ls50/noslip20/ccd100). No engine option or dependency change. Wheel contacts do not use the
+            specially named finite-can patch branch.'
+          five_mesh_source: a206a73ebb0e3672b1747be97d60471168ec9414
+          five_mesh_spec:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+            bytes: 155007
+            sha256: 22c0606ba0e13762473a6bbcdb1ffcc116a03490a5033dc502440332be691653
+          five_mesh_fixture:
+            path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.fixture.json
+            bytes: 42551
+            sha256: d6e7b291107eab02aba46ed301cd39df78e67d697a4ceb56ac24b2942c435271
+          five_mesh_raw_binary:
+            file: arduino-tt-composed-terrain-seams.bin
+            bytes: 138842016
+            sha256: e2f13f11ad8a4ad28114261b947cb6bd61d04232c2794213265b1c56cd057b38
+          five_mesh_raw_receipt:
+            file: arduino-tt-composed-terrain-seams.jsonl
+            bytes: 133568
+            sha256: 58d0ac6be239c51dc72a4885ed74ec4629281cfa37a8818b3a476dfc482b5098
+          five_mesh_independent_replay:
+            file: independent-terrain-replay.json
+            bytes: 35271
+            sha256: 2b05b92c65d7085bcf5d05bed2b0f2c72c9bf5f7ef297fef6f44442b60ce40cb
+          union_predispatch_archive:
+            commit: 75fa94555f942f1e84ca7cbc2b93186e7bff5963
+            tree: 29c8c5430444a8458ca608363742762990a3ab3b
+            ref: refs/heads/codex/robotics-composed-terrain-union-predispatch-1071
+            spec:
+              path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+              bytes: 186893
+              sha256: b66c959b9c3dca0421df92d4221866ccf2ebb10377fa0ca49a59b67a0b42645d
+            union_fixture:
+              path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+              bytes: 59130
+              sha256: eb1b88ef37a9589f0df23b91793a9d9197e8fd326361af8df3baf22dc07fd74f
+            xml_sha256: a204f26f1f2130e565d707f69cfe02c135af5b5bfbafdbe24205ea4b14aadd8e
+          union_predispatch_binary:
+            file: arduino-tt-composed-terrain-union.bin
+            bytes: 0
+            sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+          union_predispatch_receipt:
+            file: arduino-tt-composed-terrain-union.jsonl
+            bytes: 157303
+            sha256: 51e07a4253ab251e8e9142b46638485b51e86de1aaea33f117d0cbaa5c895fa7
+        geometry:
+          units: metres_radians
+          horizontal_ramp_length_m: 0.8
+          width_m: 1
+          angle_deg: 5
+          rise_m: 0.0699909308207392
+          platform_length_m: 0.4
+          base_bottom_z_m: -0.05
+          top_route_x_m:
+            lower:
+            - -0.8
+            - 0
+            ascent:
+            - 0
+            - 0.8
+            platform:
+            - 0.8
+            - 1.2
+            descent:
+            - 1.2
+            - 2
+            terminal_lower:
+            - 2
+            - 19
+          y_extent_m:
+          - -0.5
+          - 0.5
+          rules: 'Keep exact five authored parts and unchanged metric helper, horizontal L, H=L*tan(theta), width/height/heading
+            units, mirrored descent and plan/profile/query edges. Native geometry only: unchanged lower [-0.8,0] and
+            terminal [2,19] solids plus one convex upper union x=[0,2], y=[-0.5,0.5], bottom z=-0.05 and continuous
+            top (0,0),(0.8,H),(1.2,H),(2,0). No added or removed occupied volume, overlapping plane, foundation, hidden
+            wall/support or collider. Roof slopes +tan(5deg),0,-tan(5deg) make this union convex. Native upper12 vertices/20
+            outward triangles, volume0.18398911698488704m3; all3 meshes28 vertices/44 triangles and9 geoms. Prove exact
+            analytic union equality and closed oriented triangulation plus original roof/bottom/materials before dispatch;
+            no physical claim at other edits.'
+          compiled_admission: Capture and independently restore all actual native F32 local vertices, face indices,
+            mesh maps/transforms and native F64 world transforms. Revalidate closure, convexity, winding, exact exterior
+            union, common lower/upper edges, full rover/boom/wheel envelope and absence of interior x=0.8/1.2 caps.
+            Keep the previously frozen representation/ULP budget and1mm physical gate, not a new fitted tolerance. Verify
+            actual9-geom identity/body map and explicit per-mode layout before stepping; retain all original units and
+            materials.
+        drive_and_clock:
+          powered_sketch_sha256: acfc2b3854ed2cc4161a6f9a7dcff50af9777310b85ba07043b6f350a2047c90
+          powered_gpio_sha256: 22a338b8385ce5ff644d1f258e4cfb40bea805ced20c023e2938aaae1ea173d5
+          low_sketch_sha256: 80115f2df9e1dcbf8265d2c1a0284954c5cec69aba8b9aa1038a20e694ea94dc
+          low_gpio_sha256: d84549a5061a1d54a7a4b5470c7d8f6d5f936301e36b0f441cdb1894290edbb8
+          horizon_us_each: 10000000
+          max_native_step_us: 500
+          first_differing_gpio_us: 250003
+          final_low_us: 4340082
+          legacy_prefix_intervals: 503
+          last_legacy_interval_from_us: 250000
+          historical_r5_prefix_sha256: dd5764ee2591d88e109831f9e958fb423a9efd9ce766a1d30a41fb7e63fa3f16
+          requirements: Keep the exact accepted R5 rover block,0.6kg assembly,3cm wheel radius,7-degree boom, TT profile/circuit/Uno
+            programs and independently pure-verified GPIO traces. Reuse the actual existing one-component session, left-held
+            MNA/winding, native axle feedback, token identity and PRE/STEP1/STEP2/commit ordering. Legacy effort through
+            the accepted250003us endpoint, then the exact current-transfer R5 lower-loss reverse method; no controller,
+            program, duration or cutoff change. Require the new powered/LOW native physical/electrical prefixes through503
+            intervals to match bitwise apart from declared identity metadata. The old R5 prefix hash is immutable provenance,
+            not a claim that different scene schemas reproduce its entire old binary framing. Native owns all subsequent
+            poses/ velocities; no assigned terrain Z, rolling pose, speed reset or kinematic push.
+        witnesses_and_outcomes: 'Acquire one powered/LOW pair, one module and one world at a time, through the full
+          fixed10s. Only the declared upper collider representation changes: no ball/can or scripted striker. For each
+          wheel retain all solved PRE contact identities, geom pairs, row addresses/types/IDs, points/normals/forces
+          and actual COM/rotation/velocity. Reconstruct signed outward forces and same-point body velocities; top support
+          must lie on the correct finite top face with valid radial/axial wheel witnesses, not a side/bottom seam wall.
+          Keep the inherited1mm face and5-degree normal bounds,0.02m/s wheel-slip bound, phase/force/clock/servo/finite/warning
+          guards and exact materials. Do not omit an invalid loaded row because another valid support exists. Record
+          chronological four-wheel transitions lower->ascent->platform->descent->lower, including actual mixed-support
+          intervals and distinct native per-wheel labels. Require a continuous supported100ms lower baseline before
+          power divergence, platform100ms and terminal-lower100ms, with positive top support for all four wheels and
+          unchanged slip gates. Native whole-assembly elevation must rise at least0.06m from baseline and fall at least0.06m
+          from platform; measure all real body poses and full-assembly clearances, never infer pose from terrain height.
+          Record actual power/cutoff/flyback, displacement, contact impulses, all later collisions and out-of-bounds
+          through10s. LOW keeps the inherited0.02m maximum travel. Preserve signed full-horizon electrical/magnetic/mechanical/native
+          energy, COM/inertia/armature counted once, first-variation J_PRE work and finite-chord remainder diagnostics,
+          max(0.0001J,1% positive input) unexplained-energy bound. Keep left/native coupling and transmission signs
+          separate, no residual credit; prior R5 late GAP remains and any new causal GAP is reported separately. If
+          a required seam/plateau/descent is not reached, retain physical NOT_REACHED and the complete observed horizon;
+          no extension, retiming or geometry tuning. Unsafe runtime/adapter/capacity errors stop with first-error/cleanup
+          preserved. No local result substitutes for PHY-06, all D01 scenes, D02 or hardware calibration. Apply the
+          explicit terrain-side atlas and registered observer_atlas both-face boundary rule, without widening any physical
+          bound. Native callback/session boundaries and both actual full-horizon electrical/mechanical clocks remain
+          measured; missing descent/required window stays NOT_REACHED and failure stays FAIL.'
+        capture:
+          max_worlds: 2
+          max_concurrent_worlds: 1
+          max_module_initializations: 1
+          max_intervals_per_world: 22000
+          max_session_calls_per_world: 24000
+          max_step1_calls_total: 44000
+          max_step2_calls_total: 44000
+          max_contacts_per_interval: 72
+          max_rows_per_interval: 216
+          max_contacts_per_world: 450000
+          header_bytes_per_interval: 2048
+          bytes_per_contact: 176
+          metadata_bytes: 1048576
+          footer_error_bytes: 8388608
+          worst_case_total_bytes: 257949184
+          max_external_bytes: 268435456
+          admission: Derived local contact ceiling72 (three native terrain meshes times six unchanged rover geoms times
+            four points/pair),216 active rows; retain existing132-distance header slots with unused zeros, cumulative450000
+            contacts/world, all native inactive rows and unchanged total257949184B/256MiB limit. Prefer unchanged2048+176*n
+            LE ABI; explicit per-mode identity maps must not alter the archived layout. The former132 cap is historical
+            only. Check complete source/profile/static metadata, current PRE census reservation and per-step/cumulative/native-call
+            capacities BEFORE STEP2. Retain all first-error/cleanup/footer data and full no-credit energy; no codec
+            enlargement or capture truncation to obtain a result.
+        source_and_dispatch: 'This controlled recovery supersedes only the original union admission, not its scientific
+          conditions or immutable outcome. Future source paths remain existing arduino-tt-composed-terrain-seams.spec.ts
+          and restored exact arduino-tt-composed-terrain-union.fixture.json. Use the shared actual createTerrainDriveSession
+          and mandatory default pure start/first-interval probes; keep unchanged validateShaftQuery and its historical
+          terrain-seams: identity. Only the distinct recovery token may admit native; old consumed tokens and ambiguity
+          fail pre-import. Bind exact75fa source/ref, both first-error files, existing five-mesh complete replay and
+          unchanged engine/profile/licence/build/source inputs. Freeze pure/default-skip, strict types/lint/format and
+          separate independent HIGH after protected docs selection, then one controller acquisition and full independent
+          replay under unchanged mathematical, geometry, observer, time, capture and first-error guards. No automatic
+          repair or retry after dispatch.'
+        observer_atlas:
+          logical_faces: 5
+          native_meshes: 3
+          native_geoms: 9
+          upper_vertices: 12
+          upper_triangles: 20
+          upper_volume_m3: 0.18398911698488704
+          total_vertices: 28
+          total_triangles: 44
+          rules: Retain actual native geom/contact ordinal/row/type/address/IDs and signed force. Use actual terrain-side
+            witness p-distance*n_out/2 (n_out is signed outward toward wheel) ONLY for terrain atlas finite-domain and
+            plane tests with unchanged compiled-edge bounds. The original ct.point contact midpoint remains unchanged
+            for radial/axial wheel witnesses, raw force/J_PRE point geometry, point velocity, work and finite-chord/Taylor
+            calculations. Keep1mm and positive top/upward force gates exact. The five logical top faces form an observer
+            atlas over three native meshes, never extra colliders. Strict interiors retain their own5-degree normal
+            gate. ONLY at the upper union internal creases x=0.8 and x=1.2 require the same actual signed unit normal
+            to satisfy BOTH incident full-3D5-degree dot gates. These simultaneous spherical-cap checks are conservative;
+            exact equality with the adjacent exterior top-normal cone holds only for unit normals constrained to XZ.
+            Retain actual normal Y diagnostics without a new angular tolerance or a requirement to force Y to zero.
+            At the retained independent lower/upper native seams x=0 and x=2 keep the original own-native-face test,
+            not the both-face rule. No best-face/nearest-normal reassignment. One ambiguous native row must not alone
+            create a mixed-support transition; require independently attributable distinct wheel/contact support on
+            both sides. Preserve every failed loaded row, including non-top/side/bottom support. Freeze exact domain/boundary
+            and label semantics with pure tests and native static readbacks before dispatch.
+          mandatory_negative_replay: Before any import, independently decode the complete immutable five-mesh pair and
+            validate its unchanged independent receipt; replay all eight original exact signed terrain-side witnesses
+            at3376500,3799500,4396500,4729500us through the new atlas and reject ALL eight. Original frozen FAIL is
+            never reclassified. Require positive interior/legitimate adjacent-cone controls and a spoof ambiguous-single-row
+            mixed-label rejection; preserve the original26-plus admitted math/kinematics/energy helpers and pairWork,
+            with only a narrow explicit per-mode ID/body layout adapter.
+        controlled_recovery:
+          allowed_source_delta: Against archived75fa only the existing seams.spec.ts may change for the shared session-factory
+            call-site repair, distinct recovery-token names/routing/auth tests, archive/receipt binding and retention.
+            Restore the exact archived59130B union fixture into the second planned path without byte changes; the42551B
+            five-mesh fixture remains untouched. No math/helper, physics, fixture/XML, shape/material/solver option,
+            field/units, timing/program/circuit/winding, observer, criterion or capture alteration.
+          shared_actual_factory: 'Introduce createTerrainDriveSession used by BOTH the dynamic path and default pure
+            tests. It creates the actual public TT session with historical canonical per-world runId terrain-seams:powered
+            or terrain-seams:control, as unchanged validateShaftQuery requires. Preserve componentId, port, axis, generation1,
+            horizon, maxEvents, winding and clock arguments. Do not widen the validator to accept terrain-union: or
+            substitute mocked queries.'
+          pure_actual_public_probe: 'For BOTH powered and LOW, use that same factory without native import. Obtain the
+            real first shaft-start query, pass common validation of token/generation/sequence/component/port/axis and
+            exact from=to=0; show wrong terrain-union: prefix rejection by the unchanged validator. Respond only to
+            that actual start query with a finite measured initial sample; lastCommitted C stays0. Obtain the actual
+            next shaft-interval through the same validator: from0, positive bounded to<=500us, left sample measured
+            at0, actual finite winding/state/voltage/current/impulse with right-edge time. Guessed queries or fake native
+            output cannot replace the public session. Dispose both pure sessions with zero native import/STEP1/STEP2
+            and preserve existing identity/phase/stale-response tests.'
+          once_only_opt_in:
+            environment: ASA_TT_UNION_RECOVERY_NATIVE
+            value: one-exterior-union-recovery-pair-1071
+            deny_if_present:
+            - ASA_TT_UNION_NATIVE
+            - ASA_TT_TERRAIN_NATIVE
+            - ASA_TT_SPHERE_NATIVE
+            rule: The exact new token alone permits admission. Wrong value, any original union/seams/sphere token or
+              ambiguous combination is rejected BEFORE native import. Default pure execution remains disabled; these
+              token/auth/routing changes introduce no physics.
+          fresh_attempt: Only after protected docs and exact authored frozen source/fixture digests with independent
+            HIGH may the controller run ONE new powered/LOW10s pair with ONE module initialization and original caps.
+            Use unique exclusive new OS Temp files, pin and retain both complete first-attempt files as immutable admission
+            inputs. Never reuse/overwrite its directory, automatically retry, tune after data or add a variant. Preserve
+            first-error, actual native/committed/captured clocks/census and cleanup, then independently replay full
+            raw. Any actual dispatch consumes this recovery selection.
+          verdict_boundary: The first attempt remains runtime ERROR / physical UNRESOLVED / acquisition PRE_DISPATCH,
+            never motion FAIL or PASS. New actual physical FAIL/NOT_REACHED/UNRESOLVED, energy and causal outcomes remain
+            distinct. Static geometry, corrected harness or successful admission cannot close D01/D02, product, bridge,
+            release or deployment.
+      downstream_user_outcomes: historical_e1_task.downstream_user_outcomes remains exact and authoritative for the
+        later editor/toolbox. This course prepares only joined-ramp/platform evidence. The optional true bridge is separate
+        volumes for slab/supports and an open underpass, with whole continuous lower floor and actual full-rover underside
+        clearance; no heightmap or filled-ramp interpretation. Current nominal H69.991mm with a20mm slab would leave49.991mm
+        beneath versus declared level rover height119.608mm, so it cannot prove underpass. No bridge acquisition or
+        editor/schema action is selected.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      gate_boundary: This sole-file docs registration requires exact PLAN/control-plane, YAML semantic inverse and byte-exact
+        task history, pnpm validate:electronics-agent-docs and full pnpm gate:governance. Future source/default/pure/strict/style,
+        frozen inputs/atlas replay and independent HIGH are separate prerequisites; current D01/D02/product/deployment
+        blockers remain exact.
+      deployment: not_authorized
+      database_actions: none
+      preserved_composed_terrain_history: parallel_lanes.robotics.historical_composed_terrain_task
+      preserved_exterior_union_history: parallel_lanes.robotics.historical_composed_terrain_exterior_union_task
+    exterior_union_predispatch_result:
+      runtime: ERROR
+      physical: UNRESOLVED
+      acquisition: PRE_DISPATCH
+      source:
+        commit: 75fa94555f942f1e84ca7cbc2b93186e7bff5963
+        tree: 29c8c5430444a8458ca608363742762990a3ab3b
+        ref: refs/heads/codex/robotics-composed-terrain-union-predispatch-1071
+        spec:
+          path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-seams.spec.ts
+          bytes: 186893
+          sha256: b66c959b9c3dca0421df92d4221866ccf2ebb10377fa0ca49a59b67a0b42645d
+        union_fixture:
+          path: tests/robotics/field-core-qualification/arduino-tt-composed-terrain-union.fixture.json
+          bytes: 59130
+          sha256: eb1b88ef37a9589f0df23b91793a9d9197e8fd326361af8df3baf22dc07fd74f
+        xml_sha256: a204f26f1f2130e565d707f69cfe02c135af5b5bfbafdbe24205ea4b14aadd8e
+      original_registration:
+        main: 29255e18d83eef42d4929257a324c1842fc10480
+        tested_head: 3996f321d9c85be6389a88ecad70057da6ea464e
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/44999358087/job/137144292658
+      raw_binary:
+        file: arduino-tt-composed-terrain-union.bin
+        bytes: 0
+        sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      raw_receipt:
+        file: arduino-tt-composed-terrain-union.jsonl
+        bytes: 157303
+        sha256: 51e07a4253ab251e8e9142b46638485b51e86de1aaea33f117d0cbaa5c895fa7
+      root_cause:
+        classification: A_HARNESS_SESSION_IDENTITY
+        error: CANONICAL_TT_QUERY_IDENTITY
+        created_run_id: terrain-union:powered
+        frozen_validator_requires: terrain-seams:powered
+        boundary: The first actual shaft-start query was rejected by the harness BEFORE native STEP1. Public session
+          correctly echoed its requested runId; no public-engine defect or physical contact result was demonstrated.
+      module_initialization:
+        completed: 1
+        terminal_initialized_flag: true
+        evidence: Terminal initialized:true plus the exact source single guarded loadNative prove one completed module
+          factory/version readback. Terminal error does not repeat numeric factory attempted/returned counts; header0/0
+          is pre-import only.
+      native_readback:
+        nmesh: 3
+        nmeshvert: 28
+        nmeshface: 44
+        ngeom: 9
+        nq: 10
+        nv: 9
+        nbody: 5
+        npair: 18
+        max_independent_compiled_vertex_error_m: 5.2974336250954934e-08
+        initial_forward_calls: 1
+        step1_attempted: 0
+        step1_returned: 0
+        step2_attempted: 0
+        step2_returned: 0
+        captured_intervals: 0
+        captured_contact_rows: 0
+        last_native_seconds: 0
+        last_canonical_us: 0
+        last_captured_us: 0
+        physical_observations: []
+        static_limit: Initial compiled geometry/closed hull and model readbacks were admitted within the original representation
+          budget. No acceleration, traction, seam, movement or physics qualification follows.
+      lifecycle:
+        model_attempted_returned:
+        - 1
+        - 1
+        data_attempted_returned:
+        - 1
+        - 1
+        handles_created_deleted:
+        - 14
+        - 14
+        persistent_attempted_deleted:
+        - 5
+        - 5
+        session_dispose_attempted_returned:
+        - 1
+        - 1
+        cleanup_errors: []
+      retention: Preserve complete source/fixture/XML/raw bytes and original task under content hashes and published
+        archive ref. This first initialized module is never erased from history. Only separately protected controlled
+        recovery grants a new module budget of ONE; no automatic retry.
+      scope_limit: No product/editor/schema/Worker/Docker/bridge-underpass/release/deployment or D01/D02 closure; earlier
+        five-mesh FAIL and causal GAP remain exact.
+    historical_composed_terrain_exterior_union_task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
       checkpoint: e1_composed_terrain_exterior_union_selected
       owner_acceptance: pending
       program: ROBOTICS-FIELD-CORE-001
