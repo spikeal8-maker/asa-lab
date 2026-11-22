@@ -21,6 +21,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import f from './mujoco-finite-cap-near-threshold.fixture.json';
+import g from './mujoco-finite-cap-stage6-diagnostic.fixture.json';
 
 const fixtureUrl = new URL('./mujoco-finite-cap-near-threshold.fixture.json', import.meta.url),
   sourceUrl = new URL(import.meta.url);
@@ -1009,7 +1010,14 @@ function torqueOf(h: Helpers, p: Pick<Packet, 'ctrl' | 'pre' | 'post' | 'nativeF
     c.stand,
   );
 }
-function validatePacket(h: Helpers, p: Packet, rate: Rate, world: number, previous: State) {
+function validatePacket(
+  h: Helpers,
+  p: Packet,
+  rate: Rate,
+  world: number,
+  previous: State,
+  expectedControl?: Control,
+) {
   demand(
     p.world === world &&
       p.tick > 0 &&
@@ -1060,7 +1068,7 @@ function validatePacket(h: Helpers, p: Packet, rate: Rate, world: number, previo
   zeroMask(p.inputsPre);
   zeroMask(p.inputsPost);
   zeroMask(p.qfrcActuator.slice(1));
-  const want = control(h, rate, p.tick - 1);
+  const want = expectedControl ?? control(h, rate, p.tick - 1);
   demand(Object.is(p.ctrl, want.u), 'LEFT_HELD_NATIVE_CONTROL');
   const torque = torqueOf(h, p),
     allow = c.stand.forceCapArithmeticAllowanceNm;
@@ -1411,11 +1419,12 @@ function engineAdmission(path: string, license: string) {
   return { path, glue, wasm };
 }
 type Initialization = { attempted: number; returned: number; phase: string };
-async function loadNative(input: ReturnType<typeof engineAdmission>, init: Initialization) {
-  demand(
-    process.env['ASA_D01_NEAR_RUN'] === 'two-local-frozen-rates-1071' && init.attempted === 0,
-    'EXPLICIT_ONCE_NATIVE_ADMISSION',
-  );
+async function loadNative(
+  input: ReturnType<typeof engineAdmission>,
+  init: Initialization,
+  mode: NativeMode = 'original',
+) {
+  demand(selectedNativeMode() === mode && init.attempted === 0, 'EXPLICIT_ONCE_NATIVE_ADMISSION');
   init.attempted++;
   init.phase = 'glue-import';
   const path = join(input.path, f.engine.glue.file);
@@ -1465,10 +1474,14 @@ class Journal {
   metadata = 0;
   errorBytes = 0;
   readonly digest = createHash('sha256');
-  constructor(readonly root: string) {
-    this.meta = openSync(join(root, files.meta), 'wx', 0o600);
+  constructor(
+    readonly root: string,
+    readonly diagnostic = false,
+  ) {
+    const names = diagnostic ? g.files : files;
+    this.meta = openSync(join(root, names.meta), 'wx', 0o600);
     try {
-      this.bin = openSync(join(root, files.binary), 'wx', 0o600);
+      this.bin = openSync(join(root, names.binary), 'wx', 0o600);
     } catch (e) {
       try {
         writeSync(
@@ -1505,7 +1518,8 @@ class Journal {
   }
   reserve() {
     demand(
-      this.bytes + 1872 + f.capture.metadataBytes + f.capture.errorBytes <= f.capture.maxBytes,
+      this.bytes + 1872 + f.capture.metadataBytes + f.capture.errorBytes <= f.capture.maxBytes &&
+        (!this.diagnostic || this.bytes + 1872 <= g.capture.maxBinaryBytes),
       'CAPACITY_BEFORE_NATIVE_ADVANCE',
     );
   }
@@ -1698,7 +1712,9 @@ async function runWorld(
   world: number,
   journal: Journal,
   total: Census,
+  diagnostic?: DiagnosticContext,
 ) {
+  const maxIntervals = diagnostic ? g.schedule[rate].maxIntervals : f.schedule[rate].maxIntervals;
   const r = resources(),
     local = {
       step1: 0,
@@ -1747,8 +1763,8 @@ async function runWorld(
     maxConstraintRows: 12,
     maxIslands: 2,
     pairCaps: [{ geom: [0, 1], maxContacts: 4 }],
-    maxContactVectors: 2 * f.schedule[rate].maxIntervals,
-    maxContactGets: 8 * f.schedule[rate].maxIntervals,
+    maxContactVectors: 2 * maxIntervals,
+    maxContactGets: 8 * maxIntervals,
   };
   let model: Model | undefined,
     data: Data | undefined,
@@ -1788,6 +1804,9 @@ async function runWorld(
       initial,
       readback,
       initialWarnings,
+      ...(diagnostic
+        ? { profileId: rate === 'normal' ? 'normal_prefix_ramp250' : 'normal_prefix_ramp500' }
+        : {}),
     });
     validateFactory(h, readback, initial);
     demand(
@@ -1795,14 +1814,17 @@ async function runWorld(
       'WARNING_BASELINE_AND_ALLOCATION',
     );
     zeroMask(inputValues(data));
-    certificate = new Certificate(h, rate, world, initial);
-    for (let tick = 1; tick <= f.schedule[rate].maxIntervals; tick++) {
+    certificate = diagnostic
+      ? new DiagnosticCertificate(h, rate, world, initial, diagnostic)
+      : new Certificate(h, rate, world, initial);
+    for (let tick = 1; tick <= maxIntervals; tick++) {
       stage = 'pre-step1';
-      demand(total.step1 < 135500 && total.step2 < 135500, 'TOTAL_NATIVE_CAP');
+      const totalCap = diagnostic ? g.schedule.maxIntervals : 135500;
+      demand(total.step1 < totalCap && total.step2 < totalCap, 'TOTAL_NATIVE_CAP');
       journal.reserve();
       const pre = copyState(data),
         inputsPre = inputValues(data),
-        ctl = control(h, rate, tick - 1);
+        ctl = diagnostic ? diagnosticControl(h, rate, tick - 1) : control(h, rate, tick - 1);
       zeroMask(inputsPre);
       data.ctrl[0] = ctl.u;
       demand(Object.is(f64(data.ctrl, 1, 'CTRL')[0], ctl.u), 'ACTUAL_CTRL_READBACK');
@@ -2122,9 +2144,21 @@ function parseLine(line: string) {
     unknown
   >;
 }
-async function replay(h: Helpers, root: string, live: Outcome[]) {
-  const binary = readFileSync(join(root, files.binary)),
-    metadata = readFileSync(join(root, files.meta), 'utf8').trim().split('\n').map(parseLine);
+async function replay(
+  h: Helpers,
+  root: string,
+  live: Outcome[],
+): Promise<ReturnType<typeof assessPair>>;
+async function replay(
+  h: Helpers,
+  root: string,
+  live: Outcome[],
+  diagnostic: DiagnosticContext,
+): Promise<ReturnType<typeof assessDiagnosticPair>>;
+async function replay(h: Helpers, root: string, live: Outcome[], diagnostic?: DiagnosticContext) {
+  const names = diagnostic ? g.files : files;
+  const binary = readFileSync(join(root, names.binary)),
+    metadata = readFileSync(join(root, names.meta), 'utf8').trim().split('\n').map(parseLine);
   let offset = 0;
   const outcomes: Outcome[] = [];
   for (const [world, rate] of (['normal', 'slow'] as const).entries()) {
@@ -2141,7 +2175,9 @@ async function replay(h: Helpers, root: string, live: Outcome[]) {
       'REPLAY_WORLD_BOUNDARIES',
     );
     validateFactory(h, start.readback as Readback, start.initial as State);
-    const cert = new Certificate(h, rate, world, start.initial as State);
+    const cert = diagnostic
+      ? new DiagnosticCertificate(h, rate, world, start.initial as State, diagnostic)
+      : new Certificate(h, rate, world, start.initial as State);
     let contacts = 0;
     demand(
       (end.endOffset as number) >= offset &&
@@ -2165,7 +2201,7 @@ async function replay(h: Helpers, root: string, live: Outcome[]) {
     outcomes.push(reconstructed);
   }
   demand(offset === binary.length, 'NO_TRAILING_BINARY');
-  return assessPair(outcomes);
+  return diagnostic ? assessDiagnosticPair(outcomes) : assessPair(outcomes);
 }
 type ArchivedInterval = {
   kind: string;
@@ -2379,6 +2415,7 @@ it.skipIf(process.env['ASA_D01_NEAR_RUN'] !== 'two-local-frozen-rates-1071')(
     let primary: unknown, result: ReturnType<typeof assessPair> | undefined, closeErrors: string[];
     const receiptErrors: string[] = [];
     try {
+      demand(selectedNativeMode() === 'original', 'ORIGINAL_MODE_ONLY');
       validateFixture();
       const sources = sourceAdmission(),
         history = historyAdmission(),
@@ -2662,7 +2699,7 @@ it('preserves compact fields and witnessed phase bits; rejects changed phase/mat
   warnings.postWarnings[0]![0] = 1;
   expect(() => validatePacket(h, decode(encode(warnings)), 'normal', 0, p.pre)).toThrow('WARNINGS');
   const corrupt = Buffer.from(raw);
-  corrupt[592] ^= 1;
+  corrupt[592] = corrupt[592]! ^ 1;
   expect(() => decode(corrupt)).toThrow('BACK_REFERENCE');
   const extra = structuredClone(p);
   extra.nefc = 6;
@@ -3040,4 +3077,778 @@ it('routes the real archived four-contact specimen through the same dispatched n
     'validateCylinderDynamicAuthorization',
   ])
     expect(() => call(h.harness, denied, c)).toThrow('PURE_EXPORT_ALLOWLIST_');
+});
+
+// Additive #1071 diagnostic. No native glue is imported by this section or pure tests.
+type NativeMode = 'original' | 'stage6' | null;
+function selectedNativeMode(env: Record<string, string | undefined> = process.env): NativeMode {
+  const original = env['ASA_D01_NEAR_RUN'],
+    diagnostic = env['ASA_D01_STAGE6_RUN'];
+  demand(!(original && diagnostic), 'MUTUALLY_EXCLUSIVE_NATIVE_MODES');
+  demand(!original || original === 'two-local-frozen-rates-1071', 'UNKNOWN_ORIGINAL_NATIVE_MODE');
+  demand(!diagnostic || diagnostic === g.nativeToken, 'UNKNOWN_DIAGNOSTIC_NATIVE_MODE');
+  return original ? 'original' : diagnostic ? 'stage6' : null;
+}
+function validateDiagnosticFixture(v: typeof g = g) {
+  demand(
+    hash(JSON.stringify(v)) === 'ee9b146a639da32ec45feb7abfc8e053a06bbb7bb025632a8d8953d7eccf0d2f',
+    'EXACT_STAGE6_FIXTURE',
+  );
+  pinned(fileURLToPath(fixtureUrl), v.originalFixture);
+  demand(
+    v.modelSha256 === f.model.sha256 &&
+      v.prefix.bytes === v.prefix.intervals * 1872 &&
+      v.capture.maxBinaryBytes === v.schedule.maxIntervals * 1872 &&
+      v.capture.worstCaseBytes ===
+        v.capture.maxBinaryBytes + v.capture.metadataBytes + v.capture.errorBytes &&
+      v.capture.worstCaseBytes <= v.capture.maxBytes,
+    'STAGE6_GEOMETRY_AND_CAPS',
+  );
+}
+type DiagnosticContext = { prior: Buffer };
+function diagnosticControl(h: Helpers, rate: Rate, tickBefore: number): Control {
+  demand(
+    Number.isSafeInteger(tickBefore) &&
+      tickBefore >= 0 &&
+      tickBefore <= g.schedule[rate].maxIntervals,
+    'DIAGNOSTIC_INTEGER_HORIZON',
+  );
+  if (tickBefore < g.prefix.intervals) return control(h, 'normal', tickBefore);
+  const localUs = tickBefore * 500 - g.prefix.throughUs,
+    rampUs = g.schedule[rate].rampUs,
+    fraction = Math.min(1, localUs / rampUs),
+    smooth = 10 * fraction ** 3 - 15 * fraction ** 4 + 6 * fraction ** 5;
+  return {
+    u: (5 + smooth) * c.tilt.targetStepRad,
+    stage: 6,
+    target: 6 * c.tilt.targetStepRad,
+    phase: localUs < rampUs ? 'RAMP' : 'HOLD',
+    stageEndUs: g.schedule[rate].checkpoint2Us,
+  };
+}
+function canonicalFrame(bytes: Buffer) {
+  demand(
+    bytes.length === 1872 && (bytes[4] === 0 || bytes[4] === 1),
+    'CANONICAL_FRAME_WIDTH_AND_WORLD',
+  );
+  const out = Buffer.from(bytes);
+  out[4] = 0; // The ONLY permitted normalization, including signed-zero bits everywhere else.
+  return out;
+}
+function frameDifference(actual: Buffer, expected: Buffer, tick: number) {
+  const normalized = canonicalFrame(actual);
+  const offset = normalized.findIndex((v, i) => v !== expected[i]);
+  return offset < 0
+    ? null
+    : { tick, byteOffset: offset, actual: normalized[offset], expected: expected[offset] };
+}
+function physicalTilts(h: Helpers, p: Packet) {
+  return [p.pre, p.post].map((s) =>
+    call<Tilt>(
+      h.observer,
+      'tiltState',
+      call<Body>(h.observer, 'bodyEndpoint', s, h.shape),
+      base + s.qpos[0]!,
+      s.qvel[0],
+      c,
+    ),
+  ) as [Tilt, Tilt];
+}
+function diagnosticClassification(firstStable: boolean, secondStable: boolean, tip: boolean) {
+  return tip
+    ? 'original-tip-window-observed'
+    : firstStable && secondStable
+      ? 'stable-at-both'
+      : !firstStable && secondStable
+        ? 'recovered-only-in-additional-second'
+        : firstStable
+          ? 'lost-stability-in-additional-second'
+          : 'no-stable-recovery';
+}
+type DiagnosticCheckpoint = {
+  tick: number;
+  atUs: number;
+  stable: WindowResult;
+  tip: WindowResult;
+  physical: string;
+  failures: [string, number][];
+  metrics: Record<string, unknown>;
+  validFirstTipObserved: boolean;
+};
+class CheckpointLedger {
+  readonly checkpoints: DiagnosticCheckpoint[] = [];
+  firstFailure: [string, number] | null = null;
+  record(
+    value: Omit<DiagnosticCheckpoint, 'physical' | 'failures' | 'validFirstTipObserved'>,
+    failures: Map<string, number>,
+    validFirstTipObserved = false,
+  ) {
+    demand(this.checkpoints.length < 2, 'ONLY_TWO_FIXED_CHECKPOINTS');
+    if (
+      this.checkpoints.length === 0 &&
+      !value.stable.accepted &&
+      !value.tip.accepted &&
+      !validFirstTipObserved
+    )
+      failures.set('ORIGINAL_ONE_SECOND_NO_STABLE_OR_TIP', value.tick);
+    this.firstFailure ??= Array.from(failures)[0] ?? null;
+    // Copy, never revise the first checkpoint after the additional diagnostic second.
+    const checkpoint = {
+      ...value,
+      validFirstTipObserved,
+      physical:
+        failures.size === 0 &&
+        (value.stable.accepted || value.tip.accepted || validFirstTipObserved)
+          ? 'PASS'
+          : 'FAIL',
+      failures: Array.from(failures),
+    };
+    this.checkpoints.push(checkpoint);
+    return checkpoint;
+  }
+}
+class DiagnosticCertificate extends Certificate {
+  readonly ledger = new CheckpointLedger();
+  readonly canonicalPrefix = createHash('sha256');
+  readonly historicalStream = createHash('sha256');
+  prefixVerified = false;
+  prefixDigest: string | null = null;
+  historicalDigest: string | null = null;
+  historicalDifference: ReturnType<typeof frameDifference> = null;
+  readonly variant: Rate;
+  readonly supportWindow: Support[] = [];
+  constructor(
+    h: Helpers,
+    rate: Rate,
+    world: number,
+    initial: State,
+    readonly context: DiagnosticContext,
+  ) {
+    super(h, 'normal', world, initial); // Prefix is NORMAL for both variants; world identity remains actual.
+    this.variant = rate;
+  }
+  override observe(p: Packet, bytes: Buffer) {
+    const normalized = canonicalFrame(bytes);
+    if (p.tick <= g.descriptive.intervals && this.variant === 'normal') {
+      this.historicalStream.update(normalized);
+      this.historicalDifference ??= frameDifference(
+        bytes,
+        this.context.prior.subarray((p.tick - 1) * 1872, p.tick * 1872),
+        p.tick,
+      );
+      if (p.tick === g.descriptive.intervals)
+        this.historicalDigest = this.historicalStream.digest('hex');
+    }
+    if (p.tick <= g.prefix.intervals) {
+      const difference = frameDifference(
+        bytes,
+        this.context.prior.subarray((p.tick - 1) * 1872, p.tick * 1872),
+        p.tick,
+      );
+      demand(!difference, 'MANDATORY_PREFIX_DIFFERENCE_' + JSON.stringify(difference));
+      this.canonicalPrefix.update(normalized);
+      super.observe(p, bytes);
+      if (p.tick === g.prefix.intervals) {
+        this.prefixDigest = this.canonicalPrefix.digest('hex');
+        demand(
+          this.prefixDigest === g.prefix.sha256 &&
+            this.stage === 5 &&
+            !this.done &&
+            this.failures.size === 0 &&
+            this.previousStable.length === 400,
+          'MANDATORY_ACCEPTED_STAGE5_PREFIX',
+        );
+        this.prefixVerified = true;
+        this.stage = 6;
+        this.low = Math.min(...this.previousStable);
+        this.high = Math.max(...this.previousStable);
+        this.window = [];
+      }
+      return;
+    }
+    demand(
+      this.prefixVerified &&
+        !this.done &&
+        p.tick === this.tick + 1 &&
+        p.tick <= g.schedule[this.variant].maxIntervals,
+      'DIAGNOSTIC_NO_STAGE7_OR_EXTRA_ADVANCE',
+    );
+    const ctl = diagnosticControl(this.h, this.variant, p.tick - 1),
+      next = diagnosticControl(this.h, this.variant, p.tick);
+    validatePacket(this.h, p, this.variant, this.world, this.previous, ctl);
+    const support = supportCertificate(this.h, p),
+      [before, after] = physicalTilts(this.h, p);
+    this.lastSupport = support;
+    this.previous = p.post;
+    this.tick = p.tick;
+    this.prefix.update(bytes);
+    this.work += p.signedWork;
+    this.positiveWork += Math.max(0, p.signedWork);
+    this.negativeWork += Math.min(0, p.signedWork);
+    this.window.push({
+      tick: p.tick,
+      pre: before,
+      post: after,
+      loaded: support.loaded > 0,
+      positiveSupport: support.outwardForce > 0,
+      supported: support.supported,
+      downhillRim: support.downhillRim,
+      noSlip: support.maxSlip <= 0.001,
+    });
+    if (this.window.length > 200) this.window.shift();
+    this.supportWindow.push(support);
+    if (this.supportWindow.length > 200) this.supportWindow.shift();
+    const fail = (code: string) => {
+      if (!this.failures.has(code)) this.failures.set(code, p.tick);
+    };
+    if (!this.firstConfirmed) {
+      this.low = Math.min(this.low, before.theta, after.theta);
+      this.high = Math.max(this.high, before.theta, after.theta);
+      this.peakSlip = Math.max(this.peakSlip, support.maxSlip);
+      this.cumulativeSlip += dt * support.maxSlip;
+      if (support.maxSlip > 0.001) fail('MAX_LOADED_POINT_SLIP');
+      if (this.cumulativeSlip > 0.0001) fail('MAX_CUMULATIVE_SLIP');
+      if (!(support.loaded > 0 && support.outwardForce > 0 && support.supported))
+        fail('UNKNOWN_SUPPORT_WITNESS_DOMAIN');
+      if (
+        Math.max(Math.abs(p.pre.qpos[0]! - ctl.u), Math.abs(p.post.qpos[0]! - next.u)) >
+        (0.05 * Math.PI) / 180
+      )
+        fail('STAND_PRETIP_TRACKING');
+      // Earlier stages share normal speed. Only the selected stage6 duration changes this limit.
+      if (
+        Math.max(Math.abs(p.pre.qvel[0]!), Math.abs(p.post.qvel[0]!)) >
+        f.schedule[this.variant].maxSpeedRadps
+      )
+        fail('STAND_PRETIP_SPEED');
+      if (this.high - this.low > (0.25 * Math.PI) / 180) fail('STAND_STAGE_ANGLE_SPAN');
+    }
+    const tip = call<WindowResult>(
+      this.h.observer,
+      'assessWindow',
+      this.window,
+      c,
+      500,
+      base + ctl.target,
+      'tip',
+    );
+    if (tip.accepted) {
+      this.firstObservedTip ??= { tick: p.tick, targetIndex: 6, window: tip };
+      if (!this.firstConfirmed && this.failures.size === 0) {
+        if (
+          ![this.low, this.high].every(
+            (v) => Math.abs(v - c.tilt.tip.criticalAngleRad) <= (2 * Math.PI) / 180,
+          )
+        )
+          fail('TIP_ANALYTIC_FULL_BRACKET');
+        if (this.failures.size === 0)
+          this.firstConfirmed = {
+            targetIndex: 6,
+            tick: p.tick,
+            atUs: p.tick * 500,
+            bracket: [this.low, this.high],
+            window: tip,
+            finishHoldAtUs: ctl.stageEndUs,
+          };
+      }
+    }
+    const atUs = p.tick * 500,
+      schedule = g.schedule[this.variant];
+    if (atUs === schedule.checkpoint1Us || atUs === schedule.checkpoint2Us) {
+      const stable = call<WindowResult>(
+          this.h.observer,
+          'assessWindow',
+          this.window,
+          c,
+          500,
+          base + ctl.target,
+          'stable',
+        ),
+        tilts = this.window.flatMap((v) => [v.pre, v.post]);
+      const checkpoint = this.ledger.record(
+        {
+          tick: p.tick,
+          atUs,
+          stable,
+          tip,
+          metrics: {
+            thetaRange: [
+              Math.min(...tilts.map((v) => v.theta)),
+              Math.max(...tilts.map((v) => v.theta)),
+            ],
+            betaRange: [
+              Math.min(...tilts.map((v) => v.beta)),
+              Math.max(...tilts.map((v) => v.beta)),
+            ],
+            maxPhi: Math.max(...tilts.map((v) => v.phi)),
+            maxRelativeOmega: Math.max(...tilts.map((v) => v.relativeOmega)),
+            relativeOmegaYRange: [
+              Math.min(...tilts.map((v) => v.relativeOmegaY)),
+              Math.max(...tilts.map((v) => v.relativeOmegaY)),
+            ],
+            rimLiftRange: tilts.every((v) => v.uphillRimLift !== null)
+              ? [
+                  Math.min(...tilts.map((v) => v.uphillRimLift!)),
+                  Math.max(...tilts.map((v) => v.uphillRimLift!)),
+                ]
+              : null,
+            uphillDirectionValidSamples: tilts.filter((v) => v.uphillDirectionValid).length,
+            loadedIntervals: this.window.filter((v) => v.loaded && v.positiveSupport && v.supported)
+              .length,
+            noSlipIntervals: this.window.filter((v) => v.noSlip).length,
+            cumulativeSlip: this.cumulativeSlip,
+            peakSlip: this.peakSlip,
+            currentOutwardForce: support.outwardForce,
+            outwardSupportRange: [
+              Math.min(...this.supportWindow.map((v) => v.outwardForce)),
+              Math.max(...this.supportWindow.map((v) => v.outwardForce)),
+            ],
+            last100msMaxPointSlip: Math.max(...this.supportWindow.map((v) => v.maxSlip)),
+            maxFloorSpeed: Math.max(...tilts.map((v) => Math.abs(v.omega))),
+            maxTargetError: Math.max(...tilts.map((v) => Math.abs(v.theta - (base + ctl.target)))),
+            nativeTorque: p.nativeForce,
+            effectiveTorque: p.effective,
+            signedWork: this.work,
+            positiveWork: this.positiveWork,
+            negativeWork: this.negativeWork,
+          },
+        },
+        this.failures,
+        this.firstConfirmed !== null,
+      );
+      this.stages.push({ stage: 6, checkpoint });
+      if (atUs === schedule.checkpoint2Us) {
+        this.done = true;
+        this.stopReason = 'FIXED_DIAGNOSTIC_SECOND_HOLD_COMPLETE';
+      }
+    }
+  }
+  override finish() {
+    demand(
+      this.done &&
+        this.prefixVerified &&
+        this.ledger.checkpoints.length === 2 &&
+        this.tick === g.schedule[this.variant].maxIntervals,
+      'COMPLETE_FIXED_DIAGNOSTIC',
+    );
+    const baseOutcome = super.finish(),
+      first = this.ledger.checkpoints[0]!,
+      second = this.ledger.checkpoints[1]!;
+    return {
+      ...baseOutcome,
+      rate: this.variant,
+      physical: first.physical,
+      diagnostic: {
+        validity: 'VALID',
+        variant: this.variant === 'normal' ? 'normal_prefix_ramp250' : 'normal_prefix_ramp500',
+        prefix: { intervals: 16500, sha256: this.prefixDigest, exact: true },
+        descriptive19000:
+          this.variant === 'normal'
+            ? {
+                sha256: this.historicalDigest,
+                expected: g.descriptive.sha256,
+                exact:
+                  this.historicalDifference === null &&
+                  this.historicalDigest === g.descriptive.sha256,
+                firstDifference: this.historicalDifference,
+              }
+            : null,
+        checkpoints: this.ledger.checkpoints,
+        firstPhysicalFailure: this.ledger.firstFailure,
+        classification: diagnosticClassification(
+          first.stable.accepted,
+          second.stable.accepted,
+          this.firstObservedTip !== null,
+        ),
+        formalAcceptance: 'D01_D02_OPEN_NO_THRESHOLD_OR_TOOLBOX_ACCEPTANCE',
+      },
+    };
+  }
+}
+type DiagnosticOutcome = ReturnType<DiagnosticCertificate['finish']>;
+function asDiagnostic(v: Outcome) {
+  const value = v as DiagnosticOutcome;
+  demand(
+    value.diagnostic?.validity === 'VALID' && value.diagnostic.checkpoints.length === 2,
+    'DIAGNOSTIC_OUTCOME',
+  );
+  return value;
+}
+function assessDiagnosticPair(outcomes: Outcome[]) {
+  demand(
+    outcomes.length === 2 && outcomes[0]!.rate === 'normal' && outcomes[1]!.rate === 'slow',
+    'TWO_DIAGNOSTIC_VARIANTS',
+  );
+  const values = outcomes.map(asDiagnostic);
+  demand(
+    values.every(
+      (v) => v.diagnostic.prefix.exact && v.diagnostic.prefix.sha256 === g.prefix.sha256,
+    ),
+    'MATCHED_MANDATORY_PREFIXES',
+  );
+  return {
+    physical: values.every((v) => v.physical === 'PASS') ? 'PASS' : 'FAIL',
+    scope: g.id,
+    diagnosticValidity: 'VALID',
+    formalAcceptance: 'D01_D02_OPEN',
+    outcomes: values,
+  };
+}
+
+function diagnosticSourceAdmission() {
+  validateDiagnosticFixture();
+  const entries: [URL, string][] = [
+    [sourceUrl, 'ASA_D01_STAGE6_SOURCE_SHA256'],
+    [
+      new URL('./mujoco-finite-cap-stage6-diagnostic.fixture.json', import.meta.url),
+      'ASA_D01_STAGE6_FIXTURE_SHA256',
+    ],
+  ];
+  return entries.map(([url, key]) => {
+    const expected = process.env[key] ?? '',
+      bytes = readFileSync(url);
+    demand(/^[a-f0-9]{64}$/.test(expected) && hash(bytes) === expected, 'EXACT_STAGE6_SOURCE_PINS');
+    return { file: fileURLToPath(url).split(sep).at(-1), bytes: bytes.length, sha256: expected };
+  });
+}
+function originalSourceAdmission() {
+  const original = execFileSync(
+    'git',
+    ['show', g.frozenSource.commit + ':' + g.frozenSource.path],
+    { cwd: repo, maxBuffer: 1 << 20 },
+  );
+  demand(
+    original.length === g.frozenSource.bytes && hash(original) === g.frozenSource.sha256,
+    'FROZEN_ORIGINAL_SPEC',
+  );
+  const old = original.toString().replaceAll('\r\n', '\n'),
+    current = readFileSync(sourceUrl, 'utf8').replaceAll('\r\n', '\n');
+  // These exact ranges include the whole schema/1872 codec and factory/row/ownership readbacks.
+  for (const [start, end] of [
+    ['const schema =', 'function condition('],
+    ['function inputValues(', 'async function runWorld('],
+  ] as const) {
+    const segment = (s: string) => s.slice(s.indexOf(start), s.indexOf(end));
+    demand(
+      old.indexOf(start) >= 0 &&
+        old.indexOf(end) > old.indexOf(start) &&
+        segment(old) === segment(current),
+      'UNCHANGED_CODEC_AND_NATIVE_READBACK_' + start,
+    );
+  }
+  return { source: g.frozenSource, fixture: g.originalFixture };
+}
+async function priorDiagnosticAdmission(h: Helpers, path: string) {
+  demand(isAbsolute(path) && realpathSync(path) === resolve(path), 'ABSOLUTE_PRIOR_RAW');
+  const prior = pinned(join(path, g.priorRaw.binary.file), g.priorRaw.binary),
+    metadata = pinned(join(path, g.priorRaw.meta.file), g.priorRaw.meta),
+    lines = metadata.toString().trim().split('\n').map(parseLine),
+    finish = lines.find((v) => v.kind === 'finish'),
+    header = lines.find((v) => v.kind === 'header');
+  demand(
+    finish?.runtime === 'COMPLETE' &&
+      finish.physical === 'FAIL' &&
+      finish.acquisition === 'CONSUMED' &&
+      header &&
+      same(header.fixture, f),
+    'COMPLETE_IMMUTABLE_PRIOR_FAILURE',
+  );
+  const outcomes = lines.filter((v) => v.kind === 'world-end').map((v) => v.outcome as Outcome);
+  const result = await replay(h, path, outcomes);
+  demand(
+    same(result, finish.result) && result.outcomes.reduce((a, v) => a + v.intervals, 0) === 58000,
+    'COMPLETE_PRIOR_58000_REPLAY',
+  );
+  demand(
+    hash(prior.subarray(0, g.prefix.bytes)) === g.prefix.sha256 &&
+      hash(prior.subarray(0, g.descriptive.intervals * 1872)) === g.descriptive.sha256,
+    'ARCHIVED_CANONICAL_PREFIXES',
+  );
+  return {
+    prior,
+    receipt: { binary: g.priorRaw.binary, meta: g.priorRaw.meta, result, notNewAcquisition: true },
+  };
+}
+it.skipIf(!process.env['ASA_D01_STAGE6_PRIOR_RAW'])(
+  'replays all58000 consumed native intervals and first16500 exact prefix without any native import',
+  async () => {
+    validateDiagnosticFixture();
+    originalSourceAdmission();
+    const h = await helpers(),
+      prior = await priorDiagnosticAdmission(h, process.env['ASA_D01_STAGE6_PRIOR_RAW']!);
+    expect(prior.receipt.result.physical).toBe('FAIL');
+    // Exercise actual new assessor and unchanged first1s physical failure on the old normal stream.
+    const initial = decode(prior.prior.subarray(0, 1872)).pre,
+      cert = new DiagnosticCertificate(h, 'normal', 0, initial, { prior: prior.prior });
+    for (let tick = 1; tick <= 19000; tick++) {
+      const raw = prior.prior.subarray((tick - 1) * 1872, tick * 1872);
+      cert.observe(decode(raw), raw);
+    }
+    expect(cert.prefixVerified).toBe(true);
+    expect(cert.ledger.checkpoints[0]!.physical).toBe('FAIL');
+    expect(cert.done).toBe(false);
+    expect(cert.historicalDigest).toBe(g.descriptive.sha256);
+    expect(cert.historicalDifference).toBe(null);
+    const slow = new DiagnosticCertificate(h, 'slow', 1, initial, { prior: prior.prior });
+    for (let tick = 1; tick <= 16500; tick++) {
+      const raw = Buffer.from(prior.prior.subarray((tick - 1) * 1872, tick * 1872));
+      raw[4] = 1;
+      slow.observe(decode(raw), raw);
+    }
+    expect(slow.prefixVerified).toBe(true);
+    expect(slow.prefixDigest).toBe(g.prefix.sha256);
+    expect(slow.rate).toBe('normal');
+    const rejected = new DiagnosticCertificate(h, 'normal', 0, initial, { prior: prior.prior });
+    for (let tick = 1; tick <= 10; tick++) {
+      const raw = prior.prior.subarray((tick - 1) * 1872, tick * 1872);
+      rejected.observe(decode(raw), raw);
+    }
+    const bad = Buffer.from(prior.prior.subarray(10 * 1872, 11 * 1872));
+    bad[640] = bad[640]! ^ 1;
+    expect(() => rejected.observe(decode(bad), bad)).toThrow('MANDATORY_PREFIX_DIFFERENCE');
+    expect(rejected.tick).toBe(10);
+  },
+  60000,
+);
+it.skipIf(process.env['ASA_D01_STAGE6_RUN'] !== g.nativeToken)(
+  'acquires only the new identical-prefix stage6 diagnostic pair; physical FAIL is retained separately from diagnostic validity',
+  async () => {
+    const root = outputRoot(process.env['ASA_D01_STAGE6_OUTPUT'] ?? ''),
+      journal = new Journal(root, true),
+      init: Initialization = { attempted: 0, returned: 0, phase: 'not-imported' },
+      total: Census = {
+        step1: 0,
+        step1Returned: 0,
+        step2: 0,
+        step2Returned: 0,
+        models: 0,
+        data: 0,
+      };
+    let primary: unknown,
+      result: ReturnType<typeof assessDiagnosticPair> | undefined,
+      closeErrors: string[];
+    const receiptErrors: string[] = [];
+    try {
+      demand(selectedNativeMode() === 'stage6', 'STAGE6_MODE_ONLY');
+      const sources = diagnosticSourceAdmission(),
+        original = originalSourceAdmission(),
+        history = historyAdmission(),
+        h = await helpers(),
+        offline = await checkArchivedProjection(h, process.env['ASA_D01_NEAR_BIASED_RAW'] ?? ''),
+        archived = await priorDiagnosticAdmission(h, process.env['ASA_D01_STAGE6_PRIOR_RAW'] ?? ''),
+        engine = engineAdmission(
+          process.env['ASA_D01_NEAR_ENGINE'] ?? '',
+          process.env['ASA_D01_NEAR_LICENSE'] ?? '',
+        ),
+        context = { prior: archived.prior };
+      journal.write({
+        kind: 'header',
+        scope: g.id,
+        fixture: g,
+        originalFixture: f,
+        sources,
+        original,
+        history,
+        offline,
+        prior: archived.receipt,
+        schema,
+        modelSha256: f.model.sha256,
+        nativeInitialized: false,
+        init,
+        total,
+        node: process.version,
+      });
+      fsyncSync(journal.meta);
+      const bytes = readFileSync(join(root, g.files.meta)),
+        readback = parseLine(bytes.toString());
+      demand(
+        bytes.length === journal.metadata &&
+          same(readback.fixture, g) &&
+          same(readback.sources, sources) &&
+          same(readback.schema, schema),
+        'STAGE6_ON_DISK_HEADER',
+      );
+      journal.write({
+        kind: 'header-readback',
+        bytes: bytes.length,
+        sha256: hash(bytes),
+        nativeInitialized: false,
+        init,
+        total,
+      });
+      const M = await loadNative(engine, init, 'stage6'),
+        outcomes: Outcome[] = [];
+      for (const [world, rate] of (['normal', 'slow'] as const).entries())
+        outcomes.push(await runWorld(M, h, rate, world, journal, total, context));
+      demand(
+        init.attempted === 1 &&
+          init.returned === 1 &&
+          total.models === 2 &&
+          total.data === 2 &&
+          total.step1 === 42500 &&
+          total.step1Returned === 42500 &&
+          total.step2 === 42500 &&
+          total.step2Returned === 42500 &&
+          journal.bytes === g.capture.maxBinaryBytes,
+        'EXACT_STAGE6_NATIVE_COUNTS',
+      );
+      fsyncSync(journal.bin);
+      const replayed = await replay(h, root, outcomes, context);
+      demand(
+        'diagnosticValidity' in replayed && replayed.diagnosticValidity === 'VALID',
+        'COMPLETE_SAVED_DIAGNOSTIC_REPLAY',
+      );
+      result = replayed as ReturnType<typeof assessDiagnosticPair>;
+      journal.write(
+        {
+          kind: 'finish',
+          runtime: 'COMPLETE',
+          diagnosticValidity: 'VALID',
+          physical: result.physical,
+          acquisition: 'CONSUMED',
+          formalAcceptance: 'D01_D02_OPEN',
+          init,
+          total,
+          result,
+          binary: { bytes: journal.bytes, sha256: journal.digest.copy().digest('hex') },
+        },
+        true,
+      );
+    } catch (e) {
+      primary = e;
+      try {
+        journal.write(
+          {
+            kind: 'first-error',
+            runtime: 'ERROR',
+            diagnosticValidity: 'UNRESOLVED',
+            physical: 'UNRESOLVED',
+            acquisition: total.step1 + total.step2 > 0 ? 'CONSUMED' : 'PRE_DISPATCH',
+            init,
+            total,
+            error: String(e),
+            binary: {
+              completePrefixBytes: journal.bytes,
+              actualFileBytes: fstatSync(journal.bin).size,
+              completePrefixSha256: journal.digest.copy().digest('hex'),
+            },
+          },
+          true,
+        );
+      } catch (error) {
+        receiptErrors.push(String(error));
+      }
+    } finally {
+      closeErrors = journal.close();
+    }
+    if (primary)
+      throw Object.assign(primary instanceof Error ? primary : new Error(String(primary)), {
+        receiptErrors,
+        closeErrors,
+      });
+    demand(receiptErrors.length === 0 && closeErrors.length === 0, 'STAGE6_RECEIPT_CLEANUP');
+    expect(result?.diagnosticValidity).toBe('VALID'); // Physical FAIL is never changed to PASS by this assertion.
+  },
+  600000,
+);
+it('keeps both native modes explicitly exclusive/default skipped and old model/codec/readbacks frozen', () => {
+  expect(selectedNativeMode({})).toBe(null);
+  expect(selectedNativeMode({ ASA_D01_NEAR_RUN: 'two-local-frozen-rates-1071' })).toBe('original');
+  expect(selectedNativeMode({ ASA_D01_STAGE6_RUN: g.nativeToken })).toBe('stage6');
+  expect(() =>
+    selectedNativeMode({
+      ASA_D01_NEAR_RUN: 'two-local-frozen-rates-1071',
+      ASA_D01_STAGE6_RUN: g.nativeToken,
+    }),
+  ).toThrow('MUTUALLY_EXCLUSIVE');
+  expect(() => selectedNativeMode({ ASA_D01_STAGE6_RUN: 'retry' })).toThrow('UNKNOWN_DIAGNOSTIC');
+  validateDiagnosticFixture();
+  originalSourceAdmission();
+  expect(() =>
+    validateDiagnosticFixture({ ...g, schedule: { ...g.schedule, maxIntervals: 42501 } }),
+  ).toThrow('EXACT_STAGE6_FIXTURE');
+  expect(g.capture.worstCaseBytes).toBe(92142912);
+});
+it('matches every original NORMAL prefix control and fixes stage6 horizons without stage7', async () => {
+  const h = await helpers();
+  for (const rate of ['normal', 'slow'] as const) {
+    for (let tick = 0; tick < 16500; tick++)
+      expect(diagnosticControl(h, rate, tick)).toEqual(control(h, 'normal', tick));
+    const s = g.schedule[rate];
+    expect(diagnosticControl(h, rate, 16500).u).toBe(control(h, 'normal', 16500).u);
+    expect(diagnosticControl(h, rate, (g.prefix.throughUs + s.rampUs) / 500).phase).toBe('HOLD');
+    expect(diagnosticControl(h, rate, s.maxIntervals)).toEqual({
+      u: 6 * c.tilt.targetStepRad,
+      stage: 6,
+      target: 6 * c.tilt.targetStepRad,
+      phase: 'HOLD',
+      stageEndUs: s.checkpoint2Us,
+    });
+    expect(() => diagnosticControl(h, rate, s.maxIntervals + 1)).toThrow(
+      'DIAGNOSTIC_INTEGER_HORIZON',
+    );
+  }
+  for (let tick = 16500; tick <= 17000; tick++)
+    expect(Object.is(diagnosticControl(h, 'normal', tick).u, control(h, 'normal', tick).u)).toBe(
+      true,
+    );
+});
+it('normalizes only the declared identity byte and rejects phase/contact/signed-zero prefix changes', async () => {
+  const h = await helpers(),
+    sample = parseLine(defaultArchivedFourContact) as unknown as ArchivedInterval,
+    packet = archivePacket(h, sample),
+    original = encode(packet),
+    world = Buffer.from(original);
+  world[4] = 1;
+  expect(frameDifference(world, original, 11)).toBe(null);
+  for (const offset of [16, 256, 496, 592, 624, 1616, 1728, 1832]) {
+    const bad = Buffer.from(world);
+    bad[offset] = bad[offset]! ^ 128;
+    expect(frameDifference(bad, original, 11)?.byteOffset).toBe(offset);
+  }
+  const bad = decode(original);
+  bad.phase.qvel[0] = bad.phase.qvel[0]! + 1;
+  expect(() => encode(bad)).toThrow();
+});
+it('retains original one-second FAIL even after a later quiet diagnostic window and rejects extra checkpoints', () => {
+  const ledger = new CheckpointLedger(),
+    failures = new Map<string, number>(),
+    cp = (tick: number, accepted: boolean) => ({
+      tick,
+      atUs: tick * 500,
+      stable: { accepted },
+      tip: { accepted: false },
+      metrics: {},
+    });
+  const first = ledger.record(cp(19000, false), failures),
+    sealed = JSON.stringify(first);
+  ledger.record(cp(21000, true), failures);
+  expect(JSON.stringify(first)).toBe(sealed);
+  expect(first.physical).toBe('FAIL');
+  expect(ledger.firstFailure).toEqual(['ORIGINAL_ONE_SECOND_NO_STABLE_OR_TIP', 19000]);
+  expect(ledger.checkpoints[1]!.stable.accepted).toBe(true);
+  expect(ledger.checkpoints[1]!.physical).toBe('FAIL');
+  expect(diagnosticClassification(false, true, false)).toBe('recovered-only-in-additional-second');
+  expect(diagnosticClassification(true, true, false)).toBe('stable-at-both');
+  expect(diagnosticClassification(false, false, false)).toBe('no-stable-recovery');
+  expect(diagnosticClassification(false, false, true)).toBe('original-tip-window-observed');
+  expect(() => ledger.record(cp(23000, true), failures)).toThrow('ONLY_TWO_FIXED_CHECKPOINTS');
+  const tipped = new CheckpointLedger();
+  expect(tipped.record(cp(19000, false), new Map(), true).physical).toBe('PASS');
+  expect(tipped.checkpoints[0]!.tip.accepted).toBe(false); // Earlier original firstConfirmed remains decisive.
+});
+it('enforces diagnostic binary cap before a native advance without invoking native', () => {
+  const root = mkdtempSync(join(tmpdir(), 'asa-stage6-cap-pure-'));
+  const journal = new Journal(root, true);
+  try {
+    journal.bytes = g.capture.maxBinaryBytes - 1872;
+    journal.reserve();
+    journal.bytes += 1872;
+    expect(() => journal.reserve()).toThrow('CAPACITY_BEFORE_NATIVE_ADVANCE');
+  } finally {
+    expect(journal.close()).toEqual([]);
+    unlinkSync(join(root, g.files.meta));
+    unlinkSync(join(root, g.files.binary));
+    rmdirSync(root);
+  }
 });
