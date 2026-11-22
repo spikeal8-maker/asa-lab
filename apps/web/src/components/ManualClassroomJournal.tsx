@@ -689,6 +689,7 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     [header, setHeader] = useState<JournalSlot | null>(null);
   const active = useRef(false),
     generation = useRef(0),
+    scopedReadRevision = useRef(0),
     receipts = useRef(new Map<string, Receipt>()),
     cells = useRef(new Map<string, HTMLButtonElement>()),
     origin = useRef<HTMLElement | null>(null);
@@ -895,15 +896,26 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     },
     [accessLost, contextVersion],
   );
+  function beginScopedRead() {
+    const generationAtStart = generation.current;
+    const revision = ++scopedReadRevision.current;
+    // Newer full refreshes and writes also supersede earlier scoped reads.
+    return () =>
+      active.current &&
+      contextRevision.current === contextVersion &&
+      generation.current === generationAtStart &&
+      scopedReadRevision.current === revision;
+  }
   async function refreshHeader() {
     if (!headerColumn) return;
+    const isCurrent = beginScopedRead();
     const r = await journalApi.read(classroomId, {
       ...(month ? journalMonthRange(month) : {}),
       ...(headerColumn.virtual
         ? { slotKey: headerColumn.slotKey! }
         : { columnId: headerColumn.id }),
     });
-    if (!active.current || contextRevision.current !== contextVersion) return;
+    if (!isCurrent()) return;
     if (!r.ok) {
       if ([401, 403, 409].includes(r.status)) accessLostForContext(r.error.message);
       else setError(r.error.message);
@@ -925,13 +937,14 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
   }
   async function refreshCell(): Promise<boolean> {
     if (!opened || !openedColumn) return false;
+    const isCurrent = beginScopedRead();
     const r = await journalApi.read(classroomId, {
       ...(month ? journalMonthRange(month) : {}),
       ...(openedColumn.virtual
         ? { slotKey: openedColumn.slotKey! }
         : { columnId: openedColumn.id }),
     });
-    if (!active.current || contextRevision.current !== contextVersion) return false;
+    if (!isCurrent()) return false;
     if (!r.ok) {
       if ([401, 403, 409].includes(r.status)) accessLostForContext(r.error.message);
       else setError(r.error.message);
