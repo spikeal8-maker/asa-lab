@@ -13,6 +13,7 @@ export const ADMIN_PERMISSIONS = [
   'administration.moderation.read',
   'administration.billing.read',
   'administration.operations.read',
+  'administration.ai.quality.own.read',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -58,7 +59,9 @@ export type AdminAuthorizationDecision =
       readonly reason: 'no_admin_grant' | 'scope_not_granted' | 'permission_not_granted';
     };
 
-const PLATFORM_PERMISSIONS: readonly AdminPermission[] = ADMIN_PERMISSIONS;
+const PLATFORM_PERMISSIONS: readonly AdminPermission[] = ADMIN_PERMISSIONS.filter(
+  (permission) => permission !== 'administration.ai.quality.own.read',
+);
 
 const ORGANIZATION_ROLE_PERMISSIONS: Readonly<Partial<Record<string, readonly AdminPermission[]>>> =
   {
@@ -112,7 +115,11 @@ export function resolveAdminScopeGrants(subject: AdminSubject): readonly AdminSc
       id: null,
       title: 'ASA Lab',
       role: 'platform_admin',
-      permissions: PLATFORM_PERMISSIONS,
+      permissions: subject.capabilities.some(
+        (entry) => entry.capability === 'ai_quality_review_own' && entry.state === 'verified',
+      )
+        ? [...PLATFORM_PERMISSIONS, 'administration.ai.quality.own.read']
+        : PLATFORM_PERMISSIONS,
     });
   }
 
