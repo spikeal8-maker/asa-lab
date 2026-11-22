@@ -259,7 +259,7 @@ function CellEditor({
       ?.querySelector<HTMLElement>(
         archived
           ? 'button:not(:disabled), summary'
-          : 'input[type="number"]:not(:disabled), button[data-level]:not(:disabled)',
+          : 'input:not(:disabled), button[data-level]:not(:disabled)',
       )
       ?.focus({ preventScroll: true });
     return () => {
@@ -338,6 +338,7 @@ function CellEditor({
         }
         if (
           e.key === 'Tab' &&
+          !grade &&
           !busy &&
           !history &&
           (e.target as HTMLElement).hasAttribute('data-level')
@@ -1128,8 +1129,8 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
           <details className="manual-journal-hint">
             <summary>Справка по журналу</summary>
             <p>
-              Нажмите ячейку и выберите оценку. «—» — нет оценки, 0 — отдельная оценка. Исправление
-              требует причины. История доступна в ячейке. Даты класса: {data.timeZone}. Пустые
+              Нажмите ячейку и выберите оценку. «—» — нет оценки, 0 — отдельная оценка. Для очистки
+              оценки нужна причина. История доступна в ячейке. Даты класса: {data.timeZone}. Пустые
               работы сохраняются только при подтверждении заголовка или первой оценке.
             </p>
           </details>

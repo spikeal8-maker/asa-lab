@@ -390,12 +390,38 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
     expect((await route.fetch()).ok()).toBe(true);
     await route.abort('failed');
   });
-  await cell(names[2], 3).click();
+  const correctionCell = cell(names[2], 3);
+  await correctionCell.focus();
+  await page.keyboard.press('Enter');
   const correctionEditor = journal.getByRole('region', { name: `Оценка: ${names[2]}` });
-  await expect(
-    correctionEditor.getByRole('button', { name: 'Очистить оценку', exact: true }),
-  ).toBeDisabled();
-  await expect(correctionEditor.getByRole('button', { name: '0', exact: true })).toBeFocused();
+  const correctionReason = correctionEditor.getByLabel('Причина изменения');
+  const clearGrade = correctionEditor.getByRole('button', { name: 'Очистить оценку', exact: true });
+  const firstGrade = correctionEditor.getByRole('button', { name: '0', exact: true });
+  const gradeHistory = correctionEditor.locator('summary');
+  await expect(clearGrade).toBeDisabled();
+  await expect(correctionReason).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(firstGrade).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(correctionReason).toBeFocused();
+  await page.keyboard.type('Проверка доступности');
+  await page.keyboard.press('Tab');
+  await expect(firstGrade).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(correctionEditor.getByRole('button', { name: '5', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(clearGrade).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(gradeHistory).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(correctionEditor.getByRole('listitem')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(correctionEditor).toHaveCount(0);
+  await expect(correctionCell).toBeFocused();
+  await expect(correctionCell).toHaveText('5');
+  expect(correctionPayloads).toEqual([]);
+
+  await correctionCell.click();
   await correctionEditor
     .getByRole('group', { name: 'Оценка' })
     .getByRole('button', { name: '4', exact: true })
