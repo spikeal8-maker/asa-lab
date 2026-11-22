@@ -4,11 +4,13 @@ import { api, type GradebookEntry } from '../api';
 export function LegacyLearningReview({
   classroomId,
   item,
+  readOnly,
   onChanged,
   onClose,
 }: {
   classroomId: string;
   item: GradebookEntry;
+  readOnly: boolean;
   onChanged: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -37,7 +39,7 @@ export function LegacyLearningReview({
     };
   }, [classroomId, item.assignmentId, item.seatId]);
   async function review(decision: 'accepted' | 'changes_requested') {
-    if (!context || busy) return;
+    if (readOnly || !context || busy) return;
     setBusy(true);
     setError(null);
     const r = await api.reviewLearningAttempt(classroomId, context.attemptId, {
@@ -72,7 +74,7 @@ export function LegacyLearningReview({
             <summary>Сохранённое основание сдачи</summary>
             <pre>{JSON.stringify(context.submission, null, 2)}</pre>
           </details>
-          {context.state === 'evaluating' ? (
+          {!readOnly && context.state === 'evaluating' ? (
             <>
               <label>
                 Баллы из {context.maxPoints}

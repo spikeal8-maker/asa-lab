@@ -57,7 +57,7 @@ function ProjectList({
         setPrepared(true);
         return;
       }
-      const result = await observationApi.projects(classroomId, {
+      const filters = {
         module,
         learner,
         search,
@@ -65,8 +65,28 @@ function ProjectList({
         archive: String(archive),
         offset,
         limit,
-      });
+      };
+      const result = await observationApi.projects(classroomId, filters);
       if (!current) return;
+      // A scoped 404 also covers loss of classroom access. Reset the filter only
+      // after an authorized read confirms that this learner is no longer listed.
+      if (learner && !result.ok && result.status === 404) {
+        const currentClass = await observationApi.projects(classroomId, {
+          ...filters,
+          learner: '',
+          offset: 0,
+        });
+        if (!current) return;
+        if (
+          currentClass.ok &&
+          !currentClass.data.learners.some((student) => student.id === learner)
+        ) {
+          setLearners(currentClass.data.learners);
+          setLearner('');
+          setOffset(0);
+          return;
+        }
+      }
       setBusy(false);
       if (!result.ok) {
         setError(result.error.message);
@@ -79,6 +99,11 @@ function ProjectList({
       current = false;
     };
   }, [classroomId, module, learner, search, assignment, archive, offset, limit, retry, prepared]);
+  useEffect(() => {
+    const refresh = () => setRetry((value) => value + 1);
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
   return (
     <section className="classroom-observation" aria-label="Работы учеников" aria-busy={busy}>
       <div className="observation-heading">
