@@ -752,6 +752,15 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
       error: 'reason_required',
     });
     expect((await read(f.classId)).grades).toEqual([corrected]);
+    await expect(
+      admin.query(
+        `INSERT INTO classroom_journal_revisions
+          (tenant_id,classroom_id,column_id,seat_id,learner_identity_id,revision,value,supersedes_id,reason,author_id)
+         SELECT tenant_id,classroom_id,column_id,seat_id,learner_identity_id,revision+1,NULL,id,NULL,author_id
+         FROM classroom_journal_revisions WHERE id=$1`,
+        [corrected.id],
+      ),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'classroom_journal_revisions_check' });
     const clear = await write(
       f.classId,
       'grade',

@@ -522,7 +522,7 @@ const upgradeArtifacts = [
   [
     '0329',
     '0329_classroom_journal_optional_correction_reason.sql',
-    '59e0bbfd9b59171c605a2a944a00a3846f6a83f8c7e22764c7cd384bad9eda80',
+    'ddc0cc6d86bac18082e8454fd37975dbc6528c3878aebeedc02fb714614c3e9d',
   ],
 ] as const;
 

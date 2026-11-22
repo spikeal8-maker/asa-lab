@@ -1,3 +1,11 @@
+-- Replace the cross-column check atomically. Existing revisions satisfy the new check.
+ALTER TABLE public.classroom_journal_revisions
+ DROP CONSTRAINT classroom_journal_revisions_check,
+ ADD CONSTRAINT classroom_journal_revisions_check CHECK (
+  (revision = 1 AND supersedes_id IS NULL)
+  OR (revision > 1 AND supersedes_id IS NOT NULL AND (value IS NOT NULL OR reason IS NOT NULL))
+ );
+
 -- Preserve the canonical dated-journal writer. Only clearing a revision requires a reason.
 CREATE OR REPLACE FUNCTION public.classroom_journal_write(p_actor uuid,p_class uuid,p_action varchar,p_input jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
