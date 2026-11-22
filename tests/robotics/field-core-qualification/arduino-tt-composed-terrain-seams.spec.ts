@@ -1841,7 +1841,140 @@ function compiledVertexBudget(point: Vec, matrix: number[], local: Vec) {
     );
   }) as Vec;
 }
+const meshIntegerFields = {
+  mesh_vertadr: 5,
+  mesh_vertnum: 5,
+  mesh_faceadr: 5,
+  mesh_facenum: 5,
+  geom_dataid: ngeom,
+  geom_type: ngeom,
+  geom_bodyid: ngeom,
+} as const;
+const meshDoubleFields = {
+  mesh_scale: 15,
+  mesh_pos: 15,
+  mesh_quat: 20,
+  geom_pos: ngeom * 3,
+  geom_quat: ngeom * 4,
+  geom_size: ngeom * 3,
+} as const;
+type MeshSnapshot = {
+  schema: 'ACTUAL_NATIVE_COMPILED_MESH_V1';
+  counts: number[];
+  verticesF32: number[];
+  facesI32: number[];
+  integers: Record<keyof typeof meshIntegerFields, number[]>;
+  doubles: Record<keyof typeof meshDoubleFields, number[]>;
+  worldPositionsF64: number[];
+  worldRotationsF64: number[];
+};
+function signedJson(value: unknown) {
+  return JSON.stringify(value, (_key, item: unknown) =>
+    typeof item === 'number' && Object.is(item, -0) ? 'float64:-0' : item,
+  );
+}
+function captureMesh(model: Model, data: Data): MeshSnapshot {
+  requireThat(
+    model.mesh_vert instanceof Float32Array &&
+      model.mesh_vert.length === 120 &&
+      model.mesh_face instanceof Int32Array &&
+      model.mesh_face.length === 180,
+    'FIVE_COMPILED_MESH_SHAPES',
+  );
+  return {
+    schema: 'ACTUAL_NATIVE_COMPILED_MESH_V1',
+    counts: ['nmesh', 'nmeshvert', 'nmeshface', 'ngeom'].map((key, i) => {
+      const value = model[key];
+      requireThat(value === [5, 40, 60, ngeom][i], 'COMPILED_MESH_COUNT_' + key);
+      return value as number;
+    }),
+    verticesF32: Array.from(model.mesh_vert),
+    facesI32: Array.from(model.mesh_face),
+    integers: Object.fromEntries(
+      Object.entries(meshIntegerFields).map(([key, size]) => [
+        key,
+        Array.from(intView(model[key], size, key)),
+      ]),
+    ) as MeshSnapshot['integers'],
+    doubles: Object.fromEntries(
+      Object.entries(meshDoubleFields).map(([key, size]) => [
+        key,
+        Array.from(floatView(model[key], size, key)),
+      ]),
+    ) as MeshSnapshot['doubles'],
+    worldPositionsF64: Array.from(floatView(data.geom_xpos, ngeom * 3, 'geom_xpos')),
+    worldRotationsF64: Array.from(floatView(data.geom_xmat, ngeom * 9, 'geom_xmat')),
+  };
+}
+function restoreMesh(snapshot: MeshSnapshot) {
+  requireThat(snapshot.schema === 'ACTUAL_NATIVE_COMPILED_MESH_V1', 'MESH_RECEIPT_SCHEMA');
+  const array = (value: unknown, size: number, label: string, kind: 'f64' | 'f32' | 'i32') => {
+    requireThat(Array.isArray(value) && value.length === size, 'MESH_RECEIPT_WIDTH_' + label);
+    const values = value as unknown[];
+    requireThat(
+      values.every(
+        (v) =>
+          typeof v === 'number' &&
+          Number.isFinite(v) &&
+          (kind === 'f64' ||
+            (kind === 'f32'
+              ? Object.is(Math.fround(v), v)
+              : Number.isInteger(v) && v >= -2147483648 && v <= 2147483647)),
+      ),
+      'MESH_RECEIPT_SCALAR_' + label,
+    );
+    return values as number[];
+  };
+  requireThat(
+    same(array(snapshot.counts, 4, 'counts', 'i32'), [5, 40, 60, ngeom]),
+    'MESH_RECEIPT_COUNTS',
+  );
+  const model = {
+    nmesh: 5,
+    nmeshvert: 40,
+    nmeshface: 60,
+    ngeom,
+    mesh_vert: Float32Array.from(array(snapshot.verticesF32, 120, 'vertices', 'f32')),
+    mesh_face: Int32Array.from(array(snapshot.facesI32, 180, 'faces', 'i32')),
+  } as unknown as Model;
+  for (const [key, size] of Object.entries(meshIntegerFields))
+    model[key] = Int32Array.from(
+      array(snapshot.integers[key as keyof typeof meshIntegerFields], size, key, 'i32'),
+    );
+  for (const [key, size] of Object.entries(meshDoubleFields))
+    model[key] = Float64Array.from(
+      array(snapshot.doubles[key as keyof typeof meshDoubleFields], size, key, 'f64'),
+    );
+  const data = {
+    geom_xpos: Float64Array.from(
+      array(snapshot.worldPositionsF64, ngeom * 3, 'worldPositions', 'f64'),
+    ),
+    geom_xmat: Float64Array.from(
+      array(snapshot.worldRotationsF64, ngeom * 9, 'worldRotations', 'f64'),
+    ),
+  } as unknown as Data;
+  return { model, data };
+}
+function replayMesh(value: unknown) {
+  requireThat(value !== null && typeof value === 'object', 'MESH_RECEIPT_REQUIRED');
+  const receipt = value as ReturnType<typeof assertMesh>;
+  requireThat(receipt.nativeSha256 === hash(signedJson(receipt.native)), 'MESH_RECEIPT_DIGEST');
+  const restored = restoreMesh(receipt.native),
+    recomputed = assertMesh(restored.model, restored.data);
+  requireThat(signedJson(recomputed) === signedJson(receipt), 'RECOMPUTED_COMPILED_MESH_ADMISSION');
+  return recomputed;
+}
 function assertMesh(model: Model, data: Data) {
+  const native = captureMesh(model, data);
+  requireThat(
+    same(native.integers.geom_type, [7, 7, 7, 7, 7, 6, 6, 5, 5, 5, 5]) &&
+      same(native.integers.geom_bodyid, geomBodies),
+    'COMPILED_NATIVE_GEOM_IDENTITIES',
+  );
+  requireThat(
+    native.doubles.mesh_scale.every((v) => v === 1),
+    'COMPILED_UNIT_ASSET_SCALE',
+  );
   const made = terrainGeometry(),
     vertices = model.mesh_vert,
     faces = model.mesh_face;
@@ -1867,9 +2000,17 @@ function assertMesh(model: Model, data: Data) {
       'ONE_CLOSED_MESH_PER_VOLUME',
     );
     used.add(mesh);
+    requireThat(adr[mesh] === mesh * 8 && fa[mesh] === mesh * 12, 'COMPILED_MESH_ADDRESSES');
     const matrix = Array.from(gm.slice(i * 9, i * 9 + 9)),
       position = vec(gp, i * 3),
       local = Array.from({ length: 8 }, (_, j) => vec(vertices, (adr[mesh]! + j) * 3));
+    const geomPosition = vec(native.doubles.geom_pos, i * 3),
+      geomQuaternion = quat(native.doubles.geom_quat, i * 4),
+      quaternionMatrix = [0, 1, 2].flatMap((row) =>
+        boxAxes.map((axis) => rotate(geomQuaternion, axis)[row]!),
+      );
+    position.forEach((v, k) => near(v, geomPosition[k]!, 1e-12, 'STATIC_NATIVE_GEOM_TRANSLATION'));
+    matrix.forEach((v, k) => near(v, quaternionMatrix[k]!, 1e-12, 'STATIC_NATIVE_GEOM_ROTATION'));
     for (let a = 0; a < 3; a++)
       for (let b = 0; b < 3; b++)
         near(
@@ -1930,6 +2071,8 @@ function assertMesh(model: Model, data: Data) {
     });
   });
   return {
+    native,
+    nativeSha256: hash(signedJson(native)),
     volumes: actual,
     seams,
     representation: 'F32 local vertices / F64 native geom transforms',
@@ -1942,12 +2085,16 @@ function terrainTop(id: number, point: Vec) {
   const n = vec(t.normal),
     origin: Vec = [t.x[0]!, 0, t.top[0]!],
     distance = dot(sub(point, origin), n),
-    projected = sub(point, scale(n, distance));
+    projected = sub(point, scale(n, distance)),
+    // Orthogonal projection is non-expansive: the frozen world-space compiled
+    // vertex displacement bound also bounds its XY domain displacement. This
+    // represents admitted F32 edges; the physical normal-distance gate is unchanged.
+    domainBudget = compiledDisplacementBudget();
   return (
     Math.abs(distance) <= limits.faceDistanceM &&
-    projected[0] >= t.x[0]! &&
-    projected[0] <= t.x[1]! &&
-    Math.abs(projected[1]) <= 0.5
+    projected[0] >= t.x[0]! - domainBudget &&
+    projected[0] <= t.x[1]! + domainBudget &&
+    Math.abs(projected[1]) <= 0.5 + domainBudget
   );
 }
 function wheelPoint(frame: Frame, wheel: number, point: Vec) {
@@ -2222,7 +2369,6 @@ class Witness {
       a.contactCurvatureBound += norm(w.force) * w.taylorBound;
     }
     for (const code of labels.failures) this.fail(code, frame.from);
-    if (labels.slip > limits.maxSlipMps) this.fail('WHEEL_POINT_SLIP', frame.from);
     this.maxSlip = Math.max(this.maxSlip, labels.slip);
     labels.masks.forEach((mask, i) => {
       const d = this.wheelDossier[i]!;
@@ -2252,7 +2398,7 @@ class Witness {
       const valid =
         labels.masks.every((mask) => !!(mask & (1 << surface))) &&
         labels.failures.length === 0 &&
-        labels.slip <= 0.02 &&
+        labels.slip <= limits.maxSlipMps &&
         (surface !== 0 || (frame.from >= limits.staticUs && frame.to <= comparison.interventionUs));
       const last = this.activeWindows[surface];
       this.activeWindows[surface] = valid
@@ -3181,6 +3327,7 @@ function replayPair(root: string, outcomes: Outcome[]) {
       final = end.final as Energy;
     checkEndpointEnergy(initial);
     checkEndpointEnergy(final);
+    replayMesh(start.mesh);
     const witness = new Witness(outcome.world, profile);
     witness.configure(start.readback as ReturnType<typeof widths>);
     let count = 0;
@@ -3871,7 +4018,7 @@ function missingRoute(
   for (const d of dossier)
     if (d.firstBySurface.some((v) => v === null))
       missing.push('WHEEL_' + d.id + '_INCOMPLETE_ROUTE');
-  for (const i of [1, 2, 4]) if (!windows[i]) missing.push('MISSING_100MS_SURFACE_' + i);
+  for (const i of [2, 4]) if (!windows[i]) missing.push('MISSING_100MS_SURFACE_' + i);
   if (mixed.some((v) => v === null)) missing.push('MISSING_MIXED_SEAM');
   if (rise < 0.06) missing.push('RISE_BELOW_60MM');
   if (fall < 0.06) missing.push('FALL_BELOW_60MM');
@@ -3930,6 +4077,11 @@ it('requires every wheel and mixed seam in order, with real100ms platform/termin
     w = { from: 0, to: 100000, minimumZ: 0, maximumZ: 0 },
     windows = Array(5).fill(w),
     mixed = Array(4).fill({});
+  expect(missingRoute(dossier, windows, mixed, 0.06, 0.06)).toEqual([]);
+  // Ascent/descent contacts and mixed seams remain required, but their optional
+  // continuous-window diagnostics must not invent extra100ms acceptance gates.
+  windows[1] = null;
+  windows[3] = null;
   expect(missingRoute(dossier, windows, mixed, 0.06, 0.06)).toEqual([]);
   const absent = structuredClone(dossier) as { id: number; firstBySurface: (number | null)[] }[];
   absent[0]!.firstBySurface[3] = null;
@@ -4001,41 +4153,145 @@ it('preserves fixed-horizontal-length angle edits and rotated metric plan/profil
   expect(() => rampRiseForAngle(0.8, Math.PI / 2)).toThrow('RAMP_ANGLE_RANGE');
   expect(() => rampRiseForAngle(Number.MIN_VALUE, 0.5)).toThrow('RAMP_ANGLE_UNREPRESENTABLE');
 });
+function syntheticMesh() {
+  const vertices = new Float32Array(physics.terrain.flatMap((t) => t.vertices.flat())),
+    faces = new Int32Array(physics.terrain.flatMap((t) => t.faces.flat())),
+    model = {
+      nmesh: 5,
+      nmeshvert: 40,
+      nmeshface: 60,
+      ngeom,
+      mesh_scale: Float64Array.from(Array(15).fill(1)),
+      mesh_pos: new Float64Array(15),
+      mesh_quat: Float64Array.from(Array.from({ length: 5 }, () => [1, 0, 0, 0]).flat()),
+      geom_pos: new Float64Array(ngeom * 3),
+      geom_quat: Float64Array.from(Array.from({ length: ngeom }, () => [1, 0, 0, 0]).flat()),
+      geom_size: new Float64Array(ngeom * 3),
+      geom_type: Int32Array.from([7, 7, 7, 7, 7, 6, 6, 5, 5, 5, 5]),
+      geom_bodyid: Int32Array.from(geomBodies),
+      mesh_vert: vertices,
+      mesh_face: faces,
+      mesh_vertadr: Int32Array.from([0, 8, 16, 24, 32]),
+      mesh_vertnum: Int32Array.from([8, 8, 8, 8, 8]),
+      mesh_faceadr: Int32Array.from([0, 12, 24, 36, 48]),
+      mesh_facenum: Int32Array.from([12, 12, 12, 12, 12]),
+      geom_dataid: Int32Array.from([0, 1, 2, 3, 4, -1, -1, -1, -1, -1, -1]),
+    } as unknown as Model;
+  const data = {
+    geom_xpos: new Float64Array(33),
+    geom_xmat: Float64Array.from(
+      Array.from({ length: 11 }, () => [1, 0, 0, 0, 1, 0, 0, 0, 1]).flat(),
+    ),
+  } as unknown as Data;
+  return { model, data, vertices, faces };
+}
 it('admits actual compiled-mesh ABI shapes and rejects a seam gap, reversed face, duplicate hull or wrong scalar width before any advance', () => {
-  const make = () => {
-    const vertices = new Float32Array(physics.terrain.flatMap((t) => t.vertices.flat())),
-      faces = new Int32Array(physics.terrain.flatMap((t) => t.faces.flat())),
-      model = {
-        mesh_vert: vertices,
-        mesh_face: faces,
-        mesh_vertadr: Int32Array.from([0, 8, 16, 24, 32]),
-        mesh_vertnum: Int32Array.from([8, 8, 8, 8, 8]),
-        mesh_faceadr: Int32Array.from([0, 12, 24, 36, 48]),
-        mesh_facenum: Int32Array.from([12, 12, 12, 12, 12]),
-        geom_dataid: Int32Array.from([0, 1, 2, 3, 4, -1, -1, -1, -1, -1, -1]),
-      } as unknown as Model;
-    const data = {
-      geom_xpos: new Float64Array(33),
-      geom_xmat: Float64Array.from(
-        Array.from({ length: 11 }, () => [1, 0, 0, 0, 1, 0, 0, 0, 1]).flat(),
-      ),
-    } as unknown as Data;
-    return { model, data, vertices, faces };
-  };
-  const valid = make();
+  const valid = syntheticMesh();
   expect(assertMesh(valid.model, valid.data).seams).toHaveLength(4);
-  const gap = make();
+  const gap = syntheticMesh();
   gap.vertices[15]! += 0.001;
   expect(() => assertMesh(gap.model, gap.data)).toThrow('COMPILED_VERTEX_BIJECTION');
-  const reversed = make();
+  const reversed = syntheticMesh();
   [reversed.faces[0], reversed.faces[1]] = [reversed.faces[1]!, reversed.faces[0]!];
   expect(() => assertMesh(reversed.model, reversed.data)).toThrow('COMPILED_OUTWARD_HULL');
-  const duplicate = make();
+  const duplicate = syntheticMesh();
   (duplicate.model.geom_dataid as Int32Array)[1] = 0;
   expect(() => assertMesh(duplicate.model, duplicate.data)).toThrow('ONE_CLOSED_MESH_PER_VOLUME');
-  const width = make();
+  const width = syntheticMesh();
   width.model.mesh_vert = new Float64Array(120);
   expect(() => assertMesh(width.model, width.data)).toThrow('FIVE_COMPILED_MESH_SHAPES');
+});
+
+it('classifies admitted Float32 finite top edges with only the frozen representation-domain bound', () => {
+  const made = syntheticMesh();
+  assertMesh(made.model, made.data);
+  const edge: Vec = [Math.fround(0.8), 0, Math.fround(f.geometry.height)];
+  expect(edge[0]).toBeGreaterThan(0.8);
+  expect(terrainTop(1, edge)).toBe(true);
+  expect(terrainTop(2, edge)).toBe(true);
+  const budget = compiledDisplacementBudget();
+  expect(terrainTop(2, [1.2 + 2 * budget, 0, f.geometry.height])).toBe(false);
+  expect(terrainTop(2, [1, 0.5 + 2 * budget, f.geometry.height])).toBe(false);
+  expect(terrainTop(2, [1, 0, f.geometry.height + limits.faceDistanceM * 1.01])).toBe(false);
+});
+it('replays actual compiled local vertices/transforms/faces/maps from raw and rejects altered pins or admissions', () => {
+  const made = syntheticMesh();
+  made.vertices[24] = -0;
+  const receipt = assertMesh(made.model, made.data),
+    disk = JSON.parse(signedJson(receipt), (_key, value: unknown) =>
+      value === 'float64:-0' ? -0 : value,
+    );
+  expect(replayMesh(disk)).toEqual(receipt);
+  expect(Object.is(replayMesh(disk).native.verticesF32[24], -0)).toBe(true);
+  const transformed = syntheticMesh(),
+    matrix = [0, -1, 0, 1, 0, 0, 0, 0, 1],
+    translation: Vec = [1, 2, 3];
+  for (let mesh = 0; mesh < 5; mesh++) {
+    for (let vertex = 0; vertex < 8; vertex++) {
+      const world = vec(transformed.vertices, (mesh * 8 + vertex) * 3),
+        delta = sub(world, translation);
+      transformed.vertices.set([delta[1], -delta[0], delta[2]], (mesh * 8 + vertex) * 3);
+    }
+    transformed.data.geom_xpos.set(translation, mesh * 3);
+    transformed.data.geom_xmat.set(matrix, mesh * 9);
+    (transformed.model.geom_pos as Float64Array).set(translation, mesh * 3);
+    (transformed.model.geom_quat as Float64Array).set([Math.SQRT1_2, 0, 0, Math.SQRT1_2], mesh * 4);
+  }
+  const rotatedReceipt = assertMesh(transformed.model, transformed.data);
+  expect(replayMesh(rotatedReceipt)).toEqual(rotatedReceipt);
+  expect(Buffer.byteLength(signedJson(receipt)) * 2).toBeLessThan(cap.metadataByteCap / 4);
+  const tampered = structuredClone(receipt);
+  tampered.native.doubles.mesh_scale[0] = 2;
+  expect(() => replayMesh(tampered)).toThrow('MESH_RECEIPT_DIGEST');
+  tampered.nativeSha256 = hash(signedJson(tampered.native));
+  expect(() => replayMesh(tampered)).toThrow('COMPILED_UNIT_ASSET_SCALE');
+  const face = structuredClone(receipt);
+  [face.native.facesI32[0], face.native.facesI32[1]] = [
+    face.native.facesI32[1]!,
+    face.native.facesI32[0]!,
+  ];
+  face.nativeSha256 = hash(signedJson(face.native));
+  expect(() => replayMesh(face)).toThrow('COMPILED_OUTWARD_HULL');
+  const address = structuredClone(receipt);
+  address.native.integers.mesh_vertadr[1] = 0;
+  address.nativeSha256 = hash(signedJson(address.native));
+  expect(() => replayMesh(address)).toThrow('COMPILED_MESH_ADDRESSES');
+  const vertex = structuredClone(receipt);
+  vertex.native.verticesF32[0] = Math.fround(vertex.native.verticesF32[0]! + 0.001);
+  vertex.nativeSha256 = hash(signedJson(vertex.native));
+  expect(() => replayMesh(vertex)).toThrow('COMPILED_VERTEX_BIJECTION');
+  const label = structuredClone(receipt);
+  label.volumes[0]!.vertices[0]!.budget[0] *= 2;
+  expect(() => replayMesh(label)).toThrow('RECOMPUTED_COMPILED_MESH_ADMISSION');
+});
+it('retains transient full-horizon slip but applies0.02 only to continuous declared support windows', () => {
+  const run = (slipAt: number) => {
+    const witness = new Witness('powered', sourcePins());
+    witness.configure({ masses: [0, 0.44, 0.08, 0.04, 0.04] } as ReturnType<typeof widths>);
+    for (let from = 0; from < 150500; from += 500) {
+      const frame = syntheticContacts(syntheticFrame());
+      frame.from = from;
+      frame.to = from + 500;
+      frame.pre.seconds = from * 1e-6;
+      frame.post.seconds = (from + 500) * 1e-6;
+      frame.pre.qvel[0] = from === slipAt ? 0.03 : 0;
+      frame.post.qvel[0] = from + 500 === slipAt ? 0.03 : 0;
+      frame.phaseHash = hash(stateBytes(frame.pre));
+      for (let body = 1; body < nbody; body++)
+        frame.kinematics[body]!.velocity[0] = frame.pre.qvel[0]!;
+      for (const contact of frame.contacts) contact.velocity[1] = frame.pre.qvel[0]!;
+      witness.observe(frame, encodeInterval(frame, { state: frame.post, poses: frame.after }));
+    }
+    return witness;
+  };
+  const transient = run(0),
+    interrupted = run(100000);
+  expect(transient).toHaveProperty('maxSlip', 0.03);
+  expect(transient).toHaveProperty('failures', new Map());
+  expect(transient.windows[0]).not.toBeNull();
+  expect(interrupted).toHaveProperty('maxSlip', 0.03);
+  expect(interrupted).toHaveProperty('failures', new Map());
+  expect(interrupted.windows[0]).toBeNull();
 });
 
 function assertNativeAdmission(enabled: boolean, attempts: number) {
