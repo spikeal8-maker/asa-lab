@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { RoboticsObjectKey } from '@asa-lab/robotics/world-document';
+import type { RoboticsObjectKey, RoboticsPoint } from '@asa-lab/robotics/world-document';
 import type { RoboticsFieldGeometry } from './RobotField';
 import { createFieldSpatialScene, SPATIAL_FIELD_BACKGROUND } from './field-spatial-scene';
 import type { RoboticsDistanceMeasurement, RoboticsWorldState } from './world';
@@ -66,6 +66,192 @@ export function readSideMetricScale(
   };
 }
 
+export interface SpatialObjectPreview {
+  key: RoboticsObjectKey;
+  dxMeters: number;
+  dyMeters: number;
+}
+interface SpatialEdit {
+  begin: (key: RoboticsObjectKey, point: RoboticsPoint) => boolean;
+  preview: (point: RoboticsPoint) => SpatialObjectPreview | null;
+  finish: (point: RoboticsPoint) => void;
+  cancel: () => void;
+}
+
+/** The picked surface's horizontal plane preserves the exact grab-to-anchor offset. */
+export function spatialEditPoint(
+  camera: THREE.Camera,
+  area: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  clientX: number,
+  clientY: number,
+  z: number,
+): RoboticsPoint | null {
+  if (
+    ![area.left, area.top, area.width, area.height, clientX, clientY, z].every(Number.isFinite) ||
+    area.width <= 0 ||
+    area.height <= 0 ||
+    clientX < area.left ||
+    clientY < area.top ||
+    clientX > area.left + area.width ||
+    clientY > area.top + area.height
+  )
+    return null;
+  camera.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(
+    new THREE.Vector2(
+      ((clientX - area.left) / area.width) * 2 - 1,
+      1 - ((clientY - area.top) / area.height) * 2,
+    ),
+    camera,
+  );
+  if (Math.abs(ray.ray.direction.z) <= Number.EPSILON) return null;
+  const t = (z - ray.ray.origin.z) / ray.ray.direction.z;
+  if (!Number.isFinite(t) || t < 0) return null;
+  const p = ray.ray.at(t, new THREE.Vector3());
+  return [p.x, p.y].every(Number.isFinite) ? { xMeters: p.x, yMeters: p.y } : null;
+}
+
+/** Capture-phase ownership leaves OrbitControls tracking touch positions, without moving
+ * its camera. A second finger restores camera features before its normal bubble handler. */
+export function bindSpatialFieldGestures(
+  canvas: HTMLCanvasElement,
+  env: {
+    current: () => {
+      world: unknown;
+      enabled: boolean;
+      edit: SpatialEdit | undefined;
+      controls: OrbitControls | null;
+    };
+    hit: (x: number, y: number) => { key: RoboticsObjectKey; point: THREE.Vector3 } | undefined;
+    project: (x: number, y: number, z: number) => RoboticsPoint | null;
+    preview: (value: SpatialObjectPreview | null) => void;
+    select: (key: RoboticsObjectKey) => void;
+    resetControls: () => void;
+  },
+) {
+  let press: {
+    id: number;
+    x: number;
+    y: number;
+    world: unknown;
+    key: RoboticsObjectKey;
+    z: number;
+    moved: boolean;
+    edit: SpatialEdit;
+    controls: OrbitControls;
+    features: readonly [boolean, boolean, boolean];
+  } | null = null;
+  function clear(reset: boolean) {
+    const old = press;
+    press = null;
+    if (!old) return;
+    old.controls.enableRotate = old.features[0];
+    old.controls.enablePan = old.features[1];
+    old.controls.enableZoom = old.features[2];
+    env.preview(null);
+    if (reset) {
+      old.edit.cancel();
+      if (canvas.hasPointerCapture?.(old.id)) canvas.releasePointerCapture(old.id);
+      env.resetControls();
+    }
+    canvas.classList.remove('robotics-object-dragging');
+  }
+  function sync() {
+    if (
+      press &&
+      (!env.current().enabled || env.current().world !== press.world || !env.current().edit)
+    )
+      clear(true);
+  }
+  function down(event: PointerEvent) {
+    if (press) {
+      if (event.pointerId !== press.id) {
+        const old = press;
+        clear(false);
+        old.edit.cancel();
+      }
+      return;
+    }
+    const state = env.current();
+    if (!state.enabled || !state.edit || !state.controls || event.button !== 0 || !event.isPrimary)
+      return;
+    const hit = env.hit(event.clientX, event.clientY);
+    if (!hit) return;
+    const point = env.project(event.clientX, event.clientY, hit.point.z);
+    if (!point || !state.edit.begin(hit.key, point)) return;
+    const controls = state.controls;
+    press = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      world: state.world,
+      key: hit.key,
+      z: hit.point.z,
+      moved: false,
+      edit: state.edit,
+      controls,
+      features: [controls.enableRotate, controls.enablePan, controls.enableZoom],
+    };
+    controls.enableRotate = controls.enablePan = controls.enableZoom = false;
+    canvas.classList.add('robotics-object-dragging');
+  }
+  function move(event: PointerEvent) {
+    sync();
+    if (!press || press.id !== event.pointerId) return;
+    if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5) press.moved = true;
+    if (!press.moved) return;
+    const point = env.project(event.clientX, event.clientY, press.z);
+    if (!point) {
+      clear(true);
+      return;
+    }
+    env.preview(press.edit.preview(point));
+  }
+  function up(event: PointerEvent) {
+    sync();
+    const old = press;
+    if (!old || old.id !== event.pointerId) return;
+    const point = env.project(event.clientX, event.clientY, old.z);
+    // Evaluate final travel too: missing/coalesced pointermove must never turn a drag into a click.
+    const moved = old.moved || Math.hypot(event.clientX - old.x, event.clientY - old.y) > 5;
+    clear(false);
+    if (moved && point) old.edit.finish(point);
+    else {
+      old.edit.cancel();
+      if (!moved && point) env.select(old.key);
+    }
+  }
+  function cancel() {
+    clear(true);
+  }
+  function key(event: globalThis.KeyboardEvent) {
+    if (event.key === 'Escape') cancel();
+  }
+  canvas.addEventListener('pointerdown', down, true);
+  canvas.addEventListener('pointermove', move, true);
+  canvas.addEventListener('pointerup', up, true);
+  canvas.addEventListener('pointercancel', cancel, true);
+  canvas.addEventListener('lostpointercapture', cancel);
+  window.addEventListener('blur', cancel);
+  window.addEventListener('keydown', key);
+  return {
+    sync,
+    cancel,
+    owns: () => Boolean(press),
+    dispose() {
+      cancel();
+      canvas.removeEventListener('pointerdown', down, true);
+      canvas.removeEventListener('pointermove', move, true);
+      canvas.removeEventListener('pointerup', up, true);
+      canvas.removeEventListener('pointercancel', cancel, true);
+      canvas.removeEventListener('lostpointercapture', cancel);
+      window.removeEventListener('blur', cancel);
+      window.removeEventListener('keydown', key);
+    },
+  };
+}
+
 interface SpatialViewProps {
   world: RoboticsFieldGeometry;
   state?: RoboticsWorldState | undefined;
@@ -75,6 +261,7 @@ interface SpatialViewProps {
   showGrid?: boolean;
   active?: boolean;
   onSelect?: ((key: RoboticsObjectKey) => void) | undefined;
+  edit?: SpatialEdit | undefined;
 }
 
 interface SceneProps {
@@ -86,6 +273,7 @@ interface SceneProps {
   active: boolean;
   view: FieldView;
   onSelect: SpatialViewProps['onSelect'];
+  edit: SpatialViewProps['edit'];
 }
 
 function createViewport(
@@ -118,6 +306,7 @@ function createViewport(
   let contextLost = false;
   let renderFailed = false;
   let press: { x: number; y: number; pointerId: number } | null = null;
+  let preview: SpatialObjectPreview | null = null;
   const point = new THREE.Vector2();
   const viewOffset = new THREE.Vector3();
   const angles = new THREE.Spherical();
@@ -162,6 +351,13 @@ function createViewport(
       if (disposed || contextLost || !visible || !getProps().active || !drawing) return;
       try {
         renderer.render(drawing.scene, camera());
+        // Read-only browser evidence from the actual rendered camera, never an alternate transform.
+        canvas.dataset.camera = JSON.stringify([
+          camera().position.toArray(),
+          camera().quaternion.toArray(),
+          controls?.target.toArray(),
+        ]);
+        canvas.dataset.editPreview = JSON.stringify(preview);
         setScale(
           readSideMetricScale(
             camera(),
@@ -232,10 +428,12 @@ function createViewport(
     const wasVisible = visible;
     visible = width > 0 && height > 0;
     if (!visible) {
+      gestures.cancel();
       setScale(null);
       return;
     }
     if (size.x !== width || size.y !== height) {
+      gestures.cancel();
       size.set(width, height);
       renderer.setSize(width, height, false);
       projection();
@@ -246,6 +444,7 @@ function createViewport(
   }
 
   function update(): void {
+    gestures.sync();
     const { world, state, distance, showGrid, selection, active, view } = getProps();
     if (!active || !visible || disposed || contextLost || renderFailed) {
       if (!disposed) setScale(null);
@@ -266,11 +465,12 @@ function createViewport(
       }
     }
     if (selectedView !== view) switchView(view);
-    drawing?.applySnapshot(state, distance, showGrid, selection);
+    drawing?.applySnapshot(state, distance, showGrid, selection, preview);
     invalidate();
   }
 
   function zoom(factor: number): void {
+    gestures.cancel();
     if (!controls) return;
     if (selectedView === 'side') {
       side.zoom = THREE.MathUtils.clamp(side.zoom * factor, controls.minZoom, controls.maxZoom);
@@ -289,6 +489,7 @@ function createViewport(
   }
 
   function nudge(horizontal: number, vertical: number): void {
+    gestures.cancel();
     if (!controls) return;
     if (selectedView === 'side') {
       const distance = (side.right - side.left) / side.zoom / 12;
@@ -316,6 +517,7 @@ function createViewport(
   }
 
   function focus(): void {
+    gestures.cancel();
     if (!controls || !drawing || !visible) return;
     const key = getProps().selection ?? 'robot';
     viewOffset.copy(camera().position).sub(controls.target);
@@ -337,44 +539,59 @@ function createViewport(
     invalidate();
   }
 
+  function hit(x: number, y: number) {
+    if (!drawing) return undefined;
+    const area = canvas.getBoundingClientRect();
+    if (area.width <= 0 || area.height <= 0) return undefined;
+    point.set(((x - area.left) / area.width) * 2 - 1, 1 - ((y - area.top) / area.height) * 2);
+    drawing.scene.updateMatrixWorld(true);
+    camera().updateMatrixWorld(true);
+    return drawing.pickHit(point, camera());
+  }
+  const gestures = bindSpatialFieldGestures(canvas, {
+    current: () => ({
+      world: getProps().world,
+      enabled: getProps().active && getProps().view === 'orbit' && !contextLost,
+      edit: getProps().edit,
+      controls,
+    }),
+    hit,
+    project: (x, y, z) => spatialEditPoint(camera(), canvas.getBoundingClientRect(), x, y, z),
+    preview: (next) => {
+      preview = next;
+      update();
+    },
+    select: (key) => getProps().onSelect?.(key),
+    resetControls: () => {
+      if (selectedView) switchView(selectedView);
+    },
+  });
   function pointerDown(event: PointerEvent): void {
-    if (!event.isPrimary || event.button !== 0) {
+    if (gestures.owns() || !event.isPrimary || event.button !== 0) {
       press = null;
       return;
     }
     press = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
   }
-
   function pointerUp(event: PointerEvent): void {
     const start = press;
     press = null;
     if (
       !start ||
       start.pointerId !== event.pointerId ||
-      Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5 ||
-      !drawing ||
-      !getProps().onSelect
+      Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
     )
       return;
-    const area = canvas.getBoundingClientRect();
-    if (area.width <= 0 || area.height <= 0) return;
-    point.set(
-      ((event.clientX - area.left) / area.width) * 2 - 1,
-      1 - ((event.clientY - area.top) / area.height) * 2,
-    );
-    drawing.scene.updateMatrixWorld(true);
-    const currentCamera = camera();
-    currentCamera.updateMatrixWorld(true);
-    const key = drawing.pick(point, currentCamera);
-    if (key) getProps().onSelect?.(key);
+    const picked = hit(event.clientX, event.clientY);
+    if (picked) getProps().onSelect?.(picked.key);
   }
-
   function pointerCancel(): void {
     press = null;
   }
 
   function loseContext(event: Event): void {
     event.preventDefault();
+    gestures.cancel();
     contextLost = true;
     setScale(null);
     setUnavailable(true);
@@ -398,6 +615,7 @@ function createViewport(
   resize.observe(canvas);
 
   function dispose(): void {
+    gestures.dispose();
     disposed = true;
     if (frame) window.cancelAnimationFrame(frame);
     resize.disconnect();
@@ -411,7 +629,17 @@ function createViewport(
     renderer.dispose();
   }
 
-  return { update, fit, focus, zoom, nudge, dispose };
+  return {
+    update,
+    fit: () => {
+      gestures.cancel();
+      fit();
+    },
+    focus,
+    zoom,
+    nudge,
+    dispose,
+  };
 }
 
 export default function RobotFieldSpatialView({
@@ -423,6 +651,7 @@ export default function RobotFieldSpatialView({
   showGrid = true,
   active = true,
   onSelect,
+  edit,
 }: SpatialViewProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const props = useRef<SceneProps>({
@@ -434,8 +663,9 @@ export default function RobotFieldSpatialView({
     view,
     active,
     onSelect,
+    edit,
   });
-  props.current = { world, state, distance, selection, showGrid, view, active, onSelect };
+  props.current = { world, state, distance, selection, showGrid, view, active, onSelect, edit };
   const viewport = useRef<ReturnType<typeof createViewport> | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [scale, setScale] = useState<SideMetricScale | null>(null);
@@ -473,7 +703,7 @@ export default function RobotFieldSpatialView({
     } catch {
       setUnavailable(true);
     }
-  }, [world, state, distance, selection, showGrid, view, active]);
+  }, [world, state, distance, selection, showGrid, view, active, Boolean(edit)]);
 
   function keyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     switch (event.key) {

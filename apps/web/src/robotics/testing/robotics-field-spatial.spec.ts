@@ -3,12 +3,19 @@ import { expect, it, vi } from 'vitest';
 import { OrthographicCamera, PerspectiveCamera, Vector2, Vector3 } from 'three';
 import { createRoboticsRuntime } from '@asa-lab/robotics/runtime';
 import {
+  createRoboticsBall,
   createRoboticsBody,
   createRoboticsFloorMark,
   createRoboticsWorldV3Document,
 } from '@asa-lab/robotics/world-document';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { moveFieldObject } from '../RobotFieldEditor';
 import { createFieldSpatialScene } from '../field-spatial-scene';
-import { readSideMetricScale } from '../RobotFieldSpatialView';
+import {
+  bindSpatialFieldGestures,
+  spatialEditPoint,
+  readSideMetricScale,
+} from '../RobotFieldSpatialView';
 
 it('calibrates the side ruler against actual orthographic projections in CSS pixels', () => {
   const camera = new OrthographicCamera(-2, 2, 1, -1, 0.01, 20);
@@ -136,5 +143,251 @@ it('picks and focuses a committed moving can above overlapping field markings', 
   } finally {
     view.dispose();
     canvasContext.mockRestore();
+  }
+});
+
+it('projects a rotated perspective ray onto the grabbed surface plane and rejects invalid rays', () => {
+  const camera = new PerspectiveCamera(38, 800 / 600, 0.01, 200);
+  camera.up.set(0, 0, 1);
+  camera.position.set(2, -3, 4);
+  camera.lookAt(0.8, 0.9, 0.06);
+  camera.updateMatrixWorld(true);
+  const area = { left: 20, top: 30, width: 800, height: 600 };
+  const p = new Vector3(0.83, 0.91, 0.06).project(camera);
+  const point = spatialEditPoint(
+    camera,
+    area,
+    area.left + (p.x + 1) * 400,
+    area.top + (1 - p.y) * 300,
+    0.06,
+  )!;
+  expect(point.xMeters).toBeCloseTo(0.83, 12);
+  expect(point.yMeters).toBeCloseTo(0.91, 12);
+  expect(spatialEditPoint(camera, area, NaN, 30, 0)).toBeNull();
+  expect(spatialEditPoint(camera, area, 10, 30, 0)).toBeNull();
+  expect(spatialEditPoint(camera, { ...area, width: 0 }, 20, 30, 0)).toBeNull();
+  camera.position.set(0, -1, 1);
+  camera.lookAt(0, 0, 1);
+  expect(spatialEditPoint(camera, area, 420, 330, 0)).toBeNull();
+});
+
+it('previews all scene roots from exact base transforms without rebuilding or mutating source/state', () => {
+  const world = createRoboticsWorldV3Document('practice');
+  const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const before = JSON.stringify(world);
+  const scene = createFieldSpatialScene(world, () => undefined);
+  try {
+    scene.applySnapshot(undefined, undefined, true, 'robot');
+    const target = new Vector3();
+    scene.readFocus('robot', target);
+    const base = target.clone();
+    const ids: string[] = [];
+    scene.scene.traverse((item) => ids.push(item.uuid));
+    for (const x of [0.1, 0.2, -0.3]) {
+      scene.applySnapshot(undefined, undefined, true, 'robot', {
+        key: 'robot',
+        dxMeters: x,
+        dyMeters: 0.12,
+      });
+      scene.readFocus('robot', target);
+      expect(target.x - base.x).toBeCloseTo(x, 12);
+      expect(target.y - base.y).toBeCloseTo(0.12, 12);
+    }
+    scene.applySnapshot(undefined, undefined, true, 'robot', null);
+    scene.readFocus('robot', target);
+    expect(target.toArray()).toEqual(base.toArray());
+    const after: string[] = [];
+    scene.scene.traverse((item) => after.push(item.uuid));
+    expect(after).toEqual(ids);
+    expect(JSON.stringify(world)).toBe(before);
+  } finally {
+    scene.dispose();
+    spy.mockRestore();
+  }
+});
+
+it('owns an object pointer before real OrbitControls, commits once, cancels stale/invalid edits and hands two touches to camera', () => {
+  const canvas = document.createElement('canvas');
+  document.body.append(canvas);
+  Object.defineProperties(canvas, { clientWidth: { value: 800 }, clientHeight: { value: 600 } });
+  const captured = new Set<number>();
+  canvas.setPointerCapture = (id) => {
+    captured.add(id);
+  };
+  canvas.hasPointerCapture = (id) => captured.has(id);
+  canvas.releasePointerCapture = (id) => {
+    captured.delete(id);
+  };
+  const camera = new PerspectiveCamera(38, 800 / 600, 0.01, 200);
+  camera.up.set(0, 0, 1);
+  camera.position.set(2, -3, 4);
+  let controls = new OrbitControls(camera, canvas);
+  controls.target.set(0.8, 0.9, 0);
+  controls.update();
+  const world = createRoboticsWorldV3Document('practice');
+  let source: unknown = world;
+  let enabled = true;
+  let hit = true;
+  let valid = true;
+  let start = { xMeters: 0, yMeters: 0 };
+  const commits = vi.fn();
+  const cancel = vi.fn();
+  const preview = vi.fn();
+  const select = vi.fn();
+  const edit = {
+    begin: (_key: string, point: typeof start) => {
+      start = point;
+      return true;
+    },
+    preview: (point: typeof start) => {
+      const result = moveFieldObject({ world, key: 'robot', start }, point, true);
+      return { key: 'robot' as const, dxMeters: result.dxMeters, dyMeters: result.dyMeters };
+    },
+    finish: (point: typeof start) =>
+      commits(moveFieldObject({ world, key: 'robot', start }, point, true).world),
+    cancel,
+  };
+  const gestures = bindSpatialFieldGestures(canvas, {
+    current: () => ({ world: source, enabled, edit, controls }),
+    hit: () => (hit ? { key: 'robot', point: new Vector3(0, 0, 0.04) } : undefined),
+    project: (x, y) => (valid ? { xMeters: x / 100, yMeters: y / 100 } : null),
+    preview,
+    select,
+    resetControls: () => {
+      const target = controls.target.clone();
+      controls.dispose();
+      controls = new OrbitControls(camera, canvas);
+      controls.target.copy(target);
+      controls.update();
+    },
+  });
+  function pointer(type: string, x: number, y: number, id = 1, touch = false) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      button: 0,
+    });
+    Object.defineProperties(event, {
+      pointerId: { value: id },
+      pointerType: { value: touch ? 'touch' : 'mouse' },
+      isPrimary: { value: id === 1 },
+    });
+    canvas.dispatchEvent(event);
+  }
+  try {
+    const before = camera.position.toArray();
+    pointer('pointerdown', 100, 100);
+    pointer('pointermove', 127, 113);
+    expect(commits).not.toHaveBeenCalled();
+    expect(preview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dxMeters: 0.3, dyMeters: 0.1 }),
+    );
+    expect(camera.position.toArray()).toEqual(before);
+    pointer('pointerup', 127, 113);
+    expect(commits).toHaveBeenCalledTimes(1);
+    expect(controls.enableRotate).toBe(true);
+    expect(select).not.toHaveBeenCalled();
+    pointer('pointerdown', 100, 100);
+    pointer('pointerup', 101, 101);
+    expect(select).toHaveBeenCalledWith('robot');
+    for (const reason of ['invalid', 'stale', 'disabled', 'cancel', 'lost', 'blur', 'escape']) {
+      valid = true;
+      source = world;
+      enabled = true;
+      pointer('pointerdown', 100, 100);
+      pointer('pointermove', 125, 110);
+      if (reason === 'invalid') valid = false;
+      if (reason === 'stale') {
+        source = {};
+        gestures.sync();
+      }
+      if (reason === 'disabled') {
+        enabled = false;
+        gestures.sync();
+      }
+      if (reason === 'cancel') pointer('pointercancel', 125, 110);
+      if (reason === 'lost') pointer('lostpointercapture', 125, 110);
+      if (reason === 'blur') window.dispatchEvent(new Event('blur'));
+      if (reason === 'escape')
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      pointer('pointerup', 125, 110);
+      expect(commits).toHaveBeenCalledTimes(1);
+    }
+    valid = true;
+    source = world;
+    enabled = true;
+    pointer('pointerdown', 100, 100, 1, true);
+    pointer('pointermove', 120, 100, 1, true);
+    pointer('pointerdown', 180, 100, 2, true);
+    expect(gestures.owns()).toBe(false);
+    expect(controls.enablePan && controls.enableZoom && controls.enableRotate).toBe(true);
+    const touchCamera = camera.position.toArray();
+    pointer('pointermove', 240, 130, 2, true);
+    expect(camera.position.toArray()).not.toEqual(touchCamera);
+    pointer('pointerup', 120, 100, 1, true);
+    pointer('pointerup', 240, 130, 2, true);
+    expect(commits).toHaveBeenCalledTimes(1);
+    hit = false;
+    const emptyCamera = camera.position.toArray();
+    pointer('pointerdown', 100, 100);
+    pointer('pointermove', 180, 120);
+    pointer('pointerup', 180, 120);
+    expect(camera.position.toArray()).not.toEqual(emptyCamera);
+    expect(commits).toHaveBeenCalledTimes(1);
+  } finally {
+    gestures.dispose();
+    controls.dispose();
+    canvas.remove();
+  }
+});
+
+it('keeps an elevated ball surface under its grabbed ray without moving its anchor to the hit point', () => {
+  const base = createRoboticsWorldV3Document('practice');
+  const world = {
+    ...base,
+    initialPose: { xMeters: 0.25, yMeters: 0.25, headingRadians: 0 },
+    field: { ...base.field, balls: [createRoboticsBall('grab', { xMeters: 0.8, yMeters: 0.9 })] },
+  };
+  const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const scene = createFieldSpatialScene(world, () => undefined);
+  try {
+    scene.applySnapshot(undefined, undefined, true, null);
+    scene.scene.updateMatrixWorld(true);
+    const camera = new PerspectiveCamera(38, 800 / 600, 0.01, 200);
+    camera.up.set(0, 0, 1);
+    camera.position.set(1, -0.5, 1.2);
+    camera.lookAt(0.8, 0.9, 0.03);
+    camera.updateMatrixWorld(true);
+    const hit = scene.pickHit(new Vector2(0.015, 0.015), camera)!;
+    expect(hit.key).toBe('ball:grab');
+    expect(hit.point.z).toBeGreaterThan(0.03);
+    const area = { left: 0, top: 0, width: 800, height: 600 };
+    const x = (0.015 + 1) * 400,
+      y = (1 - 0.015) * 300;
+    const start = spatialEditPoint(camera, area, x, y, hit.point.z)!;
+    const point = spatialEditPoint(camera, area, x + 47, y - 16, hit.point.z)!;
+    const draft = moveFieldObject({ world, key: hit.key, start }, point, false);
+    const moved = draft.world.field.balls[0]!;
+    expect(moved.xMeters - 0.8).toBeCloseTo(point.xMeters - start.xMeters, 4);
+    expect(moved.yMeters - 0.9).toBeCloseTo(point.yMeters - start.yMeters, 4);
+    const projected = hit.point
+      .clone()
+      .add(new Vector3(draft.dxMeters, draft.dyMeters, 0))
+      .project(camera);
+    // Existing document movement rounds metres to 4 decimals, independently of camera.
+    expect(Math.abs((projected.x + 1) * 400 - (x + 47))).toBeLessThan(0.1);
+    expect(Math.abs((1 - projected.y) * 300 - (y - 16))).toBeLessThan(0.1);
+    const snapped = moveFieldObject({ world, key: hit.key, start }, point, true).world.field
+      .balls[0]!;
+    expect(snapped.xMeters / world.field.gridMeters).toBeCloseTo(
+      Math.round(snapped.xMeters / world.field.gridMeters),
+      10,
+    );
+    expect(world.field.balls[0]!.xMeters).toBe(0.8);
+  } finally {
+    scene.dispose();
+    spy.mockRestore();
   }
 });
