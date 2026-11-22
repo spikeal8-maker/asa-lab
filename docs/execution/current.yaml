@@ -17830,8 +17830,38 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'no'
-      checkpoint: stable_loop_throughput_selected
+      checkpoint: private_arduino_boundary_validation_reuse_selected
       owner_acceptance: pending
+      private_arduino_boundary_validation_selection:
+        prior_checkpoint: stable_loop_throughput_selected
+        selected_main: 2e4c249e970f3fa31b1a8f73f003073933a3b02a
+        measured_product_sha: d662c146df47feefb65812e7570ad53b0fd98b07
+        strict_run: 45072167318
+        prepared_source: 941a241f66be551b9fc88cacd104d34fc0283400
+        planned_paths:
+          - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        cause: >-
+          The unequal-load three-LED delay(1) case missed the wall/model bound by recording
+          658.3 ms drift. The median Worker computation was 29.4 ms for each 25 ms model
+          advance. The host requested the next window a median 0.3 ms after receipt.
+          Local CPU samples attribute substantial time to repeated runtime program validation.
+        evidence: >-
+          A paired local replay of 67 actual CI requests preserved all full responses byte for
+          byte. The median paired candidate/base ratio was 0.9200. Receipt SHA-256 is
+          e624c0fb9aee7f54a12c933fcc3dc978e2a34d1b6179148257a9eb5311da8d45.
+          The local gain does not establish the CI magnitude or closing the strict bound.
+        scope: >-
+          Apply only the prepared validation receipt for identical privately owned runtime
+          objects and identical source within one scheduler batch. Validate the first runtime
+          and every changed runtime/source, keep detached held views and leave public callers,
+          transient state, event order, physical steps, clock budgets and failure thresholds intact.
+          Preserve the rest of PR 1272 separately.
+        qualification: >-
+          Require fresh exact-path preflight, engine ownership and scheduler checks, full
+          response and continuation parity, independent source review, focused and required CI,
+          and original strict Chromium bounds for delay(1), millis, Reset, 50 and 100 ms.
+          Record the complete strict result before integration. A faster replay alone does not
+          qualify this change. No workflow, foreign source, server or live data changes.
       owner_authorization: Owner requests fixing every strict Electronics browser failure and integrating verified repairs in main. Preserve physical steps, thresholds, and foreign changes. No server, deployment, or live database actions.
       strict_baseline:
         sha: 2057c5169515458ce0658fe0024aacdc4d37cf64
