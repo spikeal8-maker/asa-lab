@@ -1,0 +1,114 @@
+{
+  "schema": "MUJOCO_FINITE_CAP_POSITION_ADMISSION_V1",
+  "scope": "TEST_ONLY",
+  "issue": 1168,
+  "upstreamCommit": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+  "patchSha256": "d60b5145ebe52ce5b2ed70f1a5db30448164da0bcabd50e28adfdc4afa74dc67",
+  "archives": {
+    "cylinderJournal": {
+      "path": "mujoco-cylinder-20261111/mujoco-cylinder-main-a3-2026-11-11T195551612Z.asacylraw",
+      "bytes": 13741369,
+      "sha256": "399ce039dca0851b69db9f087f7d8916d1af79e90522e15b41ff6dff343f0787"
+    },
+    "cylinderPre": {
+      "path": "cylinder-manifold-repair-design-20261112T011800Z/retained-401-pre-states.json",
+      "bytes": 462612,
+      "sha256": "6c1002a30a20c238587d9b39cb3253d36fc295d91f069b1e3dc7743de075e54c"
+    },
+    "rollingJournal": {
+      "path": "rolling-r3-main-20261112T023500Z/journal/mujoco-rolling-chassis-a3-2026-11-12T023906497Z.asarollraw",
+      "bytes": 6076628,
+      "sha256": "f4adb0b0556c3d2f85dc7881c1e9f1264350cf6cfd8e5637deede85427349cb8"
+    }
+  },
+  "expectedGeometrySha256": "e96ecae970195fb8c436128f45b5b187bdc30ba5712f2f2c74b978af668469b3",
+  "observerSha256": "77146b9e01f974345ad95d93fda1930cc82550d3b3b9fdf4e758eb8f1d1bb987",
+  "can": {
+    "world": "tilt-normal-500-r1",
+    "firstTick": 291100,
+    "lastTick": 291500,
+    "count": 401,
+    "mass": 0.5,
+    "radius": 0.033,
+    "halfHeight": 0.0575,
+    "inertia": [0.0006871666666666667, 0.0006871666666666667, 0.00027225]
+  },
+  "deck": {
+    "canName": "asa1168_finite_cap_can",
+    "supportName": "asa1168_finite_top",
+    "y": 2,
+    "halfSize": [0.5, 0.5, 0.025],
+    "interior": 0.01,
+    "friction": 1
+  },
+  "rolling": {
+    "world": "ramp-positive-15-500-r1",
+    "invocationFrame": 1,
+    "initialFrame": 104,
+    "invocationSha256": "95cf57b23832b682a2e3d200a0ca3ec8447d7ab56320e9628c6083c1e8d095df",
+    "initialPayloadSha256": "4211b058d08056c675ec5ca929b984bfcc1db5a01398bc691550ae9642281d69",
+    "xmlSha256": "8349d687194348337fb142710d9eb6a7dfc4e51552c35746a2387aa8ec78b06a",
+    "sourceFixtureSha256": "69e5baa432bcdbe581eeb12262801162240f314eb9d6627bdd4764daef4fd77b",
+    "profiles": [
+      {
+        "frame": 148,
+        "tick": 4001,
+        "contacts": 8,
+        "sha256": "dd76694af5b5b544b0129ec0253e995e10b523c9ff17ae175346e1d376bc9cec"
+      },
+      {
+        "frame": 156,
+        "tick": 4747,
+        "contacts": 12,
+        "sha256": "5178d2b8ab41115fb43c6bb3cfde1b5eba03dc871a2410722fa969d2a856554f"
+      },
+      {
+        "frame": 212,
+        "tick": 10001,
+        "contacts": 8,
+        "sha256": "022c02f3474ca71711b4528e81fe795d8303cf9d18b97a2f9cea9135bf8a5c3c"
+      }
+    ]
+  },
+  "holdouts": [
+    "edge",
+    "parallel",
+    "separated",
+    "submerged",
+    "underside",
+    "immersed-side-crosses-edge"
+  ],
+  "math": {
+    "frameTolerance": 1e-12,
+    "witnessAgreementM": 1e-10,
+    "surfaceToleranceM": 0.0001,
+    "minimumProjectedSupportM": 0.0017942
+  },
+  "limits": {
+    "candidatePositionCalls": 407,
+    "stockPositionCalls": 6,
+    "modelsPerPass": 1,
+    "dataPerPass": 1,
+    "roomContacts": 36,
+    "roomConstraintRows": 108,
+    "stockContactsPerPair": 4,
+    "candidateCapContacts": 3,
+    "candidateCapRows": 9,
+    "maxReceiptBytes": 16777216
+  },
+  "engine": {
+    "version": "4.0.0",
+    "stock": {
+      "moduleSha256": "85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2",
+      "wasmSha256": "51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de"
+    },
+    "candidate": {
+      "moduleSha256": "7b1d6965d047e3cf2526e4dc779b20b391aee5b8022c69feda677a8616f0d9db",
+      "wasmSha256": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241",
+      "declarationsSha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff",
+      "buildReceiptSha256": "59b174c0d7950f8317f83cc7b35113cae0b2713bf2c155509b71449d1ea243ca",
+      "xmlSha256": "a32ac5a022733be866b1ce2ad774e232a6486a037a021a92721b38bae729862e"
+    }
+  },
+  "registration": "Rotate each sealed cylinder pose into the level finite deck frame, use its unchanged gravity ray only for independent support geometry and use exact R3 solver options. Run the patched engine on 401 ascending archived poses cycling through the three R3 PRE controls, then six stock-dispatch holdouts. Run the pinned stock engine on those same six holdouts only and compare geometry. Restore R3 time and qvel and leave the isolated can velocity at zero in the level deck frame. Only mj_fwdPosition may dispatch after model setup. Stop at the first difference and preserve the measured geometry and resource cleanup. No dynamics, torque, historical outcome change, or product acceptance."
+}

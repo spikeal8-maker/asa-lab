@@ -349,7 +349,7 @@ function clickButton(label: string) {
 }
 function openInputSettings() {
   host!.querySelector<HTMLElement>('.arduino-mode-menu > summary')!.click();
-  clickButton('Настройки Arduino');
+  clickButton('Настройки блоков');
 }
 function inputPort(pin: string) {
   return host!.querySelector<HTMLInputElement>(`[aria-label="Входной порт ${pin}"]`)!;
@@ -440,25 +440,33 @@ describe('per-board Arduino input settings', () => {
     ).toEqual(saved);
   });
 
-  it('cancels drafts, restores focus, keeps text verbatim and saves independent board lists', async () => {
-    await prepare();
+  it('cancels drafts, restores focus and preserves independent block and text GPIO settings', async () => {
+    stubSvgSurface();
+    const initial = blockSettingsDocument();
+    const textBoard = initial.components.find((component) => component.id === 'uno-b')!;
+    textBoard.stateProperties!['arduinoInputPins'] = ['3'];
+    await prepare(initial);
     const before = controller().document;
+
     act(() => openInputSettings());
-    expect(host!.querySelector('[role="dialog"][aria-label="Настройки Arduino"]')).not.toBeNull();
-    act(() => inputPort('2').click());
+    expect(
+      host!.querySelector('[role="dialog"][aria-label="Настройки блоков — входные порты"]'),
+    ).not.toBeNull();
+    act(() => inputPort('A5').click());
     act(() => clickButton('Отмена'));
     expect(controller().document).toBe(before);
-    expect(document.activeElement?.textContent).toBe('Настройки Arduino');
+    expect(document.activeElement?.textContent).toBe('Настройки блоков');
     act(() => openInputSettings());
-    expect(inputPort('2').checked).toBe(false);
+    expect(inputPort('A5').checked).toBe(false);
     act(() => inputPort('A0').click());
     act(() => clickButton('Применить'));
     expect(controller().document?.components[0]!.stateProperties?.['arduinoInputPins']).toEqual([
       'A0',
     ]);
-    expect(controller().document?.components[0]!.stateProperties?.['arduinoSource']).toBe(
-      source('uno-a'),
+    expect(controller().document?.components[0]!.stateProperties?.['arduinoSource']).toContain(
+      'pinMode(A0, INPUT);',
     );
+
     act(() => controller().undo());
     act(() => openInputSettings());
     expect(inputPort('A0').checked).toBe(false);
@@ -469,22 +477,35 @@ describe('per-board Arduino input settings', () => {
     );
     act(() => controller().redo());
     act(() => switchBoard('uno-b'));
-    act(() => openInputSettings());
-    expect(inputPort('A0').checked).toBe(false);
-    act(() => inputPort('3').click());
-    act(() => clickButton('Применить'));
+
+    const modeMenu = host!.querySelector<HTMLElement>('.arduino-mode-menu > summary')!;
+    act(() => modeMenu.click());
+    expect(
+      [...host!.querySelectorAll('button')].some(
+        (button) => button.textContent?.trim() === 'Настройки блоков',
+      ),
+    ).toBe(false);
+    expect(
+      host!.querySelector('[role="dialog"][aria-label="Настройки блоков — входные порты"]'),
+    ).toBeNull();
+    expect(controller().document?.components[1]!.stateProperties?.['arduinoSource']).toBe(
+      source('uno-b'),
+    );
+    expect(controller().document?.components[1]!.stateProperties?.['arduinoInputPins']).toEqual([
+      '3',
+    ]);
+
     await act(async () => controller().saveNow());
     expect(
       stored
         .get('first')!
         .components.slice(0, 2)
-        .map((b) => b.stateProperties?.['arduinoInputPins']),
+        .map((board) => board.stateProperties?.['arduinoInputPins']),
     ).toEqual([['A0'], ['3']]);
     act(() => switchBoard('uno-a'));
     act(() => openInputSettings());
     expect(inputPort('A0').checked).toBe(true);
     act(() => clickButton('Отмена'));
-    expect(host!.querySelector<HTMLTextAreaElement>('textarea')!.value).toBe(source('uno-a'));
   });
 
   it('atomically changes generated modes and settings through Undo/Redo without remounting blocks', async () => {

@@ -13,6 +13,22 @@ import { fileURLToPath } from 'node:url';
 const checker = fileURLToPath(new URL('./public-electronics-emitted-graph.mjs', import.meta.url));
 const entry = 'src/projects-public/ElectronicsPublicationScene.tsx';
 
+test('canonical Worker admission includes the pure Arduino stable-loop helper, not editor modules', () => {
+  const admission = JSON.parse(
+    readFileSync(new URL('./public-electronics-worker-modules.json', import.meta.url), 'utf8'),
+  );
+  assert.equal(admission.format, 'asa-public-electronics-worker-admission-v1');
+  assert.ok(admission.modules.includes('contexts/electronics/domain/arduino-stable-loop.ts'));
+  assert.ok(admission.modules.includes('contexts/electronics/domain/arduino-program-runtime.ts'));
+  assert.equal(new Set(admission.modules).size, admission.modules.length);
+  for (const forbidden of [
+    'apps/web/src/electronics/ArduinoCodePanel.tsx',
+    'apps/web/src/electronics/use-electronics-workbench.ts',
+    'contexts/electronics/domain/unapproved-runtime.ts',
+  ])
+    assert.ok(!admission.modules.includes(forbidden));
+});
+
 test('browser and graph guard classify exact executable entries while allowing pure renderer primitives', () => {
   const rules = (url, name) => {
     const source = readFileSync(url, 'utf8');

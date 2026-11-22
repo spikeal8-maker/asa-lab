@@ -6,6 +6,17 @@ import { e2eAdminPool } from './seed';
 
 const evidence = 'e2e/artifacts/publication-comments';
 const headers = (page: Page) => ({ origin: new URL(page.url()).origin });
+async function expectProjectFeedback(page: Page, section: Locator): Promise<void> {
+  const message = 'Разрешения проектов сохранены.';
+  const ribbon = page.locator('.system-feedback-ribbon.system-feedback-success');
+  await expect(ribbon).toHaveCount(1);
+  await expect(ribbon).toBeVisible();
+  await expect(ribbon).toContainText(message);
+  const announcement = page.locator('.system-feedback-announcement[role="status"]');
+  await expect(announcement).toHaveCount(1);
+  await expect(announcement).toContainText(message);
+  await expect(section.getByRole('status').filter({ hasText: message })).toHaveCount(0);
+}
 async function layout(page: Page, section: Locator, label: string) {
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -165,7 +176,7 @@ test('real discussion persists, class and learner permissions are independent, o
     ).not.toBeChecked();
     await settings.getByLabel('Комментарии под публикациями', { exact: true }).check();
     await settings.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
-    await expect(settings.getByRole('status')).toHaveText('Разрешения проектов сохранены.');
+    await expectProjectFeedback(moderator, settings);
     await expect(settings.getByLabel('Публикация проектов', { exact: true })).not.toBeChecked();
     await layout(moderator, settings, 'class-permission');
     await moderator.setViewportSize({ width: 1024, height: 1000 });
@@ -245,14 +256,14 @@ test('real discussion persists, class and learner permissions are independent, o
       .getByLabel('Комментарии под публикациями', { exact: true })
       .selectOption('deny');
     await individual.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
-    await expect(individual.getByRole('status')).toHaveText('Разрешения проектов сохранены.');
+    await expectProjectFeedback(moderator, individual);
     await learner.reload();
     await expect(pupilComments).toContainText('настройкам вашего класса');
     await individual
       .getByLabel('Комментарии под публикациями', { exact: true })
       .selectOption('allow');
     await individual.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
-    await expect(individual.getByRole('status')).toHaveText('Разрешения проектов сохранены.');
+    await expectProjectFeedback(moderator, individual);
     await layout(moderator, individual, 'learner-permission');
     await moderator.setViewportSize({ width: 1024, height: 1000 });
     await learner.reload();

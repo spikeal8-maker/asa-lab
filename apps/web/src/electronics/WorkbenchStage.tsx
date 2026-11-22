@@ -74,7 +74,8 @@ function wiresAboveComponentBody({ kind, componentTypeId }: SchematicComponent):
   return (
     kind === 'breadboard' ||
     componentTypeId === 'arduino-uno' ||
-    componentTypeId === 'regulated-power-supply'
+    componentTypeId === 'regulated-power-supply' ||
+    componentTypeId === 'l298n-motor-driver'
   );
 }
 

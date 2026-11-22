@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "calibration": "synthetic_only",
+  "status": "c3_source_mapping_qualified_no_live_adapter",
+  "c3Acceptance": {
+    "issue": 1127,
+    "pullRequest": 1152,
+    "sourceHeadSha": "c65d7941264ccc2508ed30da73c5b82a9972cf37",
+    "mainMergeSha": "494a9acb9958062a9b0f691008a73fc1fd0abce1",
+    "migrationPath": "migrations/0323_project_duplicate_origin.sql",
+    "migrationSha256": "9bae153d21c044b2ca33e5112ebf18d715391725198d6c047162b30d7aba8035",
+    "postMergeGeneralRunId": 43736745829,
+    "postMergeRequired": "success",
+    "reviewType": "independent_automated_static",
+    "liveAdapter": "not_implemented_sp06"
+  },
+  "sources": [
+    {
+      "source": "canonical_learning_completion",
+      "weight": "configured",
+      "authority": [
+        "migrations/0077_learning_assessment_foundation.sql",
+        "public.learning_attempts",
+        "public.assessment_results",
+        "public.gradebook_entries",
+        "migrations/0133_learning_attempt_lifecycle_convergence.sql",
+        "public.learning_selected_result_internal",
+        "migrations/0267_learning_mixed_course_completion.sql",
+        "public.learning_course_completion_internal",
+        "public.course_enrollments",
+        "public.learner_identity_links"
+      ],
+      "key": "verified canonical person plus logical assignment/selected-result identity, or separately qualified course-enrollment completion with immutable basis IDs",
+      "qualification": "confirmed current canonical assessment/gradebook outcome or independently qualified course completion; active verified Account/Seat link; no duplicate across groups or read-receipt-only credit, no double credit of course and its contributing results",
+      "withdrawal": "latest authoritative correction or revocation",
+      "history": "only verifiable canonical results, not group scores"
+    },
+    {
+      "source": "external_publication_reaction",
+      "weight": "configured",
+      "authority": [
+        "migrations/0283_publication_likes.sql",
+        "public.project_reactions",
+        "public.project_publication_state",
+        "public.publication_reaction_same_identity",
+        "migrations/0323_project_duplicate_origin.sql",
+        "public.project_writer_evidence"
+      ],
+      "key": "publication_id plus active verified external canonical person identity deduplicated across Account/Seat links",
+      "qualification": "active qualified publication, unique external verified reactor and native Project (writer_operation=native, writer_lineage_coverage=v1, all eight copied_from_* fields NULL); private writer evidence requires authorized future SP-06 source adapter; exclude ordinary_duplicate/public_acquisition/unknown, including inherited v1",
+      "withdrawal": "remove means zero; readd counts only once",
+      "history": "current reaction rows only; no inferred earlier intervals"
+    },
+    {
+      "source": "first_publication",
+      "weight": 0,
+      "authority": [
+        "migrations/0139_project_publication_revisions.sql",
+        "migrations/0235_public_project_copy.sql",
+        "issue #1127"
+      ],
+      "key": "first qualifying publication per original project",
+      "qualification": "weight 0; future eligibility requires server writer_operation=native, coverage=v1, no known copied chain, never inherited coverage alone",
+      "withdrawal": "hidden or revoked contributes zero",
+      "history": "disabled in v1; no evidence for historical unknown"
+    },
+    {
+      "source": "copy_receipt",
+      "weight": 0,
+      "authority": [
+        "migrations/0287_publication_copy_counts.sql",
+        "public.publication_copy_events"
+      ],
+      "key": "destination_project_id",
+      "qualification": "statistic, not authorship; ordinary duplicate adds no receipt",
+      "withdrawal": "durable receipt persists",
+      "history": "no invented deleted copies"
+    },
+    {
+      "source": "custom_merit",
+      "weight": 0,
+      "authority": [],
+      "key": "none",
+      "qualification": "no approved common objective test",
+      "withdrawal": "not applicable",
+      "history": "disabled"
+    },
+    {
+      "source": "login_time_click_save_comment",
+      "weight": 0,
+      "authority": [],
+      "key": "none",
+      "qualification": "activity counts are not canonical outcomes",
+      "withdrawal": "not applicable",
+      "history": "disabled"
+    }
+  ],
+  "identity": {
+    "verified": "active checked canonical Account/Seat link, scoped to matching tenant and school",
+    "unverified": "never infer from name/email/avatar/username",
+    "merge": "verified union before stable-key deduplication",
+    "sybil": "independent unrelated accounts not solved"
+  },
+  "provenance": {
+    "requiredFields": [
+      "copied_from_project_id",
+      "copied_from_author",
+      "copied_from_title",
+      "copied_at",
+      "copied_from_publication_id",
+      "copied_from_revision_id",
+      "copied_from_version_id",
+      "copied_from_license"
+    ],
+    "qualify": "verified writer operation=native plus platform writer coverage=v1, with no known copied origin; an ordinary_duplicate inheriting v1 is NEVER independently eligible for social/reaction credit",
+    "unknown": "fail closed: historical unknown cannot receive publication reaction points",
+    "c3Issue": 1127,
+    "eligibleWriterOperation": "native",
+    "eligibleWriterLineageCoverage": "v1",
+    "rejectAnyCopiedFromField": true,
+    "inheritedCoverageDoesNotCreateIndependentCredit": true,
+    "unknownMarkerMeansNoCredit": true
+  }
+}

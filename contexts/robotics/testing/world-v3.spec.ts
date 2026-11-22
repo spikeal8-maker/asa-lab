@@ -9,11 +9,26 @@ import {
   createRoboticsCurve,
   createRoboticsWorldDocument,
   createRoboticsWorldV3Document,
+  ROBOTICS_FIELD_PRESETS,
   parseRoboticsWorldDocument,
   measureRoboticsDistance,
 } from '../domain/world.js';
 
 describe('extended source and legacy version boundary', () => {
+  it.each(ROBOTICS_FIELD_PRESETS)(
+    'initializes the robot in the exact center of a $id field',
+    (preset) => {
+      const world = createRoboticsWorldV3Document(preset.id);
+      expect(world.initialPose).toEqual({
+        xMeters: preset.widthMeters / 2,
+        yMeters: preset.heightMeters / 2,
+        headingRadians: 0,
+      });
+      expect(parseRoboticsWorldDocument(world)).toEqual({ ok: true, world });
+      expect(world.robot.bodyLengthMeters).toBe(0.2);
+      expect(world.robot.wheelRadiusMeters).toBe(0.0325);
+    },
+  );
   it('keeps v2 source exact until the explicit educational upgrade', () => {
     const legacy = {
       ...createInitialRoboticsProject(),
@@ -55,14 +70,18 @@ describe('extended source and legacy version boundary', () => {
     });
     expect(measureRoboticsDistance(world, world.initialPose)).toMatchObject({
       status: 'no-echo',
-      distanceMeters: 5.645,
+      distanceMeters: 4.995,
     });
     expect(
       parseRoboticsWorldDocument({ ...world, physicsProfile: 'kinematic-rover-discs-v1' }).ok,
     ).toBe(false);
   });
   it('measures current can and rotated box geometry, never their authored old positions', () => {
-    const initial = createRoboticsWorldV3Document();
+    const template = createRoboticsWorldV3Document();
+    const initial = {
+      ...template,
+      initialPose: { xMeters: 0.25, yMeters: 0.9, headingRadians: 0 },
+    };
     const can = createRoboticsBody('can', 'can', { xMeters: 1, yMeters: 0.9 });
     const world = { ...initial, field: { ...initial.field, obstacles: [], bodies: [can] } };
     expect(measureRoboticsDistance(world, world.initialPose).status).toBe('ok');
@@ -88,7 +107,7 @@ describe('extended source and legacy version boundary', () => {
     };
     const boxWorld = { ...world, field: { ...world.field, bodies: [box] } };
     expect(measureRoboticsDistance(boxWorld, boxWorld.initialPose).distanceMeters).toBeCloseTo(
-      0.605,
+      0.63,
       12,
     );
   });

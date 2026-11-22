@@ -57,6 +57,24 @@ describe('atomic authored field operations', () => {
     expect(JSON.stringify(world)).toBe(before);
     expect(resizeRoboticsTileField(world, 20, 20).field.widthMeters).toBe(6);
   });
+  it('resizes the 5m starter to 4 by 6 tiles with its robot centered before validation', () => {
+    const initial = createRoboticsWorldV3Document('arena');
+    const clear = {
+      ...initial,
+      field: { ...initial.field, obstacles: [], balls: [], bodies: [], floorMarks: [] },
+    };
+    const resized = resizeRoboticsTileField(clear, 4, 6);
+    expect(resized.field.widthMeters).toBe(1.2);
+    expect(resized.field.heightMeters).toBe(1.8);
+    expect(resized.initialPose).toEqual({
+      xMeters: 0.6,
+      yMeters: 0.9,
+      headingRadians: 0,
+    });
+    expect(parseRoboticsWorldDocument(resized).ok).toBe(true);
+    // The source must not be mutated when users change tile sizes.
+    expect(initial.initialPose.xMeters).toBe(2.5);
+  });
   it('rejects broken group pivots rather than silently separating saved stamps', () => {
     const { world } = createRoboticsTileStamp(
       'cross',

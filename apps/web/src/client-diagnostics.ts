@@ -41,7 +41,7 @@ export type DiagnosticCode =
   | 'editor_heartbeat'
   | 'editor_unresponsive'
   | 'editor_recovered';
-export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth';
+export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth' | 'chess' | 'checkers';
 export interface DiagnosticDetail {
   readonly operation?: string;
   readonly method?: string;
@@ -291,8 +291,15 @@ export function installClientDiagnostics(): void {
     )
       return original(input, init);
     const active = context;
-    const module = isAuthRequest(url.pathname) ? 'auth' : active.module;
     const method = requestMethod(init?.method ?? (input instanceof Request ? input.method : 'GET'));
+    const game =
+      method === 'GET' && /^\/api\/games\/(chess|checkers)\/notifications$/.exec(url.pathname)?.[1];
+    const module =
+      game === 'chess' || game === 'checkers'
+        ? game
+        : isAuthRequest(url.pathname)
+          ? 'auth'
+          : active.module;
     const operation = requestOperation(url.pathname, method, module);
     const clientAttemptId = newClientId();
     const requestDetail = { operation, method, clientAttemptId };

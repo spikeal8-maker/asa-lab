@@ -538,23 +538,63 @@
     display: none;
   }
 }
+.asa-ai-layout .chat-answer-actions {
+  gap: 0;
+}
 .asa-ai-layout .chat-answer-download {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
-  font-size: 12px;
   color: var(--ai-muted);
 }
-.asa-ai-layout .chat-answer-download summary {
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 6px;
+.asa-ai-layout .chat-message-actions.chat-answer-actions > button,
+.asa-ai-layout .chat-answer-actions .chat-answer-download-trigger {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 9px;
+}
+.asa-ai-layout .chat-answer-actions button:focus-visible {
+  outline: 2px solid var(--color-brand, #0877b3);
+  outline-offset: -2px;
+}
+.asa-ai-layout .chat-answer-actions button:disabled,
+.asa-ai-layout .chat-answer-actions button[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: default;
 }
 .asa-ai-layout .chat-answer-formats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  background: var(--ai-surface);
+  box-shadow: 0 7px 24px rgb(0 0 0 / 14%);
 }
-.asa-ai-layout .chat-answer-download :is(summary, button):hover {
-  background: var(--ai-bg);
+.asa-ai-layout .chat-answer-actions .chat-answer-formats button {
+  display: grid;
+  grid-template-columns: 3.35em 1fr;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 8px;
+  text-align: left;
+  color: var(--ai-text);
+}
+.asa-ai-layout .chat-answer-formats button span {
+  color: var(--ai-muted);
+}
+.asa-ai-layout .chat-answer-download-error {
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 .asa-ai-layout .chat-history-resizer {
   position: absolute;

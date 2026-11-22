@@ -58,7 +58,7 @@ describe('canonical Robotics public projection', () => {
       status: 'display',
       provenance: { publicationId, revisionNumber: 2 },
       capabilities: { readOnly: true, interactive: true, download: false },
-      world: { field: { widthMeters: 1.8, heightMeters: 1.8 } },
+      world: { field: { widthMeters: 5, heightMeters: 5 } },
     });
     expect(JSON.stringify(artifact)).not.toMatch(
       /PRIVATE|circuit|components|arduino|bindings|physicsProfile|massKg|friction|restitution|velocity|runtime|simulation/,
@@ -79,7 +79,7 @@ describe('canonical Robotics public projection', () => {
         ...initial.world,
         field: {
           ...initial.world.field,
-          bodies: [createRoboticsBody('box', 'box', { xMeters: 0.8, yMeters: 0.4 })],
+          bodies: [createRoboticsBody('box', 'box', { xMeters: 3.2, yMeters: 3.3 })],
         },
       },
     };
@@ -87,7 +87,7 @@ describe('canonical Robotics public projection', () => {
     const view = await fresh.service.read(fresh.pool, publicationId, revisionId);
     expect(view).toMatchObject({
       schemaVersion: 6,
-      world: { field: { bodies: [{ id: 'box', kind: 'box', widthMeters: 0.12 }] } },
+      world: { field: { bodies: [{ id: 'box', kind: 'box', widthMeters: 0.03 }] } },
     });
     expect(JSON.stringify(view)).not.toMatch(
       /massKg|Friction|restitution|physics|groupId|groupPivot|PRIVATE|bindings/,

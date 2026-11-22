@@ -9,6 +9,54 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('client diagnostics isolation', () => {
+  it('attributes game notification failures to the game while preserving draft diagnostics', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const paths = [
+      '/api/games/chess/notifications',
+      '/api/games/checkers/notifications',
+      '/api/projects/PRIVATE/draft',
+    ];
+    const transport = vi.fn<typeof fetch>(async (path) => {
+      if (paths.includes(String(path))) throw new TypeError('Fixture offline');
+      return Response.json({ accepted: true }, { status: 202 });
+    });
+    const browser = {
+      fetch: transport,
+      sessionStorage: { getItem: () => null, setItem() {} },
+      location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+      addEventListener: vi.fn(),
+    };
+    vi.stubGlobal('window', browser);
+    vi.stubGlobal('fetch', transport);
+    const { beginDiagnosticContext, installClientDiagnostics } =
+      await import('./client-diagnostics');
+    installClientDiagnostics();
+    beginDiagnosticContext('electronics');
+    await Promise.allSettled(paths.map((path) => browser.fetch(path)));
+    await vi.advanceTimersByTimeAsync(0);
+    const reports = transport.mock.calls
+      .filter(([path]) => path === '/api/diagnostics/client')
+      .map(([, init]) => JSON.parse(init!.body as string));
+    expect(reports).toHaveLength(3);
+    for (const [index, module] of ['chess', 'checkers', 'electronics'].entries()) {
+      const call = transport.mock.calls.find(([path]) => path === paths[index]);
+      const headers = new Headers(call?.[1]?.headers);
+      expect(headers.get('x-asa-diagnostic-module')).toBe(module);
+      expect(reports).toContainEqual(
+        expect.objectContaining({
+          module,
+          code: 'request_failed',
+          failureKind: 'network',
+          clientAttemptId: headers.get('x-asa-client-attempt-id'),
+          operation: module === 'electronics' ? 'electronics_draft_read' : 'other_api',
+        }),
+      );
+    }
+    expect(JSON.stringify(reports)).not.toContain('PRIVATE');
+  });
+
   it.each([
     ['scope', '/api/modules', 'GET', null, null],
     ['lifecycle', '/api/classrooms/awaiting-review', 'GET', null, null],

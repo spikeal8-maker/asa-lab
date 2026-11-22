@@ -110,7 +110,9 @@ export async function discoverPolzaModels(
   }
   return parsePolzaModels(JSON.parse(Buffer.concat(chunks).toString('utf8')));
 }
-export async function readPolzaCatalog(pool: pg.Pool): Promise<PolzaCatalog> {
+export async function readPolzaCatalog(
+  pool: Pick<pg.Pool, 'query'> | Pick<pg.PoolClient, 'query'>,
+): Promise<PolzaCatalog> {
   const result = await pool.query<{ value: PolzaCatalog }>(
     'SELECT ai_polza_catalog_runtime() AS value',
   );

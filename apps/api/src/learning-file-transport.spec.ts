@@ -5,13 +5,14 @@ import { describe, expect, it } from 'vitest';
 import {
   describeLearningFile,
   LEARNING_FILE_CONTENT_TYPE,
+  LEARNING_TASK_PDF_UPLOAD_ROUTE,
   readExactLearningFile,
   registerLearningFileTransport,
   validateLearningFile,
 } from './learning-file-transport.js';
 
 describe('learner file transport', () => {
-  it('exposes the vendor parser only on the precise learner draft route', async () => {
+  it('exposes the vendor parser only on the precise learner draft and teacher PDF routes', async () => {
     const server = Fastify();
     try {
       registerLearningFileTransport(server);
@@ -23,6 +24,11 @@ describe('learner file transport', () => {
           ).toString(),
         }),
       );
+      server.put(LEARNING_TASK_PDF_UPLOAD_ROUTE, async (request) => ({
+        bytes: (
+          await readExactLearningFile(request.body as Readable, 3, AbortSignal.timeout(500))
+        ).toString(),
+      }));
       server.put('/unrelated', async () => ({ unexpected: true }));
       const request = {
         method: 'PUT' as const,
@@ -35,6 +41,12 @@ describe('learner file transport', () => {
       });
       expect(uploaded.statusCode).toBe(200);
       expect(uploaded.json()).toEqual({ bytes: 'abc' });
+      const pdf = await server.inject({
+        ...request,
+        url: '/api/learning/activities/activity/draft-task-pdf/1',
+      });
+      expect(pdf.statusCode).toBe(200);
+      expect(pdf.json()).toEqual({ bytes: 'abc' });
       expect((await server.inject({ ...request, url: '/unrelated' })).statusCode).toBe(415);
       expect(
         (

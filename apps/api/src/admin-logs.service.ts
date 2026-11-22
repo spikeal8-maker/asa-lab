@@ -9,7 +9,9 @@ import {
   readLogCatalog,
   verifyNativeLogIntegrity,
   type LogFilter,
+  type LogErrorTrend,
   type LogScanState,
+  type LogTrendWindow,
 } from './admin-logs.worker.js';
 import {
   combineRequiredCoverage,
@@ -32,6 +34,10 @@ interface ExportJob {
 export class AdminLogsService {
   private readonly nativeIntegrityProofs = new Map<string, number>();
   private running = 0;
+  private readonly trends = new Map<
+    string,
+    { expiresAt: number; result: Promise<LogErrorTrend> }
+  >();
   private readonly jobs = new Map<string, ExportJob>();
   private lastCleanup = 0;
   private readonly scans = new Map<
@@ -296,11 +302,12 @@ export class AdminLogsService {
   }
 
   private async worker(
-    kind: 'query' | 'export',
+    kind: 'query' | 'export' | 'trend',
     filter: LogFilter,
     output = '',
     scanState?: LogScanState,
     root = this.root,
+    window?: LogTrendWindow,
   ): Promise<unknown> {
     if (this.running >= 2) throw new Error('LOG_BUSY');
     this.running += 1;
@@ -308,7 +315,7 @@ export class AdminLogsService {
       let worker: Worker;
       try {
         worker = new Worker(join(__dirname, 'admin-logs.worker.js'), {
-          workerData: { kind, root, filter, limit: 100, output, scanState },
+          workerData: { kind, root, filter, limit: 100, output, scanState, window },
           resourceLimits: { maxOldGenerationSizeMb: 128 },
         });
       } catch {
@@ -338,6 +345,47 @@ export class AdminLogsService {
         if (!settled) finish(new Error('LOG_WORKER_FAILED'));
       });
     });
+  }
+
+  trend(window: LogTrendWindow): Promise<LogErrorTrend> {
+    const key = JSON.stringify(window);
+    const now = Date.now();
+    for (const [id, entry] of this.trends) {
+      if (entry.expiresAt <= now) this.trends.delete(id);
+    }
+    const cached = this.trends.get(key);
+    if (cached) return cached.result;
+    if (this.trends.size >= 16) throw new Error('LOG_BUSY');
+    const filter: LogFilter = {
+      from: window.from,
+      to: window.to,
+      scope: 'all',
+      source: '',
+      module: '',
+      level: 'error',
+      search: '',
+      before: null,
+    };
+    const result = this.queryRoot(filter)
+      .then(async (root): Promise<LogErrorTrend> => {
+        const trend = (await this.worker(
+          'trend',
+          filter,
+          '',
+          undefined,
+          root,
+          window,
+        )) as LogErrorTrend;
+        return root !== this.root && trend.coverage === 'available'
+          ? { ...trend, coverage: 'partial' }
+          : trend;
+      })
+      .catch((failure: unknown) => {
+        if (this.trends.get(key)?.result === result) this.trends.delete(key);
+        throw failure;
+      });
+    this.trends.set(key, { expiresAt: now + 30_000, result });
+    return result;
   }
 
   async query(

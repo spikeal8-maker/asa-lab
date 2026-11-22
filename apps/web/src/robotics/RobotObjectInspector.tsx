@@ -5,12 +5,26 @@ import {
   type RoboticsBall,
   type RoboticsBody,
   type RoboticsFloorMark,
+  type RoboticsFieldDecoration,
   type RoboticsObjectKey,
   type RoboticsRectObstacle,
   type RoboticsWorldDocument,
 } from '@asa-lab/robotics/world-document';
 import { translateRoboticsObject } from '@asa-lab/robotics/world-authoring';
 import { RoboticsNumberField } from './RoboticsNumberField';
+import {
+  BALL_PRESETS,
+  CAN_PRESETS,
+  CAN_FILL_PRESETS,
+  CUBE_PRESETS,
+  applyBallPreset,
+  applyCanPreset,
+  applyCubePreset,
+  type BallPresetId,
+  type CanPresetId,
+  type CanFillId,
+  type CubePresetId,
+} from './field-object-presets';
 
 const degrees = (radians: number) => (radians * 180) / Math.PI;
 const radians = (degrees: number) => (degrees * Math.PI) / 180;
@@ -43,8 +57,9 @@ export function RobotObjectInspector({
       (item.groupId && selection === `mark-group:${item.groupId}`),
   );
   const mark = marks[0];
+  const decoration = world.field.visuals?.find((item) => selection === `decoration:${item.id}`);
   const grouped = !!mark?.groupId;
-  const selected = wall ?? ball ?? body ?? mark;
+  const selected = wall ?? ball ?? body ?? mark ?? decoration;
   const patchWall = (patch: Partial<RoboticsRectObstacle>) =>
     onCommit({
       ...world,
@@ -69,6 +84,16 @@ export function RobotObjectInspector({
       field: {
         ...world.field,
         bodies: world.field.bodies!.map((item) => (item === body ? next : item)),
+      },
+    });
+  const patchDecoration = (patch: Partial<RoboticsFieldDecoration>) =>
+    onCommit({
+      ...world,
+      field: {
+        ...world.field,
+        visuals: (world.field.visuals ?? []).map((item) =>
+          item === decoration ? { ...item, ...patch } : item,
+        ),
       },
     });
   const patchMark = (next: RoboticsFloorMark) =>
@@ -127,6 +152,39 @@ export function RobotObjectInspector({
       return false;
     }
   }
+  const ballPreset = ball
+    ? BALL_PRESETS.find(
+        (item) =>
+          Math.abs(item.radiusMeters - ball.radiusMeters) < 0.0005 &&
+          Math.abs(item.massKg - ball.massKg) < 0.003,
+      )
+    : undefined;
+  const canPreset =
+    body?.kind === 'can'
+      ? CAN_PRESETS.find(
+          (item) =>
+            Math.abs(item.radiusMeters - body.radiusMeters) < 0.001 &&
+            Math.abs(item.heightMeters - body.heightMeters) < 0.005,
+        )
+      : undefined;
+  const canFill =
+    body?.kind === 'can' && canPreset
+      ? CAN_FILL_PRESETS.find(
+          (item) =>
+            Math.abs(body.massKg - (canPreset.shellKg + canPreset.volumeLiters * item.fraction)) <
+            0.005,
+        )
+      : undefined;
+  const cubePreset =
+    body?.kind === 'box'
+      ? CUBE_PRESETS.find(
+          (item) =>
+            Math.abs(item.sideMeters - body.widthMeters) < 0.001 &&
+            Math.abs(item.sideMeters - body.depthMeters) < 0.001 &&
+            Math.abs(item.sideMeters - body.heightMeters) < 0.001,
+        )
+      : undefined;
+
   if (selection === 'robot')
     return (
       <section className="robotics-settings-group" data-testid="robotics-object-inspector">
@@ -183,6 +241,97 @@ export function RobotObjectInspector({
                 : ''}
         </p>
       ) : null}
+      {ball ? (
+        <label className="robotics-select-field robotics-object-preset">
+          Размер мяча
+          <select
+            aria-label="Тип мяча"
+            disabled={running}
+            value={ballPreset?.id ?? ''}
+            onChange={(event) => {
+              const next = applyBallPreset(ball, event.target.value as BallPresetId);
+              patchBall({ radiusMeters: next.radiusMeters, massKg: next.massKg });
+            }}
+          >
+            <option value="">Свой диаметр и масса</option>
+            {BALL_PRESETS.map((item) => (
+              <option value={item.id} key={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {body?.kind === 'can' ? (
+        <div className="robotics-object-preset-row">
+          <label className="robotics-select-field">
+            Размер банки
+            <select
+              aria-label="Объём банки"
+              disabled={running}
+              value={canPreset?.id ?? ''}
+              onChange={(event) => {
+                const next = applyCanPreset(
+                  body,
+                  event.target.value as CanPresetId,
+                  canFill?.id ?? 'empty',
+                );
+                patchBody(next);
+              }}
+            >
+              <option value="">Свой размер</option>
+              {CAN_PRESETS.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="robotics-select-field">
+            Наполнение
+            <select
+              aria-label="Наполнение банки"
+              disabled={running}
+              value={canFill?.id ?? ''}
+              onChange={(event) => {
+                const next = applyCanPreset(
+                  body,
+                  canPreset?.id ?? '330',
+                  event.target.value as CanFillId,
+                );
+                patchBody(next);
+              }}
+            >
+              <option value="">Своя масса</option>
+              {CAN_FILL_PRESETS.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
+      {body?.kind === 'box' ? (
+        <label className="robotics-select-field robotics-object-preset">
+          Размер кубика
+          <select
+            aria-label="Размер кубика"
+            disabled={running}
+            value={cubePreset?.id ?? ''}
+            onChange={(event) =>
+              patchBody(applyCubePreset(body, event.target.value as CubePresetId))
+            }
+          >
+            <option value="">Свой размер</option>
+            {CUBE_PRESETS.map((item) => (
+              <option value={item.id} key={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <label className="robotics-select-field">
         Название
         <input
@@ -200,7 +349,9 @@ export function RobotObjectInspector({
                 ? patchBall({ label })
                 : body
                   ? patchBody({ ...body, label })
-                  : patchMarks({ label });
+                  : decoration
+                    ? patchDecoration({ label })
+                    : patchMarks({ label });
             if (!accepted) event.target.value = selected.label ?? selected.id;
           }}
         />
@@ -212,6 +363,88 @@ export function RobotObjectInspector({
         </p>
       ) : null}
       <div className="robotics-form-grid">
+        {decoration ? (
+          <>
+            {numeric('X на поле', decoration.xMeters, 0, world.field.widthMeters, (value) =>
+              patchDecoration({ xMeters: value }),
+            )}
+            {numeric('Y на поле', decoration.yMeters, 0, world.field.heightMeters, (value) =>
+              patchDecoration({ yMeters: value }),
+            )}
+            {numeric(
+              decoration.kind === 'circle' ? 'Диаметр круга' : 'Ширина элемента',
+              decoration.widthMeters,
+              0.02,
+              world.field.widthMeters,
+              (value) =>
+                patchDecoration(
+                  decoration.kind === 'circle'
+                    ? { widthMeters: value, heightMeters: value }
+                    : { widthMeters: value },
+                ),
+            )}
+            {decoration.kind !== 'circle'
+              ? numeric(
+                  decoration.kind === 'text' ? 'Высота текста' : 'Высота элемента',
+                  decoration.heightMeters,
+                  0.02,
+                  world.field.heightMeters,
+                  (value) => patchDecoration({ heightMeters: value }),
+                )
+              : null}
+            <label className="robotics-number-field">
+              <span>Цвет контура</span>
+              <input
+                aria-label="Цвет контура"
+                type="color"
+                value={decoration.strokeColor}
+                disabled={running}
+                onChange={(event) => patchDecoration({ strokeColor: event.target.value })}
+              />
+            </label>
+            {decoration.kind === 'rectangle' || decoration.kind === 'circle' ? (
+              <>
+                <label className="robotics-grid-toggle">
+                  <input
+                    type="checkbox"
+                    aria-label="Заливка фигуры"
+                    disabled={running}
+                    checked={decoration.fillEnabled}
+                    onChange={(event) => patchDecoration({ fillEnabled: event.target.checked })}
+                  />
+                  Заливка
+                </label>
+                <label className="robotics-number-field">
+                  <span>Цвет заливки</span>
+                  <input
+                    type="color"
+                    aria-label="Цвет заливки"
+                    value={decoration.fillColor}
+                    disabled={running || !decoration.fillEnabled}
+                    onChange={(event) => patchDecoration({ fillColor: event.target.value })}
+                  />
+                </label>
+              </>
+            ) : null}
+            {decoration.kind === 'text' ? (
+              <label className="robotics-select-field robotics-visual-text">
+                Текст
+                <input
+                  type="text"
+                  maxLength={120}
+                  aria-label="Надпись на поле"
+                  key={decoration.id + decoration.text}
+                  defaultValue={decoration.text ?? ''}
+                  disabled={running}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value) patchDecoration({ text: value });
+                  }}
+                />
+              </label>
+            ) : null}
+          </>
+        ) : null}
         {wall ? (
           <>
             {numeric(

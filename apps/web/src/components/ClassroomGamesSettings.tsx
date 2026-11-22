@@ -5,6 +5,7 @@ import {
   type ClassroomGamesPolicy,
 } from '../games/game-access-api';
 import { chessNetworkApi } from '../chess/chess-network-api';
+import { useClassroomActionFeedback } from './ClassroomActionFeedback';
 import type { ChessNetworkPolicy, ChessNetworkScope } from '@asa-lab/contracts';
 import './classroom-games-settings.css';
 
@@ -32,7 +33,9 @@ export function ClassroomGamesSettings({
   const [threshold, setThreshold] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { notice, setNotice } = useClassroomActionFeedback(
+    JSON.stringify(['games', classroomId, seatId ?? null, readOnly]),
+  );
   const [networkDirty, setNetworkDirty] = useState(false);
 
   const adopt = useCallback((value: ClassroomGamesPolicy): void => {
@@ -46,7 +49,6 @@ export function ClassroomGamesSettings({
     const token = ++generation.current;
     setPolicy(null);
     setError(null);
-    setNotice(null);
     setSaving(false);
     void gameAccessApi
       .readPolicy(classroomId, seatId)
@@ -244,7 +246,9 @@ function ClassroomNetworkSettings({
   const [scope, setScope] = useState<ChessNetworkScope>('classroom');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { notice, setNotice } = useClassroomActionFeedback(
+    JSON.stringify(['network', classroomId, readOnly]),
+  );
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const current = ++generation.current;

@@ -254,7 +254,7 @@ function validDiagnostic(body) {
       'editor_unresponsive',
       'editor_recovered',
     ].includes(body.code) &&
-    ['portal', 'scratch', 'electronics', 'auth'].includes(body.module) &&
+    ['portal', 'scratch', 'electronics', 'auth', 'chess', 'checkers'].includes(body.module) &&
     typeof body.revision === 'string' &&
     /^(?:[a-f0-9]{7,64}|unknown|development)$/.test(body.revision) &&
     ['instanceId', 'relatedRequestId', 'clientAttemptId'].every(

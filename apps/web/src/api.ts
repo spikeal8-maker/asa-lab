@@ -11,6 +11,7 @@ import {
 } from './modules/project-draft-mutation';
 import { saveProjectSnapshot } from './project-snapshot-client';
 import { notifySessionLoggedOut } from './session-fetch';
+import { pausePersonalReads } from './portal-requests';
 import {
   beginTelemetryIdentityObservation,
   beginTelemetryWorkspaceSwitch,
@@ -927,7 +928,7 @@ export interface LearningAssignableActivity {
   versionId: string;
   title: string;
   instructions: string | null;
-  kind: 'project' | 'quiz' | 'file';
+  kind: 'project' | 'quiz' | 'file' | 'essay';
   moduleKey: string | null;
 }
 
@@ -1005,6 +1006,7 @@ export interface GradebookEntry {
   courseRunId?: string | null;
   courseTitle?: string | null;
   seatId: string;
+  removedFromClass?: boolean;
   displayLabel: string;
   assignmentId: string;
   assignmentTitle: string;
@@ -1114,6 +1116,7 @@ export interface LearnerResult {
 
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
+  activityVersionId?: string;
   activityKind?: 'project' | 'essay' | 'quiz' | 'file';
   id: string;
   /** Exact Direct or lesson-level Course ActivityRun for atomic Start. */
@@ -2007,6 +2010,23 @@ export interface LearningNotification {
   createdAt: string;
   readAt: string | null;
 }
+async function sessionMutation<T>(path: string, init: RequestInit, onSuccess?: () => void) {
+  const hold = init.signal?.aborted ? null : pausePersonalReads();
+  try {
+    const result = await call<T>(path, init);
+    if (hold && !hold.current())
+      return {
+        ok: false as const,
+        status: 0,
+        error: { code: 'request_cancelled', message: 'Запрос отменён.' },
+      };
+    if (result.ok && !init.signal?.aborted) onSuccess?.();
+    return result;
+  } finally {
+    hold?.resume();
+  }
+}
+
 export const api = {
   authoredQuestionVersion: (id: string) =>
     call<{
@@ -2267,14 +2287,12 @@ export const api = {
     call<{ available: boolean }>(
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
-  logout: async (signal?: AbortSignal) => {
-    const result = await call<{ ok: true }>('/api/auth/logout', {
-      method: 'POST',
-      ...(signal ? { signal } : {}),
-    });
-    if (result.ok && !signal?.aborted) notifySessionLoggedOut();
-    return result;
-  },
+  logout: (signal?: AbortSignal) =>
+    sessionMutation<{ ok: true }>(
+      '/api/auth/logout',
+      { method: 'POST', ...(signal ? { signal } : {}) },
+      notifySessionLoggedOut,
+    ),
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
   accountPasswordStatus: () => call<AccountPasswordStatus>('/api/account/password'),
   changeAccountPassword: (currentPassword: string, newPassword: string) =>
@@ -2282,7 +2300,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
-  accountAvatar: () => call<AccountAvatar>('/api/account/avatar'),
+  accountAvatar: (signal?: AbortSignal) =>
+    call<AccountAvatar>('/api/account/avatar', signal ? { signal } : {}),
   updateAccountAvatar: (avatarDataUrl: string | null) =>
     call<AccountAvatar>('/api/account/avatar', {
       method: 'PATCH',
@@ -2326,15 +2345,15 @@ export const api = {
       finishTelemetryWorkspaceSwitch(mutation, !successful);
     }
   },
-  selfAttestEducator: () =>
-    call<{ capability: 'educator'; state: string; created: boolean }>(
+  selfAttestEducator: (signal?: AbortSignal) =>
+    sessionMutation<{ capability: 'educator'; state: string; created: boolean }>(
       '/api/capabilities/educator/self-attest',
-      { method: 'POST', body: JSON.stringify({}) },
+      { method: 'POST', body: JSON.stringify({}), ...(signal ? { signal } : {}) },
     ),
-  selfAttestContentAuthor: () =>
-    call<{ capability: 'content_author'; state: string; created: boolean }>(
+  selfAttestContentAuthor: (signal?: AbortSignal) =>
+    sessionMutation<{ capability: 'content_author'; state: string; created: boolean }>(
       '/api/capabilities/content-author/self-attest',
-      { method: 'POST', body: JSON.stringify({}) },
+      { method: 'POST', body: JSON.stringify({}), ...(signal ? { signal } : {}) },
     ),
   learningAudience: (
     classroomId: string,
@@ -2417,6 +2436,30 @@ export const api = {
       {
         method: 'PUT',
         body: JSON.stringify({ expectedRevision, fileName, fileDataUrl }),
+      },
+    ),
+  uploadLargeAuthoredActivityTaskPdf: (id: string, expectedRevision: number, file: File) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-pdf/${expectedRevision}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(file.name),
+        },
+        body: file,
+      },
+    ),
+  uploadAuthoredActivityTaskAttachment: (id: string, expectedRevision: number, file: File) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-attachment/${expectedRevision}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/vnd.asa.learning-file',
+          'X-Asa-File-Name': encodeURIComponent(file.name),
+        },
+        body: file,
       },
     ),
   deleteAuthoredActivityDraftSample: (id: string, expectedRevision: number) =>
@@ -3509,14 +3552,12 @@ export const api = {
     ),
   classroomStudentMe: () =>
     call<ClassroomStudentSession | { authenticated: false }>('/api/class-join/me'),
-  classroomStudentLogout: async () => {
-    const result = await call<{ ok: true }>('/api/class-join/logout', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-    if (result.ok) notifySessionLoggedOut();
-    return result;
-  },
+  classroomStudentLogout: () =>
+    sessionMutation<{ ok: true }>(
+      '/api/class-join/logout',
+      { method: 'POST', body: JSON.stringify({}) },
+      notifySessionLoggedOut,
+    ),
   listProjects: async (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);

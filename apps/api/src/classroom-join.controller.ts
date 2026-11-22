@@ -1,3 +1,5 @@
+import { isLearningTaskFileContentType } from './learning-file-transport.js';
+import { sendTaskImage } from './learning-task-image.js';
 import {
   Body,
   Controller,
@@ -79,6 +81,11 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 interface AssignmentForSeatRow {
   activity_kind?: 'quiz' | null;
+  essay_assignment?: {
+    activityRunId?: string;
+    activityVersionId?: string;
+    submittedAt?: string | null;
+  } | null;
   file_assignment?: { activityRunId?: string; submittedAt?: string | null } | null;
   id: string;
   title: string;
@@ -1319,6 +1326,7 @@ export class ClassroomJoinController {
               snapshot_revision, updated_at,
               learning_quiz_assignment_kind($2,id) AS activity_kind,
               learning_file_assignment_view($2,id) AS file_assignment,
+              learning_essay_assignment_view($2,id) AS essay_assignment,
               learning_legacy_direct_provenance($2,seat_id,id,project_id)
                 AS legacy_provenance,
               learning_activity_blocks_for_seat(seat_id,id) AS task_blocks
@@ -1347,18 +1355,22 @@ export class ClassroomJoinController {
           const value = canonicalVisibility.get(`${row.seat_id}:${row.id}`);
           return value === undefined || value;
         })
-        .filter((row) => !row.file_assignment || row.file_assignment.activityRunId)
+        .filter((row) => {
+          const response = row.file_assignment ?? row.essay_assignment;
+          return !response || response.activityRunId;
+        })
         .map((row) => {
-          const fileRunId = row.file_assignment?.activityRunId;
+          const response = row.file_assignment ?? row.essay_assignment;
+          const responseRunId = response?.activityRunId;
           const ambiguous = origins.directAmbiguous(row.seat_id, row.id);
-          const exact = fileRunId || ambiguous ? null : origins.directWork(row.seat_id, row.id);
+          const exact = responseRunId || ambiguous ? null : origins.directWork(row.seat_id, row.id);
           const legacyAllowed =
-            !fileRunId && !ambiguous && !origins.directHasOrigin(row.seat_id, row.id);
+            !responseRunId && !ambiguous && !origins.directHasOrigin(row.seat_id, row.id);
           const legacyProjectReadable =
             legacyAllowed && row.legacy_provenance?.legacyProjectReadable === true;
-          const projected = fileRunId
+          const projected = responseRunId
             ? (learnerSnapshot.courseProjectionsByRun.get(
-                canonicalCourseParticipationKey(row.seat_id, fileRunId),
+                canonicalCourseParticipationKey(row.seat_id, responseRunId),
               )?.surface ?? null)
             : (exact?.canonicalState ??
               (legacyProjectReadable
@@ -1382,8 +1394,13 @@ export class ClassroomJoinController {
               : row.task_blocks?.present
                 ? row.task_blocks.blocks
                 : undefined,
-            ...(fileRunId
-              ? { activityKind: 'file' as const }
+            ...(responseRunId
+              ? {
+                  activityKind: row.file_assignment ? ('file' as const) : ('essay' as const),
+                  ...(row.essay_assignment?.activityVersionId
+                    ? { activityVersionId: row.essay_assignment.activityVersionId }
+                    : {}),
+                }
               : row.activity_kind
                 ? { activityKind: row.activity_kind }
                 : {}),
@@ -1397,15 +1414,15 @@ export class ClassroomJoinController {
             status: row.status,
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-            activityRunId: fileRunId ?? origins.directRunId(row.seat_id, row.id),
+            activityRunId: responseRunId ?? origins.directRunId(row.seat_id, row.id),
             legacyStartAllowed: false,
             legacySubmitAllowed:
               legacyAllowed &&
               row.legacy_provenance?.legacyDirect === true &&
               row.legacy_provenance.submitAllowed === true,
             projectId: exact?.projectId ?? (legacyProjectReadable ? row.project_id : null),
-            submittedAt: fileRunId
-              ? (row.file_assignment?.submittedAt ?? null)
+            submittedAt: responseRunId
+              ? (response?.submittedAt ?? null)
               : exact
                 ? exact.submittedAt
                 : !legacyProjectReadable
@@ -1556,6 +1573,7 @@ export class ClassroomJoinController {
               submitted_at, snapshot_revision, updated_at,
               learning_quiz_assignment_kind(principal_for_seat($1),id) AS activity_kind,
               learning_file_assignment_view(principal_for_seat($1),id) AS file_assignment,
+              learning_essay_assignment_view(principal_for_seat($1),id) AS essay_assignment,
               learning_legacy_direct_provenance(principal_for_seat($1),$1,id,project_id)
                 AS legacy_provenance,
               learning_activity_blocks_for_seat($1,id) AS task_blocks
@@ -1579,18 +1597,23 @@ export class ClassroomJoinController {
     return {
       items: (result.rows as AssignmentForSeatRow[])
         .filter((row) => canonicalVisibility.get(row.id) !== false)
-        .filter((row) => !row.file_assignment || row.file_assignment.activityRunId)
+        .filter((row) => {
+          const response = row.file_assignment ?? row.essay_assignment;
+          return !response || response.activityRunId;
+        })
         .map((row) => {
-          const fileRunId = row.file_assignment?.activityRunId;
+          const response = row.file_assignment ?? row.essay_assignment;
+          const responseRunId = response?.activityRunId;
           const ambiguous = origins.directAmbiguous(seat.seat_id, row.id);
-          const exact = fileRunId || ambiguous ? null : origins.directWork(seat.seat_id, row.id);
+          const exact =
+            responseRunId || ambiguous ? null : origins.directWork(seat.seat_id, row.id);
           const legacyAllowed =
-            !fileRunId && !ambiguous && !origins.directHasOrigin(seat.seat_id, row.id);
+            !responseRunId && !ambiguous && !origins.directHasOrigin(seat.seat_id, row.id);
           const legacyProjectReadable =
             legacyAllowed && row.legacy_provenance?.legacyProjectReadable === true;
-          const projected = fileRunId
+          const projected = responseRunId
             ? (learnerSnapshot.courseProjectionsByRun.get(
-                canonicalCourseParticipationKey(seat.seat_id, fileRunId),
+                canonicalCourseParticipationKey(seat.seat_id, responseRunId),
               )?.surface ?? null)
             : (exact?.canonicalState ??
               (legacyProjectReadable
@@ -1614,8 +1637,13 @@ export class ClassroomJoinController {
               : row.task_blocks?.present
                 ? row.task_blocks.blocks
                 : undefined,
-            ...(fileRunId
-              ? { activityKind: 'file' as const }
+            ...(responseRunId
+              ? {
+                  activityKind: row.file_assignment ? ('file' as const) : ('essay' as const),
+                  ...(row.essay_assignment?.activityVersionId
+                    ? { activityVersionId: row.essay_assignment.activityVersionId }
+                    : {}),
+                }
               : row.activity_kind
                 ? { activityKind: row.activity_kind }
                 : {}),
@@ -1629,15 +1657,15 @@ export class ClassroomJoinController {
             status: row.status,
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-            activityRunId: fileRunId ?? origins.directRunId(seat.seat_id, row.id),
+            activityRunId: responseRunId ?? origins.directRunId(seat.seat_id, row.id),
             legacyStartAllowed: false,
             legacySubmitAllowed:
               legacyAllowed &&
               row.legacy_provenance?.legacyDirect === true &&
               row.legacy_provenance.submitAllowed === true,
             projectId: exact?.projectId ?? (legacyProjectReadable ? row.project_id : null),
-            submittedAt: fileRunId
-              ? (row.file_assignment?.submittedAt ?? null)
+            submittedAt: responseRunId
+              ? (response?.submittedAt ?? null)
               : exact
                 ? exact.submittedAt
                 : !legacyProjectReadable
@@ -1899,12 +1927,14 @@ export class ClassroomJoinController {
       throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
     reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
     if (role === 'file') {
-      if (row.content_type !== 'application/pdf')
+      if (!isLearningTaskFileContentType(row.content_type))
         throw new HttpException(error('media_not_found', 'Файл недоступен.'), 404);
-      reply.header('content-disposition', 'attachment; filename="material.pdf"');
+      reply.header('content-disposition', 'attachment');
     } else if (!['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type)) {
       throw new HttpException(error('media_not_found', 'Изображение недоступно.'), 404);
     }
+    if (role === 'image')
+      return sendTaskImage(request, reply, row.media_bytes, row.content_type, contentHash);
     reply.type(row.content_type).send(row.media_bytes);
   }
 

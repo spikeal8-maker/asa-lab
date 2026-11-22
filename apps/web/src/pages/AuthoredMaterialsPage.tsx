@@ -32,17 +32,32 @@ function checkDraftImage(file: File): string | null {
   return null;
 }
 
-function checkTaskPdf(file: File): string | null {
-  if (file.type !== 'application/pdf' || !file.name.toLowerCase().endsWith('.pdf'))
-    return 'Подойдёт файл PDF.';
-  if (file.size < 5 || file.size > 400_000) return 'PDF должен быть до 400 КБ.';
-  if (
-    file.name.length > 160 ||
-    file.name.includes('/') ||
-    file.name.includes('\\') ||
-    Array.from(file.name).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
-  )
-    return 'Проверьте имя PDF файла.';
+function checkTaskImage(file: File): string | null {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
+    return 'Подойдёт PNG, JPEG или WebP.';
+  if (file.size < 1 || file.size > 20_000_000) return 'Изображение должно быть до 20 МБ.';
+  return null;
+}
+
+async function saveTaskImage(id: string, revision: number, file: File, dataUrl?: string) {
+  if (file.size <= 400_000)
+    return api.saveAuthoredActivityTaskImage(id, revision, dataUrl ?? (await readDraftImage(file)));
+  const extension = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[file.type];
+  if (!extension) throw new Error('Подойдёт PNG, JPEG или WebP.');
+  return api.uploadAuthoredActivityTaskAttachment(
+    id,
+    revision,
+    new File([file], `image.${extension}`, { type: file.type }),
+  );
+}
+
+function checkTaskFile(file: File): string | null {
+  const extension = file.name.split('.').at(-1)?.toLowerCase();
+  if (!extension || !/\.(pdf|docx|pptx|xlsx|txt|csv|sb3|stl|ino|zip)$/iu.test(file.name))
+    return 'Выберите PDF, DOCX, PPTX, XLSX, TXT, CSV, SB3, STL, INO или ZIP.';
+  const limit = extension === 'pdf' ? 25 : 50;
+  if (file.size < 1 || file.size > limit * 1_000_000) return `Файл должен быть до ${limit} МБ.`;
+  if (file.name.length > 160 || /[/\\\p{Cc}\p{Cf}]/u.test(file.name)) return 'Проверьте имя файла.';
   return null;
 }
 
@@ -148,10 +163,23 @@ interface AssignmentAttempt {
   requestIds: Map<string, string>;
 }
 
-interface PendingTaskMedia {
+type PendingTaskMedia = {
   role: 'image' | 'file';
   name: string;
-  dataUrl: string;
+  file: File;
+  dataUrl?: string;
+};
+
+async function saveTaskPdf(id: string, revision: number, file: File, dataUrl?: string) {
+  if (!file.name.toLowerCase().endsWith('.pdf'))
+    return api.uploadAuthoredActivityTaskAttachment(id, revision, file);
+  if (file.size > 400_000) return api.uploadLargeAuthoredActivityTaskPdf(id, revision, file);
+  return api.saveAuthoredActivityTaskFile(
+    id,
+    revision,
+    file.name,
+    dataUrl ?? (await readDraftImage(file)),
+  );
 }
 
 function newAssignmentAttempt(): AssignmentAttempt {
@@ -641,15 +669,15 @@ export function AuthoredMaterialsPage({
 
     let savedDraft = contentDraft;
     for (const media of pendingTaskMedia) {
-      const mediaResult: Awaited<ReturnType<typeof api.saveAuthoredActivityTaskImage>> =
+      const mediaResult: Awaited<ReturnType<typeof api.saveAuthoredActivityTaskImage>> = await (
         media.role === 'image'
-          ? await api.saveAuthoredActivityTaskImage(saved.id, saved.revision, media.dataUrl)
-          : await api.saveAuthoredActivityTaskFile(
-              saved.id,
-              saved.revision,
-              media.name,
-              media.dataUrl,
-            );
+          ? saveTaskImage(saved.id, saved.revision, media.file, media.dataUrl)
+          : saveTaskPdf(saved.id, saved.revision, media.file, media.dataUrl)
+      ).catch(() => ({
+        ok: false as const,
+        status: 400,
+        error: { code: 'invalid_media', message: 'Не удалось прочитать вложение.' },
+      }));
       if (!mediaResult.ok) {
         setError(
           mediaResult.error.code === 'revision_conflict'
@@ -713,24 +741,22 @@ export function AuthoredMaterialsPage({
   }
 
   async function uploadTaskImage(file: File) {
-    const problem = checkDraftImage(file);
+    const problem = checkTaskImage(file);
     if (problem) {
       setError(problem);
       return;
     }
     if (!opened) {
       try {
-        const dataUrl = await readDraftImage(file);
+        const dataUrl = file.size <= 400_000 ? await readDraftImage(file) : undefined;
         setPendingTaskMedia((current) => [
           ...current.filter((item) => item.role !== 'image'),
-          { role: 'image', name: file.name, dataUrl },
+          { role: 'image', name: file.name, file, ...(dataUrl === undefined ? {} : { dataUrl }) },
         ]);
         setError(null);
         setNotice(null);
-      } catch (readError) {
-        setError(
-          readError instanceof Error ? readError.message : 'Не удалось прочитать изображение.',
-        );
+      } catch {
+        setError('Не удалось прочитать вложение.');
       }
       return;
     }
@@ -740,12 +766,7 @@ export function AuthoredMaterialsPage({
     setError(null);
     setNotice(null);
     try {
-      const imageDataUrl = await readDraftImage(file);
-      const result = await api.saveAuthoredActivityTaskImage(
-        saved.id,
-        saved.revision,
-        imageDataUrl,
-      );
+      const result = await saveTaskImage(saved.id, saved.revision, file);
       if (!result.ok) {
         setError(
           result.error.code === 'revision_conflict'
@@ -785,22 +806,25 @@ export function AuthoredMaterialsPage({
   }
 
   async function uploadTaskFile(file: File) {
-    const problem = checkTaskPdf(file);
+    const problem = checkTaskFile(file);
     if (problem) {
       setError(problem);
       return;
     }
     if (!opened) {
       try {
-        const dataUrl = await readDraftImage(file);
+        const dataUrl =
+          file.size <= 400_000 && file.name.toLowerCase().endsWith('.pdf')
+            ? await readDraftImage(file)
+            : undefined;
         setPendingTaskMedia((current) => [
           ...current.filter((item) => item.role !== 'file'),
-          { role: 'file', name: file.name, dataUrl },
+          { role: 'file', name: file.name, file, ...(dataUrl === undefined ? {} : { dataUrl }) },
         ]);
         setError(null);
         setNotice(null);
-      } catch (readError) {
-        setError(readError instanceof Error ? readError.message : 'Не удалось прочитать PDF.');
+      } catch {
+        setError('Не удалось прочитать вложение.');
       }
       return;
     }
@@ -810,13 +834,7 @@ export function AuthoredMaterialsPage({
     setError(null);
     setNotice(null);
     try {
-      const fileDataUrl = await readDraftImage(file);
-      const result = await api.saveAuthoredActivityTaskFile(
-        saved.id,
-        saved.revision,
-        file.name,
-        fileDataUrl,
-      );
+      const result = await saveTaskPdf(saved.id, saved.revision, file);
       if (!result.ok) {
         setError(
           result.error.code === 'revision_conflict'
@@ -841,7 +859,11 @@ export function AuthoredMaterialsPage({
       savedPayload.current = JSON.stringify(nextDraft);
       setOpened({ id: saved.id, revision: result.data.draftRevision });
       setPreview(null);
-      setNotice('PDF добавлен в содержание задания.');
+      setNotice(
+        file.name.toLowerCase().endsWith('.pdf')
+          ? 'PDF добавлен в содержание задания.'
+          : 'Файл добавлен в содержание задания.',
+      );
       await refresh();
       onChanged?.();
     } catch (readError) {
@@ -1159,7 +1181,7 @@ export function AuthoredMaterialsPage({
             </label>
 
             <div
-              className="authored-assignment-filter-group"
+              className="authored-assignment-filter-group asa-system-tabs"
               role="group"
               aria-label="Фильтр по статусу"
             >
@@ -1385,7 +1407,6 @@ export function AuthoredMaterialsPage({
                     busy ||
                     !draft.title.trim() ||
                     !canAssignDraftModule ||
-                    (!courseCreation && isEssay) ||
                     (draft.resultMode === 'graded' && !draft.maxPoints && !isQuiz)
                   }
                   onClick={() => void (inlineCreation ? publish(true) : openAssignFlow())}
@@ -1466,7 +1487,7 @@ export function AuthoredMaterialsPage({
                   }}
                 >
                   <option value="project">Проектная практика</option>
-                  {!inlineCreation || courseCreation?.allowEssay ? (
+                  {!courseCreation || courseCreation.allowEssay ? (
                     <option value="essay">Письменный ответ</option>
                   ) : null}
                   <option value="quiz">Тест</option>

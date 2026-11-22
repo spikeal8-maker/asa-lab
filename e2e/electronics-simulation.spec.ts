@@ -5351,12 +5351,15 @@ for (const { mode, segment, widths } of compactControlSegments) {
         }
         expect(observation.headerControls).toHaveLength(
           observation.view.includes('breadboard')
-            ? 16
+            ? 17
             : observation.view.includes('schematic')
               ? 8
               : 6,
         );
         if (observation.view.includes('breadboard')) {
+          expect(
+            observation.headerControls.filter((control) => control.ariaLabel === 'Дублировать'),
+          ).toHaveLength(1);
           expect(
             observation.headerControls.filter(
               (control) => control.ariaLabel === 'Добавить текст на схему',
@@ -5412,9 +5415,21 @@ for (const { mode, segment, widths } of compactControlSegments) {
     }
 
     if (mode === 'text') {
+      const widthHandle = drawer.locator('.arduino-drawer-resize-handle');
       for (const width of widths) {
         const desktop = width > 980;
+        const maximum = Math.max(460, width - 420);
+        const minimum = Math.min(620, maximum);
+        const handle = page.getByRole('separator', {
+          name: desktop ? 'Изменить ширину редактора кода' : 'Изменить высоту редактора кода',
+          exact: true,
+        });
+        const previousWidth = Number(await widthHandle.getAttribute('aria-valuenow'));
+        expect(Number.isSafeInteger(previousWidth) && previousWidth > 0).toBe(true);
         await page.setViewportSize({ width, height: 900 });
+        const committedWidth = Math.round(Math.min(maximum, Math.max(minimum, previousWidth)));
+        // The width clamp still commits on mobile, where the width handle is hidden.
+        await expect(widthHandle).toHaveAttribute('aria-valuenow', String(committedWidth));
         await record(`${width}-stopped`, desktop, false);
         if (width === 981) {
           const nativeMenu = page.locator('.workbench-wire-color');
@@ -5441,15 +5456,9 @@ for (const { mode, segment, widths } of compactControlSegments) {
         await run.click();
         await expect(run).toHaveAttribute('aria-pressed', 'false');
 
-        const handle = page.getByRole('separator', {
-          name: desktop ? 'Изменить ширину редактора кода' : 'Изменить высоту редактора кода',
-          exact: true,
-        });
         const beforeBox = await drawer.boundingBox();
         const handleBox = await handle.boundingBox();
         if (!beforeBox || !handleBox) throw new Error('Code drawer resize geometry is missing');
-        const maximum = Math.max(460, width - 420);
-        const minimum = Math.min(620, maximum);
         // Ordinary drag changes width whenever the canonical interval has room.
         // At the minimum, drag outward instead of pretending a clamped input failed.
         const horizontalDelta = beforeBox.width - minimum > 16 ? 32 : -32;
@@ -9035,6 +9044,9 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
       { key: localKey, id: projectId, userId },
     );
     expect(base.components.find((entry) => entry.id === 'resistor')?.value).toBe(333.3);
+    expect(base.components.find((entry) => entry.id === 'uno')?.stateProperties).not.toHaveProperty(
+      'arduinoWorkspace',
+    );
     const changedSource = `// latest sketch before ${action}\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n`;
     const expected = {
       ...base,
@@ -9045,7 +9057,6 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
               stateProperties: {
                 ...entry.stateProperties,
                 arduinoCodeMode: 'text',
-                arduinoWorkspace: '',
                 arduinoSource: changedSource,
                 arduinoSerialOpen: false,
                 arduinoBaudRate: 9600,
@@ -9141,6 +9152,9 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
     ).toBeLessThan(260);
     expect(elapsedMs).toBeGreaterThanOrEqual(0);
     expect(receipt.inputLocal?.document).toEqual(expected);
+    expect(
+      receipt.inputLocal?.document.components.find((entry) => entry.id === 'uno')?.stateProperties,
+    ).not.toHaveProperty('arduinoWorkspace');
     expect(receipt.actionLocal?.document).toEqual(expected);
     expect(puts).toEqual([expected]);
     const opened = await page.context().request.get(`/api/projects/${projectId}`, {
@@ -10154,6 +10168,14 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
+  // The no-source message shifts the stage when the first simulation result arrives.
+  await expect(
+    page.locator('.workbench-simulation-message[data-simulation-code="no_source"]'),
+  ).toBeVisible();
   await page.evaluate(() => {
     document
       .querySelector('[data-testid="schematic-component"][data-component-id="meter"]')

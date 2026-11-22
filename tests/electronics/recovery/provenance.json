@@ -1,0 +1,337 @@
+{
+  "format": "asa-electronics-recovery-fixtures-v1",
+  "originalProject": "https://asa-lab.ru/projects/3283023f-5448-4ad0-b369-8701319c7c20/electronics/edit",
+  "originalProjectModified": false,
+  "originalExport": "UNAVAILABLE: public landing page required sign-in; no login or mutation attempted",
+  "originalSketch": "UNAVAILABLE: the supplied audit describes behaviour but does not contain the complete source",
+  "audit": "ASA_Lab_Electronics_Audit_2026-11-12.docx",
+  "auditSourceRevision": "f19f5d47541e9006a5d96281e7af1b1ea960615f",
+  "fixtureGeneratorSourceRevision": "aea927fcedf66b9f3bec7bae436508e80f043ffa",
+  "reconstruction": {
+    "s3": "Synthetic 882-hole breadboard and Arduino Uno, reconstructed sketch attached",
+    "s4": "New reconstruction from audit descriptions; not an original export or byte-exact historical reconstruction",
+    "composition": "1 breadboard + 1 Uno + 5 LED + 5 current-limiting resistors + 2 buttons + 2 pulldowns + 1 potentiometer = 17 components; 14 wires",
+    "assumedValues": "LED resistors 220 Ω, pulldowns 10 kΩ, potentiometer 1 kΩ at 50%; assumptions of the audit, not values read from the owner project",
+    "electricalFacts": "5V to top-positive-02; GND to top-negative-38; unbridged 31/32 rails; four LED returns on left negative half; pot F7/F8/F9; buttons on right positive half",
+    "reconstructionChoices": "Exact body coordinates, LED/button pin assignments, free equivalent holes and straight wire routing are reconstructed. LED columns20/23/26/29/32 and button columns54/59 preserve the described split-rail fault.",
+    "sketch": "Explicit reconstructed semantics: x starts0 then11, selects9..11, D5/D6 configured but not driven in loop, A5/4 PWM, serial ADC and x, two100ms delays; selection changes before the LOW write. Original spelling/order not claimed.",
+    "measuredPrograms": "90 variants in a full profile: replace the first delay(100) with delay(101 + zero-based sample index). Every raw row preserves complete expected source and SHA-256 before/after; smoke uses the first variant only."
+  },
+  "hashes": {
+    "s3.json": "43d6bae8421baf88cc5c291f145aec4cbbb9e5dfcbacd8d61771fda228e86145",
+    "s4-reconstruction.json": "32a680a113ef9590c12ea344eab3e29aa8ed1fda7c1b512b6be64e07b6307fa1",
+    "reconstructed-audit.ino": "40727bee963f76362d5cf484d7023ee4c3d0dc0f7e2bfd844da1ab0d0dfad7b2",
+    "catalogue": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
+    "modelRegistry": "c999b9d097296f571bf2b45b3638c8a8e83d523d525a708a4e2052fd68381491"
+  },
+  "catalogue": {
+    "variants": 44,
+    "modelRegistry": {
+      "registryVersion": 1,
+      "entries": [
+        {
+          "componentTypeId": "arduino-uno",
+          "electricalModelId": "arduino-uno",
+          "electricalModelVersion": 1,
+          "modelProfileId": "arduino-uno-r3",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-3v",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-3v",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-9v",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-9v",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-holder-aa-1",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-pack-aa-1",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-holder-aa-2",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-pack-aa-2",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-holder-aa-3",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-pack-aa-3",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-holder-aa-4",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-pack-aa-4",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-holder-aa-6",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-pack-aa-6",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "battery-holder-aa-8",
+          "electricalModelId": "ideal-dc-source",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-battery-pack-aa-8",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "breadboard-large",
+          "electricalModelId": "breadboard-connectivity",
+          "electricalModelVersion": 1,
+          "modelProfileId": "breadboard-large",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "breadboard-medium",
+          "electricalModelId": "breadboard-connectivity",
+          "electricalModelVersion": 1,
+          "modelProfileId": "breadboard-medium",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "breadboard-small",
+          "electricalModelId": "breadboard-connectivity",
+          "electricalModelVersion": 1,
+          "modelProfileId": "breadboard-small",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "button-tactile-6mm",
+          "electricalModelId": "momentary-button",
+          "electricalModelVersion": 1,
+          "modelProfileId": "tactile-button-6mm",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "dc-motor",
+          "electricalModelId": "dc-motor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "pololu-1117-130-6v",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "diode-do35",
+          "electricalModelId": "diode",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-signal-diode-do35",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "diode-do41",
+          "electricalModelId": "diode",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-rectifier-diode-do41",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "electrolytic-capacitor",
+          "electricalModelId": "capacitor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-electrolytic-capacitor",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "gearmotor",
+          "electricalModelId": "dc-motor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "adafruit-3777-tt-48to1",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "incandescent-lamp",
+          "electricalModelId": "incandescent-lamp",
+          "electricalModelVersion": 1,
+          "modelProfileId": "t1-bipin-6v-incandescent",
+          "modelProfileVersion": 2
+        },
+        {
+          "componentTypeId": "led-5mm",
+          "electricalModelId": "ordinary-led",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-red-led",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "multimeter",
+          "electricalModelId": "digital-multimeter",
+          "electricalModelVersion": 1,
+          "modelProfileId": "asa-two-terminal-dmm",
+          "modelProfileVersion": 3
+        },
+        {
+          "componentTypeId": "oscilloscope",
+          "electricalModelId": "oscilloscope",
+          "electricalModelVersion": 1,
+          "modelProfileId": "asa-two-terminal-oscilloscope",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "photoresistor",
+          "electricalModelId": "photoresistor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-photoresistor",
+          "modelProfileVersion": 2
+        },
+        {
+          "componentTypeId": "piezo-disc",
+          "electricalModelId": "piezo-transducer",
+          "electricalModelVersion": 1,
+          "modelProfileId": "piezo-disc-audio",
+          "modelProfileVersion": 2
+        },
+        {
+          "componentTypeId": "piezo-passive-buzzer",
+          "electricalModelId": "piezo-transducer",
+          "electricalModelVersion": 1,
+          "modelProfileId": "piezo-enclosed-audio",
+          "modelProfileVersion": 2
+        },
+        {
+          "componentTypeId": "pir-sensor",
+          "electricalModelId": "pir-motion-sensor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "pir-digital-motion-v1",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "potentiometer",
+          "electricalModelId": "potentiometer",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-potentiometer",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "regulated-power-supply",
+          "electricalModelId": "regulated-dc-supply",
+          "electricalModelVersion": 1,
+          "modelProfileId": "asa-bench-supply-30v-5a",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "resistor-axial",
+          "electricalModelId": "resistor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "axial-resistor",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "rgb-led",
+          "electricalModelId": "rgb-led",
+          "electricalModelVersion": 1,
+          "modelProfileId": "four-pin-rgb-led-independent-junctions",
+          "modelProfileVersion": 2
+        },
+        {
+          "componentTypeId": "servo-motor",
+          "electricalModelId": "servo-motor-signal",
+          "electricalModelVersion": 1,
+          "modelProfileId": "servo-pulse-angle-v1",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "seven-segment-display",
+          "electricalModelId": "seven-segment",
+          "electricalModelVersion": 1,
+          "modelProfileId": "single-digit-seven-segment-10pin",
+          "modelProfileVersion": 2
+        },
+        {
+          "componentTypeId": "signal-generator",
+          "electricalModelId": "function-generator",
+          "electricalModelVersion": 1,
+          "modelProfileId": "asa-function-generator-1mhz",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "soil-moisture-sensor",
+          "electricalModelId": "resistive-soil-sensor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "asa-resistive-soil-divider",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "switch-spdt",
+          "electricalModelId": "spdt-switch",
+          "electricalModelVersion": 1,
+          "modelProfileId": "slide-switch-spdt",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "switch-spst",
+          "electricalModelId": "spst-switch",
+          "electricalModelVersion": 1,
+          "modelProfileId": "slide-switch-spst",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "temperature-sensor",
+          "electricalModelId": "analog-temperature-sensor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "tmp36-to92-dc",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "transistor-fet",
+          "electricalModelId": "n-channel-fet",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-n-channel-fet-to92",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "transistor-npn",
+          "electricalModelId": "npn-transistor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-npn-to92",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "transistor-pnp",
+          "electricalModelId": "pnp-transistor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "generic-pnp-to92",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "ultrasonic-hc-sr04",
+          "electricalModelId": "hc-sr04-distance-sensor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "hc-sr04-canonical-echo-v1",
+          "modelProfileVersion": 2
+        },
+        {
+          "componentTypeId": "ultrasonic-sensor",
+          "electricalModelId": "ping-ultrasonic-distance-sensor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "ping-3pin-canonical-echo-v1",
+          "modelProfileVersion": 1
+        },
+        {
+          "componentTypeId": "vibration-motor",
+          "electricalModelId": "dc-motor",
+          "electricalModelVersion": 1,
+          "modelProfileId": "precision-microdrives-310-101-3v",
+          "modelProfileVersion": 1
+        }
+      ]
+    }
+  },
+  "coldReadinessBudget": "NOT_CHECKED: this bounded package measures warm Stop editing"
+}

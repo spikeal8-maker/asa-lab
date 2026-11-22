@@ -140,7 +140,7 @@ function harness(options: { faults?: Fault[]; ci?: boolean; ambiguous?: boolean 
       if (location === '/pure-evidence') fail('evidence_prepare_error');
     },
     writeFile: async (location: string, data: string) => {
-      if (location.endsWith('/native-zoom-trace-ownership.json')) {
+      if (path.basename(location) === 'native-zoom-trace-ownership.json') {
         record('trace.receipt', location, data);
         fail('trace_receipt_error');
         if (faults.has('trace_receipt_pending')) await pending();

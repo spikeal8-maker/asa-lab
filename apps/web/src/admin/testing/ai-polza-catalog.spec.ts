@@ -80,6 +80,30 @@ it('keeps an incompatible catalogue visible as an error instead of crashing or g
   expect(host.querySelector('[role=alert]')?.textContent).toContain('Несовместимый');
   expect(host.querySelector('input[type=checkbox]')).toBeNull();
 });
+it('selects one voice model while preserving the selected chat models', async () => {
+  const first = { ...item, id: 'polza/first', label: 'First STT', kind: 'stt', selected: true };
+  const second = { ...first, id: 'polza/second', label: 'Second STT', selected: false };
+  vi.mocked(call).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { ...catalog, items: [{ ...item, selected: true }, first, second] },
+  });
+  await act(async () =>
+    root.render(createElement(AdminPolzaCatalog, { connection: true, onAccessDenied: vi.fn() })),
+  );
+  const button = (label: string) =>
+    [...host.querySelectorAll('button')].find((candidate) => candidate.textContent === label)!;
+  await act(async () => button('Транскрибация').click());
+  expect(host.textContent).toContain('Модель голосового ввода');
+  const [firstBox, secondBox] = host.querySelectorAll<HTMLInputElement>('input[type=checkbox]');
+  await act(async () => secondBox!.click());
+  expect(firstBox!.checked).toBe(false);
+  expect(secondBox!.checked).toBe(true);
+  await act(async () => button('Сохранить выбор моделей').click());
+  expect(vi.mocked(call).mock.calls[1]?.[1]?.body).toBe(
+    JSON.stringify({ version: 4, ids: [item.id, second.id] }),
+  );
+});
 it.each(['image', 'stt', 'video'] as const)('shows only %s models in its section', async (kind) => {
   vi.mocked(call).mockResolvedValue({
     ok: true,

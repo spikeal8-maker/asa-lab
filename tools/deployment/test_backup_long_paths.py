@@ -55,8 +55,24 @@ class BackupLongPathTests(unittest.TestCase):
             runtime = {"revision": "a" * 40, "schema": 304}
             records = {name: {"id": name, "image": "image-" + name, "running": True}
                        for name in ("postgres", "minio", "api", "web")}
+            records["api"]["mounts"] = [
+                {"Destination": "/var/lib/asa-logs", "Source": "/fixture/logs"},
+                {"Destination": "/var/lib/asa-application-logs", "Name": "fixture_application_logs"},
+            ]
             commands = []
             streamed_dumps = []
+            reads = 0
+            replace_mount = False
+
+            def identity():
+                nonlocal reads
+                reads += 1
+                if reads % 2 == 1:
+                    return records
+                mounts = records["api"]["mounts"][::-1]
+                if replace_mount:
+                    mounts[0] = {**mounts[0], "Name": "unexpected_application_logs"}
+                return {**records, "api": {**records["api"], "mounts": mounts}}
 
             def compose(*args, **kwargs):
                 commands.append(args)
@@ -69,23 +85,33 @@ class BackupLongPathTests(unittest.TestCase):
                 return ""
 
             def docker(args, **kwargs):
-                if args[:2] == ["docker", "cp"]:
-                    objects = Path(args[-1])
-                    if os.name == "nt":
-                        self.assertTrue(str(objects).startswith("\\\\?\\"))
-                    target = objects.parent / member
-                    target.parent.mkdir(parents=True)
-                    target.write_bytes(payload)
+                self.assertEqual(args[:3], ["docker", "inspect", "--format"])
                 return "sha256:" + "f" * 64
+
+            def copy_objects(_, record, partial):
+                self.assertEqual(record["id"], "minio")
+                if os.name == "nt":
+                    self.assertTrue(str(partial).startswith("\\\\?\\"))
+                (partial / "database.dump").write_bytes(b"PGDMP-fixture")
+                target = partial / member
+                target.parent.mkdir(parents=True)
+                target.write_bytes(payload)
 
             install = SimpleNamespace(root=root, state=state, settings={}, files=[],
                 env={"ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000",
                      "POSTGRES_DB": "fixture", "POSTGRES_USER": "fixture_admin"},
                 project="asa-lab-backup-fixture", profile="production",
-                identity=lambda: records, readiness=lambda: runtime, compose=compose,
+                identity=identity, readiness=lambda: runtime, compose=compose,
                 wait_ready=lambda *args: None)
-            with patch.object(backup, "run", docker), patch.object(backup, "privileges", return_value=[]):
+            with (patch.object(backup, "run", docker),
+                  patch.object(backup, "copy_online_objects", copy_objects),
+                  patch.object(backup, "privileges", return_value=[])):
                 completed = backup._export_backup(install, str(destination))
+                replace_mount = True
+                with self.assertRaises(Blocked) as changed:
+                    backup._export_backup(install, str(destination))
+                self.assertEqual(changed.exception.code, "BACKUP_RUNTIME_CHANGED")
+                self.assertEqual(list(completed.parent.iterdir()), [completed])
 
             # Simulate a later CLI invocation with an ordinary unprefixed path.
             plain = str(completed)
@@ -98,15 +124,14 @@ class BackupLongPathTests(unittest.TestCase):
             self.assertEqual(inventory_files(plain), manifest["files"])
             self.assertTrue(all("\\" not in name and not name.startswith("/")
                                 for name in manifest["files"]))
-            self.assertIn(("stop", "web", "api", "minio"), commands)
-            self.assertIn(("start", "web", "api", "minio"), commands)
+            self.assertFalse(any(command[0] in {"stop", "start"} for command in commands))
             self.assertFalse((state / "maintenance.json").exists())
             target = completed / member
             self.assertEqual(safe_member(completed, member), target)
             with patch.object(backup, "privileges", return_value=[]), \
                     patch.object(backup, "plan_restore_toc", return_value="fixture TOC"):
                 backup.restore_check(install, plain, "asa_path_restore_test")
-            self.assertEqual(streamed_dumps, [b"PGDMP-fixture", b"PGDMP-fixture"])
+            self.assertEqual(streamed_dumps, [b"PGDMP-fixture"])
             unexpected = target.with_name("unexpected")
             unexpected.write_bytes(b"extra")
             with self.assertRaises(Blocked) as failure:

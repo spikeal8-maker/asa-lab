@@ -1,3 +1,5 @@
+import { sendTaskImage } from './learning-task-image.js';
+import { isLearningTaskFileContentType } from './learning-file-transport.js';
 import {
   Body,
   Controller,
@@ -385,11 +387,7 @@ export class AssignmentsController {
     const row = result.rows[0] as
       { image_bytes: Buffer; image_content_type: string; content_hash: string } | undefined;
     if (!row) throw new HttpException(error('image_not_found', 'Изображение недоступно.'), 404);
-    return reply
-      .header('content-type', row.image_content_type)
-      .header('cache-control', 'private, no-store')
-      .header('etag', `"${row.content_hash}"`)
-      .send(row.image_bytes);
+    return sendTaskImage(request, reply, row.image_bytes, row.image_content_type, row.content_hash);
   }
 
   /** PDF bytes only for a signed-in learner with a readable exact pinned run. */
@@ -407,11 +405,12 @@ export class AssignmentsController {
          FROM learning_task_file_for_viewer($1,$2,$3,$4)`,
       [contentHash, viewer.tenantId, viewer.accountId, viewer.seatId],
     );
-    const row = result.rows[0] as { file_bytes: Buffer } | undefined;
-    if (!row) throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
+    const row = result.rows[0] as { file_bytes: Buffer; content_type: string } | undefined;
+    if (!row || !isLearningTaskFileContentType(row.content_type))
+      throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
     return reply
-      .header('content-type', 'application/pdf')
-      .header('content-disposition', 'attachment; filename="material.pdf"')
+      .header('content-type', row.content_type)
+      .header('content-disposition', 'attachment')
       .header('x-content-type-options', 'nosniff')
       .header('cache-control', 'private, no-store')
       .send(row.file_bytes);

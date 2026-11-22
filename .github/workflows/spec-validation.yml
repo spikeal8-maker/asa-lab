@@ -380,6 +380,29 @@ jobs:
           Path('/etc/apt/apt.conf.d/80-asa-browser-network').write_text(
               'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "1";\n')
           PY
+      - name: Use the Ubuntu archive in the runner mirror list
+        run: |
+          # APT mirror+file sources load the real URIs from this separate list.
+          ubuntu_mirror_list=/etc/apt/apt-mirrors.txt
+          if [ ! -f "$ubuntu_mirror_list" ]; then
+            exit 0
+          fi
+          for ubuntu_archive in \
+            https://archive.ubuntu.com/ubuntu \
+            https://us.archive.ubuntu.com/ubuntu \
+            https://mirrors.edge.kernel.org/ubuntu
+          do
+            if probe_status=$(sudo curl --fail --silent --head --output /dev/null \
+              --write-out '%{http_code}' --connect-timeout 3 --max-time 5 \
+              "$ubuntu_archive/dists/noble/InRelease") && [ "$probe_status" = 200 ]; then
+              sudo sed -E -i --follow-symlinks \
+                's#^([[:space:]]*)https?://azure\.archive\.ubuntu\.com/ubuntu([/[:space:]]|$)#\1'"$ubuntu_archive"'\2#' \
+                "$ubuntu_mirror_list"
+              echo "Using $ubuntu_archive for the runner mirror list."
+              exit 0
+            fi
+          done
+          echo "No Ubuntu archive responded to the probe. APT will use its configured mirrors."
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - name: Migrate isolated database and provision restricted runtime

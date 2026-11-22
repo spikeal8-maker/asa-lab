@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { call } from './api-call';
 import {
+  beginPortalMutation,
   invalidatePortalSession,
   onPortalMutation,
+  personalReadsPaused,
   portalAttentionRoute,
+  portalSessionEpoch,
   portalSessionKey,
   setPortalSessionKey,
 } from './portal-requests';
@@ -28,6 +31,80 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe('session mutation personal-read admission', () => {
+  it('keeps the fence until both session mutations settle and releases each hold once', () => {
+    const finishAuthor = beginPortalMutation('/api/capabilities/content-author/self-attest', {
+      method: 'POST',
+    });
+    const finishEducator = beginPortalMutation('/api/capabilities/educator/self-attest', {
+      method: 'POST',
+    });
+    try {
+      expect(personalReadsPaused()).toBe(true);
+      finishAuthor();
+      expect(personalReadsPaused()).toBe(true);
+      const epoch = portalSessionEpoch();
+      finishAuthor();
+      expect(portalSessionEpoch()).toBe(epoch);
+      expect(personalReadsPaused()).toBe(true);
+      finishEducator();
+      expect(personalReadsPaused()).toBe(false);
+    } finally {
+      finishAuthor();
+      finishEducator();
+    }
+  });
+
+  it('does not let an old session mutation release or invalidate a new session hold', () => {
+    setPortalSessionKey('read-fence:old');
+    const finishOld = beginPortalMutation('/api/capabilities/content-author/self-attest', {
+      method: 'POST',
+    });
+    setPortalSessionKey('read-fence:new');
+    expect(personalReadsPaused()).toBe(false);
+    const finishNew = beginPortalMutation('/api/capabilities/educator/self-attest', {
+      method: 'POST',
+    });
+    try {
+      const epoch = portalSessionEpoch();
+      finishOld();
+      expect(portalSessionEpoch()).toBe(epoch);
+      expect(personalReadsPaused()).toBe(true);
+      finishNew();
+      expect(personalReadsPaused()).toBe(false);
+    } finally {
+      finishOld();
+      finishNew();
+    }
+  });
+
+  it('releases personal reads after an aborted capability write without waiting for late transport', async () => {
+    const response = deferred<Response>();
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockReturnValue(response.promise));
+    const controller = new AbortController();
+    const mutation = call('/api/capabilities/content-author/self-attest', {
+      method: 'POST',
+      body: '{}',
+      signal: controller.signal,
+    });
+    try {
+      expect(personalReadsPaused()).toBe(true);
+      controller.abort();
+      expect(await mutation).toMatchObject({ ok: false, error: { code: 'auth_cancelled' } });
+      expect(personalReadsPaused()).toBe(false);
+      const epoch = portalSessionEpoch();
+      response.resolve(Response.json({ capability: 'content_author' }));
+      await settle();
+      expect(portalSessionEpoch()).toBe(epoch);
+      expect(personalReadsPaused()).toBe(false);
+    } finally {
+      controller.abort();
+      response.resolve(Response.json({}, { status: 500 }));
+      await mutation;
+    }
+  });
 });
 
 describe('portal GET admission', () => {

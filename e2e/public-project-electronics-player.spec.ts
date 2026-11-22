@@ -214,17 +214,21 @@ function circuit(mode: 'passive' | 'button' | 'blink' | 'blocks'): ElectronicsDo
   const source =
     mode === 'button'
       ? 'void setup(){pinMode(2,INPUT_PULLUP);pinMode(13,OUTPUT);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}delay(10);}'
-      : mode === 'blocks'
-        ? 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,LOW);delay(10);}'
-        : 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}';
+      : 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}';
   const components: SchematicComponent[] = [
     mode === 'passive'
       ? component('s', 'source', 'battery-holder-aa-2', 100, 100, 3, { cells: 2 })
-      : component('s', 'visual', 'arduino-uno', 80, 100, 5, {
-          arduinoSource: source,
-          arduinoCodeMode: mode === 'blocks' ? 'blocks' : 'text',
-          arduinoWorkspace: '',
-        }),
+      : component(
+          's',
+          'visual',
+          'arduino-uno',
+          80,
+          100,
+          5,
+          mode === 'blocks'
+            ? undefined
+            : { arduinoSource: source, arduinoCodeMode: 'text', arduinoWorkspace: '' },
+        ),
     component('r', 'resistor', 'resistor-axial', 520, 140, 330, {
       tolerancePercent: 5,
       resistanceUnit: 'Ом',
@@ -311,6 +315,71 @@ async function ledRaster(page: Page, label: string) {
   const png = PNG.sync.read(bytes);
   return { png, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
+test('saved empty Blockly program survives mounting and saving a circuit edit', async ({
+  page,
+}) => {
+  const document = circuit('blocks');
+  const savedProgram = {
+    arduinoSource:
+      '// Keep this exact saved sketch\r\nvoid setup(){pinMode(13,OUTPUT);}\r\nvoid loop(){digitalWrite(13,LOW);delay(10);}\r\n',
+    arduinoCodeMode: 'blocks',
+    arduinoWorkspace: '',
+  };
+  const fixture = await setup(page, {
+    ...document,
+    components: document.components.map((component) =>
+      component.id === 's' ? { ...component, stateProperties: savedProgram } : component,
+    ),
+  });
+  const assertSavedProgram = async (target: Page) => {
+    const response = await target.request.get('/api/projects/' + fixture.id);
+    expect(response.status()).toBe(200);
+    const { draft }: { draft: typeof fixture.draft } = await response.json();
+    const board = draft.document.components.find((component) => component.id === 's');
+    expect(board?.stateProperties).toEqual(savedProgram);
+    return draft;
+  };
+  const editor = '/projects/' + encodeURIComponent(fixture.id) + '/electronics/edit';
+  const code = page.locator('.workbench-pill.code');
+  const workspace = page.getByTestId('arduino-block-workspace');
+  const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+  const saveStatus = page.locator('.workbench-main');
+  await page.goto(editor);
+  await code.click();
+  await expect(workspace).toBeVisible();
+  expect((await assertSavedProgram(page)).revision).toBe(fixture.draft.revision);
+  if (await save.isEnabled()) {
+    await save.click();
+    await expect(saveStatus).toHaveAttribute('data-project-save-status', 'saved');
+  }
+  const beforeEdit = await assertSavedProgram(page);
+
+  await code.click();
+  const resistor = page
+    .getByTestId('schematic-component')
+    .and(page.locator('[data-component-id="r"]'));
+  await resistor.locator('.workbench-part').click();
+  await page.getByRole('button', { name: 'Удалить (Delete)', exact: true }).click();
+  await expect(resistor).toHaveCount(0);
+  await code.click();
+  await expect(workspace).toBeVisible();
+  await save.click();
+  await expect(saveStatus).toHaveAttribute('data-project-save-status', 'saved');
+  const afterSave = await assertSavedProgram(page);
+  expect(afterSave.revision).toBeGreaterThan(beforeEdit.revision);
+  expect(afterSave.document.components.map(({ id }) => id)).toEqual(['s', 'l']);
+
+  const reopened = await page.context().newPage();
+  try {
+    await reopened.goto(editor);
+    await reopened.locator('.workbench-pill.code').click();
+    await expect(reopened.getByTestId('arduino-block-workspace')).toBeVisible();
+    expect((await assertSavedProgram(reopened)).revision).toBe(afterSave.revision);
+  } finally {
+    await reopened.close();
+  }
+});
+
 for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
   test(`public native ${mode} simulation uses immutable source, real Worker, inputs and visible assets`, async ({
     page,
@@ -328,8 +397,11 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
       const fixture = await setup(page, circuit(mode));
       let draft = fixture.draft;
       if (mode === 'blocks') {
-        // Exercise the production Blockly serializer/generator once, rather than
-        // claiming a handwritten workspace or stale text is a generated sketch.
+        // An unused board gets its first program from the production Blockly editor.
+        const saved = draft.document.components[0]!.stateProperties;
+        expect(saved?.arduinoSource).toBeUndefined();
+        expect(saved?.arduinoWorkspace).toBeUndefined();
+        expect(saved?.arduinoCodeMode).toBeUndefined();
         await page.goto(`/projects/${encodeURIComponent(fixture.id)}/electronics/edit`);
         await expect(page.locator('.workbench-stage')).toBeVisible();
         await page.locator('.workbench-pill.code').click();

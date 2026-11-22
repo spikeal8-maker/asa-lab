@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import databaseContract from './database-diagnostic-contract.json';
 import {
   queryLogs,
+  errorTrend,
   exportLogs,
   readLogCatalog,
   type LogFilter,
@@ -42,6 +43,152 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('aligns error counts with Moscow hours, groups AI and robotics, and reports partial retention', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-error-trend-'));
+    try {
+      const row = (id: number, time: string, path: string, level = 'error') => ({
+        id: id.toString(16).padStart(64, '0'),
+        time,
+        source: 'api',
+        module: 'portal',
+        level,
+        message: JSON.stringify({ path }),
+        requestId: null,
+        revision: null,
+        origin: 'stdout',
+        truncated: false,
+      });
+      const robotics = row(2, '2026-11-11T17:12:00.000Z', '/api/robotics/projects');
+      const containerExit = {
+        kind: 'container_state',
+        service: 'api',
+        Status: 'exited',
+        ExitCode: 0,
+        OOMKilled: false,
+      };
+      const rows = [
+        row(1, '2026-11-11T16:35:00.000Z', '/api/ai/chat'),
+        robotics,
+        robotics,
+        {
+          ...row(4, '2026-11-11T17:13:00.000Z', '/'),
+          source: 'metrics',
+          origin: 'provider:comfyui',
+        },
+        {
+          ...row(5, '2026-11-11T17:14:00.000Z', '/'),
+          message: JSON.stringify(containerExit),
+        },
+        {
+          ...row(6, '2026-11-11T17:14:01.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, ExitCode: 1 }),
+        },
+        {
+          ...row(7, '2026-11-11T17:14:02.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, OOMKilled: true }),
+        },
+        {
+          ...row(8, '2026-11-11T17:14:03.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, health: 'unhealthy' }),
+        },
+        {
+          ...row(9, '2026-11-11T17:14:04.000Z', '/'),
+          message: JSON.stringify({ ...containerExit, Status: 'running', health: 'unhealthy' }),
+        },
+        {
+          ...row(10, '2026-11-11T17:14:05.000Z', '/api/projects/draft'),
+          message: JSON.stringify({
+            kind: 'http_response',
+            status: 502,
+            path: '/api/projects/draft',
+          }),
+        },
+        row(3, '2026-11-11T17:15:00.000Z', '/api/robotics/projects', 'warn'),
+        {
+          ...row(11, '2026-11-11T17:16:00.000Z', '/'),
+          source: 'postgres',
+          message: '2026-11-11 17:16:00 UTC [15] ERROR:  quality stream conflict',
+        },
+        {
+          ...row(12, '2026-11-11T17:16:01.000Z', '/'),
+          source: 'postgres',
+          message: '2026-11-11 17:16:01 UTC [15] ERROR:  deadlock detected',
+        },
+      ];
+      const raw = rows.map((event) => JSON.stringify(event)).join('\n') + '\n';
+      const file = 'seg-0000000000000001-0000000000000012.jsonl';
+      await writeFile(join(root, file), raw);
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [],
+          collectedAt: '2026-11-11T17:20:00.000Z',
+          segments: [
+            {
+              file,
+              bytes: Buffer.byteLength(raw),
+              count: rows.length,
+              first: rows[0]!.time,
+              last: rows.at(-1)!.time,
+            },
+            {
+              file: 'seg-0000000000000013-0000000000005000.jsonl',
+              schema: 2,
+              sha256: 'a'.repeat(64),
+              bytes: 4 * 1024 * 1024,
+              rawBytes: 4 * 1024 * 1024,
+              count: 4990,
+              first: '2026-11-11T17:17:00.000Z',
+              last: '2026-11-11T17:19:00.000Z',
+              levels: ['info'],
+              sources: ['api'],
+            },
+          ],
+        }),
+      );
+      expect(
+        await errorTrend(root, {
+          from: '2026-11-11T16:15:00.000Z',
+          to: '2026-11-11T18:15:00.000Z',
+          bucketSeconds: 3600,
+        }),
+      ).toEqual({
+        coverage: 'partial',
+        from: rows[0]!.time,
+        to: '2026-11-11T17:20:00.000Z',
+        points: [
+          { at: '2026-11-11T16:00:00.000Z', counts: { ai: 1 } },
+          {
+            at: '2026-11-11T17:00:00.000Z',
+            counts: { robotics: 1, ai: 1, api: 3, projects: 1, diagnostics: 1, database: 1 },
+          },
+        ],
+      });
+      const journal = await queryLogs(
+        root,
+        { ...filter, from: rows[0]!.time, to: rows.at(-1)!.time },
+        20,
+      );
+      expect(journal.items).toContainEqual(
+        expect.objectContaining({ message: JSON.stringify(containerExit) }),
+      );
+      expect(journal.items).toContainEqual(
+        expect.objectContaining({
+          message: JSON.stringify({ ...containerExit, health: 'unhealthy' }),
+        }),
+      );
+      expect(
+        await errorTrend(root, {
+          from: rows[0]!.time,
+          to: '2026-11-11T17:20:00.000Z',
+          bucketSeconds: 3600,
+        }),
+      ).toMatchObject({ coverage: 'partial' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('leaves unknown optional required-coverage metadata unknown without breaking legacy queries', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-required-reader-'));
     try {

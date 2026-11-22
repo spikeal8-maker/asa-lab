@@ -75,6 +75,7 @@ const manifest = {
     'Complete Quiz Course: inline eight-type author, exact versions, Seat and Account saved answers, automatic and manual journal at four widths',
   ],
   'learning-surface-convergence.spec.ts': [
+    'teacher issues the first assignment from the class on a small screen and finds it in the journal',
     'legacy, revision and selected-result semantics stay equal across learner and teacher surfaces',
   ],
   'learning-teacher-assigns-activity.spec.ts': [
@@ -370,7 +371,7 @@ function execution(report, destination, expected) {
 }
 
 function main() {
-  // CI executes the complete 32 + 16 + 1 identity matrix in three isolated jobs.
+  // CI executes the complete 32 + 17 + 1 identity matrix in three isolated jobs.
   // Local invocation without a phase retains the exact original all-cases behavior.
   const phase = process.env.LEARNING_E1_BATCH ?? 'all';
   check(
@@ -574,7 +575,7 @@ function main() {
         status: firstExitCode === null ? 'NOT_RUN' : firstExitCode ? 'FAIL' : 'PASS',
       },
       second: {
-        cases: 16,
+        cases: second.length,
         exitCode: secondExitCode,
         status: secondExitCode === null ? 'NOT_RUN' : secondExitCode ? 'FAIL' : 'PASS',
       },

@@ -23,7 +23,8 @@ function document(): RoboticsWorldDocument {
           headingRadians: Math.PI / 6,
         },
       ],
-      balls: [createRoboticsBall('ball-1', { xMeters: 0.8, yMeters: 0.9 })],
+      // Keep the authored sample clear of the now-centered robot (0.9, 0.9).
+      balls: [createRoboticsBall('ball-1', { xMeters: 0.8, yMeters: 1.2 })],
       floorMarks: [
         createRoboticsFloorMark('line', 'line-1', { xMeters: 0.2, yMeters: 0.25 }),
         createRoboticsFloorMark('area', 'area-1', { xMeters: 0.6, yMeters: 1.2 }),

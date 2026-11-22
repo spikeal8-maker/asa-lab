@@ -329,7 +329,7 @@ export function AssignmentLibraryPage({
 
       {/* Три ответа на три разных вопроса: что у меня есть, в каком порядке я
           это даю и что есть у коллег. */}
-      <nav className="library-tabs" aria-label="Разделы курсов и заданий">
+      <nav className="library-tabs asa-system-tabs" aria-label="Разделы курсов и заданий">
         <button
           type="button"
           className={tab === 'materials' ? 'is-active' : undefined}

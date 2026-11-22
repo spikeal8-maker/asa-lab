@@ -1,4 +1,5 @@
 import { CheckersNetworkController } from './checkers-network.controller.js';
+import { PersonalProgressController } from './personal-progress.controller.js';
 import { PublicationCommentsController } from './publication-comments.controller.js';
 import { ChessNetworkController } from './chess-network.controller.js';
 import { AiImageService } from './ai-image.service.js';
@@ -268,6 +269,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        PersonalProgressController,
         CrmUserController,
         CrmResponsibilitiesController,
         EmailController,

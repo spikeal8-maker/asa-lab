@@ -91,6 +91,21 @@ export type RoboticsFloorMark = RoboticsMarkGroup &
         readonly color: string;
       }
   );
+/** Purely visual 2-D annotations. They do not participate in physical collisions. */
+export interface RoboticsFieldDecoration extends RoboticsPoint {
+  readonly id: string;
+  readonly label?: string;
+  readonly kind: 'rectangle' | 'circle' | 'text' | 'image';
+  readonly widthMeters: number;
+  readonly heightMeters: number;
+  readonly strokeColor: string;
+  readonly fillColor: string;
+  readonly fillEnabled: boolean;
+  readonly rotationRadians?: number;
+  readonly text?: string;
+  /** Browser-resized PNG/JPEG/WebP data only; small enough for account project saves. */
+  readonly imageData?: string;
+}
 export type RoboticsCurveMark = Extract<RoboticsFloorMark, { readonly kind: 'curve' }>;
 export type RoboticsObjectKey =
   | 'robot'
@@ -98,7 +113,8 @@ export type RoboticsObjectKey =
   | `ball:${string}`
   | `body:${string}`
   | `mark:${string}`
-  | `mark-group:${string}`;
+  | `mark-group:${string}`
+  | `decoration:${string}`;
 
 export interface RoboticsWorldDocument {
   readonly physicsProfile:
@@ -111,6 +127,7 @@ export interface RoboticsWorldDocument {
     readonly obstacles: readonly RoboticsRectObstacle[];
     readonly balls: readonly RoboticsBall[];
     readonly floorMarks: readonly RoboticsFloorMark[];
+    readonly visuals?: readonly RoboticsFieldDecoration[];
     readonly bodies?: readonly RoboticsBody[];
     readonly surface?: RoboticsFieldSurface;
     readonly tiles?: { readonly enabled: boolean; readonly sizeMeters: number };
@@ -167,8 +184,8 @@ export const ROBOTICS_BALL_LIMITS = {
 
 export const ROBOTICS_BODY_LIMITS = {
   radiusMeters: { min: 0.02, max: 0.25 },
-  widthMeters: { min: 0.04, max: 0.6 },
-  depthMeters: { min: 0.04, max: 0.6 },
+  widthMeters: { min: 0.02, max: 0.6 },
+  depthMeters: { min: 0.02, max: 0.6 },
   heightMeters: { min: 0.01, max: 1 },
   massKg: { min: 0.01, max: 5 },
   slidingFrictionCoefficient: { min: 0, max: 1 },
@@ -207,9 +224,11 @@ export const ROBOTICS_SCENE_LIMITS = {
   bodies: 12,
   dynamicBodies: 12,
   floorMarks: 48,
+  visuals: 32,
 } as const;
 
 export const ROBOTICS_FIELD_PRESETS = [
+  { id: 'arena', label: 'Основное поле · 5 × 5 м', widthMeters: 5, heightMeters: 5 },
   { id: 'compact', label: 'Компактное · 1,2 × 1,2 м', widthMeters: 1.2, heightMeters: 1.2 },
   { id: 'practice', label: 'Учебное · 1,8 × 1,8 м', widthMeters: 1.8, heightMeters: 1.8 },
   { id: 'wide', label: 'Большое · 2,4 × 2,0 м', widthMeters: 2.4, heightMeters: 2 },
@@ -279,6 +298,7 @@ export function nextRoboticsObjectId(world: RoboticsWorldDocument, prefix: strin
       ...world.field.balls,
       ...(world.field.bodies ?? []),
       ...world.field.floorMarks,
+      ...(world.field.visuals ?? []),
     ].map(({ id }) => id),
   );
   for (const mark of world.field.floorMarks) if (mark.groupId) occupied.add(mark.groupId);
@@ -303,10 +323,12 @@ export function createRoboticsWorldDocument(
       obstacles: [
         {
           id: 'barrier',
-          xMeters: preset.widthMeters - 0.2,
-          yMeters: preset.heightMeters * 0.35,
+          // Keep the robot centered and the obstacle in front of its HC-SR04.
+          // Compact 1.2-m fields have less than 0.6 m of space ahead of a centered robot.
+          xMeters: Math.min(preset.widthMeters - 0.14, preset.widthMeters / 2 + 0.9),
+          yMeters: preset.heightMeters / 2 - 0.27,
           widthMeters: 0.08,
-          heightMeters: preset.heightMeters * 0.3,
+          heightMeters: 0.54,
           headingRadians: 0,
         },
       ],
@@ -323,7 +345,11 @@ export function createRoboticsWorldDocument(
       sensorLateralMeters: 0,
       sensorHeadingRadians: 0,
     },
-    initialPose: { xMeters: 0.25, yMeters: preset.heightMeters / 2, headingRadians: 0 },
+    initialPose: {
+      xMeters: preset.widthMeters / 2,
+      yMeters: preset.heightMeters / 2,
+      headingRadians: 0,
+    },
     bindings: {
       boardId: 'uno',
       leftMotorId: 'left-motor',
@@ -406,11 +432,11 @@ export function createRoboticsBody(
     return {
       ...common,
       kind,
-      label: 'Деревянный брусок',
-      widthMeters: 0.12,
-      depthMeters: 0.08,
-      heightMeters: 0.04,
-      massKg: 0.15,
+      label: 'Кубик',
+      widthMeters: 0.03,
+      depthMeters: 0.03,
+      heightMeters: 0.03,
+      massKg: 0.02,
       slidingFrictionCoefficient: 0.3,
     };
   throw new Error('Неизвестный предмет.');
@@ -618,6 +644,76 @@ export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocume
       heightMeters: bounded(mark.heightMeters, 'высота зоны', 0.02, heightMeters),
     };
   });
+  const visuals =
+    field.visuals === undefined
+      ? undefined
+      : collection(field.visuals, ROBOTICS_SCENE_LIMITS.visuals, 'рисунки и изображения').map(
+          (value): RoboticsFieldDecoration => {
+            const visual = record(value, 'графический элемент');
+            if (!['rectangle', 'circle', 'text', 'image'].includes(String(visual.kind)))
+              throw new Error('Неизвестный тип графического элемента.');
+            const kind = visual.kind as RoboticsFieldDecoration['kind'];
+            const shape = {
+              id: objectId(visual.id),
+              ...label(visual.label),
+              kind,
+              ...point(visual, 'графический элемент'),
+              widthMeters: bounded(visual.widthMeters, 'ширина элемента', 0.02, widthMeters),
+              heightMeters: bounded(visual.heightMeters, 'высота элемента', 0.02, heightMeters),
+              strokeColor: String(visual.strokeColor),
+              fillColor: String(visual.fillColor),
+              fillEnabled: visual.fillEnabled === true,
+              rotationRadians: bounded(
+                visual.rotationRadians ?? 0,
+                'поворот элемента',
+                -Math.PI,
+                Math.PI,
+              ),
+            };
+            if (
+              !/^#[0-9a-fA-F]{6}$/.test(shape.strokeColor) ||
+              !/^#[0-9a-fA-F]{6}$/.test(shape.fillColor) ||
+              typeof visual.fillEnabled !== 'boolean'
+            )
+              throw new Error('Некорректные параметры цвета или заливки.');
+            if (
+              shape.xMeters + shape.widthMeters > widthMeters + 1e-8 ||
+              shape.yMeters + shape.heightMeters > heightMeters + 1e-8
+            )
+              throw new Error('Графический элемент выходит за границы поля.');
+            if (kind === 'circle' && Math.abs(shape.widthMeters - shape.heightMeters) > 1e-8)
+              throw new Error('Для окружности ширина и высота должны совпадать.');
+            if (kind === 'text') {
+              if (
+                typeof visual.text !== 'string' ||
+                visual.text.trim().length === 0 ||
+                visual.text.length > 120 ||
+                Array.from(visual.text).some((character) => {
+                  const code = character.charCodeAt(0);
+                  return code <= 8 || code === 11 || (code >= 14 && code <= 31);
+                })
+              )
+                throw new Error('Надпись должна содержать от 1 до 120 символов.');
+              return { ...shape, text: visual.text };
+            }
+            if (kind === 'image') {
+              if (
+                typeof visual.imageData !== 'string' ||
+                visual.imageData.length > 240_000 ||
+                !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(
+                  visual.imageData,
+                )
+              )
+                throw new Error('Картинка должна быть PNG, JPEG или WebP до 180 КБ.');
+              return { ...shape, imageData: visual.imageData };
+            }
+            return shape;
+          },
+        );
+  const embeddedImageLength =
+    visuals?.reduce((sum, visual) => sum + (visual.imageData?.length ?? 0), 0) ?? 0;
+  if (embeddedImageLength > 480_000)
+    throw new Error('Общий размер картинок поля превышает 360 КБ. Уменьшите изображения.');
   const bodies: RoboticsBody[] = extended
     ? collection(field.bodies, ROBOTICS_SCENE_LIMITS.bodies, 'предметы').map((value) => {
         const body = record(value, 'предмет');
@@ -736,6 +832,7 @@ export function decodeRoboticsWorldDocument(value: unknown): RoboticsWorldDocume
       obstacles,
       balls,
       floorMarks,
+      ...(visuals ? { visuals } : {}),
       ...extraField,
     },
     robot: {

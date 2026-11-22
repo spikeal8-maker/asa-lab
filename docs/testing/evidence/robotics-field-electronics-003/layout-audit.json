@@ -1,0 +1,174 @@
+{
+  "measurements": [
+    {
+      "section": "field",
+      "width": 1440,
+      "docWidth": 1440,
+      "panel": {
+        "left": 16,
+        "right": 1112,
+        "top": 54,
+        "bottom": 892
+      },
+      "toolbar": {
+        "left": 17,
+        "right": 1111,
+        "top": 55,
+        "bottom": 102
+      },
+      "fieldView": {
+        "left": 17,
+        "right": 1111,
+        "top": 102,
+        "bottom": 145
+      },
+      "history": {
+        "left": 215.5,
+        "right": 364.1,
+        "top": 108,
+        "bottom": 138
+      },
+      "bottomGap": 8
+    },
+    {
+      "section": "field",
+      "width": 1024,
+      "docWidth": 1024,
+      "panel": {
+        "left": 12,
+        "right": 742,
+        "top": 54,
+        "bottom": 892
+      },
+      "toolbar": {
+        "left": 13,
+        "right": 741,
+        "top": 55,
+        "bottom": 138
+      },
+      "fieldView": {
+        "left": 13,
+        "right": 741,
+        "top": 138,
+        "bottom": 181
+      },
+      "history": {
+        "left": 211.5,
+        "right": 360.1,
+        "top": 144,
+        "bottom": 174
+      },
+      "bottomGap": 8
+    },
+    {
+      "section": "field",
+      "width": 390,
+      "docWidth": 390,
+      "panel": {
+        "left": 12,
+        "right": 378,
+        "top": 92,
+        "bottom": 698
+      },
+      "toolbar": {
+        "left": 13,
+        "right": 377,
+        "top": 93,
+        "bottom": 170
+      },
+      "fieldView": {
+        "left": 13,
+        "right": 377,
+        "top": 170,
+        "bottom": 260
+      },
+      "history": {
+        "left": 201.5,
+        "right": 338.1,
+        "top": 178,
+        "bottom": 208
+      },
+      "bottomGap": 146
+    },
+    {
+      "section": "field",
+      "width": 320,
+      "docWidth": 320,
+      "panel": {
+        "left": 8,
+        "right": 312,
+        "top": 92,
+        "bottom": 714
+      },
+      "toolbar": {
+        "left": 9,
+        "right": 311,
+        "top": 93,
+        "bottom": 170
+      },
+      "fieldView": {
+        "left": 9,
+        "right": 311,
+        "top": 170,
+        "bottom": 260
+      },
+      "history": {
+        "left": 197.5,
+        "right": 269.5,
+        "top": 178,
+        "bottom": 208
+      },
+      "bottomGap": 130
+    },
+    {
+      "section": "electronics",
+      "width": 1440,
+      "docWidth": 1440,
+      "visibleToolbar": 1082,
+      "totalToolbar": 1082,
+      "top": 59.5,
+      "panelBottom": 123.5,
+      "stageTop": 123.5
+    },
+    {
+      "section": "electronics",
+      "width": 1024,
+      "docWidth": 1024,
+      "visibleToolbar": 716,
+      "totalToolbar": 716,
+      "top": 59.5,
+      "panelBottom": 123.5,
+      "stageTop": 123.5
+    },
+    {
+      "section": "electronics",
+      "width": 390,
+      "docWidth": 390,
+      "visibleToolbar": 354,
+      "totalToolbar": 613,
+      "top": 96,
+      "panelBottom": 175,
+      "stageTop": 175
+    },
+    {
+      "section": "electronics",
+      "width": 320,
+      "docWidth": 320,
+      "visibleToolbar": 292,
+      "totalToolbar": 613,
+      "top": 96,
+      "panelBottom": 175,
+      "stageTop": 175
+    }
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/7d40204f-e62d-4cde-9159-044862df493d"
+    }
+  ]
+}

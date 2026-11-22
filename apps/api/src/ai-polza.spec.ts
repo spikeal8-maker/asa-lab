@@ -27,12 +27,19 @@ function runtime(key = 'pza_example_for_testing_only') {
   };
 }
 
-function fakePool(run: (sql: string, values: unknown[]) => unknown) {
+function fakePool(run: (sql: string, values: unknown[]) => unknown, catalog = false) {
   const query = vi.fn(async (sql: string, values: unknown[] = []) => {
-    const value = await run(sql, values);
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] };
+    const value =
+      sql.includes('ai_polza_catalog_runtime') && !catalog
+        ? { credentialCurrent: false, items: [] }
+        : await run(sql, values);
     return { rows: Array.isArray(value) ? value : [{ value }] };
   });
-  return { pool: { query } as unknown as pg.Pool, query };
+  return {
+    pool: { query, connect: async () => ({ query, release: vi.fn() }) } as unknown as pg.Pool,
+    query,
+  };
 }
 
 describe('Polza encrypted connection and no-paid-check', () => {
@@ -105,38 +112,79 @@ describe('Polza encrypted connection and no-paid-check', () => {
 });
 
 describe('STT admission and request isolation', () => {
-  it('reserves quota before one paid transcription, with a fixed Russian model', async () => {
-    const source = runtime();
-    const actions: string[] = [];
-    const { pool } = fakePool((sql) => {
-      if (sql.includes('ai_polza_runtime')) return [source];
-      if (sql.includes('ai_polza_stt_admit')) {
-        actions.push('admitted');
-        return 20;
-      }
+  it.each([false, true])(
+    'uses the saved STT selection (configured: %s) after reserving quota',
+    async (selected) => {
+      const model = selected ? 'openai/whisper-1' : POLZA_STT_MODEL;
+      const source = runtime();
+      const actions: string[] = [];
+      const { pool } = fakePool((sql) => {
+        if (sql.includes('ai_polza_runtime')) return [source];
+        if (sql.includes('ai_polza_stt_admit')) {
+          actions.push('admitted');
+          return 20;
+        }
+        if (sql.includes('ai_polza_catalog_runtime'))
+          return {
+            credentialCurrent: true,
+            items: [{ kind: 'stt', active: true, selected: true, upstream: model }],
+          };
+        throw new Error('Unexpected SQL');
+      }, selected);
+      const provider = vi.fn(async (_url: string, init: RequestInit) => {
+        actions.push('sent');
+        const body = init.body as FormData;
+        expect(body.get('model')).toBe(model);
+        expect(body.get('language')).toBe('ru');
+        expect(body.get('file')).toBeInstanceOf(Blob);
+        return new Response(JSON.stringify({ text: 'Привет, ASA Lab.' }), { status: 200 });
+      });
+      const service = new AiPolzaService(pool, {
+        encryptionKey,
+        fetchImpl: provider as unknown as typeof fetch,
+        inspectDuration: async () => 8,
+      });
+      expect(await service.status()).toMatchObject({ enabled: true, model });
+      const result = await service.transcribe(actor, {
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 8,
+      });
+      expect(result).toEqual({ text: 'Привет, ASA Lab.', model });
+      expect(actions).toEqual(['admitted', 'sent']);
+    },
+  );
+
+  it('rolls back the pending admission when the saved voice model belongs to a stale key', async () => {
+    const { pool, query } = fakePool((sql) => {
+      if (sql.includes('ai_polza_runtime')) return [runtime()];
+      if (sql.includes('ai_polza_stt_admit')) return 20;
+      if (sql.includes('ai_polza_catalog_runtime'))
+        return {
+          credentialCurrent: false,
+          items: [{ kind: 'stt', active: true, selected: true, upstream: 'openai/whisper-1' }],
+        };
       throw new Error('Unexpected SQL');
-    });
-    const provider = vi.fn(async (_url: string, init: RequestInit) => {
-      actions.push('sent');
-      const body = init.body as FormData;
-      expect(body.get('model')).toBe(POLZA_STT_MODEL);
-      expect(body.get('language')).toBe('ru');
-      expect(body.get('file')).toBeInstanceOf(Blob);
-      return new Response(JSON.stringify({ text: 'Привет, ASA Lab.' }), { status: 200 });
-    });
+    }, true);
+    const provider = vi.fn();
     const service = new AiPolzaService(pool, {
       encryptionKey,
-      fetchImpl: provider as unknown as typeof fetch,
+      fetchImpl: provider,
       inspectDuration: async () => 8,
     });
-    const result = await service.transcribe(actor, {
-      requestId: randomUUID(),
-      audioBase64: sampleAudio,
-      mimeType: 'audio/webm',
-      durationSeconds: 8,
-    });
-    expect(result.text).toBe('Привет, ASA Lab.');
-    expect(actions).toEqual(['admitted', 'sent']);
+    expect(await service.status()).toMatchObject({ enabled: false, model: '' });
+    await expect(
+      service.transcribe(actor, {
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 8,
+      }),
+    ).rejects.toThrow('Модель распознавания речи недоступна.');
+    expect(query.mock.calls.map(([sql]) => sql)).toContain('ROLLBACK');
+    expect(query.mock.calls.map(([sql]) => sql)).not.toContain('COMMIT');
+    expect(provider).not.toHaveBeenCalled();
   });
 
   it('rejects forged container bytes before dispatch and does not consume the budget', async () => {
@@ -184,7 +232,7 @@ describe('STT admission and request isolation', () => {
         durationSeconds: 5,
       }),
     ).rejects.toMatchObject({ code: 'ai_polza_conflict', status: 409 });
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls.filter(([sql]) => sql.includes('ai_polza_stt_admit'))).toHaveLength(1);
     expect(upstream).not.toHaveBeenCalled();
   });
 

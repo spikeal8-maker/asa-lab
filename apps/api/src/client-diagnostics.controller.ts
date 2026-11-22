@@ -22,7 +22,7 @@ const CODES = new Set([
   'editor_unresponsive',
   'editor_recovered',
 ]);
-const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth']);
+const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth', 'chess', 'checkers']);
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const CATEGORIES = [
   'unsupported',

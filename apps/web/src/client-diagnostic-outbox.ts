@@ -146,7 +146,9 @@ function valid(value: unknown, now: number): value is Envelope {
         (v.lastOccurredAt as number) <= now + 60_000 &&
         (v.lastOccurredAt as number) - (v.firstOccurredAt as number) <= TTL)) &&
     DIAGNOSTIC_CODES.includes(v.code as (typeof DIAGNOSTIC_CODES)[number]) &&
-    ['portal', 'scratch', 'electronics', 'auth'].includes(v.module as string) &&
+    ['portal', 'scratch', 'electronics', 'auth', 'chess', 'checkers'].includes(
+      v.module as string,
+    ) &&
     typeof v.revision === 'string' &&
     /^(?:[a-f0-9]{7,64}|unknown|development)$/.test(v.revision) &&
     validRequestDetails(v) &&

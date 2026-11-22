@@ -26,6 +26,7 @@ export interface MutationAdmissionDiagnostics {
   readonly blockedBudget:
     | 'session'
     | 'shared_address'
+    | 'class_join_address'
     | 'anonymous_address'
     | 'new_proof_work'
     | 'pending_proofs'

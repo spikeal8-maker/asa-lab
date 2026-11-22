@@ -65,6 +65,17 @@ export interface ParticipantProfile {
     permitted: boolean;
   }>;
 }
+export interface ParticipantMeritHistory {
+  offset: number;
+  hasMore: boolean;
+  items: Array<{
+    eventId: number;
+    meritId: string;
+    title: string;
+    granted: boolean;
+    at: string;
+  }>;
+}
 export interface ParticipantWorks {
   totalWorks: number;
   visibleWorks: number;
@@ -179,6 +190,12 @@ export const participantsApi = {
   roster: (classId: string) => call<ParticipantRoster>(base(classId)),
   profile: (classId: string, seatId: string) =>
     call<ParticipantProfile>(`${base(classId)}/${encodeURIComponent(seatId)}/profile`),
+  meritHistory: (classId: string, seatId: string, offset = 0) =>
+    call<ParticipantMeritHistory>(
+      `${base(classId)}/${encodeURIComponent(seatId)}/merit-history?offset=${offset}`,
+    ),
+  seatMeritHistory: (offset = 0) =>
+    call<ParticipantMeritHistory>(`/api/class-join/participants/merit-history?offset=${offset}`),
   staff: (classId: string, accountId: string) =>
     call<ParticipantStaff>(`${base(classId)}/staff/${encodeURIComponent(accountId)}`),
   managers: (classId: string) =>

@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { PortalLink } from '../components/PortalLink';
-import { useSchoolTime } from '../components/school-time';
 import type { PublicProjectListView } from '../creator-portal/navigation';
 import { publicProjectsApi, type PublicProject } from './api';
-import { PublicationPreview } from './PublicationPreview';
-import { PublicAuthorAvatar } from './PublicAuthorAvatar';
+import { PublicProjectCard } from './PublicProjectCard';
 import { ProjectModuleIcon } from '../modules/ProjectModuleIcon';
-import { PUBLIC_PROJECT_MODULES, publicationHref, publicModuleName } from './presentation';
+import { PUBLIC_PROJECT_MODULES, publicModuleName } from './presentation';
 import './public-projects.css';
 
 const CATALOG_MODULES = [...PUBLIC_PROJECT_MODULES, { value: 'ai', label: 'ИИ' }];
@@ -31,7 +29,6 @@ export function PublicProjectsPage({
   const [loadingMore, setLoadingMore] = useState(false);
   const request = useRef(0);
   const moreRequest = useRef(false);
-  const time = useSchoolTime();
 
   const reload = useCallback(async () => {
     const current = ++request.current;
@@ -255,97 +252,11 @@ export function PublicProjectsPage({
       {items && items.length > 0 ? (
         <ul className="public-project-grid" data-testid="public-project-grid">
           {items.map((publication) => (
-            <li
+            <PublicProjectCard
               key={`${publication.publicationId}:${publication.revisionId}`}
-              className="public-project-card"
-              data-testid="public-project-card"
-            >
-              <PortalLink
-                className="public-project-card-link"
-                href={publicationHref(publication.publicationId)}
-                onNavigate={() => onOpen(publication.publicationId)}
-                aria-label={`Открыть проект «${publication.title}»`}
-              >
-                <div className="public-project-card-cover">
-                  <PublicationPreview publication={publication} />
-                  <div className="public-project-card-topline">
-                    <div className="public-project-card-identity" title={publication.authorLabel}>
-                      <PublicAuthorAvatar publication={publication} />
-                      <span className="public-project-author-caption">
-                        <span className="public-project-author">{publication.authorLabel}</span>
-                        <time
-                          className="public-project-card-date"
-                          dateTime={publication.publishedAt}
-                        >
-                          {time.date(publication.publishedAt)}
-                        </time>
-                      </span>
-                    </div>
-                    <span
-                      className="publication-module"
-                      data-module={publication.moduleKey}
-                      title={publicModuleName(publication.moduleKey)}
-                      aria-label={publicModuleName(publication.moduleKey)}
-                    >
-                      <ProjectModuleIcon moduleKey={publication.moduleKey} />
-                    </span>
-                  </div>
-                  <div className="public-project-card-marks">
-                    {publication.pinned ? (
-                      <span className="public-project-pinned" data-testid="public-project-pinned">
-                        Закреплено
-                      </span>
-                    ) : null}
-                    {publication.featured ? (
-                      <span
-                        className="public-project-featured"
-                        data-testid="public-project-featured"
-                      >
-                        ★ Выбор редакции
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="public-project-card-body">
-                    <h2 data-testid="public-project-card-title" title={publication.title}>
-                      {publication.title}
-                    </h2>
-                    <div className="public-project-card-meta">
-                      {typeof publication.copyCount === 'number' ? (
-                        <span
-                          aria-label={`${publication.copyCount} добавлений в свои проекты`}
-                          title="Добавили к себе"
-                        >
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            width="16"
-                            height="16"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                          >
-                            <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
-                          </svg>
-                          {publication.copyCount}
-                        </span>
-                      ) : null}
-                      <span aria-label={`${publication.likeCount ?? 0} нравится`}>
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 24 24"
-                          width="16"
-                          height="16"
-                          fill="currentColor"
-                        >
-                          <path d="M12 21 3.7 13A5.5 5.5 0 0 1 12 5.8 5.5 5.5 0 0 1 20.3 13Z" />
-                        </svg>
-                        {publication.likeCount ?? 0}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </PortalLink>
-            </li>
+              publication={publication}
+              onOpen={onOpen}
+            />
           ))}
         </ul>
       ) : null}

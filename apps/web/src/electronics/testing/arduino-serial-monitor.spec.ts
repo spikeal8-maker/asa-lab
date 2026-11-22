@@ -66,6 +66,27 @@ describe('Arduino real Serial Monitor', () => {
     expect(host!.textContent).toContain('Подключён');
   });
 
+  it('uses stream newlines to form rows across TX chunks', () => {
+    renderMonitor({
+      serial: projection('a', ['12', '34\n', '\n', 'hello', 'world\nlast', ' bit']),
+    });
+    const output = host!.querySelector('.arduino-serial-output')!;
+    expect(Array.from(output.children, (row) => row.textContent)).toEqual([
+      '1234\n',
+      '\n',
+      'helloworld\nlast bit',
+    ]);
+  });
+
+  it('keeps the DOM bounded for a full history of multiline TX entries', () => {
+    const chunk = '\n'.repeat(1024);
+    const texts = Array<string>(256).fill(chunk);
+    renderMonitor({ serial: projection('a', texts) });
+    const output = host!.querySelector('.arduino-serial-output')!;
+    expect(output.children).toHaveLength(texts.length);
+    expect(output.textContent).toBe(texts.join(''));
+  });
+
   it('sends RX without echoing user input into TX output', () => {
     const props = renderMonitor({ serial: projection('a', []) });
     const input = host!.querySelector(

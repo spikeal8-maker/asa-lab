@@ -34,3 +34,7 @@ apps/web/src/three-d/fonts/*.typeface.json
 # ESLint, strict TypeScript checks and focused tests; only reflow is suppressed.
 apps/web/src/electronics/production-manifest-adapter.ts
 apps/web/src/electronics/testing/production-assets.spec.ts
+
+# Vendored upstream picomatch runtime and bounded CVE-2026-112366 regression
+# code: preserve reviewed upstream bytes and the security-diff provenance.
+packages/picomatch-safe/

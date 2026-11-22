@@ -800,6 +800,7 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
   });
   const code = await createClassWithStudents(page, 'Класс Главной', [
     { label: 'Лена Главная', handle: 'home-lena' },
+    { label: 'Илья История', handle: 'home-ilya' },
   ]);
   const classId = page.url().split('/classrooms/')[1]!.split('?')[0]!;
   await openAssignments(page);
@@ -922,6 +923,95 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
     document: document.documentElement.scrollWidth,
   }));
   expect(width.document).toBeLessThanOrEqual(width.viewport);
+  const departing = await learnerAssignments(browser, code, 'home-ilya');
+  const rosterTab = await page.context().newPage();
+  try {
+    await departing.page
+      .getByTestId('seat-assignments')
+      .locator('li')
+      .filter({ hasText: title })
+      .getByRole('button', { name: 'Открыть', exact: true })
+      .click();
+    await editRealProject(departing.page, 'three-d');
+    await departing.page
+      .getByRole('button', { name: 'Отправить на проверку', exact: true })
+      .click();
+    await waitReviews(1);
+    const third = (await attention()).reviews[0]!;
+    expect(third.learnerName).toBe('Илья История');
+
+    const classUrl = '/#/classrooms/' + classId;
+    await page.goto(classUrl);
+    await page.getByRole('combobox', { name: 'Раздел класса', exact: true }).selectOption({
+      label: 'Журнал',
+    });
+    const dated = page.getByRole('region', { name: 'Ручной журнал', exact: true });
+    await expect(dated.getByRole('rowheader', { name: /Илья История/ })).toBeVisible();
+    await page
+      .getByRole('navigation', { name: 'Режим журнала' })
+      .getByRole('button', { name: 'Задания', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Ждут проверки: 1', exact: true }).click();
+    const queue = page.getByRole('region', { name: 'Работы на проверку' });
+    await queue.getByRole('button', { name: 'Проверить: ' + title + ' · Илья История' }).click();
+    const frozenVersion = detail.getByTestId('submission-version-id');
+    await expect(frozenVersion).toBeVisible();
+    const versionId = await frozenVersion.innerText();
+    await expect(
+      detail.getByRole('button', { name: 'Принять выполнение', exact: true }),
+    ).toBeEnabled();
+
+    await rosterTab.setViewportSize({ width: 1440, height: 900 });
+    await rosterTab.goto(classUrl);
+    const departingRow = rosterTab.getByRole('row').filter({ hasText: 'Илья История' });
+    await departingRow.getByRole('button', { name: 'Действия: Илья История', exact: true }).click();
+    const removal = rosterTab.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        new URL(response.url()).pathname ===
+          '/api/classrooms/' + classId + '/seats/' + third.seatId,
+    );
+    rosterTab.once('dialog', (dialog) => void dialog.accept());
+    await departingRow.getByRole('button', { name: 'Удалить из класса', exact: true }).click();
+    expect((await removal).ok()).toBe(true);
+    await expect(departingRow).toHaveCount(0);
+    await expect(rosterTab.getByRole('row').filter({ hasText: 'Лена Главная' })).toBeVisible();
+
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(detail).toBeHidden();
+    await expect(queue.getByText('Работ на проверку нет.')).toBeVisible();
+    await page.getByRole('button', { name: 'К таблице оценок', exact: true }).click();
+    await expect(page.getByRole('rowheader', { name: /Илья История/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Лена Главная · Практика/ })).toBeVisible();
+    await page.getByRole('button', { name: 'По датам', exact: true }).click();
+    await expect(dated.getByRole('rowheader', { name: /Лена Главная/ })).toBeVisible();
+    await expect(dated.getByRole('rowheader', { name: /Илья История/ })).toHaveCount(0);
+
+    // A saved history link and its exact frozen version are still available.
+    await page.goto(destination(third));
+    await expect(frozenVersion).toHaveText(versionId);
+    await expect(
+      detail.getByText('Ученик удалён из класса. Сдача доступна для просмотра.'),
+    ).toBeVisible();
+    await expect(
+      detail.getByRole('button', { name: 'Принять выполнение', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }),
+    ).toHaveCount(0);
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(frozenVersion).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      if (width === 1440 || width === 390)
+        await detail.screenshot({ path: evidenceDir + '/removed-seat-history-' + width + '.png' });
+    }
+  } finally {
+    await departing.context.close();
+    await rosterTab.close();
+  }
   failures.assertEmpty();
   await learner.context.close();
   await applicant.close();
@@ -2231,6 +2321,9 @@ test('Course Builder persists informational block structural controls into futur
     .click();
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  await expect(
+    page.getByText(`Курс «${courseTitle}» · v1 назначен классу.`, { exact: true }),
+  ).toBeVisible();
 
   await oldLearner.page.reload();
   await oldLearner.page
@@ -2344,6 +2437,9 @@ test('Course Builder persists informational block structural controls into futur
     .click();
   await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v2' });
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  await expect(
+    page.getByText(`Курс «${courseTitle}» · v2 назначен классу.`, { exact: true }),
+  ).toBeVisible();
 
   await newLearner.page.reload();
   await newLearner.page
@@ -4663,6 +4759,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   });
   await electronicsCell.click();
   const review = page.getByRole('region', { name: 'Проверка сдачи' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(review.getByLabel('Причина возврата или исправления')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `${evidenceDir}/nightlight-teacher-review-390.png` });
   const originalEvidenceId = await review.getByTestId('submission-version-id').innerText();
   await review
     .getByLabel('Причина возврата или исправления')
@@ -4673,6 +4773,8 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await threeDCell.click();
   await review.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
   await expect(threeDCell).toContainText('Выполнено');
+
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   const mixedStatus = await openCourse({ reloadAfterExternalChange: true });
   expect(occurrenceFromCourseRun(mixedStatus, electronicsTitle).canonicalState?.workflowState).toBe(

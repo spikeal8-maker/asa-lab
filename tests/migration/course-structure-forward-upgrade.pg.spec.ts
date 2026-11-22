@@ -186,6 +186,21 @@ describe('Course Builder structure forward upgrade', () => {
         '0314', // Polza video catalog category.
         '0315', // Polza catalog selections and dates.
         '0316', // Immutable learner file answers in class and Course assignments.
+        '0317', // Event-based admin attendance and Moscow calendar day.
+        '0318', // Operational overview with aligned Moscow intervals and measured activity.
+        '0319', // Function-local JIT at the measured canonical read boundaries.
+        '0320', // Authorized own progress summary; no identity or score writes.
+        '0321', // Qualified ordinary Account admission identity, preserving retained history.
+        '0322', // Learner-only group rating projection, retained Course history unchanged.
+        '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+        '0324', // Classroom merit history and revocation read (canonical main).
+        '0325', // Direct written assignments reuse the academic submission chain.
+        '0326', // Allow large PDF task attachments.
+        '0327', // Expand supported task attachment formats.
+        '0328', // Safe Mode blocks new publications and retroactive public reads.
+        '0329', // Dated journal corrections can omit a reason.
+        '0330', // Aggregate AI usage and new registrations over the dashboard window.
+        '0331', // Limit session revocation to the removed classroom seat.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -531,6 +546,21 @@ describe('Course Builder structure forward upgrade', () => {
           '0314', // Polza video catalog category.
           '0315', // Polza catalog selections and dates.
           '0316', // Immutable learner file answers in class and Course assignments.
+          '0317', // Event-based admin attendance and Moscow calendar day.
+          '0318', // Operational overview with aligned Moscow intervals and measured activity.
+          '0319', // Function-local JIT at the measured canonical read boundaries.
+          '0320', // Authorized own progress summary; no identity or score writes.
+          '0321', // Qualified ordinary Account admission identity, preserving retained history.
+          '0322', // Authorized learner-only group pages; retained Course history unchanged.
+          '0323', // Project duplicate origin and copy receipt boundary (canonical main).
+          '0324', // Classroom merit history and revocation read (canonical main).
+          '0325', // Direct written assignments reuse the academic submission chain.
+          '0326', // Allow large PDF task attachments.
+          '0327', // Expand supported task attachment formats.
+          '0328', // Safe Mode blocks new publications and retroactive public reads.
+          '0329', // Dated journal corrections can omit a reason.
+          '0330', // Aggregate AI usage and new registrations over the dashboard window.
+          '0331', // Limit session revocation to the removed classroom seat.
         ]);
         expect(
           await applyIsolatedTestPlan(

@@ -1,4 +1,6 @@
+import { EssayResponseEditor } from '../components/EssayResponseEditor';
 import { FileResponseEditor } from '../components/FileResponseEditor';
+import { QuizResponsePlayer } from '../components/QuizResponsePlayer';
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
@@ -291,7 +293,12 @@ export function AttendedClassesPage({
                 className={openId === assignment.id ? 'is-open' : undefined}
                 onClick={(event) => {
                   const target = event.target as HTMLElement;
-                  if (target.closest('button, a, input, label, .file-response')) return;
+                  if (
+                    target.closest(
+                      'button, a, input, label, textarea, .essay-response, .file-response, .quiz-player',
+                    )
+                  )
+                    return;
                   openAssignment(openId === assignment.id ? null : assignment.id);
                 }}
               >
@@ -359,9 +366,29 @@ export function AttendedClassesPage({
                           ) : null
                         }
                       />
+                      {assignment.activityKind === 'essay' &&
+                      assignment.activityRunId &&
+                      assignment.activityVersionId ? (
+                        <EssayResponseEditor
+                          key={assignment.activityRunId}
+                          activityRunId={assignment.activityRunId}
+                          activityVersionId={assignment.activityVersionId}
+                          onChanged={load}
+                          onRegisterLeaveGuard={registerFileGuard}
+                        />
+                      ) : null}
                       {assignment.activityKind === 'file' && assignment.activityRunId ? (
                         <FileResponseEditor
                           activityRunId={assignment.activityRunId}
+                          onChanged={load}
+                          onRegisterLeaveGuard={registerFileGuard}
+                        />
+                      ) : null}
+                      {assignment.activityKind === 'quiz' && assignment.activityRunId ? (
+                        <QuizResponsePlayer
+                          key={assignment.activityRunId}
+                          activityRunId={assignment.activityRunId}
+                          renderedTaskBlocks={assignment.blocks ?? null}
                           onChanged={load}
                           onRegisterLeaveGuard={registerFileGuard}
                         />
@@ -414,14 +441,27 @@ export function AttendedClassesPage({
                             : 'Сдать'}
                       </button>
                     </>
-                  ) : assignment.activityKind === 'file' && assignment.activityRunId ? (
+                  ) : assignment.activityKind === 'quiz' && assignment.activityRunId ? (
                     openId !== assignment.id ? (
                       <button
                         type="button"
                         className="portal-create-button"
                         onClick={() => openAssignment(assignment.id)}
                       >
-                        Открыть файловый ответ
+                        Открыть тест
+                      </button>
+                    ) : null
+                  ) : (assignment.activityKind === 'file' || assignment.activityKind === 'essay') &&
+                    assignment.activityRunId ? (
+                    openId !== assignment.id ? (
+                      <button
+                        type="button"
+                        className="portal-create-button"
+                        onClick={() => openAssignment(assignment.id)}
+                      >
+                        {assignment.activityKind === 'essay'
+                          ? 'Открыть письменный ответ'
+                          : 'Открыть файловый ответ'}
                       </button>
                     ) : null
                   ) : assignment.activityRunId ? (

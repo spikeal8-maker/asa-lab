@@ -54,6 +54,9 @@ function roboticsPreviewFigure(payload: RoboticsProject): ModulePreviewFigure {
       width: 0.3,
     });
 
+  // Decorative grid lines are lowest priority. Authored objects must not vanish
+  // from thumbnails merely because a 5-metre field needs more grid lines.
+  const gridShapeCount = shapes.length;
   for (const mark of field.floorMarks) {
     if (mark.kind === 'curve') {
       const point = (t: number) => ({
@@ -230,7 +233,12 @@ function roboticsPreviewFigure(payload: RoboticsProject): ModulePreviewFigure {
   return {
     viewBox: { width: x(field.widthMeters), height: x(field.heightMeters) },
     background: '#f8fbfd',
-    shapes: [...shapes.slice(0, MODULE_PREVIEW_SHAPE_LIMIT - robotShapes.length), ...robotShapes],
+    shapes: (() => {
+      const available = Math.max(0, MODULE_PREVIEW_SHAPE_LIMIT - robotShapes.length);
+      const authored = [shapes[0]!, ...shapes.slice(gridShapeCount)].slice(0, available);
+      const gridBudget = Math.max(0, available - authored.length);
+      return [...authored, ...shapes.slice(1, gridShapeCount).slice(0, gridBudget), ...robotShapes];
+    })(),
   };
 }
 

@@ -44,7 +44,10 @@ export function AssignLearningActivityDialog({
         result.data.items.filter(
           (item) =>
             item.currentPublishedVersionId === null &&
-            (item.kind === 'project' || item.kind === 'quiz' || item.kind === 'file'),
+            (item.kind === 'project' ||
+              item.kind === 'quiz' ||
+              item.kind === 'file' ||
+              item.kind === 'essay'),
         ),
       );
     });

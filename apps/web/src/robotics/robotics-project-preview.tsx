@@ -1,9 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import {
-  registerProjectSnapshotSource,
-  SNAPSHOT_WIDTH,
-  startProjectSnapshots,
-} from '../modules/project-snapshot';
+import { registerProjectSnapshotSource, SNAPSHOT_WIDTH } from '../modules/project-snapshot';
 import { rasteriseSvgStage } from '../modules/svg-snapshot';
 import { RobotField } from './RobotField';
 import type { RoboticsProject } from './robotics-project';
@@ -65,11 +61,9 @@ export function RoboticsProjectPreview({
       },
       revision,
     );
-    const stop = startProjectSnapshots(projectId);
-    return () => {
-      stop();
-      release();
-    };
+    // A preview is captured on explicit publication or exit only.
+    // Never start the shared 4-second/60-second background snapshot timer here.
+    return release;
   }, [projectId, getCurrentProject, getSavedRevision]);
   return (
     <div

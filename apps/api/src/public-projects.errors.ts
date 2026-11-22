@@ -30,6 +30,12 @@ export function throwPublicationError(cause: unknown): never {
         'Публикация изменилась. Откройте её заново.',
         409,
       );
+    case 'P5S01':
+      throw publicationError(
+        'classroom_safe_mode',
+        'Безопасный режим запрещает публикацию этой работы.',
+        403,
+      );
     case 'P5L01':
       throw publicationError(
         'learning_work_protected',

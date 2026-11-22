@@ -11,6 +11,8 @@ import process from 'node:process';
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
 const alias = {
+  '@asa-lab/electronics/rendering': resolve('contexts/electronics/rendering.ts'),
+  '@asa-lab/electronics/timed-state': resolve('contexts/electronics/timed-state.ts'),
   '@asa-lab/electronics/simulation': resolve('contexts/electronics/simulation.ts'),
   '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts'),
   '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
@@ -25,6 +27,8 @@ const opts = {
   define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{}' },
 };
 const before = process.argv.includes('--before');
+const streamBefore = process.argv.includes('--stream-layout-before');
+const streamLayout = streamBefore || process.argv.includes('--stream-layout');
 const serialBeginBefore = process.argv.includes('--serial-begin-before');
 const serialBeginOnly = serialBeginBefore || process.argv.includes('--serial-begin-only');
 if (serialBeginBefore)
@@ -99,13 +103,16 @@ window.fixture={scenario:name=>{current=scenario(name);running=true;window.probe
   },
 });
 const browser = await chromium.launch({ headless: true });
-const output = resolve('test-results/arduino-analog-serial');
+const output = resolve(
+  process.env.ARDUINO_SERIAL_EVIDENCE_DIR ?? 'test-results/arduino-analog-serial',
+  streamLayout ? (streamBefore ? 'stream-before' : 'stream-after') : '',
+);
 await mkdir(output, { recursive: true });
 const receipts = [];
 let activePage;
 let phase = 'initial';
 try {
-  for (const width of [1440, 390]) {
+  for (const width of streamLayout ? [1440, 1024, 390, 320] : [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     activePage = page;
     const errors = [];
@@ -116,11 +123,87 @@ try {
     await page.addStyleTag({
       content: await readFile('apps/web/src/electronics/workbench.css', 'utf8'),
     });
+    if (streamLayout) {
+      await page.locator('#app').evaluate((root) => {
+        root.classList.add('arduino-code-panel');
+        Object.assign(root.style, {
+          position: 'relative',
+          width: '100%',
+          minWidth: '0',
+          inset: 'auto',
+        });
+      });
+    }
     await page.addScriptTag({ content: ui.outputFiles[0].text });
     const wait = async () => {
       await page.evaluate(() => window.fixture.advance(9000));
       await page.waitForFunction(() => window.probe.horizon === 9000);
     };
+    if (streamLayout) {
+      const source =
+        'void setup(){Serial.begin(9600);Serial.print(12);Serial.println(34);Serial.println();Serial.print("hello");Serial.println("world");}void loop(){delay(100);}';
+      await page.evaluate((sketch) => window.fixture.start(false, sketch), source);
+      await wait();
+      const monitor = page.locator('.arduino-serial-output');
+      await page.waitForFunction(() =>
+        document.querySelector('.arduino-serial-output')?.textContent?.endsWith('world\n'),
+      );
+      const layout = await monitor.evaluate((element) => {
+        const walker = document.createTreeWalker(element, window.NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+        const rows = new Map();
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          for (let i = 0; i < node.length; i++) {
+            if (node.data[i] === '\n') continue;
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            const { top } = range.getBoundingClientRect();
+            rows.set(top, (rows.get(top) ?? '') + node.data[i]);
+          }
+        }
+        return {
+          text: element.textContent,
+          rows: [...rows].map(([top, text]) => ({ top, text })),
+          lineHeight: Number.parseFloat(window.getComputedStyle(element).lineHeight),
+        };
+      });
+      assert.equal(layout.text, '1234\n\nhelloworld\n');
+      assert.deepEqual(errors, []);
+      assert.deepEqual(await page.evaluate(() => window.probe.errors), []);
+      const correct =
+        layout.rows.length === 2 &&
+        layout.rows[0].text === '1234' &&
+        layout.rows[1].text === 'helloworld' &&
+        Math.abs(layout.rows[1].top - layout.rows[0].top - 2 * layout.lineHeight) < 1;
+      await page.screenshot({ path: resolve(output, 'stream-' + width + '.png') });
+      receipts.push({ width, layout, correct, source });
+      if (streamBefore) {
+        assert.deepEqual(
+          layout.rows.map((row) => row.text),
+          ['12', '34', 'hello', 'world'],
+        );
+      } else {
+        assert.equal(correct, true, JSON.stringify(layout));
+        const partial =
+          'void setup(){Serial.begin(9600);Serial.print("old");delay(12);Serial.print("new");Serial.println(" line");}void loop(){delay(100);}';
+        await page.evaluate((sketch) => window.fixture.start(false, sketch), partial);
+        await wait();
+        await page.waitForFunction(
+          () => document.querySelector('.arduino-serial-output')?.textContent === 'old',
+        );
+        await page.getByRole('button', { name: 'Очист.' }).click();
+        assert.equal(await monitor.textContent(), '');
+        await page.evaluate(() => window.fixture.advance(18000));
+        await page.waitForFunction(
+          () => document.querySelector('.arduino-serial-output')?.textContent === 'new line\n',
+        );
+        assert.deepEqual(await monitor.locator(':scope > div').allTextContents(), ['new line\n']);
+        receipts.at(-1).clearMidLine = true;
+      }
+      await page.evaluate(() => window.fixture.dispose());
+      await page.close();
+      continue;
+    }
     const text = () => page.locator('.arduino-serial-output').innerText();
     if (!before) {
       // Real Worker rejects RX before begin; UI must retain the unsent message.

@@ -1,3 +1,8 @@
+import type {
+  AdminDashboardPeriod,
+  AdminDashboardRange,
+  AiDashboardUsage,
+} from '@asa-lab/contracts';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { authRequest, authRequestFailure } from '../auth-request';
 import { notifyAccountVerificationRequired } from '../auth-verification';
@@ -457,7 +462,7 @@ export interface AdminOperationsStatus {
   } | null;
 }
 
-export type AdminDashboardRange = '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+export type { AdminDashboardPeriod, AdminDashboardRange } from '@asa-lab/contracts';
 
 export interface AdminDashboardPoint {
   readonly at: string;
@@ -470,11 +475,12 @@ export interface AdminDashboardPoint {
   readonly rejectedAuthAttempts: number;
   readonly newStudents: number;
   readonly activeStudents: number;
+  readonly studentLogins?: number;
 }
 
 export interface AdminModulePoint {
   readonly at: string;
-  readonly moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
+  readonly moduleKey: 'electronics' | 'robotics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
   readonly activePeople: number;
   readonly launches: number;
   readonly activeSeconds: number;
@@ -482,7 +488,7 @@ export interface AdminModulePoint {
 
 export interface AdminLoginMethodPoint {
   readonly at: string;
-  readonly method: 'password' | 'organization' | 'max' | 'class_code' | 'registration';
+  readonly method: 'password' | 'organization' | 'max' | 'telegram' | 'class_code' | 'registration';
   readonly successfulLogins: number;
 }
 
@@ -500,7 +506,15 @@ export interface AdminProductDashboard {
   readonly from: string;
   readonly to: string;
   readonly bucketSeconds: number;
-  readonly range: AdminDashboardRange;
+  readonly range: AdminDashboardPeriod['range'];
+  readonly todayMsk?: {
+    readonly from: string;
+    readonly to: string;
+    readonly activeAccounts: number;
+    readonly activeStudents: number;
+    readonly studentLogins: number;
+    readonly newStudents: number;
+  };
   readonly summary: {
     readonly newAccounts: number;
     readonly activeAccounts: number;
@@ -511,15 +525,43 @@ export interface AdminProductDashboard {
     readonly rejectedAuthAttempts: number;
     readonly newStudents: number;
     readonly activeStudents: number;
+    readonly studentLogins?: number;
     readonly distinctIpAddresses: number;
     readonly accountsWithMultipleIps: number;
     readonly localNetworkAccounts: number;
     readonly unclassifiedNetworkEvents: number;
   };
+  readonly aiUsage?: AiDashboardUsage | null;
+  readonly accountRegistrations?: readonly { readonly at: string; readonly count: number }[];
   readonly timeline: readonly AdminDashboardPoint[];
   readonly modules: readonly AdminModulePoint[];
   readonly loginMethods: readonly AdminLoginMethodPoint[];
   readonly actions: readonly AdminActionPoint[];
+  readonly overview?: {
+    readonly points: readonly {
+      readonly at: string;
+      readonly from: string;
+      readonly to: string;
+      readonly activeAccounts: number;
+      readonly activeStudents: number;
+      readonly accountSeconds: number | null;
+      readonly studentSeconds: number | null;
+      readonly accountLogins: number;
+      readonly studentLogins: number;
+      readonly newStudents: number;
+    }[];
+    readonly modules: readonly Omit<AdminModulePoint, 'activePeople'>[];
+    readonly loginMethods: readonly AdminLoginMethodPoint[];
+    readonly actions: readonly Omit<AdminActionPoint, 'passwordRecoveryAvailable'>[];
+    readonly recentAccounts: number;
+    readonly recentStudents: number;
+    readonly network: {
+      readonly addresses: number;
+      readonly resolvedEvents: number;
+      readonly unresolvedEvents: number;
+      readonly peopleWithMultipleAddresses: number;
+    };
+  };
   readonly max: {
     readonly configured: boolean;
     readonly featureEnabled: boolean;
@@ -537,6 +579,16 @@ export interface AdminProductDashboard {
     readonly linkedAccounts: number;
     readonly promptDueAccounts: number;
   };
+}
+
+export interface AdminErrorTrend {
+  readonly coverage: 'available' | 'partial' | 'unavailable';
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly points: readonly {
+    readonly at: string;
+    readonly counts: Readonly<Record<string, number>>;
+  }[];
 }
 
 export interface AdminIpActivity {
@@ -669,14 +721,6 @@ export const adminApi = {
       ...(signal ? { signal } : {}),
     }),
   me: () => call<AdminProfile>('/api/admin/v1/me'),
-  dashboard: (input: {
-    readonly scope: Pick<AdminScope, 'kind' | 'id'>;
-    readonly range: AdminDashboardRange;
-  }) => {
-    const query = new URLSearchParams({ scopeKind: input.scope.kind, range: input.range });
-    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
-    return call<AdminProductDashboard>(`/api/admin/v1/dashboard?${query.toString()}`);
-  },
   ipActivity: (input: {
     readonly scope: Pick<AdminScope, 'kind' | 'id'>;
     readonly range: AdminDashboardRange;

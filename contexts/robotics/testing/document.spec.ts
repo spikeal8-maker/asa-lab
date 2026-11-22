@@ -58,6 +58,11 @@ describe('shared Robotics authored document', () => {
     expect(first.world.field.obstacles).not.toBe(second.world.field.obstacles);
     expect(first.circuit.components).toHaveLength(9);
     expect(first.circuit.connections).toHaveLength(17);
+    expect(first.world.field.widthMeters).toBe(5);
+    expect(first.world.field.heightMeters).toBe(5);
+    expect(first.world.robot.bodyLengthMeters).toBe(0.2);
+    expect(first.world.initialPose).toEqual({ xMeters: 2.5, yMeters: 2.5, headingRadians: 0 });
+    expect(first.world.field.obstacles[0]?.xMeters).toBe(3.4);
     expect(first.circuit.components.find(({ id }) => id === 'uno')?.stateProperties).toMatchObject({
       arduinoCodeMode: 'blocks',
       arduinoSerialOpen: false,

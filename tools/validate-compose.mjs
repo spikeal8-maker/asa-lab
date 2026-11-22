@@ -47,7 +47,7 @@ const EXPECTED_PORTS = {
   dev: [4610, 4611, 4613],
   test: [4612, 4613],
   staging: [4610, 4613],
-  production: [4610, 4613],
+  production: [4610, 4613, 4615],
 };
 const errors = [];
 
@@ -403,6 +403,8 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
       COMPOSE_PROJECT_NAME: `asa-lab-validate-${profile}`,
       ASA_WEB_PORT: '4610',
       ASA_API_PORT: '4611',
+      ASA_PANEL_INGRESS_PORT: '4615',
+      ASA_PANEL_INGRESS_PEER: '172.19.0.1',
       POSTGRES_PASSWORD: 'compose-validation-admin-password',
       ASA_APP_DB_PASSWORD: 'compose-validation-runtime-password',
       DATABASE_URL: 'postgres://wrong-generic:wrong@elsewhere:5432/asalab',
@@ -466,6 +468,17 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
     }
     if (!config.services?.api?.environment?.ASA_PUBLIC_WEB_ORIGINS) {
       errors.push('production/api: public browser origins must be configured');
+    }
+    const panel = config.services?.web?.ports?.filter((port) => Number(port.target) === 8081) ?? [];
+    if (
+      panel.length !== 1 ||
+      Number(panel[0].published) !== 4615 ||
+      (panel[0].host_ip ?? panel[0].hostIp) !== '127.0.0.1' ||
+      config.services?.web?.environment?.ASA_PANEL_INGRESS_PEER !== '172.19.0.1'
+    ) {
+      errors.push(
+        'production/web: the 1Panel ingress must have its own loopback listener and peer',
+      );
     }
   }
   const published = [];

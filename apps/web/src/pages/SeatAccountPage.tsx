@@ -102,7 +102,7 @@ export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSessi
           </select>
         </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
-          <nav>
+          <nav className="asa-system-tabs asa-system-tabs--vertical">
             {panels.map((item) => (
               <button
                 key={item.id}

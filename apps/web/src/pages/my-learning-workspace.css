@@ -87,7 +87,7 @@
 
 .learning-overview-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -119,7 +119,7 @@
 
 .learning-overview-columns {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 16px;
 }
 
@@ -288,4 +288,46 @@
     width: 100%;
     min-width: 0;
   }
+}
+
+/* Owner P0: one quiet empty state, never three vacant statistic cards. */
+.learning-overview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #dce2e8;
+  border-radius: 8px;
+  background: #fff;
+}
+.learning-overview-empty p,
+.learning-overview-note {
+  margin: 0;
+  font-size: 14px;
+  color: #526779;
+  line-height: 1.5;
+}
+.learning-overview-empty .btn-secondary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* P0: retain actual touch/keyboard targets in the horizontally scrolling rail.
+ * The global SystemTabs rule may load later; never shrink labels into neighbours. */
+.learning-workspace .learning-workspace-nav.asa-system-tabs {
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.learning-workspace .learning-workspace-nav.asa-system-tabs > a {
+  flex: 0 0 auto;
+  min-width: max-content;
+  min-height: 36px;
+  max-height: 36px;
+  white-space: nowrap;
 }

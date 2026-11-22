@@ -46,9 +46,10 @@ async function write(
   action: string,
   input: Record<string, unknown>,
   actor = teacherActor,
+  client?: pg.PoolClient,
 ) {
   return (
-    await app.query('SELECT classroom_journal_write($1,$2,$3,$4::jsonb) AS value', [
+    await (client ?? app).query('SELECT classroom_journal_write($1,$2,$3,$4::jsonb) AS value', [
       actor,
       classId,
       action,
@@ -115,6 +116,18 @@ function input(
   reason: string | null = null,
 ) {
   return { columnId, seatId, value, expectedRevision, reason, requestId: randomUUID() };
+}
+
+function journalFailureTrigger(classId: string) {
+  const name = `journal_fail_${randomUUID().replaceAll('-', '')}`;
+  return {
+    name,
+    functionSql: `CREATE FUNCTION public.${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.classroom_id='${classId}'::uuid AND NEW.journal_revision_id IS NOT NULL THEN
+      RAISE EXCEPTION 'injected journal emission failure'; END IF; RETURN NEW; END; $$`,
+    triggerSql: `CREATE TRIGGER ${name} BEFORE INSERT ON learning_notifications
+      FOR EACH ROW EXECUTE FUNCTION public.${name}()`,
+  };
 }
 
 describe('manual classroom journal: real restricted PostgreSQL', () => {
@@ -230,18 +243,151 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
     ).toEqual([grade.id]);
   });
 
+  it('observes scoped trigger DDL queue an unrelated classroom writer until the original holder releases', async () => {
+    const held = await fixture();
+    const other = await fixture();
+    const trigger = journalFailureTrigger(held.classId);
+    const command = input(other.columnId, other.a.seatId, 4);
+    const holder = await admin.connect();
+    let ddl: pg.PoolClient | undefined;
+    let writer: pg.PoolClient | undefined;
+    let holding = false;
+    let pendingDdl: Promise<pg.QueryResult> | undefined;
+    let pendingWrite: ReturnType<typeof write> | undefined;
+    let ddlSettled = false;
+    let writerSettled = false;
+    try {
+      ddl = await admin.connect();
+      writer = await app.connect();
+      const [holderId, ddlId, writerId] = await Promise.all(
+        [holder, ddl, writer].map((client) => client.query('SELECT pg_backend_pid() AS pid')),
+      );
+      const holderPid = holderId.rows[0].pid as number;
+      const ddlPid = ddlId.rows[0].pid as number;
+      const writerPid = writerId.rows[0].pid as number;
+      await ddl.query("SET statement_timeout='3000ms'");
+      await writer.query("SET statement_timeout='3000ms'");
+      await admin.query(trigger.functionSql);
+      await holder.query('BEGIN');
+      holding = true;
+      expect(
+        await write(
+          held.classId,
+          'grade',
+          input(held.columnId, held.a.seatId, 3),
+          teacherActor,
+          holder,
+        ),
+      ).toMatchObject({ revision: 1, value: 3 });
+      expect(
+        (
+          await admin.query(
+            `SELECT mode,granted FROM pg_locks WHERE pid=$1 AND locktype='relation'
+              AND relation='public.learning_notifications'::regclass`,
+            [holderPid],
+          )
+        ).rows,
+      ).toContainEqual({ mode: 'RowExclusiveLock', granted: true });
+
+      // Keep the third admin-pool slot free for these observable barriers.
+      // The real CREATE TRIGGER waits in autocommit, just like the negative test.
+      const waitForLock = async (
+        pid: number,
+        mode: string,
+        blocker: number,
+        settled: () => boolean,
+        operation: Promise<unknown>,
+      ) => {
+        const deadline = performance.now() + 1000;
+        let observed;
+        do {
+          observed = (
+            await admin.query(
+              `SELECT granted,pg_blocking_pids(pid) AS blockers FROM pg_locks
+                WHERE pid=$1 AND locktype='relation' AND mode=$2
+                  AND relation='public.learning_notifications'::regclass`,
+              [pid, mode],
+            )
+          ).rows[0] as { granted: boolean; blockers: number[] } | undefined;
+          if (observed?.granted === false && observed.blockers.includes(blocker)) return observed;
+          if (settled()) {
+            await operation;
+            throw new Error(`Expected ${mode} to wait on learning_notifications`);
+          }
+        } while (performance.now() < deadline);
+        throw new Error(`Missing ${mode} barrier: ${JSON.stringify(observed)}`);
+      };
+      pendingDdl = ddl.query(trigger.triggerSql).finally(() => {
+        ddlSettled = true;
+      });
+      // Attach rejection handlers before observing either pending command.
+      void pendingDdl.catch(() => undefined);
+      await waitForLock(ddlPid, 'ShareRowExclusiveLock', holderPid, () => ddlSettled, pendingDdl);
+      pendingWrite = write(other.classId, 'grade', command, teacherActor, writer).finally(() => {
+        writerSettled = true;
+      });
+      void pendingWrite.catch(() => undefined);
+      const writerWait = await waitForLock(
+        writerPid,
+        'RowExclusiveLock',
+        ddlPid,
+        () => writerSettled,
+        pendingWrite,
+      );
+      // The holder's RowExclusiveLock is compatible with this other writer;
+      // it is the queued DDL that blocks the unrelated classroom.
+      expect(writerWait.blockers).not.toContain(holderPid);
+      await holder.query('COMMIT');
+      holding = false;
+      await pendingDdl;
+      const saved = await pendingWrite;
+      expect(saved).toMatchObject({ revision: 1, value: 4, seatId: other.a.seatId });
+      expect((await read(other.classId)).grades).toEqual([saved]);
+      expect(
+        (
+          await admin.query(
+            `SELECT
+              (SELECT count(*)::int FROM pg_trigger WHERE tgname=$1
+                AND tgrelid='public.learning_notifications'::regclass) AS triggers,
+              (SELECT count(*)::int FROM classroom_journal_receipts
+                WHERE classroom_id=$2 AND request_id=$3) AS receipts,
+              (SELECT count(*)::int FROM learning_notifications
+                WHERE journal_revision_id=$4) AS notifications`,
+            [trigger.name, other.classId, command.requestId, saved.id],
+          )
+        ).rows[0],
+      ).toEqual({ triggers: 1, receipts: 1, notifications: 1 });
+      console.info('journal_ddl_queue_evidence', {
+        ddlWaitedForHolder: true,
+        writerWaitedForQueuedDdl: true,
+        unrelatedWriterCompletedWithTriggerInstalled: true,
+      });
+    } finally {
+      try {
+        if (holding) await holder.query('ROLLBACK');
+      } finally {
+        // Release the original blocker before draining any pending commands.
+        holder.release(true);
+        await Promise.allSettled([pendingDdl, pendingWrite]);
+        try {
+          await admin.query(`DROP TRIGGER IF EXISTS ${trigger.name} ON learning_notifications;
+            DROP FUNCTION IF EXISTS public.${trigger.name}()`);
+        } finally {
+          // Dedicated connections are destroyed, so temporary timeouts cannot leak.
+          ddl?.release(true);
+          writer?.release(true);
+        }
+      }
+    }
+  });
+
   it('notification insertion failure rolls back grade and receipt; the identical retry delivers once', async () => {
     const f = await fixture();
     const command = input(f.columnId, f.a.seatId, 0);
-    const suffix = randomUUID().replaceAll('-', '');
-    const name = `journal_fail_${suffix}`;
-    await admin.query(`CREATE FUNCTION public.${name}() RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN IF NEW.classroom_id='${f.classId}'::uuid AND NEW.journal_revision_id IS NOT NULL THEN
-      RAISE EXCEPTION 'injected journal emission failure'; END IF; RETURN NEW; END; $$`);
-    await admin.query(
-      `CREATE TRIGGER ${name} BEFORE INSERT ON learning_notifications FOR EACH ROW EXECUTE FUNCTION public.${name}()`,
-    );
+    const trigger = journalFailureTrigger(f.classId);
+    await admin.query(trigger.functionSql);
     try {
+      await admin.query(trigger.triggerSql);
       await expect(write(f.classId, 'grade', command)).rejects.toThrow(
         'injected journal emission failure',
       );
@@ -271,8 +417,8 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
         ).rows[0].n,
       ).toBe(0);
     } finally {
-      await admin.query(`DROP TRIGGER ${name} ON learning_notifications`);
-      await admin.query(`DROP FUNCTION public.${name}()`);
+      await admin.query(`DROP TRIGGER IF EXISTS ${trigger.name} ON learning_notifications`);
+      await admin.query(`DROP FUNCTION IF EXISTS public.${trigger.name}()`);
     }
     const saved = await write(f.classId, 'grade', command);
     expect(saved).toMatchObject({ revision: 1, value: 0 });
@@ -583,20 +729,49 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
       'grade',
       input(f.columnId, f.a.seatId, 5, 1, 'Исправлена опечатка'),
     );
-    expect(five).toMatchObject({ value: 5, revision: 2, supersedesId: zero.id });
+    expect(five).toMatchObject({
+      value: 5,
+      revision: 2,
+      supersedesId: zero.id,
+      reason: 'Исправлена опечатка',
+    });
     expect(await write(f.classId, 'grade', zeroInput)).toEqual(zero); // receipt before stale revision
     expect(
       await write(f.classId, 'grade', input(f.columnId, f.a.seatId, 4, 1, 'Другой педагог')),
     ).toEqual({ error: 'revision_conflict' });
-    expect(await write(f.classId, 'grade', input(f.columnId, f.a.seatId, 4, 2))).toEqual({
+    const correction = input(f.columnId, f.a.seatId, 0, 2);
+    const corrected = await write(f.classId, 'grade', correction);
+    expect(corrected).toMatchObject({
+      value: 0,
+      revision: 3,
+      supersedesId: five.id,
+      reason: null,
+    });
+    expect(await write(f.classId, 'grade', correction)).toEqual(corrected);
+    expect(await write(f.classId, 'grade', input(f.columnId, f.a.seatId, null, 3))).toEqual({
       error: 'reason_required',
     });
+    expect((await read(f.classId)).grades).toEqual([corrected]);
+    await expect(
+      admin.query(
+        `INSERT INTO classroom_journal_revisions
+          (tenant_id,classroom_id,column_id,seat_id,learner_identity_id,revision,value,supersedes_id,reason,author_id)
+         SELECT tenant_id,classroom_id,column_id,seat_id,learner_identity_id,revision+1,NULL,id,NULL,author_id
+         FROM classroom_journal_revisions WHERE id=$1`,
+        [corrected.id],
+      ),
+    ).rejects.toMatchObject({ code: '23514', constraint: 'classroom_journal_revisions_check' });
     const clear = await write(
       f.classId,
       'grade',
-      input(f.columnId, f.a.seatId, null, 2, 'Оценка снята'),
+      input(f.columnId, f.a.seatId, null, 3, 'Оценка снята'),
     );
-    expect(clear).toMatchObject({ value: null, revision: 3, supersedesId: five.id });
+    expect(clear).toMatchObject({
+      value: null,
+      revision: 4,
+      supersedesId: corrected.id,
+      reason: 'Оценка снята',
+    });
     expect((await read(f.classId)).grades).toEqual([clear]);
     const history = (
       await app.query('SELECT classroom_journal_history($1,$2,$3,$4) AS value', [
@@ -606,10 +781,13 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
         f.a.seatId,
       ])
     ).rows[0].value.items;
-    expect(history.map((g: Grade) => g.value)).toEqual([null, 5, 0]);
+    expect(history.map((g: Grade) => g.value)).toEqual([null, 0, 5, 0]);
     expect(history.every((g: Grade) => g.authorId === teacherActor)).toBe(true);
     expect((await results(f.a.principalId))[0]).toMatchObject({ id: clear.id, value: null });
     expect(await results(f.b.principalId)).toEqual([]);
+    const restored = await write(f.classId, 'grade', input(f.columnId, f.a.seatId, 5, 4));
+    expect(restored).toMatchObject({ value: 5, revision: 5, supersedesId: clear.id, reason: null });
+    expect((await results(f.a.principalId))[0]).toMatchObject({ id: restored.id, value: 5 });
     const count = (
       await admin.query(
         `SELECT count(*)::integer AS count FROM learning_notifications WHERE event_key=$1`,

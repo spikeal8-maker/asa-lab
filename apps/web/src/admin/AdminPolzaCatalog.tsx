@@ -131,6 +131,12 @@ export function AdminPolzaCatalog({
       (selectable || m.selected) &&
       (m.label + ' ' + m.upstream).toLocaleLowerCase().includes(query.toLocaleLowerCase()),
   );
+  const activeSpeechModel = catalog?.credentialCurrent
+    ? catalog.items.find((model) => model.kind === 'stt' && model.active && model.selected)
+    : undefined;
+  const speechIds = new Set(
+    catalog?.items.filter((model) => model.kind === 'stt').map((model) => model.id),
+  );
   const dirty =
     !!catalog &&
     [...selected].sort().join() !==
@@ -219,11 +225,16 @@ export function AdminPolzaCatalog({
                     aria-label={(kind === 'chat' ? 'В настройки: ' : 'Выбрать: ') + m.label}
                     checked={selected.includes(m.id)}
                     disabled={busy || connectionDirty || !catalog.credentialCurrent}
-                    onChange={(e) =>
-                      setSelected((p) =>
-                        e.target.checked ? [...p, m.id] : p.filter((id) => id !== m.id),
-                      )
-                    }
+                    onChange={(e) => {
+                      const checked = e.currentTarget.checked;
+                      setSelected((p) => {
+                        if (kind === 'stt') {
+                          const other = p.filter((id) => !speechIds.has(id));
+                          return checked ? [...other, m.id] : other;
+                        }
+                        return checked ? [...p, m.id] : p.filter((id) => id !== m.id);
+                      });
+                    }}
                   />
                 ) : null}
                 <span>
@@ -240,8 +251,9 @@ export function AdminPolzaCatalog({
                   )}
                   {m.vision ? <span>Vision</span> : kind === 'chat' ? <span>Текст</span> : null}
                   {m.tools ? <span>Инструменты</span> : null}
-                  {kind === 'stt' && m.upstream === 'ai-sage/gigaam-v3' ? (
-                    <span>Модель ASA для голосового ввода</span>
+                  {m.id === activeSpeechModel?.id ||
+                  (kind === 'stt' && !activeSpeechModel && m.upstream === 'ai-sage/gigaam-v3') ? (
+                    <span>Модель голосового ввода</span>
                   ) : null}
                 </span>
               </label>

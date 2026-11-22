@@ -505,3 +505,98 @@
   align-items: center;
   gap: 8px;
 }
+
+/* OWNER-UX-P0: genuine metrics at the existing left avatar, not a third hero. */
+.portal-sidebar-profile-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+.portal-sidebar-profile-top > .portal-sidebar-avatar {
+  /* Respect the 96px expanded and 44px compact/mobile avatar widths. */
+  flex: 0 0 auto;
+}
+.portal-sidebar-metrics {
+  flex: 0 0 80px;
+  width: 80px;
+  min-width: 0;
+  position: relative;
+}
+.portal-sidebar-metrics summary {
+  cursor: pointer;
+  list-style: none;
+  display: grid;
+  align-items: center;
+  justify-items: start;
+  min-height: 80px;
+  color: #12618e;
+}
+.portal-sidebar-metrics summary::-webkit-details-marker {
+  display: none;
+}
+.portal-sidebar-metrics summary:focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
+}
+.portal-sidebar-metric-list {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+}
+.portal-sidebar-metric-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.portal-sidebar-metric-item svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+.portal-sidebar-metric-help {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #cbdfe8;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 700;
+}
+.portal-sidebar-metric-details {
+  position: absolute;
+  z-index: 70;
+  top: calc(100% + 4px);
+  left: -8px;
+  width: min(260px, calc(100vw - 32px));
+  max-width: none;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #d3e0e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #274357;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 15%);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.portal-sidebar-metric-title {
+  display: block;
+  font-weight: 700;
+}
+.portal-sidebar-metric-details p {
+  margin: 6px 0 0;
+}
+.portal-sidebar.collapsed .portal-sidebar-metrics {
+  display: none;
+}
+.portal-sidebar.collapsed .portal-sidebar-profile-top {
+  justify-content: center;
+}

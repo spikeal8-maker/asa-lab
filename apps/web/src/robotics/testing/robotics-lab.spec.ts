@@ -80,6 +80,7 @@ vi.mock('../../electronics/use-electronics-workbench', () => ({
       setRuntimeSensorDistance: port.sensor,
       setRuntimeHcSr04EnvironmentSample: port.environment,
       fitScene: port.fit,
+      fitSceneScaled: port.fit,
       selection: null,
       removeSelection: port.remove,
       cancelFamilyPlacement: vi.fn(),
@@ -174,8 +175,10 @@ const originalScrollIntoView = Object.getOwnPropertyDescriptor(
 );
 
 function control(label: string): HTMLButtonElement {
-  const found = [...container.querySelectorAll('button')].find((button) =>
-    button.textContent?.includes(label),
+  const found = [...container.querySelectorAll('button')].find(
+    (button) =>
+      button.getAttribute('aria-label') === label ||
+      (!button.hasAttribute('aria-label') && button.textContent?.includes(label)),
   );
   if (!found) throw new Error(`Missing control: ${label}`);
   return found;
@@ -397,7 +400,7 @@ afterEach(() => {
 });
 
 describe('robotics UI integration with the common workbench port', () => {
-  it('keeps one Electronics-style header, four labelled icon tabs and Save at the far right', async () => {
+  it('keeps one workbench header, equal-section tab semantics, Save near title and avatar at the right', async () => {
     await mountAccountEditor();
     const header = container.querySelector<HTMLElement>('.robotics-lab > .robotics-unified-header');
     expect(header).not.toBeNull();
@@ -414,13 +417,23 @@ describe('robotics UI integration with the common workbench port', () => {
       'Поле',
       'Робот',
       'Электроника',
-      'Программа',
+      'Код',
     ]);
     expect(tabs.every((tab) => tab.querySelector('svg') !== null)).toBe(true);
     const save = header!.querySelector<HTMLButtonElement>('.robotics-header-save');
     expect(save?.getAttribute('aria-label')).toBe('Сохранить');
     expect(save?.getAttribute('role')).not.toBe('tab');
-    expect(header!.querySelector('.robotics-header-controls')?.lastElementChild).toBe(save);
+    expect(save?.parentElement).toBe(header);
+    expect(save?.nextElementSibling).toBe(header!.querySelector('.robotics-header-notice'));
+    expect(header!.querySelector('.robotics-header-notice')?.nextElementSibling).toBe(
+      header!.querySelector('.robotics-header-controls'),
+    );
+    expect(header!.querySelector('.robotics-header-controls')?.lastElementChild).toBe(
+      header!.querySelector('.robotics-header-profile'),
+    );
+    expect(header!.querySelector('.robotics-header-avatar img')).not.toBeNull();
+    expect(header!.querySelector('[data-testid="robotics-notice"]')).not.toBeNull();
+    expect(container.querySelector('.robotics-lab > .robotics-notice')).toBeNull();
     expect(header!.querySelector('.robotics-header-menu-panel')?.textContent).toContain(
       'Публикация',
     );
@@ -439,27 +452,34 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(header!.querySelector('.robotics-header-save')).toBe(save);
   });
 
-  it.each(['Save', 'automatic snapshot'] as const)(
-    'opens the actual publication dialog after %s already confirmed the source without another PUT',
-    async (trigger) => {
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
-      const { project, snapshot, publication } = await mountAccountEditor();
-      if (trigger === 'Save') await click('Сохранить');
-      else await act(async () => vi.advanceTimersByTimeAsync(4000));
-      expect(snapshot).toHaveBeenCalledTimes(1);
-      expect(snapshot.mock.calls[0]?.[2]).toBe(1);
-      expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+  it('keeps idle snapshot uploads off, captures explicit Save once and reuses its confirmation for publication', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    const { project, snapshot, publication } = await mountAccountEditor();
+    await act(async () => vi.advanceTimersByTimeAsync(125_000));
+    expect(snapshot).not.toHaveBeenCalled();
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(false);
+    expect(publication).not.toHaveBeenCalled();
 
-      await click('Публикация');
-      expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
-        'Публикация проекта',
-      );
-      expect(container.querySelector('[data-testid="publication-publish"]')).not.toBeNull();
-      expect(publication).toHaveBeenCalledWith(project.id);
-      expect(snapshot).toHaveBeenCalledTimes(1);
-      expect(container.textContent).not.toContain('Не удалось подготовить изображение');
-    },
-  );
+    await click('Сохранить');
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(snapshot.mock.calls[0]?.[0]).toBe(project.id);
+    expect(snapshot.mock.calls[0]?.[2]).toBe(1);
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+
+    await act(async () => vi.advanceTimersByTimeAsync(125_000));
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+    expect(publication).not.toHaveBeenCalled();
+
+    await click('Публикация');
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(snapshot.mock.calls[0]?.[2]).toBe(1);
+    expect(isProjectSnapshotConfirmed(project.id, 1)).toBe(true);
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('Публикация проекта');
+    expect(container.querySelector('[data-testid="publication-publish"]')).not.toBeNull();
+    expect(publication).toHaveBeenCalledWith(project.id);
+    expect(container.textContent).not.toContain('Не удалось подготовить изображение');
+  });
 
   it('keeps publication closed when the current snapshot was not acknowledged', async () => {
     const { project, snapshot, publication } = await mountAccountEditor();
@@ -560,7 +580,7 @@ describe('robotics UI integration with the common workbench port', () => {
       });
     }
     act(() => root.render(createElement(AccountHarness)));
-    await click('Программа');
+    await click('Код');
     const source = 'void setup(){} void loop(){delay(43);}';
     port.programFlush.mockImplementation(() =>
       port.programPublish!('uno', { arduinoSource: source }),
@@ -585,8 +605,8 @@ describe('robotics UI integration with the common workbench port', () => {
   it('keeps the same mounted canonical stage when opening and closing the canonical programmer', async () => {
     const stage = metric('canonical-stage');
     expect(stage.textContent).toContain('9 canonical components');
-    expect(port.fit).toHaveBeenCalledOnce();
-    await click('Программа');
+    expect(port.fit).not.toHaveBeenCalled();
+    await click('Код');
     expect(metric('canonical-program')).toBeTruthy();
     expect(metric('canonical-stage')).toBe(stage);
     expect(stage.closest('[hidden]')).toBeNull();
@@ -597,7 +617,8 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(port.options).toEqual({
       runtimeInputEventLimit: 1000,
       reportSimulationDiagnostics: false,
-      keyboardShortcutsEnabled: false,
+      // Closing fullscreen Code returns to Electronics.
+      keyboardShortcutsEnabled: true,
     });
   });
 
@@ -605,7 +626,7 @@ describe('robotics UI integration with the common workbench port', () => {
     const stage = metric('canonical-stage');
     for (const [name, id] of [
       ['Электроника', 'electronics'],
-      ['Программа', 'program'],
+      ['Код', 'program'],
       ['Робот', 'robot'],
       ['Поле', 'field'],
     ]) {
@@ -625,7 +646,7 @@ describe('robotics UI integration with the common workbench port', () => {
   });
 
   it('resynchronizes direct host history and rejects stale editor flush/publication in the same event', async () => {
-    await click('Программа');
+    await click('Код');
     const original = port.host!.getCurrentDocument()!;
     const publishFromOldEditor = port.programPublish!;
     const changedSource = 'void setup(){} void loop(){delay(37);}';
@@ -668,7 +689,7 @@ describe('robotics UI integration with the common workbench port', () => {
     await click('Влево');
     expect(port.serial).toHaveBeenNthCalledWith(1, 'uno', 'F');
     expect(port.serial).toHaveBeenNthCalledWith(2, 'uno', 'L');
-    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('2.5');
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
     await click('Пауза');
     expect(port.host?.simulationRunning).toBe(true);
@@ -695,7 +716,7 @@ describe('robotics UI integration with the common workbench port', () => {
     await click('Запустить');
     expect(commands.at(-1)).toEqual({ rate: 1, running: true });
     act(() => port.presentation!.setObservation(electricalObservation(100_000)));
-    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
+    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(2.5);
     await click('Пауза');
     const pausedCommandCount = commands.length;
     act(() => container.querySelector<HTMLButtonElement>('#robotics-tab-robot')!.click());
@@ -703,7 +724,7 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(commands).toHaveLength(pausedCommandCount);
     expect(port.pacing!.read().phase).toBe('paused');
     await click('Остановить');
-    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('2.5');
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
     await click('Запустить');
     expect(commands.at(-1)).toEqual({ rate: 1, running: true });
@@ -723,7 +744,7 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(port.environment).not.toHaveBeenCalled();
     act(() => port.presentation!.commit(next));
     expect(metric('robotics-time').dataset.microseconds).toBe('100000');
-    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
+    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(2.5);
     expect(port.environment).toHaveBeenCalledOnce();
     expect(port.environment.mock.calls[0]?.[0]).toBe('sonar');
     expect(port.environment.mock.calls[0]?.[1]).toMatchObject({
@@ -744,10 +765,10 @@ describe('robotics UI integration with the common workbench port', () => {
   it('resets the world when the shared Arduino reset commits a new time-zero generation', async () => {
     await click('Запустить');
     act(() => port.presentation!.setObservation(electricalObservation(100_000)));
-    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(0.25);
+    expect(Number(metric('robotics-robot').getAttribute('data-x-meters'))).toBeGreaterThan(2.5);
     act(() => port.presentation!.setObservation(electricalObservation(0, 0, 0)));
     expect(metric('robotics-time').dataset.microseconds).toBe('0');
-    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('0.25');
+    expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe('2.5');
   });
   it('reports a six-metre field as typed no-echo without halting or changing saved source', async () => {
     act(() => root.unmount());
@@ -756,6 +777,9 @@ describe('robotics UI integration with the common workbench port', () => {
     const source = withRoboticsWorld(initial, {
       ...initial.world,
       field: { ...initial.world.field, widthMeters: 6, obstacles: [] },
+      // Explicit no-echo fixture: move the sensor near the left edge.
+      // Normal field presets always start the robot at the exact center.
+      initialPose: { ...initial.world.initialPose, xMeters: 0.25 },
     });
     act(() => root.render(createElement(RoboticsLab, { initialProject: source })));
     const circuit = port.host!.getCurrentDocument();
@@ -783,6 +807,8 @@ describe('robotics UI integration with the common workbench port', () => {
     });
     expect(port.setRate).toHaveBeenLastCalledWith(0);
     expect(metric('robotics-notice').textContent).toContain('Достигнут лимит');
+    expect(metric('robotics-notice').closest('.robotics-unified-header')).not.toBeNull();
+    expect(metric('robotics-notice').hasAttribute('hidden')).toBe(false);
     expect(control('Продолжить').disabled).toBe(true);
     expect(port.reset).not.toHaveBeenCalled();
     expect(metric('robotics-lab').dataset.inputAdmitted).toBe('1000');

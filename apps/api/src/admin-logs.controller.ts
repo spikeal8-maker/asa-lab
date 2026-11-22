@@ -15,7 +15,7 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { TOKENS, SESSION_COOKIE } from './tokens.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AdminLogsService } from './admin-logs.service.js';
-import type { LogFilter } from './admin-logs.worker.js';
+import type { LogFilter, LogTrendWindow } from './admin-logs.worker.js';
 import { LOG_SUBSYSTEMS, LOG_MODULES, logEditorModule } from './log-subsystems.js';
 
 function fail(code: string, status: number): never {
@@ -88,6 +88,27 @@ export function logFilter(input: unknown): LogFilter {
   };
 }
 
+const TREND_BUCKETS = new Set([300, 900, 1800, 3600, 21600, 86400, 604800]);
+
+export function logTrendWindow(query: Record<string, unknown>): LogTrendWindow {
+  const { from, to, bucketSeconds: step } = query;
+  const bucketSeconds = typeof step === 'string' && /^\d{3,6}$/.test(step) ? Number(step) : 0;
+  if (
+    typeof from !== 'string' ||
+    typeof to !== 'string' ||
+    !/^\d{4}-\d\d-\d\dT/.test(from) ||
+    !/^\d{4}-\d\d-\d\dT/.test(to) ||
+    !TREND_BUCKETS.has(bucketSeconds)
+  )
+    fail('validation_error', 400);
+  const start = Date.parse(from);
+  const end = Date.parse(to);
+  const duration = end - start;
+  if (!(duration > 0 && duration <= 365 * 86400_000 && duration <= 90_000 * bucketSeconds))
+    fail('validation_error', 400);
+  return { from: new Date(start).toISOString(), to: new Date(end).toISOString(), bucketSeconds };
+}
+
 @Controller('api/admin/v1/logs')
 export class AdminLogsController {
   constructor(
@@ -136,6 +157,18 @@ export class AdminLogsController {
     await this.allow(request);
     reply.header('Cache-Control', 'no-store');
     return this.response(() => this.logs.status());
+  }
+
+  @Get('trend')
+  async trend(
+    @Req() request: FastifyRequest,
+    @Query() query: Record<string, unknown>,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    await this.allow(request);
+    const window = logTrendWindow(query);
+    reply.header('Cache-Control', 'no-store');
+    return this.response(() => this.logs.trend(window));
   }
 
   @Get()

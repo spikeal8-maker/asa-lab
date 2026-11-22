@@ -6,6 +6,7 @@ import { AppErrorBoundary } from './AppErrorBoundary';
 import { installClientDiagnostics } from './client-diagnostics';
 import './styles.css';
 import './accessibility.css';
+import './components/system-tabs.css';
 import './pages/PublicEntryHeroV2.css';
 
 const emailConfirmation = window.location.pathname === '/confirm-email';

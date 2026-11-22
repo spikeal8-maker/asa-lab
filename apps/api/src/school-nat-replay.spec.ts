@@ -129,3 +129,42 @@ it('replays 30/60/100 pupil stages over thirty virtual minutes without a proof b
     }
   }
 });
+
+it('keeps real QR and manual StudentSeat entry behind one NAT after 900 unrelated mutations, with a strict separate ceiling', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  const protection = new MutationAbuseProtection(async () => false);
+  const entry = (
+    route: '/api/class-join/resolve' | '/api/class-join/studentseat',
+    token?: string,
+  ) => {
+    const candidate = request(token);
+    Object.assign(candidate, { method: 'POST', routeOptions: { url: route } });
+    return candidate;
+  };
+  for (let n = 0; n < 900; n++) expect((await protection.consume(request())).allowed).toBe(true);
+  expect((await protection.consume(request())).allowed).toBe(false);
+
+  for (let n = 0; n < 600; n++) {
+    const route = n % 2 === 0 ? '/api/class-join/resolve' : '/api/class-join/studentseat';
+    expect((await protection.consume(entry(route))).allowed).toBe(true);
+  }
+  const rejected = entry('/api/class-join/resolve');
+  expect((await protection.consume(rejected)).allowed).toBe(false);
+  expect(requestMutationAdmission.get(rejected)).toEqual({ blockedBudget: 'class_join_address' });
+  // A forged session cookie cannot reset the registered-route address bucket.
+  expect(
+    (await protection.consume(entry('/api/class-join/studentseat', 'unknown-seat'))).allowed,
+  ).toBe(false);
+
+  // Neither the URL nor forwarded headers can turn another route into an admission.
+  const spoofed = request();
+  Object.assign(spoofed, { method: 'POST', routeOptions: { url: '/api/projects' } });
+  spoofed.raw.url = '/api/class-join/resolve';
+  spoofed.headers['x-original-url'] = '/api/class-join/resolve';
+  expect((await protection.consume(spoofed)).allowed).toBe(false);
+
+  vi.advanceTimersByTime(300_001);
+  expect((await protection.consume(entry('/api/class-join/resolve'))).allowed).toBe(true);
+  expect((await protection.consume(request())).allowed).toBe(true);
+});

@@ -537,7 +537,7 @@ export function AccountPage({
           </select>
         </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
-          <nav>
+          <nav className="asa-system-tabs asa-system-tabs--vertical">
             {SETTINGS_PANELS.map((item) => (
               <button
                 key={item.id}

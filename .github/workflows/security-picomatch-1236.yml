@@ -1,0 +1,86 @@
+name: Picomatch CVE-2026-112366 security and compatibility gate
+run-name: P0 picomatch baseline — ${{ github.event.pull_request.head.sha }}
+
+"on":
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'packages/picomatch-safe/**'
+      - '.prettierignore'
+      - '.github/workflows/security-picomatch-1236.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: picomatch-1236-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Immutable source ReDoS and full build compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+    steps:
+      - name: Checkout exact security source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact immutable source SHA and portable override
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          grep -F 'picomatch: workspace:@asa-lab/picomatch-safe@*' pnpm-lock.yaml
+          if grep -Eq 'picomatch@4[.]0[.][0-7]:' pnpm-lock.yaml; then
+            echo 'SECURITY FAIL: vulnerable original picomatch still in lockfile'
+            exit 1
+          fi
+          if grep -Fq '/home/runner/' pnpm-lock.yaml; then
+            echo 'SECURITY FAIL: nonportable absolute path in lockfile'
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Frozen canonical package installation
+        run: pnpm install --frozen-lockfile
+
+      - name: Resource-limited picomatch CVE regression and baseline API test
+        run: node --test packages/picomatch-safe/test.cjs
+
+      - name: Verify unwaived vulnerability inventory and license compliance
+        run: pnpm security:dependencies
+
+      - name: Real Nx native dependency compatibility
+        run: pnpm exec nx build module-sdk --skip-nx-cache
+
+      - name: Real Vite native Web build compatibility
+        run: pnpm exec nx run web:build --skip-nx-cache
+
+      - name: Real Vitest dependency and Arduino unchanged-source compatibility
+        run: pnpm exec vitest run apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts --maxWorkers=1
+
+      - name: Preserve exact SHA security gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: picomatch-1236-security-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: |
+            reports/dependency-inventory.json
+            reports/dependency-advisories.json
+          if-no-files-found: ignore
+          retention-days: 14

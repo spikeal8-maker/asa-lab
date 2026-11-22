@@ -68,7 +68,7 @@ export function AuthoredTaskBlocksEditor({
         {pendingMedia.map((media) => (
           <section className="task-document-file" key={media.role} role="status">
             <span className="task-document-file-icon" aria-hidden="true">
-              {media.role === 'file' ? 'PDF' : 'IMG'}
+              {media.role === 'file' ? 'Файл' : 'IMG'}
             </span>
             <span className="task-document-file-name">{media.name} · ожидает сохранения</span>
             <button
@@ -156,7 +156,7 @@ export function AuthoredTaskBlocksEditor({
             ) : block.type === 'file' ? (
               <div className="task-document-file">
                 <span className="task-document-file-icon" aria-hidden="true">
-                  PDF
+                  {block.name.split('.').at(-1)?.toUpperCase()}
                 </span>
                 <span className="task-document-file-name">{block.name}</span>
                 <label className="task-file-action">
@@ -164,8 +164,8 @@ export function AuthoredTaskBlocksEditor({
                   <input
                     className="task-file-input"
                     type="file"
-                    accept="application/pdf,.pdf"
-                    aria-label={`Заменить PDF блока ${index + 1}`}
+                    accept=".pdf,.docx,.pptx,.xlsx,.txt,.csv,.sb3,.stl,.ino,.zip"
+                    aria-label={`Заменить ${block.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'файл'} блока ${index + 1}`}
                     disabled={disabled}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
@@ -279,12 +279,12 @@ export function AuthoredTaskBlocksEditor({
             ) : null}
             {!items.some((block) => block.type === 'file') ? (
               <label className="task-add-file-item">
-                <span aria-hidden="true">PDF</span>
-                PDF
+                <span aria-hidden="true">Файл</span>
+                Вложение · до 50 МБ (PDF до 25 МБ)
                 <input
                   className="task-file-input"
                   type="file"
-                  accept="application/pdf,.pdf"
+                  accept=".pdf,.docx,.pptx,.xlsx,.txt,.csv,.sb3,.stl,.ino,.zip"
                   aria-label="PDF файл задания"
                   disabled={disabled || items.length >= blockLimit}
                   onChange={(event) => {

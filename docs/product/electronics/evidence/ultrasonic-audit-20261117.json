@@ -1,0 +1,628 @@
+{
+  "source_sha": "5c5265c717f57100e747f956a133b4c52789b7c8",
+  "vitest_exit_code": 1,
+  "observations": [
+    {
+      "kind": "hc",
+      "options": {},
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 218,
+          "lastEchoEndMicroseconds": 6018
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "options": {
+        "omit": "gnd"
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 218,
+          "lastEchoEndMicroseconds": 6018
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "options": {
+        "omit": "vcc"
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "options": {
+        "supply": "power-3v3"
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "options": {
+        "echoAvailable": false
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "options": {},
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 359,
+          "lastEchoEndMicroseconds": 6159
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "options": {
+        "omit": "gnd"
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 359,
+          "lastEchoEndMicroseconds": 6159
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "options": {
+        "omit": "vcc"
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "options": {
+        "supply": "power-3v3"
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "options": {
+        "echoAvailable": false
+      },
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 359,
+          "lastEchoEndMicroseconds": 6159
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "directPingDistance4": {
+        "version": 1,
+        "phase": "echo-delay",
+        "powered": true,
+        "echoStartMicroseconds": 353,
+        "echoEndMicroseconds": 23553
+      }
+    },
+    {
+      "documentPingDistance4": {
+        "status": "fault",
+        "diagnostics": [
+          {
+            "code": "invalid_ping_ultrasonic_distance",
+            "message": "sensor: distanceMeters должен быть 0.02…3.00 м."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "hc",
+      "switchBaseline": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 218,
+          "lastEchoEndMicroseconds": 6018
+        },
+        "diagnostics": []
+      },
+      "edge": 218
+    },
+    {
+      "kind": "hc",
+      "supplyLossAt": 217,
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "supplyLossAt": 218,
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false,
+          "lastEchoStartMicroseconds": 218,
+          "lastEchoEndMicroseconds": 6018
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "supplyLossAt": 219,
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false,
+          "lastEchoStartMicroseconds": 218
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "switchBaseline": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 359,
+          "lastEchoEndMicroseconds": 6159
+        },
+        "diagnostics": []
+      },
+      "edge": 359
+    },
+    {
+      "kind": "ping",
+      "supplyLossAt": 358,
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "supplyLossAt": 359,
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false,
+          "lastEchoStartMicroseconds": 359,
+          "lastEchoEndMicroseconds": 6159
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "supplyLossAt": 360,
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false,
+          "lastEchoStartMicroseconds": 359
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "wiring": "reversed-supply",
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "wiring": "signal-grounded",
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "wiring": "swapped-trigger-echo",
+      "result": {
+        "status": "fault",
+        "diagnostics": [
+          {
+            "code": "electrical_quality_failed",
+            "message": "Не выполнены проверки конечности, KCL или напряжения источников."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "hc",
+      "program": "measurement-in-loop",
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 219,
+          "lastEchoEndMicroseconds": 6019
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "wiring": "reversed-supply",
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": false
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "wiring": "signal-grounded",
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 0
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "ping",
+      "program": "measurement-in-loop",
+      "result": {
+        "status": "ready",
+        "variables": {
+          "duration": 5800
+        },
+        "sensor": {
+          "version": 1,
+          "phase": "idle",
+          "powered": true,
+          "lastEchoStartMicroseconds": 360,
+          "lastEchoEndMicroseconds": 6160
+        },
+        "diagnostics": []
+      }
+    },
+    {
+      "kind": "hc",
+      "loadOhms": 10000,
+      "result": {
+        "status": "fault",
+        "diagnostics": [
+          {
+            "code": "electrical_quality_failed",
+            "message": "Не выполнены проверки конечности, KCL или напряжения источников."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "hc",
+      "loadOhms": 10000,
+      "atMicroseconds": 218,
+      "rawSolved": true,
+      "quality": {
+        "finite": true,
+        "passed": false,
+        "maxKclResidualAmp": 0.000499500499,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 1e-6,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "components": [
+        {
+          "componentId": "sensor",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "vcc": 5,
+            "trigger": 0,
+            "echo": 4.995004994955,
+            "gnd": 0
+          },
+          "power": 0,
+          "brightness": 0
+        },
+        {
+          "componentId": "load",
+          "voltageDrop": 4.995004994955,
+          "current": 0.000499500499,
+          "terminalVoltages": {
+            "a": 4.995004994955,
+            "b": 0
+          },
+          "terminalCurrents": {
+            "a": 0.000499500499,
+            "b": -0.000499500499
+          },
+          "power": 0.00249500749,
+          "brightness": 0,
+          "powerUtilizationPercent": 1,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal"
+        }
+      ]
+    },
+    {
+      "kind": "ping",
+      "loadOhms": 10000,
+      "result": {
+        "status": "fault",
+        "diagnostics": [
+          {
+            "code": "electrical_quality_failed",
+            "message": "Не выполнены проверки конечности, KCL или напряжения источников."
+          }
+        ]
+      }
+    },
+    {
+      "kind": "ping",
+      "loadOhms": 10000,
+      "atMicroseconds": 359,
+      "rawSolved": true,
+      "quality": {
+        "finite": true,
+        "passed": false,
+        "maxKclResidualAmp": 0.000499500499,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 1e-6,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "components": [
+        {
+          "componentId": "sensor",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "gnd": 0,
+            "vcc": 5,
+            "signal": 4.995004994955
+          },
+          "power": 0,
+          "brightness": 0
+        },
+        {
+          "componentId": "load",
+          "voltageDrop": 4.995004994955,
+          "current": 0.000499500499,
+          "terminalVoltages": {
+            "a": 4.995004994955,
+            "b": 0
+          },
+          "terminalCurrents": {
+            "a": 0.000499500499,
+            "b": -0.000499500499
+          },
+          "power": 0.00249500749,
+          "brightness": 0,
+          "powerUtilizationPercent": 1,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal"
+        }
+      ]
+    }
+  ],
+  "classification": "historical_audit_observation_not_execution_state",
+  "correct_behaviour_regressions": {
+    "passed": 0,
+    "failed": 6
+  },
+  "observational_checks": {
+    "passed": 5,
+    "meaning": "records observations; PASS is not product acceptance"
+  },
+  "existing_focused_checks": {
+    "passed": 271,
+    "failed": 0,
+    "full_repository_gate": "not_run",
+    "deployed_browser_acceptance": "not_run"
+  },
+  "reproducer_command": "NX_SKIP_NX_CACHE=true corepack pnpm exec vitest run --config docs/product/electronics/evidence/ultrasonic-audit-vitest.config.mjs --reporter=verbose",
+  "tinkercad_browser_research": {
+    "observed_date_moscow": "2026-11-17",
+    "scope": "owner-open Chrome circuit, two unwired sensors; UI and help only",
+    "models": ["PING 3-pin", "HC-SR04 4-pin"],
+    "shared_help_sections": [
+      "Описание",
+      "Принцип работы",
+      "Подключить",
+      "Как использовать",
+      "Подробнее"
+    ],
+    "ping_extra": "Начало работы with ready Arduino circuit",
+    "target_behavior": "free 2D target in sector, two dashed rays, cm/in distance; invalid inner region changed sector colour and hid normal label",
+    "observed_ping_labels": ["44.7in / 113.4cm", "77.7in / 197.5cm", "125.8in / 319.6cm"],
+    "observed_hc_labels": ["44.7in / 113.4cm", "68.9in / 175.0cm"],
+    "limitations": [
+      "No electrical/code correctness tested in Tinkercad: sensors were unwired.",
+      "No universal min/max inferred from sampled drags.",
+      "No Tinkercad internal source or saved-state semantics inspected.",
+      "ASA preserves its separately accepted PING 2–300 cm range."
+    ]
+  }
+}

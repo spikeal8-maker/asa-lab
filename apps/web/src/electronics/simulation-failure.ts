@@ -89,8 +89,10 @@ export function workerFailure(reason: unknown): SimulationFailure {
   );
 }
 
-function technicalFailureText(code: string): string {
+function technicalFailureText(code: string, detail = ''): string {
   switch (code) {
+    case 'startup-timeout':
+      return detail || 'Моделирование не подготовилось вовремя. Повторите запуск.';
     case 'worker-timeout':
       return 'Вычислительный модуль не ответил вовремя. Запустите моделирование снова.';
     case 'protocol-mismatch':
@@ -127,7 +129,7 @@ export function simulationFailureMessage(failure: SimulationFailure): Simulation
             ? `Переходный расчёт остановлен: ${detail}`
             : failure.category === 'runtime'
               ? `Исполнение программы остановлено: ${detail}`
-              : technicalFailureText(failure.code);
+              : technicalFailureText(failure.code, detail);
   return { category: failure.category, code: failure.code, text };
 }
 

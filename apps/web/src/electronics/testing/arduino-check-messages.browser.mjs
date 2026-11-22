@@ -9,9 +9,11 @@ const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
 const phase = process.argv[2];
 assert.ok(['before', 'after'].includes(phase), 'choose before or after');
-const output = resolve('docs/product/electronics/evidence/arduino-check-863', phase);
+const output = resolve(process.argv[3] ?? 'reports/arduino-check-863', phase);
 await mkdir(output, { recursive: true });
 const cases = {
+  serialPwm:
+    'void setup(){Serial.begin(9600);}\nvoid loop(){analogWrite(9,128);Serial.print(42);Serial.println(43);delay(100);}',
   supported: 'void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(100);}',
   loops: 'void loop(){for(int i=0;i<3;i++){digitalWrite(13,HIGH);}while(false){delay(1);}}',
   servo:
@@ -46,7 +48,10 @@ const result = await build({
   format: 'iife',
   platform: 'browser',
   jsx: 'automatic',
-  alias: { '@asa-lab/electronics': resolve('contexts/electronics/index.ts') },
+  alias: {
+    '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
+    '@asa-lab/electronics/rendering': resolve('contexts/electronics/rendering.ts'),
+  },
   define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{}' },
   plugins: [
     {
@@ -72,7 +77,7 @@ const browser = await chromium.launch({ headless: true });
 const receipts = [];
 let structures;
 try {
-  for (const width of [1440, 390])
+  for (const width of [1440, 1024, 390, 320])
     for (const [name, source] of Object.entries(cases)) {
       const page = await browser.newPage({
         viewport: { width, height: 900 },
@@ -107,11 +112,29 @@ try {
       await page.evaluate((source) => window.mount(source), source);
       const editor = page.getByRole('textbox', { name: 'Код Arduino C++', exact: true });
       await editor.waitFor();
-      await page.locator('.arduino-check-button').click();
       const header = page.locator('.arduino-code-check-title');
-      assert.equal(await header.getAttribute('aria-expanded'), 'true');
-      const selections = [];
       const diagnostics = structures.cases[name].diagnostics;
+      const hasBlockers = diagnostics.some((item) => item.status === 'unsupported');
+      if (phase === 'after') {
+        assert.equal(await header.getAttribute('aria-expanded'), String(hasBlockers));
+      }
+      await page.locator('.arduino-check-button').click();
+      const afterCheckExpanded = await header.getAttribute('aria-expanded');
+      if (phase === 'after') {
+        assert.equal(afterCheckExpanded, String(hasBlockers));
+        if (!hasBlockers) {
+          assert.equal(await page.locator('.arduino-code-check-body').count(), 0);
+          assert.equal(await header.locator('.arduino-code-check-icon').textContent(), '✓');
+          assert.equal(await header.locator('.arduino-code-check-count.active').count(), 0);
+          const ready = header.getByText('Можно запускать', { exact: true });
+          assert.ok(await ready.isVisible());
+          const readyBox = await ready.boundingBox();
+          assert.ok(readyBox && readyBox.x >= 0 && readyBox.x + readyBox.width <= width);
+        }
+      }
+      await page.screenshot({ path: resolve(output, `check-${name}-${width}.png`) });
+      if (afterCheckExpanded === 'false') await header.click();
+      const selections = [];
       for (let i = 0; i < diagnostics.length; i++) {
         await page.locator('.arduino-code-check-messages button').nth(i).click();
         const selection = await editor.evaluate((el) => ({
@@ -125,6 +148,43 @@ try {
       await header.click();
       assert.equal(await header.getAttribute('aria-expanded'), 'false');
       assert.equal(await page.locator('.arduino-code-check-body').count(), 0);
+      if (phase === 'after' && name === 'loops') {
+        // A user-closed reference stays closed as additional ordinary notes appear.
+        const previousNotes = diagnostics.filter((item) => item.status === 'limited').length;
+        const withAnotherNote = source.replace('delay(1)', 'delay(millis())');
+        assert.notEqual(withAnotherNote, source, 'the fixture must add a new note');
+        await editor.fill(withAnotherNote);
+        await page.waitForFunction(
+          (count) =>
+            globalThis.document
+              .querySelector('.arduino-code-check-title')
+              ?.textContent?.includes(`Примечаний: ${count}`),
+          previousNotes + 1,
+        );
+        assert.equal(await header.getAttribute('aria-expanded'), 'false');
+        assert.equal(await page.locator('.arduino-code-check-body').count(), 0);
+        assert.ok(await header.getByText('Можно запускать', { exact: true }).isVisible());
+        await page.screenshot({ path: resolve(output, `closed-after-new-note-${width}.png`) });
+
+        // A newly introduced real blocker must still reveal the error after manual closing.
+        const withBlocker = withAnotherNote.replace(
+          'delay(millis())',
+          'shiftOut(2,3,MSBFIRST,5);delay(1)',
+        );
+        await editor.fill(withBlocker);
+        await page.waitForFunction(
+          () =>
+            globalThis.document
+              .querySelector('.arduino-code-check-title')
+              ?.getAttribute('aria-expanded') === 'true',
+        );
+        assert.ok((await header.innerText()).includes('Блокирующих:'));
+        await page.screenshot({ path: resolve(output, `new-blocker-after-close-${width}.png`) });
+        await editor.fill(source);
+        assert.equal(await editor.inputValue(), source, 'the original source must be restored');
+        if ((await header.getAttribute('aria-expanded')) === 'true') await header.click();
+        assert.equal(await header.getAttribute('aria-expanded'), 'false');
+      }
       await header.click();
       assert.equal(await editor.inputValue(), source);
       const box = await page.locator('.arduino-code-panel').boundingBox();
@@ -156,7 +216,7 @@ try {
       if (phase === 'after') {
         const blockers = diagnostics.filter((item) => item.status === 'unsupported').length;
         const notes = diagnostics.length - blockers;
-        assert.ok(expanded.includes(`Блокирующих: ${blockers}`));
+        if (blockers) assert.ok(expanded.includes(`Блокирующих: ${blockers}`));
         assert.ok(expanded.includes(`Примечаний: ${notes}`));
         assert.ok(!/упрощённо|ограничениями модели|Ограничений:/.test(expanded + notice));
         if (blockers) {
@@ -166,11 +226,7 @@ try {
           assert.ok(structures.cases[name].runtime.diagnostics.length > 0);
         } else {
           assert.deepEqual(structures.cases[name].runtime.diagnostics, []);
-          assert.ok(
-            notes
-              ? notice.includes('можно запускать')
-              : notice.includes('ошибок для симулятора не найдено'),
-          );
+          assert.ok(notice.includes('код можно запускать'));
           if (notes) assert.ok(expanded.includes('не блокируют запуск'));
         }
         assert.equal(
@@ -202,6 +258,7 @@ try {
         width,
         name,
         expanded,
+        afterCheckExpanded,
         notice,
         selections,
         sourcePreserved: true,
@@ -240,7 +297,9 @@ try {
     const immutableNative = (rows) =>
       rows.map((row) =>
         Object.fromEntries(
-          Object.entries(row).filter(([key]) => !['expanded', 'notice', 'panel'].includes(key)),
+          Object.entries(row).filter(
+            ([key]) => !['expanded', 'afterCheckExpanded', 'notice', 'panel'].includes(key),
+          ),
         ),
       );
     assert.deepEqual(
@@ -261,7 +320,7 @@ try {
     );
   }
   console.log(
-    `PASS ${phase}: 8 real diagnostic cases × 1440/390; check/collapse/source navigation/edit/preservation, no server`,
+    `PASS ${phase}: ${Object.keys(cases).length} real diagnostic cases × 1440/1024/390/320; check/collapse/source navigation/edit/preservation, no server`,
   );
 } finally {
   await browser.close();

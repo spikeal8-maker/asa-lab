@@ -14,6 +14,7 @@ ASA Lab — команды школьного и других серверов
   asa logs [api|web|postgres|minio|scratch|search] [--tail N]
   asa doctor                       полная диагностика (без изменений)
   asa check                        проверить выпуск и возможность обновления
+  asa cancel-update --deployment-digest sha256:...
   asa update                       установить выпуск после штатных проверок
   asa backup
   asa verify-backup --backup /absolute/path
@@ -26,6 +27,7 @@ ASA Lab — команды школьного и других серверов
 ASA_INSTALL_ROOT=/absolute/path переопределяет путь; ASA_PROFILE задаёт профиль,
 если установка ещё не настроена. Для production установите постоянную команду
 из проверенного checkout: tools/install-asa-command.sh --production.
+Для технического вывода проверки или установки добавьте --verbose.
 Можно явно выбрать выпуск с --deployment-digest sha256:... .
 HELP
 }
@@ -100,12 +102,17 @@ case "$profile" in
 esac
 
 # Plain production commands select the published release through the canonical manager.
-if [ "$profile" = production ] && [ "$#" -eq 0 ]; then
+if [ "$profile" = production ] && { [ "$#" -eq 0 ] || { [ "$#" -eq 1 ] && [ "$1" = --verbose ]; }; }; then
   case "$action" in
     check|update)
       [ "$tools_root" != "$root" ] || fail 'Установите постоянную команду ASA Lab из отдельного проверенного каталога инструментов'
       [ -f "$tools_root/tools/asa_manager.py" ] || fail 'Не найдены проверенные инструменты обновления'
-      exec "$python" -E -s -B "$tools_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" --operator
+      if [ "$#" -eq 1 ]; then
+        set --
+      else
+        set -- --human
+      fi
+      exec "$python" -E -s -B "$tools_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" --operator "$@"
       ;;
   esac
 fi
@@ -122,10 +129,10 @@ if [ "$action" = update ] && [ "$profile" = production ]; then
 fi
 
 case "$action" in
-  install|doctor|check|update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge|configure-offsite)
+  install|doctor|check|update|cancel-update|backup|verify-backup|restore-check|repair-plan|rollback-plan|rollback|acknowledge|configure-offsite)
     manager_root=$root
     case "$profile:$action" in
-      production:check|production:update|production:rollback-plan|production:rollback|production:acknowledge|production:configure-offsite)
+      production:check|production:update|production:cancel-update|production:rollback-plan|production:rollback|production:acknowledge|production:configure-offsite)
         manager_root=$tools_root ;;
     esac
     exec "$python" -E -s -B "$manager_root/tools/asa_manager.py" "$action" --root "$root" --profile "$profile" "$@"

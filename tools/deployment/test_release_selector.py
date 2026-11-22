@@ -28,6 +28,24 @@ def manifest():
 
 
 class OffsitePolicyTests(unittest.TestCase):
+    def test_implicit_update_rereads_selection_after_lock_instead_of_reviving_cancelled_digest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            state = root / '.asa'
+            state.mkdir()
+            source = state / 'release-selection.json'
+            manager.private_atomic_json(source, manager.selection_record(DIGEST, manifest()))
+            install = SimpleNamespace(root=root, state=state, settings={})
+
+            @contextlib.contextmanager
+            def lock_after_cancel(_root):
+                source.rename(state / 'cancelled-test.json')
+                yield
+
+            with patch.object(manager, 'Installation', return_value=install),                     patch.object(manager, 'operation_lock', side_effect=lock_after_cancel),                     patch.object(manager, 'update') as update:
+                self.assertEqual(manager.main(['update', '--root', str(root), '--profile', 'production']), 0)
+            update.assert_called_once_with(install, check=False, scheduled=False)
+
     def test_update_reads_policy_again_after_taking_operation_lock(self):
         root = Path.cwd()
         original = SimpleNamespace(root=root, settings={})
@@ -147,6 +165,44 @@ class ContinuationTests(unittest.TestCase):
     def save_pending(self):
         self.install.state.mkdir(exist_ok=True)
         manager.private_atomic_json(self.install.state/'release-selection.json',manager.selection_record(DIGEST,manifest()))
+
+    def test_cancel_archives_only_matching_selection_on_the_running_release(self):
+        self.save_pending()
+        source = self.install.state / 'release-selection.json'
+        saved = source.read_bytes()
+        self.install.settings.update(profile='production')
+        self.install.identity = Mock(return_value={})
+        installed = {**manifest(), 'revision': self.current, 'schema': 286}
+        (self.install.state / 'installed-release.json').write_text(json.dumps(installed))
+        with (patch.object(manager, 'os', wraps=manager.os) as platform,
+              patch.object(manager.application_rollback, 'attest_private_state'),
+              patch.object(manager.application_rollback, 'guard_acknowledge'),
+              patch.object(manager, 'sync_selection'),
+              patch.object(manager, 'verify_running_release') as verify,
+              contextlib.redirect_stdout(io.StringIO())):
+            platform.name = 'posix'
+            platform.geteuid = Mock(return_value=0)
+            with self.assertRaisesRegex(Blocked, 'digest'):
+                manager.cancel_update_before_switch(self.install, 'sha256:' + 'e' * 64)
+            self.assertEqual(source.read_bytes(), saved)
+            marker = self.install.state / 'maintenance.json'
+            marker.touch()
+            with self.assertRaises(Blocked) as started:
+                manager.cancel_update_before_switch(self.install, DIGEST)
+            self.assertEqual(started.exception.code, 'MAINTENANCE')
+            self.assertEqual(source.read_bytes(), saved)
+            marker.unlink()
+            self.current = 'e' * 40
+            with self.assertRaises(Blocked) as wrong_checkout:
+                manager.cancel_update_before_switch(self.install, DIGEST)
+            self.assertEqual(wrong_checkout.exception.code, 'RELEASE_SOURCE')
+            self.current = installed['revision']
+            manager.cancel_update_before_switch(self.install, DIGEST)
+        self.assertFalse(source.exists())
+        archived, = self.install.state.glob('cancelled-release-selection-*.json')
+        self.assertEqual(archived.read_bytes(), saved)
+        self.install.readiness.assert_called_once_with(installed['revision'], installed['schema'])
+        verify.assert_called_once_with(self.install, installed)
 
     def test_operator_resumes_only_the_saved_digest_after_source_switch(self):
         def first_update(*args, **kwargs):

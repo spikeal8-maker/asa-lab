@@ -1,0 +1,12 @@
+{
+  "name": "@asa-lab/picomatch-safe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ASA Lab audited local fork of picomatch 4.0.7 with CVE-2026-112366 repeated-extglob remediation",
+  "license": "MIT",
+  "main": "index.js",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  }
+}
