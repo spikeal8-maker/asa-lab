@@ -89,7 +89,7 @@ function GradeHistory({
           <li key={r.id}>
             <strong>{journalRevisionLabel(column.preset, r.value)}</strong> · {r.authorName} ·{' '}
             {schoolTimeFormats(timeZone).dateTime(r.publishedAt)}
-            <p>{r.reason}</p>
+            {r.reason ? <p>{r.reason}</p> : null}
           </li>
         ))}
       </ol>
@@ -257,7 +257,9 @@ function CellEditor({
     mounted.current = true;
     panel.current
       ?.querySelector<HTMLElement>(
-        archived ? 'button:not(:disabled), summary' : 'input, button[data-level]:not(:disabled)',
+        archived
+          ? 'button:not(:disabled), summary'
+          : 'input:not(:disabled), button[data-level]:not(:disabled)',
       )
       ?.focus({ preventScroll: true });
     return () => {
@@ -269,8 +271,8 @@ function CellEditor({
   }, [grade?.revision, column.headerRevision, scaleVersion]);
   async function save(next: number | null) {
     if (saving.current || archived || conflict) return;
-    if (!mutation.current?.uncertain && grade && !reason.trim()) {
-      setError('Укажите причину исправления или очистки оценки.');
+    if (!mutation.current?.uncertain && next === null && grade && !reason.trim()) {
+      setError('Укажите причину очистки оценки.');
       return;
     }
     if (
@@ -336,6 +338,7 @@ function CellEditor({
         }
         if (
           e.key === 'Tab' &&
+          !grade &&
           !busy &&
           !history &&
           (e.target as HTMLElement).hasAttribute('data-level')
@@ -382,10 +385,9 @@ function CellEditor({
         {grade ? <small>Сейчас: {journalRevisionLabel(column.preset, grade.value)}</small> : null}
         {grade && !archived && !uncertain ? (
           <label>
-            Причина изменения{' '}
+            Причина изменения (обязательна при очистке){' '}
             <input
               autoComplete="off"
-              required
               maxLength={500}
               value={reason}
               disabled={busy}
@@ -426,9 +428,7 @@ function CellEditor({
                 key={v}
                 data-level={v}
                 aria-label={journalAccessibleLabel(column.preset, v)}
-                disabled={
-                  busy || archived || conflict || uncertain || Boolean(grade && !reason.trim())
-                }
+                disabled={busy || archived || conflict || uncertain}
                 onClick={() => void save(v)}
               >
                 {journalGradeLabel(column.preset, v)}
@@ -1129,8 +1129,8 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
           <details className="manual-journal-hint">
             <summary>Справка по журналу</summary>
             <p>
-              Нажмите ячейку и выберите оценку. «—» — нет оценки, 0 — отдельная оценка. Исправление
-              требует причины. История доступна в ячейке. Даты класса: {data.timeZone}. Пустые
+              Нажмите ячейку и выберите оценку. «—» — нет оценки, 0 — отдельная оценка. Для очистки
+              оценки нужна причина. История доступна в ячейке. Даты класса: {data.timeZone}. Пустые
               работы сохраняются только при подтверждении заголовка или первой оценке.
             </p>
           </details>
