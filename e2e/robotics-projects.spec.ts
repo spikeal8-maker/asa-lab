@@ -17,6 +17,74 @@ const origin = (page: Page): string => new URL(page.url()).origin;
 const digest = (value: unknown): string =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
+/** Compare actual CSS bar endpoints to the captured real orthographic render inputs.
+ * Neither the label nor a self-reported pixels/metre value is a projection oracle.
+ */
+async function sideRuler(page: Page) {
+  const ruler = page.getByTestId('robotics-side-scale');
+  await expect(ruler).toBeVisible(); // WebGL fallback is deliberately not a PASS.
+  const read = () =>
+    ruler.evaluate((element) => {
+      const bar = element.querySelector<HTMLElement>('.robotics-side-scale-bar');
+      const canvas = element.parentElement?.querySelector('canvas');
+      if (!bar || !canvas) throw new Error('Side ruler lost its real canvas/bar');
+      const projection: number[] = JSON.parse(element.getAttribute('data-projection') ?? 'null');
+      if (projection?.length !== 7 || !projection.every(Number.isFinite))
+        throw new Error('Missing actual orthographic render inputs');
+      const [left, right, top, bottom, zoom, width, height] = projection as [
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+      ];
+      const label = element.textContent?.trim() ?? '';
+      const match = /^([\d.,]+)\s*(мм|см|м)$/.exec(label);
+      if (!match) throw new Error('Unreadable metric label: ' + label);
+      const meters =
+        Number(match[1]!.replace(',', '.')) /
+        (match[2] === 'мм' ? 1000 : match[2] === 'см' ? 100 : 1);
+      const viewport = canvas.getBoundingClientRect();
+      const pixels = bar.getBoundingClientRect().width;
+      const horizontal = (meters * zoom * width) / (right - left);
+      const vertical = (meters * zoom * height) / (top - bottom);
+      const error = Math.max(
+        Math.abs(pixels - horizontal),
+        Math.abs(pixels - vertical),
+        Math.abs(width - viewport.width),
+        Math.abs(height - viewport.height),
+      );
+      return {
+        meters,
+        pixels,
+        label,
+        error,
+        zoom,
+        pixelsPerMeter: (zoom * width) / (right - left),
+        viewport: viewport.toJSON(),
+        bounds: element.getBoundingClientRect().toJSON(),
+        controls: element
+          .parentElement!.querySelector('.robotics-spatial-controls')!
+          .getBoundingClientRect()
+          .toJSON(),
+      };
+    });
+  await expect.poll(async () => (await read()).error).toBeLessThanOrEqual(1);
+  const measurement = await read();
+  expect(measurement.meters).toBeGreaterThan(0);
+  expect(measurement.pixels).toBeGreaterThan(0);
+  expect(measurement.bounds.left).toBeGreaterThanOrEqual(measurement.viewport.left);
+  expect(measurement.bounds.right).toBeLessThanOrEqual(measurement.viewport.right);
+  expect(measurement.bounds.top).toBeGreaterThanOrEqual(measurement.viewport.top);
+  expect(measurement.bounds.bottom).toBeLessThanOrEqual(measurement.viewport.bottom);
+  expect(measurement.bounds.bottom).toBeLessThanOrEqual(measurement.controls.top);
+  await expect(ruler).toHaveAccessibleName('Масштаб бокового вида: ' + measurement.label);
+  await expect(ruler).toHaveCSS('pointer-events', 'none');
+  return measurement;
+}
+
 function record(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Expected an API response object');
@@ -439,6 +507,148 @@ async function cardPreview(page: Page, title: string): Promise<Locator> {
   writeFileSync(`${EVIDENCE}/source-preview-${location}-${page.viewportSize()!.width}.png`, png);
   return card;
 }
+
+test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the saved world or paused clock', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  mkdirSync(EVIDENCE, { recursive: true });
+  await register(page, 'Автор проверки масштаба поля');
+  await page.locator('.portal-header .portal-quick-create > summary').click();
+  const createdResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/projects' &&
+      response.request().method() === 'POST',
+  );
+  await page
+    .locator('.portal-header .portal-create-options')
+    .getByRole('button', { name: /^Робототехника/ })
+    .click();
+  const created = await createdResponse;
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json()).project.id as string;
+  await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+  const before = await saved(page, projectId);
+  const sourceDigest = digest(before.draft.document);
+  const url = page.url();
+  const baseURL = origin(page);
+  const storageState = await page.context().storageState();
+  const measurements: unknown[] = [];
+
+  for (const dpr of [1, 2]) {
+    const context = await browser.newContext({
+      baseURL,
+      storageState,
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: dpr,
+    });
+    try {
+      const target = await context.newPage();
+      const failures = collectBrowserFailures(target, {
+        allowAnonymousSessionProbe: true,
+        allowAdminAccessProbe: true,
+      });
+      await target.goto(url, { waitUntil: 'domcontentloaded' });
+      await expect(target.getByTestId('robotics-account-editor')).toBeVisible();
+      await target.getByRole('tab', { name: 'Поле', exact: true }).click();
+      await target.getByRole('button', { name: 'Запустить', exact: true }).click();
+      await expect
+        .poll(
+          async () =>
+            Number(await target.getByTestId('robotics-time').getAttribute('data-microseconds')),
+          { timeout: 60_000 },
+        )
+        .toBeGreaterThan(200_000);
+      await target.getByRole('button', { name: 'Пауза', exact: true }).click();
+      await expect(target.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+      await target.getByRole('button', { name: 'Сбоку', exact: true }).click();
+      const spatial = target.getByTestId('robotics-field-spatial');
+      const snapshot = () =>
+        spatial.evaluate((element) =>
+          [
+            'data-microseconds',
+            'data-physics-microseconds',
+            'data-x-meters',
+            'data-y-meters',
+            'data-heading-radians',
+          ].map((name) => element.getAttribute(name)),
+        );
+      await sideRuler(target);
+      const paused = await snapshot();
+      expect(Number(paused[0])).toBeGreaterThan(200_000);
+      const revision = (await readProject(target, projectId)).draft.revision;
+
+      for (const width of [1440, 320]) {
+        await target.setViewportSize({ width, height: 900 });
+        const closeDock = target.getByRole('button', { name: 'Закрыть панель поля', exact: true });
+        if (await closeDock.isVisible()) await closeDock.click();
+        await target
+          .getByRole('button', { name: 'Показать всё поле в объёмном виде', exact: true })
+          .click();
+        await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1);
+        const fitted = await sideRuler(target);
+        expect(fitted.zoom).toBe(1);
+        // Independent known-field projection at Fit, not a scale helper result.
+        const verticalSpan =
+          Math.max(
+            1.25,
+            before.draft.document.world.field.widthMeters /
+              (fitted.viewport.width / fitted.viewport.height),
+          ) * 1.22;
+        expect(fitted.pixelsPerMeter).toBeCloseTo(fitted.viewport.height / verticalSpan, 8);
+        await target.getByRole('button', { name: 'Приблизить объёмный вид', exact: true }).click();
+        await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1.25);
+        const zoomed = await sideRuler(target);
+        expect(zoomed.pixelsPerMeter / fitted.pixelsPerMeter).toBeCloseTo(1.25, 8);
+        const canvas = target
+          .getByRole('img', { name: 'Масштаб бокового вида: ' + zoomed.label })
+          .locator('..')
+          .locator('canvas');
+        await canvas.focus();
+        await canvas.press('ArrowRight');
+        expect((await sideRuler(target)).pixelsPerMeter).toBeCloseTo(zoomed.pixelsPerMeter, 8);
+        await canvas.press('Home');
+        await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1);
+        await target.getByRole('button', { name: 'К роботу в объёмном виде', exact: true }).click();
+        await expect.poll(async () => (await sideRuler(target)).zoom).toBeGreaterThan(1);
+        const focused = await sideRuler(target);
+        expect(focused.zoom).toBeGreaterThan(1);
+        expect(await snapshot()).toEqual(paused);
+        expect(await target.getByTestId('robotics-time').getAttribute('data-microseconds')).toBe(
+          paused[0],
+        );
+        await spatial.screenshot({ path: `${EVIDENCE}/side-scale-${width}-dpr${dpr}.png` });
+        measurements.push({ width, dpr, fitted, zoomed, focused, paused });
+        await target.getByRole('button', { name: 'Перспектива', exact: true }).click();
+        await expect(target.getByTestId('robotics-side-scale')).toHaveCount(0);
+        await target.getByRole('button', { name: 'Сверху', exact: true }).click();
+        await expect(target.getByTestId('robotics-side-scale')).toHaveCount(0);
+        await target.getByRole('button', { name: 'Сбоку', exact: true }).click();
+        await sideRuler(target);
+      }
+      await target.getByRole('tab', { name: 'Робот', exact: true }).click();
+      await expect(target.getByTestId('robotics-side-scale')).toBeHidden();
+      await target.getByRole('tab', { name: 'Поле', exact: true }).click();
+      await sideRuler(target);
+      const afterCamera = await readProject(target, projectId);
+      expect(afterCamera.draft.revision).toBe(revision);
+      expect(digest(afterCamera.draft.document)).toBe(sourceDigest);
+      expect(await snapshot()).toEqual(paused);
+      expect(digest((await saved(target, projectId)).draft.document)).toBe(sourceDigest);
+      await target.reload();
+      await expect(target.getByTestId('robotics-account-editor')).toBeVisible();
+      expect(digest((await readProject(target, projectId)).draft.document)).toBe(sourceDigest);
+      failures.assertEmpty();
+    } finally {
+      await context.close();
+    }
+  }
+  writeFileSync(
+    `${EVIDENCE}/side-scale.json`,
+    JSON.stringify({ profile: 'UI_ONLY', projectId, sourceDigest, measurements }, null, 2),
+  );
+});
 
 test('Robotics uses account projects, the main portal and an immutable publication for a second user', async ({
   page,
