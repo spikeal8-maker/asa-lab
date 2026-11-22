@@ -1,0 +1,119 @@
+{
+  "id": "E1-PHY01-CURRENT-AOT-TRANSFER-01",
+  "scope": "TEST_ONLY",
+  "registration": "c353353a7b1977035e35aeb0201f8ee879251960",
+  "historical": {
+    "commit": "5c2b8126af49c9cbf7595152d97f32ce61caed8b",
+    "tree": "2d8dda38723952d48d5d5cb0bdedd56a3d650e64",
+    "blobs": [
+      {
+        "path": "tests/robotics/field-core-qualification/mujoco-phy01.fixture.json",
+        "bytes": 3924,
+        "sha256": "a8c88eac291c4ef48a0db7261f67949e162b1e13e713705333365c804d41f67c"
+      },
+      {
+        "path": "tests/robotics/field-core-qualification/mujoco-phy01.spec.ts",
+        "bytes": 8577,
+        "sha256": "1266b4c420baea08fd4448beb9d96a908d039bc3ddcbfc89a67b911aef893cb4"
+      },
+      {
+        "path": "tools/robotics-field-core/mujoco-phy01.mjs",
+        "bytes": 34587,
+        "sha256": "05998a3f88968552cb80c75172d724719fb7f7ecfe6c66762e7e44857e0b5f99"
+      },
+      {
+        "path": "tools/robotics-field-core/run-mujoco-phy01.mjs",
+        "bytes": 6441,
+        "sha256": "5b2179f0ff1b6c759b63757dd881242aee6c9fb4b258243a08a7b50dfefb12ad"
+      }
+    ],
+    "fixtureUtf8": "{\n  \"id\": \"PHY-01-MUJOCO-v1\",\n  \"scope\": \"TEST_ONLY\",\n  \"engine\": {\n    \"package\": \"@mujoco/mujoco\",\n    \"version\": \"4.0.0\",\n    \"artifactManifest\": \"tools/robotics-field-core/mujoco-artifact.json\",\n    \"integrity\": \"sha512-eVeej96ZW68ERuXQBiZtHFsX9jKHn+0FPJd3vJjBIgn5oQPLJXOrKI7d61dO3P4s22JC5wch3boojgUWyxi1TQ==\",\n    \"wasmSha256\": \"51ae58ae3c69145f6570aeb1fae27f8f142b2d883c804c4747c1a0c3bc80b0de\",\n    \"moduleSha256\": \"85fdadb2c5acee97756e2b0257085f795a2af542f0c4cb97412a6d377abe39e2\",\n    \"artifactManifestSha256\": \"1c353e3593f1fcd730c6e97f9549d3b6fdff7ce1fff7b9c45755edd7cd1ca1c3\"\n  },\n  \"massesKg\": [0.02, 0.5, 2],\n  \"sampleTimesUs\": [100000, 200000, 300000, 400000],\n  \"gravity\": [0, 0, -9.81],\n  \"initialQpos\": [0, 0, 2, 1, 0, 0, 0],\n  \"initialQvel\": [0, 0, 0, 0, 0, 0],\n  \"macroStepUs\": 5000,\n  \"nativeStepUs\": [500, 250],\n  \"nativeStepsPerMacro\": [10, 20],\n  \"repeats\": 3,\n  \"seed\": 0,\n  \"sphereRadiusM\": 0.02,\n  \"floorTopZ\": 0,\n  \"floorHalfExtentsM\": [5, 5, 0.01],\n  \"massSource\": \"explicit_inertial_only\",\n  \"inertia\": \"solid_sphere_2_m_r_squared_over_5\",\n  \"inertiaFromGeom\": false,\n  \"solver\": {\n    \"integrator\": \"implicitfast\",\n    \"integratorValue\": 3,\n    \"solver\": \"Newton\",\n    \"solverValue\": 2,\n    \"jacobian\": \"dense\",\n    \"jacobianValue\": 0,\n    \"cone\": \"elliptic\",\n    \"coneValue\": 1,\n    \"iterations\": 100,\n    \"tolerance\": 1e-8\n  },\n  \"disableFlags\": 0,\n  \"enableFlags\": 0,\n  \"sleep\": false,\n  \"damping\": 0,\n  \"armature\": 0,\n  \"frictionloss\": 0,\n  \"stiffness\": 0,\n  \"fluidDensity\": 0,\n  \"fluidViscosity\": 0,\n  \"wind\": [0, 0, 0],\n  \"geomFriction\": [0, 0, 0],\n  \"geomMargin\": 0,\n  \"geomGap\": 0,\n  \"callbacks\": false,\n  \"actuators\": 0,\n  \"sensors\": 0,\n  \"plugins\": 0,\n  \"tolerance\": {\n    \"positionAbsoluteM\": 0.0001,\n    \"velocityAbsoluteMps\": 0.001,\n    \"relative\": 0.01,\n    \"massReadbackRelative\": 1e-6\n  },\n  \"timeBudget\": \"(gamma_n + 2*EPSILON)*max(integer_tick_time, native_dt); gamma_n=n*EPSILON/(1-n*EPSILON)\",\n  \"phase\": {\n    \"main\": \"mj_step1_then_mj_step2\",\n    \"reference\": \"mj_step\",\n    \"referenceMassKg\": 0.5,\n    \"referenceRepeats\": 1,\n    \"preserveAcrossStep1\": [\"qpos\", \"qvel\", \"time\"],\n    \"parityFields\": [\"qpos\", \"qvel\", \"qacc\", \"qacc_warmstart\", \"time\"],\n    \"parityRepresentation\": \"IEEE754_FLOAT64_LE_BYTES\",\n    \"excludedFromParity\": [\"timers\", \"solver_counters\", \"memory_counters\"],\n    \"noExtraForward\": true,\n    \"endpointSource\": \"qpos_and_qvel_only_after_COM0_identity_frame_admission\",\n    \"warningEvidence\": \"Zero baseline plus per-step all-zero guard counter and incremental SHA256 of 7 ordered (number,lastinfo) Float64LE pairs per completed warning observation; lastObservation retains any failure. Exact split/full digest parity.\"\n  },\n  \"budget\": {\n    \"mainWorlds\": 18,\n    \"referenceWorlds\": 2,\n    \"totalWorlds\": 20,\n    \"mainNativeSteps\": 21600,\n    \"referenceNativeSteps\": 2400,\n    \"totalNativeSteps\": 24000,\n    \"maxStepsPerWorld\": 1600,\n    \"scope\": \"per_execute_invocation\"\n  },\n  \"preregistrationRationale\": {\n    \"nativeStepSelection\": \"The initial 2/4 native substep candidate under REQ-PHY-04 is explicitly changed BEFORE dynamics to 10/20 actual native steps per 5000 us macro (500/250 us). For semi-implicit constant gravity displacement error is g*t*h/2: 500 us gives 0.24525 mm at 0.1 s below the unchanged 0.4905 mm limit; 1250 us would give 0.613125 mm and fail. Halving h predicts half error. This is a preregistered prediction, not measured PASS.\",\n    \"physics\": \"New MuJoCo qualification; prior Rapier PASS does not transfer.\",\n    \"contact\": \"Contact-free window only. Native CCD is not continuous-collision qualification.\"\n  },\n  \"schemaVersion\": 1,\n  \"specification\": {\n    \"path\": \"docs/product/robotics/FIELD_CORE_SPEC.md\",\n    \"version\": \"1.1\",\n    \"sha256\": \"297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e\",\n    \"sections\": [\"16.2\", \"19.7\"],\n    \"stepSelectionRequirement\": \"REQ-PHY-04\"\n  },\n  \"warningCount\": 7\n}\n"
+  },
+  "specification": {
+    "currentPath": "docs/product/robotics/FIELD_CORE_SPEC.md",
+    "currentSha256": "0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3",
+    "archivePath": "docs/product/robotics/FIELD_CORE_SPEC_v1_1.md",
+    "archiveSha256": "297bcc4f48ac3af82f9cf6f85e7dc019a409beb48c7506b75c8efeacb6443a0e",
+    "requirements": ["REQ-VERIFY-01", "REQ-VERIFY-02"],
+    "test": "PHY-01"
+  },
+  "engine": {
+    "version": "4.0.0",
+    "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "glue": {
+      "file": "mujoco.js",
+      "bytes": 331846,
+      "sha256": "9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8"
+    },
+    "wasm": {
+      "file": "mujoco.wasm",
+      "bytes": 11229000,
+      "sha256": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241"
+    },
+    "declarations": {
+      "file": "mujoco.d.ts",
+      "bytes": 151568,
+      "sha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff"
+    },
+    "license": {
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "buildReceipt": {
+      "bytes": 15869,
+      "sha256": "c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9"
+    },
+    "browserReceipt": {
+      "bytes": 449526,
+      "sha256": "70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5"
+    },
+    "profile": {
+      "gravity": [0, 0, -9.81],
+      "integrator": 3,
+      "solver": 2,
+      "jacobian": 0,
+      "cone": 1,
+      "iterations": 100,
+      "ls_iterations": 50,
+      "noslip_iterations": 20,
+      "ccd_iterations": 100,
+      "disableflags": 65536,
+      "enableflags": 32
+    }
+  },
+  "profile": {
+    "gravity": [0, 0, -9.81],
+    "integrator": 3,
+    "solver": 2,
+    "jacobian": 0,
+    "cone": 1,
+    "iterations": 100,
+    "ls_iterations": 50,
+    "noslip_iterations": 20,
+    "ccd_iterations": 100,
+    "disableflags": 65536,
+    "enableflags": 32,
+    "tolerance": 1e-10,
+    "ls_tolerance": 0.01,
+    "noslip_tolerance": 1e-12,
+    "impratio": 1,
+    "ccd_tolerance": 1e-8,
+    "density": 0,
+    "viscosity": 0,
+    "wind": [0, 0, 0]
+  },
+  "profileDelta": "Historical flags0/0 and tolerance1e-8 are prospectively replaced by current flags65536/32 and tolerance1e-10, with the full accepted nativeCCD/diagexact profile. All physical oracles and allowances are unchanged. Historical stock PASS does not transfer.",
+  "raw": {
+    "recordBytes": 1280,
+    "maxIntervals": 24000,
+    "metadataBytes": 1048576,
+    "emergencyBytes": 1048576,
+    "totalBytes": 33554432
+  },
+  "protocol": {
+    "plan": "Three masses x two native steps x three fresh split repeats; two fresh mass0.5 full references. One module, one concurrent world, no extra forward, no callbacks or state setters.",
+    "endpoint": "CentralCOM and identity frame read back before dispatch; actual qpos/qvel are endpoint source. STEP1 must preserve qpos/qvel/time bytes. Retain all parity fields qpos,qvel,qacc,qacc_warmstart,time, signed zero.",
+    "assessment": "Original analytical tolerances, mass spread, repeatability and convergence are retained, including eight full-reference analytic samples in addition to72 split samples. Report expected semi-implicit position error norm(g)*t*h/2 without new fitted gates.",
+    "retention": "Little-endian fixed1280-byte records include PRE, optional postSTEP1, POST, native warnings, applied inputs, phase counts and constraint forces. Failed current prefix and primary/cleanup errors retained externally. No retuning, no automatic retry, no D01/D02/product closure."
+  }
+}
