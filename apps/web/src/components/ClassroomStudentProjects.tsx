@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { observationApi, type ObservationProjectsPage } from '../classroom-observation-api';
 import { useSchoolTime } from './school-time';
 import { WorkPreview, WorkSnapshot } from './WorkPreview';
@@ -41,12 +41,18 @@ function ProjectList({
   const [busy, setBusy] = useState(true);
   const [retry, setRetry] = useState(0);
   const [prepared, setPrepared] = useState(false);
+  const filters = useMemo(
+    () => ({ module, learner, search, assignment, archive: String(archive), offset, limit }),
+    [module, learner, search, assignment, archive, offset, limit],
+  );
+  useEffect(() => {
+    setPage(null);
+    setPreviewId(null);
+  }, [filters]);
   useEffect(() => {
     let current = true;
     setBusy(true);
     setError(null);
-    setPage(null);
-    setPreviewId(null);
     void (async () => {
       if (!prepared) {
         const result = await observationApi.prepare([classroomId]);
@@ -59,48 +65,43 @@ function ProjectList({
         setPrepared(true);
         return;
       }
-      const filters = {
-        module,
-        learner,
-        search,
-        assignment,
-        archive: String(archive),
-        offset,
-        limit,
-      };
       const result = await observationApi.projects(classroomId, filters);
       if (!current) return;
-      // A scoped 404 also covers loss of classroom access. Reset the filter only
-      // after an authorized read confirms that this learner is no longer listed.
-      if (learner && !result.ok && result.status === 404) {
-        const currentClass = await observationApi.projects(classroomId, {
-          ...filters,
-          learner: '',
-          offset: 0,
-        });
-        if (!current) return;
-        if (
-          currentClass.ok &&
-          !currentClass.data.learners.some((student) => student.id === learner)
-        ) {
-          setLearners(currentClass.data.learners);
-          setLearner('');
-          setOffset(0);
-          return;
-        }
-      }
-      setBusy(false);
       if (!result.ok) {
+        setPage(null);
+        setPreviewId(null);
+        // A scoped 404 also covers loss of classroom access. Reset the filter only
+        // after an authorized read confirms that this learner is no longer listed.
+        if (filters.learner && result.status === 404) {
+          const currentClass = await observationApi.projects(classroomId, {
+            ...filters,
+            learner: '',
+            offset: 0,
+          });
+          if (!current) return;
+          if (
+            currentClass.ok &&
+            !currentClass.data.learners.some((student) => student.id === filters.learner)
+          ) {
+            setLearners(currentClass.data.learners);
+            setLearner('');
+            setOffset(0);
+            return;
+          }
+        }
+        setBusy(false);
         setError(result.error.message);
         return;
       }
       setPage(result.data);
+      setPreviewId((id) => (result.data.items.some((work) => work.id === id) ? id : null));
       setLearners(result.data.learners);
+      setBusy(false);
     })();
     return () => {
       current = false;
     };
-  }, [classroomId, module, learner, search, assignment, archive, offset, limit, retry, prepared]);
+  }, [classroomId, filters, retry, prepared]);
   useEffect(() => {
     const refresh = () => setRetry((value) => value + 1);
     window.addEventListener('focus', refresh);
@@ -199,7 +200,7 @@ function ProjectList({
           </button>
         </p>
       )}
-      {busy && <p role="status">Загружаем работы…</p>}
+      {busy && !page && <p role="status">Загружаем работы…</p>}
       {page && (
         <>
           <p className="observation-note">

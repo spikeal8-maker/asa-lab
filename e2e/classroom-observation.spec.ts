@@ -250,6 +250,14 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       .toBeGreaterThan(0);
     await expect(page.getByTestId('asa3d-viewport')).toHaveCount(0);
     await expect(preview.getByText('Отклик на проект', { exact: true })).toHaveCount(0);
+    const refreshedProjects = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/classrooms/${classId}/observation/projects`,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    expect((await refreshedProjects).ok()).toBe(true);
+    await expect(works).toHaveAttribute('aria-busy', 'false');
+    await expect(preview).toBeVisible();
     await page.keyboard.press('Shift+Tab');
     await expect(preview.getByRole('button', { name: 'Открыть в редакторе' })).toBeFocused();
     await page.keyboard.press('Escape');
