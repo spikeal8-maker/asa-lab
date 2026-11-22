@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   advanceHcSr04Due,
   HC_SR04_PROFILE,
@@ -19,8 +19,12 @@ import {
   advancePingUltrasonicDue,
   initialPingUltrasonicRuntimeState,
 } from '../domain/models/ping-ultrasonic-runtime.js';
-import { solveCircuitWithHeldArduino } from '../domain/solver.js';
-import { compileCircuit, verifyCircuitQuality } from '../domain/simulation.js';
+import * as solver from '../domain/solver.js';
+import {
+  compileCircuit,
+  createArduinoQualityTraversal,
+  verifyCircuitQuality,
+} from '../domain/simulation.js';
 import { ULTRASONIC_U01_LEGACY_SAMPLES } from './fixtures/model-set-golden-compatibility.js';
 
 function acceptedTrigger(distanceMeters: number, highDuration = 10) {
@@ -229,7 +233,7 @@ function highFrame(document: ElectronicsDocument, kind: SensorKind) {
       ? new Map([['sensor', advancePingUltrasonicDue(clock.pingUltrasonic![0]!.runtime, at).state]])
       : undefined;
   const held = new Map([['uno', arduinoSnapshotFromState(clock.boards[0]!.runtime)]]);
-  const raw = solveCircuitWithHeldArduino(document, at / 1000, held, hc, ping);
+  const raw = solver.solveCircuitWithHeldArduino(document, at / 1000, held, hc, ping);
   const quality = verifyCircuitQuality(document, compileCircuit(document), raw, {
     simulationTimeMs: at / 1000,
   });
@@ -256,6 +260,67 @@ describe.each(['hc', 'ping'] as const)('%s rail-connected ultrasonic output', (k
     expect(sensor.current).toBeCloseTo(current, 10);
     expect(sensor.power).toBeCloseTo(current * current * 10, 11);
   });
+
+  it.each([false, true])(
+    'checks actual power in the standalone 5 V/10 kΩ circuit, tampered=%s',
+    (tampered) => {
+      const fixture = measurementFixture(kind, true, 5);
+      const high = highFrame(fixture, kind);
+      const document = parseFixture({
+        ...fixture,
+        components: fixture.components.filter((component) => component.id !== 'uno'),
+        connections: fixture.connections.filter(
+          ({ from, to }) => from.componentId !== 'uno' && to.componentId !== 'uno',
+        ),
+      });
+      const compiled = compileCircuit(document);
+      const reuse = solver.createArduinoOperatingPointReuse();
+      const layouts = solver.createArduinoQualityLayoutOwner(reuse);
+      const traversal = createArduinoQualityTraversal(document, compiled, layouts.owner);
+      const readKeys = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+
+      try {
+        const options = { simulationTimeMs: high.at / 1000 };
+        const frame = solver.solveCircuitWithHeldArduino(
+          document,
+          options.simulationTimeMs,
+          new Map(),
+          high.hc,
+          high.ping,
+          undefined,
+          undefined,
+          reuse,
+        );
+        expect(frame.solved).toBe(true);
+        const sensor = frame.components.find((part) => part.componentId === 'sensor')!;
+        const current = 5 / 10010;
+        expect(sensor.terminalVoltages[outputPin(kind)]).toBeCloseTo(current * 10000, 9);
+        expect(sensor.power).toBeCloseTo(current ** 2 * 10, 11);
+        if (tampered) {
+          const source = frame.components.find((part) => part.componentId === 'supply')!;
+          const currents = source.terminalCurrents!;
+          Reflect.set(currents, 'a', currents.a! - 1e-8);
+        }
+        const quality = verifyCircuitQuality(document, compiled, frame, options);
+        expect(quality.finite).toBe(true);
+        expect(quality.maxKclResidualAmp).toBeLessThan(quality.kclToleranceAmp);
+        expect(quality.passed).toBe(!tampered);
+        if (tampered) {
+          expect(quality.powerBalanceResidualWatt).toBeGreaterThan(
+            quality.powerBalanceToleranceWatt,
+          );
+        } else {
+          expect(quality.powerBalanceResidualWatt).toBeLessThan(quality.powerBalanceToleranceWatt);
+        }
+        expect(traversal.verify(frame, options)).toStrictEqual(quality);
+        expect(readKeys).toHaveBeenCalled();
+      } finally {
+        readKeys.mockRestore();
+        traversal.dispose();
+        layouts.dispose();
+      }
+    },
+  );
 
   for (const supply of [undefined, 5])
     for (const loaded of [false, true]) {
@@ -324,7 +389,7 @@ describe.each(['hc', 'ping'] as const)('%s rail-connected ultrasonic output', (k
         wire('external-gnd', 'external', 'b', 'sensor', 'gnd'),
       ],
     });
-    const raw = solveCircuitWithHeldArduino(
+    const raw = solver.solveCircuitWithHeldArduino(
       document,
       high.at / 1000,
       high.held,
@@ -338,7 +403,7 @@ describe.each(['hc', 'ping'] as const)('%s rail-connected ultrasonic output', (k
     expect(sensor.current).toBeCloseTo(0.1, 10);
     expect(sensor.power).toBeCloseTo(0.1, 10);
     expect(verifyCircuitQuality(document, compileCircuit(document), raw, {}).passed).toBe(true);
-    const released = solveCircuitWithHeldArduino(
+    const released = solver.solveCircuitWithHeldArduino(
       document,
       high.at / 1000,
       high.held,
@@ -383,7 +448,13 @@ describe.each(['hc', 'ping'] as const)('%s rail-connected ultrasonic output', (k
               ],
             ])
           : high.held;
-      const raw = solveCircuitWithHeldArduino(document, high.at / 1000, held, high.hc, high.ping);
+      const raw = solver.solveCircuitWithHeldArduino(
+        document,
+        high.at / 1000,
+        held,
+        high.hc,
+        high.ping,
+      );
       const sensor = raw.components.find((part) => part.componentId === 'sensor')!;
       const expectedCurrent = 5 / (fault === 'short' ? 10.1 : 20.1);
       expect(raw.solved).toBe(true);
