@@ -91,14 +91,14 @@ parallel_lanes:
       - contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e792998fc418e2210a116051848d76571155efe1
+      convergence_baseline_sha: 04d12ecad8fb96c25453eff492149a8414ff6073
       head_sha: null
-      observed_at: '2026-11-18T15:31:48Z'
+      observed_at: '2026-11-23T10:14:11Z'
       main:
         branch: main
-        sha: e792998fc418e2210a116051848d76571155efe1
-      observation_note: Dated controller source observation only. Fresh fetch main, candidate, CI and peer
-        bytes before authoring/publication; this field is not live acceptance evidence.
+        sha: c52c11acd2fd03e8023858eeadf12bd4a9189742
+      observation_note: The protected squash merge had the exact reviewed tree. Fresh fetch main and
+        verify exact GitHub results before any new action.
     task:
       id: TASK-ELECTRONICS-ULTRASONIC-U01-001
       issue: 1241
@@ -107,10 +107,23 @@ parallel_lanes:
       working_branch: feature/electronics-ultrasonic-u01-1241
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
-      checkpoint: controller_selected_u01_after_independently_reviewed_full_checkpoint008
+      checkpoint: u01_source_integrated_main
       owner_acceptance: pending
+      source_delivery:
+        pull_request: 1264
+        reviewed_head_sha: ccc29bf3d9b5ceaba3a106bb744cabfa28162e89
+        integrated_main_sha: c52c11acd2fd03e8023858eeadf12bd4a9189742
+        identical_source_tree: 7a68afcf0216ff48fcda8ad88621ddf9c1b513e7
+        required_general_run: 45136861765
+        publication_run: 45136861331
+        r4_workflow_run: 45136861304
+        focused_solver_and_benchmark: passed_on_reviewed_head
+        native_sensor_evidence: Chromium 140 real DedicatedWorker; 12 cases, 24 requests, zero browser errors.
+        native_sensor_receipt_sha256: d799288eb4d440f298e2fdefddc7d3e12903d61111304344875a9c793d971551
+        full_strict_r4: 269 passed, 3 failed (short30, long5000, D2–D4 native captures); still open.
+        post_merge_general_run: 45154225012
       owner_authorization: 'Owner on 2026-11-18 explicitly assigned U01 implementation and its separate controller
         preparation: update this card/issue, handle a due hygiene checkpoint, verify shared solver/model identities
         and select this isolated child lane before product authoring. One product author and an independent reviewer;
@@ -142,10 +155,9 @@ parallel_lanes:
         - 1131
         - 1196
         - 1163
-        production_slices_since_accepted_checkpoint: 0
-        counter_semantics: Zero applies only once this full source-endpoint checkpoint is technically accepted
-          on main. U01 is not yet a counted production slice. Increment once after its technical integration;
-          docs/U00 do not count. Preserve historical counters elsewhere.
+        production_slices_since_accepted_checkpoint: 1
+        counter_semantics: Count U01 once on verified technical integration. U00 and documentation do not count.
+          Historical counters in other lanes remain unchanged.
       scope: 'Only UL-E01 physical output stamping/observation, PING response phases and required compatibility:
         six product files, five test files and one generated-only coverage file. Preserve thresholds, scheduler
         ordering, ground topology, ranges, UI, L298N behavior and protected assets.'
@@ -258,11 +270,8 @@ parallel_lanes:
           re-evaluates exact diff/identities, adds its existing accepted regression suites to joint verification
           and obtains new final-source review/CI. No automatic resolution or stale digest.
       next_action: >-
-        When the Windows handoff is in main and exact twelve-path preflight passes, converge the
-        existing U01 repair a21cb981e554f0efc089b7d95e158b316913ef69 with accepted main, preserving
-        model identities and recalculating generated coverage. Require focused tests, benchmark,
-        independent review and exact General and browser qualification before integrating PR 1264.
-        U02 remains unselected.
+        U01 is integrated. Review U02 power and common-return qualification in a separate controller
+        selection. U02 is unselected and U08 built-editor/owner qualification remains open.
       deployment: not_run
       database_actions: none
     gates:
