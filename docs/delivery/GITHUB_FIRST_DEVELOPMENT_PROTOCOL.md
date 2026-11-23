@@ -4,7 +4,7 @@
 
 GitHub is the canonical development state. A developer workstation is an optional short-lived runner, not a second source of truth.
 
-This protocol applies to long-running agent work and is mandatory for Scratch/Visual Programming work.
+This protocol is mandatory for **all ASA Lab bots and all technical changes**, including small fixes and host/service configuration, not only long-running or Scratch tasks.
 
 ## Source of truth
 
@@ -19,6 +19,24 @@ Canonical state lives in GitHub:
 Do not rely on an unpushed local commit, worktree, terminal session, Docker image or chat memory as project state.
 
 After a tool/session failure, recover from GitHub first: `main SHA → current task → PR/branch HEAD → divergence → exact-SHA CI`.
+
+## Reproducible operations
+
+1. **Before** changing code, Docker/Compose, 1Panel, systemd, scheduler, FRP/VPN,
+   MCP, ports, backup jobs or workstation settings, identify the canonical host
+   and a versioned recipe in `main`. If absent, add the idempotent script,
+   declarative config/template or replayable API steps with verification and
+   recovery procedure. A manual UI/SSH change alone is not completion.
+2. **Apply** the approved revision through safe tooling; read back the actual
+   state and check for configuration drift. Report GitHub `main` SHA, exact CI,
+   installed runtime SHA and proof that a clean host can reproduce the setup.
+3. **Exception:** emergency fixes are provisional; record the non-secret action
+   and recovery evidence in an Issue and reconcile it with GitHub in the same
+   task. Never claim `DONE` when an untracked host-only change remains.
+4. Keep real secrets, private `.env`, PostgreSQL/MinIO data and archives **out
+   of GitHub**. Commit safe templates and recovery steps; keep confidential
+   material in separately protected, independently restorable stores.
+5. Update the **owning file** instead of adding a new manual for every change.
 
 ## Write model
 
