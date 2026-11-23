@@ -95,6 +95,7 @@ describe('A1 context access boundary', () => {
         if (sql.includes('learning_canonical_evidence_')) {
           throw new Error('unused canonical read failed');
         }
+        if (sql.includes('learning_origin_work_context_for_project')) return { rows: [] };
         if (
           sql.includes('learning_immutable_project_origin_exists') ||
           sql.includes('learning_work_project_origin_exists')
@@ -116,7 +117,7 @@ describe('A1 context access boundary', () => {
       });
       expect(pool.query.mock.calls).toEqual([
         [
-          'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
+          expect.stringContaining('WITH eligible AS MATERIALIZED ('),
           [actor.principalId, projectId],
         ],
         [
@@ -225,10 +226,7 @@ describe('A1 context access boundary', () => {
         { principalId, userId: isSeat ? null : actor.userId },
       );
       expect(pool.query.mock.calls).toEqual([
-        [
-          'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
-          [principalId, projectId],
-        ],
+        [expect.stringContaining('WITH eligible AS MATERIALIZED ('), [principalId, projectId]],
         [
           'SELECT learning_immutable_project_origin_exists($1, $2) AS linked',
           [principalId, projectId],

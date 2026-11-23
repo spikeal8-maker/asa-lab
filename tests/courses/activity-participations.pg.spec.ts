@@ -933,6 +933,183 @@ describe('A4-1 immutable learning project origin', () => {
     return inserted.rows[0].id as string;
   }
 
+  describe('materialized origin gate', () => {
+    async function read(projectId: string, afterFirstRead?: () => Promise<void>) {
+      const queries: { sql: string; values: unknown[]; rows: unknown[] }[] = [];
+      const pool = {
+        async query(sql: string, values: unknown[]) {
+          const result = await app.query(sql, values);
+          queries.push({ sql, values, rows: result.rows });
+          if (queries.length === 1) await afterFirstRead?.();
+          return result;
+        },
+      } as unknown as pg.Pool;
+      const asOf = new Date().toISOString();
+      const context = await learningWorkContextForProject(
+        pool,
+        learnerPrincipal,
+        projectId,
+        'electronics',
+        async () => {
+          throw new Error('immutable or personal project attempted the legacy projection');
+        },
+        asOf,
+        undefined,
+        false,
+      );
+      return { context, queries, asOf };
+    }
+
+    it('does not execute the full reader for a personal project and keeps all later checks', async () => {
+      const projectId = await duplicableProject(learnerPrincipal);
+      const result = await read(projectId);
+      expect(result.context).toEqual({ state: 'not_learning', projectId });
+      expect(result.queries.map(({ rows }) => rows)).toEqual([
+        [],
+        [{ linked: false }],
+        [],
+        [{ linked: false }],
+      ]);
+      expect(result.queries.map(({ values }) => values)).toEqual(
+        Array.from({ length: 4 }, () => [learnerPrincipal, projectId]),
+      );
+      expect(result.queries.slice(1).map(({ sql }) => sql)).toEqual([
+        'SELECT learning_immutable_project_origin_exists($1, $2) AS linked',
+        'SELECT context FROM learning_work_context_for_project($1, $2)',
+        'SELECT learning_work_project_origin_exists($1, $2) AS linked',
+      ]);
+      type Plan = {
+        'Node Type': string;
+        'Function Name'?: string;
+        'CTE Name'?: string;
+        'Actual Rows': number;
+        'Actual Loops': number;
+        Plans?: Plan[];
+      };
+      function nodes(plan: Plan): Plan[] {
+        return [plan, ...(plan.Plans ?? []).flatMap(nodes)];
+      }
+      const explained = await app.query<{ 'QUERY PLAN': { Plan: Plan }[] }>(
+        `EXPLAIN (ANALYZE, FORMAT JSON) ${result.queries[0]!.sql}`,
+        [learnerPrincipal, projectId],
+      );
+      const plan = nodes(explained.rows[0]!['QUERY PLAN'][0]!.Plan);
+      expect(plan.filter((node) => node['CTE Name'] === 'eligible')).toEqual([
+        expect.objectContaining({ 'Actual Rows': 0, 'Actual Loops': 1 }),
+      ]);
+      expect(
+        plan.filter((node) => node['Function Name'] === 'learning_origin_work_context_for_project'),
+      ).toEqual([expect.objectContaining({ 'Actual Loops': 0 })]);
+    });
+
+    it.each(['direct', 'course'] as const)(
+      'preserves exact %s origin rows, evidence and prefetched helper behavior',
+      async (sourceKind) => {
+        const course = sourceKind === 'course' ? await courseHandout() : null;
+        const run = await createRun(
+          course
+            ? {
+                handout: course.handout,
+                kind: 'course',
+                courseRun: course.courseRun,
+                lesson: course.lesson,
+              }
+            : { handout: await directHandout() },
+        );
+        const enrollment = course
+          ? await inTenant(owner.tenantId, (client) =>
+              client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+                ownerPrincipal,
+                course.courseRun,
+                learner,
+              ]),
+            )
+          : null;
+        const participation = await assign(run, learner, enrollment?.rows[0].enrollment_id ?? null);
+        const projectId = await duplicableProject(learnerPrincipal);
+        const attemptId = await originatedAttempt(
+          participation.participation_id as string,
+          projectId,
+        );
+        const original = await app.query(
+          'SELECT context,evidence FROM learning_origin_work_context_for_project($1,$2)',
+          [learnerPrincipal, projectId],
+        );
+        expect(original.rows).toHaveLength(1);
+        const result = await read(projectId);
+        expect(result.queries[0]?.rows).toEqual(original.rows);
+        expect(result.context).toMatchObject({
+          state: 'ready',
+          origin: { immutable: true, sourceKind, activityRunId: run },
+          workflow: { attemptId },
+        });
+        const prefetched = await learningWorkContextForProject(
+          app,
+          learnerPrincipal,
+          projectId,
+          'electronics',
+          new Map(),
+          result.asOf,
+          original.rows,
+          false,
+        );
+        expect(result.context).toEqual(prefetched);
+      },
+    );
+
+    it('keeps an inconsistent origin denied instead of using legacy or personal fallback', async () => {
+      const run = await createRun({ handout: await directHandout() });
+      const participation = await assign(run);
+      const projectId = await duplicableProject(learnerPrincipal);
+      await admin.query(
+        insertSql,
+        await originValues(participation.participation_id as string, projectId),
+      );
+      const result = await read(projectId);
+      expect(result.context).toEqual({ state: 'denied', projectId });
+      expect(result.queries.map(({ rows }) => rows)).toEqual([[], [{ linked: true }]]);
+    });
+
+    it('denies an origin committed after the empty first read before the later existence check', async () => {
+      const run = await createRun({ handout: await directHandout() });
+      const participation = await assign(run);
+      const projectId = await duplicableProject(learnerPrincipal);
+      const result = await read(projectId, async () => {
+        await originatedAttempt(participation.participation_id as string, projectId);
+      });
+      expect(result.context).toEqual({ state: 'denied', projectId });
+      expect(result.queries.map(({ rows }) => rows)).toEqual([[], [{ linked: true }]]);
+      expect((await read(projectId)).context).toMatchObject({
+        state: 'ready',
+        origin: { immutable: true },
+      });
+    });
+
+    it('keeps full-reader authorization after a learner link is revoked', async () => {
+      const run = await createRun({ handout: await directHandout() });
+      const participation = await assign(run);
+      const projectId = await duplicableProject(learnerPrincipal);
+      await originatedAttempt(participation.participation_id as string, projectId);
+      expect((await read(projectId)).context.state).toBe('ready');
+      await admin.query(
+        `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+         WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
+        [learner],
+      );
+      try {
+        const result = await read(projectId);
+        expect(result.context).toEqual({ state: 'denied', projectId });
+        expect(result.queries.map(({ rows }) => rows)).toEqual([[], [{ linked: true }]]);
+      } finally {
+        await admin.query(
+          `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+           WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
+          [learner],
+        );
+      }
+    });
+  });
+
   it('fails closed for an origin missing its atomic Start attempt', async () => {
     const run = await createRun({ handout: await directHandout() });
     const participation = await assign(run);
