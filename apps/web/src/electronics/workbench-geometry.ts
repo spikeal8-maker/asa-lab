@@ -3,6 +3,73 @@ export interface Point {
   readonly y: number;
 }
 
+export const ULTRASONIC_TARGET_GEOMETRY = Object.freeze({
+  minimumRadius: 105,
+  maximumRadius: 300,
+  halfAngle: Math.PI / 7,
+  minimumDistanceMeters: 0.02,
+});
+
+export interface UltrasonicTargetPosition {
+  readonly distanceMeters: number;
+  readonly angle: number;
+}
+
+export function ultrasonicTargetPoint(
+  origin: Point,
+  target: UltrasonicTargetPosition,
+  maximumDistanceMeters: number,
+): Point {
+  const { minimumRadius, maximumRadius, minimumDistanceMeters } = ULTRASONIC_TARGET_GEOMETRY;
+  const fraction =
+    (target.distanceMeters - minimumDistanceMeters) /
+    (maximumDistanceMeters - minimumDistanceMeters);
+  const radius = minimumRadius + fraction * (maximumRadius - minimumRadius);
+  return {
+    x: origin.x + Math.sin(target.angle) * radius,
+    y: origin.y - Math.cos(target.angle) * radius,
+  };
+}
+
+export function ultrasonicTargetAtPoint(
+  origin: Point,
+  point: Point,
+  maximumDistanceMeters: number,
+): UltrasonicTargetPosition | null {
+  const { minimumRadius, maximumRadius, minimumDistanceMeters, halfAngle } =
+    ULTRASONIC_TARGET_GEOMETRY;
+  const x = point.x - origin.x;
+  const y = origin.y - point.y;
+  const radius = Math.hypot(x, y);
+  const angle = Math.atan2(x, y);
+  const epsilon = 1e-6;
+  if (
+    !Number.isFinite(radius) ||
+    radius < minimumRadius - epsilon ||
+    radius > maximumRadius + epsilon ||
+    Math.abs(angle) > halfAngle + epsilon
+  ) {
+    return null;
+  }
+  const fraction = (radius - minimumRadius) / (maximumRadius - minimumRadius);
+  const distance =
+    minimumDistanceMeters + fraction * (maximumDistanceMeters - minimumDistanceMeters);
+  return {
+    distanceMeters: Math.round(100 * distance) / 100,
+    angle: clamp(angle, -halfAngle, halfAngle),
+  };
+}
+
+export function formatUltrasonicTargetDistance(distanceMeters: number): string {
+  const cm = distanceMeters * 100;
+  const centimeters = cm.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+  const inches = (cm / 2.54).toLocaleString('ru-RU', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  return centimeters + ' см / ' + inches + ' in';
+}
+
 export interface Viewport {
   readonly x: number;
   readonly y: number;
