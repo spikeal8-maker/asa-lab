@@ -65,6 +65,7 @@ import {
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
 import {
+  ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS,
   LedTemporalPresentation,
   classroomRequestedHorizon,
   sameOpticalFrame,
@@ -1204,6 +1205,27 @@ export function useElectronicsWorkbenchHost(
             }),
         readHostHorizonMicroseconds: () => {
           return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
+        },
+        scheduleArduinoWake: (hostDue, dispatch) => {
+          const startedAt = simulationStartedAtRef.current;
+          const offset = simulationHostOffsetMicrosecondsRef.current;
+          const due = hostDue - offset;
+          if (
+            !currentSession() ||
+            !session?.active ||
+            startedAt === null ||
+            normalHostClockRef.current ||
+            simulationPacing.explicit ||
+            due >
+              ledPresentation.presentedMicroseconds + ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS
+          )
+            return null;
+          const delay = startedAt + due / 1000 - window.performance.now();
+          if (delay <= 0) return null;
+          const timeout = window.setTimeout(() => {
+            if (currentSession() && session?.active) dispatch();
+          }, Math.ceil(delay));
+          return () => window.clearTimeout(timeout);
         },
         onGenerationPending: () => {
           if (!currentSession()) return;
