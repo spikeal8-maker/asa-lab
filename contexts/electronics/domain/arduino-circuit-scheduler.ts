@@ -527,6 +527,7 @@ interface ClockPreparation {
 }
 type OwnedClockRequest = {
   readonly validatedDigest?: string;
+  readonly coalesceStableLoopInstructions: boolean;
   runtime?: ReturnType<typeof createOwnedClockedArduinoRuntime>;
   source?: string;
   continued: boolean;
@@ -662,6 +663,7 @@ export function createOwnedArduinoCircuitClockRequest(
     readonly inputEvents?: readonly unknown[];
     readonly state?: { readonly continuation: { readonly serializedState: string } | null };
   },
+  coalesceStableLoopInstructions = false,
 ) {
   // Nothing can retain the graph before this decision. Once a generic callback
   // could have seen it, restoration of the public producers cannot promote it.
@@ -709,6 +711,7 @@ export function createOwnedArduinoCircuitClockRequest(
         check,
         validatedDigest,
         observeSevenSegmentTemporal,
+        coalesceStableLoopInstructions,
       ),
   };
 }
@@ -725,6 +728,7 @@ function createArduinoCircuitClockRequest(
   stillOwned: () => boolean,
   validatedDigest?: string,
   observeSevenSegmentTemporal = false,
+  coalesceStableLoopInstructions = false,
 ) {
   let collector =
     observeLedTemporal || observeSevenSegmentTemporal
@@ -761,6 +765,7 @@ function createArduinoCircuitClockRequest(
   };
   const ownership: OwnedClockRequest = {
     continued: false,
+    coalesceStableLoopInstructions,
     ...(validatedDigest === undefined ? {} : { validatedDigest }),
   };
   if (stillOwned()) ownedClockRequests.set(preparation, ownership);
@@ -1873,6 +1878,11 @@ function* iterateArduinoCircuitClock(
             Math.min(targetMicroseconds, electricalBarrier - 1) / 1000,
             budget - clockEvents,
             true,
+            ownership.coalesceStableLoopInstructions &&
+              options.maxClockEvents === undefined &&
+              inputs.length === 0
+              ? PHYSICS_QUANTUM_US
+              : 0,
           )
         : advanceClockedArduinoRuntime(
             source,
