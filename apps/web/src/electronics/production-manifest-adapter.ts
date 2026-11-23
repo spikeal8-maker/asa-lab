@@ -508,7 +508,7 @@ function defaults(componentId: string): {
   if (componentId === 'temperature-sensor') return {
     value: 0, unit: '', properties: { temperatureCelsius: 25 },
   };
-  if (componentId === 'ultrasonic-sensor' || componentId === 'ultrasonic-hc-sr04')
+  if (componentId === 'ultrasonic-sensor')
     return { value: 0, unit: '', properties: { distanceMeters: 1 } };
   return { value: 0, unit: '', properties: { simulationStatus: 'not_yet_supported' } };
 }

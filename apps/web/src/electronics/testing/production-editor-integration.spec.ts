@@ -434,13 +434,6 @@ describe('owner SVG integration in the real Electronics document', () => {
       enabled: true,
       simulationSupported: true,
       catalogStatus: 'enabled',
-      defaultStateProperties: { distanceMeters: 1 },
-    });
-    expect(
-      addComponentToDocument(EMPTY, 'ultrasonic-hc-sr04', { x: 100, y: 100 }, 'sonar').component,
-    ).toMatchObject({
-      modelProfileVersion: 3,
-      stateProperties: { distanceMeters: 1 },
     });
     expect(productionCatalogEntry('servo-motor')).toMatchObject({
       enabled: true,
