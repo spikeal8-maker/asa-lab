@@ -209,6 +209,106 @@ function externalSquareCircuit(amplitudeVpp, frequencyHz = 1000) {
   };
 }
 
+function withMotorSupply(document, battery = false) {
+  const pinIds = battery ? ['BAT+', 'BAT-'] : ['positive', 'negative'];
+  return {
+    ...document,
+    components: document.components.map((part) =>
+      part.id === 'vs'
+        ? {
+            ...part,
+            componentTypeId: battery ? 'battery-holder-aa-4' : 'regulated-power-supply',
+            pinIds,
+            stateProperties: battery
+              ? { cells: 4, internalResistanceOhm: 0.3, maxContinuousCurrentAmp: 2 }
+              : { outputEnabled: true, voltageSetpointVolt: 6, currentLimitAmp: 2 },
+          }
+        : part,
+    ),
+    connections: document.connections.map((connection) =>
+      connection.from.componentId === 'vs'
+        ? {
+            ...connection,
+            from: {
+              ...connection.from,
+              terminal: connection.from.terminal === 'a' ? pinIds[0] : pinIds[1],
+            },
+          }
+        : connection,
+    ),
+  };
+}
+
+function standaloneWithSwitches() {
+  const base = withMotorSupply(externalSquareCircuit(0), true);
+  const switches = [
+    ['in1', 'IN1', true],
+    ['in2', 'IN2', false],
+    ['ena', 'ENA', true],
+    ['enb', 'ENB', true],
+  ];
+  const wire = (id, fromId, fromPin, toId, toPin) => ({
+    id,
+    from: { componentId: fromId, terminal: fromPin },
+    to: { componentId: toId, terminal: toPin },
+  });
+  return {
+    ...base,
+    components: [
+      ...base.components
+        .filter((part) => !['generator', 'return'].includes(part.id))
+        .map((part) =>
+          part.id === 'logic'
+            ? {
+                ...part,
+                componentTypeId: 'regulated-power-supply',
+                pinIds: ['positive', 'negative'],
+                stateProperties: {
+                  outputEnabled: true,
+                  voltageSetpointVolt: 5,
+                  currentLimitAmp: 0.5,
+                },
+              }
+            : part,
+        ),
+      ...switches.map(([id, , state], index) => ({
+        id,
+        kind: 'switch',
+        componentTypeId: 'switch-spdt',
+        value: 0,
+        position: { x: 100, y: 300 + index * 25 },
+        pinIds: ['throw-left', 'common', 'throw-right'],
+        state,
+      })),
+    ],
+    connections: [
+      ...base.connections
+        .filter(
+          (connection) =>
+            !['in1', 'in2', 'ena', 'enb', 'generator-return', 'driver-return'].includes(
+              connection.id,
+            ),
+        )
+        .map((connection) =>
+          connection.from.componentId === 'logic'
+            ? {
+                ...connection,
+                from: {
+                  ...connection.from,
+                  terminal: connection.from.terminal === 'a' ? 'positive' : 'negative',
+                },
+              }
+            : connection,
+        ),
+      ...switches.flatMap(([id, terminal]) => [
+        wire(id + '-low', 'logic', 'negative', id, 'throw-left'),
+        wire(id + '-high', 'logic', 'positive', id, 'throw-right'),
+        wire(id + '-out', id, 'common', 'driver', terminal),
+      ]),
+    ],
+  };
+}
+
 function finiteTree(value, path = 'result') {
   if (typeof value === 'number') assert.ok(Number.isFinite(value), path + ' is finite');
   else if (Array.isArray(value)) value.forEach((item, i) => finiteTree(item, path + '[' + i + ']'));
@@ -469,12 +569,13 @@ try {
       quality: response.result.quality,
     };
   }
-  async function advance(label, document, state, horizon, previousHorizon) {
+  async function advance(label, document, state, horizon, previousHorizon, inputEvents) {
     const response = await rpc(label, {
       kind: 'advance',
       document,
       state,
       requestedHorizonMicroseconds: horizon,
+      ...(inputEvents ? { inputEvents } : {}),
     });
     const payload = response.advance;
     assert.equal(payload.executionStatus, 'ready', JSON.stringify(receipt.lastResponse));
@@ -734,6 +835,99 @@ try {
       frames: fastPwm.frames.length,
       pwmRpm: [fastFinal.motorA.motorRpm, fastFinal.motorB.motorRpm],
     }),
+  );
+
+  const bench = { id: 'arduino-regulated-motor-supply', frames: [] };
+  const benchDocument = withMotorSupply(circuit(specs[0]));
+  receipt.cases.push(bench);
+  await openWorker(bench.id);
+  bench.preflight = await preflight(bench.id, benchDocument);
+  let benchState = identity.initialState;
+  let benchHorizon = 0;
+  for (const horizon of [0, 250, 1000, 10_000]) {
+    const sample = await advance(bench.id, benchDocument, benchState, horizon, benchHorizon);
+    const supply = component(sample.result, 'vs');
+    assert.equal(supply.regulationMode, 'cv');
+    if (horizon === 250) {
+      assert.ok(supply.current > 0 && supply.current < 2);
+      assert.ok(supply.terminalVoltages.positive > 5.8 && supply.terminalVoltages.positive < 6);
+    }
+    bench.frames.push(frameSummary(sample));
+    benchState = JSON.parse(JSON.stringify(sample.state));
+    benchHorizon = horizon;
+  }
+  await closeWorker(bench.id);
+  bench.status = 'pass';
+  await persistReceipt();
+  console.log('L298N_DOMAIN_WORKER_CASE_PASS', JSON.stringify({ id: bench.id, frames: 4 }));
+
+  const switches = { id: 'standalone-aa-switches', frames: [] };
+  const switchesDocument = standaloneWithSwitches();
+  receipt.cases.push(switches);
+  await openWorker(switches.id);
+  switches.preflight = await preflight(switches.id, switchesDocument, 'none');
+  let switchState = identity.initialState;
+  let switchHorizon = 0;
+  const framesByHorizon = new Map();
+  for (const [horizon, targetId, payload] of [
+    [0],
+    [250],
+    [199_999],
+    [200_000, 'in1', false],
+    [350_000, 'in2', true],
+    [549_999],
+    [550_000, 'ena', false],
+    [700_000, 'enb', false],
+    [850_000],
+  ]) {
+    const events = targetId
+      ? [{ atMicroseconds: horizon, targetId, operation: 'state', payload }]
+      : undefined;
+    const sample = await advance(
+      switches.id,
+      switchesDocument,
+      switchState,
+      horizon,
+      switchHorizon,
+      events,
+    );
+    const summary = frameSummary(sample);
+    const driver = component(sample.result, 'driver');
+    framesByHorizon.set(horizon, { summary, driver });
+    switches.frames.push(summary);
+    switchState = JSON.parse(JSON.stringify(sample.state));
+    switchHorizon = horizon;
+  }
+  await closeWorker(switches.id);
+  const loaded = framesByHorizon.get(250);
+  assert.ok(
+    loaded.driver.terminalVoltages['+12V'] > 5 && loaded.driver.terminalVoltages['+12V'] < 6,
+  );
+  assert.ok(loaded.summary.motorA.motorRpm > 0 && loaded.summary.motorB.motorRpm < 0);
+  const braking = framesByHorizon.get(200_000);
+  assert.ok(braking.driver.terminalVoltages.IN1 < 0.1 && braking.driver.terminalVoltages.IN2 < 0.1);
+  assert.ok(braking.summary.enaVolt > 4.5);
+  const reverse = framesByHorizon.get(549_999);
+  assert.ok(reverse.summary.motorA.motorRpm < 0);
+  const coast = framesByHorizon.get(550_000);
+  assert.ok(coast.summary.enaVolt < 0.1 && coast.summary.enbVolt > 4.5);
+  assert.ok(Math.abs(coast.summary.motorA.current - reverse.summary.motorA.current) < 0.01);
+  assert.ok(
+    Math.abs(coast.driver.terminalCurrents.OUT1) > 0.1,
+    'Flyback carries the held winding current',
+  );
+  assert.ok(Math.abs(coast.driver.terminalCurrents.OUT1 + coast.summary.motorA.current) < 1e-8);
+  const stopped = framesByHorizon.get(850_000);
+  assert.equal(stopped.summary.logicLit, true);
+  assert.ok(
+    Math.abs(stopped.summary.motorA.current) < 1e-8 &&
+      Math.abs(stopped.summary.motorB.current) < 1e-8,
+  );
+  switches.status = 'pass';
+  await persistReceipt();
+  console.log(
+    'L298N_DOMAIN_WORKER_CASE_PASS',
+    JSON.stringify({ id: switches.id, frames: switches.frames.length }),
   );
 
   receipt.workerErrors = await page.evaluate(() => window.l298nNative.errors);

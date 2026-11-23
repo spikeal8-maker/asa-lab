@@ -53,8 +53,11 @@ function step(
   const initial = L298N_DC_MODEL.initialIterationState(instance);
   const first = L298N_DC_MODEL.evaluateIteration(instance, initial, point);
   const second = L298N_DC_MODEL.evaluateIteration(instance, first.state, point);
-  expect(second.changed).toBe(false);
-  return { instance, point, state: second.state, changed: first.changed };
+  const settled = second.changed
+    ? L298N_DC_MODEL.evaluateIteration(instance, second.state, point)
+    : second;
+  expect(settled.changed).toBe(false);
+  return { instance, point, initialArmState: first.state, state: settled.state };
 }
 
 function solveMotors(
@@ -527,6 +530,8 @@ describe('L298N reviewed voltage ratings, TTL boundaries and total output curren
         evaluated.point,
       );
       expect(evaluated.state.voltageOutOfRange).toBe(false);
+      expect(evaluated.initialArmState.flybackMask).toBe(0);
+      expect(evaluated.state.flybackMask).not.toBe(0);
       expect(observation.terminalCurrents[firstOutput]).toBeCloseTo(2.208333333333333, 12);
       expect(observation.terminalCurrents[secondOutput]).toBeCloseTo(-2.208333333333333, 12);
       expect(observation.overCurrent).toBe(true);
