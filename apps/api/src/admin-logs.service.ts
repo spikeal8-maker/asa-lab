@@ -9,6 +9,7 @@ import {
   readLogCatalog,
   verifyNativeLogIntegrity,
   type LogFilter,
+  type LogExportFilter,
   type LogErrorTrend,
   type LogScanState,
   type LogTrendWindow,
@@ -303,7 +304,7 @@ export class AdminLogsService {
 
   private async worker(
     kind: 'query' | 'export' | 'trend',
-    filter: LogFilter,
+    filter: LogExportFilter,
     output = '',
     scanState?: LogScanState,
     root = this.root,
@@ -501,7 +502,7 @@ export class AdminLogsService {
     }
   }
 
-  async createExport(owner: string, filter: LogFilter) {
+  async createExport(owner: string, filter: LogExportFilter) {
     await this.expireJobs();
     await mkdir(this.exportsRoot, { recursive: true, mode: 0o700 });
     if (this.running >= 2 || [...this.jobs.values()].some((j) => j.state === 'running'))
