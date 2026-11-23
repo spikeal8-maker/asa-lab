@@ -7049,7 +7049,7 @@ test('L298N stays on the workbench after catalog drag and real Save/reopen', asy
   });
   const board = component(page, 'l298n-motor-driver');
   await expect(board).toBeVisible();
-  const bodyImage = 'image[href*="/components/drivers/l298n/component.svg"]';
+  const bodyImage = 'image[pointer-events="none"][href*="/components/drivers/l298n/component.svg"]';
   await expect(board.locator(bodyImage)).toBeVisible();
   const position = {
     x: await board.getAttribute('data-x'),
