@@ -269,6 +269,32 @@ test('filtered and broad archives use the exact Moscow range with their respecti
   expect(f.exportBodies()[2]).toEqual(expect.objectContaining({ scope: 'application' }));
 });
 
+test('the handoff archive uses the selected module and ignores ordinary filters', async ({
+  page,
+}) => {
+  const f = await fixture(page, 'populated');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  await page.getByText('Другие выгрузки за период', { exact: true }).click();
+  const download = page.getByRole('button', { name: 'Скачать архив для разбора', exact: true });
+  await expect(download).toBeDisabled();
+  await page.getByLabel('С (МСК)', { exact: true }).fill('2026-10-07T12:52:07');
+  await page.getByLabel('По (МСК)', { exact: true }).fill('2026-10-07T14:15:22');
+  await page.getByLabel(/^Модуль/).selectOption('electronics');
+  await page.getByLabel(/^Уровень/).selectOption('warn');
+  await page.getByLabel('Поиск', { exact: true }).fill('private search');
+  await download.click();
+  await expect(page.getByRole('link', { name: /Скачать ZIP/ })).toBeVisible();
+  expect(f.exportBodies()).toEqual([
+    {
+      from: '2026-10-07T12:52:07+03:00',
+      to: '2026-10-07T14:15:22+03:00',
+      scope: 'all',
+      mode: 'handoff',
+      handoffModule: 'electronics',
+    },
+  ]);
+});
+
 test('a failed subsystem cannot hide behind a fresh collector', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });
   await fixture(page, 'source-error');
