@@ -51,7 +51,11 @@ RUN node -e "const assert=require('node:assert/strict'); const VM=require('./pac
 COPY infra/scratch-editor/configure-artifact.mjs /tmp/configure-artifact.mjs
 RUN node --input-type=module -e "import { precompressStaticAssets as pack } from '/tmp/configure-artifact.mjs'; console.log(pack('/opt/scratch-library-assets'), pack('/opt/scratch-editor/packages/scratch-gui/dist'));"
 
-FROM nginx:1.27.5-alpine
+# Stable Nginx on a supported Alpine branch; do not inherit the EOSL 3.21 runtime.
+# Pinned official multi-platform manifest. Candidate runtime bytes are scanned in CI.
+FROM nginx:1.30.6-alpine3.24@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949
+
+RUN apk upgrade --no-cache
 
 ARG ASA_BUILD_REVISION=unknown
 LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
