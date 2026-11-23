@@ -303,7 +303,9 @@ export function familyForVariant(
       family.variants.some((variant) => variant.variantId === variantOrTypeId),
     ) ??
     families.find((family) =>
-      family.variants.some((variant) => variant.componentTypeId === variantOrTypeId),
+      family.variants.some(
+        (variant) => variant.enabled && variant.componentTypeId === variantOrTypeId,
+      ),
     ) ??
     null
   );

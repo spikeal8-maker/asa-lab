@@ -7062,11 +7062,37 @@ test('L298N stays on the workbench after catalog drag and real Save/reopen', asy
       new URL(response.url()).pathname === '/api/projects/' + projectId + '/draft',
   );
   await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-  expect((await saveResponse).status()).toBe(200);
+  const put = await saveResponse;
+  expect(put.status()).toBe(200);
+  expect(put.request().postDataJSON()).toMatchObject({ baseRevision: initial.draft.revision });
   const saved = await e01Server(page, projectId);
-  expect(saved.draft.document.components).toMatchObject([
-    { componentTypeId: 'l298n-motor-driver' },
-  ]);
+  expect(saved.draft.revision).toBe(initial.draft.revision + 1);
+  expect(saved.draft.document.components).toHaveLength(1);
+  const placed = saved.draft.document.components[0]!;
+  expect(placed).toMatchObject({
+    componentTypeId: 'l298n-motor-driver',
+    stateProperties: {
+      enaJumperInstalled: true,
+      enbJumperInstalled: true,
+      regulatorJumperInstalled: true,
+    },
+  });
+  expect(placed.pinIds).toHaveLength(11);
+  expect(placed.pinIds).toEqual(
+    expect.arrayContaining([
+      '+12V',
+      'GND',
+      '+5V',
+      'OUT1',
+      'OUT2',
+      'OUT3',
+      'OUT4',
+      'IN1',
+      'IN2',
+      'IN3',
+      'IN4',
+    ]),
+  );
 
   const freshContext = await browser.newContext({
     baseURL: new URL(page.url()).origin,
@@ -7079,10 +7105,7 @@ test('L298N stays on the workbench after catalog drag and real Save/reopen', asy
     const reopened = component(fresh, 'l298n-motor-driver');
     await expect(reopened).toBeVisible();
     await expect(reopened.locator(bodyImage)).toBeVisible();
-    await expect(reopened).toHaveAttribute(
-      'data-component-id',
-      saved.draft.document.components[0]!.id,
-    );
+    await expect(reopened).toHaveAttribute('data-component-id', placed.id);
     await expect(reopened).toHaveAttribute('data-x', position.x ?? '');
     await expect(reopened).toHaveAttribute('data-y', position.y ?? '');
   } finally {
