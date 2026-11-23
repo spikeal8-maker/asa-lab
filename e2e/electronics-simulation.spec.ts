@@ -7165,6 +7165,94 @@ async function expectL298nRenderedMotors(page: Page, gearmotor = true): Promise<
     .toBeLessThan(0);
 }
 
+test('L298N stays on the workbench after catalog drag and real Save/reopen', async ({
+  page,
+  browser,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'L298N catalog placement');
+  const initial = await e01Server(page, projectId);
+  expect(initial.draft.document.components).toEqual([]);
+  await page.goto('/#/home/' + projectId);
+  const stage = page.locator('.workbench-stage');
+  await expect(stage).toBeVisible();
+  await expect(page.getByTestId('schematic-component')).toHaveCount(0);
+  await page.getByLabel('Категория компонентов').selectOption('motors');
+  await page.getByRole('textbox', { name: 'Поиск компонентов' }).fill('L298N');
+
+  const stageBox = await stage.boundingBox();
+  if (!stageBox) throw new Error('workbench stage is not rendered');
+  await dragCatalogComponent(page, 'Драйвер двигателей L298N', {
+    x: stageBox.x + stageBox.width * 0.4,
+    y: stageBox.y + stageBox.height * 0.54,
+  });
+  const board = component(page, 'l298n-motor-driver');
+  await expect(board).toBeVisible();
+  const bodyImage = 'image[pointer-events="none"][href*="/components/drivers/l298n/component.svg"]';
+  await expect(board.locator(bodyImage)).toBeVisible();
+  const position = {
+    x: await board.getAttribute('data-x'),
+    y: await board.getAttribute('data-y'),
+  };
+
+  const saveResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === '/api/projects/' + projectId + '/draft',
+  );
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  const put = await saveResponse;
+  expect(put.status()).toBe(200);
+  expect(put.request().postDataJSON()).toMatchObject({ baseRevision: initial.draft.revision });
+  const saved = await e01Server(page, projectId);
+  expect(saved.draft.revision).toBe(initial.draft.revision + 1);
+  expect(saved.draft.document.components).toHaveLength(1);
+  const placed = saved.draft.document.components[0]!;
+  expect(placed).toMatchObject({
+    componentTypeId: 'l298n-motor-driver',
+    stateProperties: {
+      enaJumperInstalled: true,
+      enbJumperInstalled: true,
+      regulatorJumperInstalled: true,
+    },
+  });
+  expect(placed.pinIds).toHaveLength(11);
+  expect(placed.pinIds).toEqual(
+    expect.arrayContaining([
+      '+12V',
+      'GND',
+      '+5V',
+      'OUT1',
+      'OUT2',
+      'OUT3',
+      'OUT4',
+      'IN1',
+      'IN2',
+      'IN3',
+      'IN4',
+    ]),
+  );
+
+  const freshContext = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+    viewport: { width: 1440, height: 900 },
+  });
+  try {
+    await freshContext.addCookies(await page.context().cookies());
+    const fresh = await freshContext.newPage();
+    await fresh.goto('/#/home/' + projectId);
+    const reopened = component(fresh, 'l298n-motor-driver');
+    await expect(reopened).toBeVisible();
+    await expect(reopened.locator(bodyImage)).toBeVisible();
+    await expect(reopened).toHaveAttribute('data-component-id', placed.id);
+    await expect(reopened).toHaveAttribute('data-x', position.x ?? '');
+    await expect(reopened).toHaveAttribute('data-y', position.y ?? '');
+  } finally {
+    await freshContext.close();
+  }
+});
+
 test('L298N works without Arduino on a shared ground with two independent SPDT-controlled channels', async ({
   page,
 }) => {
