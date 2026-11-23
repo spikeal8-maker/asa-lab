@@ -199,7 +199,7 @@ def selected_source(install, release, *, existing, deployment_digest=None):
             runtime = install.readiness()
             running = runtime["revision"]
             install.git("merge-base", "--is-ancestor", running, revision)
-            atomic_json(install.state / "runtime-configuration.json", recovery_configuration(install, runtime))
+            private_atomic_json(install.state / "runtime-configuration.json", recovery_configuration(install, runtime))
         changed_tools = install.git("diff", "--name-only", current, revision, "--", "tools/asa_manager.py", "tools/deployment")
         if changed_tools and deployment_digest is not None:
             saved = selection_record(deployment_digest, release)
@@ -454,7 +454,7 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
     rollback_journal = None
     if rollback_candidate is not None:
         rollback_journal = application_rollback.begin(install, rollback_candidate, backup, operation)
-    atomic_json(install.state / "maintenance.json", operation)
+    private_atomic_json(install.state / "maintenance.json", operation)
     try:
         if display:
             display.switch_started = True
@@ -469,12 +469,12 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
             display.stage('health')
         install.wait_ready(release["revision"], release["schema"])
         operation["phase"] = "verify_entry"
-        atomic_json(install.state / "maintenance.json", operation)
+        private_atomic_json(install.state / "maintenance.json", operation)
         if display:
             display.stage('entry')
         verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
         install.identity()
-        atomic_json(install.state / "installed-release.json", release)
+        private_atomic_json(install.state / "installed-release.json", release)
         save_settings(install, install.settings.get("automaticUpdates", False))
         install.receipt({"status": "success", "trigger": "automatic" if scheduled else "manual", "entryOrigin": install.env['ASA_UPDATE_ENTRY_ORIGIN'],
                          "entryHttp": "pass", "userFlow": "not_run", **operation})
@@ -487,7 +487,7 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
             print(f"ASA Lab обновлён до {release['revision'][:8]} и отвечает. Схема базы {release['schema']}.")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
     except BaseException:
-        atomic_json(install.state / "failed-switch.json", operation)
+        private_atomic_json(install.state / "failed-switch.json", operation)
         install.receipt({"status": "failed_switch", "trigger": "automatic" if scheduled else "manual", **operation, "automaticDatabaseRestore": False})
         raise
     # Application acceptance and diagnostic runner maintenance are independent.
