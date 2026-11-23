@@ -6,6 +6,11 @@ import { terminalKey } from '../netlist.js';
 import { isL298n } from './l298n-dc-model.js';
 import { l298nControlNetIndices } from './l298n-input-network.js';
 import {
+  SIGNAL_GENERATOR_MAX_FREQUENCY_HZ,
+  SIGNAL_GENERATOR_MIN_FREQUENCY_HZ,
+  signalGeneratorSettings,
+} from './signal-generator-model.js';
+import {
   advanceArduinoTimedWaveform,
   arduinoWaveformLevelAt,
   arduinoWaveformNextDueMicroseconds,
@@ -20,6 +25,111 @@ const PWM_FREQUENCY_HZ: Readonly<Record<string, number>> = {
   d10: 490,
   d11: 490,
 };
+
+export interface L298nExternalSquareWave {
+  readonly frequencyNumerator: bigint;
+  readonly halfPeriodNumerator: bigint;
+  readonly highVolt: number;
+  readonly lowVolt: number;
+}
+
+export interface L298nExternalSquareWaves {
+  readonly waves: ReadonlyMap<string, L298nExternalSquareWave>;
+  readonly unresolvedSourceIds: readonly string[];
+}
+
+/** The source drives an exposed control with a return on the same board. */
+export function prepareL298nExternalSquareWaves(
+  document: ElectronicsDocument,
+  nodes: ReadonlyMap<string, number>,
+): L298nExternalSquareWaves {
+  const generators = document.components.filter(
+    (component) => component.componentTypeId === 'signal-generator',
+  );
+  const waves = new Map<string, L298nExternalSquareWave>();
+  const unresolvedSourceIds: string[] = [];
+  if (generators.length === 0) return { waves, unresolvedSourceIds };
+  const drivers = document.components.filter(isL298n).map((driver) => ({
+    controls: l298nControlNetIndices(document, nodes, driver.id),
+    references: ['GND', '+5V'].map((pin) => nodes.get(terminalKey(driver.id, pin))),
+  }));
+  for (const generator of generators) {
+    const { outputEnabled, waveform, frequencyHz, amplitudeVpp, dcOffsetVolt } =
+      signalGeneratorSettings(generator);
+    if (
+      !outputEnabled ||
+      waveform !== 'square' ||
+      amplitudeVpp === 0 ||
+      frequencyHz < SIGNAL_GENERATOR_MIN_FREQUENCY_HZ ||
+      frequencyHz > SIGNAL_GENERATOR_MAX_FREQUENCY_HZ
+    )
+      continue;
+    const signal = nodes.get(terminalKey(generator.id, 'signal'));
+    const ground = nodes.get(terminalKey(generator.id, 'ground'));
+    if (
+      signal === undefined ||
+      ground === undefined ||
+      !drivers.some(
+        ({ controls, references }) =>
+          (controls.has(signal) && references.includes(ground)) ||
+          (controls.has(ground) && references.includes(signal)),
+      )
+    )
+      continue;
+
+    // Frequency settings are decimal numbers. Keep the half-period rational so
+    // the event boundary and the right-continuous source stamp agree on its tick.
+    const [whole, fraction = ''] = String(frequencyHz).split('.');
+    const frequencyNumerator = BigInt(whole! + fraction);
+    const halfPeriodNumerator = 500_000n * 10n ** BigInt(fraction.length);
+    if (frequencyNumerator > halfPeriodNumerator) {
+      unresolvedSourceIds.push(generator.id);
+      continue;
+    }
+    waves.set(generator.id, {
+      frequencyNumerator,
+      halfPeriodNumerator,
+      highVolt: dcOffsetVolt + amplitudeVpp / 2,
+      lowVolt: dcOffsetVolt - amplitudeVpp / 2,
+    });
+  }
+  return { waves, unresolvedSourceIds };
+}
+
+export function l298nExternalTimeMicroseconds(timeMs: number): number {
+  const scaled = timeMs * 1000;
+  const nearestTick = Math.round(scaled);
+  return timeMs === nearestTick / 1000 ? nearestTick : Math.floor(scaled);
+}
+
+function halfPeriodAt(wave: L298nExternalSquareWave, atMicroseconds: number): bigint {
+  const cycles = BigInt(atMicroseconds) * wave.frequencyNumerator;
+  // Oscilloscope pre-trigger observations use negative time.
+  return (cycles < 0n ? cycles - wave.halfPeriodNumerator + 1n : cycles) / wave.halfPeriodNumerator;
+}
+
+export function sampleL298nExternalSquareVoltage(
+  wave: L298nExternalSquareWave,
+  timeMs: number,
+): number {
+  const at = l298nExternalTimeMicroseconds(timeMs);
+  if (!Number.isSafeInteger(at)) return Number.NaN;
+  return halfPeriodAt(wave, at) % 2n === 0n ? wave.highVolt : wave.lowVolt;
+}
+
+export function nextL298nExternalSquareEdgeMicroseconds(
+  waves: L298nExternalSquareWaves['waves'],
+  atMicroseconds: number,
+): number {
+  if (!Number.isSafeInteger(atMicroseconds) || atMicroseconds < 0) return Number.POSITIVE_INFINITY;
+  let next = Number.POSITIVE_INFINITY;
+  for (const wave of waves.values()) {
+    const edgeNumerator = (halfPeriodAt(wave, atMicroseconds) + 1n) * wave.halfPeriodNumerator;
+    const due = (edgeNumerator + wave.frequencyNumerator - 1n) / wave.frequencyNumerator;
+    next = Math.min(next, Number(due));
+  }
+  return next;
+}
 
 function waveform(pin: string, meanVoltage: number) {
   const frequency = PWM_FREQUENCY_HZ[pin];

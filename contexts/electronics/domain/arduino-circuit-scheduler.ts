@@ -39,7 +39,11 @@ import { PNP_DEVICE_MODEL } from './models/pnp-dc-model.js';
 import type { ElectronicsDocument, SchematicComponent, Terminal } from './document.js';
 import { simulationInputDigest } from './simulation-input-digest.js';
 import { l298nControlNetIndices } from './models/l298n-input-network.js';
-import { nextL298nPwmEdgeMicroseconds } from './models/l298n-pwm-model.js';
+import {
+  nextL298nExternalSquareEdgeMicroseconds,
+  nextL298nPwmEdgeMicroseconds,
+  type L298nExternalSquareWaves,
+} from './models/l298n-pwm-model.js';
 import { REGULATED_POWER_SUPPLY_PROFILE } from './models/regulated-power-supply-model.js';
 import {
   SIGNAL_GENERATOR_MAX_AMPLITUDE_VPP,
@@ -1671,19 +1675,19 @@ function* iterateArduinoCircuitClock(
   let pwmDocument: ElectronicsDocument | undefined;
   let pwmNodes: ReadonlyMap<string, number> = new Map();
   let pwmControlNodes: ReadonlySet<number> = new Set();
+  let externalPwmWaves: L298nExternalSquareWaves['waves'];
   const nextPwmTime = (): number => {
     if (!hasL298n) return Number.POSITIVE_INFINITY;
     if (pwmDocument !== activeDocument) {
       pwmDocument = activeDocument;
       pwmNodes = compileCircuit(activeDocument).netlist.nodeOf;
       pwmControlNodes = l298nControlNetIndices(activeDocument, pwmNodes);
+      externalPwmWaves = preparation()(activeDocument)!.l298nExternalSquareWaves.waves;
     }
-    return nextL298nPwmEdgeMicroseconds(
-      activeDocument,
-      pwmNodes,
-      pwmControlNodes,
-      states,
-      Math.max(0, reachedMicroseconds),
+    const time = Math.max(0, reachedMicroseconds);
+    return Math.min(
+      nextL298nPwmEdgeMicroseconds(activeDocument, pwmNodes, pwmControlNodes, states, time),
+      nextL298nExternalSquareEdgeMicroseconds(externalPwmWaves, time),
     );
   };
   const nextPhysicsTime = (): number =>

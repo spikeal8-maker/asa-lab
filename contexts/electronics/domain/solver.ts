@@ -41,7 +41,14 @@ import {
   l298nArduinoSetupHighImpedance,
   l298nControlNetIndices,
 } from './models/l298n-input-network.js';
-import { sampleL298nArduinoPwmVoltage } from './models/l298n-pwm-model.js';
+import {
+  l298nExternalTimeMicroseconds,
+  nextL298nExternalSquareEdgeMicroseconds,
+  prepareL298nExternalSquareWaves,
+  sampleL298nArduinoPwmVoltage,
+  sampleL298nExternalSquareVoltage,
+  type L298nExternalSquareWaves,
+} from './models/l298n-pwm-model.js';
 import { GMIN, emitNumericalNodes, copyNumericalNode } from './numerical-shunt-power.js';
 import { solveLinear } from './linear-system.js';
 import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
@@ -801,6 +808,8 @@ interface InternalSolveOptions extends SolveOptions {
   readonly clockedArduinoInputs?: boolean | undefined;
   /** Held PWM input instant of the current canonical physical interval. */
   readonly l298nPwmSampleTimeMs?: number | undefined;
+  readonly l298nExternalSquareSampleTimeMs?: number | undefined;
+  readonly l298nExternalSquareWaves?: L298nExternalSquareWaves | undefined;
   readonly thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch> | undefined;
   /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
   readonly holdCapacitorVoltages?: boolean | undefined;
@@ -856,6 +865,7 @@ export function prepareCircuitSolve(document: ElectronicsDocument) {
   const netlist = buildNetlist(document);
   const preparation = Object.freeze({
     netlist,
+    l298nExternalSquareWaves: prepareL298nExternalSquareWaves(document, netlist.nodeOf),
     observationRouting: prepareObservationRouting(document),
     terminalNodes: new Map(
       document.components.map(
@@ -1807,6 +1817,18 @@ function solveCircuitBase(
   options: InternalSolveOptions = {},
 ): SolveResult {
   const preparation = options.preparation?.(document);
+  const l298nExternalSquareWaves =
+    preparation?.l298nExternalSquareWaves ??
+    (document.components.some(isL298n) &&
+    document.components.some((component) => component.componentTypeId === 'signal-generator')
+      ? prepareL298nExternalSquareWaves(document, buildNetlist(document).nodeOf)
+      : undefined);
+  // The canonical scheduler already brackets each physical interval. The
+  // direct solver must also respect external edges when called on its own.
+  const directExternalWaves =
+    options.l298nPwmSampleTimeMs === undefined && l298nExternalSquareWaves?.waves.size
+      ? l298nExternalSquareWaves.waves
+      : undefined;
   const orderedCapacitors =
     preparation?.orderedCapacitors ??
     document.components
@@ -2011,7 +2033,7 @@ function solveCircuitBase(
     motors: orderedMotors.map((component) => motorStateById[component.id]!),
     multimeterFuses: orderedMultimeters.map((component) => multimeterFuseById.get(component.id)!),
   });
-  if (options.clockedRcTransient && startTimeMs === targetTimeMs) {
+  const observeHeldState = () => {
     const frame = solveCircuitStep(document, {
       preparation: options.preparation,
       operatingPointReuse: options.operatingPointReuse,
@@ -2019,6 +2041,8 @@ function solveCircuitBase(
       heldArduinoSnapshots: options.heldArduinoSnapshots,
       clockedArduinoInputs: options.clockedArduinoInputs,
       l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
+      l298nExternalSquareWaves,
+      ...(directExternalWaves ? { arduinoRuntimeStateById } : {}),
       ...peripheralRuntimeStates,
       holdCapacitorVoltages: true,
       holdMotorStates: true,
@@ -2039,8 +2063,11 @@ function solveCircuitBase(
       failedComponentIds,
       suppressOscilloscopeTrace: true,
     });
+    return applyThermalObservations(document, frame, thermalById, failedComponentIds);
+  };
+  if (options.clockedRcTransient && startTimeMs === targetTimeMs) {
     return {
-      ...applyThermalObservations(document, frame, thermalById, failedComponentIds),
+      ...observeHeldState(),
       transientState: physicalState(),
       transientAnalysis: { acceptedSteps: 0, rejectedSteps: 0, minStepMs: 0, maxStepMs: 0 },
     };
@@ -2060,9 +2087,10 @@ function solveCircuitBase(
   let rejectedSteps = 0;
   let minStepMs = Number.POSITIVE_INFINITY;
   let maxStepMs = 0;
-  const minimumStepMs = options.clockedRcTransient
-    ? Math.max(1e-6, Number.EPSILON * Math.max(1, targetTimeMs) * 4)
-    : TRANSIENT_MIN_STEP_MS;
+  const minimumStepMs =
+    options.clockedRcTransient || directExternalWaves
+      ? Math.max(1e-6, Number.EPSILON * Math.max(1, targetTimeMs) * 4)
+      : TRANSIENT_MIN_STEP_MS;
 
   const voltageFromResult = (result: SolveResult, componentId: string, fallback: number): number =>
     result.components.find((component) => component.componentId === componentId)?.voltageDrop ??
@@ -2073,9 +2101,18 @@ function solveCircuitBase(
     const endpointToleranceMs = options.clockedRcTransient
       ? Number.EPSILON * Math.max(1, targetTimeMs) * 8
       : 0;
-    const stepMs =
+    const nominalStepMs =
       remainingMs <= candidateStepMs + endpointToleranceMs ? remainingMs : candidateStepMs;
-    const stepEndTimeMs = stepMs === remainingMs ? targetTimeMs : currentTimeMs + stepMs;
+    const nextExternalEdgeMs = directExternalWaves
+      ? nextL298nExternalSquareEdgeMicroseconds(
+          directExternalWaves,
+          l298nExternalTimeMicroseconds(currentTimeMs),
+        ) / 1000
+      : Number.POSITIVE_INFINITY;
+    const nominalEndTimeMs =
+      nominalStepMs === remainingMs ? targetTimeMs : currentTimeMs + nominalStepMs;
+    const stepEndTimeMs = Math.min(nominalEndTimeMs, nextExternalEdgeMs);
+    const stepMs = stepEndTimeMs < nominalEndTimeMs ? stepEndTimeMs - currentTimeMs : nominalStepMs;
     const common = {
       capacitorPreviousVoltageById: previousVoltageById,
       bjtPreviousRegionById: bjtRegionById,
@@ -2098,6 +2135,8 @@ function solveCircuitBase(
       heldArduinoSnapshots: options.heldArduinoSnapshots,
       clockedArduinoInputs: options.clockedArduinoInputs,
       l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
+      l298nExternalSquareSampleTimeMs: directExternalWaves ? currentTimeMs : undefined,
+      l298nExternalSquareWaves,
       ...peripheralRuntimeStates,
     } as const;
     let acceptedResult: SolveResult;
@@ -2194,7 +2233,9 @@ function solveCircuitBase(
         arduinoRuntimeStateById: arduinoRuntimeStatesFromController(firstHalf.controllerState),
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         clockedArduinoInputs: options.clockedArduinoInputs,
-        l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
+        l298nPwmSampleTimeMs: common.l298nPwmSampleTimeMs,
+        l298nExternalSquareSampleTimeMs: common.l298nExternalSquareSampleTimeMs,
+        l298nExternalSquareWaves,
         ...peripheralRuntimeStates,
       });
       accumulatedIterations += full.iterations + firstHalf.iterations + secondHalf.iterations;
@@ -2400,7 +2441,9 @@ function solveCircuitBase(
         operatingPointReuse: options.operatingPointReuse,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         clockedArduinoInputs: options.clockedArduinoInputs,
-        l298nPwmSampleTimeMs: options.l298nPwmSampleTimeMs,
+        l298nPwmSampleTimeMs: common.l298nPwmSampleTimeMs,
+        l298nExternalSquareSampleTimeMs: common.l298nExternalSquareSampleTimeMs,
+        l298nExternalSquareWaves,
         ...peripheralRuntimeStates,
         holdCapacitorVoltages: options.clockedRcTransient,
         simulationTimeMs: stepEndTimeMs,
@@ -2445,6 +2488,10 @@ function solveCircuitBase(
       thermalById,
       failedComponentIds,
     );
+    if (stepEndTimeMs === targetTimeMs && nextExternalEdgeMs === targetTimeMs) {
+      finalResult = observeHeldState();
+      accumulatedIterations += finalResult.iterations;
+    }
     currentTimeMs = stepEndTimeMs;
     acceptedSteps += 1;
     minStepMs = Math.min(minStepMs, stepMs);
@@ -2895,6 +2942,10 @@ function solveCircuitStep(
   // Other Arduino consumers retain their established behavior.
   const hasL298n = document.components.some(isL298n);
   const l298nInputNodes = hasL298n ? l298nControlNetIndices(document, netlist.nodeOf) : undefined;
+  const externalWaves =
+    options.l298nExternalSquareWaves ??
+    preparation?.l298nExternalSquareWaves ??
+    (hasL298n ? prepareL298nExternalSquareWaves(document, netlist.nodeOf) : undefined);
   const branchesForSnapshots = (snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>) =>
     document.components.flatMap((component) =>
       failedComponentIds.has(component.id)
@@ -2960,13 +3011,21 @@ function solveCircuitStep(
     : [];
   const linearDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
+    const externalWave = externalWaves?.waves.get(component.id);
     const device = preparation?.linearDevices.has(component.id)
       ? preparation.linearDevices.get(component.id)
       : createLinearDcDevice(
           component.componentTypeId === 'signal-generator'
             ? {
                 ...component,
-                value: signalGeneratorVoltageAt(component, options.simulationTimeMs ?? 0),
+                value: externalWave
+                  ? sampleL298nExternalSquareVoltage(
+                      externalWave,
+                      options.l298nExternalSquareSampleTimeMs ??
+                        options.l298nPwmSampleTimeMs ??
+                        simulationTimeMs,
+                    )
+                  : signalGeneratorVoltageAt(component, simulationTimeMs),
               }
             : component.componentTypeId === 'multimeter'
               ? {
@@ -3218,6 +3277,16 @@ function solveCircuitStep(
     });
   }
   if (invalid.length > 0) return empty('invalid');
+  if (externalWaves?.unresolvedSourceIds.length) {
+    diagnostics.push({
+      code: 'unsupported_topology',
+      severity: 'error',
+      message: 'Полупериод прямоугольного сигнала на входе L298N короче 1 мкс.',
+      componentIds: externalWaves.unresolvedSourceIds,
+      suggestedAction: 'Уменьшите частоту генератора до 500 кГц или ниже.',
+    });
+    return empty('unsupported');
+  }
   const invalidTerminalContracts =
     preparation?.invalidTerminalContracts ??
     document.components.flatMap((component) => {

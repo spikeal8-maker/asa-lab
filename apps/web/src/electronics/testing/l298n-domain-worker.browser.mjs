@@ -156,6 +156,53 @@ function circuit(spec) {
   };
 }
 
+function externalSquareCircuit(amplitudeVpp) {
+  const base = circuit({ signA: 1, signB: -1, dutyA: 255, dutyB: 255 });
+  const wire = (id, from, terminal, pin) => ({
+    id,
+    from: { componentId: from, terminal },
+    to: { componentId: 'driver', terminal: pin },
+  });
+  return {
+    ...base,
+    components: [
+      ...base.components
+        .filter((part) => part.id !== 'uno')
+        .map((part) =>
+          part.id === 'vs' ? { ...part, stateProperties: { maxContinuousCurrentAmp: 3 } } : part,
+        ),
+      { id: 'logic', kind: 'source', value: 5, position: { x: 0, y: 100 } },
+      {
+        id: 'generator',
+        kind: 'source',
+        componentTypeId: 'signal-generator',
+        pinIds: ['signal', 'ground'],
+        value: 1000,
+        position: { x: 0, y: 200 },
+        stateProperties: {
+          waveform: 'square',
+          frequencyHz: 1000,
+          amplitudeVpp,
+          dcOffsetVolt: amplitudeVpp ? 2.5 : 5,
+          outputEnabled: true,
+        },
+      },
+    ],
+    connections: [
+      ...base.connections.filter((part) => part.from.componentId !== 'uno'),
+      wire('logic', 'logic', 'a', '+5V'),
+      wire('logic-return', 'logic', 'b', 'GND'),
+      wire('in1', 'logic', 'a', 'IN1'),
+      wire('in2', 'logic', 'b', 'IN2'),
+      wire('in3', 'logic', 'b', 'IN3'),
+      wire('in4', 'logic', 'a', 'IN4'),
+      wire('ena', 'generator', 'signal', 'ENA'),
+      wire('enb', 'generator', 'signal', 'ENB'),
+      wire('generator-return', 'generator', 'ground', 'GND'),
+    ],
+  };
+}
+
 function finiteTree(value, path = 'result') {
   if (typeof value === 'number') assert.ok(Number.isFinite(value), path + ' is finite');
   else if (Array.isArray(value)) value.forEach((item, i) => finiteTree(item, path + '[' + i + ']'));
@@ -405,10 +452,10 @@ try {
     assert.equal(response.metrics.solverRevision, identity.engineRevision);
     return response;
   }
-  async function preflight(label, document) {
+  async function preflight(label, document, controllerRuntime = 'arduino') {
     const response = await rpc(label, { kind: 'preflight', document });
     solved(response.result, label + ' preflight');
-    assert.equal(response.result.analysis.controllerRuntime, 'arduino');
+    assert.equal(response.result.analysis.controllerRuntime, controllerRuntime);
     return {
       topologySignature: response.result.topologySignature,
       simulationInputDigest: response.result.simulationInputDigest,
@@ -585,6 +632,63 @@ try {
       }),
     );
   }
+
+  const standalone = {
+    id: 'standalone-external-square-1khz',
+    frames: [],
+  };
+  receipt.cases.push(standalone);
+  const pwmDocument = externalSquareCircuit(5);
+  await openWorker(standalone.id);
+  standalone.preflight = await preflight(standalone.id, pwmDocument, 'none');
+  let pwmState = identity.initialState;
+  let pwmHorizon = 0;
+  for (const [horizon, expectedVolt] of [
+    [499, 5],
+    [500, 0],
+    [999, 0],
+    [1000, 5],
+    [40000, 5],
+  ]) {
+    const sample = await advance(standalone.id, pwmDocument, pwmState, horizon, pwmHorizon);
+    assert.equal(component(sample.result, 'generator').signalInstantaneousVolt, expectedVolt);
+    const summary = frameSummary(sample);
+    assert.ok(Math.abs(summary.enaVolt - expectedVolt) < 1e-6);
+    assert.ok(Math.abs(summary.enbVolt - expectedVolt) < 1e-6);
+    standalone.frames.push(summary);
+    pwmState = JSON.parse(JSON.stringify(sample.state));
+    pwmHorizon = horizon;
+  }
+  await closeWorker(standalone.id);
+
+  const alwaysHighId = 'standalone-constant-high';
+  const highDocument = externalSquareCircuit(0);
+  await openWorker(alwaysHighId);
+  await preflight(alwaysHighId, highDocument, 'none');
+  const alwaysHigh = frameSummary(
+    await advance(alwaysHighId, highDocument, identity.initialState, 40000, 0),
+  );
+  await closeWorker(alwaysHighId);
+  standalone.constantHigh = alwaysHigh;
+  const pwm = standalone.frames.at(-1);
+  for (const [motor, sign] of [
+    ['motorA', 1],
+    ['motorB', -1],
+  ]) {
+    assert.ok(pwm[motor].motorRpm * sign > 0);
+    assert.ok(Math.abs(pwm[motor].motorRpm) < Math.abs(alwaysHigh[motor].motorRpm) * 0.75);
+  }
+  standalone.status = 'pass';
+  await persistReceipt();
+  console.log(
+    'L298N_DOMAIN_WORKER_CASE_PASS',
+    JSON.stringify({
+      id: standalone.id,
+      frames: standalone.frames.length,
+      pwmRpm: [pwm.motorA.motorRpm, pwm.motorB.motorRpm],
+      constantHighRpm: [alwaysHigh.motorA.motorRpm, alwaysHigh.motorB.motorRpm],
+    }),
+  );
 
   receipt.workerErrors = await page.evaluate(() => window.l298nNative.errors);
   assert.deepEqual(receipt.workerErrors, [], 'No native Worker errors or unexpected responses');

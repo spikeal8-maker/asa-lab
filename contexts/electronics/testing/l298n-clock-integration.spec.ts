@@ -150,6 +150,48 @@ function circuit(loads: Loads, source = steadySource()): ElectronicsDocument {
   return parsed(components, connections);
 }
 
+function externalSquareCircuit(
+  frequencyHz: number,
+  { reversed = false, amplitudeVpp = 5 } = {},
+): ElectronicsDocument {
+  const base = circuit('motors');
+  const activeTerminal = reversed ? 'ground' : 'signal';
+  const referenceTerminal = reversed ? 'signal' : 'ground';
+  return parsed(
+    [
+      ...base.components
+        .filter((component) => component.id !== 'uno')
+        .map((component) =>
+          component.id === 'vs'
+            ? { ...component, stateProperties: { maxContinuousCurrentAmp: 3 } }
+            : component,
+        ),
+      {
+        ...part('generator', 'source', frequencyHz),
+        componentTypeId: 'signal-generator',
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          frequencyHz,
+          amplitudeVpp,
+          dcOffsetVolt: reversed ? -2.5 : amplitudeVpp === 0 ? 5 : 2.5,
+          waveform: 'square',
+          outputEnabled: true,
+        },
+      },
+    ],
+    [
+      ...base.connections.filter((connection) => connection.from.componentId !== 'uno'),
+      wire('in-1', 'logic', 'a', 'driver', 'IN1'),
+      wire('in-2', 'vs', 'b', 'driver', 'IN2'),
+      wire('in-3', 'vs', 'b', 'driver', 'IN3'),
+      wire('in-4', 'logic', 'a', 'driver', 'IN4'),
+      wire('ena', 'generator', activeTerminal, 'driver', 'ENA'),
+      wire('enb', 'generator', activeTerminal, 'driver', 'ENB'),
+      wire('generator-return', 'generator', referenceTerminal, 'driver', 'GND'),
+    ],
+  );
+}
+
 function cloneState(state: ArduinoCircuitClockState): ArduinoCircuitClockState {
   return JSON.parse(JSON.stringify(state)) as ArduinoCircuitClockState;
 }
@@ -216,6 +258,81 @@ function runtime(value: Ready, id = 'uno') {
 }
 
 describe('L298N shared Arduino clock and physical motor integration', () => {
+  it.each([250, 500, 1000])(
+    'preserves external %i Hz PWM edges and both motors without an Arduino',
+    (frequencyHz) => {
+      const document = externalSquareCircuit(frequencyHz);
+      const halfPeriod = 500_000 / frequencyHz;
+      let previous: ArduinoCircuitClockState | undefined;
+      for (const [time, expected] of [
+        [halfPeriod - 1, 5],
+        [halfPeriod, 0],
+        [halfPeriod * 2 - 1, 0],
+        [halfPeriod * 2, 5],
+      ] as const) {
+        const frame = healthy(through(document, time, previous, 3));
+        expect(frame.state.boards).toEqual([]);
+        expect(component(frame, 'generator').signalInstantaneousVolt).toBe(expected);
+        expect(pin(frame, 'ENA')).toBeCloseTo(expected, 6);
+        expect(pin(frame, 'ENB')).toBeCloseTo(expected, 6);
+        previous = cloneState(frame.state);
+      }
+      const pwm = healthy(through(document, 40_000, previous));
+      const alwaysHigh = healthy(
+        through(externalSquareCircuit(frequencyHz, { amplitudeVpp: 0 }), 40_000),
+      );
+      for (const [id, sign] of [
+        ['load-a', 1],
+        ['load-b', -1],
+      ] as const) {
+        const actual = component(pwm, id).motorRpm! * sign;
+        const high = component(alwaysHigh, id).motorRpm! * sign;
+        expect(actual).toBeGreaterThan(high * 0.35);
+        expect(actual).toBeLessThan(high * 0.75);
+      }
+
+      const directEdge = analyseCircuit(document, { simulationTimeMs: 40 + halfPeriod / 1000 });
+      expect(directEdge.solved).toBe(true);
+      expect(directEdge.quality.passed).toBe(true);
+      expect(
+        directEdge.components.find((entry) => entry.componentId === 'generator')
+          ?.signalInstantaneousVolt,
+      ).toBe(0);
+    },
+  );
+
+  it('keeps fractional external edges and opposite source wiring deterministic across JSON checkpoints', () => {
+    const document = externalSquareCircuit(625.5, { reversed: true });
+    const before = healthy(through(document, 799));
+    const at = healthy(through(document, 800, cloneState(before.state)));
+    const repeatedHigh = healthy(through(document, 1599, cloneState(at.state)));
+    expect(pin(before, 'ENA')).toBeCloseTo(0, 6);
+    expect(pin(at, 'ENA')).toBeCloseTo(5, 6);
+    expect(pin(repeatedHigh, 'ENA')).toBeCloseTo(0, 6);
+    const whole = healthy(through(document, 40_113));
+    const sliced = healthy(through(document, 40_113, cloneState(repeatedHigh.state), 4));
+    expect(sliced.result).toEqual(whole.result);
+    expect(sliced.state).toEqual(whole.state);
+  });
+
+  it('rejects only a connected external square wave whose half-period is below one clock tick', () => {
+    const document = externalSquareCircuit(500_001);
+    const frame = through(document, 2000);
+    expect(frame.result?.solved ?? false).toBe(false);
+    expect(frame.diagnostics.some((item) => item.message.includes('1 мкс'))).toBe(true);
+    const direct = analyseCircuit(document, { simulationTimeMs: 2 });
+    expect(direct.solved).toBe(false);
+    expect(direct.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'unsupported_topology' })]),
+    );
+    const unconnected = parsed(document.components, [
+      ...document.connections.filter((connection) => !['ena', 'enb'].includes(connection.id)),
+      wire('ena-rail', 'logic', 'a', 'driver', 'ENA'),
+      wire('enb-rail', 'logic', 'a', 'driver', 'ENB'),
+    ]);
+    healthy(through(unconnected, 2000));
+  });
+
   it.each(['resistors', 'motors'] as const)(
     'takes cold GPIO through setup into loop with %s and checks every returned frame',
     (loads) => {
