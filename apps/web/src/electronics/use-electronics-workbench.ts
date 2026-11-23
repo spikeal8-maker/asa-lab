@@ -2150,6 +2150,49 @@ export function useElectronicsWorkbenchHost(
     if (next) commitDocument(next, message);
   }
 
+  function setSelectedL298nJumper(
+    property: 'enaJumperInstalled' | 'enbJumperInstalled' | 'regulatorJumperInstalled',
+    installed: boolean,
+  ): void {
+    if (!document || !structuralEditAllowed() || selection?.kind !== 'component') return;
+    const selected = document.components.find((item) => item.id === selection.id);
+    if (selected?.componentTypeId !== 'l298n-motor-driver') return;
+    const pin =
+      property === 'enaJumperInstalled' ? 'ENA' : property === 'enbJumperInstalled' ? 'ENB' : null;
+    if (pin && installed) {
+      const alreadyWired =
+        document.connections.some(
+          (connection) =>
+            (connection.from.componentId === selected.id && connection.from.terminal === pin) ||
+            (connection.to.componentId === selected.id && connection.to.terminal === pin),
+        ) || Boolean(selected.holeBindings?.[pin]);
+      if (alreadyWired) {
+        setNotice('Перед установкой перемычки ' + pin + ' отключите провод PWM.');
+        return;
+      }
+    }
+    const previousPins = selected.pinIds ?? [];
+    const pinIds = pin
+      ? installed
+        ? previousPins.filter((terminal) => terminal !== pin)
+        : [...new Set([...previousPins, pin])]
+      : previousPins;
+    if (selected.stateProperties?.[property] === installed && pinIds.length === previousPins.length)
+      return;
+    commitDocument({
+      ...document,
+      components: document.components.map((item) =>
+        item.id === selected.id
+          ? {
+              ...item,
+              stateProperties: { ...item.stateProperties, [property]: installed },
+              pinIds,
+            }
+          : item,
+      ),
+    });
+  }
+
   function setMultimeterMeasurementMode(
     componentId: string,
     measurementMode: 'dc-voltage' | 'dc-current' | 'resistance',
@@ -3930,6 +3973,7 @@ export function useElectronicsWorkbenchHost(
     setSelectedWiper,
     setSelectedMotorShaftLocked,
     setSelectedProperties,
+    setSelectedL298nJumper,
     setMultimeterMeasurementMode,
     setRegulatedPowerSupplyControls,
     setSignalGeneratorControls,

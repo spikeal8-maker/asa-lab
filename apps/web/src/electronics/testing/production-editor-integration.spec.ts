@@ -68,6 +68,7 @@ const ACTIVE_PHYSICAL_SIZE_MM = {
   'piezo-disc': [24, 24],
   'servo-motor': [15.2, 39.1668],
   gearmotor: [43.52, 68.58],
+  'l298n-motor-driver': [43, 43],
   'vibration-motor': [7.43, 22.92],
   'electrolytic-capacitor': [16.91, 19.2],
   'soil-moisture-sensor': [15.83, 42.33],

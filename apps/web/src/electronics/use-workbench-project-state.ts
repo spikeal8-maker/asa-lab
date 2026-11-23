@@ -116,11 +116,24 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
     const entry = componentTypeId ? catalogEntry(componentTypeId) : null;
     const board = componentTypeId ? productionBreadboard(componentTypeId) : null;
     const productionPinIds = Object.keys(entry?.terminals ?? {});
+    // Owner L298N has 11 permanent wire terminals. With a physical ENA/ENB
+    // shunt removed, that header contact becomes an additional external PWM
+    // terminal. These *two* optional pads must survive save/reload while all
+    // other pseudo-jumper contacts remain unavailable as wire terminals.
+    const l298nPinIds =
+      componentTypeId === 'l298n-motor-driver' && productionPinIds.length === 11
+        ? [
+            ...productionPinIds,
+            ...(component.stateProperties?.['enaJumperInstalled'] === false ? ['ENA'] : []),
+            ...(component.stateProperties?.['enbJumperInstalled'] === false ? ['ENB'] : []),
+          ]
+        : null;
     const pinIds =
-      productionPinIds.length > 0 &&
+      l298nPinIds ??
+      (productionPinIds.length > 0 &&
       (!component.pinIds || component.pinIds.some((pinId) => !entry?.terminals[pinId]))
         ? productionPinIds
-        : (component.pinIds ?? productionPinIds);
+        : (component.pinIds ?? productionPinIds));
     const internalConnections =
       component.internalConnections ??
       (board
