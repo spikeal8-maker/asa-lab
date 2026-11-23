@@ -4752,16 +4752,113 @@ test('simulation fault semantics: unpowered supported circuit stays distinct fro
     'data-simulation-status',
     'running',
   );
-  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
-    'data-simulation-category',
-    'circuit-state',
-  );
-  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
-    'data-simulation-code',
-    'no_source',
-  );
+  await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+});
+
+test('standalone ultrasonic variants start silently and replace the old SVG before the new image loads', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Ультразвуковой датчик без питания');
+  await saveDocument(page, projectId, {
+    ...mobileEmptyDocument(),
+    components: [
+      {
+        id: 'sonar',
+        kind: 'visual',
+        componentTypeId: 'ultrasonic-sensor',
+        variantId: 'ultrasonic-sensor',
+        position: { x: 200, y: 200 },
+        value: 0,
+        pinIds: ['gnd', 'vcc', 'signal'],
+        stateProperties: { distanceMeters: 1 },
+      },
+    ],
+  });
+  await page.goto('/#/home/' + projectId);
+  const sensor = page.locator('[data-testid="schematic-component"][data-component-id="sonar"]');
+  const image = sensor.locator('image').first();
+  await expect(image).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
+  await sensor.locator('.workbench-part').press('Enter');
+  const variant = page.getByRole('combobox', { name: /Вариант.*в проекте/ });
+  const overlay = page.getByTestId('ultrasonic-target-overlay');
+  const target = overlay.getByRole('slider', { name: 'Расстояние до цели, см' });
+  const dragTarget = async () => {
+    const before = Number(await overlay.getAttribute('data-distance-m'));
+    const { x, y, endX, endY } = await target.evaluate((node) => {
+      const circle = node as SVGCircleElement;
+      const matrix = circle.getScreenCTM()!;
+      const cx = circle.cx.baseVal.value;
+      const cy = circle.cy.baseVal.value;
+      const start = new DOMPoint(cx, cy).matrixTransform(matrix);
+      const end = new DOMPoint(cx + 12, cy + 20).matrixTransform(matrix);
+      return { x: start.x, y: start.y, endX: end.x, endY: end.y };
+    });
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(endX, endY, { steps: 5 });
+    await page.mouse.up();
+    await expect
+      .poll(async () => Number(await overlay.getAttribute('data-distance-m')))
+      .toBeLessThan(before);
+    return (await overlay.getAttribute('data-distance-m'))!;
+  };
+  await expect(overlay).toContainText('100 см / 39,4 in');
+  const savedDistance = await dragTarget();
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  await page.reload();
+  await sensor.locator('.workbench-part').press('Enter');
+  await expect(overlay).toHaveAttribute('data-distance-m', savedDistance);
+
+  const simulate = page.locator('.workbench-pill.simulate');
+  const banner = page.locator('.workbench-simulation-message');
+  const start = page.getByRole('button', { name: 'Начать моделирование' });
+  const stop = page.getByRole('button', { name: 'Остановить моделирование' });
+  const runAndStop = async () => {
+    const initialDistance = (await overlay.getAttribute('data-distance-m'))!;
+    await start.click();
+    await expect(simulate).toHaveAttribute('data-simulation-status', 'running');
+    await expect(banner).toHaveCount(0);
+    await expect(overlay).toContainText('питание не подтверждено');
+    await dragTarget();
+    await stop.click();
+    await expect(overlay).toHaveAttribute('data-distance-m', initialDistance);
+  };
+  await runAndStop();
+
+  const previous = await image.elementHandle();
+  let releaseAsset = () => {};
+  const heldAsset = new Promise<void>((done) => {
+    releaseAsset = done;
+  });
+  const hcAsset = '**/components/sensors/ultrasonic-hc-sr04/component.svg*';
+  await page.route(hcAsset, async (route) => {
+    await heldAsset;
+    await route.continue();
+  });
+  try {
+    const pendingRequest = page.waitForRequest(hcAsset);
+    await variant.selectOption('ultrasonic-hc-sr04');
+    await pendingRequest;
+    await expect(sensor).toHaveAttribute('data-component-type', 'ultrasonic-hc-sr04');
+    await expect(image).toHaveAttribute('href', /ultrasonic-hc-sr04\/component\.svg/);
+    expect(await previous.evaluate((element) => element.isConnected)).toBe(false);
+  } finally {
+    releaseAsset();
+    await page.unroute(hcAsset);
+  }
+  await runAndStop();
+  await variant.selectOption('ultrasonic-sensor');
+  await expect(sensor).toHaveAttribute('data-component-type', 'ultrasonic-sensor');
+  await expect(image).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
 });
 
 test('simulation fault semantics: an unmodelled part stops without a false solved frame', async ({
@@ -10748,10 +10845,9 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
     'data-simulation-status',
     'running',
   );
-  // The no-source message shifts the stage when the first simulation result arrives.
   await expect(
     page.locator('.workbench-simulation-message[data-simulation-code="no_source"]'),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await page.evaluate(() => {
     document
       .querySelector('[data-testid="schematic-component"][data-component-id="meter"]')

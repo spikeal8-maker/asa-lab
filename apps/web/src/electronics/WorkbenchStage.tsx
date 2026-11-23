@@ -27,6 +27,7 @@ import {
 } from './component-catalog';
 import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
 import { NativeLedDiagnostic } from './NativeLedDiagnostic';
+import { UltrasonicTargetOverlay } from './UltrasonicDistanceControls';
 import { CanvasAnnotationEditor, CanvasAnnotationLayer } from './CanvasAnnotationLayer';
 import {
   useCommittedWorkbenchPresentation,
@@ -724,6 +725,8 @@ export function WorkbenchStage({
   showGrid: boolean;
 }): JSX.Element {
   const document = c.document!;
+  const selectedSensor = c.selectedComponent;
+  const selectedSensorType = selectedSensor?.componentTypeId;
   const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<BreadboardHover>(null);
   const switchClipId = useId().replace(/:/g, '');
   const [liveSupplySwitches, setLiveSupplySwitches] = useState<ReadonlySet<string>>(
@@ -1562,6 +1565,16 @@ export function WorkbenchStage({
         ) : null}
         {c.annotations ? (
           <CanvasAnnotationLayer controller={c.annotations} toWorld={c.annotationWorldPoint} />
+        ) : null}
+        {selectedSensor &&
+        (selectedSensorType === 'ultrasonic-hc-sr04' ||
+          selectedSensorType === 'ultrasonic-sensor') ? (
+          <UltrasonicTargetOverlay
+            key={selectedSensor.id + String(c.simulationRunning)}
+            controller={c}
+            component={selectedSensor}
+            componentTypeId={selectedSensorType}
+          />
         ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
           <g className="workbench-stage-readout-layer" pointerEvents="none">

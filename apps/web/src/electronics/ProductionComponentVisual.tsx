@@ -2403,6 +2403,7 @@ export function ProductionComponentVisual({
           ) : (
             <>
               <image
+                key={entry.familyId === 'ultrasonic-sensor' ? asset : undefined}
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
                 ref={ownerImage.mountHref}
                 onError={ownerImage.onError}
