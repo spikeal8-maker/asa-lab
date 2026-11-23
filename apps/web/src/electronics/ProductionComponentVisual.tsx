@@ -1938,6 +1938,7 @@ export function ProductionComponentVisual({
           }
         : component;
   const asset = visualAsset(entry, visualComponent, visualState);
+  const ultrasonicImageKey = entry.familyId === 'ultrasonic-sensor' ? asset : undefined;
   const offAsset =
     entry.key === 'led-5mm'
       ? visualAsset(
@@ -2093,6 +2094,7 @@ export function ProductionComponentVisual({
             </g>
           ) : (
             <image
+              key={ultrasonicImageKey}
               ref={ownerImage.mountHref}
               onError={ownerImage.onError}
               onLoad={ownerImage.onLoad}
@@ -2403,6 +2405,7 @@ export function ProductionComponentVisual({
           ) : (
             <>
               <image
+                key={ultrasonicImageKey}
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
                 ref={ownerImage.mountHref}
                 onError={ownerImage.onError}

@@ -36,12 +36,15 @@ function fault(code: string, message: string): SimulationTimedAdvancePayload {
 }
 
 describe('simulation failure presentation', () => {
-  it('keeps a supported unpowered circuit in circuit state rather than a Worker failure', () => {
-    expect(circuitStateMessage(noSource)).toEqual({
-      category: 'circuit-state',
-      code: 'no_source',
-      text: 'В схеме нет источника напряжения.',
-    });
+  it('does not show a banner for a passive unpowered circuit', () => {
+    expect(circuitStateMessage(noSource)).toBeNull();
+  });
+
+  it('still displays other circuit errors after a no-source diagnostic', () => {
+    const short = { code: 'short_circuit', severity: 'error', message: 'Short circuit.' } as const;
+    expect(
+      circuitStateMessage({ ...noSource, diagnostics: [...noSource.diagnostics, short] }),
+    ).toEqual({ category: 'circuit-state', code: 'short_circuit', text: 'Short circuit.' });
   });
 
   it.each([

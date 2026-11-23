@@ -533,6 +533,14 @@ export interface AdminProductDashboard {
   };
   readonly aiUsage?: AiDashboardUsage | null;
   readonly accountRegistrations?: readonly { readonly at: string; readonly count: number }[];
+  readonly siteActivity?: {
+    readonly measuredFrom: string | null;
+    readonly points: readonly {
+      readonly at: string;
+      readonly accountSeconds: number | null;
+      readonly studentSeconds: number | null;
+    }[];
+  } | null;
   readonly timeline: readonly AdminDashboardPoint[];
   readonly modules: readonly AdminModulePoint[];
   readonly loginMethods: readonly AdminLoginMethodPoint[];

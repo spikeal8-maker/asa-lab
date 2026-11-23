@@ -1250,21 +1250,48 @@ class CollectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             collector = Collector(Path(temp), {'maxBytes': 3 * 1024 * 1024})
             collector.reader_format=2
+            host = normalize('linux:journal', 'ERROR system service failure', now(), 'host-error')
+            collector.add(host)
             # Random data stays large after compression and exercises real eviction.
-            for i in range(400): collector.add(normalize('docker-desktop', secrets.token_hex(8000), now(), str(i)))
-            app=normalize('scratch','important editor failure',now(),'protected');collector.add(app)
+            for i in range(400): collector.add(normalize('api', secrets.token_hex(8000), now(), str(i)))
+            app = normalize('scratch', 'ERROR important editor failure', now(), 'protected')
+            collector.add(app)
             collector.publish()
             catalog = json.loads((collector.store/'catalog.json').read_text())
             self.assertTrue(catalog['trimmed'])
+            self.assertIsNone(catalog['errorHistoryLostThrough'])
             retained = sum(s['count'] for s in catalog['segments'])
             self.assertEqual(collector.db.execute('SELECT count(*) FROM events').fetchone()[0], retained)
             self.assertLessEqual(catalog['activeStorageBytes'], 3 * 1024 * 1024)
             kept=[json.loads(line) for s in catalog['segments'] for line in gzip.decompress((collector.store/s['file']).read_bytes()).decode().splitlines()]
             self.assertIn(app['id'],[e['id'] for e in kept])
+            self.assertIn(host['id'], [e['id'] for e in kept])
             # An owned VACUUM advances SQLite's schema cookie; it must not be
             # confused with an external index replacement on the next publish.
             collector.publish()
             collector.db.close()
+
+    def test_error_quota_eviction_keeps_a_durable_history_watermark(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)
+            config = {'maxBytes': 3 * 1024 * 1024}
+            collector = Collector(path, config)
+            collector.reader_format = 2
+            for i in range(400):
+                collector.add(normalize('api', 'ERROR ' + secrets.token_hex(8000), now(), str(i)))
+            host = normalize('linux:journal', 'ERROR system service failure', now(), 'host-error')
+            collector.add(host)
+            collector.publish()
+            catalog = json.loads((collector.store / 'catalog.json').read_text())
+            loss = catalog['errorHistoryLostThrough']
+            self.assertIsNotNone(loss)
+            self.assertTrue(any('linux:journal' in s['sources'] for s in catalog['segments']))
+            collector.db.close()
+            resumed = Collector(path, config)
+            resumed.reader_format = 2
+            resumed.publish()
+            self.assertEqual(json.loads((resumed.store / 'catalog.json').read_text())['errorHistoryLostThrough'], loss)
+            resumed.db.close()
 
 
 def load_tests(loader, tests, pattern):
