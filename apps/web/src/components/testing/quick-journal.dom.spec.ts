@@ -82,6 +82,13 @@ async function click(target: HTMLElement) {
 async function focusRead() {
   await act(async () => window.dispatchEvent(new Event('focus')));
 }
+function deferredRead() {
+  let resolve!: (data: JournalSnapshot) => void;
+  const promise = new Promise<Awaited<ReturnType<typeof journalApi.read>>>((complete) => {
+    resolve = (data) => complete({ ok: true, status: 200, data });
+  });
+  return { promise, resolve };
+}
 async function reason(value: string) {
   const input = container.querySelector<HTMLInputElement>('.manual-journal-editor input')!;
   await act(async () => {
@@ -119,6 +126,108 @@ describe('quick journal DOM regressions', () => {
     expect(document.activeElement).toBe(first);
     expect(quick).not.toHaveBeenCalled();
   });
+  it.each(['focus', 'cell'] as const)(
+    'closes a removed student’s cell on a successful %s refresh and keeps suspended rows',
+    async (refresh) => {
+      const suspended = { id: 'another-seat', name: '2Анна', status: 'suspended' };
+      let snapshot = { ...confirmed, students: [...confirmed.students, suspended] };
+      vi.spyOn(journalApi, 'read').mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        data: snapshot,
+      }));
+      const quick = vi.spyOn(journalApi, 'quick').mockResolvedValue({
+        ok: false,
+        status: 409,
+        error: { code: 'revision_conflict', message: 'Оценка изменилась' },
+      });
+      await mount();
+      await click(cell());
+      const editor = container.querySelector('.manual-journal-editor')!;
+      if (refresh === 'cell') await click(button('5', editor));
+      snapshot = {
+        ...snapshot,
+        students: [{ ...confirmed.students[0]!, status: 'removed' }, suspended],
+      };
+      if (refresh === 'cell') await click(button('Обновить журнал', editor));
+      else await focusRead();
+
+      expect(container.querySelector('.manual-journal-editor')).toBeNull();
+      expect(container.querySelector('tbody')?.textContent).not.toContain('1Иван');
+      expect(container.querySelector('tbody')?.textContent).toContain('2Анна');
+      expect(container.querySelector('tbody')?.textContent).toContain('Доступ закрыт');
+      expect(document.activeElement).toBe(container.querySelector('[aria-label="Поиск ученика"]'));
+      expect(quick).toHaveBeenCalledTimes(refresh === 'cell' ? 1 : 0);
+      expect(snapshot.grades).toEqual([grade]);
+    },
+  );
+
+  it.each([
+    { newest: 'full', firstResponse: 'cell' },
+    { newest: 'full', firstResponse: 'full' },
+    { newest: 'cell', firstResponse: 'cell' },
+    { newest: 'cell', firstResponse: 'full' },
+  ] as const)(
+    'keeps the newest $newest snapshot when the $firstResponse response arrives first',
+    async ({ newest, firstResponse }) => {
+      const another = { id: 'another-seat', name: '2Анна', status: 'active' };
+      const before = { ...confirmed, students: [...confirmed.students, another] };
+      const after = {
+        ...before,
+        columns: [{ ...column, category: 'Новая категория', headerRevision: 1 }],
+        students: [...confirmed.students, { ...another, status: 'removed' }],
+      };
+      const cellRead = deferredRead();
+      const fullRead = deferredRead();
+      vi.spyOn(journalApi, 'read')
+        .mockResolvedValueOnce({ ok: true, status: 200, data: before })
+        .mockImplementation(async (_classroomId, query) =>
+          query?.columnId ? cellRead.promise : fullRead.promise,
+        );
+      vi.spyOn(journalApi, 'quick').mockResolvedValue({
+        ok: false,
+        status: 409,
+        error: { code: 'revision_conflict', message: 'Оценка изменилась' },
+      });
+
+      await mount();
+      await click(cell());
+      await reason('Введённая причина');
+      const editor = container.querySelector('.manual-journal-editor')!;
+      await click(button('5', editor));
+      const recover = () => click(button('Обновить журнал', editor));
+      if (newest === 'full') {
+        await recover();
+        await focusRead();
+      } else {
+        await focusRead();
+        await recover();
+      }
+
+      const respond = (kind: 'full' | 'cell') =>
+        act(async () => {
+          const request = kind === 'full' ? fullRead : cellRead;
+          request.resolve(kind === newest ? after : before);
+        });
+      const toolbarRefresh = container.querySelector<HTMLButtonElement>(
+        '.manual-journal-toolbar [aria-label="Обновить журнал"]',
+      )!;
+      await respond(firstResponse);
+      if (firstResponse === newest) {
+        expect(container.querySelector('tbody')?.textContent).not.toContain('2Анна');
+      } else if (newest === 'full') {
+        expect(toolbarRefresh.disabled).toBe(true);
+      }
+      await respond(firstResponse === 'cell' ? 'full' : 'cell');
+
+      expect(toolbarRefresh.disabled).toBe(false);
+      expect(container.querySelector('tbody')?.textContent).not.toContain('2Анна');
+      expect(container.querySelector('thead')?.textContent).toContain('Новая категория');
+      expect(editor.querySelector('input')?.value).toBe('Введённая причина');
+      expect(button('5', editor).disabled).toBe(false);
+    },
+  );
+
   it('replays first zero exactly after lost commit, focus GET and slot remapping, without a new reason', async () => {
     let snapshot = empty;
     vi.spyOn(journalApi, 'read').mockImplementation(async () => ({

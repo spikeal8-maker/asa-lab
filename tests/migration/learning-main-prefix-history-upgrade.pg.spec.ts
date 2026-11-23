@@ -519,6 +519,21 @@ const upgradeArtifacts = [
     '0328_classroom_gallery_publish_safe_mode.sql',
     'e3635eaf128e48385f771ce85710afc2d6e0e7340f0cc59427c603ddcd60681d',
   ],
+  [
+    '0329',
+    '0329_classroom_journal_optional_correction_reason.sql',
+    'ddc0cc6d86bac18082e8454fd37975dbc6528c3878aebeedc02fb714614c3e9d',
+  ],
+  [
+    '0330',
+    '0330_admin_ai_dashboard_usage.sql',
+    '3199e0635ac4b9a71260e3f5db86f399c84ef6a1039e0cf758951447090107d2',
+  ],
+  [
+    '0331',
+    '0331_classroom_seat_scoped_session_revoke.sql',
+    '37244b5a7bbaca3535e37695e6fb216b9d78058b00bb2c0de22defd9bb9d3114',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

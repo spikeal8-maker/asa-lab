@@ -1,3 +1,8 @@
+import type {
+  AdminDashboardPeriod,
+  AdminDashboardRange,
+  AiDashboardUsage,
+} from '@asa-lab/contracts';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { authRequest, authRequestFailure } from '../auth-request';
 import { notifyAccountVerificationRequired } from '../auth-verification';
@@ -457,7 +462,7 @@ export interface AdminOperationsStatus {
   } | null;
 }
 
-export type AdminDashboardRange = '1h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d' | '1y';
+export type { AdminDashboardPeriod, AdminDashboardRange } from '@asa-lab/contracts';
 
 export interface AdminDashboardPoint {
   readonly at: string;
@@ -501,7 +506,7 @@ export interface AdminProductDashboard {
   readonly from: string;
   readonly to: string;
   readonly bucketSeconds: number;
-  readonly range: AdminDashboardRange;
+  readonly range: AdminDashboardPeriod['range'];
   readonly todayMsk?: {
     readonly from: string;
     readonly to: string;
@@ -526,6 +531,8 @@ export interface AdminProductDashboard {
     readonly localNetworkAccounts: number;
     readonly unclassifiedNetworkEvents: number;
   };
+  readonly aiUsage?: AiDashboardUsage | null;
+  readonly accountRegistrations?: readonly { readonly at: string; readonly count: number }[];
   readonly timeline: readonly AdminDashboardPoint[];
   readonly modules: readonly AdminModulePoint[];
   readonly loginMethods: readonly AdminLoginMethodPoint[];
@@ -714,22 +721,6 @@ export const adminApi = {
       ...(signal ? { signal } : {}),
     }),
   me: () => call<AdminProfile>('/api/admin/v1/me'),
-  dashboard: (input: {
-    readonly scope: Pick<AdminScope, 'kind' | 'id'>;
-    readonly range: AdminDashboardRange;
-  }) => {
-    const query = new URLSearchParams({ scopeKind: input.scope.kind, range: input.range });
-    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
-    return call<AdminProductDashboard>(`/api/admin/v1/dashboard?${query.toString()}`);
-  },
-  errorTrend: (input: { from: string; to: string; bucketSeconds: number }, signal: AbortSignal) => {
-    const query = new URLSearchParams({
-      from: input.from,
-      to: input.to,
-      bucketSeconds: String(input.bucketSeconds),
-    });
-    return call<AdminErrorTrend>(`/api/admin/v1/logs/trend?${query.toString()}`, { signal });
-  },
   ipActivity: (input: {
     readonly scope: Pick<AdminScope, 'kind' | 'id'>;
     readonly range: AdminDashboardRange;

@@ -287,9 +287,14 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
     new THREE.Plane(new THREE.Vector3(0, -1, 0), height),
   ];
   const objects = new Map<RoboticsObjectKey, THREE.Object3D>();
+  const previewRoots = new Map<RoboticsObjectKey, Set<THREE.Object3D>>();
+  const previewPositions = new Map<THREE.Object3D, THREE.Vector3>();
   const objectKeys = new WeakMap<THREE.Object3D, RoboticsObjectKey>();
   function addPickable(key: RoboticsObjectKey, item: THREE.Object3D): void {
     objects.set(key, item);
+    const roots = previewRoots.get(key) ?? new Set<THREE.Object3D>();
+    roots.add(item);
+    previewRoots.set(key, roots);
     objectKeys.set(item, key);
   }
 
@@ -544,7 +549,11 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
     distance: RoboticsDistanceMeasurement | undefined,
     grid: boolean,
     selection: RoboticsObjectKey | null,
+    preview?: { key: RoboticsObjectKey; dxMeters: number; dyMeters: number } | null,
   ): void {
+    // Restore exact base transforms: drafts never accumulate deltas or rebuild resources.
+    for (const [item, position] of previewPositions) item.position.copy(position);
+    previewPositions.clear();
     const pose = state?.pose ?? world.initialPose;
     robot.position.set(pose.xMeters, pose.yMeters, 0);
     robot.setRotationFromAxisAngle(BODY_Z, pose.headingRadians);
@@ -577,6 +586,19 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
     }
     metricGrid.visible = grid;
 
+    if (preview && [preview.dxMeters, preview.dyMeters].every(Number.isFinite)) {
+      const roots = new Set(previewRoots.get(preview.key));
+      if (preview.key === 'robot') {
+        roots.add(startFill);
+        roots.add(startBorder);
+        roots.add(startText);
+      }
+      for (const item of roots) {
+        previewPositions.set(item, item.position.clone());
+        item.position.x += preview.dxMeters;
+        item.position.y += preview.dyMeters;
+      }
+    }
     const selected = selection ? objects.get(selection) : null;
     outline.visible = Boolean(selected);
     if (selected) {
@@ -605,7 +627,7 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
     return focusBounds.min.distanceTo(focusBounds.max);
   }
 
-  function pick(point: THREE.Vector2, camera: THREE.Camera): RoboticsObjectKey | undefined {
+  function pickHit(point: THREE.Vector2, camera: THREE.Camera) {
     raycaster.setFromCamera(point, camera);
     const hits = raycaster.intersectObjects(pickables, true).filter((hit) => {
       if (!(hit.object instanceof THREE.Mesh) || hit.object.material === shadowMaterial)
@@ -631,11 +653,15 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
       let object: THREE.Object3D | null = hit.object;
       while (object) {
         const key = objectKeys.get(object);
-        if (key) return key;
+        if (key) return { key, point: hit.point.clone() };
         object = object.parent;
       }
     }
     return undefined;
+  }
+
+  function pick(point: THREE.Vector2, camera: THREE.Camera): RoboticsObjectKey | undefined {
+    return pickHit(point, camera)?.key;
   }
 
   function dispose(): void {
@@ -657,5 +683,5 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
     scene.clear();
   }
 
-  return { scene, applySnapshot, readFocus, pick, dispose };
+  return { scene, applySnapshot, readFocus, pick, pickHit, dispose };
 }

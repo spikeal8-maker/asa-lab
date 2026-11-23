@@ -77,7 +77,6 @@ function HomeContent({
     (modules !== null || modulesError);
   // Restoring earlier would clamp the saved position against a still-short page.
   const rememberScroll = useProjectScroll(lifetime.key !== null && settled);
-  const empty = Object.values(lists).every((list) => list.data?.items.length === 0);
   const openLearning = () => {
     rememberScroll();
     onNavigate('learning');
@@ -107,17 +106,6 @@ function HomeContent({
               </button>
             </>
           ) : null}
-        </section>
-      ) : null}
-      {empty ? (
-        <section className="access-personal-start" aria-label="Начать работу">
-          <PortalLink
-            href={creatorViewToHref({ kind: 'knowledge' })}
-            className="btn-secondary"
-            onNavigate={() => onNavigate('knowledge')}
-          >
-            Открыть знания
-          </PortalLink>
         </section>
       ) : null}
       <div className="creator-module-feed" data-testid="creator-recent-projects">

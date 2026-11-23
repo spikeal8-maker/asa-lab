@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
+import { api } from '../api';
 import {
   journalApi,
   journalAccessibleLabel,
@@ -15,6 +25,8 @@ import {
 import './manual-classroom-journal.css';
 import { JournalMonthNavigation } from './JournalMonthNavigation';
 import { useJournalDestination } from '../learning/journal-destination';
+import { portalSessionBinding, subscribePortalSession } from '../portal-requests';
+import { onSessionLoggedOut } from '../session-fetch';
 import { schoolTimeFormats } from './school-time';
 import {
   journalRoster,
@@ -81,7 +93,7 @@ function GradeHistory({
           <li key={r.id}>
             <strong>{journalRevisionLabel(column.preset, r.value)}</strong> · {r.authorName} ·{' '}
             {schoolTimeFormats(timeZone).dateTime(r.publishedAt)}
-            <p>{r.reason}</p>
+            {r.reason ? <p>{r.reason}</p> : null}
           </li>
         ))}
       </ol>
@@ -110,8 +122,67 @@ function GradeHistory({
     </div>
   );
 }
+function placeCellEditor(dialog: HTMLDialogElement, cell: HTMLButtonElement | undefined) {
+  const viewport = window.visualViewport;
+  const left = viewport?.offsetLeft ?? 0;
+  const top = viewport?.offsetTop ?? 0;
+  const width = viewport?.width ?? document.documentElement.clientWidth;
+  const height = viewport?.height ?? window.innerHeight;
+  const margin = 8;
+  const gap = 6;
+  const right = left + width - margin;
+  const bottom = top + height - margin;
+  const editorWidth = Math.max(1, Math.min(360, width - 2 * margin));
+  const availableHeight = Math.max(1, height - 2 * margin);
+  dialog.style.width = editorWidth + 'px';
+
+  const cellRect = cell?.getBoundingClientRect();
+  const matrix = cell?.closest('.manual-journal-scroll')?.getBoundingClientRect();
+  const stickyColumn = cell?.closest('tr')?.firstElementChild?.getBoundingClientRect();
+  const stickyHeader = cell?.closest('table')?.tHead?.getBoundingClientRect();
+  // Track the exposed part of the selected cell, including the journal's sticky edges.
+  const cellLeft = Math.max(
+    cellRect?.left ?? right,
+    matrix?.left ?? left,
+    stickyColumn?.right ?? left,
+    left,
+  );
+  const cellRight = Math.min(cellRect?.right ?? left, matrix?.right ?? right, right);
+  const cellTop = Math.max(
+    cellRect?.top ?? bottom,
+    matrix?.top ?? top,
+    stickyHeader?.bottom ?? top,
+    top,
+  );
+  const cellBottom = Math.min(cellRect?.bottom ?? top, matrix?.bottom ?? bottom, bottom);
+  const visible = cellLeft < cellRight && cellTop < cellBottom;
+  const naturalHeight = Math.min(
+    availableHeight,
+    dialog.scrollHeight + dialog.offsetHeight - dialog.clientHeight,
+  );
+  const below = bottom - cellBottom - gap;
+  const above = cellTop - top - margin - gap;
+  const showAbove = below < naturalHeight && above > below;
+  const sideHeight = showAbove ? above : below;
+  const fitsBesideCell = visible && sideHeight >= Math.min(naturalHeight, 144);
+
+  dialog.style.left =
+    (visible
+      ? Math.max(left + margin, Math.min(cellLeft, right - editorWidth))
+      : left + (width - editorWidth) / 2) + 'px';
+  dialog.style.maxHeight = Math.max(1, fitsBesideCell ? sideHeight : availableHeight) + 'px';
+  dialog.style.top = fitsBesideCell
+    ? showAbove
+      ? 'auto'
+      : cellBottom + gap + 'px'
+    : top + margin + 'px';
+  dialog.style.bottom =
+    fitsBesideCell && showAbove ? window.innerHeight - cellTop + gap + 'px' : 'auto';
+}
+
 function CellEditor({
   classroomId,
+  getAnchor,
   column,
   student,
   grade,
@@ -124,6 +195,7 @@ function CellEditor({
   timeZone,
 }: {
   classroomId: string;
+  getAnchor: () => HTMLButtonElement | undefined;
   column: JournalSlot;
   student: Student;
   grade: JournalGrade | undefined;
@@ -146,14 +218,54 @@ function CellEditor({
   const mutation = useRef<JournalQuickMutation | null>(null);
   const mounted = useRef(false),
     saving = useRef(false),
-    panel = useRef<HTMLElement>(null);
+    panel = useRef<HTMLElement>(null),
+    dialogRef = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const viewport = window.visualViewport;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const anchor = getAnchor();
+      if (anchor !== observedAnchor) {
+        if (observedAnchor) observer?.unobserve(observedAnchor);
+        if (anchor) observer?.observe(anchor);
+        observedAnchor = anchor;
+      }
+      placeCellEditor(dialog, anchor);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(place);
+    };
+    let observedAnchor: HTMLButtonElement | undefined;
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
+    if (panel.current) observer?.observe(panel.current);
+    const matrix = getAnchor()?.closest('.manual-journal-scroll');
+    if (matrix) observer?.observe(matrix);
+    place();
+    window.addEventListener('scroll', schedule, true);
+    window.addEventListener('resize', schedule);
+    viewport?.addEventListener('scroll', schedule);
+    viewport?.addEventListener('resize', schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('scroll', schedule, true);
+      window.removeEventListener('resize', schedule);
+      viewport?.removeEventListener('scroll', schedule);
+      viewport?.removeEventListener('resize', schedule);
+    };
+  }, [getAnchor]);
   useEffect(() => {
     mounted.current = true;
     panel.current
       ?.querySelector<HTMLElement>(
-        archived ? 'button:not(:disabled), summary' : 'input, button[data-level]:not(:disabled)',
+        archived
+          ? 'button:not(:disabled), summary'
+          : 'input:not(:disabled), button[data-level]:not(:disabled)',
       )
-      ?.focus();
+      ?.focus({ preventScroll: true });
     return () => {
       mounted.current = false;
     };
@@ -163,8 +275,8 @@ function CellEditor({
   }, [grade?.revision, column.headerRevision, scaleVersion]);
   async function save(next: number | null) {
     if (saving.current || archived || conflict) return;
-    if (!mutation.current?.uncertain && grade && !reason.trim()) {
-      setError('Укажите причину исправления или очистки оценки.');
+    if (!mutation.current?.uncertain && next === null && grade && !reason.trim()) {
+      setError('Укажите причину очистки оценки.');
       return;
     }
     if (
@@ -219,8 +331,9 @@ function CellEditor({
   }
   return (
     <dialog
+      ref={dialogRef}
       open
-      className="manual-journal-popover"
+      className="manual-journal-popover manual-journal-cell-dialog"
       aria-label={`Быстрая оценка: ${student.name}`}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -229,6 +342,7 @@ function CellEditor({
         }
         if (
           e.key === 'Tab' &&
+          !grade &&
           !busy &&
           !history &&
           (e.target as HTMLElement).hasAttribute('data-level')
@@ -275,10 +389,9 @@ function CellEditor({
         {grade ? <small>Сейчас: {journalRevisionLabel(column.preset, grade.value)}</small> : null}
         {grade && !archived && !uncertain ? (
           <label>
-            Причина изменения{' '}
+            Причина изменения (обязательна при очистке){' '}
             <input
               autoComplete="off"
-              required
               maxLength={500}
               value={reason}
               disabled={busy}
@@ -319,9 +432,7 @@ function CellEditor({
                 key={v}
                 data-level={v}
                 aria-label={journalAccessibleLabel(column.preset, v)}
-                disabled={
-                  busy || archived || conflict || uncertain || Boolean(grade && !reason.trim())
-                }
+                disabled={busy || archived || conflict || uncertain}
                 onClick={() => void save(v)}
               >
                 {journalGradeLabel(column.preset, v)}
@@ -527,6 +638,17 @@ type ManualClassroomJournalProps = {
   onOpenStudent?: ((seatId: string) => void) | undefined;
 };
 
+type ColumnsPreference = { binding: object; key: string; hidden: string[] };
+
+function readHiddenColumns(key: string): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
+    return Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export function ManualClassroomJournal({
   classroomId,
   modeControl,
@@ -543,6 +665,13 @@ export function ManualClassroomJournal({
 }
 function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJournalProps) {
   const destination = useJournalDestination();
+  const binding = useSyncExternalStore(
+    subscribePortalSession,
+    portalSessionBinding,
+    portalSessionBinding,
+  );
+  const [columnsPreference, setColumnsPreference] = useState<ColumnsPreference | null>(null);
+  const preference = columnsPreference?.binding === binding ? columnsPreference : null;
   const [month, setMonth] = useState(destination.month),
     [offset, setOffset] = useState(0),
     [data, setData] = useState<JournalSnapshot | null>(null),
@@ -560,14 +689,46 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     [header, setHeader] = useState<JournalSlot | null>(null);
   const active = useRef(false),
     generation = useRef(0),
+    scopedReadRevision = useRef(0),
     receipts = useRef(new Map<string, Receipt>()),
     cells = useRef(new Map<string, HTMLButtonElement>()),
     origin = useRef<HTMLElement | null>(null);
   const headerButtons = useRef(new Map<string, HTMLButtonElement>());
   const journalRoot = useRef<HTMLElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const columnPickerSummary = useRef<HTMLElement>(null);
   const headerEditorKey = useRef('');
   const contextRevision = useRef(0);
   const contextVersion = contextRevision.current;
+  useEffect(() => {
+    const controller = new AbortController();
+    const unsubscribe = onSessionLoggedOut(() => {
+      controller.abort();
+      setColumnsPreference(null);
+    });
+    void api.me(controller.signal).then((result) => {
+      if (controller.signal.aborted || binding !== portalSessionBinding()) return;
+      if (!result.ok || !result.data.authenticated) return;
+      const key = `asa-manual-journal-columns:v1:${result.data.account.id}:${classroomId}`;
+      setColumnsPreference({ binding, key, hidden: readHiddenColumns(key) });
+    });
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [binding, classroomId]);
+
+  function updateHiddenColumns(hidden: string[]) {
+    if (!preference || preference.binding !== portalSessionBinding()) return;
+    setColumnsPreference({ ...preference, hidden });
+    try {
+      if (hidden.length) localStorage.setItem(preference.key, JSON.stringify(hidden));
+      else localStorage.removeItem(preference.key);
+    } catch {
+      // The current view still works if the browser blocks persistence.
+    }
+  }
+
   const load = useCallback(async () => {
     const current = ++generation.current;
     setLoadBusy(true);
@@ -635,8 +796,31 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     () => (data ? journalSlots(classroomId, data, minimum) : []),
     [classroomId, data, minimum],
   );
-  const columns = allColumns.filter((c) => !categoryFilter || c.category === categoryFilter),
-    roster = useMemo(() => journalRoster(data?.students ?? []), [data?.students]);
+  const filteredColumns = allColumns.filter(
+    (c) => !categoryFilter || c.category === categoryFilter,
+  );
+  const selectableColumns = filteredColumns.filter((c) => !c.virtual);
+  const hiddenColumns = new Set(preference?.hidden);
+  const hiddenOnPage = selectableColumns.filter((c) => hiddenColumns.has(c.id));
+  const columns = filteredColumns.filter((c) => c.virtual || !hiddenColumns.has(c.id));
+  const roster = useMemo(
+    () => journalRoster(data?.students ?? [], data?.status === 'archived'),
+    [data?.students, data?.status],
+  );
+  const removedEditor =
+    data?.status === 'active' &&
+    opened !== null &&
+    data.students.some(
+      (student) => student.id === opened.student.id && student.status === 'removed',
+    );
+  useLayoutEffect(() => {
+    if (!removedEditor) return;
+    contextRevision.current += 1;
+    setOpened(null);
+    setNotice('');
+    origin.current = null;
+    if (document.activeElement === document.body) searchInput.current?.focus();
+  }, [removedEditor]);
   const students = roster.filter((s) =>
       s.name.toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru')),
     ),
@@ -654,12 +838,16 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
         (c) => c.id === header.id || (header.slotKey && c.slotKey === header.slotKey),
       ) ?? header)
     : null;
+  const openedCellKey = opened && openedColumn ? `${openedColumn.id}:${opened.student.id}` : '';
+  const getOpenedCell = useCallback(() => cells.current.get(openedCellKey), [openedCellKey]);
   function closeCell(step = 0) {
-    const key = opened ? `${openedColumn!.id}:${opened.student.id}` : '',
-      ordered = students.flatMap((s) => columns.map((c) => `${c.id}:${s.id}`));
-    const next = cells.current.get(ordered[ordered.indexOf(key) + step]);
+    const ordered = students.flatMap((s) => columns.map((c) => `${c.id}:${s.id}`));
+    const index = ordered.indexOf(openedCellKey);
+    const next = index < 0 ? undefined : cells.current.get(ordered[index + step]);
     setOpened(null);
-    (next ?? origin.current)?.focus();
+    const target = next ?? getOpenedCell() ?? origin.current;
+    if (target?.isConnected) target.focus();
+    else if (openedColumn) focusHeader(openedColumn.id);
   }
   function updateColumn(result: JournalQuickResult) {
     const visibleMonth = month || data?.range.from.slice(0, 7);
@@ -708,15 +896,26 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     },
     [accessLost, contextVersion],
   );
+  function beginScopedRead() {
+    const generationAtStart = generation.current;
+    const revision = ++scopedReadRevision.current;
+    // Newer full refreshes and writes also supersede earlier scoped reads.
+    return () =>
+      active.current &&
+      contextRevision.current === contextVersion &&
+      generation.current === generationAtStart &&
+      scopedReadRevision.current === revision;
+  }
   async function refreshHeader() {
     if (!headerColumn) return;
+    const isCurrent = beginScopedRead();
     const r = await journalApi.read(classroomId, {
       ...(month ? journalMonthRange(month) : {}),
       ...(headerColumn.virtual
         ? { slotKey: headerColumn.slotKey! }
         : { columnId: headerColumn.id }),
     });
-    if (!active.current || contextRevision.current !== contextVersion) return;
+    if (!isCurrent()) return;
     if (!r.ok) {
       if ([401, 403, 409].includes(r.status)) accessLostForContext(r.error.message);
       else setError(r.error.message);
@@ -738,13 +937,14 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
   }
   async function refreshCell(): Promise<boolean> {
     if (!opened || !openedColumn) return false;
+    const isCurrent = beginScopedRead();
     const r = await journalApi.read(classroomId, {
       ...(month ? journalMonthRange(month) : {}),
       ...(openedColumn.virtual
         ? { slotKey: openedColumn.slotKey! }
         : { columnId: openedColumn.id }),
     });
-    if (!active.current || contextRevision.current !== contextVersion) return false;
+    if (!isCurrent()) return false;
     if (!r.ok) {
       if ([401, 403, 409].includes(r.status)) accessLostForContext(r.error.message);
       else setError(r.error.message);
@@ -752,6 +952,9 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     }
     generation.current += 1;
     setLoadBusy(false);
+    setData((old) =>
+      old ? { ...old, scale: r.data.scale, status: r.data.status, students: r.data.students } : old,
+    );
     const latest = r.data.columns[0];
     if (!latest && !openedColumn.virtual) {
       setError('Столбец недоступен. Введённые данные сохранены в форме.');
@@ -767,7 +970,6 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
         scale: r.data.scale,
       });
     }
-    setData((old) => (old ? { ...old, scale: r.data.scale, status: r.data.status } : old));
     setError('');
     return true;
   }
@@ -790,6 +992,7 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
           onChange={changeMonth}
         />
         <input
+          ref={searchInput}
           aria-label="Поиск ученика"
           placeholder="Поиск ученика"
           type="search"
@@ -856,6 +1059,53 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
       {data ? (
         <>
           {archived ? <p>Архивный класс: только просмотр.</p> : null}
+          {preference && selectableColumns.length ? (
+            <details className="manual-journal-column-picker">
+              <summary ref={columnPickerSummary}>
+                Столбцы журнала{hiddenOnPage.length ? ` · скрыто: ${hiddenOnPage.length}` : ''}
+              </summary>
+              <fieldset disabled={loadBusy || !!opened || !!header}>
+                <legend>Видны в моей таблице</legend>
+                <div className="manual-journal-column-options">
+                  {selectableColumns.map((column) => (
+                    <label key={column.id}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Показывать столбец: ${column.category}, ${column.date}`}
+                        checked={!hiddenColumns.has(column.id)}
+                        onChange={(event) => {
+                          const next = new Set(hiddenColumns);
+                          if (event.currentTarget.checked) next.delete(column.id);
+                          else next.add(column.id);
+                          updateHiddenColumns([...next]);
+                        }}
+                      />
+                      <span>
+                        {column.category} ·{' '}
+                        <time dateTime={column.date}>
+                          {column.date.slice(8)}.{column.date.slice(5, 7)}
+                        </time>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {hiddenOnPage.length ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => {
+                      const next = new Set(hiddenColumns);
+                      for (const column of hiddenOnPage) next.delete(column.id);
+                      columnPickerSummary.current?.focus();
+                      updateHiddenColumns([...next]);
+                    }}
+                  >
+                    Показать все столбцы в этом списке
+                  </button>
+                ) : null}
+              </fieldset>
+            </details>
+          ) : null}
           <div
             className="manual-journal-scroll"
             tabIndex={0}
@@ -939,6 +1189,8 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
                             }}
                             className="manual-journal-cell"
                             data-slot-key={c.slotKey ?? ''}
+                            aria-haspopup="dialog"
+                            aria-expanded={openedCellKey === `${c.id}:${s.id}`}
                             disabled={loadBusy}
                             aria-label={`${s.name}, ${c.date}, ${c.category}: ${grade ? journalRevisionLabel(c.preset, grade.value) : journalAccessibleLabel(c.preset, null)}`}
                             onKeyDown={(e) => {
@@ -1016,15 +1268,16 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
           <details className="manual-journal-hint">
             <summary>Справка по журналу</summary>
             <p>
-              Нажмите ячейку и выберите оценку. «—» — нет оценки, 0 — отдельная оценка. Исправление
-              требует причины. История доступна в ячейке. Даты класса: {data.timeZone}. Пустые
+              Нажмите ячейку и выберите оценку. «—» — нет оценки, 0 — отдельная оценка. Для очистки
+              оценки нужна причина. История доступна в ячейке. Даты класса: {data.timeZone}. Пустые
               работы сохраняются только при подтверждении заголовка или первой оценке.
             </p>
           </details>
-          {opened ? (
+          {opened && !removedEditor ? (
             <CellEditor
               key={opened.editorKey}
               classroomId={classroomId}
+              getAnchor={getOpenedCell}
               column={openedColumn!}
               student={opened.student}
               grade={grades.get(`${openedColumn!.id}:${opened.student.id}`)}

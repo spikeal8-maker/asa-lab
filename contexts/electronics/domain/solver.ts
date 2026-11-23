@@ -981,18 +981,23 @@ function electricalNumericalQuality(
   matrix: readonly (readonly number[])[] | null,
   rhs: readonly number[] | null,
 ) {
-  const numericalResidual = Math.max(
-    0,
-    ...(matrix ?? []).map((row, rowIndex) =>
-      Math.abs(
-        row.reduce(
-          (sum, coefficient, columnIndex) => sum + coefficient * (solution[columnIndex] ?? 0),
-          0,
-        ) - ((rhs ?? [])[rowIndex] ?? 0),
-      ),
-    ),
-  );
-  const numericalScale = Math.max(1, ...(rhs ?? []).map(Math.abs), ...solution.map(Math.abs));
+  // MNA creates dense rows and RHS entries, and solveLinear returns a dense solution.
+  let numericalResidual = 0;
+  if (matrix !== null) {
+    for (let rowIndex = 0; rowIndex < matrix.length; rowIndex += 1) {
+      const row = matrix[rowIndex]!;
+      let product = 0;
+      for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+        product += row[columnIndex]! * (solution[columnIndex] ?? 0);
+      }
+      numericalResidual = Math.max(numericalResidual, Math.abs(product - (rhs?.[rowIndex] ?? 0)));
+    }
+  }
+  let numericalScale = 1;
+  if (rhs !== null) {
+    for (const value of rhs) numericalScale = Math.max(numericalScale, Math.abs(value));
+  }
+  for (const value of solution) numericalScale = Math.max(numericalScale, Math.abs(value));
   return { numericalResidual, numericalTolerance: 1e-9 * numericalScale };
 }
 

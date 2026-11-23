@@ -2465,6 +2465,7 @@ test('Classroom D13: sixty-second bounded running and responsive Stop', async ({
   const session = await openFixture(page, 'sustained');
   const source = blink(100);
   await edit(page, source);
+  await prepareD13CaptureViewport(page);
   await mark(page, 'sustained-60-seconds', source);
   await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
   // Persist increments while the run is alive: the full startup prefix survives a later tool/page failure.

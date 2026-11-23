@@ -169,12 +169,12 @@ function verifyEmittedViewerGraph() {
   });
   if (result.error || result.status !== 0) process.exit(result.status ?? 78);
 }
-function run(args) {
+function run(args, commandEnv = env) {
   console.log(`\n> pnpm ${args.join(' ')}`);
   const result = spawnSync('pnpm', args, {
     stdio: 'inherit',
     shell: process.platform === 'win32',
-    env,
+    env: commandEnv,
   });
   if (result.error) {
     console.error(result.error.message);
@@ -202,7 +202,13 @@ if (browser) {
   run(['db:migrate:check']);
   // Nx follows ^build dependencies. API injection tests import the built API;
   // the browser then serves exactly these built files, not a Vite dev server.
-  run(['exec', 'nx', 'run-many', '-t', 'build', '--projects=api,web', '--parallel=2']);
+  // The isolated API and tests need NODE_ENV=test, but Vite must compile the
+  // production React runtime. Inheriting "test" enables development effects
+  // and measures different resources from the released application.
+  run(['exec', 'nx', 'run-many', '-t', 'build', '--projects=api,web', '--parallel=2'], {
+    ...env,
+    NODE_ENV: 'production',
+  });
   verifyBuiltRevision();
   run([
     'exec',

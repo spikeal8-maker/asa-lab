@@ -1,0 +1,169 @@
+--- a/src/engine/engine_collision_gjk.c
++++ b/src/engine/engine_collision_gjk.c
+@@ -16,0 +17,3 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN include
++#include <stdio.h>
++// ASA_PRIMARY_EPA_TRACE_END include
+@@ -124,0 +128,131 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN helpers
++// TEST_ONLY observation of four preregistered direct EPA queries. No support/math replacement.
++_Static_assert(sizeof(mjtNum) == 8, "ASA primary EPA trace requires binary64");
++_Static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "ASA trace requires WASM little endian");
++typedef struct {
++  const mjCCDConfig* config;
++  const mjCCDObj* obj1;
++  const mjCCDObj* obj2;
++  int query;
++  int copied;
++  int packed;
++  int face_index;
++  int nverts, nfaces, nmap;
++  int ids[3];
++  Vertex vertex[3];
++  mjtNum lambda[3], face_v[3], dist2, x1[3], x2[3];
++} ASAPrimaryTrace;
++
++typedef struct { int first, second; uint64_t bits[30]; } ASAPrimaryFilter;
++static const ASAPrimaryFilter asa_primary_filters[4] = {
++  {5, 1, {UINT64_C(0x3ff334060d0f8f17), UINT64_C(0x3fb0a3d6356f1468), UINT64_C(0x3fb998f4c9cc7e84), UINT64_C(0x3febef9d752d6ff1), UINT64_C(0xbfdf36cfaab00b18), UINT64_C(0xbe5429fe73000000), UINT64_C(0x3e0f4fdd90000000), UINT64_C(0xbe63cbc57e800000), UINT64_C(0x3feffffffffffff7), UINT64_C(0xbfdf36cfaab00b1e), UINT64_C(0xbfebef9d752d6feb), UINT64_C(0xbe610b13f4000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff00000016b9190), UINT64_C(0x0000000000000000), UINT64_C(0xbf530cc09ace5916), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0xbff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3fb23720026b3978), UINT64_C(0x3fe0000000000012), UINT64_C(0x3ff00000016b91a2)}},
++  {6, 1, {UINT64_C(0x3ff334060db752e1), UINT64_C(0xbfb0a3d7df0bccd6), UINT64_C(0x3fb998f4db861864), UINT64_C(0x3febef9d752d6ff1), UINT64_C(0xbfdf36cfaab00b18), UINT64_C(0xbe5429fe73000000), UINT64_C(0x3e0f4fdd90000000), UINT64_C(0xbe63cbc57e800000), UINT64_C(0x3feffffffffffff7), UINT64_C(0xbfdf36cfaab00b1e), UINT64_C(0xbfebef9d752d6feb), UINT64_C(0xbe610b13f4000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff00000016b9190), UINT64_C(0x0000000000000000), UINT64_C(0xbf530cc09ace5916), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0xbff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3fb23720026b3978), UINT64_C(0x3fe0000000000012), UINT64_C(0x3ff00000016b91a2)}},
++  {7, 3, {UINT64_C(0x3ff33287b38e9ca2), UINT64_C(0x3fb0a3d6e4ebdc39), UINT64_C(0x3fb998f3cc274375), UINT64_C(0x3fec1fedc47b07fb), UINT64_C(0xbfde875759cd751f), UINT64_C(0x3e4e45460e000000), UINT64_C(0xbe5d3d1634000000), UINT64_C(0xbe56249c8b000000), UINT64_C(0x3ff0000000000000), UINT64_C(0xbfde875759cd7515), UINT64_C(0xbfec1fedc47b07fa), UINT64_C(0xbe60b44c12000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff8b8bd231ad4a9), UINT64_C(0x0000000000000000), UINT64_C(0xbf74e493b5394498), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0xbfeff7f34862c751), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0xbff000000000000c), UINT64_C(0x3feff7f34862c751), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0x0000000000000000), UINT64_C(0x3faecbfebaf2fade), UINT64_C(0x3fdd36530e44266c), UINT64_C(0x3fe000000000000c)}},
++  {8, 3, {UINT64_C(0x3ff33287b310afa8), UINT64_C(0xbfb0a3d72f8f050b), UINT64_C(0x3fb998f3dd869ccf), UINT64_C(0x3fec1fedc47b07fb), UINT64_C(0xbfde875759cd751f), UINT64_C(0x3e4e45460e000000), UINT64_C(0xbe5d3d1634000000), UINT64_C(0xbe56249c8b000000), UINT64_C(0x3ff0000000000000), UINT64_C(0xbfde875759cd7515), UINT64_C(0xbfec1fedc47b07fa), UINT64_C(0xbe60b44c12000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff8b8bd231ad4a9), UINT64_C(0x0000000000000000), UINT64_C(0xbf74e493b5394498), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0xbfeff7f34862c751), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0xbff000000000000c), UINT64_C(0x3feff7f34862c751), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0x0000000000000000), UINT64_C(0x3faecbfebaf2fade), UINT64_C(0x3fdd36530e44266c), UINT64_C(0x3fe000000000000c)}}
++};
++
++static uint64_t asa_primary_bits(const mjtNum* value) {
++  uint64_t bits;
++  memcpy(&bits, value, sizeof(bits));
++  return bits;
++}
++
++static int asa_primary_query(const mjCCDConfig* config, const mjCCDObj* obj1,
++                             const mjCCDObj* obj2) {
++  if (config->max_iterations != 100 || config->max_contacts != 1 ||
++      config->npolygonmax != 0 || config->nmeshdegmax != 0 || !config->buffer ||
++      asa_primary_bits(&config->tolerance) != UINT64_C(0x3e45798ee2308c3a) ||
++      asa_primary_bits(&config->dist_cutoff) != 0 ||
++      obj1->geom_type != mjGEOM_CYLINDER || obj2->geom_type != mjGEOM_MESH ||
++      asa_primary_bits(&obj1->margin) != 0 || asa_primary_bits(&obj2->margin) != 0) {
++    return 0;
++  }
++  for (int q = 0; q < 4; q++) {
++    const ASAPrimaryFilter* expected = &asa_primary_filters[q];
++    if (obj1->geom != expected->first || obj2->geom != expected->second) continue;
++    const mjtNum* pieces[6] = {obj1->pos, obj1->mat, obj1->size,
++                                obj2->pos, obj2->mat, obj2->size};
++    const int widths[6] = {3, 9, 3, 3, 9, 3};
++    int equal = 1, at = 0;
++    for (int p = 0; p < 6; p++) {
++      for (int j = 0; j < widths[p]; j++, at++) {
++        if (asa_primary_bits(&pieces[p][j]) != expected->bits[at]) equal = 0;
++      }
++    }
++    if (equal) return q + 1;
++  }
++  return 0;
++}
++
++static void asa_primary_snapshot(ASAPrimaryTrace* trace, const Polytope* pt,
++                                  const Face* face, const int ids[3], const mjtNum lambda[3],
++                                  const mjtNum x1[3], const mjtNum x2[3]) {
++  if (!trace->query) return;
++  trace->copied++;
++  trace->packed = face->verts;
++  trace->face_index = face->index;
++  trace->nverts = pt->nverts;
++  trace->nfaces = pt->nfaces;
++  trace->nmap = pt->nmap;
++  memcpy(trace->ids, ids, sizeof(trace->ids));
++  for (int i = 0; i < 3; i++) trace->vertex[i] = pt->verts[ids[i]];
++  memcpy(trace->lambda, lambda, sizeof(trace->lambda));
++  memcpy(trace->face_v, face->v, sizeof(trace->face_v));
++  trace->dist2 = face->dist2;
++  memcpy(trace->x1, x1, sizeof(trace->x1));
++  memcpy(trace->x2, x2, sizeof(trace->x2));
++}
++
++static int asa_primary_append(mjtNum* out, int at, const mjtNum* values, int count) {
++  memcpy(out + at, values, sizeof(mjtNum) * count);
++  return at + count;
++}
++
++static void asa_primary_emit(const ASAPrimaryTrace* trace, const mjCCDStatus* status) {
++  if (!trace->query || !trace->copied) return;
++  const mjCCDConfig* c = trace->config;
++  const mjCCDObj* a = trace->obj1;
++  const mjCCDObj* b = trace->obj2;
++  const int ints[32] = {trace->query, a->geom, b->geom, a->geom_type, b->geom_type,
++    c->max_iterations, c->max_contacts, c->npolygonmax, c->nmeshdegmax,
++    status->gjk_iterations, status->epa_iterations, status->epa_status, status->nx,
++    trace->packed, trace->face_index, trace->nverts, trace->nfaces, trace->nmap,
++    trace->ids[0], trace->ids[1], trace->ids[2],
++    trace->vertex[0].index1, trace->vertex[0].index2,
++    trace->vertex[1].index1, trace->vertex[1].index2,
++    trace->vertex[2].index1, trace->vertex[2].index2,
++    a->nsupp, b->nsupp, b->data.mesh.nvert, b->data.mesh.graph != NULL, trace->copied};
++  mjtNum words[75];
++  int at = 0;
++  at = asa_primary_append(words, at, trace->lambda, 3);
++  at = asa_primary_append(words, at, trace->face_v, 3);
++  at = asa_primary_append(words, at, &trace->dist2, 1);
++  for (int i = 0; i < 3; i++) {
++    at = asa_primary_append(words, at, trace->vertex[i].vert, 3);
++    at = asa_primary_append(words, at, trace->vertex[i].vert1, 3);
++    at = asa_primary_append(words, at, trace->vertex[i].vert2, 3);
++  }
++  at = asa_primary_append(words, at, trace->x1, 3);
++  at = asa_primary_append(words, at, trace->x2, 3);
++  at = asa_primary_append(words, at, &status->dist[0], 1);
++  at = asa_primary_append(words, at, a->pos, 3);
++  at = asa_primary_append(words, at, a->mat, 9);
++  at = asa_primary_append(words, at, a->size, 3);
++  at = asa_primary_append(words, at, &a->margin, 1);
++  at = asa_primary_append(words, at, b->pos, 3);
++  at = asa_primary_append(words, at, b->mat, 9);
++  at = asa_primary_append(words, at, b->size, 3);
++  at = asa_primary_append(words, at, &b->margin, 1);
++  at = asa_primary_append(words, at, &c->tolerance, 1);
++  at = asa_primary_append(words, at, &c->dist_cutoff, 1);
++  // All values above are copies of completed operations, never reconstructed support/results.
++  // One line only. No floating-point printf conversion and no new WASM/public binding.
++  fputs("ASA_PRIMARY_EPA_V1 ints=", stderr);
++  for (int i = 0; i < 32; i++) fprintf(stderr, "%s%d", i ? "," : "", ints[i]);
++  fputs(" f64le=", stderr);
++  const unsigned char* raw = (const unsigned char*)words;
++  for (int i = 0; i < at * (int)sizeof(mjtNum); i++) fprintf(stderr, "%02x", raw[i]);
++  fputc('\n', stderr);
++}
++// ASA_PRIMARY_EPA_TRACE_END helpers
++
+@@ -143 +277,2 @@
+-static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
++static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
++                 ASAPrimaryTrace* asa_trace);
+@@ -1549 +1684,2 @@
+-static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {
++static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3],
++                          ASAPrimaryTrace* asa_trace) {
+@@ -1562,0 +1699,3 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN snapshot
++  asa_primary_snapshot(asa_trace, pt, face, verts, lambda, x1, x2);
++// ASA_PRIMARY_EPA_TRACE_END snapshot
+@@ -1570 +1709,2 @@
+-static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
++static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
++                 ASAPrimaryTrace* asa_trace) {
+@@ -1719 +1859 @@
+-    status->dist[0] = epaWitness(pt, face, status->x1, status->x2);
++    status->dist[0] = epaWitness(pt, face, status->x1, status->x2, asa_trace);
+@@ -1733,0 +1874,3 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN emit
++  asa_primary_emit(asa_trace, status);
++// ASA_PRIMARY_EPA_TRACE_END emit
+@@ -2753,0 +2897,4 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN context
++  ASAPrimaryTrace asa_trace = {.config = config, .obj1 = obj1, .obj2 = obj2,
++                              .query = asa_primary_query(config, obj1, obj2)};
++// ASA_PRIMARY_EPA_TRACE_END context
+@@ -2883 +3030 @@
+-      Face* face = epa(status, &pt, obj1, obj2);
++      Face* face = epa(status, &pt, obj1, obj2, &asa_trace);
