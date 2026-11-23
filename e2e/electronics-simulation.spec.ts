@@ -4894,7 +4894,8 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
     expect(await previousOutline.evaluate((element) => element.isConnected)).toBe(false);
   } finally {
     releaseAsset();
-    await page.unroute(hcAsset);
+    // Let the delayed image handlers finish before removing the interceptor.
+    await page.unrouteAll({ behavior: 'wait' });
   }
   await runAndStop();
   await variant.selectOption('ultrasonic-sensor');
