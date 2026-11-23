@@ -1300,6 +1300,10 @@ class Collector:
         return all(host_source(s) for s in meta["sources"])
 
     @staticmethod
+    def segment_may_contain_errors(meta):
+        return not meta.get("levels") or "error" in meta["levels"]
+
+    @staticmethod
     def source_ranges(events, key="source"):
         result = {}
         for event in events:
@@ -1453,12 +1457,12 @@ class Collector:
 
     def compact(self, segments, retired):
         if self.reader_format < 2 or len(segments) < 256: return segments, retired
-        # Compact at most 32 small files per cycle, keeping host telemetry apart
-        # from application events so eviction retains its source priority.
-        for host in (False, True):
+        # Keep segments without errors eligible for eviction after compaction.
+        for host, errors in ((False, False), (True, False), (False, True), (True, True)):
             selected, size = [], 0
             for meta in sorted(segments, key=lambda s: s["last"]):
                 if meta.get("schema") != 2 or not meta.get("sha256") or self.host_segment(meta) != host or meta.get("rawBytes", 0) > 256*1024: continue
+                if self.segment_may_contain_errors(meta) != errors: continue
                 if size + meta["rawBytes"] > 3*1024*1024: break
                 selected.append(meta); size += meta["rawBytes"]
                 if len(selected) == 32: break
@@ -1660,15 +1664,24 @@ class Collector:
         limit = self.config.get("maxBytes", 1024 * 1024 * 1024)
         trimmed = False
         evicted = self.state("evicted:sources", {})
+        # Before error-specific accounting, quota eviction could drop any event.
+        error_barrier = self.state("evicted:error-through", self.state("trimmedAt"))
+        def eviction_order(segment):
+            has_errors = self.segment_may_contain_errors(segment)
+            return has_errors, not has_errors and not self.host_segment(segment), segment["last"]
+
         def evict():
-            nonlocal total, trimmed
-            oldest = min(segments, key=lambda s: (0 if self.host_segment(s) else 1, s["last"]))
+            nonlocal total, trimmed, error_barrier
+            oldest = min(segments, key=eviction_order)
             self.verify_affected_segment(oldest)
             retired.setdefault(oldest["file"], None)
             segments.remove(oldest); total -= oldest["bytes"]
             first, last = map(int, oldest["file"].split(".")[0].split("-")[1:])
             self.db.execute("DELETE FROM events WHERE seq BETWEEN ? AND ?", (first, last))
             for source in oldest["sources"]: evicted[source] = True
+            if self.segment_may_contain_errors(oldest):
+                error_barrier = max(error_barrier or oldest["last"], oldest["last"])
+                self.set_state("evicted:error-through", error_barrier)
             trimmed = True
         while total > max(1024 * 1024, limit * 3 // 4) and segments: evict()
         self.prune_database_observations()
@@ -1717,6 +1730,7 @@ class Collector:
             elif name in self.verified_metadata: retired_metadata[name] = self.verified_metadata[name]
         self.set_state('retired:metadata', retired_metadata)
         self.set_state("evicted:sources", evicted)
+        self.set_state("evicted:error-through", error_barrier)
         if trimmed: self.set_state("trimmedAt", now())
         self.db.commit(); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         storage_bytes = sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file())
@@ -1754,6 +1768,7 @@ class Collector:
         audit_public = {k:v for k,v in audit.items() if k not in ('boundary',)}
         if audit and audit.get('state') != 'complete' and time.time() > audit.get('deadline', 0): audit_public['state'] = 'overdue'
         catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments,
+            errorHistoryLostThrough=error_barrier,
             requiredSources=operational.required_sources(self.config, DATABASE_DIAGNOSTICS['sources'],
                 'windows' if os.name == 'nt' else 'linux', self.state('docker:required-services', [])))
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))

@@ -99,6 +99,7 @@ export interface LogCatalog {
   readonly maxBytes: number;
   readonly bytes: number;
   readonly trimmed: boolean;
+  readonly errorHistoryLostThrough?: string | null;
   readonly sources: readonly {
     readonly source: string;
     readonly state: string;
@@ -423,9 +424,16 @@ export async function errorTrend(root: string, window: LogTrendWindow): Promise<
   }
   if (!(from < to)) return unavailable;
   const coverage = hostRequiredCoverage(catalog, await trendHealth(root));
+  const loss = catalog.errorHistoryLostThrough;
+  const lossThrough = typeof loss === 'string' ? Date.parse(loss) : NaN;
+  const errorHistoryVerified =
+    loss === null || (loss === undefined && !catalog.trimmed) || lossThrough < requestedFrom;
   return {
     coverage:
-      from === requestedFrom && to === requestedTo && coverage.state === 'ok'
+      from === requestedFrom &&
+      to === requestedTo &&
+      coverage.state === 'ok' &&
+      errorHistoryVerified
         ? 'available'
         : 'partial',
     from: new Date(from).toISOString(),
