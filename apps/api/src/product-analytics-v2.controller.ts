@@ -59,7 +59,7 @@ export class ProductAnalyticsV2Controller {
     route: 'events' | 'module-session' | 'quality' | 'acquisition' | 'site-activity',
   ) {
     const receivedAt = requestReceivedAt(request);
-    const site = route === 'site-activity' ? parseSiteActivityEnvelope(raw) : null;
+    const site = route === 'site-activity' ? parseSiteActivityEnvelope(raw, receivedAt) : null;
     const envelope =
       route === 'site-activity'
         ? site!
@@ -67,7 +67,14 @@ export class ProductAnalyticsV2Controller {
           ? parseAcquisitionEnvelope(raw)
           : parseAnalyticsEnvelope(raw, route);
     if (site && this.siteActivityBusy)
-      throw new HttpException({ error: { code: 'telemetry_capacity' } }, 429);
+      return {
+        schemaVersion: 2,
+        accepted: false,
+        state: 'skipped',
+        operation: 'site.activity',
+        eventId: site.eventId,
+        reason: 'capacity',
+      };
     if (site) this.siteActivityBusy = true;
     try {
       const writer = site || route === 'acquisition' ? this.acquisitionAnalytics : this.analytics;

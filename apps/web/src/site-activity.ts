@@ -12,8 +12,7 @@ const maxIntervals = 16;
 const inputEvents = ['pointerdown', 'keydown', 'wheel'] as const;
 
 function trackSiteActivity(actor: TelemetryActor, binding: TelemetryContext): () => void {
-  const wallAnchor = Date.now() - performance.now();
-  const now = () => Math.floor(wallAnchor + performance.now());
+  const now = () => Math.floor(performance.now());
   const focused = () => document.visibilityState === 'visible' && document.hasFocus();
   const intervals: { from: number; to: number }[] = [];
   let active: { from: number; until: number } | undefined;
@@ -71,9 +70,11 @@ function trackSiteActivity(actor: TelemetryActor, binding: TelemetryContext): ()
         schemaVersion: 2,
         eventId,
         actorExpectation: actor,
+        // The server anchors these monotonic ages at receipt. Browser clock skew
+        // cannot move a sample into the future or outside the retention window.
         intervals: batch.map(({ from, to }) => ({
-          from: new Date(from).toISOString(),
-          to: new Date(to).toISOString(),
+          fromAgoMs: at - from,
+          toAgoMs: at - to,
         })),
       },
       {
@@ -81,13 +82,14 @@ function trackSiteActivity(actor: TelemetryActor, binding: TelemetryContext): ()
         confirmed: (value) =>
           record(value) &&
           value.schemaVersion === 2 &&
-          value.accepted === true &&
-          value.state === 'persisted' &&
           value.operation === 'site.activity' &&
           value.eventId === eventId &&
-          value.receiptId === eventId &&
-          time(value.receivedAt) &&
-          time(value.persistedAt),
+          ((value.accepted === true &&
+            value.state === 'persisted' &&
+            value.receiptId === eventId &&
+            time(value.receivedAt) &&
+            time(value.persistedAt)) ||
+            (value.accepted === false && value.state === 'skipped' && value.reason === 'capacity')),
       },
       (path, init) => fetch(path, { ...init, keepalive: false }),
       controller.signal,

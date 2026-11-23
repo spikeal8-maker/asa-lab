@@ -4,6 +4,7 @@ import type { ActiveContext } from '@asa-lab/identity';
 import type { SeatContext } from './seat-context.js';
 import type { ProductAnalyticsService } from './product-analytics.service.js';
 import { ProductAnalyticsV2Controller } from './product-analytics-v2.controller.js';
+import { noteRequestReceipt, requestReceivedAt } from './request-receipt.js';
 
 const id = '10000000-0000-4000-8000-000000000001';
 const body = {
@@ -139,7 +140,10 @@ const siteBody = {
   schemaVersion: 2,
   eventId: id,
   actorExpectation: body.actorExpectation,
-  intervals: [{ from: '2026-10-11T10:00:00.000Z', to: '2026-10-11T10:00:05.000Z' }],
+  intervals: [
+    { fromAgoMs: 60_000, toAgoMs: 55_000 },
+    { fromAgoMs: 10_000, toAgoMs: 4_000 },
+  ],
 };
 
 it('authorizes a minimal site interval using the independent optional writer', async () => {
@@ -149,6 +153,8 @@ it('authorizes a minimal site interval using the independent optional writer', a
     canonical.writer as unknown as ProductAnalyticsService,
     optional.writer as unknown as ProductAnalyticsService,
   );
+  noteRequestReceipt(canonical.request);
+  const receivedAt = requestReceivedAt(canonical.request);
   await expect(controller.siteActivity(canonical.request, siteBody)).resolves.toMatchObject({
     state: 'persisted',
   });
@@ -156,8 +162,11 @@ it('authorizes a minimal site interval using the independent optional writer', a
   expect(optional.writer.persistSiteActivity).toHaveBeenCalledWith(
     id,
     { kind: 'student', context: seat },
-    siteBody.intervals,
-    expect.any(String),
+    siteBody.intervals.map(({ fromAgoMs, toAgoMs }) => ({
+      from: new Date(Date.parse(receivedAt) - fromAgoMs).toISOString(),
+      to: new Date(Date.parse(receivedAt) - toAgoMs).toISOString(),
+    })),
+    receivedAt,
   );
   const account = { accountId: id, principalId: id, workspaceId: id } as ActiveContext;
   const signedIn = fixture(account, null);
@@ -173,17 +182,25 @@ it('authorizes a minimal site interval using the independent optional writer', a
   expect(signedIn.writer.persistSiteActivity).toHaveBeenCalledOnce();
 });
 
-it('rejects noisy site envelopes and concurrent activity without consuming another optional slot', async () => {
+it('rejects invalid ages and acknowledges a skipped batch without another optional slot', async () => {
   const f = fixture(null, seat);
   await expect(
     f.controller.siteActivity(f.request, { ...siteBody, path: '/private' }),
   ).rejects.toMatchObject({ status: 400 });
-  await expect(
-    f.controller.siteActivity(f.request, {
-      ...siteBody,
-      intervals: [{ from: siteBody.intervals[0]!.from, to: '2026-10-11T10:10:00.000Z' }],
-    }),
-  ).rejects.toMatchObject({ status: 400 });
+  for (const intervals of [
+    [{ fromAgoMs: 150_000, toAgoMs: 60_000 }],
+    [{ fromAgoMs: 10_000, toAgoMs: -1 }],
+    [{ fromAgoMs: 10_000.5, toAgoMs: 5_000 }],
+    [{ fromAgoMs: 10_000, toAgoMs: 9_500 }],
+    [
+      { fromAgoMs: 10_000, toAgoMs: 5_000 },
+      { fromAgoMs: 6_000, toAgoMs: 0 },
+    ],
+  ]) {
+    await expect(
+      f.controller.siteActivity(f.request, { ...siteBody, intervals }),
+    ).rejects.toMatchObject({ status: 400 });
+  }
   expect(f.writer.authenticatedRequest).not.toHaveBeenCalled();
   let unblock!: () => void;
   f.writer.authenticatedRequest.mockImplementationOnce(async (_a, _s, run) => {
@@ -193,8 +210,13 @@ it('rejects noisy site envelopes and concurrent activity without consuming anoth
     return run(null, seat);
   });
   const firstRequest = f.controller.siteActivity(f.request, siteBody);
-  await expect(f.controller.siteActivity(f.request, siteBody)).rejects.toMatchObject({
-    status: 429,
+  await expect(f.controller.siteActivity(f.request, siteBody)).resolves.toEqual({
+    schemaVersion: 2,
+    accepted: false,
+    state: 'skipped',
+    operation: 'site.activity',
+    eventId: siteBody.eventId,
+    reason: 'capacity',
   });
   expect(f.writer.authenticatedRequest).toHaveBeenCalledOnce();
   unblock();

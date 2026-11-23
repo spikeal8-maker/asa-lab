@@ -272,5 +272,6 @@ export function analyticsSessionTransport(
 export function observeAnalytics(): void {
   const context = telemetryContext();
   update(context);
-  if (context.ready && context.actor) enableSiteActivityMeasurement();
+  if (import.meta.env['VITE_ASA_SITE_ACTIVITY'] === '1' && context.ready && context.actor)
+    enableSiteActivityMeasurement();
 }

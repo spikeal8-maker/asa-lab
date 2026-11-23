@@ -14,8 +14,10 @@ const seat = {
   classId: '44444444-4444-4444-8444-444444444444',
 } as const;
 const start = Date.parse('2026-11-23T15:00:00.000Z');
-const time = (seconds: number) => new Date(start + seconds * 1000).toISOString();
-const interval = (from: number, to: number) => ({ from: time(from), to: time(to) });
+const interval = (from: number, to: number, sentAt: number) => ({
+  fromAgoMs: (sentAt - from) * 1000,
+  toAgoMs: (sentAt - to) * 1000,
+});
 const advance = (seconds: number) => vi.advanceTimersByTimeAsync(seconds * 1000);
 let onInput: EventListener | undefined;
 let stop: (() => void) | undefined;
@@ -99,7 +101,7 @@ it('requires explicit activation and trusted focused input, then throttles and c
     schemaVersion: 2,
     actorExpectation: account,
     eventId: expect.any(String),
-    intervals: [interval(63, 93)],
+    intervals: [interval(63, 93, 123)],
   });
   await advance(61);
   expect(transport).toHaveBeenCalledOnce();
@@ -124,7 +126,7 @@ it('ends intervals at blur and visibility changes while keeping route navigation
   focus = false;
   window.dispatchEvent(new Event('blur'));
   await advance(31);
-  expect(sent().intervals).toEqual([interval(0, 8), interval(20, 29)]);
+  expect(sent().intervals).toEqual([interval(0, 8, 60), interval(20, 29, 60)]);
 });
 
 it('bounds a batch of short foreground intervals and splits continuous use into separate sends', async () => {
@@ -139,11 +141,11 @@ it('bounds a batch of short foreground intervals and splits continuous use into 
   await advance(24);
   expect(transport).toHaveBeenCalledOnce();
   expect(sent().intervals).toHaveLength(16);
-  expect(sent().intervals[0]).toEqual(interval(6, 7));
-  expect(sent().intervals[15]).toEqual(interval(36, 60));
+  expect(sent().intervals[0]).toEqual(interval(6, 7, 60));
+  expect(sent().intervals[15]).toEqual(interval(36, 60, 60));
   await advance(60);
   expect(transport).toHaveBeenCalledTimes(2);
-  expect(sent(1).intervals).toEqual([interval(60, 66)]);
+  expect(sent(1).intervals).toEqual([interval(60, 66, 120)]);
 });
 
 it('drops old observations at workspace pauses and attributes only a fresh StudentSeat binding', async () => {
@@ -158,7 +160,7 @@ it('drops old observations at workspace pauses and attributes only a fresh Stude
   await advance(59);
   expect(transport).not.toHaveBeenCalled();
   await advance(1);
-  expect(sent()).toMatchObject({ actorExpectation: seat, intervals: [interval(40, 70)] });
+  expect(sent()).toMatchObject({ actorExpectation: seat, intervals: [interval(40, 70, 100)] });
 });
 
 it('aborts a pending send on pagehide and requires new input after a cached page returns', async () => {
@@ -179,10 +181,10 @@ it('aborts a pending send on pagehide and requires new input after a cached page
   trustedInput();
   await advance(60);
   expect(transport).toHaveBeenCalledTimes(2);
-  expect(sent(1).intervals).toEqual([interval(180, 210)]);
+  expect(sent(1).intervals).toEqual([interval(180, 210, 240)]);
 });
 
-it('stops on an auth rejection without refresh and never replays a capacity-rejected batch', async () => {
+it('stops on an auth rejection without refresh and never replays a skipped batch', async () => {
   stop = enableSiteActivityMeasurement();
   transport.mockResolvedValueOnce(
     new Response('{"error":{"code":"unauthorized"}}', { status: 401 }),
@@ -193,7 +195,16 @@ it('stops on an auth rejection without refresh and never replays a capacity-reje
   await advance(120);
   expect(transport).toHaveBeenCalledOnce();
   renewTelemetryContext(telemetryContext());
-  transport.mockResolvedValueOnce(new Response('{}', { status: 429 }));
+  transport.mockImplementationOnce(async (_path, options) =>
+    Response.json({
+      schemaVersion: 2,
+      accepted: false,
+      state: 'skipped',
+      operation: 'site.activity',
+      eventId: JSON.parse(String(options?.body)).eventId,
+      reason: 'capacity',
+    }),
+  );
   trustedInput();
   await advance(60);
   await advance(60);
@@ -203,5 +214,14 @@ it('stops on an auth rejection without refresh and never replays a capacity-reje
   expect(transport.mock.calls.map(([url]) => url)).toEqual(
     Array(3).fill('/api/analytics/v2/site-activity'),
   );
-  expect(sent(2).intervals).toEqual([interval(300, 330)]);
+  expect(sent(2).intervals).toEqual([interval(300, 330, 360)]);
+});
+
+it('sends monotonic interval ages despite an arbitrary wall-clock change', async () => {
+  stop = enableSiteActivityMeasurement();
+  trustedInput();
+  await advance(10);
+  vi.setSystemTime(start + 12 * 60 * 60_000);
+  await advance(50);
+  expect(sent().intervals).toEqual([interval(0, 30, 60)]);
 });

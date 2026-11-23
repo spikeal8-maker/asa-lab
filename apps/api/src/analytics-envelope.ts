@@ -98,7 +98,7 @@ export function referrerOrigin(value: unknown): string | null {
     return invalid();
   }
 }
-export function parseSiteActivityEnvelope(raw: unknown) {
+export function parseSiteActivityEnvelope(raw: unknown, receivedAt: string) {
   const value = object(raw);
   exact(value, ['schemaVersion', 'eventId', 'actorExpectation', 'intervals']);
   const intervals = value['intervals'];
@@ -109,19 +109,29 @@ export function parseSiteActivityEnvelope(raw: unknown) {
     intervals.length > 16
   )
     invalid();
-  let previousEnd = -Infinity;
+  const received = Date.parse(receivedAt);
+  let previousEndAge = Infinity;
   const spans = intervals.map((item) => {
     const interval = object(item);
-    exact(interval, ['from', 'to']);
-    const from = timestamp(interval['from']);
-    const to = timestamp(interval['to']);
-    const start = Date.parse(from);
-    const end = Date.parse(to);
-    if (start < previousEnd || end - start < 1000 || end - start > 90_000) invalid();
-    previousEnd = end;
-    return { from, to };
+    exact(interval, ['fromAgoMs', 'toAgoMs']);
+    const { fromAgoMs, toAgoMs } = interval;
+    if (
+      typeof fromAgoMs !== 'number' ||
+      typeof toAgoMs !== 'number' ||
+      !Number.isSafeInteger(fromAgoMs) ||
+      !Number.isSafeInteger(toAgoMs) ||
+      fromAgoMs > 90_000 ||
+      fromAgoMs > previousEndAge ||
+      toAgoMs < 0 ||
+      fromAgoMs - toAgoMs < 1000
+    )
+      invalid();
+    previousEndAge = toAgoMs;
+    return {
+      from: new Date(received - fromAgoMs).toISOString(),
+      to: new Date(received - toAgoMs).toISOString(),
+    };
   });
-  if (previousEnd - Date.parse(spans[0]!.from) > 120_000) invalid();
   return {
     eventId: uuid(value['eventId']),
     actorExpectation: expectation(value['actorExpectation']),

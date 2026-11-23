@@ -95,6 +95,7 @@ afterEach(async () => {
       window.removeEventListener(type, listener, capture);
     vi.clearAllTimers();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   }
@@ -109,7 +110,8 @@ const qualityBodies = () => qualityCalls().map(([, init]) => JSON.parse(init!.bo
 const savedQuality = () => JSON.parse(sessionStorage.getItem('asa:quality:v2:product')!);
 const savedQueue = () => JSON.parse(sessionStorage.getItem('asa:analytics:v2')!);
 
-it('installs one site activity tracker from the confirmed analytics bootstrap', async () => {
+it('installs one site activity tracker only after explicit opt-in and confirmed identity', async () => {
+  vi.stubEnv('VITE_ASA_SITE_ACTIVITY', undefined);
   let pointerInput: EventListener | undefined;
   const nativeAdd = document.addEventListener.bind(document);
   vi.spyOn(document, 'addEventListener').mockImplementation((type, listener, options) => {
@@ -125,7 +127,9 @@ it('installs one site activity tracker from the confirmed analytics bootstrap', 
   observeAnalytics();
   expect(pointerInput).toBeUndefined();
   context.setTelemetryContext(actor, true, 'home');
+  observeAnalytics();
   expect(pointerInput).toBeUndefined();
+  vi.stubEnv('VITE_ASA_SITE_ACTIVITY', '1');
   observeAnalytics();
   const installed = pointerInput;
   observeAnalytics();
@@ -135,9 +139,7 @@ it('installs one site activity tracker from the confirmed analytics bootstrap', 
   expect(siteCalls()).toHaveLength(1);
   expect(JSON.parse(String(siteCalls()[0]?.[1]?.body))).toMatchObject({
     actorExpectation: actor,
-    intervals: [
-      { from: new Date(start).toISOString(), to: new Date(start + 30_000).toISOString() },
-    ],
+    intervals: [{ fromAgoMs: 60_000, toAgoMs: 30_000 }],
   });
   expect(transport.mock.calls.some(([url]) => url === '/api/analytics/v2/events')).toBe(true);
 });
