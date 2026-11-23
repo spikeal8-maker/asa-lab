@@ -10913,13 +10913,45 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_private_engine_harness_baseline_dependency
-      kind: diagnostic
+      checkpoint: missed_solved_visible_phase_repair_selected
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: ONE separate PRIVATE TEST-ONLY engine ownership/null harness baseline cleanup dependency for category C General failure; failed bd3 production experiment preserved separately, never included in this baseline repair.
+      selected_slice: Preserve a complete solved LED phase when one wall RAF crosses two physical fronts.
+      visible_phase_delivery_selection:
+        prior_checkpoint: selected_private_engine_harness_baseline_dependency
+        prior_selected_slice: ONE separate PRIVATE TEST-ONLY engine ownership/null harness baseline cleanup dependency for category C General failure; failed bd3 production experiment preserved separately, never included in this baseline repair.
+        exact_main: a8f0084c674312f5075e6ed29767dd9058c5f34c
+        measured_candidate: 61e39db658c9ab2df2303104a11a52f89c3b5fbd
+        strict_run: 45201926162
+        strict_s1_artifact: 14835491194
+        retained_optical_precedent: 6249e7dbbb3fe3687797416a50464d11a32c6834
+        planned_paths:
+          - apps/web/src/electronics/led-temporal-presentation.ts
+          - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
+        cause: >-
+          The strict short20 capture contains the solved LOW at 60009 us and the following HIGH at
+          80012 us. Sampling only the endpoint skips the complete LOW after an RAF gap. Both
+          presenters received the same actual Worker data and RAF schedule in the isolated replay.
+          The retained optical approach reduced timing violations from 33 to 11 and maximum
+          lateness from 195.251 to 48.091 ms. This is partial evidence. Short100 reproduced
+          unchanged in the replay and needs its own cause and repair.
+        scope: >-
+          Reuse only the joint LED/L phase selection and its bounded regression. Show real solved
+          phases inside retained history using the existing native resource and ACK pipeline.
+          Audit fast optical averaging, Reset, explicit speed and true native continuity. Treat
+          the rest of PR 1072, thresholds, clock, physics, Worker, browser oracle and unrelated
+          paths as out of scope.
+        activation: >-
+          Integrate this selection and perform scoped preflight before one author writes the two
+          paths. Require deterministic before/after proof, a new independent exact-source review
+          and actual focused, General and strict browser checks. Full timing acceptance remains
+          open until the existing acceptance checks pass. D2-D4 and issue 546 retain their
+          separate selection and stop boundaries.
       engine_harness_baseline_contract:
         scope: ONLY contexts/electronics/testing/engine-timed-api.spec.ts baseline blob9914bd5464b41073870b912af424f80bf9803db0; target ownership/null test budgets1/7/256/1024. Separate category C baseline slice under AGENTS2.1/7, not repair inside f1 production slice.
         deletion: Remove ONLY unused generic advance spy setup/clear/restore and newly unused originalAdvance binding in this target test. Keep owned capture/spies and every oracle, loop, mutation, input, core call, receiver identity, null/descriptor check, horizon2050, four budgets and5000ms unchanged; adjacent tests and all production/core/API HTTP/controller files excluded.
@@ -11005,7 +11037,11 @@ parallel_lanes:
       phase_diagnostic_selection_receipt: docs/product/electronics/evidence/arduino-682-native-phase-diagnostic-selection-20261024.md
       observer_selection_receipt: docs/product/electronics/evidence/arduino-682-observer-selection-20261024.md
       observer_jsonl_selection_receipt: docs/product/electronics/evidence/arduino-682-jsonl-contract-selection-20261024.md
-      next_action: Publish reviewed docs selection first, then ONE private test-only author and NEW independent exact-SHA reviewer. No product mutation or CI; PASS/invalid fixture STOP, reviewed faithful RED requires a separate product decision. Preserve actual3of8 timing PASS and5FAIL, owner pending and all foreign history.
+      prior_harness_next_action: Publish reviewed docs selection first, then ONE private test-only author and NEW independent exact-SHA reviewer. No product mutation or CI; PASS/invalid fixture STOP, reviewed faithful RED requires a separate product decision. Preserve actual3of8 timing PASS and5FAIL, owner pending and all foreign history.
+      next_action: >-
+        Execute the two-path visible-phase repair after the selection is on main and fresh
+        preflight passes. Preserve raw native evidence and inspect remaining timing failures
+        before selecting another product path.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
