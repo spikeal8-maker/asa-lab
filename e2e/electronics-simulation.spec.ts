@@ -4783,7 +4783,8 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
   });
   await page.goto('/#/home/' + projectId);
   const sensor = page.locator('[data-testid="schematic-component"][data-component-id="sonar"]');
-  const image = sensor.locator('image').first();
+  const image = sensor.locator('image[pointer-events="none"]');
+  const outline = sensor.locator('.workbench-selection-silhouette image');
   await expect(image).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
   await sensor.locator('.workbench-part').press('Enter');
   const variant = page.getByRole('combobox', { name: /Вариант.*в проекте/ });
@@ -4870,7 +4871,9 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
   };
   await runAndStop();
 
+  await expect(outline).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
   const previous = await image.elementHandle();
+  const previousOutline = await outline.elementHandle();
   let releaseAsset = () => {};
   const heldAsset = new Promise<void>((done) => {
     releaseAsset = done;
@@ -4886,7 +4889,9 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
     await pendingRequest;
     await expect(sensor).toHaveAttribute('data-component-type', 'ultrasonic-hc-sr04');
     await expect(image).toHaveAttribute('href', /ultrasonic-hc-sr04\/component\.svg/);
+    await expect(outline).toHaveAttribute('href', /ultrasonic-hc-sr04\/component\.svg/);
     expect(await previous.evaluate((element) => element.isConnected)).toBe(false);
+    expect(await previousOutline.evaluate((element) => element.isConnected)).toBe(false);
   } finally {
     releaseAsset();
     await page.unroute(hcAsset);
@@ -4895,6 +4900,7 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
   await variant.selectOption('ultrasonic-sensor');
   await expect(sensor).toHaveAttribute('data-component-type', 'ultrasonic-sensor');
   await expect(image).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
+  await expect(outline).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
 });
 
 test('simulation fault semantics: an unmodelled part stops without a false solved frame', async ({
