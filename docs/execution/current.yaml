@@ -199,25 +199,10 @@ parallel_lanes:
         purpose: isolated_development_only
         repository_origin: https://github.com/spikeal8-maker/asa-lab.git
         author:
-          worktree: /workspace/scratch/94732fd38a6d/asa-u01-product
-          branch: feature/electronics-ultrasonic-u01-1241
+          worktree: C:/Users/spike/asa-ultrasonic-u01-repair-20261118
+          branch: repair/ultrasonic-u01-1264-20261118
         peer:
           device: D2-R2
-          worktree: C:/Users/spike/asa-l298n-p1-20261116
-          branch: feature/electronics-l298n-p1-domain-1199
-          head: 1963c25ebddac301b8d3fc0db71229dcd8c18e53
-          repository_origin: https://github.com/spikeal8-maker/asa-lab.git
-          path_sha256:
-            contexts/electronics/domain/solver.ts: 49bd8fa156598b1be3cd0fb65968e304c9089086ec3c181f5e28877620cd8ce5
-            contexts/electronics/domain/model-identity.ts: 6497b10c5ff6c8f76adf34bb6cc0592124ca47c8b3262e483efbd6c81fd3ea03
-            contexts/electronics/testing/model-set-golden-compatibility.spec.ts: a55d50a76982459c72183c0ed3fc0ca1213802fbb057dbce2e143dbe4de08736
-            contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts: 8fd1eeb813304bf644987bffefa61d7801a3702e151ddc7b1fa71b8dc6d5150d
-            docs/product/electronics/generated/component-coverage.json: 7ae26cadf793e157d1693fad18f959d365d09e241a15cf5f8757f2910753097a
-          physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
-            are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
-            were read only.
-        additional_peer_snapshots:
-        - device: D2-R2
           worktree: C:/Users/spike/asa-l298n-p3-20261116
           branch: feature/electronics-l298n-p3-qualification-1199
           head: 6ae5b38c1c13b6eee40020c0bc67c14359dd1210
@@ -231,18 +216,35 @@ parallel_lanes:
           physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
             are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
             were read only.
+        additional_peer_snapshots:
+        - device: D2-R2
+          worktree: C:/Users/spike/asa-l298n-p1-20261116
+          branch: feature/electronics-l298n-p1-domain-1199
+          head: 4cd010291517ba246e45269497e9baddb6338f28
+          repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+          path_sha256:
+            contexts/electronics/domain/solver.ts: 154b968bce40d83e23a21acf1e9d55115823b1364c6cbafa782428b94441c14d
+            contexts/electronics/domain/model-identity.ts: 6497b10c5ff6c8f76adf34bb6cc0592124ca47c8b3262e483efbd6c81fd3ea03
+            contexts/electronics/testing/model-set-golden-compatibility.spec.ts: a55d50a76982459c72183c0ed3fc0ca1213802fbb057dbce2e143dbe4de08736
+            contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts: 8fd1eeb813304bf644987bffefa61d7801a3702e151ddc7b1fa71b8dc6d5150d
+            docs/product/electronics/generated/component-coverage.json: b034042db89b8584a8438d0925e3bd8aaa3f268cce8c7c798997798b52db3ec0
+          physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
+            are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
+            were read only.
         paths:
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/domain/model-identity.ts
         - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
         - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
         - docs/product/electronics/generated/component-coverage.json
-        boundary: Bounded coordination for the owner-requested U01 only. Cloud Linux author and D2-R2 peer worktrees
-          have separate physical files, indexes and Git directories; no foreign mutation, ownership transfer
-          or automatic conflict resolution. Existing P1/P3 coordination is unchanged. The local preflight checks
-          its own registered worktrees; direct D2 snapshots supply external-peer evidence, not a claim that local
-          preflight inspected Windows. Refresh head and exact shared-path hashes before starting/publishing.
-          Any change requires new controller reconciliation before the affected action.
+        boundary: >-
+          The owner approved continuation in the separate Windows repair worktree. The named
+          author and both D2-R2 peers have distinct physical source files, Git worktree indexes,
+          and checkout roots. L298N P3 is the primary peer because it has the dirty solver.
+          The P3 worktree and existing L298N P1/P3 coordination remain untouched.
+          The prepared repair stays on its exact twelve-path scope. Refresh peer HEAD and the
+          shared-path hashes before starting and before publishing to the existing PR 1264.
+          This record does not authorize editing peers or merging or deploying U01 without gates.
         integration_ready: false
         release_ready: false
       joint_verification:
@@ -255,8 +257,12 @@ parallel_lanes:
         future_main_overlap: If main accepts L298N or other shared-source work before final convergence, controller
           re-evaluates exact diff/identities, adds its existing accepted regression suites to joint verification
           and obtains new final-source review/CI. No automatic resolution or stale digest.
-      next_action: After this controller transition is accepted on main and fresh scoped preflight passes, the
-        single product author implements and verifies U01, then stops. U02 remains unselected.
+      next_action: >-
+        When the Windows handoff is in main and exact twelve-path preflight passes, converge the
+        existing U01 repair a21cb981e554f0efc089b7d95e158b316913ef69 with accepted main, preserving
+        model identities and recalculating generated coverage. Require focused tests, benchmark,
+        independent review and exact General and browser qualification before integrating PR 1264.
+        U02 remains unselected.
       deployment: not_run
       database_actions: none
     gates:
@@ -14981,10 +14987,34 @@ parallel_lanes:
         baseline_evidence: GitHub run 45054878547, job 137309100945 and artifact 14767501827. Full-viewport PNG 3 captured 100 after the live 000 phase ended.
         prior_candidate_evidence: GitHub run 44997923367, artifact 14745276183, records all seven native PNGs and the complete D2–D4 scenario on its own SHA.
         scope: Apply only the prepared D2–D4 test orchestration and keep all native pixels, loaded-image geometry, same-generation electrical witnesses, Save, Reset, reopen, phase order, pace, timeouts and thresholds.
+      d2_worker_composition_selection:
+        accepted_main_at_selection: 7ba020057a2650731df6df5ef0ad0e9136b7df65
+        d2_candidate: 3c84cd9884d2a95467bf08b24cb0830c5eb83d38
+        worker_candidate: 18fd0fd3eaad0a9ee2d22995746d707d1c4aadeb
+        diagnostic_remote_ref: codex/electronics-d2-worker-composition-649
+        source_paths:
+        - e2e/electronics-ready-cadence.spec.ts
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        scope: >-
+          In the existing approved D2 Windows checkout with its recorded author branch, run
+          preflight for these two paths. Compose exactly the candidate acquisition and scheduler
+          file blobs on accepted main and verify the exact two-path diff. Preserve the peer and
+          both existing PR remote refs. After independent source review publish only the diagnostic
+          ref for CI. The reviewed scheduler blob is permitted here solely for composition.
+        evidence: >-
+          The original D2 candidate corrected the seven native PNGs while visible phase duration
+          still failed. The Worker candidate passed delay(1) and millis in strict run 45077985438
+          but retained the original PNG capture failure and two visible cadence failures.
+        qualification: >-
+          Run the existing Classroom d13-v3 browser profile once on the exact composition and
+          require all seven native PNGs, timing, Reset, five saves and the cookies-only reopen.
+          If focused qualification passes, run the unchanged strict-real-time profile on the
+          same SHA and record the complete result. Preserve all physics, checks and thresholds.
+          This diagnostic does not grant merge, owner acceptance, workflow edits or deployment.
       next_action: >-
-        Publish this registry-only coordination in main, then run exact-path preflight from the approved isolated author
-        worktree before applying the prepared D2–D4 acquisition repair. Require independent review and exact source browser
-        verification under the existing qualification rules.
+        After the registry selection is in main, verify the approved isolated checkout and peer,
+        freeze and review the exact composition, then obtain browser evidence on its diagnostic ref.
+        Review that evidence separately before any change to either product PR.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
