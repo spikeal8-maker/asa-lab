@@ -17,7 +17,7 @@ import type {
 } from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
 import { useCanvasAnnotations } from './use-canvas-annotations';
-import { SimulationPacing } from './simulation-pacing';
+import { SimulationPacing, armHostWake } from './simulation-pacing';
 import {
   annotationOnlyDocumentChange,
   createAnnotationRuntimeDocumentSelector,
@@ -65,7 +65,6 @@ import {
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
 import {
-  ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS,
   LedTemporalPresentation,
   classroomRequestedHorizon,
   sameOpticalFrame,
@@ -1206,27 +1205,18 @@ export function useElectronicsWorkbenchHost(
         readHostHorizonMicroseconds: () => {
           return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
         },
-        scheduleArduinoWake: (hostDue, dispatch) => {
-          const startedAt = simulationStartedAtRef.current;
-          const offset = simulationHostOffsetMicrosecondsRef.current;
-          const due = hostDue - offset;
-          if (
-            !currentSession() ||
-            !session?.active ||
-            startedAt === null ||
-            normalHostClockRef.current ||
-            simulationPacing.explicit ||
-            due >
-              ledPresentation.presentedMicroseconds + ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS
-          )
-            return null;
-          const delay = startedAt + due / 1000 - window.performance.now();
-          if (delay <= 0) return null;
-          const timeout = window.setTimeout(() => {
-            if (currentSession() && session?.active) dispatch();
-          }, Math.ceil(delay));
-          return () => window.clearTimeout(timeout);
-        },
+        scheduleArduinoWake: (due, dispatch) =>
+          armHostWake(
+            currentSession() &&
+              session?.active &&
+              !normalHostClockRef.current &&
+              !simulationPacing.explicit
+              ? simulationStartedAtRef.current
+              : null,
+            due - simulationHostOffsetMicrosecondsRef.current,
+            ledPresentation.presentedMicroseconds,
+            () => currentSession() && session?.active && dispatch(),
+          ),
         onGenerationPending: () => {
           if (!currentSession()) return;
           // A real Reset starts a new generation and receives a new budget.
