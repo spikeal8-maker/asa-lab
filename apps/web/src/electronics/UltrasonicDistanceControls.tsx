@@ -72,7 +72,9 @@ interface TargetDrag {
 
 function supplyStatus(
   voltages: Readonly<Partial<Record<string, number>>> | undefined,
+  isolated: boolean,
 ): 'waiting' | 'no-power' | 'powered' {
+  if (isolated) return 'no-power';
   const vcc = voltages?.vcc;
   const gnd = voltages?.gnd;
   if (vcc === undefined || gnd === undefined) return 'waiting';
@@ -84,20 +86,17 @@ export function UltrasonicTargetOverlay({
   controller,
   component,
   componentTypeId,
+  isolated,
 }: {
   readonly controller: TargetController;
   readonly component: SchematicComponent;
   readonly componentTypeId: UltrasonicDistanceComponentTypeId;
+  readonly isolated: boolean;
 }): JSX.Element | null {
-  const sensorSupply = (voltages: Readonly<Partial<Record<string, number>>> | undefined) => {
-    const result = controller.nativeOpticalPresentation?.getCommittedSnapshot()?.result;
-    return result?.diagnostics.some((entry) => entry.code === 'no_source')
-      ? 'no-power'
-      : supplyStatus(voltages);
-  };
   const c = useCommittedWorkbenchPresentation(controller, (projection) =>
-    sensorSupply(
+    supplyStatus(
       projection.runtimePresentationResultByComponent.get(component.id)?.terminalVoltages,
+      isolated,
     ),
   );
   const localRef = useRef<SVGGElement>(null);
@@ -177,7 +176,10 @@ export function UltrasonicTargetOverlay({
   const noReflection =
     componentTypeId === 'ultrasonic-hc-sr04' && component.stateProperties?.echoAvailable === false;
   const power = c.simulationRunning
-    ? sensorSupply(c.runtimePresentationResultByComponent.get(component.id)?.terminalVoltages)
+    ? supplyStatus(
+        c.runtimePresentationResultByComponent.get(component.id)?.terminalVoltages,
+        isolated,
+      )
     : 'stopped';
   const muted = noReflection || (power !== 'powered' && power !== 'stopped');
   const status =

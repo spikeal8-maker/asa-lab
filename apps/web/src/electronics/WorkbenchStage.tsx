@@ -1577,6 +1577,13 @@ export function WorkbenchStage({
             controller={c}
             component={selectedSensor}
             componentTypeId={selectedSensorType}
+            isolated={
+              Object.keys(selectedSensor.holeBindings ?? {}).length === 0 &&
+              !document.connections.some(
+                ({ from, to }) =>
+                  from.componentId === selectedSensor.id || to.componentId === selectedSensor.id,
+              )
+            }
           />
         ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
