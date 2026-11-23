@@ -37,13 +37,31 @@
   background: var(--surface, white);
   color: inherit;
 }
-.admin-logs-filters details[open] summary {
+.admin-logs-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.admin-logs-controls > details {
+  max-width: 100%;
+  min-width: 0;
+}
+.admin-logs-controls > details[open] {
+  flex-basis: 100%;
+}
+.admin-logs-controls details[open] summary {
   margin-bottom: 6px;
 }
 .admin-logs-filter-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+.admin-logs-control-pair {
+  flex-wrap: nowrap;
+  max-width: 100%;
 }
 .admin-logs-filter-actions button {
   width: auto;
@@ -123,20 +141,6 @@
 .admin-logs summary {
   cursor: pointer;
 }
-@media (min-width: 1200px) {
-  .admin-logs-filters:not(:has(details[open])) {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-  }
-  .admin-logs-filters:not(:has(details[open])) .admin-logs-primary-filters,
-  .admin-logs-filters:not(:has(details[open])) .admin-logs-filter-note {
-    grid-column: 1 / -1;
-  }
-  .admin-logs-filters:not(:has(details[open])) .admin-logs-other-exports {
-    grid-column: 3;
-    grid-row: 2;
-  }
-}
 @media (max-width: 1024px) {
   .admin-logs-primary-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -152,6 +156,9 @@
   .admin-logs-filter-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-logs-control-pair {
+    flex-basis: 100%;
   }
   .admin-logs-filter-actions button {
     width: 100%;

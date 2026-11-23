@@ -416,102 +416,106 @@ export function AdminLogsPage({
             />
           </label>
         </div>
-        <details className="admin-logs-advanced">
-          <summary>
-            Дополнительные фильтры
-            {source || subsystem || scope !== 'application' ? ' · выбраны' : ''}
-          </summary>
-          <div className="admin-logs-advanced-fields">
-            <label>
-              Показывать
-              <select
-                value={scope}
-                onChange={(event) => {
-                  setScope(event.target.value);
-                  setSource('');
-                }}
-              >
-                <option value="application">Приложение</option>
-                <option value="host">Операционная система, Docker и нагрузка</option>
-                <option value="all">Все журналы</option>
-              </select>
-            </label>
-            <label>
-              Источник
-              <select
-                value={source}
-                onChange={(event) => {
-                  setSource(event.target.value);
-                  setScope('all');
-                }}
-              >
-                <option value="">Все источники</option>
-                {(status?.eventSources ?? []).map((value) => (
-                  <option key={value} value={value}>
-                    {sourceLabel(value)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Подсистема
-              <select value={subsystem} onChange={(event) => setSubsystem(event.target.value)}>
-                <option value="">Все подсистемы</option>
-                {Object.entries(SUBSYSTEM).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <div className="admin-logs-controls">
+          <details>
+            <summary>
+              Дополнительные фильтры
+              {source || subsystem || scope !== 'application' ? ' · выбраны' : ''}
+            </summary>
+            <div className="admin-logs-advanced-fields">
+              <label>
+                Показывать
+                <select
+                  value={scope}
+                  onChange={(event) => {
+                    setScope(event.target.value);
+                    setSource('');
+                  }}
+                >
+                  <option value="application">Приложение</option>
+                  <option value="host">Операционная система, Docker и нагрузка</option>
+                  <option value="all">Все журналы</option>
+                </select>
+              </label>
+              <label>
+                Источник
+                <select
+                  value={source}
+                  onChange={(event) => {
+                    setSource(event.target.value);
+                    setScope('all');
+                  }}
+                >
+                  <option value="">Все источники</option>
+                  {(status?.eventSources ?? []).map((value) => (
+                    <option key={value} value={value}>
+                      {sourceLabel(value)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Подсистема
+                <select value={subsystem} onChange={(event) => setSubsystem(event.target.value)}>
+                  <option value="">Все подсистемы</option>
+                  {Object.entries(SUBSYSTEM).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </details>
+          <div className="admin-logs-filter-actions admin-logs-control-pair">
+            <button type="submit" className="btn-primary" disabled={loading}>
+              Показать
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={disabled || !page || filtersChanged || loading}
+              onClick={() => void exportArchive('filtered')}
+            >
+              Скачать по фильтрам
+            </button>
           </div>
-        </details>
-        <div className="admin-logs-filter-actions">
-          <button type="submit" className="btn-primary" disabled={loading}>
-            Показать
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => selectRecentRange(1)}>
-            Последние 24 часа
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => selectRecentRange(7)}>
-            Последние 7 дней
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={disabled || !page || filtersChanged || loading}
-            onClick={() => void exportArchive('filtered')}
-          >
-            Скачать по фильтрам
-          </button>
+          <div className="admin-logs-filter-actions admin-logs-control-pair">
+            <button type="button" className="btn-secondary" onClick={() => selectRecentRange(1)}>
+              Последние 24 часа
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => selectRecentRange(7)}>
+              Последние 7 дней
+            </button>
+          </div>
+          <details>
+            <summary>Другие выгрузки за период</summary>
+            <div className="admin-logs-filter-actions">
+              {(
+                [
+                  ['application', 'Скачать журналы приложения'],
+                  ['all', 'Скачать все журналы'],
+                  ['errors', 'Скачать ошибки'],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className="btn-secondary"
+                  disabled={disabled}
+                  onClick={() => void exportArchive(mode)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
         {filtersChanged && !loading ? (
           <p className="admin-logs-filter-note" role="status">
             Фильтры изменились. Нажмите «Показать», чтобы обновить список и скачать записи.
           </p>
         ) : null}
-        <details className="admin-logs-other-exports">
-          <summary>Другие выгрузки за период</summary>
-          <div className="admin-logs-filter-actions">
-            {(
-              [
-                ['application', 'Скачать журналы приложения'],
-                ['all', 'Скачать все журналы'],
-                ['errors', 'Скачать ошибки'],
-              ] as const
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                className="btn-secondary"
-                disabled={disabled}
-                onClick={() => void exportArchive(mode)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </details>
       </form>
       {status ? (
         <div className="admin-logs-coverage">

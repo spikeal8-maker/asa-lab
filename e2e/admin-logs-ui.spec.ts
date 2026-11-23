@@ -220,6 +220,31 @@ for (const width of [1440, 1025, 1024, 390, 320]) {
   });
 }
 
+test('apply and filtered download share a row when wider fonts tighten the toolbar', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await fixture(page, 'populated');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  await page.addStyleTag({
+    content: `
+      .admin-logs-filters { max-width: 900px; }
+      .admin-logs-filters :is(button, summary) { font: 17px monospace; }
+    `,
+  });
+  const show = await page.getByRole('button', { name: 'Показать', exact: true }).boundingBox();
+  const exportFiltered = await page
+    .getByRole('button', { name: 'Скачать по фильтрам' })
+    .boundingBox();
+  expect(Math.abs(show!.y - exportFiltered!.y)).toBeLessThan(2);
+  expect(Math.abs(show!.height - exportFiltered!.height)).toBeLessThan(2);
+  expect(
+    await page
+      .locator('.admin-logs-filters')
+      .evaluate((form) => form.scrollWidth <= form.clientWidth),
+  ).toBe(true);
+});
+
 test('filtered and broad archives use the exact Moscow range with their respective filters', async ({
   page,
 }) => {
