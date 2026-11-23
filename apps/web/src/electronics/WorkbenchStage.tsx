@@ -27,6 +27,7 @@ import {
 } from './component-catalog';
 import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
 import { NativeLedDiagnostic } from './NativeLedDiagnostic';
+import { UltrasonicTargetOverlay } from './UltrasonicDistanceControls';
 import { CanvasAnnotationEditor, CanvasAnnotationLayer } from './CanvasAnnotationLayer';
 import {
   useCommittedWorkbenchPresentation,
@@ -724,6 +725,8 @@ export function WorkbenchStage({
   showGrid: boolean;
 }): JSX.Element {
   const document = c.document!;
+  const selectedSensor = c.selectedComponent;
+  const selectedSensorType = selectedSensor?.componentTypeId;
   const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<BreadboardHover>(null);
   const switchClipId = useId().replace(/:/g, '');
   const [liveSupplySwitches, setLiveSupplySwitches] = useState<ReadonlySet<string>>(
@@ -1286,7 +1289,10 @@ export function WorkbenchStage({
         }${c.catalogPlacement ? ' placing' : ''}`}
         viewBox={`${c.viewBox.x} ${c.viewBox.y} ${c.viewBox.width} ${c.viewBox.height}`}
         preserveAspectRatio="xMidYMid slice"
-        onPointerDownCapture={c.beginStagePointer}
+        onPointerDownCapture={(event) => {
+          if ((event.target as Element).closest('[data-testid="ultrasonic-target"]')) return;
+          c.beginStagePointer(event);
+        }}
         onPointerDown={handleStagePointerDown}
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}
@@ -1562,6 +1568,23 @@ export function WorkbenchStage({
         ) : null}
         {c.annotations ? (
           <CanvasAnnotationLayer controller={c.annotations} toWorld={c.annotationWorldPoint} />
+        ) : null}
+        {selectedSensor &&
+        (selectedSensorType === 'ultrasonic-hc-sr04' ||
+          selectedSensorType === 'ultrasonic-sensor') ? (
+          <UltrasonicTargetOverlay
+            key={selectedSensor.id + String(c.simulationRunning)}
+            controller={c}
+            component={selectedSensor}
+            componentTypeId={selectedSensorType}
+            isolated={
+              Object.keys(selectedSensor.holeBindings ?? {}).length === 0 &&
+              !document.connections.some(
+                ({ from, to }) =>
+                  from.componentId === selectedSensor.id || to.componentId === selectedSensor.id,
+              )
+            }
+          />
         ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
           <g className="workbench-stage-readout-layer" pointerEvents="none">
