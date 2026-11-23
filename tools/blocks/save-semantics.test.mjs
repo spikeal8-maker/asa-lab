@@ -8,6 +8,69 @@ import test from 'node:test';
 
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.tsx', '.css']);
 
+test('draft network timeout still aborts the response body without AbortSignal.any', async () => {
+  const timeoutCallbacks = new Map();
+  const requests = [];
+  const window = {
+    location: new URL('https://asa.example/internal/blocks/'),
+    parent: {},
+    addEventListener() {},
+    setTimeout(callback, ms) {
+      timeoutCallbacks.set(ms, callback);
+      return ms;
+    },
+    clearTimeout(ms) {
+      timeoutCallbacks.delete(ms);
+    },
+    async fetch(_url, options) {
+      requests.push(options);
+      return new globalThis.Response('{}');
+    },
+  };
+  const shell = { dataset: {} };
+  const context = vm.createContext({
+    window,
+    document: {
+      querySelector: (selector) => (selector === '[data-asa-host-shell]' ? shell : null),
+      getElementById: () => ({}),
+      addEventListener() {},
+    },
+    GUI: {
+      EditorState: {},
+      createStandaloneRoot() {},
+      setAppElement() {},
+      ScratchStorage: {},
+      buildDefaultProject() {},
+      setProjectId() {},
+    },
+    AsaBlocksProtocol: { createChildProtocol: () => ({ start() {} }) },
+    AsaBlocksStatus: {},
+    AsaBlocksRecovery: {},
+    AbortController: globalThis.AbortController,
+    AbortSignal: { timeout: globalThis.AbortSignal.timeout },
+    DOMException: globalThis.DOMException,
+    URL,
+    Request: globalThis.Request,
+    performance: globalThis.performance,
+  });
+  vm.runInContext(
+    fs.readFileSync(new URL('../../infra/scratch-editor/host/main.js', import.meta.url), 'utf8'),
+    context,
+  );
+  const url = '/api/blocks/runtime/projects/11111111-1111-4111-8111-111111111111/draft';
+  const caller = new globalThis.AbortController();
+  await window.fetch(url, { method: 'PUT', signal: caller.signal });
+  const effective = requests[0].signal;
+  assert.notEqual(effective, caller.signal);
+  timeoutCallbacks.get(20_000)();
+  assert.equal(effective.reason.name, 'TimeoutError');
+  assert.equal(caller.signal.aborted, false);
+  await window.fetch(url, { method: 'PUT', signal: caller.signal });
+  caller.abort();
+  assert.equal(requests[1].signal.reason.name, 'AbortError');
+  assert.equal(timeoutCallbacks.size, 0);
+});
+
 function sourceFiles(root) {
   const files = [];
   const visit = (directory) => {
@@ -108,7 +171,7 @@ const project = (name, assets = []) => ({
   extensions: [],
 });
 
-function loadStorage(fetchMock, randomUUID) {
+function loadStorage(fetchMock, randomUUID, timers = {}) {
   class FixtureStorage extends Storage {
     async store(assetType, dataFormat, data, assetId) {
       const format = dataFormat || assetType?.runtimeFormat;
@@ -131,7 +194,10 @@ function loadStorage(fetchMock, randomUUID) {
     fetch: fetchMock,
     Response: globalThis.Response,
     AbortController: globalThis.AbortController,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
     crypto: { subtle: webcrypto.subtle, randomUUID },
+    ...timers,
   });
   vm.runInContext(
     fs.readFileSync(new URL('../../infra/scratch-editor/host/storage.js', import.meta.url), 'utf8'),
@@ -140,6 +206,36 @@ function loadStorage(fetchMock, randomUUID) {
   const runtimeStandalone = { ...standalone, ScratchStorage: FixtureStorage };
   return (options) => context.AsaBlocksStorage.createReadOnlyStorage(runtimeStandalone, options);
 }
+
+function openProjectWithAssets(assets, fetchMock, options = {}) {
+  const { timers, ...storageOptions } = options;
+  return loadStorage(
+    fetchMock,
+    undefined,
+    timers,
+  )({
+    projectId: PROJECT_ID,
+    projectJson: project('Saved project', assets),
+    assets: assets.map(reference),
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+    canSave: true,
+    ...storageOptions,
+  });
+}
+
+function recordRetryDelays(delays) {
+  return {
+    setTimeout(callback, delay) {
+      delays.push(delay);
+      return globalThis.setTimeout(callback, 0);
+    },
+  };
+}
+
+const assetResponse = (media) =>
+  new globalThis.Response(media.bytes, { headers: { 'content-type': 'image/png' } });
 
 test('terminal draft failure reports bounded status/request correlation and cannot be replaced by an observer error', async () => {
   for (const status of [400, 401, 403, 409, 429, 503]) {
@@ -276,47 +372,103 @@ async function storeAsset(storage, value) {
   return storage.scratchStorage.store(type, value.dataFormat, value.bytes, value.assetId);
 }
 
-test('clean VM media without an ASA canonical reference is uploaded before the draft and reused', async () => {
-  const bytes = Uint8Array.of(82, 73, 70, 70, 1, 2, 3, 4);
-  const pop = asset(createHash('md5').update(bytes).digest('hex'), 'wav', bytes);
-  const calls = [];
-  const create = loadStorage(
-    async (url, init) => {
-      calls.push({ url, init });
-      if (url.endsWith('/draft'))
-        return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 }));
-      assert.deepEqual(Array.from(init.body), Array.from(bytes));
-      return new globalThis.Response(JSON.stringify({ status: 'ok', asset: reference(pop) }));
-    },
-    () => '22222222-2222-4222-8222-222222222222',
-  );
-  let live;
-  const storage = create({
+for (const fromRecovery of [false, true]) {
+  test(`clean media from ${fromRecovery ? 'recovery' : 'the VM'} is uploaded before the draft and reused`, async () => {
+    const bytes = Uint8Array.of(82, 73, 70, 70, 1, 2, 3, 4);
+    const pop = asset(createHash('md5').update(bytes).digest('hex'), 'wav', bytes);
+    const calls = [];
+    const create = loadStorage(
+      async (url, init) => {
+        calls.push({ url, init });
+        if (url.endsWith('/draft'))
+          return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 }));
+        assert.deepEqual(Array.from(init.body), Array.from(bytes));
+        return new globalThis.Response(JSON.stringify({ status: 'ok', asset: reference(pop) }));
+      },
+      () => '22222222-2222-4222-8222-222222222222',
+    );
+    let live;
+    const storage = create({
+      projectId: PROJECT_ID,
+      projectJson: project('Existing'),
+      assets: [],
+      draftRevision: 23,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => TOKEN,
+      getProjectAssets: () => [live],
+      getProjectGeneration: () => 1,
+    });
+    live = {
+      assetId: pop.assetId,
+      dataFormat: 'wav',
+      data: fromRecovery ? new Uint8Array(0) : bytes,
+      assetType: storage.scratchStorage.AssetType.Sound,
+      clean: true,
+    };
+
+    if (fromRecovery) {
+      assert.equal(await storage.installRecoveryAssets([pop]), 1);
+      const snapshot = await storage.captureRecoveryAssets(project('Abby', [pop]), [live]);
+      assert.equal(snapshot[0].sha256, pop.sha256);
+    }
+    await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
+    assert.equal(storage.getConfirmedRevision(), 24);
+    assert.equal(calls.length, 2);
+    assert.ok(calls[0].url.endsWith(`/${pop.assetId}.wav`));
+    assert.ok(calls[1].url.endsWith('/draft'));
+    assert.deepEqual(JSON.parse(calls[1].init.body).document.assets, [reference(pop)]);
+    await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
+    assert.equal(calls.length, 2, 'unchanged confirmed media and draft make no writes');
+  });
+}
+
+test('invalid native asset input immediately completes the pending save with a bounded cause', async () => {
+  const failures = [];
+  const storage = loadStorage(async () => assert.fail('invalid input must not make a request'))({
     projectId: PROJECT_ID,
     projectJson: project('Existing'),
     assets: [],
     draftRevision: 23,
     apiOrigin: API_ORIGIN,
     getRuntimeToken: () => TOKEN,
-    getProjectAssets: () => [live],
-    getProjectGeneration: () => 1,
+    getProjectGeneration: () => 2,
+    onSaveFailure: (failure) => failures.push(failure),
   });
-  live = {
-    assetId: pop.assetId,
-    dataFormat: 'wav',
-    data: bytes,
-    assetType: storage.scratchStorage.AssetType.Sound,
-    clean: true,
-  };
+  const waiting = storage.waitForUpstreamSaveAfter(storage.getUpstreamSaveSequence());
+  const native = storage.scratchStorage;
+  await assert.rejects(
+    native.store(native.AssetType.Sound, 'svg', Uint8Array.of(1), 'a'.repeat(32)),
+  );
+  assert.equal((await waiting).reason, 'asset_write_invalid');
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0].failureCode, 'scratch-save-asset-invalid');
+  assert.equal(storage.getConfirmedRevision(), 23);
+});
 
-  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
-  assert.equal(storage.getConfirmedRevision(), 24);
-  assert.equal(calls.length, 2);
-  assert.ok(calls[0].url.endsWith(`/${pop.assetId}.wav`));
-  assert.ok(calls[1].url.endsWith('/draft'));
-  assert.deepEqual(JSON.parse(calls[1].init.body).document.assets, [reference(pop)]);
-  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Abby', [pop])));
-  assert.equal(calls.length, 2, 'unchanged confirmed media and draft make no writes');
+test('an aborted save wait does not consume a later durable outcome', async () => {
+  const storage = loadStorage(
+    async () => new globalThis.Response(JSON.stringify({ status: 'ok', revision: 24 })),
+    () => '22222222-2222-4222-8222-222222222222',
+  )({
+    projectId: PROJECT_ID,
+    projectJson: project('Existing'),
+    assets: [],
+    draftRevision: 23,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => TOKEN,
+    getProjectGeneration: () => 2,
+  });
+  const sequence = storage.getUpstreamSaveSequence();
+  const controller = new globalThis.AbortController();
+  const first = storage.waitForUpstreamSaveAfter(sequence, controller.signal);
+  controller.abort();
+  assert.equal((await first).reason, 'save_exit_timeout');
+  const retry = storage.waitForUpstreamSaveAfter(sequence);
+  await storage.saveProject(PROJECT_ID, JSON.stringify(project('Updated')));
+  const confirmation = await retry;
+  assert.equal(confirmation.ok, true);
+  assert.equal(confirmation.revision, 24);
+  assert.equal(confirmation.savedGeneration, 2);
 });
 
 test('failed clean-media acknowledgement cannot write a draft or mark the project durable', async () => {
@@ -430,6 +582,153 @@ test('project-open asset read renews expired authority and still verifies the re
   assert.equal(calls.length, 2);
   assert.equal(calls[1].headers.authorization, 'Bearer fresh.payload.signature');
   assert.equal(storage.getConfirmedRevision(), 7);
+});
+
+test('project opening recovers from a temporary asset failure and an interrupted body', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  const delays = [];
+  let requests = 0;
+  const storage = openProjectWithAssets(
+    [media],
+    async (_url, init) => {
+      requests += 1;
+      assert.equal(init.method, 'GET');
+      assert.equal(init.credentials, 'omit');
+      assert.equal(init.cache, 'no-store');
+      if (requests === 1) return new globalThis.Response(null, { status: 503 });
+      if (requests === 2) {
+        const response = assetResponse(media);
+        response.arrayBuffer = async () => {
+          throw new TypeError('connection interrupted');
+        };
+        return response;
+      }
+      return assetResponse(media);
+    },
+    { timers: recordRetryDelays(delays) },
+  );
+  await storage.prepareProjectAssets();
+  assert.equal(requests, 3);
+  assert.equal(delays.length, 2);
+  assert.ok(delays[0] >= 250 && delays[0] < 500);
+  assert.ok(delays[1] >= 500 && delays[1] < 750);
+  assert.equal(storage.getConfirmedRevision(), 7);
+});
+
+test('asset reads honor short retry instructions and stop on longer or unspecified rate limits', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  for (const retryAfter of ['1', '120', null]) {
+    const delays = [];
+    let requests = 0;
+    const storage = openProjectWithAssets(
+      [media],
+      async () => {
+        if (++requests > 1) return assetResponse(media);
+        return new globalThis.Response(null, {
+          status: 429,
+          headers: retryAfter ? { 'retry-after': retryAfter } : undefined,
+        });
+      },
+      { timers: recordRetryDelays(delays) },
+    );
+    if (retryAfter === '1') {
+      await storage.prepareProjectAssets();
+      assert.equal(requests, 2);
+      assert.equal(delays.length, 1);
+      assert.ok(delays[0] >= 1_000);
+    } else {
+      await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+      assert.equal(requests, 1);
+      assert.deepEqual(delays, []);
+    }
+  }
+});
+
+test('project asset retry stays fail-closed for denied, missing, redirected, and unverified bytes', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  for (const makeResponse of [
+    () => new globalThis.Response(null, { status: 401 }),
+    () => new globalThis.Response(null, { status: 403 }),
+    () => new globalThis.Response(null, { status: 404 }),
+    () =>
+      new globalThis.Response(null, {
+        status: 302,
+        headers: { location: 'https://elsewhere.invalid' },
+      }),
+    () => new globalThis.Response(media.bytes, { headers: { 'content-type': 'text/html' } }),
+    () => assetResponse({ bytes: Uint8Array.of(3, 2, 1) }),
+  ]) {
+    const delays = [];
+    let requests = 0;
+    const storage = openProjectWithAssets(
+      [media],
+      async () => {
+        requests += 1;
+        return makeResponse();
+      },
+      { timers: recordRetryDelays(delays) },
+    );
+    await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+    assert.equal(requests, 1);
+    assert.deepEqual(delays, []);
+  }
+});
+
+test('concurrent reads share one bounded burst of asset retries per editor', async () => {
+  const media = Array.from({ length: 12 }, (_, index) =>
+    asset(index.toString(16).repeat(32), 'png', Uint8Array.of(1, 2, 3)),
+  );
+  const calls = new Map();
+  const delays = [];
+  const storage = openProjectWithAssets(
+    media,
+    async (url) => {
+      const callsForAsset = (calls.get(url) ?? 0) + 1;
+      calls.set(url, callsForAsset);
+      if (callsForAsset === 1) throw new TypeError('network failure');
+      return assetResponse(media[0]);
+    },
+    { timers: recordRetryDelays(delays) },
+  );
+  try {
+    await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+    assert.equal(delays.length, 8);
+    assert.ok([...calls.values()].every((count) => count <= 2));
+  } finally {
+    storage.dispose();
+  }
+});
+
+test('disposing the project clears asset backoff and prevents another request', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  let scheduled;
+  const waitingForRetry = new Promise((resolve) => {
+    scheduled = resolve;
+  });
+  const cleared = [];
+  let requests = 0;
+  const storage = openProjectWithAssets(
+    [media],
+    async () => {
+      requests += 1;
+      return new globalThis.Response(null, { status: 503 });
+    },
+    {
+      timers: {
+        setTimeout() {
+          scheduled();
+          return 4;
+        },
+        clearTimeout: (timer) => cleared.push(timer),
+      },
+    },
+  );
+  const pending = storage.prepareProjectAssets();
+  await waitingForRetry;
+  storage.dispose();
+  await assert.rejects(pending, /storage_disposed/);
+  assert.deepEqual(cleared, [4]);
+  assert.equal(requests, 1);
 });
 
 test('asset upload recovers expired authority once and verifies the retried durable bytes', async () => {

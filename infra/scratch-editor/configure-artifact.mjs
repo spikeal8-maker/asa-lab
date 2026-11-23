@@ -1,7 +1,30 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
+
+const STANDALONE_BUNDLE = 'scratch-gui-standalone.js';
+
+// Keep the directory stable: Webpack resolves dependent chunks relative to
+// the entry script. Nginx must serve immutable headers only for these bytes.
+export function configureStandaloneCache(vendorDirectory, index) {
+  const digest = createHash('sha256')
+    .update(fs.readFileSync(path.join(vendorDirectory, STANDALONE_BUNDLE)))
+    .digest('hex');
+  const html = fs.readFileSync(index, 'utf8');
+  const reference = /src="\.\/vendor\/scratch\/scratch-gui-standalone\.js(?:\?v=[a-f0-9]{64})?"/g;
+  if (html.match(reference)?.length !== 1) throw new Error('Expected one standalone bundle source');
+  fs.writeFileSync(
+    index,
+    html.replace(reference, `src="./vendor/scratch/${STANDALONE_BUNDLE}?v=${digest}"`),
+  );
+  fs.writeFileSync(
+    path.join(vendorDirectory, 'asa-standalone-cache.conf'),
+    `${digest} "public, max-age=31536000, immutable";\n`,
+  );
+  return { standaloneSha256: digest };
+}
 
 // Precompress public static text once at build time, never on each editor start.
 // HTML is deliberately excluded: its parent-origin configuration may still change.
@@ -56,6 +79,7 @@ export function configureArtifact(directory, revision, parentOrigin) {
     index,
     html.replace(marker, `<meta name="asa-parent-origin" content="${parentOrigin}" />`),
   );
+  configureStandaloneCache(path.join(root, 'vendor/scratch'), index);
   precompressStaticAssets(root);
   return { revision, parentOrigin };
 }

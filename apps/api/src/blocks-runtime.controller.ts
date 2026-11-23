@@ -20,6 +20,7 @@ import type {
 } from './blocks-runtime-persistence.service.js';
 import { checkBodyShape } from './validation.js';
 import { blocksRuntimeRequestOrigin } from './blocks-runtime-transport.js';
+import { safeValidationReason } from './server-diagnostics.js';
 const ASSET_FILE = /^([a-f0-9]{32})\.(svg|png|jpg|wav|mp3)$/;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTENT_TYPE: Readonly<Record<BlocksAssetFormat, string>> = {
@@ -30,8 +31,8 @@ const CONTENT_TYPE: Readonly<Record<BlocksAssetFormat, string>> = {
   mp3: 'audio/mpeg',
 };
 
-function payload(code: string, message: string) {
-  return { error: { code, message } };
+function payload(code: string, message: string, reasonCode?: string) {
+  return { error: { code, message, ...(reasonCode ? { reasonCode } : {}) } };
 }
 
 function runtimeStatus(code: string): number {
@@ -199,15 +200,23 @@ export class BlocksRuntimeController {
     @Body() rawBody: unknown,
   ) {
     const shape = checkBodyShape(rawBody, ['document', 'baseRevision', 'mutationId']);
-    if (!shape.ok) throw new HttpException(payload('validation_error', shape.message), 400);
-    if (
-      !Number.isSafeInteger(shape.body['baseRevision']) ||
-      Number(shape.body['baseRevision']) < 0 ||
-      typeof shape.body['mutationId'] !== 'string' ||
-      !UUID_V4.test(shape.body['mutationId'])
-    ) {
+    if (!shape.ok)
       throw new HttpException(
-        payload('validation_error', 'valid baseRevision and UUIDv4 mutationId are required'),
+        payload('validation_error', shape.message, 'draft_body_invalid'),
+        400,
+      );
+    if (!Number.isSafeInteger(shape.body['baseRevision']) || Number(shape.body['baseRevision']) < 0)
+      throw new HttpException(
+        payload(
+          'validation_error',
+          'valid baseRevision is required',
+          'draft_base_revision_invalid',
+        ),
+        400,
+      );
+    if (typeof shape.body['mutationId'] !== 'string' || !UUID_V4.test(shape.body['mutationId'])) {
+      throw new HttpException(
+        payload('validation_error', 'UUIDv4 mutationId is required', 'draft_mutation_id_invalid'),
         400,
       );
     }
@@ -220,7 +229,18 @@ export class BlocksRuntimeController {
       mutationId: shape.body['mutationId'],
     });
     if (!result.ok) {
-      throw new HttpException(payload(result.code, result.message), projectStatus(result.code));
+      // The Blocks guard returns a closed vocabulary as its message. Unknown
+      // validation text stays out of the structured reasons in the log.
+      const reasonCode =
+        result.code === 'validation_error'
+          ? (safeValidationReason(result.reasonCode) ??
+            safeValidationReason(result.message) ??
+            'blocks_project_invalid')
+          : undefined;
+      throw new HttpException(
+        payload(result.code, result.message, reasonCode),
+        projectStatus(result.code),
+      );
     }
     void reply.header('Cache-Control', 'no-store');
     return { status: 'ok' as const, revision: result.value.revision };

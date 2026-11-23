@@ -49,7 +49,8 @@ RUN node -e "const assert=require('node:assert/strict'); const VM=require('./pac
 
 # Reuse pinned build outputs; compression does not modify source media or GUI.
 COPY infra/scratch-editor/configure-artifact.mjs /tmp/configure-artifact.mjs
-RUN node --input-type=module -e "import { precompressStaticAssets as pack } from '/tmp/configure-artifact.mjs'; console.log(pack('/opt/scratch-library-assets'), pack('/opt/scratch-editor/packages/scratch-gui/dist'));"
+COPY infra/scratch-editor/host/index.html /tmp/asa-scratch-index.html
+RUN node --input-type=module -e "import { configureStandaloneCache, precompressStaticAssets as pack } from '/tmp/configure-artifact.mjs'; const vendor = '/opt/scratch-editor/packages/scratch-gui/dist'; console.log(configureStandaloneCache(vendor, '/tmp/asa-scratch-index.html'), pack('/opt/scratch-library-assets'), pack(vendor));"
 
 FROM nginx:1.27.5-alpine
 
@@ -61,6 +62,7 @@ ARG ASA_BLOCKS_PARENT_ORIGIN=
 COPY infra/scratch-editor/nginx.conf.template /etc/nginx/conf.d/default.conf
 COPY --chmod=0555 infra/scratch-editor/start.sh /usr/local/bin/asa-scratch-start
 COPY infra/scratch-editor/host/ /usr/share/nginx/html/
+COPY --from=build /tmp/asa-scratch-index.html /usr/share/nginx/html/index.html
 COPY apps/web/public/asa-lab-mark.svg /usr/share/nginx/html/asa-lab-mark.svg
 COPY apps/web/public/asa-lab-scratch-wordmark.svg /usr/share/nginx/html/asa-lab-scratch-wordmark.svg
 COPY --from=build /opt/scratch-library-assets/ /usr/share/nginx/html/library-assets/
@@ -82,6 +84,8 @@ RUN set -eux; \
     test -f /usr/share/nginx/html/library-assets/library-assets-manifest.json; \
     test -f /usr/share/nginx/html/vendor/scratch/scratch-gui-standalone.js; \
     ! grep -F "Scratch 3.0 GUI" /usr/share/nginx/html/index.html
+
+RUN nginx -t
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/asa-scratch-start"]

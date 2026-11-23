@@ -200,6 +200,7 @@ function createRuntimeStorage({
   token = RUNTIME_TOKEN,
 } = {}) {
   const calls = [];
+  const retryDelays = [];
   const reference = runtimeReference(bytes, referenceOverrides);
   const fetchMock = async (url, init) => {
     calls.push({ url, init });
@@ -212,6 +213,11 @@ function createRuntimeStorage({
     fetch: fetchMock,
     crypto: webcrypto,
     AbortController: globalThis.AbortController,
+    setTimeout(callback, delay) {
+      retryDelays.push(delay);
+      return globalThis.setImmediate(callback);
+    },
+    clearTimeout: globalThis.clearImmediate,
   }).AsaBlocksStorage;
   const storage = api.createReadOnlyStorage(standaloneFixture(), {
     projectId: PROJECT_ID,
@@ -220,7 +226,7 @@ function createRuntimeStorage({
     apiOrigin: API_ORIGIN,
     getRuntimeToken: () => token,
   });
-  return { storage, calls, reference };
+  return { storage, calls, reference, retryDelays };
 }
 
 test('new project storage binds the default project to the ASA UUID', async () => {
@@ -271,7 +277,7 @@ test('declared runtime asset GET uses current Bearer without cookies or URL capa
     `${API_ORIGIN}/api/blocks/runtime/projects/${PROJECT_ID}/assets/${reference.assetId}.svg`,
   );
   assert.equal(calls[0].init.credentials, 'omit');
-  assert.equal(calls[0].init.redirect, 'error');
+  assert.equal(calls[0].init.redirect, 'manual', 'runtime GET must never follow a redirect');
   assert.equal(calls[0].init.headers.authorization, `Bearer ${RUNTIME_TOKEN}`);
   assert.equal(calls[0].url.includes(RUNTIME_TOKEN), false);
   assert.equal('cookie' in calls[0].init.headers, false);
@@ -389,8 +395,10 @@ test('confirmed stock/default identity verifies runtime bytes once then reuses o
 
 for (const status of [401, 403, 404, 503]) {
   test(`runtime asset HTTP ${status} fails project preparation closed`, async () => {
-    const { storage } = createRuntimeStorage({ status });
+    const { storage, calls, retryDelays } = createRuntimeStorage({ status });
     await assert.rejects(storage.prepareProjectAssets(), /runtime_asset_unavailable/);
+    assert.equal(calls.length, status === 503 ? 3 : 1);
+    assert.equal(retryDelays.length, status === 503 ? 2 : 0);
   });
 }
 

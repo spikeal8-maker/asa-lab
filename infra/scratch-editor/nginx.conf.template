@@ -1,3 +1,12 @@
+# A 64-character SHA-256 key plus nginx hash metadata exceeds the default bucket.
+map_hash_bucket_size 128;
+
+map $arg_v $scratch_standalone_cache_control {
+    default "";
+    "" "no-cache";
+    include /usr/share/nginx/html/vendor/scratch/asa-standalone-cache.conf;
+}
+
 server {
     listen 8080;
     server_name _;
@@ -51,6 +60,20 @@ server {
             audio/mpeg mp3;
         }
         try_files $uri =404;
+    }
+
+    location = /vendor/scratch/scratch-gui-standalone.js {
+        # An old HTML entry must never prime the cache with another version.
+        if ($scratch_standalone_cache_control = "") {
+            add_header Cache-Control "no-store" always;
+            return 404;
+        }
+        add_header Cache-Control $scratch_standalone_cache_control;
+        try_files $uri =404;
+    }
+
+    location = /vendor/scratch/asa-standalone-cache.conf {
+        return 404;
     }
 
     location /vendor/scratch/ {

@@ -102,6 +102,9 @@ describe('reference-authorised Blocks draft asset read', () => {
     if (!result.ok) throw new Error('read failed');
     expect(result.value.reference).toEqual(reference);
     expect(await bytes(result.value.body)).toEqual(Buffer.from([1, 2, 3]));
+    expect(h.load).toHaveBeenCalledExactlyOnceWith(TENANT, PROJECT, actor, {
+      includeVersions: false,
+    });
     expect(h.metadata.resolve).toHaveBeenCalledWith({
       tenantId: TENANT,
       assetId: reference.assetId,

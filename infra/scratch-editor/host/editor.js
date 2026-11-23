@@ -93,11 +93,31 @@
     let readyReported = false;
     let upstreamProjectSaver = null;
     let saveBeforeExitPromise = null;
+    let saveBeforeExitController = null;
     let disposePromise = null;
     let upstreamSaverRearmSequence = 0;
     const upstreamSaverRearmWaiters = new Set();
     const autoSaveIntervalSecs = chooseAutoSaveIntervalSecs();
     let lastActivityReport = -Infinity;
+    const recoveryFailureCodes = {
+      unavailable: 'scratch-save-recovery',
+      restore_failed: 'scratch-save-recovery',
+      checkpoint_failed: 'scratch-save-recovery',
+      capture_failed: 'scratch-save-recovery',
+      base_revision_invalid: 'scratch-save-recovery',
+      quota_exceeded: 'scratch-save-recovery-quota',
+      media_recovery_required: 'scratch-save-recovery-media',
+    };
+    const setRecoveryState = (state) => {
+      if (disposed || shell.dataset.recoveryState === state) return;
+      shell.dataset.recoveryState = state;
+      if (!Object.hasOwn(recoveryFailureCodes, state)) return;
+      try {
+        onSaveFailure?.({ failureCode: recoveryFailureCodes[state], durationMs: 0 });
+      } catch {
+        // Diagnostics must not interfere with recovery.
+      }
+    };
     // iframe DOM events do not bubble to ASA. Capture only real input, never
     // pointer movement, VM ticks, dirty notifications, or the health heartbeat.
     const inputTypes = ['pointerdown', 'pointerup', 'keydown', 'input'];
@@ -188,6 +208,7 @@
     const dispose = () => {
       if (disposePromise) return disposePromise;
       disposed = true;
+      saveBeforeExitController?.abort();
       disposePlayerFit();
       for (const type of inputTypes) globalThis.window?.removeEventListener(type, noteInput, true);
       loaded = false;
@@ -233,7 +254,7 @@
       try {
         canonicalProjectJson = JSON.parse(vm.toJSON());
       } catch {
-        shell.dataset.recoveryState = 'restore_failed';
+        setRecoveryState('restore_failed');
         reportReady();
         return;
       }
@@ -264,7 +285,7 @@
         }
         if (disposed) return;
         loaded = true;
-        shell.dataset.recoveryState = 'restore_failed';
+        setRecoveryState('restore_failed');
         reportReady();
       }
     };
@@ -296,11 +317,11 @@
                 shell.dataset.recoveryState = selection.kind;
               }
             } else {
-              shell.dataset.recoveryState = 'unavailable';
+              setRecoveryState('unavailable');
             }
           } catch {
             recoveryStore = null;
-            shell.dataset.recoveryState = 'unavailable';
+            setRecoveryState('unavailable');
           }
         }
 
@@ -310,7 +331,7 @@
           !storage.canRecoverProject(recoveredRecord.projectJson, recoveredRecord.assets ?? [])
         ) {
           recoveredRecord = null;
-          shell.dataset.recoveryState = 'media_recovery_required';
+          setRecoveryState('media_recovery_required');
         }
         if (recoveryStore && !recoveryConflict && recoveryApi) {
           recoveryController = recoveryApi.createRecoveryController({
@@ -326,9 +347,7 @@
               const assets = await storage.captureRecoveryAssets(projectJson, vm.assets);
               return { projectJson, assets };
             },
-            onState: ({ state: recoveryState }) => {
-              if (!disposed) shell.dataset.recoveryState = recoveryState;
-            },
+            onState: ({ state: recoveryState }) => setRecoveryState(recoveryState),
           });
         }
         if (bootstrap.hasProjectJson) {
@@ -436,23 +455,27 @@
       }
     };
 
-    const waitForUpstreamSaveable = () =>
+    const waitForUpstreamSaveable = (signal) =>
       new Promise((resolve) => {
         const currentStore = state?.store;
-        if (!currentStore || typeof currentStore.subscribe !== 'function') {
+        if (signal.aborted || !currentStore || typeof currentStore.subscribe !== 'function') {
           resolve(false);
           return;
         }
         let unsubscribe = null;
+        const finish = (ready) => {
+          unsubscribe?.();
+          signal.removeEventListener('abort', abort);
+          resolve(ready);
+        };
+        const abort = () => finish(false);
         const check = () => {
           if (disposed) {
-            unsubscribe?.();
-            resolve(false);
+            finish(false);
             return;
           }
           if (storage.getDurableProjectGeneration() >= projectGeneration) {
-            unsubscribe?.();
-            resolve(true);
+            finish(true);
             return;
           }
           const gui = currentStore.getState()?.scratchGui;
@@ -460,29 +483,46 @@
             gui?.projectChanged === true &&
             gui?.projectState?.loadingState === 'SHOWING_WITH_ID'
           ) {
-            unsubscribe?.();
-            resolve(true);
+            finish(true);
           }
         };
+        signal.addEventListener('abort', abort, { once: true });
         unsubscribe = currentStore.subscribe(check);
         check();
       });
 
-    const waitForUpstreamSaverRearmAfter = (afterSequence) => {
+    const waitForUpstreamSaverRearmAfter = (afterSequence, signal) => {
       if (upstreamSaverRearmSequence > afterSequence) return Promise.resolve(true);
-      if (disposed) return Promise.resolve(false);
+      if (disposed || signal.aborted) return Promise.resolve(false);
       return new Promise((resolve) => {
-        upstreamSaverRearmWaiters.add({ afterSequence, resolve });
+        const waiter = {
+          afterSequence,
+          resolve(ready) {
+            upstreamSaverRearmWaiters.delete(waiter);
+            signal.removeEventListener('abort', abort);
+            resolve(ready);
+          },
+        };
+        const abort = () => waiter.resolve(false);
+        upstreamSaverRearmWaiters.add(waiter);
+        signal.addEventListener('abort', abort, { once: true });
       });
     };
 
     const saveBeforeExit = () => {
       if (saveBeforeExitPromise) return saveBeforeExitPromise;
+      const timeout = new AbortController();
+      saveBeforeExitController = timeout;
+      const timer = globalThis.setTimeout(() => timeout.abort(), 30_000);
+      const unavailable = () => ({
+        ok: false,
+        reason: !disposed && timeout.signal.aborted ? 'save_exit_timeout' : 'editor_not_ready',
+      });
       saveBeforeExitPromise = (async () => {
         if (disposed || !loaded || !vm || session.mode !== 'editor') {
-          return { ok: false, reason: 'editor_not_ready' };
+          return unavailable();
         }
-        while (!disposed) {
+        while (!disposed && !timeout.signal.aborted) {
           if (storage.getDurableProjectGeneration() >= projectGeneration) {
             return {
               ok: true,
@@ -490,8 +530,8 @@
               savedGeneration: storage.getDurableProjectGeneration(),
             };
           }
-          if (!(await waitForUpstreamSaveable())) {
-            return { ok: false, reason: 'editor_not_ready' };
+          if (!(await waitForUpstreamSaveable(timeout.signal))) {
+            return unavailable();
           }
           if (storage.getDurableProjectGeneration() >= projectGeneration) continue;
           if (typeof upstreamProjectSaver !== 'function') {
@@ -500,7 +540,7 @@
           const sequence = storage.getUpstreamSaveSequence();
           const rearmSequence = upstreamSaverRearmSequence;
           upstreamProjectSaver();
-          const outcome = await storage.waitForUpstreamSaveAfter(sequence);
+          const outcome = await storage.waitForUpstreamSaveAfter(sequence, timeout.signal);
           if (!outcome?.ok) {
             return { ok: false, reason: outcome?.reason || 'save_failed' };
           }
@@ -511,13 +551,15 @@
             Number.isSafeInteger(outcome.savedGeneration) &&
             Number.isSafeInteger(outcome.latestGeneration) &&
             outcome.latestGeneration > outcome.savedGeneration &&
-            !(await waitForUpstreamSaverRearmAfter(rearmSequence))
+            !(await waitForUpstreamSaverRearmAfter(rearmSequence, timeout.signal))
           ) {
-            return { ok: false, reason: 'editor_not_ready' };
+            return unavailable();
           }
         }
-        return { ok: false, reason: 'editor_not_ready' };
+        return unavailable();
       })().finally(() => {
+        globalThis.clearTimeout(timer);
+        saveBeforeExitController = null;
         saveBeforeExitPromise = null;
       });
       return saveBeforeExitPromise;

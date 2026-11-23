@@ -10,6 +10,7 @@ import {
 } from './request-diagnostic-details';
 import { diagnosticQuality } from './telemetry-quality';
 import { isTelemetryPath } from './telemetry-contract';
+import { isScratchSaveFailureCode } from './blocks/scratch-save-diagnostics';
 import {
   clientException,
   validClientException,
@@ -21,7 +22,7 @@ import {
   criticalDiagnostic,
   DiagnosticOutbox,
   FAILURE_CATEGORIES,
-  FAILURE_CODES,
+  SIMULATION_FAILURE_CODES,
 } from './client-diagnostic-outbox';
 
 export type DiagnosticCode =
@@ -108,14 +109,12 @@ export function reportClientDiagnostic(
     const scratchSave =
       code === 'autosave_failed' &&
       module === 'scratch' &&
-      ['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
-        detail.failureCode ?? '',
-      );
+      isScratchSaveFailureCode(detail.failureCode);
     const exception =
       validClientException(detail.exception) && exceptionMatchesCode(detail.exception, code)
         ? detail.exception
         : undefined;
-    // The controlled-exit wrapper can report the same precise Scratch save failure a second time.
+    // Keep precise Scratch failures on the critical path. The outbox merges repeat reports.
     if (!scratchSave && now - (recent.get(baseKey) ?? -Infinity) < 10_000) {
       quality.increment('deduplicated');
       return;
@@ -159,7 +158,10 @@ export function reportClientDiagnostic(
       ...(FAILURE_CATEGORIES.includes(detail.category as (typeof FAILURE_CATEGORIES)[number])
         ? { category: detail.category }
         : {}),
-      ...(FAILURE_CODES.includes(detail.failureCode as (typeof FAILURE_CODES)[number])
+      ...(scratchSave ||
+      SIMULATION_FAILURE_CODES.includes(
+        detail.failureCode as (typeof SIMULATION_FAILURE_CODES)[number],
+      )
         ? { failureCode: detail.failureCode }
         : {}),
       ...(detail.script && ASSET_SCRIPT.test(detail.script) ? { script: detail.script } : {}),

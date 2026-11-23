@@ -767,7 +767,9 @@ async function installAbbySaveStageObserver(
           if (stack.length > 65_536) return unknown('STACK_TOO_LARGE');
           const lines = stack.split(/\r?\n/);
           if (lines.length > 64) return unknown('STACK_LINE_LIMIT');
-          const source = `${globalThis.location.origin}/internal/blocks/vendor/scratch/scratch-gui-standalone.js`;
+          const source = globalThis.document.querySelector<HTMLScriptElement>(
+            'script[src^="./vendor/scratch/scratch-gui-standalone.js"]',
+          )?.src;
           const frames: Array<{ line: number; column: number }> = [];
           let truncated = false;
           for (const line of lines) {
@@ -4074,17 +4076,22 @@ test('native Scratch library Back controls never navigate the parent', async () 
   }
 });
 
-test('runtime compresses scripts and safely separates stock and entry caching', async ({
+test('runtime compresses and caches exactly the versioned bundle and stock media', async ({
   request,
 }) => {
-  const script = await request.get(`${runtimeUrl}/vendor/scratch/scratch-gui-standalone.js`, {
+  const entry = await request.get(runtimeUrl);
+  const version = (await entry.text()).match(/scratch-gui-standalone\.js\?v=([a-f0-9]{64})"/)?.[1];
+  expect(version).toMatch(/^[a-f0-9]{64}$/);
+  const legacy = `${runtimeUrl}/vendor/scratch/scratch-gui-standalone.js`;
+  const bundle = `${legacy}?v=${version}`;
+  const script = await request.get(bundle, {
     headers: { 'Accept-Encoding': 'gzip', Via: '1.1 asa-local-test' },
   });
   expect(script.status()).toBe(200);
   expect(script.headers()['content-encoding']).toBe('gzip');
   expect(script.headers()['vary']).toContain('Accept-Encoding');
-  expect(script.headers()['cache-control']).toBe('no-cache');
-  const identity = await request.get(`${runtimeUrl}/vendor/scratch/scratch-gui-standalone.js`, {
+  expect(script.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+  const identity = await request.get(bundle, {
     headers: { 'Accept-Encoding': 'identity' },
   });
   expect(identity.headers()['content-encoding']).toBeUndefined();
@@ -4096,11 +4103,19 @@ test('runtime compresses scripts and safely separates stock and entry caching', 
     createHash('sha256')
       .update(await script.body())
       .digest('hex'),
-  ).toBe(
+  ).toBe(version);
+  expect(
     createHash('sha256')
       .update(await identity.body())
       .digest('hex'),
-  );
+  ).toBe(version);
+  const unversioned = await request.head(legacy);
+  expect(unversioned.status()).toBe(200);
+  expect(unversioned.headers()['cache-control']).toBe('no-cache');
+  const staleVersion = `${version?.startsWith('0') ? '1' : '0'}${version?.slice(1)}`;
+  const stale = await request.head(`${legacy}?v=${staleVersion}`);
+  expect(stale.status()).toBe(404);
+  expect(stale.headers()['cache-control']).toBe('no-store');
   const sound = await request.get(`${runtimeUrl}/library-assets/${barkAssetId}.wav`);
   expect(sound.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
   for (const pathname of [
@@ -4119,4 +4134,59 @@ test('runtime compresses scripts and safely separates stock and entry caching', 
   );
   expect(missing.status()).toBe(404);
   expect(missing.headers()['cache-control'] ?? '').not.toContain('immutable');
+});
+
+test('warm Scratch open avoids transferring or revalidating the standalone bundle', async ({
+  page,
+}, testInfo) => {
+  const legacy = `${runtimeUrl}/vendor/scratch/scratch-gui-standalone.js`;
+  const versioned = `${legacy}?v=`;
+  const measure = async (prefix: string) => {
+    await page.waitForFunction(
+      (prefix) =>
+        performance.getEntriesByType('resource').some((entry) => entry.name.startsWith(prefix)),
+      prefix,
+    );
+    return page.evaluate((prefix) => {
+      const timing = performance
+        .getEntriesByType('resource')
+        .find((entry) => entry.name.startsWith(prefix)) as PerformanceResourceTiming;
+      return {
+        durationMs: timing.duration,
+        transferBytes: timing.transferSize,
+        decodedBytes: timing.decodedBodySize,
+        networkRequests: Number(timing.transferSize > 0),
+      };
+    }, prefix);
+  };
+
+  const baseline = [];
+  await page.goto(`${runtimeUrl}/healthz`);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.evaluate(async (url) => {
+      performance.clearResourceTimings();
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Unversioned bundle fetch failed');
+      await response.arrayBuffer();
+    }, legacy);
+    baseline.push(await measure(legacy));
+  }
+  await page.goto(`${runtimeUrl}/`, { waitUntil: 'load' });
+  const cold = await measure(versioned);
+  await page.goto(`${runtimeUrl}/healthz`);
+  await page.goto(`${runtimeUrl}/index.html`, { waitUntil: 'load' });
+  const warm = await measure(versioned);
+  await testInfo.attach('scratch-static-cache', {
+    body: JSON.stringify({
+      unversioned: { cold: baseline[0], warm: baseline[1] },
+      versioned: { cold, warm },
+    }),
+    contentType: 'application/json',
+  });
+
+  expect(baseline.map((entry) => entry.networkRequests)).toEqual([1, 1]);
+  expect(cold.networkRequests).toBe(1);
+  expect(warm.networkRequests).toBe(0);
+  expect(cold.decodedBytes).toBeGreaterThan(0);
+  expect(warm.decodedBytes).toBe(cold.decodedBytes);
 });

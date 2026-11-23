@@ -3,6 +3,10 @@ import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/co
 import type { FastifyRequest } from 'fastify';
 import { clientAddress } from './client-address.js';
 import { validClientException } from './client-error-details.js';
+import {
+  SCRATCH_SAVE_FAILURE_CODES,
+  isScratchSaveFailureCode,
+} from './scratch-save-diagnostics.js';
 
 const CODES = new Set([
   'render_failed',
@@ -33,9 +37,7 @@ const CATEGORIES = [
   'technical',
 ];
 const FAILURES = [
-  'scratch-save-asset',
-  'scratch-save-draft',
-  'scratch-save-prepare',
+  ...SCRATCH_SAVE_FAILURE_CODES,
   'worker-start',
   'worker-runtime',
   'worker-message',
@@ -145,9 +147,7 @@ export class ClientDiagnosticsController {
       (value['exception'] !== undefined &&
         !validClientException(value['exception'], value['code'])) ||
       (value['failureCode'] !== undefined && !FAILURES.includes(value['failureCode'] as string)) ||
-      (['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
-        value['failureCode'] as string,
-      ) &&
+      (isScratchSaveFailureCode(value['failureCode']) &&
         (value['code'] !== 'autosave_failed' ||
           value['module'] !== 'scratch' ||
           value['phase'] !== 'save')) ||
