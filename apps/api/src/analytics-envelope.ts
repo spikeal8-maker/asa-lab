@@ -98,6 +98,36 @@ export function referrerOrigin(value: unknown): string | null {
     return invalid();
   }
 }
+export function parseSiteActivityEnvelope(raw: unknown) {
+  const value = object(raw);
+  exact(value, ['schemaVersion', 'eventId', 'actorExpectation', 'intervals']);
+  const intervals = value['intervals'];
+  if (
+    value['schemaVersion'] !== 2 ||
+    !Array.isArray(intervals) ||
+    !intervals.length ||
+    intervals.length > 16
+  )
+    invalid();
+  let previousEnd = -Infinity;
+  const spans = intervals.map((item) => {
+    const interval = object(item);
+    exact(interval, ['from', 'to']);
+    const from = timestamp(interval['from']);
+    const to = timestamp(interval['to']);
+    const start = Date.parse(from);
+    const end = Date.parse(to);
+    if (start < previousEnd || end - start < 1000 || end - start > 90_000) invalid();
+    previousEnd = end;
+    return { from, to };
+  });
+  if (previousEnd - Date.parse(spans[0]!.from) > 120_000) invalid();
+  return {
+    eventId: uuid(value['eventId']),
+    actorExpectation: expectation(value['actorExpectation']),
+    semantic: spans,
+  };
+}
 export function qualitySemantic(v: Record<string, unknown>) {
   if (
     !['product-analytics', 'client-diagnostics'].includes(v['pipeline'] as string) ||
