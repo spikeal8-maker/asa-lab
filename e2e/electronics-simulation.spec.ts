@@ -4762,6 +4762,8 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
 }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 900 });
+  const touch = await page.context().newCDPSession(page);
+  await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
   await loginWithOrganization(page, teacher);
   const projectId = await createProject(page, 'Ультразвуковой датчик без питания');
   await saveDocument(page, projectId, {
@@ -4787,8 +4789,10 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
   const variant = page.getByRole('combobox', { name: /Вариант.*в проекте/ });
   const overlay = page.getByTestId('ultrasonic-target-overlay');
   const target = overlay.getByRole('slider', { name: 'Расстояние до цели, см' });
-  const dragTarget = async () => {
-    const before = Number(await overlay.getAttribute('data-distance-m'));
+  const canvas = page.locator('.workbench-canvas');
+  const dragTarget = async (input: 'mouse' | 'touch' | 'cancelled-touch' = 'mouse') => {
+    const before = (await overlay.getAttribute('data-distance-m'))!;
+    const beforeViewport = (await canvas.getAttribute('viewBox'))!;
     const { x, y, endX, endY } = await target.evaluate((node) => {
       const circle = node as SVGCircleElement;
       const matrix = circle.getScreenCTM()!;
@@ -4798,22 +4802,52 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
       const end = new DOMPoint(cx + 12, cy + 20).matrixTransform(matrix);
       return { x: start.x, y: start.y, endX: end.x, endY: end.y };
     });
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(endX, endY, { steps: 5 });
-    await page.mouse.up();
-    await expect
-      .poll(async () => Number(await overlay.getAttribute('data-distance-m')))
-      .toBeLessThan(before);
+    if (input === 'mouse') {
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(endX, endY, { steps: 5 });
+      await page.mouse.up();
+    } else {
+      await mobileNativeDrag(page, { x, y }, { x: endX, y: endY }, input === 'cancelled-touch');
+    }
+    if (input === 'cancelled-touch') {
+      await expect(overlay).toHaveAttribute('data-distance-m', before);
+    } else {
+      await expect
+        .poll(async () => Number(await overlay.getAttribute('data-distance-m')))
+        .toBeLessThan(Number(before));
+    }
+    await expect(canvas).toHaveAttribute('viewBox', beforeViewport);
+    await expect(canvas).not.toHaveClass(/panning/);
     return (await overlay.getAttribute('data-distance-m'))!;
   };
   await expect(overlay).toContainText('100 см / 39,4 in');
+  const baseline = (await e01Server(page, projectId)).draft;
   const savedDistance = await dragTarget();
+  const savedResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === '/api/projects/' + projectId + '/draft',
+  );
   await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  const saved = await savedResponse;
+  expect(saved.status()).toBe(200);
+  const persistedSensor = {
+    id: 'sonar',
+    stateProperties: { distanceMeters: Number(savedDistance) },
+  };
+  expect(saved.request().postDataJSON()).toMatchObject({
+    baseRevision: baseline.revision,
+    document: { components: [persistedSensor] },
+  });
   await expect(page.locator('.workbench-main')).toHaveAttribute(
     'data-project-save-status',
     'saved',
   );
+  const durable = (await e01Server(page, projectId)).draft;
+  expect(durable.revision).toBe(baseline.revision + 1);
+  expect(durable.document.components).toMatchObject([persistedSensor]);
+
   await page.reload();
   await sensor.locator('.workbench-part').press('Enter');
   await expect(overlay).toHaveAttribute('data-distance-m', savedDistance);
@@ -4827,8 +4861,10 @@ test('standalone ultrasonic variants start silently and replace the old SVG befo
     await start.click();
     await expect(simulate).toHaveAttribute('data-simulation-status', 'running');
     await expect(banner).toHaveCount(0);
-    await expect(overlay).toContainText('питание не подтверждено');
-    await dragTarget();
+    await expect(overlay).toHaveAttribute('data-power', 'no-power');
+    await expect(overlay).toContainText('нет питания');
+    await dragTarget('cancelled-touch');
+    await dragTarget('touch');
     await stop.click();
     await expect(overlay).toHaveAttribute('data-distance-m', initialDistance);
   };

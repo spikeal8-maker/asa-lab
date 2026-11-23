@@ -1289,7 +1289,10 @@ export function WorkbenchStage({
         }${c.catalogPlacement ? ' placing' : ''}`}
         viewBox={`${c.viewBox.x} ${c.viewBox.y} ${c.viewBox.width} ${c.viewBox.height}`}
         preserveAspectRatio="xMidYMid slice"
-        onPointerDownCapture={c.beginStagePointer}
+        onPointerDownCapture={(event) => {
+          if ((event.target as Element).closest('[data-testid="ultrasonic-target"]')) return;
+          c.beginStagePointer(event);
+        }}
         onPointerDown={handleStagePointerDown}
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}

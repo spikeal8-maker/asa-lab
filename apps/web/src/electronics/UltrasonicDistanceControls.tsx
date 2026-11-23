@@ -89,8 +89,14 @@ export function UltrasonicTargetOverlay({
   readonly component: SchematicComponent;
   readonly componentTypeId: UltrasonicDistanceComponentTypeId;
 }): JSX.Element | null {
+  const sensorSupply = (voltages: Readonly<Partial<Record<string, number>>> | undefined) => {
+    const result = controller.nativeOpticalPresentation?.getCommittedSnapshot()?.result;
+    return result?.diagnostics.some((entry) => entry.code === 'no_source')
+      ? 'no-power'
+      : supplyStatus(voltages);
+  };
   const c = useCommittedWorkbenchPresentation(controller, (projection) =>
-    supplyStatus(
+    sensorSupply(
       projection.runtimePresentationResultByComponent.get(component.id)?.terminalVoltages,
     ),
   );
@@ -171,7 +177,7 @@ export function UltrasonicTargetOverlay({
   const noReflection =
     componentTypeId === 'ultrasonic-hc-sr04' && component.stateProperties?.echoAvailable === false;
   const power = c.simulationRunning
-    ? supplyStatus(c.runtimePresentationResultByComponent.get(component.id)?.terminalVoltages)
+    ? sensorSupply(c.runtimePresentationResultByComponent.get(component.id)?.terminalVoltages)
     : 'stopped';
   const muted = noReflection || (power !== 'powered' && power !== 'stopped');
   const status =
@@ -206,9 +212,9 @@ export function UltrasonicTargetOverlay({
       : null;
   };
   const move = (event: ReactPointerEvent<SVGCircleElement>) => {
+    event.stopPropagation();
     const interaction = drag.current;
     if (!interaction || interaction.pointerId !== event.pointerId) return;
-    event.stopPropagation();
     const local = localPoint(event);
     if (!local) return;
     const sample = ultrasonicTargetAtPoint(
