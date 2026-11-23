@@ -21,6 +21,7 @@ import { photoresistorIlluminanceLux, photoresistorResistanceOhm } from '@asa-la
 import {
   catalogEntry,
   componentPointPosition,
+  l298nExternalEnablePad,
   renderedSize,
   terminalPosition,
 } from './component-catalog';
@@ -1175,10 +1176,14 @@ export function WorkbenchStage({
         data-component-id={component.id}
         data-kind={component.kind}
       >
-        {Object.keys(entry.terminals).map((terminal) => {
+        {(component.componentTypeId === 'l298n-motor-driver'
+          ? (component.pinIds ?? Object.keys(entry.terminals))
+          : Object.keys(entry.terminals)
+        ).map((terminal) => {
           if (component.holeBindings?.[terminal]) return null;
-          const terminalSpec = entry.terminals[terminal];
-          if (!terminalSpec) return null;
+          if (!entry.terminals[terminal] && !l298nExternalEnablePad(component, terminal))
+            return null;
+          const terminalSpec = entry.terminals[terminal] ?? { label: terminal };
           const point = terminalPosition(
             component,
             component.position,

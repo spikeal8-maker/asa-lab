@@ -208,6 +208,7 @@ const SIMULATED_TYPES = new Set([
   'piezo-disc',
   'dc-motor',
   'gearmotor',
+  'l298n-motor-driver',
   'vibration-motor',
   'multimeter',
   'regulated-power-supply',
@@ -441,6 +442,16 @@ function defaults(componentId: string): {
           : componentId === 'vibration-motor'
             ? { motorAssemblyProfileId: 'precision-microdrives-310-101-3v' }
             : {},
+    };
+  if (componentId === 'l298n-motor-driver')
+    return {
+      value: 0,
+      unit: '',
+      properties: {
+        enaJumperInstalled: true,
+        enbJumperInstalled: true,
+        regulatorJumperInstalled: true,
+      },
     };
   if (componentId === 'servo-motor') return { value: 0, unit: '', properties: {} };
   if (componentId === 'pir-sensor')
