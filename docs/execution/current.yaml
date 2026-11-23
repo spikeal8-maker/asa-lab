@@ -557,7 +557,86 @@ parallel_lanes:
         post_merge_required_conclusion: success
         strict_r4_run: 43922911118
         strict_r4_conclusion: failure_existing_arduino_baseline_not_waived
+      - task_id: TASK-ELECTRONICS-L298N-P1-001
+        issue: 1199
+        pull_request: 1209
+        candidate_sha: eb8f4b7c49a533316e1b6f77a3b5a5c56107f0c7
+        integrated_main_sha: 989d2827d0f7b8a96478eb449d06ba23df1a6f49
+        source_status: merged_tree_identical_to_reviewed_candidate
+        required_run: 45170550987
+        publication_run: 45170550733
+        worker_evidence: Chromium 140; 4 scenarios and 235 requests with Arduino and standalone external PWM.
+        strict_r4_run: 45170550773
+        strict_r4_conclusion: 270 passed and 2 failed; previously observed short30 and D2–D4 without L298N.
+        independent_learning_run: 45170550729
+        independent_learning_conclusion: failure
+        post_merge_general_run: 45177662522
+        post_merge_required_conclusion: success
+        power_supply_followup:
+          pull_request: 1324
+          candidate_sha: 21fd7734d83efd13881e044108d7b343e31a881f
+          integrated_main_sha: 01ffb95d8922ab88f1ab5c482ec5c62b192786ff
+          required_run: 45181768051
+          publication_run: 45181767901
+          worker_evidence: Chromium, 6 scenarios and 250 requests, including a bench supply and switched 4×AA circuit.
+          strict_r4_run: 45181768078
+          strict_r4_conclusion: 262 passed and 10 failed in previously observed scenarios without L298N.
+          post_merge_general_run: 45187556030
+        owner_acceptance: pending
     task:
+      id: TASK-ELECTRONICS-L298N-P2-001
+      issue: 1199
+      programme_issue: 1199
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: p2_existing_editor_candidate_and_real_saved_projects_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner directed completion of the existing L298N driver in main, with real Arduino and
+        standalone operation. Continue the existing editor PR 1210 on the accepted P1 model.
+      activation_condition: >-
+        This registry and P2 card must be integrated on main. Observe exact post-merge
+        required General success for the accepted P1 source and its power supply repair.
+        Run fresh seventeen-path preflight from the clean P2 checkout.
+      existing_candidate_pr: 1210
+      existing_candidate_head_at_selection: d54137606988b608908a88f4b49adcfea7c98489
+      scope: >-
+        Complete the existing catalog/editor, jumper and power LED changes. Preserve wired ENA/ENB
+        during real save/load via the normalizer fix in 4a6e705a9. Qualify an autonomous circuit and
+        an Arduino circuit in the existing real browser suite with normal API persistence. No P1
+        solver, workers, protected assets, foreign P3 work, workflow, server or deployment changes.
+      planned_paths:
+        - apps/web/public/assets/electronics/component-database/catalog.json
+        - apps/web/src/electronics/L298nLedOverlay.tsx
+        - apps/web/src/electronics/ProductionComponentVisual.tsx
+        - apps/web/src/electronics/WorkbenchSidebars.tsx
+        - apps/web/src/electronics/WorkbenchStage.tsx
+        - apps/web/src/electronics/committed-result-presentation.ts
+        - apps/web/src/electronics/component-catalog.ts
+        - apps/web/src/electronics/production-manifest-adapter.ts
+        - apps/web/src/electronics/testing/committed-ancillary-consumers.spec.ts
+        - apps/web/src/electronics/testing/l298n-owner-art.spec.ts
+        - apps/web/src/electronics/testing/l298n-top-wires.spec.ts
+        - apps/web/src/electronics/testing/l298n-ui-state.spec.ts
+        - apps/web/src/electronics/testing/production-editor-integration.spec.ts
+        - apps/web/src/electronics/use-electronics-workbench.ts
+        - apps/web/src/electronics/use-workbench-project-state.ts
+        - docs/product/electronics/generated/component-coverage.json
+        - e2e/electronics-simulation.spec.ts
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P2-001.md
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-L298N-P1-001.md
+      next_action: >-
+        Converge the existing P2 branch once with accepted P1, preserve the P2 editor diff, and
+        add the focused normalization and browser scenarios. Require exact focused, General and
+        Public Projects Publication gates, real browser evidence and independent source review.
+        Record outstanding strict R4 failures separately. P3 and deployment remain separate.
+    previous_task:
       id: TASK-ELECTRONICS-L298N-P1-001
       issue: 1199
       programme_issue: 1199
@@ -565,11 +644,11 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: true
-      status: in_progress
+      status: done
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: p1_public_worker_closure_repair_required
+      checkpoint: p1_source_integrated_main
       owner_acceptance: pending
       owner_authorization: >-
         Owner directed complete, quality-gated L298N implementation through
@@ -685,7 +764,7 @@ parallel_lanes:
       focused:
         workflow: Electronics R4-M1 Focused
         commands:
-          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-L298N-P1-001
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-L298N-P2-001
           - pnpm gate:electronics-m1
       browser:
         workflow: Electronics R4-M1 Focused
@@ -699,15 +778,12 @@ parallel_lanes:
       kind: observed_snapshot
       main:
         branch: main
-        sha: df78069c44271609615707b6e38767f276188c4b
-      convergence_baseline_sha: df78069c44271609615707b6e38767f276188c4b
+        sha: 989d2827d0f7b8a96478eb449d06ba23df1a6f49
+      convergence_baseline_sha: 989d2827d0f7b8a96478eb449d06ba23df1a6f49
       head_sha: null
-      observed_at: '2026-11-16T18:39:59Z'
-      observation_note: >-
-        Proposed P1 task handoff after source-only P0B merge; exact P0B
-        post-merge General 43928812420/ASA required SUCCESS. Full P1 runtime/owner acceptance
-        remains pending; require fresh fetch main and exact remote heads,
-        checked CI conclusions and peer worktree status before any writes.
+      observed_at: '2026-11-23T12:47:36Z'
+      observation_note: The exact reviewed P1 source tree is in main. Fresh fetch main and verify
+        the exact required CI and clean author checkout before writes and integration.
   - id: electronics-recovery-hygiene
     parent_lane: electronics
     worktree_id: electronics-recovery-hygiene-1111
