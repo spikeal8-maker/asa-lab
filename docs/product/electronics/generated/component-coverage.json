@@ -4,7 +4,7 @@
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
     "catalogSha256": "b9222abafee7c5abf907c05ee2f4b904e90c19deeb8316e9f61684301cf62639",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
-    "modelIdentitySha256": "6497b10c5ff6c8f76adf34bb6cc0592124ca47c8b3262e483efbd6c81fd3ea03",
+    "modelIdentitySha256": "43c62b463bfcce0ed3ca87291fdf08e2799ae2ae72643a155975cc96943494d4",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",
     "modelRegistrySha256": "ab4516e7f1a8258978c27c25d2f910726c5e882fd8a3d712c1d1d0a679cda21f",
     "inspectorProfilePath": "apps/web/src/electronics/component-information.ts",

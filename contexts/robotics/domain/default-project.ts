@@ -506,7 +506,7 @@ export function createInitialRoboticsProject(): RoboticsProject {
         component.id === project.world.bindings.distanceSensorId
           ? {
               ...component,
-              modelProfileVersion: 2,
+              modelProfileVersion: 3,
               stateProperties: {
                 ...component.stateProperties,
                 echoAvailable: true,

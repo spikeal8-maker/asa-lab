@@ -91,14 +91,14 @@ parallel_lanes:
       - contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e792998fc418e2210a116051848d76571155efe1
+      convergence_baseline_sha: 04d12ecad8fb96c25453eff492149a8414ff6073
       head_sha: null
-      observed_at: '2026-11-18T15:31:48Z'
+      observed_at: '2026-11-23T10:14:11Z'
       main:
         branch: main
-        sha: e792998fc418e2210a116051848d76571155efe1
-      observation_note: Dated controller source observation only. Fresh fetch main, candidate, CI and peer
-        bytes before authoring/publication; this field is not live acceptance evidence.
+        sha: c52c11acd2fd03e8023858eeadf12bd4a9189742
+      observation_note: The protected squash merge had the exact reviewed tree. Fresh fetch main and
+        verify exact GitHub results before any new action.
     task:
       id: TASK-ELECTRONICS-ULTRASONIC-U01-001
       issue: 1241
@@ -107,10 +107,23 @@ parallel_lanes:
       working_branch: feature/electronics-ultrasonic-u01-1241
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
-      checkpoint: controller_selected_u01_after_independently_reviewed_full_checkpoint008
+      checkpoint: u01_source_integrated_main
       owner_acceptance: pending
+      source_delivery:
+        pull_request: 1264
+        reviewed_head_sha: ccc29bf3d9b5ceaba3a106bb744cabfa28162e89
+        integrated_main_sha: c52c11acd2fd03e8023858eeadf12bd4a9189742
+        identical_source_tree: 7a68afcf0216ff48fcda8ad88621ddf9c1b513e7
+        required_general_run: 45136861765
+        publication_run: 45136861331
+        r4_workflow_run: 45136861304
+        focused_solver_and_benchmark: passed_on_reviewed_head
+        native_sensor_evidence: Chromium 140 real DedicatedWorker; 12 cases, 24 requests, zero browser errors.
+        native_sensor_receipt_sha256: d799288eb4d440f298e2fdefddc7d3e12903d61111304344875a9c793d971551
+        full_strict_r4: 269 passed, 3 failed (short30, long5000, D2–D4 native captures); still open.
+        post_merge_general_run: 45154225012
       owner_authorization: 'Owner on 2026-11-18 explicitly assigned U01 implementation and its separate controller
         preparation: update this card/issue, handle a due hygiene checkpoint, verify shared solver/model identities
         and select this isolated child lane before product authoring. One product author and an independent reviewer;
@@ -142,10 +155,9 @@ parallel_lanes:
         - 1131
         - 1196
         - 1163
-        production_slices_since_accepted_checkpoint: 0
-        counter_semantics: Zero applies only once this full source-endpoint checkpoint is technically accepted
-          on main. U01 is not yet a counted production slice. Increment once after its technical integration;
-          docs/U00 do not count. Preserve historical counters elsewhere.
+        production_slices_since_accepted_checkpoint: 1
+        counter_semantics: Count U01 once on verified technical integration. U00 and documentation do not count.
+          Historical counters in other lanes remain unchanged.
       scope: 'Only UL-E01 physical output stamping/observation, PING response phases and required compatibility:
         six product files, five test files and one generated-only coverage file. Preserve thresholds, scheduler
         ordering, ground topology, ranges, UI, L298N behavior and protected assets.'
@@ -199,25 +211,10 @@ parallel_lanes:
         purpose: isolated_development_only
         repository_origin: https://github.com/spikeal8-maker/asa-lab.git
         author:
-          worktree: /workspace/scratch/94732fd38a6d/asa-u01-product
-          branch: feature/electronics-ultrasonic-u01-1241
+          worktree: C:/Users/spike/asa-ultrasonic-u01-repair-20261118
+          branch: repair/ultrasonic-u01-1264-20261118
         peer:
           device: D2-R2
-          worktree: C:/Users/spike/asa-l298n-p1-20261116
-          branch: feature/electronics-l298n-p1-domain-1199
-          head: 1963c25ebddac301b8d3fc0db71229dcd8c18e53
-          repository_origin: https://github.com/spikeal8-maker/asa-lab.git
-          path_sha256:
-            contexts/electronics/domain/solver.ts: 49bd8fa156598b1be3cd0fb65968e304c9089086ec3c181f5e28877620cd8ce5
-            contexts/electronics/domain/model-identity.ts: 6497b10c5ff6c8f76adf34bb6cc0592124ca47c8b3262e483efbd6c81fd3ea03
-            contexts/electronics/testing/model-set-golden-compatibility.spec.ts: a55d50a76982459c72183c0ed3fc0ca1213802fbb057dbce2e143dbe4de08736
-            contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts: 8fd1eeb813304bf644987bffefa61d7801a3702e151ddc7b1fa71b8dc6d5150d
-            docs/product/electronics/generated/component-coverage.json: 7ae26cadf793e157d1693fad18f959d365d09e241a15cf5f8757f2910753097a
-          physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
-            are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
-            were read only.
-        additional_peer_snapshots:
-        - device: D2-R2
           worktree: C:/Users/spike/asa-l298n-p3-20261116
           branch: feature/electronics-l298n-p3-qualification-1199
           head: 6ae5b38c1c13b6eee40020c0bc67c14359dd1210
@@ -231,18 +228,35 @@ parallel_lanes:
           physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
             are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
             were read only.
+        additional_peer_snapshots:
+        - device: D2-R2
+          worktree: C:/Users/spike/asa-l298n-p1-20261116
+          branch: feature/electronics-l298n-p1-domain-1199
+          head: 4cd010291517ba246e45269497e9baddb6338f28
+          repository_origin: https://github.com/spikeal8-maker/asa-lab.git
+          path_sha256:
+            contexts/electronics/domain/solver.ts: 154b968bce40d83e23a21acf1e9d55115823b1364c6cbafa782428b94441c14d
+            contexts/electronics/domain/model-identity.ts: 6497b10c5ff6c8f76adf34bb6cc0592124ca47c8b3262e483efbd6c81fd3ea03
+            contexts/electronics/testing/model-set-golden-compatibility.spec.ts: a55d50a76982459c72183c0ed3fc0ca1213802fbb057dbce2e143dbe4de08736
+            contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts: 8fd1eeb813304bf644987bffefa61d7801a3702e151ddc7b1fa71b8dc6d5150d
+            docs/product/electronics/generated/component-coverage.json: b034042db89b8584a8438d0925e3bd8aaa3f268cce8c7c798997798b52db3ec0
+          physical_snapshot: Read directly on D2-R2 with git status/rev-parse and Get-FileHash; inspected directories
+            are Directory and files Archive, without reparse-point attributes. Foreign files and Git metadata
+            were read only.
         paths:
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/domain/model-identity.ts
         - contexts/electronics/testing/model-set-golden-compatibility.spec.ts
         - contexts/electronics/testing/fixtures/model-set-golden-compatibility.ts
         - docs/product/electronics/generated/component-coverage.json
-        boundary: Bounded coordination for the owner-requested U01 only. Cloud Linux author and D2-R2 peer worktrees
-          have separate physical files, indexes and Git directories; no foreign mutation, ownership transfer
-          or automatic conflict resolution. Existing P1/P3 coordination is unchanged. The local preflight checks
-          its own registered worktrees; direct D2 snapshots supply external-peer evidence, not a claim that local
-          preflight inspected Windows. Refresh head and exact shared-path hashes before starting/publishing.
-          Any change requires new controller reconciliation before the affected action.
+        boundary: >-
+          The owner approved continuation in the separate Windows repair worktree. The named
+          author and both D2-R2 peers have distinct physical source files, Git worktree indexes,
+          and checkout roots. L298N P3 is the primary peer because it has the dirty solver.
+          The P3 worktree and existing L298N P1/P3 coordination remain untouched.
+          The prepared repair stays on its exact twelve-path scope. Refresh peer HEAD and the
+          shared-path hashes before starting and before publishing to the existing PR 1264.
+          This record does not authorize editing peers or merging or deploying U01 without gates.
         integration_ready: false
         release_ready: false
       joint_verification:
@@ -255,8 +269,9 @@ parallel_lanes:
         future_main_overlap: If main accepts L298N or other shared-source work before final convergence, controller
           re-evaluates exact diff/identities, adds its existing accepted regression suites to joint verification
           and obtains new final-source review/CI. No automatic resolution or stale digest.
-      next_action: After this controller transition is accepted on main and fresh scoped preflight passes, the
-        single product author implements and verifies U01, then stops. U02 remains unselected.
+      next_action: >-
+        U01 is integrated. Review U02 power and common-return qualification in a separate controller
+        selection. U02 is unselected and U08 built-editor/owner qualification remains open.
       deployment: not_run
       database_actions: none
     gates:
@@ -14981,10 +14996,34 @@ parallel_lanes:
         baseline_evidence: GitHub run 45054878547, job 137309100945 and artifact 14767501827. Full-viewport PNG 3 captured 100 after the live 000 phase ended.
         prior_candidate_evidence: GitHub run 44997923367, artifact 14745276183, records all seven native PNGs and the complete D2–D4 scenario on its own SHA.
         scope: Apply only the prepared D2–D4 test orchestration and keep all native pixels, loaded-image geometry, same-generation electrical witnesses, Save, Reset, reopen, phase order, pace, timeouts and thresholds.
+      d2_worker_composition_selection:
+        accepted_main_at_selection: 7ba020057a2650731df6df5ef0ad0e9136b7df65
+        d2_candidate: 3c84cd9884d2a95467bf08b24cb0830c5eb83d38
+        worker_candidate: 18fd0fd3eaad0a9ee2d22995746d707d1c4aadeb
+        diagnostic_remote_ref: codex/electronics-d2-worker-composition-649
+        source_paths:
+        - e2e/electronics-ready-cadence.spec.ts
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        scope: >-
+          In the existing approved D2 Windows checkout with its recorded author branch, run
+          preflight for these two paths. Compose exactly the candidate acquisition and scheduler
+          file blobs on accepted main and verify the exact two-path diff. Preserve the peer and
+          both existing PR remote refs. After independent source review publish only the diagnostic
+          ref for CI. The reviewed scheduler blob is permitted here solely for composition.
+        evidence: >-
+          The original D2 candidate corrected the seven native PNGs while visible phase duration
+          still failed. The Worker candidate passed delay(1) and millis in strict run 45077985438
+          but retained the original PNG capture failure and two visible cadence failures.
+        qualification: >-
+          Run the existing Classroom d13-v3 browser profile once on the exact composition and
+          require all seven native PNGs, timing, Reset, five saves and the cookies-only reopen.
+          If focused qualification passes, run the unchanged strict-real-time profile on the
+          same SHA and record the complete result. Preserve all physics, checks and thresholds.
+          This diagnostic does not grant merge, owner acceptance, workflow edits or deployment.
       next_action: >-
-        Publish this registry-only coordination in main, then run exact-path preflight from the approved isolated author
-        worktree before applying the prepared D2–D4 acquisition repair. Require independent review and exact source browser
-        verification under the existing qualification rules.
+        After the registry selection is in main, verify the approved isolated checkout and peer,
+        freeze and review the exact composition, then obtain browser evidence on its diagnostic ref.
+        Review that evidence separately before any change to either product PR.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
@@ -17830,8 +17869,38 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'no'
-      checkpoint: stable_loop_throughput_selected
+      checkpoint: private_arduino_boundary_validation_reuse_selected
       owner_acceptance: pending
+      private_arduino_boundary_validation_selection:
+        prior_checkpoint: stable_loop_throughput_selected
+        selected_main: 2e4c249e970f3fa31b1a8f73f003073933a3b02a
+        measured_product_sha: d662c146df47feefb65812e7570ad53b0fd98b07
+        strict_run: 45072167318
+        prepared_source: 941a241f66be551b9fc88cacd104d34fc0283400
+        planned_paths:
+          - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        cause: >-
+          The unequal-load three-LED delay(1) case missed the wall/model bound by recording
+          658.3 ms drift. The median Worker computation was 29.4 ms for each 25 ms model
+          advance. The host requested the next window a median 0.3 ms after receipt.
+          Local CPU samples attribute substantial time to repeated runtime program validation.
+        evidence: >-
+          A paired local replay of 67 actual CI requests preserved all full responses byte for
+          byte. The median paired candidate/base ratio was 0.9200. Receipt SHA-256 is
+          e624c0fb9aee7f54a12c933fcc3dc978e2a34d1b6179148257a9eb5311da8d45.
+          The local gain does not establish the CI magnitude or closing the strict bound.
+        scope: >-
+          Apply only the prepared validation receipt for identical privately owned runtime
+          objects and identical source within one scheduler batch. Validate the first runtime
+          and every changed runtime/source, keep detached held views and leave public callers,
+          transient state, event order, physical steps, clock budgets and failure thresholds intact.
+          Preserve the rest of PR 1272 separately.
+        qualification: >-
+          Require fresh exact-path preflight, engine ownership and scheduler checks, full
+          response and continuation parity, independent source review, focused and required CI,
+          and original strict Chromium bounds for delay(1), millis, Reset, 50 and 100 ms.
+          Record the complete strict result before integration. A faster replay alone does not
+          qualify this change. No workflow, foreign source, server or live data changes.
       owner_authorization: Owner requests fixing every strict Electronics browser failure and integrating verified repairs in main. Preserve physical steps, thresholds, and foreign changes. No server, deployment, or live database actions.
       strict_baseline:
         sha: 2057c5169515458ce0658fe0024aacdc4d37cf64
@@ -18818,6 +18887,136 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-EDIT-GESTURES-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_existing_field_edit_gestures_selected
+      owner_acceptance: pending
+      owner_authorization: The owner's continuing Field programme and explicit correction that palette dragging
+        moves card artwork and existing objects cannot be moved in 3D select one bounded repair of the existing
+        editor. Use existing Issue1071 and the prior separately selected E3 UI_ONLY pattern. This docs-only
+        choice activates implementation only after canonical integration and fresh exact source preflight;
+        no physical terrain, engine acquisition, stand or deployment is authorized.
+      registration_baseline:
+        main: 6338136edee9d89686d83dc7562ce7dd911f30f8
+        preserved_epa_task: parallel_lanes.robotics.historical_cylinder_epa_polytope_trace_task
+        prior_ui_example: parallel_lanes.robotics.historical_side_scale_task
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-DEL-02
+        - REQ-DEL-05
+        - REQ-VIEW-03
+      scope: Repair existing palette placement feedback in Top and manipulation of existing 2D-model objects
+        in the Perspective 3D view. Ray/projection editing changes only existing document XY fields through
+        existing validation/history/save. It is an editor transform, not native spatial dynamics or a new
+        terrain schema. Preserve current display labels and actual legacy 2D simulation semantics.
+      planned_paths:
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/RobotFieldSpatialView.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/field-spatial-scene.ts
+      - apps/web/src/robotics/testing/robotics-field-spatial.spec.ts
+      - apps/web/src/robotics/testing/robotics-field-camera.spec.ts
+      - e2e/robotics-projects.spec.ts
+      ux_acceptance:
+      - Palette HTML drag must suppress the browser default card/artwork drag image. Show exactly one scene
+        placement preview at the real snapped/unsnapped candidate position, using the existing object geometry
+        and existing validity result; never trail a second card or commit on hover. Clear on leave, drop,
+        cancel, mode change and teardown. Preserve existing tap/click placement and touch catalogue scrolling.
+      - In Perspective, primary-pointer drag of an existing editable object must select and move that object
+        rather than orbit the camera. Use real ray intersections with a stable editing plane and retain the
+        grabbed-point-to-object offset, so a hit on an elevated rendered surface does not jump its document
+        anchor. Use the unchanged 2D model and existing canonical object keys; do not write arbitrary Z/full
+        poses.
+      - Use one temporary preview and one validated document/history commit on successful release. One undo
+        restores exactly the old object; redo restores the new one. Invalid/outside-field moves, pointercancel,
+        lost capture, unsupported/nonfinite or parallel rays, disabled/running editing and stale gestures
+        leave the saved document unchanged. Preserve group and per-kind movement/validation semantics already
+        supported by the current editor.
+      - 'Camera orbit/pan/zoom and object editing have distinct gesture ownership: an object drag cannot also
+        move the camera; empty-space camera actions and existing keyboard/focus controls remain. Preserve
+        supported mouse and single-touch object interaction and multi-touch camera behavior; cancellation
+        restores controls/capture and no late commit. Side view may edit only observable XY through a valid
+        projection; never fabricate an unobservable coordinate when its ray is parallel.'
+      - Preserve selection/properties, snapping, field boundaries, current geometric dimensions, identity,
+        undo/redo, autosave/save/reopen and paused model time. Do not alter existing runtime state or run
+        physics to make an edit appear to work. Preserve orthographic side scale and existing Top/perspective
+        display correctness.
+      constraints:
+      - No contexts/robotics world document/schema/runtime, engine/solver/Worker/electronics/program/API/database/dependency/configuration/assets
+        changes, new source files, native build/acquisition or rewriting E1 evidence. CSS and scene adapter
+        changes are optional and limited to the selected gesture implementation.
+      - All prior EPA selections, pending source/publication snapshot, source/raw hashes, physical FAIL/GAP
+        and historical UI/E1 records remain immutable history. Archival selections never authorize another
+        dispatch.
+      - ROBOTICS-FIELD-CORE-D01-D02 retains its exact original task binding and blocks. This separate UI_ONLY
+        selection grants no spatial_product_integration, full_physics_acceptance, owner acceptance, release_claim,
+        deployment, working-DB operation or stand activation.
+      - The normal product palette currently has no ramp tool and its existing document has no physical ramp/terrain
+        type. tests/robotics/field-core-qualification/editable-ramp-geometry.ts and its acquired fixtures
+        are TEST_ONLY. Do not add a flat picture/box labelled as a working physical ramp, platform or bridge
+        in this repair. Adjustable terrain and true volumetric bridge requirements remain downstream with
+        the existing blockers.
+      verification:
+        pure: Use existing spatial/camera unit specs with real Three camera/rays and actual existing document
+          helpers to check projected XY/offsets under camera and viewport changes, snapped/unsnapped validity,
+          finite/parallel rejection, begin/preview/cancel/end ordering and one history commit. Preserve existing
+          scene/picking/scale/teardown assertions and original world/time/schema. No mocked physics result
+          or weakened acceptance.
+        browser: Extend only e2e/robotics-projects.spec.ts via normal project -> Field entry with real WebGL
+          and actual native mouse drag/touch input where supported. Check Top palette drag feedback and exactly
+          one preview; Perspective existing-object drag vs empty-space camera gesture; correct XY and grabbed
+          offset; cancellation/invalid move; undo/redo; running lock; saved/reopened identity; unchanged paused
+          clock. Retain screenshots/receipt for representative1440px and320px layouts and existing side ruler;
+          fallback, synthetic DOM mutation, test-only fake poses or applicability-only jobs are not browser
+          PASS.
+        gates: 'Docs: exact sole-path PLAN/control-plane, strict YAML and full text/semantic history inverse,
+          actual validate:electronics-agent-docs and full pnpm gate:governance. Source after selection: pnpm
+          test:robotics, changed-file format/lint/strict typing, independent exact-source review and required
+          General. Actual browser evidence must use existing pnpm gate:projects-publication:browser in .github/workflows/projects-publication.yml
+          with built Web/API/isolated PostgreSQL and the exact source SHA; no local server, new workflow/port
+          or working database.'
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    epa_polytope_preservation_snapshot:
+      observed_on: '2026-11-22'
+      scope: factual_preservation_snapshot_not_acceptance
+      acquisition_source: e9106acc78a9610fbf374495e3dc233a34c782db
+      acquisition_tree: 23235f13b8e4c0cbd3ae364ce42b03530390adb0
+      source_pr: https://github.com/spikeal8-maker/asa-lab/pull/1314
+      source_pr_head: 189f1a4a275a52c8f6ccbd9ccfbb82e5c40cc3b5
+      source_pr_state: OPEN
+      source_ci_at_snapshot: Governance, Code and PostgreSQL Data checks SUCCESS; Access A real browser journeys
+        IN_PROGRESS. Protected source acceptance remains pending at this observation. Later actual Git/CI
+        must be checked; this record never claims the current live HEAD.
+      raw:
+        file: mujoco-cylinder-epa-polytope-trace.jsonl
+        bytes: 1567508
+        sha256: f86a1361069b3f83279826b9cac354143efc6a0722d0ad8fdaf9a26beb058520
+      public_archive:
+        branch: codex/robotics-epa-polytope-evidence-1071
+        commit: 0a9dad7c0a9a7a5acd93a5449c9d2ff293320aaa
+        url: https://github.com/spikeal8-maker/asa-lab/tree/0a9dad7c0a9a7a5acd93a5449c9d2ff293320aaa/docs/evidence/robotics/epa-1071
+        index_sha256: b7918e97af824c5d4b9352da6d311456201fc69db70f3ebcac7a581b7e80ca43
+        status: Remote preservation branch exact commit verified; archival payload only, not merged source/product
+          acceptance.
+      limits: EPA task preserved losslessly below; COMPLETE position-only trace is not a repair, D01/D02 acceptance,
+        release or editor terrain readiness. All earlier physical FAIL and causal GAP remain; no fresh dispatch
+        selected.
+    historical_cylinder_epa_polytope_trace_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001
       issue: 1071
       branch: main

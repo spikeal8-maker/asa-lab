@@ -374,6 +374,50 @@ function FieldToolArtwork({ kind }: { kind: Tool }) {
   );
 }
 
+export function moveFieldObject(
+  current: { world: RoboticsWorldDocument; key: RoboticsObjectKey; start: RoboticsPoint },
+  point: RoboticsPoint,
+  snap: boolean,
+) {
+  const dx = point.xMeters - current.start.xMeters,
+    dy = point.yMeters - current.start.yMeters;
+  const field = current.world.field;
+  const mark = field.floorMarks.find(
+    (item) =>
+      current.key === `mark:${item.id}` ||
+      (item.groupId && current.key === `mark-group:${item.groupId}`),
+  );
+  const step = mark?.groupPivot ? (field.tiles?.sizeMeters ?? 0.3) : field.gridMeters;
+  const anchor =
+    current.key === 'robot'
+      ? current.world.initialPose
+      : (field.obstacles.find((item) => current.key === `wall:${item.id}`) ??
+        field.balls.find((item) => current.key === `ball:${item.id}`) ??
+        field.bodies?.find((item) => current.key === `body:${item.id}`) ??
+        field.visuals?.find((item) => current.key === `decoration:${item.id}`) ??
+        (mark?.groupPivot
+          ? {
+              xMeters: mark.groupPivot.xMeters - step / 2,
+              yMeters: mark.groupPivot.yMeters - step / 2,
+            }
+          : mark
+            ? mark.kind === 'area'
+              ? mark
+              : mark.start
+            : current.start));
+  const dxMeters = rounded(
+    snap ? Math.round((anchor.xMeters + dx) / step) * step - anchor.xMeters : dx,
+  );
+  const dyMeters = rounded(
+    snap ? Math.round((anchor.yMeters + dy) / step) * step - anchor.yMeters : dy,
+  );
+  return {
+    world: translateRoboticsObject(current.world, current.key, dxMeters, dyMeters),
+    dxMeters,
+    dyMeters,
+  };
+}
+
 export function RobotFieldEditor({
   world,
   state,
@@ -425,6 +469,13 @@ export function RobotFieldEditor({
     position: RoboticsPoint;
   } | null>(null);
   const draggedTool = useRef<Tool | null>(null);
+  const dragFeedback = useRef<HTMLCanvasElement | null>(null);
+  const spatialDrag = useRef<{
+    world: RoboticsWorldDocument;
+    key: RoboticsObjectKey;
+    start: RoboticsPoint;
+    next: RoboticsWorldDocument;
+  } | null>(null);
   const [fieldView, setFieldView] = useState<FieldView>('top');
   const [spatialView, setSpatialView] = useState<Exclude<FieldView, 'top'> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -516,6 +567,7 @@ export function RobotFieldEditor({
     const resizing = resizeDrag.current;
     drag.current = null;
     resizeDrag.current = null;
+    spatialDrag.current = null;
     if (releaseCapture && current?.svg.hasPointerCapture?.(current.pointerId))
       current.svg.releasePointerCapture(current.pointerId);
     if (releaseCapture && resizing?.svg.hasPointerCapture?.(resizing.pointerId))
@@ -533,6 +585,9 @@ export function RobotFieldEditor({
     setPlacement(null);
     setTool('select');
     setPan(false);
+    dragFeedback.current?.remove();
+    dragFeedback.current = null;
+    draggedTool.current = null;
     setFieldView(next);
     if (next !== 'top') setSpatialView(next);
   }
@@ -540,9 +595,13 @@ export function RobotFieldEditor({
     releaseDrag();
     setError(null);
     setPlacement(null);
+    dragFeedback.current?.remove();
+    dragFeedback.current = null;
+    draggedTool.current = null;
   }, [world, running]);
   useEffect(
     () => () => {
+      dragFeedback.current?.remove();
       const current = drag.current;
       if (current?.svg.hasPointerCapture?.(current.pointerId))
         current.svg.releasePointerCapture(current.pointerId);
@@ -659,6 +718,8 @@ export function RobotFieldEditor({
     setDropHover(false);
     setPlacement(null);
     draggedTool.current = null;
+    dragFeedback.current?.remove();
+    dragFeedback.current = null;
     if (running) return;
     const draggedKind = event.dataTransfer.getData(FIELD_TOOL_TRANSFER);
     const selected = TOOLS.find((item) => item.id === draggedKind);
@@ -837,39 +898,39 @@ export function RobotFieldEditor({
   }
 
   function moved(current: NonNullable<typeof drag.current>, point: RoboticsPoint) {
-    const dx = point.xMeters - current.start.xMeters,
-      dy = point.yMeters - current.start.yMeters;
-    const field = current.world.field;
-    const mark = field.floorMarks.find(
-      (item) =>
-        current.key === `mark:${item.id}` ||
-        (item.groupId && current.key === `mark-group:${item.groupId}`),
-    );
-    const step = mark?.groupPivot ? (field.tiles?.sizeMeters ?? 0.3) : field.gridMeters;
-    const anchor =
-      current.key === 'robot'
-        ? current.world.initialPose
-        : (field.obstacles.find((item) => current.key === `wall:${item.id}`) ??
-          field.balls.find((item) => current.key === `ball:${item.id}`) ??
-          field.bodies?.find((item) => current.key === `body:${item.id}`) ??
-          field.visuals?.find((item) => current.key === `decoration:${item.id}`) ??
-          (mark?.groupPivot
-            ? {
-                xMeters: mark.groupPivot.xMeters - step / 2,
-                yMeters: mark.groupPivot.yMeters - step / 2,
-              }
-            : mark
-              ? mark.kind === 'area'
-                ? mark
-                : mark.start
-              : current.start));
-    return translateRoboticsObject(
-      current.world,
-      current.key,
-      rounded(snap ? Math.round((anchor.xMeters + dx) / step) * step - anchor.xMeters : dx),
-      rounded(snap ? Math.round((anchor.yMeters + dy) / step) * step - anchor.yMeters : dy),
-    );
+    return moveFieldObject(current, point, snap).world;
   }
+  function spatialMove(point: RoboticsPoint) {
+    const current = spatialDrag.current;
+    if (
+      !current ||
+      latestWorldRef.current !== current.world ||
+      latestRunningRef.current ||
+      ![point.xMeters, point.yMeters].every(Number.isFinite) ||
+      point.xMeters < 0 ||
+      point.yMeters < 0 ||
+      point.xMeters > current.world.field.widthMeters ||
+      point.yMeters > current.world.field.heightMeters
+    ) {
+      setDraft(null);
+      return null;
+    }
+    let next: ReturnType<typeof moveFieldObject>;
+    try {
+      next = moveFieldObject(current, point, snap);
+    } catch {
+      setDraft(null);
+      return null;
+    }
+    if (!parseRoboticsWorldDocument(next.world).ok) {
+      setDraft(null);
+      return null;
+    }
+    current.next = next.world;
+    setDraft(next.world);
+    return { key: current.key, dxMeters: next.dxMeters, dyMeters: next.dyMeters };
+  }
+
   function pointerDown(event: PointerEvent<SVGSVGElement>) {
     suppressNextCanvasClick.current = false;
     const object = (event.target as Element).closest('[data-scene-key]');
@@ -1500,6 +1561,39 @@ export function RobotFieldEditor({
                     selection={selection}
                     view={spatialView}
                     active={!topView}
+                    edit={
+                      !running && fieldView === 'orbit'
+                        ? {
+                            begin: (key, start) => {
+                              if (latestRunningRef.current || latestWorldRef.current !== world)
+                                return false;
+                              const canonical = canonicalRoboticsObjectKey(world, key);
+                              if (!canonical) return false;
+                              spatialDrag.current = { world, key: canonical, start, next: world };
+                              setSelection(canonical);
+                              setObjectEditorOpen(false);
+                              return true;
+                            },
+                            preview: spatialMove,
+                            finish: (point) => {
+                              const result = spatialMove(point);
+                              const current = spatialDrag.current;
+                              spatialDrag.current = null;
+                              setDraft(null);
+                              if (
+                                result &&
+                                current &&
+                                (result.dxMeters !== 0 || result.dyMeters !== 0)
+                              )
+                                commit(current.next);
+                            },
+                            cancel: () => {
+                              spatialDrag.current = null;
+                              setDraft(null);
+                            },
+                          }
+                        : undefined
+                    }
                     onSelect={(key) => {
                       setSelection(canonicalRoboticsObjectKey(world, key));
                       openDockProperties();
@@ -1695,12 +1789,24 @@ export function RobotFieldEditor({
                           disabled={disabled}
                           draggable={!disabled && topView}
                           onDragStart={(event) => {
+                            dragFeedback.current?.remove();
+                            // A blank ordinary canvas suppresses the browser's card screenshot.
+                            // Actual field geometry remains the sole placement preview.
+                            const feedback = document.createElement('canvas');
+                            feedback.width = feedback.height = 1;
+                            feedback.style.cssText =
+                              'position:fixed;left:-10px;top:-10px;pointer-events:none';
+                            document.body.append(feedback);
+                            dragFeedback.current = feedback;
+                            event.dataTransfer.setDragImage(feedback, 0, 0);
                             draggedTool.current = kind;
                             event.dataTransfer.setData(FIELD_TOOL_TRANSFER, kind);
                             event.dataTransfer.setData('text/plain', kind);
                             event.dataTransfer.effectAllowed = 'copy';
                           }}
                           onDragEnd={() => {
+                            dragFeedback.current?.remove();
+                            dragFeedback.current = null;
                             draggedTool.current = null;
                             setDropHover(false);
                             setPlacement(null);

@@ -4522,3 +4522,7 @@
     min-height: 44px;
   }
 }
+
+.robotics-field-spatial canvas.robotics-object-dragging {
+  cursor: grabbing;
+}
