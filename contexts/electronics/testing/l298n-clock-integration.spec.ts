@@ -152,7 +152,7 @@ function circuit(loads: Loads, source = steadySource()): ElectronicsDocument {
 
 function externalSquareCircuit(
   frequencyHz: number,
-  { reversed = false, amplitudeVpp = 5 } = {},
+  { reversed = false, amplitudeVpp = 5, returnResistanceOhm = 0 } = {},
 ): ElectronicsDocument {
   const base = circuit('motors');
   const activeTerminal = reversed ? 'ground' : 'signal';
@@ -178,6 +178,7 @@ function externalSquareCircuit(
           outputEnabled: true,
         },
       },
+      ...(returnResistanceOhm > 0 ? [part('return', 'resistor', returnResistanceOhm)] : []),
     ],
     [
       ...base.connections.filter((connection) => connection.from.componentId !== 'uno'),
@@ -187,7 +188,12 @@ function externalSquareCircuit(
       wire('in-4', 'logic', 'a', 'driver', 'IN4'),
       wire('ena', 'generator', activeTerminal, 'driver', 'ENA'),
       wire('enb', 'generator', activeTerminal, 'driver', 'ENB'),
-      wire('generator-return', 'generator', referenceTerminal, 'driver', 'GND'),
+      ...(returnResistanceOhm > 0
+        ? [
+            wire('generator-return', 'generator', referenceTerminal, 'return', 'a'),
+            wire('driver-return', 'return', 'b', 'driver', 'GND'),
+          ]
+        : [wire('generator-return', 'generator', referenceTerminal, 'driver', 'GND')]),
     ],
   );
 }
@@ -258,10 +264,15 @@ function runtime(value: Ready, id = 'uno') {
 }
 
 describe('L298N shared Arduino clock and physical motor integration', () => {
-  it.each([250, 500, 1000])(
-    'preserves external %i Hz PWM edges and both motors without an Arduino',
-    (frequencyHz) => {
-      const document = externalSquareCircuit(frequencyHz);
+  it.each([
+    [250, 0],
+    [500, 0],
+    [1000, 0],
+    [1000, 10],
+  ])(
+    'preserves external %i Hz PWM edges and both motors with a %i Ω return',
+    (frequencyHz, returnResistanceOhm) => {
+      const document = externalSquareCircuit(frequencyHz, { returnResistanceOhm });
       const halfPeriod = 500_000 / frequencyHz;
       let previous: ArduinoCircuitClockState | undefined;
       for (const [time, expected] of [
@@ -279,7 +290,10 @@ describe('L298N shared Arduino clock and physical motor integration', () => {
       }
       const pwm = healthy(through(document, 40_000, previous));
       const alwaysHigh = healthy(
-        through(externalSquareCircuit(frequencyHz, { amplitudeVpp: 0 }), 40_000),
+        through(
+          externalSquareCircuit(frequencyHz, { amplitudeVpp: 0, returnResistanceOhm }),
+          40_000,
+        ),
       );
       for (const [id, sign] of [
         ['load-a', 1],
@@ -298,6 +312,15 @@ describe('L298N shared Arduino clock and physical motor integration', () => {
         directEdge.components.find((entry) => entry.componentId === 'generator')
           ?.signalInstantaneousVolt,
       ).toBe(0);
+      for (const [id, sign] of [
+        ['load-a', 1],
+        ['load-b', -1],
+      ] as const) {
+        const observed = directEdge.components.find((entry) => entry.componentId === id)?.motorRpm;
+        const high = component(alwaysHigh, id).motorRpm! * sign;
+        expect(observed! * sign).toBeGreaterThan(high * 0.35);
+        expect(observed! * sign).toBeLessThan(high * 0.75);
+      }
     },
   );
 
@@ -331,6 +354,14 @@ describe('L298N shared Arduino clock and physical motor integration', () => {
       wire('enb-rail', 'logic', 'a', 'driver', 'ENB'),
     ]);
     healthy(through(unconnected, 2000));
+
+    const danglingReturn = parsed(
+      document.components,
+      document.connections.filter((connection) => connection.id !== 'generator-return'),
+    );
+    const floating = through(danglingReturn, 2000);
+    expect(floating.result?.solved ?? false).toBe(false);
+    expect(floating.diagnostics.some((item) => item.message.includes('1 мкс'))).toBe(false);
   });
 
   it.each(['resistors', 'motors'] as const)(

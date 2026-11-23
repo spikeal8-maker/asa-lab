@@ -156,7 +156,7 @@ function circuit(spec) {
   };
 }
 
-function externalSquareCircuit(amplitudeVpp) {
+function externalSquareCircuit(amplitudeVpp, frequencyHz = 1000) {
   const base = circuit({ signA: 1, signB: -1, dutyA: 255, dutyB: 255 });
   const wire = (id, from, terminal, pin) => ({
     id,
@@ -172,16 +172,17 @@ function externalSquareCircuit(amplitudeVpp) {
           part.id === 'vs' ? { ...part, stateProperties: { maxContinuousCurrentAmp: 3 } } : part,
         ),
       { id: 'logic', kind: 'source', value: 5, position: { x: 0, y: 100 } },
+      { id: 'return', kind: 'resistor', value: 10, position: { x: 180, y: 200 } },
       {
         id: 'generator',
         kind: 'source',
         componentTypeId: 'signal-generator',
         pinIds: ['signal', 'ground'],
-        value: 1000,
+        value: frequencyHz,
         position: { x: 0, y: 200 },
         stateProperties: {
           waveform: 'square',
-          frequencyHz: 1000,
+          frequencyHz,
           amplitudeVpp,
           dcOffsetVolt: amplitudeVpp ? 2.5 : 5,
           outputEnabled: true,
@@ -198,7 +199,12 @@ function externalSquareCircuit(amplitudeVpp) {
       wire('in4', 'logic', 'a', 'IN4'),
       wire('ena', 'generator', 'signal', 'ENA'),
       wire('enb', 'generator', 'signal', 'ENB'),
-      wire('generator-return', 'generator', 'ground', 'GND'),
+      {
+        id: 'generator-return',
+        from: { componentId: 'generator', terminal: 'ground' },
+        to: { componentId: 'return', terminal: 'a' },
+      },
+      wire('driver-return', 'return', 'b', 'GND'),
     ],
   };
 }
@@ -687,6 +693,46 @@ try {
       frames: standalone.frames.length,
       pwmRpm: [pwm.motorA.motorRpm, pwm.motorB.motorRpm],
       constantHighRpm: [alwaysHigh.motorA.motorRpm, alwaysHigh.motorB.motorRpm],
+    }),
+  );
+
+  const fastPwm = { id: 'standalone-external-square-20khz', frames: [] };
+  const fastDocument = externalSquareCircuit(5, 20_000);
+  receipt.cases.push(fastPwm);
+  await openWorker(fastPwm.id);
+  fastPwm.preflight = await preflight(fastPwm.id, fastDocument, 'none');
+  let fastState = identity.initialState;
+  let fastHorizon = 0;
+  for (const [horizon, expectedVolt] of [
+    [24, 5],
+    [25, 0],
+    [49, 0],
+    [50, 5],
+    [109975, 0],
+    [110000, 5],
+  ]) {
+    const sample = await advance(fastPwm.id, fastDocument, fastState, horizon, fastHorizon);
+    assert.equal(component(sample.result, 'generator').signalInstantaneousVolt, expectedVolt);
+    const frame = frameSummary(sample);
+    assert.ok(Math.abs(frame.enaVolt - expectedVolt) < 1e-6);
+    assert.ok(Math.abs(frame.enbVolt - expectedVolt) < 1e-6);
+    fastPwm.frames.push(frame);
+    fastState = JSON.parse(JSON.stringify(sample.state));
+    fastHorizon = horizon;
+  }
+  await closeWorker(fastPwm.id);
+  const fastFinal = fastPwm.frames.at(-1);
+  assert.ok(fastFinal.motorA.motorRpm > 0);
+  assert.ok(fastFinal.motorB.motorRpm < 0);
+  fastPwm.status = 'pass';
+  await persistReceipt();
+  console.log(
+    'L298N_DOMAIN_WORKER_CASE_PASS',
+    JSON.stringify({
+      id: fastPwm.id,
+      finalHorizonMicroseconds: fastHorizon,
+      frames: fastPwm.frames.length,
+      pwmRpm: [fastFinal.motorA.motorRpm, fastFinal.motorB.motorRpm],
     }),
   );
 

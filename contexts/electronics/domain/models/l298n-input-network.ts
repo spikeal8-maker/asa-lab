@@ -130,6 +130,32 @@ export function l298nControlNetIndices(
   return result;
 }
 
+/** A source needs an exposed control and a passive return to that board. */
+export function createL298nExternalControlSourceMatcher(
+  document: ElectronicsDocument,
+  nodes: Nodes,
+) {
+  const network = passiveNetwork(document, nodes, new Set());
+  const drivers = document.components
+    .filter((component) => component.componentTypeId === 'l298n-motor-driver')
+    .map((driver) => ({
+      controls: l298nControlNetIndices(document, nodes, driver.id),
+      references: ['GND', '+5V'].map((pin) => network.root(network.pin(driver, pin))),
+    }));
+  return (source: SchematicComponent): boolean => {
+    const signal = network.pin(source, 'signal');
+    const ground = network.pin(source, 'ground');
+    if (signal === undefined || ground === undefined || signal === ground) return false;
+    const signalRoot = network.root(signal);
+    const groundRoot = network.root(ground);
+    return drivers.some(
+      ({ controls, references }) =>
+        (controls.has(signal) && references.includes(groundRoot)) ||
+        (controls.has(ground) && references.includes(signalRoot)),
+    );
+  };
+}
+
 interface DriveContext {
   readonly document: ElectronicsDocument;
   readonly nodeOf: Nodes;

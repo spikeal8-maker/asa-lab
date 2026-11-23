@@ -4,7 +4,10 @@ import { isArduinoUno } from '../arduino-model.js';
 import { arduinoServoWaveforms } from '../arduino-servo-runtime.js';
 import { terminalKey } from '../netlist.js';
 import { isL298n } from './l298n-dc-model.js';
-import { l298nControlNetIndices } from './l298n-input-network.js';
+import {
+  createL298nExternalControlSourceMatcher,
+  l298nControlNetIndices,
+} from './l298n-input-network.js';
 import {
   SIGNAL_GENERATOR_MAX_FREQUENCY_HZ,
   SIGNAL_GENERATOR_MIN_FREQUENCY_HZ,
@@ -49,10 +52,8 @@ export function prepareL298nExternalSquareWaves(
   const waves = new Map<string, L298nExternalSquareWave>();
   const unresolvedSourceIds: string[] = [];
   if (generators.length === 0) return { waves, unresolvedSourceIds };
-  const drivers = document.components.filter(isL298n).map((driver) => ({
-    controls: l298nControlNetIndices(document, nodes, driver.id),
-    references: ['GND', '+5V'].map((pin) => nodes.get(terminalKey(driver.id, pin))),
-  }));
+  if (!document.components.some(isL298n)) return { waves, unresolvedSourceIds };
+  const drivesControl = createL298nExternalControlSourceMatcher(document, nodes);
   for (const generator of generators) {
     const { outputEnabled, waveform, frequencyHz, amplitudeVpp, dcOffsetVolt } =
       signalGeneratorSettings(generator);
@@ -61,19 +62,8 @@ export function prepareL298nExternalSquareWaves(
       waveform !== 'square' ||
       amplitudeVpp === 0 ||
       frequencyHz < SIGNAL_GENERATOR_MIN_FREQUENCY_HZ ||
-      frequencyHz > SIGNAL_GENERATOR_MAX_FREQUENCY_HZ
-    )
-      continue;
-    const signal = nodes.get(terminalKey(generator.id, 'signal'));
-    const ground = nodes.get(terminalKey(generator.id, 'ground'));
-    if (
-      signal === undefined ||
-      ground === undefined ||
-      !drivers.some(
-        ({ controls, references }) =>
-          (controls.has(signal) && references.includes(ground)) ||
-          (controls.has(ground) && references.includes(signal)),
-      )
+      frequencyHz > SIGNAL_GENERATOR_MAX_FREQUENCY_HZ ||
+      !drivesControl(generator)
     )
       continue;
 
