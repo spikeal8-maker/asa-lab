@@ -309,7 +309,7 @@ export function AdminLogsPage({
 
   const filtersChanged = !!page && appliedFilter.current !== JSON.stringify(filters.current);
   const exportArchive = async (
-    mode: 'filtered' | 'application' | 'all' | 'errors',
+    mode: 'filtered' | 'application' | 'all' | 'errors' | 'handoff',
   ): Promise<void> => {
     const current = filters.current;
     const range = moscowRange(current);
@@ -318,6 +318,13 @@ export function AdminLogsPage({
       return;
     }
     if (mode === 'filtered' && (!page || filtersChanged || loading)) return;
+    if (
+      mode === 'handoff' &&
+      (!current.module || Date.parse(range.from) === Date.parse(range.to))
+    ) {
+      setExportError('Выберите модуль и укажите начало и конец периода по МСК.');
+      return;
+    }
     setExporting(true);
     setExportError(null);
     setJob(null);
@@ -326,11 +333,13 @@ export function AdminLogsPage({
       body: JSON.stringify(
         mode === 'filtered'
           ? { ...current, ...range }
-          : {
-              ...range,
-              level: mode === 'errors' ? 'error' : '',
-              scope: mode === 'application' ? 'application' : 'all',
-            },
+          : mode === 'handoff'
+            ? { ...range, mode, scope: 'all', handoffModule: current.module }
+            : {
+                ...range,
+                level: mode === 'errors' ? 'error' : '',
+                scope: mode === 'application' ? 'application' : 'all',
+              },
       ),
     });
     setExporting(false);
@@ -490,7 +499,19 @@ export function AdminLogsPage({
           </div>
           <details>
             <summary>Другие выгрузки за период</summary>
+            <p className="admin-logs-filter-note">
+              Архив для разбора включает ошибки всех систем и события выбранного модуля без данных
+              пользователей.{module ? '' : ' Выберите модуль выше.'}
+            </p>
             <div className="admin-logs-filter-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={disabled || !module}
+                onClick={() => void exportArchive('handoff')}
+              >
+                Скачать архив для разбора
+              </button>
               {(
                 [
                   ['application', 'Скачать журналы приложения'],
