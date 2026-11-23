@@ -759,6 +759,7 @@ function AttendanceSummary({
         {[
           ['Активные аккаунты', summary.activeAccounts],
           ['Активные ученики', summary.activeStudents],
+          ['Новые аккаунты', dashboard.summary.newAccounts],
           ['Входы по коду класса', summary.studentLogins],
           ['Созданные ученические места', summary.newStudents],
         ].map(([label, value]) => (
@@ -996,7 +997,6 @@ function DashboardContent({
         <div className="admin-dashboard-kpis">
           {(
             [
-              ['Новые аккаунты', dashboard.summary.newAccounts],
               ['Начатые сессии', dashboard.summary.authenticatedSessions],
               ['Входы в аккаунты', points.reduce((sum, point) => sum + point.accountLogins, 0)],
               ['Отклонённые попытки', dashboard.summary.rejectedAuthAttempts],
@@ -1270,6 +1270,13 @@ function ErrorsChart({
     (a, b) => (ERROR_SYSTEMS[a] ?? a).localeCompare(ERROR_SYSTEMS[b] ?? b, 'ru'),
   );
   const selected = systems.includes(system) ? system : 'all';
+  const partial = trend.coverage === 'partial';
+  const total = trend.points.reduce(
+    (sum, point) =>
+      sum + Object.values(point.counts).reduce((subtotal, count) => subtotal + count, 0),
+    0,
+  );
+  const selectedTotal = trend.points.reduce((sum, point) => sum + (point.counts[selected] ?? 0), 0);
   const coverageStart = Date.parse(trend.from!);
   const coverageEnd = Date.parse(trend.to!);
   const errorSeries = (selected === 'all' ? systems : [selected]).map((key): ChartSeries => ({
@@ -1284,7 +1291,7 @@ function ErrorsChart({
       if (from >= coverageEnd || to <= coverageStart) return null;
       return (
         byTime.get(Date.parse(point.at))?.[key] ??
-        (from < coverageStart || to > coverageEnd ? null : 0)
+        (partial || from < coverageStart || to > coverageEnd ? null : 0)
       );
     }),
   }));
@@ -1308,47 +1315,65 @@ function ErrorsChart({
           },
         ]}
         controls={
-          <details
-            className="admin-error-picker"
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') return;
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector('summary')?.focus();
-            }}
-          >
-            <summary aria-label="Система в журнале ошибок">
-              <span
-                className="admin-error-swatch"
-                style={{ backgroundColor: errorColor(selected) }}
-                aria-hidden="true"
-              />
-              {selected === 'all' ? 'Все системы' : (ERROR_SYSTEMS[selected] ?? selected)}
-            </summary>
-            <div className="admin-error-picker-options">
-              {['all', ...systems].map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={key === selected}
-                  onClick={(event) => {
-                    setSystem(key);
-                    const picker = event.currentTarget.closest('details');
-                    if (picker) {
-                      picker.open = false;
-                      picker.querySelector('summary')?.focus();
-                    }
-                  }}
-                >
-                  <span
-                    className="admin-error-swatch"
-                    style={{ backgroundColor: errorColor(key) }}
-                    aria-hidden="true"
-                  />
-                  {key === 'all' ? 'Все системы' : (ERROR_SYSTEMS[key] ?? key)}
-                </button>
-              ))}
+          <>
+            <div className="admin-chart-period-totals" aria-label="Ошибки за период">
+              {partial && total === 0 ? (
+                <span>Итог за период неизвестен</span>
+              ) : (
+                <span>
+                  {partial ? 'Найдено за период' : 'Всего за период'}{' '}
+                  <strong>{VALUE.format(total)}</strong>
+                </span>
+              )}
+              {selected !== 'all' ? (
+                <span>
+                  {ERROR_SYSTEMS[selected] ?? selected}{' '}
+                  <strong>{VALUE.format(selectedTotal)}</strong>
+                </span>
+              ) : null}
             </div>
-          </details>
+            <details
+              className="admin-error-picker"
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return;
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector('summary')?.focus();
+              }}
+            >
+              <summary aria-label="Система в журнале ошибок">
+                <span
+                  className="admin-error-swatch"
+                  style={{ backgroundColor: errorColor(selected) }}
+                  aria-hidden="true"
+                />
+                {selected === 'all' ? 'Все системы' : (ERROR_SYSTEMS[selected] ?? selected)}
+              </summary>
+              <div className="admin-error-picker-options">
+                {['all', ...systems].map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={key === selected}
+                    onClick={(event) => {
+                      setSystem(key);
+                      const picker = event.currentTarget.closest('details');
+                      if (picker) {
+                        picker.open = false;
+                        picker.querySelector('summary')?.focus();
+                      }
+                    }}
+                  >
+                    <span
+                      className="admin-error-swatch"
+                      style={{ backgroundColor: errorColor(key) }}
+                      aria-hidden="true"
+                    />
+                    {key === 'all' ? 'Все системы' : (ERROR_SYSTEMS[key] ?? key)}
+                  </button>
+                ))}
+              </div>
+            </details>
+          </>
         }
       />
       {trend.coverage === 'partial' && trend.from && trend.to ? (

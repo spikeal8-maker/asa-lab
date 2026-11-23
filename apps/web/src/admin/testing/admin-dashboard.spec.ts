@@ -151,10 +151,16 @@ describe('admin overview lifecycle', () => {
       'Пользователи 2',
     ]);
     const errors = chart('Ошибки по системам');
+    const errorTotals = errors.querySelector('[aria-label="Ошибки за период"]');
+    expect(errorTotals?.textContent).toContain('Найдено за период 10');
     expect(
       [...errors.querySelectorAll('rect[fill]')].map((bar) => bar.getAttribute('fill')),
     ).toEqual(['#a12239', '#3469ad']);
     await click('База данных');
+    expect([...(errorTotals?.children ?? [])].map((item) => item.textContent)).toEqual([
+      'Найдено за период 10',
+      'База данных 3',
+    ]);
     expect(
       [...errors.querySelectorAll('rect[fill]')].map((bar) => bar.getAttribute('fill')),
     ).toEqual(['#a12239']);
@@ -162,6 +168,30 @@ describe('admin overview lifecycle', () => {
       'Журнал за этот период может быть неполным',
     );
   });
+  it.each([
+    ['available', 'Всего за период 0'],
+    ['partial', 'Итог за период неизвестен'],
+  ] as const)(
+    'distinguishes an empty %s error journal from an unknown total',
+    async (coverage, label) => {
+      const sample = adminDashboardFixture('today');
+      vi.spyOn(adminDashboardApi, 'dashboard').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: sample,
+      });
+      vi.spyOn(adminDashboardApi, 'errorTrend').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { coverage, from: sample.from, to: sample.to, points: [] },
+      });
+      await show({
+        ...scope,
+        permissions: ['administration.open', 'administration.operations.read'],
+      });
+      expect(host.querySelector('[aria-label="Ошибки за период"]')?.textContent).toBe(label);
+    },
+  );
   it('immediately removes stale scope and range data and rejects their late response', async () => {
     const old = deferred(),
       fresh = deferred();
