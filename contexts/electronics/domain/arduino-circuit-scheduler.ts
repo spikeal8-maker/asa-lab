@@ -1352,16 +1352,24 @@ function* iterateArduinoCircuitClock(
   const events: (ArduinoRuntimeEvent & { readonly componentId: string })[] = [];
   let cachedFrame: NonNullable<ArduinoCircuitClockAdvance['result']> | undefined;
   let cachedFrameTime = -1;
+  // A privately owned runtime publishes a new state when its content changes.
+  // Keep the validation receipt within this synchronous scheduler batch.
+  let validatedRuntime: ArduinoRuntimeState | undefined;
+  let validatedSource: string | undefined;
   const snapshots = () =>
     new Map(
       boards.map((board) => {
         const state = states.get(board.id) ?? coldState;
-        // Physical/quality consumers always receive the detached held view.
-        if (
-          ownership?.runtime &&
-          !arduinoRuntimeStateMatchesProgram(loadedSources.get(board.id) ?? '', state)
-        )
-          throw new Error('Invalid private Arduino state at electrical boundary.');
+        if (ownership?.runtime) {
+          const source = loadedSources.get(board.id) ?? '';
+          if (state !== validatedRuntime || source !== validatedSource) {
+            if (!arduinoRuntimeStateMatchesProgram(source, state))
+              throw new Error('Invalid private Arduino state at electrical boundary.');
+            validatedRuntime = state;
+            validatedSource = source;
+          }
+        }
+        // Physical/quality consumers still receive a fresh detached held view.
         return [board.id, arduinoSnapshotFromState(state)] as const;
       }),
     );
