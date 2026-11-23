@@ -2036,6 +2036,7 @@ export class AiChatService {
     let usageFinished = false;
     let capturedUsage: AiProviderUsage | undefined;
     let fileMutationUnconfirmed = false;
+    let visibleProviderText = '';
     try {
       if (nativeImage)
         await this.pool.query('SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,true)', [
@@ -2342,7 +2343,12 @@ export class AiChatService {
             : {}),
           signal: combined,
           onDelta: (piece: string) => {
-            if (!requiresFileWrite || fileWrites) onDelta(piece);
+            if (!requiresFileWrite || fileWrites) {
+              visibleProviderText += useLocal
+                ? piece
+                : piece.slice(0, AI_MAX_ANSWER_CHARS - visibleProviderText.length);
+              onDelta(piece);
+            }
           },
           fetchImpl: this.fetchImpl,
         };
@@ -2900,11 +2906,15 @@ export class AiChatService {
                   : undefined)),
           usageAttempt,
         );
-      if (
-        (problem instanceof ProviderStreamError || problem instanceof OllamaError) &&
-        problem.partialText.trim()
-      ) {
-        // Preserve a visible partial answer before releasing this request's SQL lease.
+      const interruptedText =
+        problem instanceof ProviderStreamError || problem instanceof OllamaError
+          ? visibleProviderText.trim()
+            ? visibleProviderText
+            : problem.partialText
+          : '';
+      if (interruptedText.trim()) {
+        // The provider error only carries the current round, but prior visible
+        // rounds belong to the same request and must survive history reload.
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
           principalId,
           threadId,
@@ -2912,8 +2922,8 @@ export class AiChatService {
           fileMutationUnconfirmed
             ? 'Не удалось сохранить изменения в рабочем файле. Сайт пока не обновлён.'
             : useLocal
-              ? problem.partialText
-              : problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
+              ? interruptedText
+              : interruptedText.slice(0, AI_MAX_ANSWER_CHARS),
           'stopped',
         ]);
       } else {
