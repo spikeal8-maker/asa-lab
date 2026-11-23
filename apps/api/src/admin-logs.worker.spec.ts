@@ -19,6 +19,7 @@ import {
 import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
 import { QUALITY_COUNTERS } from './analytics-envelope.js';
 import { logFilter } from './admin-logs.controller.js';
+import * as requiredCoverage from './required-log-coverage.js';
 import type { FastifyRequest } from 'fastify';
 const filter: LogFilter = {
   from: '2026-10-01T00:00:00.000Z',
@@ -204,6 +205,54 @@ describe('retained log reader and archive', () => {
       expect((await readLogCatalog(root))?.requiredSources).toBeUndefined();
       expect(await queryLogs(root, filter, 100)).toMatchObject({ items: [], partial: false });
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it('marks quota losses in the requested history even when connected sources are healthy', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-trend-quota-'));
+    const coverage = vi.spyOn(requiredCoverage, 'hostRequiredCoverage').mockReturnValue({
+      ...requiredCoverage.unknownRequiredCoverage('fixture'),
+      state: 'ok',
+    });
+    try {
+      const window = {
+        from: '2026-10-02T00:00:00.000Z',
+        to: '2026-10-03T00:00:00.000Z',
+        bucketSeconds: 3600,
+      };
+      const catalog = {
+        version: 1,
+        collectedAt: window.to,
+        trimmed: true,
+        sources: [],
+        segments: [
+          {
+            file: 'seg-0000000000000001-0000000000000001.jsonl.gz',
+            schema: 2,
+            sha256: 'a'.repeat(64),
+            first: window.from,
+            last: window.from,
+            levels: ['info'],
+          },
+        ],
+      };
+      const catalogFile = join(root, 'catalog.json');
+      await writeFile(catalogFile, JSON.stringify(catalog));
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'partial', points: [] });
+      await writeFile(
+        catalogFile,
+        JSON.stringify({ ...catalog, errorHistoryLostThrough: window.from }),
+      );
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'partial', points: [] });
+      await writeFile(
+        catalogFile,
+        JSON.stringify({ ...catalog, errorHistoryLostThrough: '2026-10-01T23:59:59.999Z' }),
+      );
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'available', points: [] });
+      await writeFile(catalogFile, JSON.stringify({ ...catalog, errorHistoryLostThrough: null }));
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'available', points: [] });
+    } finally {
+      coverage.mockRestore();
       await rm(root, { recursive: true, force: true });
     }
   });
