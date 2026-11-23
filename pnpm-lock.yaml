@@ -291,6 +291,9 @@ importers:
       docx:
         specifier: 9.14.0
         version: 9.14.0
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       katex:
         specifier: 0.16.47
         version: 0.16.47
