@@ -216,6 +216,51 @@ describe('admin overview lifecycle', () => {
     expect(host.querySelector('.admin-chart-card')).toBeNull();
     expect(host.textContent).toContain('Собираем реальные показатели');
   });
+  it('shows measured site time separately from module time and leaves earlier intervals unknown', async () => {
+    const sample = adminDashboardFixture('today');
+    vi.spyOn(adminDashboardApi, 'dashboard').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        ...sample,
+        siteActivity: {
+          measuredFrom: '2026-10-25T01:15:00Z',
+          points: [{ at: sample.timeline[1]!.at, accountSeconds: 240, studentSeconds: null }],
+        },
+      },
+    });
+    await show();
+    const select = host.querySelector<HTMLSelectElement>(
+      '[aria-label="Показатель пользователей"]',
+    )!;
+    const chart = [...host.querySelectorAll('.admin-chart-card')].find(
+      (item) => item.querySelector('h3')?.textContent === 'Активные пользователи',
+    )!;
+    const canvas = chart.querySelector('.admin-chart-canvas')!;
+    const readout = () => chart.querySelector('.admin-chart-readout')?.textContent;
+    const choose = async (option: string) =>
+      act(async () => {
+        select.value = option;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    const next = async () =>
+      act(async () => {
+        canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+    await choose('site-time');
+    expect(chart.querySelector('[aria-label="Начало измерений по сайту"]')?.textContent).toContain(
+      '04:15 МСК',
+    );
+    await next();
+    expect(readout()).toContain('Аккаунты —');
+    await next();
+    expect(readout()).toContain('Аккаунты 4');
+    expect(readout()).toContain('Ученики —');
+    await choose('time');
+    expect(chart.querySelector('[aria-label="Начало измерений по сайту"]')).toBeNull();
+    expect(readout()).toContain('Аккаунты 2');
+    expect(readout()).toContain('Ученики 2,5');
+  });
   it.each([401, 403])('clears chart data on %s even during refresh', async (status) => {
     const denied = vi.fn();
     vi.spyOn(adminDashboardApi, 'dashboard')
