@@ -26,6 +26,7 @@ function fixture(account: ActiveContext | null, seat: SeatContext | null) {
       ) => run(account, seat),
     ),
     persistAcquisition: vi.fn(async () => ({ accepted: true, state: 'persisted', eventId: id })),
+    persistSiteActivity: vi.fn(async () => ({ accepted: true, state: 'persisted', eventId: id })),
     persistOperation: vi.fn(async () => ({ accepted: true, state: 'persisted', eventId: id })),
   };
   const controller = new ProductAnalyticsV2Controller(
@@ -132,4 +133,73 @@ it('uses independent optional admission without consuming canonical delivery cap
   await controller.events(canonical.request, body);
   expect(canonical.writer.persistOperation).toHaveBeenCalledOnce();
   expect(optional.writer.persistOperation).not.toHaveBeenCalled();
+});
+
+const siteBody = {
+  schemaVersion: 2,
+  eventId: id,
+  actorExpectation: body.actorExpectation,
+  intervals: [{ from: '2026-10-11T10:00:00.000Z', to: '2026-10-11T10:00:05.000Z' }],
+};
+
+it('authorizes a minimal site interval using the independent optional writer', async () => {
+  const canonical = fixture(null, seat);
+  const optional = fixture(null, seat);
+  const controller = new ProductAnalyticsV2Controller(
+    canonical.writer as unknown as ProductAnalyticsService,
+    optional.writer as unknown as ProductAnalyticsService,
+  );
+  await expect(controller.siteActivity(canonical.request, siteBody)).resolves.toMatchObject({
+    state: 'persisted',
+  });
+  expect(canonical.writer.authenticatedRequest).not.toHaveBeenCalled();
+  expect(optional.writer.persistSiteActivity).toHaveBeenCalledWith(
+    id,
+    { kind: 'student', context: seat },
+    siteBody.intervals,
+    expect.any(String),
+  );
+  const account = { accountId: id, principalId: id, workspaceId: id } as ActiveContext;
+  const signedIn = fixture(account, null);
+  await expect(
+    signedIn.controller.siteActivity(signedIn.request, {
+      ...siteBody,
+      actorExpectation: { kind: 'account', accountId: id, workspaceId: id },
+    }),
+  ).resolves.toMatchObject({ state: 'persisted' });
+  await expect(signedIn.controller.siteActivity(signedIn.request, siteBody)).rejects.toMatchObject({
+    status: 409,
+  });
+  expect(signedIn.writer.persistSiteActivity).toHaveBeenCalledOnce();
+});
+
+it('rejects noisy site envelopes and concurrent activity without consuming another optional slot', async () => {
+  const f = fixture(null, seat);
+  await expect(
+    f.controller.siteActivity(f.request, { ...siteBody, path: '/private' }),
+  ).rejects.toMatchObject({ status: 400 });
+  await expect(
+    f.controller.siteActivity(f.request, {
+      ...siteBody,
+      intervals: [{ from: siteBody.intervals[0]!.from, to: '2026-10-11T10:10:00.000Z' }],
+    }),
+  ).rejects.toMatchObject({ status: 400 });
+  expect(f.writer.authenticatedRequest).not.toHaveBeenCalled();
+  let unblock!: () => void;
+  f.writer.authenticatedRequest.mockImplementationOnce(async (_a, _s, run) => {
+    await new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    return run(null, seat);
+  });
+  const firstRequest = f.controller.siteActivity(f.request, siteBody);
+  await expect(f.controller.siteActivity(f.request, siteBody)).rejects.toMatchObject({
+    status: 429,
+  });
+  expect(f.writer.authenticatedRequest).toHaveBeenCalledOnce();
+  unblock();
+  await expect(firstRequest).resolves.toMatchObject({ state: 'persisted' });
+  await expect(f.controller.siteActivity(f.request, siteBody)).resolves.toMatchObject({
+    state: 'persisted',
+  });
 });
