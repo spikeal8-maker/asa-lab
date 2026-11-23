@@ -35,6 +35,8 @@ import { BRUSHED_MOTOR_TRANSIENT_MODEL_VERSION } from './models/brushed-motor-tr
 import { canonicalRegulatedPowerSupplyProfileRegistry } from './models/regulated-power-supply-model.js';
 import { canonicalPiezoAudioProfileRegistry } from './models/piezo-audio-model.js';
 import { ARDUINO_RUNTIME_STATE_VERSION } from './arduino-program-runtime.js';
+import { isHcSr04 } from './models/hc-sr04-runtime.js';
+import { isPingUltrasonic } from './models/ping-ultrasonic-runtime.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
@@ -613,6 +615,8 @@ export function verifyCircuitQuality(
         // not a circuit power balance. Require terminal currents for all parties.
         isArduinoUno(component) ||
         isElectrolyticCapacitor(component) ||
+        isHcSr04(component) ||
+        isPingUltrasonic(component) ||
         component.componentTypeId === 'dc-motor' ||
         component.componentTypeId === 'gearmotor' ||
         component.componentTypeId === 'vibration-motor' ||
@@ -1059,6 +1063,8 @@ export function createArduinoQualityTraversal(
             // not a circuit power balance. Require terminal currents for all parties.
             isArduinoUno(component) ||
             isElectrolyticCapacitor(component) ||
+            isHcSr04(component) ||
+            isPingUltrasonic(component) ||
             component.componentTypeId === 'dc-motor' ||
             component.componentTypeId === 'gearmotor' ||
             component.componentTypeId === 'vibration-motor' ||
