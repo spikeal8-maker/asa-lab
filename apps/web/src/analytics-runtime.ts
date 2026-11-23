@@ -2,6 +2,7 @@ import { newClientId } from './client-id';
 import { finalizeInputActivitiesForPageHide } from './activity-lifecycle';
 import { AnalyticsDelivery, browserAnalytics } from './analytics-delivery';
 import { observeCurrentAcquisition } from './acquisition-observation';
+import { enableSiteActivityMeasurement } from './site-activity';
 import {
   actorKey,
   record,
@@ -269,5 +270,7 @@ export function analyticsSessionTransport(
 }
 /** Ensure import has installed the subscriber; no anonymous fallback writer. */
 export function observeAnalytics(): void {
-  update(telemetryContext());
+  const context = telemetryContext();
+  update(context);
+  if (context.ready && context.actor) enableSiteActivityMeasurement();
 }
