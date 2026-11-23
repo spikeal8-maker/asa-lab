@@ -4,11 +4,7 @@ import * as simulation from '../domain/simulation.js';
 import { advanceElectronicsToHorizon, parseElectronicsEngineDocument } from '../engine.js';
 import { advanceArduinoCircuitClock } from '../domain/arduino-circuit-scheduler.js';
 import type { ElectronicsDocument, SchematicComponent } from '../domain/document.js';
-import {
-  componentModelIdentityIsInstalled,
-  electricalModelIdentityForComponent,
-  electricalModelRegistryEntries,
-} from '../domain/model-identity.js';
+import * as identities from '../domain/model-identity.js';
 import {
   advanceHcSr04Due,
   isHcSr04RuntimeState,
@@ -21,6 +17,7 @@ import {
 } from '../domain/models/ping-ultrasonic-runtime.js';
 import {
   HC_SR04_V2_MODEL_SET_DIGEST,
+  L298N_MODEL_SET_DIGEST,
   ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
   PHOTORESISTOR_THERMAL_MODEL_SET_DIGEST,
   PHOTORESISTOR_OPTICAL_MODEL_SET_DIGEST,
@@ -29,34 +26,41 @@ import {
   ULTRASONIC_U01_LEGACY_SAMPLES,
 } from './fixtures/model-set-golden-compatibility.js';
 
+const {
+  componentModelIdentityIsInstalled,
+  electricalModelIdentityForComponent,
+  electricalModelRegistryEntries,
+} = identities;
+
 const UNREVIEWED_MODEL_SET_DIGEST = `sha256:${'0'.repeat(64)}`;
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('reviewed pre-HC-SR04 v2 model-set golden compatibility', () => {
   it('pins the installed complete registry rather than accepting its current value dynamically', () => {
-    expect(simulation.simulationModelSetDigest()).toBe(ULTRASONIC_OUTPUT_MODEL_SET_DIGEST);
-    expect(ULTRASONIC_OUTPUT_MODEL_SET_DIGEST).not.toBe(PRE_HC_SR04_V2_MODEL_SET_DIGEST);
+    expect(simulation.simulationModelSetDigest()).toBe(L298N_MODEL_SET_DIGEST);
+    expect(L298N_MODEL_SET_DIGEST).not.toBe(PRE_HC_SR04_V2_MODEL_SET_DIGEST);
+    expect(L298N_MODEL_SET_DIGEST).not.toBe(ULTRASONIC_OUTPUT_MODEL_SET_DIGEST);
   });
 
   it('changes only exact metadata fields and preserves unrelated JSON bytes without mutating the result', () => {
     const savedRuntime =
       '{\n  "modelSetDigest":"' +
-      ULTRASONIC_OUTPUT_MODEL_SET_DIGEST +
+      L298N_MODEL_SET_DIGEST +
       '","boards":[{"pc":17}],"thermal":{"origin":0.125}\n}\n';
     const result = Object.freeze({
       before: 'header',
-      modelSetDigest: ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
+      modelSetDigest: L298N_MODEL_SET_DIGEST,
       nested: Object.freeze([
         Object.freeze({
           z: 3,
           a: 1,
-          modelSetDigest: ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
-          note: ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
+          modelSetDigest: L298N_MODEL_SET_DIGEST,
+          note: L298N_MODEL_SET_DIGEST,
         }),
       ]),
       serializedState: savedRuntime,
-      simulationInputDigest: ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
+      simulationInputDigest: L298N_MODEL_SET_DIGEST,
       numericalResidual: 0.000000000000000125,
       voltages: Object.freeze([5, 0.125, -2.75]),
     });
@@ -67,11 +71,11 @@ describe('reviewed pre-HC-SR04 v2 model-set golden compatibility', () => {
       '","nested":[{"z":3,"a":1,"modelSetDigest":"' +
       PRE_HC_SR04_V2_MODEL_SET_DIGEST +
       '","note":"' +
-      ULTRASONIC_OUTPUT_MODEL_SET_DIGEST +
+      L298N_MODEL_SET_DIGEST +
       '"}],"serializedState":' +
       JSON.stringify(savedRuntime) +
       ',"simulationInputDigest":"' +
-      ULTRASONIC_OUTPUT_MODEL_SET_DIGEST +
+      L298N_MODEL_SET_DIGEST +
       '","numericalResidual":1.25e-16,"voltages":[5,0.125,-2.75]}';
     expect(serializePreHcSr04V2Golden(result)).toBe(expected);
     expect(JSON.parse(serializePreHcSr04V2Golden(result)).serializedState).toBe(savedRuntime);
@@ -81,9 +85,9 @@ describe('reviewed pre-HC-SR04 v2 model-set golden compatibility', () => {
   it('leaves raw digest operation results and ordinary text unchanged', () => {
     for (const value of [
       '853a23db6bd6ff20c999efb888508bd8031e6a4e40e32af61d986fbe18595cd6',
-      ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
+      L298N_MODEL_SET_DIGEST,
       PRE_HC_SR04_V2_MODEL_SET_DIGEST,
-      '{"modelSetDigest":"' + ULTRASONIC_OUTPUT_MODEL_SET_DIGEST + '"}',
+      '{"modelSetDigest":"' + L298N_MODEL_SET_DIGEST + '"}',
     ])
       expect(serializePreHcSr04V2Golden(value)).toBe(value);
   });
@@ -93,8 +97,9 @@ describe('reviewed pre-HC-SR04 v2 model-set golden compatibility', () => {
     HC_SR04_V2_MODEL_SET_DIGEST,
     PHOTORESISTOR_THERMAL_MODEL_SET_DIGEST,
     PHOTORESISTOR_OPTICAL_MODEL_SET_DIGEST,
+    ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
     UNREVIEWED_MODEL_SET_DIGEST,
-    ULTRASONIC_OUTPUT_MODEL_SET_DIGEST + '-suffix',
+    L298N_MODEL_SET_DIGEST + '-suffix',
     null,
     undefined,
     true,
@@ -102,7 +107,7 @@ describe('reviewed pre-HC-SR04 v2 model-set golden compatibility', () => {
   ])('rejects an unexpected structured digest field %s instead of erasing it', (modelSetDigest) => {
     expect(() =>
       serializePreHcSr04V2Golden({
-        modelSetDigest: ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
+        modelSetDigest: L298N_MODEL_SET_DIGEST,
         nested: [{ modelSetDigest }],
       }),
     ).toThrow('Unreviewed modelSetDigest field');
@@ -113,19 +118,55 @@ describe('reviewed pre-HC-SR04 v2 model-set golden compatibility', () => {
     HC_SR04_V2_MODEL_SET_DIGEST,
     PHOTORESISTOR_THERMAL_MODEL_SET_DIGEST,
     PHOTORESISTOR_OPTICAL_MODEL_SET_DIGEST,
+    ULTRASONIC_OUTPUT_MODEL_SET_DIGEST,
     UNREVIEWED_MODEL_SET_DIGEST,
   ])(
     'rejects an unreviewed installed registry %s even when the result has no metadata',
     (registry) => {
       vi.spyOn(simulation, 'simulationModelSetDigest').mockReturnValue(registry);
       for (const result of [
-        { modelSetDigest: ULTRASONIC_OUTPUT_MODEL_SET_DIGEST },
+        { modelSetDigest: L298N_MODEL_SET_DIGEST },
         { current: 0.005, nodes: [5, 0] },
         'unchanged-input-digest',
       ])
         expect(() => serializePreHcSr04V2Golden(result)).toThrow('Unreviewed model registry');
     },
   );
+});
+
+describe('L298N explicit migration preserves the previous registry', () => {
+  it('rejects changed pre-existing model identities even under a counterfeit current digest', () => {
+    const registry = JSON.parse(identities.canonicalElectricalModelRegistry()) as {
+      registryVersion: number;
+      entries: { componentTypeId: string; electricalModelVersion: number }[];
+    };
+    const original = registry.entries.find(
+      (entry) => entry.componentTypeId !== 'l298n-motor-driver',
+    )!;
+    original.electricalModelVersion += 1;
+    vi.spyOn(identities, 'canonicalElectricalModelRegistry').mockReturnValue(
+      JSON.stringify(registry),
+    );
+    expect(() => serializePreHcSr04V2Golden({ modelSetDigest: L298N_MODEL_SET_DIGEST })).toThrow(
+      'previous identities changed with L298N',
+    );
+  });
+
+  it('rejects a missing L298N entry even under a counterfeit current digest', () => {
+    const registry = JSON.parse(identities.canonicalElectricalModelRegistry()) as {
+      registryVersion: number;
+      entries: { componentTypeId: string }[];
+    };
+    registry.entries = registry.entries.filter(
+      (entry) => entry.componentTypeId !== 'l298n-motor-driver',
+    );
+    vi.spyOn(identities, 'canonicalElectricalModelRegistry').mockReturnValue(
+      JSON.stringify(registry),
+    );
+    expect(() => serializePreHcSr04V2Golden({ modelSetDigest: L298N_MODEL_SET_DIGEST })).toThrow(
+      'Unreviewed model registry',
+    );
+  });
 });
 
 function parsedDocument(value: unknown): ElectronicsDocument {
@@ -176,8 +217,8 @@ describe('U01 exact identity transition and genuine continuation rejection', () 
       modelProfileId: 'ping-3pin-canonical-echo-v1',
       modelProfileVersion: 2,
     });
-    expect(simulation.simulationModelSetDigest()).toBe(ULTRASONIC_OUTPUT_MODEL_SET_DIGEST);
-    expect(ULTRASONIC_OUTPUT_MODEL_SET_DIGEST).not.toBe(PHOTORESISTOR_OPTICAL_MODEL_SET_DIGEST);
+    expect(simulation.simulationModelSetDigest()).toBe(L298N_MODEL_SET_DIGEST);
+    expect(L298N_MODEL_SET_DIGEST).not.toBe(PHOTORESISTOR_OPTICAL_MODEL_SET_DIGEST);
   });
 
   for (const sample of ULTRASONIC_U01_LEGACY_SAMPLES) {
@@ -234,7 +275,7 @@ describe('U01 exact identity transition and genuine continuation rejection', () 
             state: JSON.parse(JSON.stringify(run.state)),
           });
         expect(run.executionStatus).toBe('ready');
-        expect(run.state.continuation?.modelSetDigest).toBe(ULTRASONIC_OUTPUT_MODEL_SET_DIGEST);
+        expect(run.state.continuation?.modelSetDigest).toBe(L298N_MODEL_SET_DIGEST);
         expect(
           JSON.parse(run.state.continuation!.serializedState).boards[0].runtime.variables.duration,
         ).toBe(5800);
