@@ -15,6 +15,8 @@ do not preload that full specification or the Electronics source/test trees.
 
 > **Ультразвуковые дальномеры:** [исполнительное ТЗ v1.1](contracts/ULTRASONIC_EXECUTION_SPEC.md) и [программа #1238](https://github.com/spikeal8-maker/asa-lab/issues/1238) задают последовательные карточки U00–U09 для HC-SR04/PING, отдельной справки «?» и управления целью как в Tinkercad. Готовность пакета определяется в [§6.1](contracts/ULTRASONIC_EXECUTION_SPEC.md#61-когда-исполнительный-пакет-готов), подготовка и формальное выполнение U00 разделены в [§7.1](contracts/ULTRASONIC_EXECUTION_SPEC.md#71-подготовка-и-формальное-выполнение-u00). [Аудит и проверка живого Tinkercad](evidence/ultrasonic-audit-20261117.md) — историческое evidence. Документы не выбирают product task; выбор остаётся в `current.yaml`.
 
+> **Восстановление учебного сценария (12.11.2026):** [ТЗ ASA-ELECTRONICS-RECOVERY-001](ASA_ELECTRONICS_RECOVERY_SPEC.md) задаёт версионированные критерии приёмки в порядке «плавный редактор → потенциометр/Arduino → LED → существующий каталог → общая численная устойчивость» и правила завершения старых PR/веток внутри #452/#703. [Датированный реестр веток](evidence/recovery-20261112-branch-inventory.md) хранит наблюдения и основания решений. Документы не выбирают активную задачу, не снимают blockers и не запускают реализацию; каноническая активация и состояние остаются в `current.yaml`.
+
 ## 1. Confirm the selected task
 
 Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: run
