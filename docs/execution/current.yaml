@@ -571,6 +571,17 @@ parallel_lanes:
         independent_learning_run: 45170550729
         independent_learning_conclusion: failure
         post_merge_general_run: 45177662522
+        post_merge_required_conclusion: success
+        power_supply_followup:
+          pull_request: 1324
+          candidate_sha: 21fd7734d83efd13881e044108d7b343e31a881f
+          integrated_main_sha: 01ffb95d8922ab88f1ab5c482ec5c62b192786ff
+          required_run: 45181768051
+          publication_run: 45181767901
+          worker_evidence: Chromium, 6 scenarios and 250 requests, including a bench supply and switched 4×AA circuit.
+          strict_r4_run: 45181768078
+          strict_r4_conclusion: 262 passed and 10 failed in previously observed scenarios without L298N.
+          post_merge_general_run: 45187556030
         owner_acceptance: pending
     task:
       id: TASK-ELECTRONICS-L298N-P2-001
@@ -589,8 +600,9 @@ parallel_lanes:
         Owner directed completion of the existing L298N driver in main, with real Arduino and
         standalone operation. Continue the existing editor PR 1210 on the accepted P1 model.
       activation_condition: >-
-        This registry and P2 card must be integrated on main. Observe exact P1 post-merge
-        required General success and run fresh seventeen-path preflight from the clean P2 checkout.
+        This registry and P2 card must be integrated on main. Observe exact post-merge
+        required General success for the accepted P1 source and its power supply repair.
+        Run fresh seventeen-path preflight from the clean P2 checkout.
       existing_candidate_pr: 1210
       existing_candidate_head_at_selection: d54137606988b608908a88f4b49adcfea7c98489
       scope: >-

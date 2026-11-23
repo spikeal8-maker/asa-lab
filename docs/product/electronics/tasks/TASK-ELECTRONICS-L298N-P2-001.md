@@ -5,7 +5,7 @@ risk: high
 semantic_change: "yes"
 roadmap_slice: null
 prerequisites:
-  - "Issue #1199 and accepted P1 PR #1209 on main with exact post-merge General"
+  - "Issue #1199, P1 PR #1209 and power supply repair #1324 on main with exact post-merge General"
   - "Canonical P2 selection on main and exact planned-path preflight"
 acceptance_boundary: slice
 review: independent
@@ -14,9 +14,9 @@ review: independent
 # L298N в редакторе и сохранённых схемах
 
 Продолжить существующий PR №1210 с перемычками ENA, ENB и 5V_EN, индикатором питания
-и включением компонента в каталоге. Принятая модель P1 уже проверена с Arduino и
-в автономной схеме с внешним ШИМ. В P2 доказать работу через обычные действия
-пользователя в редакторе. [Программа L298N](https://github.com/spikeal8-maker/asa-lab/issues/1199) · [PR №1210](https://github.com/spikeal8-maker/asa-lab/pull/1210)
+и включением компонента в каталоге. Модель P1 проверена с Arduino, внешним ШИМ,
+лабораторным источником и автономной схемой с отсеком на четыре AA. В P2
+проверить те же режимы через обычные действия пользователя в редакторе. [Программа L298N](https://github.com/spikeal8-maker/asa-lab/issues/1199) · [PR №1210](https://github.com/spikeal8-maker/asa-lab/pull/1210)
 
 ## Изменения
 

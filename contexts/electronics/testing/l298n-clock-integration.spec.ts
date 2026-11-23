@@ -198,6 +198,32 @@ function externalSquareCircuit(
   );
 }
 
+function withBenchMotorSupply(document: ElectronicsDocument, currentLimitAmp: number) {
+  return parsed(
+    document.components.map((component) =>
+      component.id === 'vs'
+        ? {
+            ...part('vs', 'source', 6),
+            componentTypeId: 'regulated-power-supply',
+            pinIds: ['positive', 'negative'],
+            stateProperties: { outputEnabled: true, voltageSetpointVolt: 6, currentLimitAmp },
+          }
+        : component,
+    ),
+    document.connections.map((connection) =>
+      connection.from.componentId === 'vs'
+        ? {
+            ...connection,
+            from: {
+              ...connection.from,
+              terminal: connection.from.terminal === 'a' ? 'positive' : 'negative',
+            },
+          }
+        : connection,
+    ),
+  );
+}
+
 function cloneState(state: ArduinoCircuitClockState): ArduinoCircuitClockState {
   return JSON.parse(JSON.stringify(state)) as ArduinoCircuitClockState;
 }
@@ -264,6 +290,34 @@ function runtime(value: Ready, id = 'uno') {
 }
 
 describe('L298N shared Arduino clock and physical motor integration', () => {
+  it('settles held dual-motor currents on a real regulated supply in the cold substep', () => {
+    const document = withBenchMotorSupply(circuit('motors'), 2);
+    const cold = healthy(through(document, 0));
+    const loaded = healthy(through(document, 250, cloneState(cold.state)));
+    expect(component(loaded, 'vs').regulationMode).toBe('cv');
+    expect(component(loaded, 'vs').current).toBeGreaterThan(1);
+    expect(component(loaded, 'vs').current).toBeLessThan(2);
+    expect(pin(loaded, '+12V')).toBeGreaterThan(5.8);
+    expect(pin(loaded, '+12V')).toBeLessThan(6);
+    expect(component(loaded, 'load-a').motorRpm).toBeGreaterThan(0);
+    expect(component(loaded, 'load-b').motorRpm).toBeLessThan(0);
+  });
+
+  it('retains the bench supply current limit when the two moving loads need more', () => {
+    const base = externalSquareCircuit(1000, { amplitudeVpp: 0 });
+    const full = healthy(through(withBenchMotorSupply(base, 2), 1000));
+    const limited = healthy(through(withBenchMotorSupply(base, 1.2), 1000));
+    expect(component(full, 'vs').current).toBeGreaterThan(1.3);
+    expect(component(limited, 'vs').currentLimitAmp).toBe(1.2);
+    expect(component(limited, 'vs').current).toBeLessThanOrEqual(1.2);
+    expect(component(limited, 'vs').current).toBeCloseTo(1.2, 4);
+    for (const id of ['load-a', 'load-b']) {
+      expect(Math.abs(component(limited, id).motorRpm!)).toBeLessThan(
+        Math.abs(component(full, id).motorRpm!),
+      );
+    }
+  });
+
   it.each([
     [250, 0],
     [500, 0],

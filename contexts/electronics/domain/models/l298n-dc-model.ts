@@ -139,15 +139,19 @@ const REGULATOR_GAIN_SIEMENS = L298N_BOARD_PROFILE.regulator.gainSiemens;
 const REGULATOR_MAX_CURRENT_AMP = L298N_BOARD_PROFILE.regulator.maxCurrentAmp;
 
 const FLYBACK_EDGES = [
-  ['OUT1', '+12V'],
-  ['OUT2', '+12V'],
-  ['OUT3', '+12V'],
-  ['OUT4', '+12V'],
-  ['GND', 'OUT1'],
-  ['GND', 'OUT2'],
-  ['GND', 'OUT3'],
-  ['GND', 'OUT4'],
+  ['OUT1', '+12V', 'A'],
+  ['OUT2', '+12V', 'A'],
+  ['OUT3', '+12V', 'B'],
+  ['OUT4', '+12V', 'B'],
+  ['GND', 'OUT1', 'A'],
+  ['GND', 'OUT2', 'A'],
+  ['GND', 'OUT3', 'B'],
+  ['GND', 'OUT4', 'B'],
 ] as const;
+
+function sameBridgeRails(previous: L298nChannelState, next: L298nChannelState): boolean {
+  return previous.firstRail === next.firstRail && previous.secondRail === next.secondRail;
+}
 
 export function isL298n(component: SchematicComponent): boolean {
   return component.componentTypeId === L298N_TYPE;
@@ -362,9 +366,15 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
           v(pin) - ground < L298N_INPUT_PROFILE.minimumVoltageVolt ||
           v(pin) - ground > L298N_INPUT_PROFILE.maximumVoltageVolt,
       );
+    // A change of bridge arms invalidates voltages measured with the old stamp.
+    // Evaluate that channel's diodes on the next matrix, including during coast.
+    const matchingRails = {
+      A: sameBridgeRails(state.channelA, channelA),
+      B: sameBridgeRails(state.channelB, channelB),
+    };
     const flybackMask = FLYBACK_EDGES.reduce(
-      (mask, [anode, cathode], index) =>
-        v(anode) - v(cathode) > L298N_FLYBACK_PROFILE.forwardVoltageVolt
+      (mask, [anode, cathode, channel], index) =>
+        matchingRails[channel] && v(anode) - v(cathode) > L298N_FLYBACK_PROFILE.forwardVoltageVolt
           ? mask | (1 << index)
           : mask,
       0,
