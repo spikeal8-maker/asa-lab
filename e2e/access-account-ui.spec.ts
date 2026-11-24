@@ -19,10 +19,8 @@ async function serveBuiltApp(page: Page) {
     const url = new URL(route.request().url());
     if (url.origin !== 'http://127.0.0.1:4612' || url.pathname.startsWith('/api/'))
       return route.abort();
-    const file = resolve(
-      dist,
-      `.${decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname)}`,
-    );
+    const spaEntry = ['/', '/max-login', '/max-login/', '/confirm-email'].includes(url.pathname);
+    const file = resolve(dist, `.${decodeURIComponent(spaEntry ? '/index.html' : url.pathname)}`);
     if (!file.startsWith(`${dist}${sep}`) || !existsSync(file)) return route.abort();
     return route.fulfill({ path: file });
   });
@@ -4684,6 +4682,131 @@ async function anonymousStartup(page: Page) {
   await fixture(page);
   await page.route('**/api/auth/me', (route) => route.fulfill({ json: { authenticated: false } }));
 }
+const maxBridgeUrl = 'https://st.max.ru/js/max-web-app.js';
+
+async function holdMaxBridge(page: Page) {
+  const requests: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((done) => {
+    release = done;
+  });
+  page.on('request', (request) => {
+    if (request.url() === maxBridgeUrl) requests.push(request.url());
+  });
+  await page.route(maxBridgeUrl, async (route) => {
+    await gate;
+    await route.abort().catch(() => undefined);
+  });
+  return { requests, release };
+}
+
+for (const seat of [false, true])
+  test(`MAX outage cannot delay native Account/Seat navigation or reload: ${seat ? 'Seat' : 'Account'}`, async ({
+    page,
+  }) => {
+    await fixture(page, { seat });
+    const sdk = await holdMaxBridge(page);
+    try {
+      await page.goto('/#/account/interface', { waitUntil: 'load', timeout: 10_000 });
+      await expect(page.getByLabel('Анимация', { exact: true })).toBeVisible();
+      await page.reload({ waitUntil: 'load', timeout: 10_000 });
+      await expect(page.getByLabel('Анимация', { exact: true })).toBeVisible();
+      expect(sdk.requests).toEqual([]);
+    } finally {
+      sdk.release();
+    }
+  });
+
+test('MAX outage cannot delay public sign-in or email proof entry', async ({ page }) => {
+  await anonymousStartup(page);
+  const sdk = await holdMaxBridge(page);
+  try {
+    await page.goto('/#/sign-in', { waitUntil: 'load', timeout: 10_000 });
+    await expect(page.getByLabel('Почта или логин', { exact: true })).toBeVisible();
+    await page.goto('/confirm-email#' + 'B'.repeat(43), { waitUntil: 'load', timeout: 10_000 });
+    await expect(
+      page.getByRole('button', { name: 'Подтвердить адрес', exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => location.hash)).toBe('');
+    expect(sdk.requests).toEqual([]);
+  } finally {
+    sdk.release();
+  }
+});
+
+for (const outcome of [
+  'bridge',
+  'sdk-error',
+  'stalled-with-fragment',
+  'stalled-without-fragment',
+  'late-chunk',
+] as const)
+  test(`MAX dedicated launch keeps native load and bounded authentication: ${outcome}`, async ({
+    page,
+  }) => {
+    await anonymousStartup(page);
+    const sessions: unknown[] = [];
+    await page.route('**/api/auth/max/session', (route) => {
+      sessions.push(route.request().postDataJSON());
+      return route.fulfill({
+        status: 401,
+        json: { error: { code: 'max_init_data_expired', message: 'Fixture expired launch' } },
+      });
+    });
+    const stalled = outcome.startsWith('stalled-') || outcome === 'late-chunk';
+    if (stalled) await page.clock.install();
+    const sdk = await holdMaxBridge(page);
+    const chunkRequests: string[] = [];
+    let releaseChunk!: () => void;
+    const chunkGate = new Promise<void>((done) => {
+      releaseChunk = done;
+    });
+    try {
+      if (outcome === 'late-chunk')
+        await page.route('**/max-bridge-*.js', async (route) => {
+          chunkRequests.push(route.request().url());
+          await chunkGate;
+          await route.fallback();
+        });
+      if (outcome === 'bridge')
+        await page.route(maxBridgeUrl, (route) =>
+          route.fulfill({
+            contentType: 'application/javascript',
+            body: 'globalThis.WebApp = { initData: "hash=bridge" };',
+          }),
+        );
+      if (outcome === 'sdk-error') await page.route(maxBridgeUrl, (route) => route.abort());
+      const fragment = outcome === 'stalled-without-fragment' ? '' : '#WebAppData=hash%3Dlegacy';
+      await page.goto('/max-login/' + fragment, { waitUntil: 'load', timeout: 10_000 });
+      if (stalled) {
+        await expect
+          .poll(() => (outcome === 'late-chunk' ? chunkRequests.length : sdk.requests.length))
+          .toBe(1);
+        expect(sessions).toEqual([]);
+        await page.clock.fastForward(5_000);
+      }
+      await expect(page.getByLabel('Почта или логин', { exact: true })).toBeVisible();
+      if (outcome === 'late-chunk') {
+        expect(sdk.requests).toEqual([]);
+        releaseChunk();
+        // A late same-origin chunk must not start a new remote request or
+        // authenticate again after the one launch deadline has expired.
+        await page.evaluate(async (url) => {
+          await import(url);
+        }, chunkRequests[0]!);
+      }
+      expect(sdk.requests).toHaveLength(outcome === 'late-chunk' ? 0 : 1);
+      if (outcome === 'stalled-without-fragment') expect(sessions).toEqual([]);
+      else
+        expect(sessions).toEqual([
+          { initData: outcome === 'bridge' ? 'hash=bridge' : 'hash=legacy' },
+        ]);
+    } finally {
+      releaseChunk();
+      sdk.release();
+    }
+  });
+
 async function holdStartupChunk(page: Page, chunk: string) {
   let release!: () => void;
   const gate = new Promise<void>((done) => {

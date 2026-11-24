@@ -1756,15 +1756,22 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
         ),
       )
       .toContain(assetPaths[0]);
+    // The remote SDK is held if requested, but ordinary editor routes must
+    // not request it at all. Keep the exact component/asset readiness checks.
+    await page.waitForLoadState('load');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming)
+              .loadEventEnd,
+        ),
+      )
+      .toBeGreaterThan(0);
     const receipt = await observeReadiness('production-ready-before-assertions');
-    const pending = receipt.sdkRequests.filter((sdk) => sdk.navigation === navigation);
-    expect(pending).toHaveLength(1);
-    expect(pending[0].heldMs).toBeDefined();
-    expect(pending[0].responseStatus).toBeUndefined();
-    expect(pending[0].finishedMs).toBeUndefined();
-    expect(pending[0].failedMs).toBeUndefined();
-    expect(receipt.browser.loadEndMs).toBe(0);
-    expect(receipt.browser.domContentLoadedEndMs).toBe(0);
+    expect(receipt.sdkRequests).toHaveLength(0);
+    expect(receipt.browser.loadEndMs).toBeGreaterThan(0);
+    expect(receipt.browser.domContentLoadedEndMs).toBeGreaterThan(0);
     for (const path of assetPaths)
       expect(
         receipt.assetResponses.some(
@@ -1864,11 +1871,7 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
   await observeReadiness('reload-commit-before-component-assertion');
   await expect(page.getByTestId('schematic-component')).toHaveCount(2);
   const reopened = await requireProductionReady();
-  const previousSdk = reopened.sdkRequests.find((sdk) => sdk.navigation === 'initial')!;
-  expect(previousSdk.failedMs).toBeDefined();
-  expect(previousSdk.failure).toBe('net::ERR_ABORTED');
-  expect(previousSdk.responseStatus).toBeUndefined();
-  expect(previousSdk.finishedMs).toBeUndefined();
+  expect(reopened.sdkRequests).toHaveLength(0);
   await expect.poll(readEditorDocument).toEqual(beforeReopen);
   await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
   await expect(page.locator('.workbench-breadboard-hole-hit')).toHaveCount(882);
@@ -1882,7 +1885,7 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
         holeCount: 882,
         mountMs,
         mountMetric:
-          'commit-navigation-plus-production-asset-readiness; not global-load or school T3',
+          'commit-navigation-plus-production-asset-readiness-and-native-load; not school T3',
         idleDom,
         samples,
       }),
