@@ -256,32 +256,89 @@ it('uses a saved server-only key without returning a key to the browser', async 
   expect(body(requests('/models')[0]!)).not.toHaveProperty('apiKey');
 });
 
-it('keeps the same request id after an unknown save outcome and clears the entered key only on confirmed success', async () => {
-  const original = vi.mocked(call).getMockImplementation()!;
-  let unknown = true;
-  vi.mocked(call).mockImplementation(async (path, init) => {
-    if (path.endsWith('/apply') && unknown) {
-      unknown = false;
-      return failure('network', 0);
+it.each([
+  ['network', 0],
+  ['server_error', 502],
+  ['server_error', 504],
+  ['ai_llamacpp_apply_pending', 409],
+] as const)(
+  'keeps the request id after unknown %s/%i and clears the key only on success',
+  async (code, status) => {
+    const original = vi.mocked(call).getMockImplementation()!;
+    let unknown = true;
+    vi.mocked(call).mockImplementation(async (path, init) => {
+      if (path.endsWith('/apply') && unknown) {
+        unknown = false;
+        return failure(code, status);
+      }
+      return original(path, init);
+    });
+    await render();
+    await tick();
+    await clickToggle();
+    await fill('API-ключ llama.cpp', 'fixture-save-secret');
+    await tick();
+    await submit();
+    expect(config.revision).toBe(4);
+    expect(input('API-ключ llama.cpp').value).toBe('fixture-save-secret');
+    await submit();
+    const saves = requests('/apply').map(body);
+    expect(saves).toHaveLength(2);
+    expect(saves[0].requestId).toBe(saves[1].requestId);
+    expect(input('API-ключ llama.cpp').value).toBe('');
+    expect(config.revision).toBe(5);
+    expect(dirty).toHaveBeenLastCalledWith(false);
+  },
+);
+
+it.each(['edit', 'apply'] as const)(
+  'ignores an older config reload after a later %s',
+  async (action) => {
+    config = { ...config, enabled: true, model: 'fixture-model' };
+    const stale = { ...config };
+    const original = vi.mocked(call).getMockImplementation()!;
+    let reads = 0;
+    let rejectFirstApply = true;
+    let resolveReload: (result: never) => void = () => undefined;
+    vi.mocked(call).mockImplementation(async (path, init) => {
+      if (path.endsWith('/llamacpp') && ++reads > 1)
+        return new Promise((resolve) => {
+          resolveReload = resolve;
+        });
+      if (path.endsWith('/apply') && rejectFirstApply) {
+        rejectFirstApply = false;
+        return failure('ai_llamacpp_busy', 409);
+      }
+      return original(path, init);
+    });
+    await render();
+    await tick();
+    await submit();
+    const reloadButton = [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Загрузить настройки',
+    )!;
+    await act(async () => reloadButton.click());
+    const pendingRead = requests('/llamacpp').at(-1)!;
+    expect(pendingRead[1]?.signal?.aborted).toBe(false);
+    if (action === 'edit') {
+      await fill('Адрес llama.cpp', 'new-machine');
+      await fill('API-ключ llama.cpp', 'fixture-new-secret');
+      await act(async () => resolveReload(ok(stale)));
+      expect(input('Адрес llama.cpp').value).toBe('new-machine');
+      expect(input('API-ключ llama.cpp').value).toBe('fixture-new-secret');
+      await tick();
     }
-    return original(path, init);
-  });
-  await render();
-  await tick();
-  await clickToggle();
-  await fill('API-ключ llama.cpp', 'fixture-save-secret');
-  await tick();
-  await submit();
-  expect(config.revision).toBe(4);
-  expect(input('API-ключ llama.cpp').value).toBe('fixture-save-secret');
-  await submit();
-  const saves = requests('/apply').map(body);
-  expect(saves).toHaveLength(2);
-  expect(saves[0].requestId).toBe(saves[1].requestId);
-  expect(input('API-ключ llama.cpp').value).toBe('');
-  expect(config.revision).toBe(5);
-  expect(dirty).toHaveBeenLastCalledWith(false);
-});
+    await submit();
+    expect(config.revision).toBe(5);
+    if (action === 'apply') await act(async () => resolveReload(ok(stale)));
+    expect(pendingRead[1]?.signal?.aborted).toBe(true);
+    expect(input('Адрес llama.cpp').value).toBe(config.baseUrl);
+    expect(host.textContent).toContain('Сохранено · модель ответила на проверку');
+    await tick();
+    await submit();
+    expect(body(requests('/apply').at(-1)!).revision).toBe(5);
+  },
+);
 
 it('retains the working config on a revision conflict and offers an explicit reload', async () => {
   const original = vi.mocked(call).getMockImplementation()!;

@@ -55,7 +55,7 @@ const diagnostics: Readonly<Record<string, string>> = {
 function errorText(error: AdminApiError, status: number): string {
   return (
     diagnostics[error.code] ??
-    (status === 0
+    (status === 0 || error.code === 'server_error'
       ? 'Ответ ASA не получен. Повтор сохранения без изменения полей проверит тот же запрос.'
       : 'Не удалось выполнить проверку. Предыдущие настройки сохранены.')
   );
@@ -63,6 +63,16 @@ function errorText(error: AdminApiError, status: number): string {
 
 function accessDenied(error: AdminApiError, status: number): boolean {
   return error.code !== 'ai_llamacpp_auth' && (status === 401 || status === 403);
+}
+
+function confirmedApplyFailure(error: AdminApiError): boolean {
+  // A proxy/malformed/generic error does not prove that the durable attempt ended.
+  return (
+    (typeof error.code === 'string' &&
+      error.code.startsWith('ai_llamacpp_') &&
+      error.code !== 'ai_llamacpp_apply_pending') ||
+    error.code === 'ai_tool_call_invalid'
+  );
 }
 
 function optionalNumber(value: unknown): value is number | null {
@@ -152,6 +162,7 @@ export function AdminLlamaCppPage({
   const [feedback, setFeedback] = useState('');
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
+  const configController = useRef<AbortController | null>(null);
   const discoveryController = useRef<AbortController | null>(null);
   const discoveryVersion = useRef(0);
   const applyController = useRef<AbortController | null>(null);
@@ -174,6 +185,7 @@ export function AdminLlamaCppPage({
 
   useEffect(() => {
     const controller = new AbortController();
+    configController.current = controller;
     setError('');
     void call<unknown>('/api/admin/v1/ai/llamacpp', { signal: controller.signal }).then(
       (response) => {
@@ -289,6 +301,7 @@ export function AdminLlamaCppPage({
   async function apply(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!saved || !canApply || inFlight.current) return;
+    configController.current?.abort();
     inFlight.current = true;
     setSaving(true);
     setError('');
@@ -333,8 +346,7 @@ export function AdminLlamaCppPage({
       if (!response.ok) {
         if (accessDenied(response.error, response.status)) onAccessDenied();
         setError(errorText(response.error, response.status));
-        if (response.status !== 0 && response.error.code !== 'ai_llamacpp_apply_pending')
-          attempt.current = null;
+        if (response.status !== 0 && confirmedApplyFailure(response.error)) attempt.current = null;
       } else if (configShape(response.data.config)) {
         restore(response.data.config);
         attempt.current = null;
@@ -366,7 +378,12 @@ export function AdminLlamaCppPage({
 
   return (
     <section className="asa-ai-ollama" aria-label="Настройки llama.cpp">
-      <form className="asa-ai-ollama-form" noValidate onSubmit={(event) => void apply(event)}>
+      <form
+        className="asa-ai-ollama-form"
+        noValidate
+        onChange={() => configController.current?.abort()}
+        onSubmit={(event) => void apply(event)}
+      >
         <div className="asa-ai-provider-top">
           <div className="asa-ai-provider-identity">
             <h2>llama.cpp</h2>
@@ -502,6 +519,7 @@ export function AdminLlamaCppPage({
                     aria-pressed={model === item.id}
                     disabled={saving}
                     onClick={() => {
+                      configController.current?.abort();
                       setModel(item.id);
                       setFeedback('');
                     }}

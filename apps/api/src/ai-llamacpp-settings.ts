@@ -262,6 +262,13 @@ function translate(error: unknown): LlamaCppError {
     'Настройки llama.cpp временно недоступны.',
   );
 }
+function pendingApply(): LlamaCppError {
+  return new LlamaCppError(
+    'ai_llamacpp_apply_pending',
+    409,
+    'Эта проверка уже выполняется или ожидает восстановления результата. Повторная генерация не запущена.',
+  );
+}
 const probeTool: NativeToolDefinition = {
   type: 'function',
   function: {
@@ -428,23 +435,14 @@ export class LlamaCppSettingsStore {
         )
       ).rows[0]?.value;
     } catch (error) {
-      throw translate(error);
+      const failure = translate(error);
+      // A lost claim response can already have registered this request durably.
+      throw failure.code === 'ai_llamacpp_unavailable' ? pendingApply() : failure;
     }
     if (receipt?.state === 'complete') return safeResult(receipt.result);
     if (receipt?.state === 'failed')
       throw new LlamaCppError(receipt.error.code, receipt.error.status, receipt.error.message);
-    if (receipt?.state === 'pending')
-      throw new LlamaCppError(
-        'ai_llamacpp_apply_pending',
-        409,
-        'Эта проверка уже выполняется или ожидает восстановления результата. Повторная генерация не запущена.',
-      );
-    if (receipt?.state !== 'claimed')
-      throw new LlamaCppError(
-        'ai_llamacpp_unavailable',
-        503,
-        'Не удалось зарегистрировать проверку llama.cpp.',
-      );
+    if (receipt?.state !== 'claimed') throw pendingApply();
 
     try {
       const current = await this.admin(actor);
@@ -606,7 +604,8 @@ export class LlamaCppSettingsStore {
       return safeResult(saved.rows[0].value);
     } catch (error) {
       const failure = translate(error);
-      // An atomic successful commit remains complete; SQL never overwrites it with failure.
+      // SQL only changes pending receipts. A lost successful commit response
+      // must remain complete, and a lost failure response may already be failed.
       await this.pool
         .query('SELECT ai_llamacpp_apply_fail($1,$2::varchar,$3::varchar,$4::jsonb)', [
           actor,
@@ -615,7 +614,23 @@ export class LlamaCppSettingsStore {
           JSON.stringify({ code: failure.code, status: failure.status, message: failure.message }),
         ])
         .catch(() => undefined);
-      throw failure;
+      let outcome: Receipt | undefined;
+      try {
+        outcome = (
+          await this.pool.query<{ value: Receipt }>(
+            'SELECT ai_llamacpp_apply_claim($1,$2::varchar,$3::varchar,$4::bigint) AS value',
+            [actor, requestId, digest, input.revision],
+          )
+        ).rows[0]?.value;
+      } catch {
+        throw pendingApply();
+      }
+      // Only a durable terminal receipt authorizes a terminal response. Keep
+      // the same request ID when storage cannot establish the outcome.
+      if (outcome?.state === 'complete') return safeResult(outcome.result);
+      if (outcome?.state === 'failed')
+        throw new LlamaCppError(outcome.error.code, outcome.error.status, outcome.error.message);
+      throw pendingApply();
     }
   }
 }

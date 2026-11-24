@@ -1,24 +1,25 @@
 import { randomUUID } from 'node:crypto';
-import type pg from 'pg';
+import pg from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { acquireLlamaCppSlot } from '../../apps/api/src/ai-llamacpp-slot';
 import { AiChatService } from '../../apps/api/src/ai-chat.service';
 import { aiIdentity, type AiIdentity } from './ai-student-access.contract';
-import { lockAiPostgresSuite } from './ai-postgres-suite-lock';
-import { testAdminPool, testAppPool } from '../portal/helpers';
+import { planMigrations } from '../../tools/migrate.mjs';
+import { applyIsolatedTestPlan } from '../migration/isolated-postgres-plan';
 
 let admin: pg.Pool;
 let first: pg.Pool;
 let second: pg.Pool;
-let unlockSuite: (() => Promise<void>) | undefined;
+let cluster: pg.Client | undefined;
+let created = false;
+const databaseName = 'asa_ai_llamacpp_' + randomUUID().replaceAll('-', '') + '_test';
 let platform: AiIdentity;
 let owner: AiIdentity;
 let stranger: AiIdentity;
-let previousSettings: Record<string, unknown>;
-let previousPolicy: Record<string, unknown>;
-let previousBudget: Record<string, unknown>;
 
 beforeAll(async () => {
+  if (process.env.CI !== 'true' || process.env.GITHUB_ACTIONS !== 'true')
+    throw new Error('The isolated llama.cpp PostgreSQL fixture runs only in GitHub CI');
   const urls = ['TEST_DATABASE_URL', 'APP_TEST_DATABASE_URL'].map((key) => {
     const raw = process.env[key];
     if (!raw || !decodeURIComponent(new URL(raw).pathname).endsWith('_test'))
@@ -27,13 +28,27 @@ beforeAll(async () => {
   });
   if (urls[0]!.host !== urls[1]!.host || urls[0]!.pathname !== urls[1]!.pathname)
     throw new Error('Admin and runtime must use the same isolated database');
-  admin = testAdminPool();
-  first = testAppPool();
-  second = testAppPool();
-  unlockSuite = await lockAiPostgresSuite(admin);
-  previousSettings = (await admin.query('SELECT * FROM public.ai_llamacpp_settings')).rows[0]!;
-  previousPolicy = (await admin.query('SELECT * FROM public.ai_generation_policy')).rows[0]!;
-  previousBudget = (await admin.query('SELECT * FROM public.ai_token_budget_policy')).rows[0]!;
+  if (!/^asa_ai_llamacpp_[a-f0-9]{32}_test$/.test(databaseName))
+    throw new Error('Unsafe fixture database name');
+  cluster = new pg.Client({ connectionString: urls[0]!.href });
+  await cluster.connect();
+  await cluster.query('CREATE DATABASE "' + databaseName + '"');
+  created = true;
+  const isolated = urls.map((url) => {
+    const target = new URL(url);
+    target.pathname = '/' + databaseName;
+    return target.href;
+  });
+  // Private fixture state cannot inherit or rewrite another suite's policy.
+  admin = new pg.Pool({ connectionString: isolated[0], max: 3 });
+  first = new pg.Pool({ connectionString: isolated[1], max: 4 });
+  second = new pg.Pool({ connectionString: isolated[1], max: 4 });
+  const migrationClient = await admin.connect();
+  try {
+    await applyIsolatedTestPlan(migrationClient, planMigrations('migrations'));
+  } finally {
+    migrationClient.release();
+  }
   platform = await aiIdentity(admin);
   owner = await aiIdentity(admin);
   stranger = await aiIdentity(admin);
@@ -54,34 +69,21 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    if (admin && previousSettings) {
-      // Column names originate from this isolated schema, never from user input.
-      for (const [table, row] of [
-        ['ai_llamacpp_settings', previousSettings],
-        ['ai_generation_policy', previousPolicy],
-        ['ai_token_budget_policy', previousBudget],
-      ] as const) {
-        const columns = Object.keys(row).filter((key) => key !== 'singleton_key');
-        await admin.query(
-          'UPDATE public.' +
-            table +
-            ' SET ' +
-            columns.map((key, index) => '"' + key + '"=$' + (index + 1)).join(',') +
-            ' WHERE singleton_key',
-          columns.map((key) => {
-            const value = row[key];
-            return value !== null && typeof value === 'object' && !(value instanceof Date)
-              ? JSON.stringify(value)
-              : value;
-          }),
-        );
+    await first?.end();
+  } finally {
+    try {
+      await second?.end();
+    } finally {
+      try {
+        await admin?.end();
+      } finally {
+        try {
+          if (created) await cluster!.query('DROP DATABASE "' + databaseName + '"');
+        } finally {
+          await cluster?.end();
+        }
       }
     }
-  } finally {
-    await first?.end();
-    await second?.end();
-    await unlockSuite?.();
-    await admin?.end();
   }
 });
 
@@ -126,8 +128,20 @@ const admission =
 
 it('uses the restricted runtime role and denies secret tables and direct ungated local admission', async () => {
   expect(
-    (await first.query<{ current_user: string }>('SELECT current_user')).rows[0]?.current_user,
-  ).toBe('asalab_app');
+    (
+      await first.query(
+        'SELECT current_database() AS database, current_user AS role, rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user',
+      )
+    ).rows,
+  ).toEqual([{ database: databaseName, role: 'asalab_app', rolsuper: false, rolbypassrls: false }]);
+  expect(
+    (await admin.query<{ database: string }>('SELECT current_database() AS database')).rows[0]
+      ?.database,
+  ).toBe(databaseName);
+  expect(
+    (await second.query<{ database: string }>('SELECT current_database() AS database')).rows[0]
+      ?.database,
+  ).toBe(databaseName);
   await expect(first.query('SELECT * FROM ai_llamacpp_settings')).rejects.toMatchObject({
     code: '42501',
   });

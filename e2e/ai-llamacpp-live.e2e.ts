@@ -94,9 +94,15 @@ test('real llama.cpp discovery, persisted settings, ASA JSON/SSE, tools, stop an
   const endpoint = process.env.ASA_LLAMACPP_LIVE_ENDPOINT;
   const sha = process.env.ASA_LLAMACPP_LIVE_SHA;
   if (!endpoint || !sha) throw new Error('Run only through pnpm e2e:ai-llamacpp:live');
+  const buildReceipt = JSON.parse(readFileSync('reports/ai-llamacpp-live-build.json', 'utf8'));
+  expect(buildReceipt.sourceSha).toBe(sha);
+  expect(buildReceipt.method).toBe('fresh-uncached-nx');
+  expect(buildReceipt.apiDistSha256).toMatch(/^[a-f0-9]{64}$/u);
+  expect(buildReceipt.webDistSha256).toMatch(/^[a-f0-9]{64}$/u);
   const db = e2eAdminPool();
   const receipt: Record<string, unknown> = {
     candidate: sha,
+    build: buildReceipt,
     startedAt: new Date().toISOString(),
     source: 'real built ASA HTTP/browser and real llama-server; no mocked responses',
     school: 'NOT_RUN: excluded by owner instruction',

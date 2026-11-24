@@ -53,11 +53,15 @@ for (const [address, prefix] of [
 const privateV6Addresses = new BlockList();
 privateV6Addresses.addAddress('::1', 'ipv6');
 privateV6Addresses.addSubnet('fc00::', 7, 'ipv6');
+const metadataAddresses = new BlockList();
+metadataAddresses.addAddress('100.100.100.200', 'ipv4'); // Alibaba, inside CGNAT.
+metadataAddresses.addAddress('fd00:ec2::254', 'ipv6'); // AWS IMDS, inside ULA.
 
 /** The administrator selects one endpoint; only these local networks are eligible. */
 export function llamaCppPrivateAddress(address: string): boolean {
-  if (address === '100.100.100.200') return false; // Alibaba metadata, inside CGNAT.
   const family = isIP(address);
+  // BlockList compares parsed addresses, including equivalent IPv6 spellings.
+  if (family && metadataAddresses.check(address, family === 4 ? 'ipv4' : 'ipv6')) return false;
   if (family === 4) return privateAddresses.check(address, 'ipv4');
   // Mapped IPv4 is intentionally not accepted through an IPv6 spelling.
   return family === 6 && privateV6Addresses.check(address, 'ipv6');

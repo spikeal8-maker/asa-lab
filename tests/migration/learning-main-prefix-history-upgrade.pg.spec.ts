@@ -539,6 +539,11 @@ const upgradeArtifacts = [
     '0332_admin_site_activity.sql',
     '9cd6fcac8b83e12ca82151e310d827ccced774f8f4115c38441b8a90a184ea19',
   ],
+  [
+    '0333',
+    '0333_ai_llamacpp_local.sql',
+    '25b478efea2a05a0fb682dc05605a4863f066ad6412b6b1af333690dfac4ffb7',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

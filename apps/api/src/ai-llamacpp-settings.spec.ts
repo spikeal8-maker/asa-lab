@@ -313,6 +313,89 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     expect(f.encrypt).toHaveBeenCalledOnce();
     expect(f.config.revision).toBe(5);
   });
+  it('keeps the request pending when a claim is durable but its response is lost', async () => {
+    const f = fixture();
+    const execute = f.query.getMockImplementation()!;
+    let loseClaimResponse = true;
+    f.query.mockImplementation(async (sql, params) => {
+      const result = await execute(sql, params);
+      if (sql.includes('ai_llamacpp_apply_claim') && loseClaimResponse) {
+        loseClaimResponse = false;
+        throw new Error('private database connection details');
+      }
+      return result;
+    });
+    await expect(f.store.apply('actor', initial, 'lost-claim')).rejects.toMatchObject({
+      code: 'ai_llamacpp_apply_pending',
+      status: 409,
+    });
+    expect(f.receipts.get('lost-claim')?.state).toBe('pending');
+    await expect(f.store.apply('actor', initial, 'lost-claim')).rejects.toMatchObject({
+      code: 'ai_llamacpp_apply_pending',
+    });
+    expect(f.config).toEqual(initial);
+    expect(f.fetchImpl).not.toHaveBeenCalled();
+    expect(f.encrypt).not.toHaveBeenCalled();
+  });
+  it('recovers a committed apply after its database response is lost without declaring failure', async () => {
+    const f = fixture();
+    const execute = f.query.getMockImplementation()!;
+    f.query.mockImplementation(async (sql, params) => {
+      const result = await execute(sql, params);
+      if (sql.includes('ai_llamacpp_admin_set'))
+        throw new Error('private commit response connection details');
+      return result;
+    });
+    const input = { ...initial, apiKey: 'new-key', apiKeyEndpoint: initial.baseUrl };
+    const result = await f.store.apply('actor', input, 'lost-commit');
+    expect(result).toMatchObject({ verified: true, config: { revision: 5, toolsVerified: true } });
+    expect(f.receipts.get('lost-commit')).toMatchObject({ state: 'complete', result });
+    expect(f.receipts.get('lost-commit')?.error).toBeUndefined();
+    const calls = f.fetchImpl.mock.calls.length;
+    expect(await f.store.apply('actor', input, 'lost-commit')).toEqual(result);
+    expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
+    expect(f.encrypt).toHaveBeenCalledOnce();
+    expect(f.config.revision).toBe(5);
+  });
+  it.each([false, true])(
+    'retains an unknown commit request for same-ID recovery (committed: %s)',
+    async (committed) => {
+      const f = fixture();
+      const execute = f.query.getMockImplementation()!;
+      let disconnected = false;
+      f.query.mockImplementation(async (sql, params) => {
+        if (disconnected) throw new Error('private unavailable database details');
+        if (sql.includes('ai_llamacpp_admin_set')) {
+          if (committed) await execute(sql, params);
+          disconnected = true;
+          throw new Error('lost commit response');
+        }
+        return execute(sql, params);
+      });
+      const input = { ...initial, apiKey: 'candidate-secret', apiKeyEndpoint: initial.baseUrl };
+      await expect(f.store.apply('actor', input, 'unknown-commit')).rejects.toMatchObject({
+        code: 'ai_llamacpp_apply_pending',
+        status: 409,
+      });
+      expect(f.receipts.get('unknown-commit')?.state).toBe(committed ? 'complete' : 'pending');
+      expect(f.receipts.get('unknown-commit')?.error).toBeUndefined();
+      const calls = f.fetchImpl.mock.calls.length;
+      disconnected = false;
+      if (committed) {
+        const result = await f.store.apply('actor', input, 'unknown-commit');
+        expect(result).toMatchObject({ verified: true, config: { revision: 5 } });
+        expect(JSON.stringify(result)).not.toMatch(/candidate-secret|private|connection/);
+      } else {
+        await expect(f.store.apply('actor', input, 'unknown-commit')).rejects.toMatchObject({
+          code: 'ai_llamacpp_apply_pending',
+        });
+        expect(f.config).toEqual(initial);
+      }
+      expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
+      expect(f.encrypt).toHaveBeenCalledOnce();
+      expect(f.config.revision).toBe(committed ? 5 : 4);
+    },
+  );
   it('replays endpoint changes with implicit key clearing using the same semantic digest', async () => {
     const f = fixture();
     const input = { ...initial, baseUrl: '127.0.0.2' };
@@ -358,6 +441,78 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
     expect(JSON.stringify(f.receipts.get('failure-request'))).not.toContain('candidate-secret');
     expect(f.query.mock.calls.some(([sql]) => sql.includes('ai_llamacpp_admin_set'))).toBe(false);
+  });
+  it('preserves the request and configuration when writing a terminal failure is not confirmed', async () => {
+    const f = fixture();
+    const execute = f.query.getMockImplementation()!;
+    f.query.mockImplementation(async (sql, params) => {
+      if (sql.includes('ai_llamacpp_apply_fail'))
+        throw new Error('candidate-secret private database connection details');
+      return execute(sql, params);
+    });
+    f.fetchImpl.mockResolvedValue(
+      new Response('candidate-secret private upstream', { status: 401 }),
+    );
+    const input = { ...initial, apiKey: 'candidate-secret', apiKeyEndpoint: initial.baseUrl };
+    const error = await f.store.apply('actor', input, 'unknown-failure').catch((value) => value);
+    expect(error).toMatchObject({ code: 'ai_llamacpp_apply_pending', status: 409 });
+    expect(error.message).not.toMatch(/candidate-secret|private|database/);
+    expect(f.receipts.get('unknown-failure')?.state).toBe('pending');
+    expect(f.config).toEqual(initial);
+    const calls = f.fetchImpl.mock.calls.length;
+    await expect(f.store.apply('actor', input, 'unknown-failure')).rejects.toMatchObject({
+      code: 'ai_llamacpp_apply_pending',
+    });
+    expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
+    expect(f.encrypt).toHaveBeenCalledOnce();
+    expect(f.query.mock.calls.some(([sql]) => sql.includes('ai_llamacpp_admin_set'))).toBe(false);
+  });
+  it('recovers a terminal failure whose write response was lost from the durable receipt', async () => {
+    const f = fixture();
+    const execute = f.query.getMockImplementation()!;
+    f.query.mockImplementation(async (sql, params) => {
+      const result = await execute(sql, params);
+      if (sql.includes('ai_llamacpp_apply_fail')) throw new Error('lost failure response');
+      return result;
+    });
+    f.fetchImpl.mockResolvedValue(new Response('private upstream', { status: 401 }));
+    await expect(f.store.apply('actor', initial, 'durable-failure')).rejects.toMatchObject({
+      code: 'ai_llamacpp_auth',
+      status: 502,
+    });
+    expect(f.receipts.get('durable-failure')?.state).toBe('failed');
+    expect(f.config).toEqual(initial);
+    const calls = f.fetchImpl.mock.calls.length;
+    await expect(f.store.apply('actor', initial, 'durable-failure')).rejects.toMatchObject({
+      code: 'ai_llamacpp_auth',
+    });
+    expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
+  });
+  it('keeps a failure outcome unknown until its terminal receipt can be read', async () => {
+    const f = fixture();
+    const execute = f.query.getMockImplementation()!;
+    let failRecoveryRead = false;
+    f.query.mockImplementation(async (sql, params) => {
+      if (sql.includes('ai_llamacpp_apply_claim') && failRecoveryRead)
+        throw new Error('private receipt read connection details');
+      const result = await execute(sql, params);
+      if (sql.includes('ai_llamacpp_apply_fail')) failRecoveryRead = true;
+      return result;
+    });
+    f.fetchImpl.mockResolvedValue(new Response('private upstream', { status: 401 }));
+    await expect(f.store.apply('actor', initial, 'unread-failure')).rejects.toMatchObject({
+      code: 'ai_llamacpp_apply_pending',
+      status: 409,
+    });
+    expect(f.receipts.get('unread-failure')?.state).toBe('failed');
+    expect(f.config).toEqual(initial);
+    const calls = f.fetchImpl.mock.calls.length;
+    failRecoveryRead = false;
+    await expect(f.store.apply('actor', initial, 'unread-failure')).rejects.toMatchObject({
+      code: 'ai_llamacpp_auth',
+      status: 502,
+    });
+    expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
   });
   it('preserves settings when revision changes during a successful network probe', async () => {
     const f = fixture();

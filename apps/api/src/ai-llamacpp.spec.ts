@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { Socket, type AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import { nativeTools } from './ai-native-tools.js';
 import { workingFileTools } from './ai-working-files.js';
@@ -70,6 +70,7 @@ describe('llama.cpp endpoint and DNS boundary', () => {
     ['https://host.lan:443', 'https://host.lan:443'],
     ['http://[::1]/v1', 'http://[::1]:8080'],
     ['[fd12::7]:8085', 'http://[fd12::7]:8085'],
+    ['http://[fd7a:115c:a1e0::7]', 'http://[fd7a:115c:a1e0::7]:8080'],
   ])('normalizes %s without changing explicit ports', (input, expected) => {
     expect(normalizeLlamaCppBaseUrl(input)).toBe(expected);
     expect(normalizeLlamaCppBaseUrl(expected)).toBe(expected);
@@ -80,6 +81,9 @@ describe('llama.cpp endpoint and DNS boundary', () => {
     'http://8.8.8.8',
     'http://0.0.0.0',
     'http://[fe80::1]',
+    'http://[fd00:ec2::254]',
+    'https://[FD00:0EC2:0000:0000:0000:0000:0000:0254]:8080/v1',
+    '[fd00:ec2:0:0::0254]:8080',
     'http://[::ffff:169.254.169.254]',
     'http://[::ffff:127.0.0.1]',
     'http://user:secret@127.0.0.1',
@@ -91,6 +95,48 @@ describe('llama.cpp endpoint and DNS boundary', () => {
   ])('denies %s', (input) => {
     expect(() => normalizeLlamaCppBaseUrl(input)).toThrow(LlamaCppError);
   });
+  it.each([
+    'fd00:ec2::254',
+    'FD00:0EC2:0000:0000:0000:0000:0000:0254',
+    'fd00:ec2:0:0::0254',
+    'fd00:ec2::0.0.2.84',
+  ])('denies the raw AWS metadata IPv6 address %s canonically', (address) => {
+    expect(llamaCppPrivateAddress(address)).toBe(false);
+  });
+  it.each([
+    {
+      url: 'http://[FD00:0EC2::0254]:8080/v1/models',
+      host: 'fd00:ec2::254',
+      addresses: [],
+    },
+    {
+      url: 'http://fixture.internal:8080/v1/models',
+      host: 'fixture.internal',
+      addresses: [{ address: 'FD00:0EC2:0000:0000:0000:0000:0000:0254', family: 6 }],
+    },
+    {
+      url: 'http://fixture.internal:8080/v1/models',
+      host: 'fixture.internal',
+      addresses: [
+        { address: '127.0.0.1', family: 4 },
+        { address: 'fd00:ec2:0:0::0254', family: 6 },
+      ],
+    },
+  ])('denies allowlisted IPv6 metadata through $url before a socket opens', async (entry) => {
+    const connect = vi.spyOn(Socket.prototype, 'connect').mockImplementation(() => {
+      throw new Error('A denied metadata destination must never open a socket');
+    });
+    const resolve = vi.fn(async () => entry.addresses);
+    try {
+      await expect(
+        createLlamaCppFetch({ allowedHosts: [entry.host], resolve })(entry.url),
+      ).rejects.toMatchObject({ code: 'ai_llamacpp_url_denied' });
+      expect(connect).not.toHaveBeenCalled();
+      expect(resolve).toHaveBeenCalledTimes(entry.addresses.length ? 1 : 0);
+    } finally {
+      connect.mockRestore();
+    }
+  });
   it('does not let the optional host allowlist authorize public or metadata addresses', async () => {
     const fetchImpl = createLlamaCppFetch({
       allowedHosts: ['fixture.internal'],
@@ -101,6 +147,8 @@ describe('llama.cpp endpoint and DNS boundary', () => {
     });
     expect(llamaCppPrivateAddress('100.64.0.2')).toBe(true);
     expect(llamaCppPrivateAddress('fd00::2')).toBe(true);
+    expect(llamaCppPrivateAddress('fd00:ec2::255')).toBe(true);
+    expect(llamaCppPrivateAddress('fd7a:115c:a1e0::7')).toBe(true);
   });
   it('fails closed for mixed private/public DNS answers before any socket', async () => {
     const resolve = vi.fn(async () => [
