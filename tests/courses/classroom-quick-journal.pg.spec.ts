@@ -274,7 +274,7 @@ describe('quick journal: real restricted PostgreSQL', () => {
         .rows[0].category,
     ).toBe('Работа 1');
   });
-  it('correction and null clear retain required reasons and immutable history', async () => {
+  it('allows reasonless corrections and requires a reason for clear with immutable history', async () => {
     const f = await fixture(),
       saved = await quick(f.classId, input(f.seatId));
     const correction = {
@@ -286,32 +286,35 @@ describe('quick journal: real restricted PostgreSQL', () => {
       seatId: f.seatId,
       expectedRevision: 1,
       value: 5,
+      requestId: randomUUID(),
+    };
+    const beforeCorrection = await counts(f.classId);
+    const changed = await quick(f.classId, correction);
+    expect(changed.grade).toMatchObject({
+      revision: 2,
+      value: 5,
+      supersedesId: saved.grade.id,
       reason: null,
-      requestId: randomUUID(),
-    };
-    expect(await quick(f.classId, correction)).toEqual({ error: 'reason_required' });
-    const correctionBody = {
-      ...correction,
-      reason: 'Исправлена опечатка',
-      requestId: randomUUID(),
-    };
-    const changed = await quick(f.classId, correctionBody);
-    expect(changed.grade).toMatchObject({ revision: 2, value: 5, supersedesId: saved.grade.id });
-    const committedCorrection = await counts(f.classId);
-    expect((await read(f.classId)).grades).toEqual([changed.grade]);
-    expect(await quick(f.classId, correctionBody)).toEqual(changed);
-    expect(await counts(f.classId)).toEqual(committedCorrection);
-    const cleared = await quick(f.classId, {
-      ...correction,
-      value: null,
-      expectedRevision: 2,
-      reason: 'Оценка снята',
-      requestId: randomUUID(),
     });
+    const committedCorrection = await counts(f.classId);
+    expect(committedCorrection).toMatchObject({
+      grades: beforeCorrection.grades + 1,
+      notifications: beforeCorrection.notifications + 1,
+      receipts: beforeCorrection.receipts + 2,
+      audit: beforeCorrection.audit + 1,
+    });
+    expect((await read(f.classId)).grades).toEqual([changed.grade]);
+    expect(await quick(f.classId, correction)).toEqual(changed);
+    expect(await counts(f.classId)).toEqual(committedCorrection);
+    const clear = { ...correction, value: null, expectedRevision: 2, requestId: randomUUID() };
+    expect(await quick(f.classId, clear)).toEqual({ error: 'reason_required' });
+    expect(await counts(f.classId)).toEqual(committedCorrection);
+    const cleared = await quick(f.classId, { ...clear, reason: 'Оценка снята' });
     expect(cleared.grade).toMatchObject({
       revision: 3,
       value: null,
       supersedesId: changed.grade.id,
+      reason: 'Оценка снята',
     });
     const history = (
       await app.query('SELECT classroom_journal_history($1,$2,$3,$4) AS value', [

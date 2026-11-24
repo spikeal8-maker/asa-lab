@@ -30753,14 +30753,14 @@
         "двухканальный драйвер моторов",
         "Arduino motor driver"
       ],
-      "catalogTier": "preview",
+      "catalogTier": "core",
       "sourceOwnerArchive": "ASA_LAB_L298N_INTEGRATION_v1_1_TOP_WIRES.zip",
       "sourceOwnerPath": "assets/l298n-board.display.svg",
       "sourceSha256": "289c604c4ff4e1e74a733e2d01c18b2beab58721f6b4c5c369de37e34a425498",
       "runtimePath": "/assets/electronics/component-database/components/drivers/l298n/component.svg",
       "runtimeSha256": "289c604c4ff4e1e74a733e2d01c18b2beab58721f6b4c5c369de37e34a425498",
       "provenance": "owner_supplied",
-      "status": "disabled_missing_model",
+      "status": "enabled",
       "physicalWidthMm": 43,
       "physicalHeightMm": 43,
       "viewBox": [0, 0, 43, 43],
@@ -30863,8 +30863,8 @@
           "channels": ["logic_power_led"]
         }
       ],
-      "simulationSupport": "not_implemented_in_domain_solver",
-      "blockReason": "Расчёт L298N ещё не подключён к общему симулятору. Арт и контакты готовы; до включения необходимы доменные тесты."
+      "simulationSupport": "l298n_dual_hbridge_v1",
+      "blockReason": null
     }
   ],
   "breadboardPlacementRules": {

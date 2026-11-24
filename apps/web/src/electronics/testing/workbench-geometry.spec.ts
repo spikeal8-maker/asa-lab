@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ULTRASONIC_TARGET_GEOMETRY,
+  formatUltrasonicTargetDistance,
+  ultrasonicTargetAtPoint,
+  ultrasonicTargetPoint,
+} from '../workbench-geometry';
+import {
   clientToWorld,
   completeOrthogonalRoute,
   roundedRectContainsOffset,
@@ -381,5 +387,35 @@ describe('what the canvas is allowed to move', () => {
       { x: 80, y: 0 },
       { x: 80, y: 100 },
     ]);
+  });
+});
+
+describe('ultrasonic in-sector target geometry', () => {
+  const origin = { x: 110, y: 52 };
+  const { halfAngle, minimumRadius, maximumRadius } = ULTRASONIC_TARGET_GEOMETRY;
+  it.each([
+    [4, 2.01],
+    [3, 1.51],
+  ])('maps %s m range midpoint to one radius at any valid angle', (maximum, midpoint) => {
+    for (const angle of [-halfAngle, 0, halfAngle]) {
+      const point = ultrasonicTargetPoint(origin, { angle, distanceMeters: midpoint }, maximum);
+      expect(Math.hypot(point.x - origin.x, point.y - origin.y)).toBeCloseTo(
+        (minimumRadius + maximumRadius) / 2,
+      );
+      const restored = ultrasonicTargetAtPoint(origin, point, maximum);
+      expect(restored?.distanceMeters).toBe(midpoint);
+      expect(restored?.angle).toBeCloseTo(angle);
+    }
+  });
+
+  it('rejects invalid samples without a nonfinite or out-of-range distance', () => {
+    for (const point of [
+      origin,
+      { x: origin.x, y: origin.y - maximumRadius - 1 },
+      { x: origin.x + minimumRadius, y: origin.y },
+      { x: Number.NaN, y: origin.y },
+    ])
+      expect(ultrasonicTargetAtPoint(origin, point, 4)).toBeNull();
+    expect(formatUltrasonicTargetDistance(1)).toBe('100 см / 39,4 in');
   });
 });

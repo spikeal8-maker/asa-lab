@@ -29,6 +29,7 @@ export type ElectricalModelId =
   | 'n-channel-fet'
   | 'incandescent-lamp'
   | 'dc-motor'
+  | 'l298n-dual-hbridge'
   | 'digital-multimeter'
   | 'breadboard-connectivity'
   | 'arduino-uno'
@@ -76,6 +77,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'n-channel-fet',
   'incandescent-lamp',
   'dc-motor',
+  'l298n-dual-hbridge',
   'digital-multimeter',
   'breadboard-connectivity',
   'arduino-uno',
@@ -87,8 +89,10 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'soil-moisture-sensor': identity('resistive-soil-sensor', 'asa-resistive-soil-divider'),
   'pir-sensor': identity('pir-motion-sensor', 'pir-digital-motion-v1'),
   'temperature-sensor': identity('analog-temperature-sensor', 'tmp36-to92-dc'),
-  'ultrasonic-sensor': identity('ping-ultrasonic-distance-sensor', 'ping-3pin-canonical-echo-v1'),
-  'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1', 2),
+  // The coverage generator reads exact identity tuples from a single source line.
+  // prettier-ignore
+  'ultrasonic-sensor': identity('ping-ultrasonic-distance-sensor', 'ping-3pin-canonical-echo-v1', 2),
+  'ultrasonic-hc-sr04': identity('hc-sr04-distance-sensor', 'hc-sr04-canonical-echo-v1', 3),
   'servo-motor': identity('servo-motor-signal', 'servo-pulse-angle-v1'),
   'arduino-uno': identity('arduino-uno', 'arduino-uno-r3'),
   'resistor-axial': identity('resistor', 'axial-resistor'),
@@ -111,6 +115,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'incandescent-lamp': identity('incandescent-lamp', 't1-bipin-6v-incandescent', 2),
   'dc-motor': identity('dc-motor', 'pololu-1117-130-6v'),
   gearmotor: identity('dc-motor', 'adafruit-3777-tt-48to1'),
+  'l298n-motor-driver': identity('l298n-dual-hbridge', 'l298n-red-43mm-v1'),
   'vibration-motor': identity('dc-motor', 'precision-microdrives-310-101-3v'),
   multimeter: identity('digital-multimeter', 'asa-two-terminal-dmm', 3),
   'breadboard-small': identity('breadboard-connectivity', 'breadboard-small'),
@@ -224,14 +229,18 @@ export function electricalModelIdentityForComponent(
       component.modelProfileVersion === 1
     )
       return resolveElectricalModelIdentity(component);
-    // The former always-reflecting profile is the default of the new optional
-    // echoAvailable input. Only its exact installed identity is compatible.
+    // Known saved documents restart under the rail-connected output profile.
+    // Opaque continuations are separately rejected by registry/state guards.
     if (
-      component.componentTypeId === 'ultrasonic-hc-sr04' &&
-      component.electricalModelId === 'hc-sr04-distance-sensor' &&
       component.electricalModelVersion === 1 &&
-      component.modelProfileId === 'hc-sr04-canonical-echo-v1' &&
-      component.modelProfileVersion === 1
+      ((component.componentTypeId === 'ultrasonic-hc-sr04' &&
+        component.electricalModelId === 'hc-sr04-distance-sensor' &&
+        component.modelProfileId === 'hc-sr04-canonical-echo-v1' &&
+        [1, 2].includes(component.modelProfileVersion)) ||
+        (component.componentTypeId === 'ultrasonic-sensor' &&
+          component.electricalModelId === 'ping-ultrasonic-distance-sensor' &&
+          component.modelProfileId === 'ping-3pin-canonical-echo-v1' &&
+          component.modelProfileVersion === 1))
     )
       return resolveElectricalModelIdentity(component);
     if (

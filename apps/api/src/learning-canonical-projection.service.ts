@@ -73,6 +73,7 @@ export function canonicalCourseParticipationKey(seatId: string, activityRunId: s
 
 export interface CanonicalLearningProjection {
   key: string;
+  seatStatus: EvidenceRow['seatStatus'];
   state: CanonicalLearningState;
   surface: CanonicalLearningSurfaceState;
   /** Assigned/excused facts come from the exact participation, not a Project/Attempt. */
@@ -183,6 +184,7 @@ export function canonicalProjectionFromEvidence(
   const state = resolveEvidence(evidence, asOf);
   return {
     key,
+    seatStatus: evidence.seatStatus,
     state,
     participationApplicability: evidence.participation
       ? {

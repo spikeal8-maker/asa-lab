@@ -1305,9 +1305,15 @@ for (const width of [1440, 1024, 390, 320])
         await page.setViewportSize({ width: 1440, height: 900 });
         lastCheckpoint = 'before-home';
         writeRaw(lastCheckpoint);
-        await page.goto('/#/home');
+        // The optional MAX SDK can hold the page load event after the portal is usable.
+        await page.goto('/#/home', { waitUntil: 'commit' });
         const session = await page.context().request.get('/api/auth/me');
         expect(session.status()).toBe(200);
+        await expect(
+          page
+            .getByRole('region', { name: 'Электроника', exact: true })
+            .getByRole('button', { name: 'Создать цепь', exact: true }),
+        ).toBeEnabled();
         const user = ((await session.json()) as { user: { id: string } }).user.id;
         const created = await page.context().request.post('/api/projects', {
           headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
@@ -1346,7 +1352,7 @@ for (const width of [1440, 1024, 390, 320])
             response.request().method() === 'GET' &&
             new URL(response.url()).pathname === `/api/projects/${projectId}`,
         );
-        await page.goto(`/#/home/${projectId}`);
+        await page.goto(`/#/home/${projectId}`, { waitUntil: 'commit' });
         const delivered = (await (await delivery).json()) as {
           draft: { revision: number; document: SchematicDocument };
         };

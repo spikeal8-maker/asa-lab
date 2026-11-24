@@ -19,6 +19,7 @@ import {
 import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
 import { QUALITY_COUNTERS } from './analytics-envelope.js';
 import { logFilter } from './admin-logs.controller.js';
+import * as requiredCoverage from './required-log-coverage.js';
 import type { FastifyRequest } from 'fastify';
 const filter: LogFilter = {
   from: '2026-10-01T00:00:00.000Z',
@@ -43,6 +44,186 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('exports one private-safe union of global errors and a module at exact bounds', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-log-handoff-'));
+    try {
+      const from = '2026-11-22T09:22:01.001Z';
+      const to = '2026-11-22T09:22:01.004Z';
+      const requestId = '12345678-0000-4000-8000-000000000001';
+      const privateSource = 'private-catalog-source';
+      const privateToken = 'private-token-without-spaces';
+      const privateBuild = 'deadbeef'.repeat(5);
+      const privateOrigin = 'private-origin-secret';
+      const window = { ...filter, from, to, handoffModule: 'electronics' };
+      const row = (
+        id: number,
+        ms: number,
+        module: string,
+        level: string,
+        message: unknown,
+        source = 'api',
+        related: string | null = null,
+      ) => ({
+        id: id.toString(16).padStart(64, '0'),
+        time: `2026-11-22T09:22:01.00${ms}Z`,
+        source,
+        module,
+        level,
+        message: typeof message === 'string' ? message : JSON.stringify(message),
+        requestId: related,
+        origin: privateOrigin,
+        revision: privateBuild,
+        truncated: false,
+      });
+      const rows = [
+        row(1, 0, 'electronics', 'error', 'before-window'),
+        row(2, 1, 'electronics', 'error', {
+          kind: 'client_diagnostic',
+          code: 'simulation_failed',
+          failureCode: 'worker-timeout',
+          relatedRequestId: requestId,
+          durationMs: 30000,
+          phase: privateToken,
+          email: 'student@private.example',
+          ip: '203.0.113.5',
+          secretProject: 'PRIVATE-PROJECT',
+          requestUrl: '/api/private',
+        }),
+        row(
+          3,
+          2,
+          'portal',
+          'error',
+          {
+            kind: 'http_response',
+            status: 429,
+            errorCode: 'too_many_attempts',
+            path: '/api/class-join/studentseat',
+            admission: {
+              credentialCheck: 'student_rejected',
+              blockedBudgets: ['source_total', privateToken],
+            },
+          },
+          'api',
+          requestId,
+        ),
+        row(4, 2, 'electronics', 'warn', { code: privateToken }, privateSource),
+        row(5, 3, 'electronics', 'info', { code: 'editor_ready' }),
+        row(6, 3, 'portal', 'info', { code: 'editor_ready' }),
+        row(7, 4, 'electronics', 'error', 'excluded-end'),
+        row(8, 3, 'system', 'error', `ERROR: quality stream conflict ${privateToken}`, 'postgres'),
+      ];
+      const data = Buffer.from(rows.map((entry) => JSON.stringify(entry)).join('\n') + '\n');
+      const file = 'seg-0000000000000001-0000000000000008.jsonl.gz';
+      const compressed = gzipSync(data);
+      await writeFile(join(root, file), compressed);
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          collectedAt: to,
+          trimmed: true,
+          sources: [{ source: privateSource, detail: privateToken }],
+          segments: [
+            {
+              file,
+              schema: 2,
+              count: rows.length,
+              bytes: compressed.length,
+              rawBytes: data.length,
+              sha256: createHash('sha256').update(data).digest('hex'),
+              first: rows[0]!.time,
+              last: rows[6]!.time,
+              sources: ['api', privateSource, 'postgres'],
+              modules: ['portal', 'system', 'electronics'],
+              levels: ['info', 'warn', 'error'],
+            },
+          ],
+        }),
+      );
+      const readHandoff = async (name: string) => {
+        const output = join(root, name);
+        expect((await exportLogs(root, window, output)).count).toBe(5);
+        const members = zipMembers(await readFile(output));
+        expect(JSON.parse(members.get('manifest.json')!.toString())).toEqual({
+          format: 'asa-log-handoff-v1',
+          fromInclusive: from,
+          toExclusive: to,
+          module: 'electronics',
+          count: 5,
+          errorCount: 3,
+          moduleCount: 3,
+          normalized: false,
+          coverage: {
+            application: 'host-collector',
+            host: 'collector_snapshot',
+            complete: false,
+            trimmed: true,
+          },
+        });
+        for (const member of members.values()) {
+          for (const privateValue of [
+            privateToken,
+            privateOrigin,
+            privateSource,
+            privateBuild,
+            requestId,
+            'student@private.example',
+            '203.0.113.5',
+            'PRIVATE-PROJECT',
+            '/api/private',
+            rows[1]!.id,
+          ])
+            expect(member.toString()).not.toContain(privateValue);
+        }
+        return members
+          .get('records/part-00001.jsonl')!
+          .toString()
+          .trimEnd()
+          .split('\n')
+          .map((line) => JSON.parse(line));
+      };
+      const [simulation, request, warning, ready, postgres] = await readHandoff('detail.zip');
+      expect(simulation).toMatchObject({
+        time: from,
+        error: true,
+        selectedModule: true,
+        detail: { code: 'simulation_failed', failureCode: 'worker-timeout', durationMs: 30000 },
+      });
+      expect(simulation.id).toMatch(/^[a-f0-9]{64}$/);
+      expect(simulation.detail.relatedRequestId).toMatch(/^[a-f0-9]{64}$/);
+      expect(request).toMatchObject({
+        error: true,
+        selectedModule: false,
+        detail: {
+          status: 429,
+          errorCode: 'too_many_attempts',
+          route: 'class-join/studentseat',
+          credentialCheck: 'student_rejected',
+          blockedBudgets: ['source_total'],
+          requestId: simulation.detail.relatedRequestId,
+        },
+      });
+      expect(warning).toMatchObject({
+        source: 'other',
+        level: 'warn',
+        error: false,
+        selectedModule: true,
+        detail: {},
+      });
+      expect(ready).toMatchObject({ level: 'info', error: false, selectedModule: true });
+      expect(postgres).toMatchObject({
+        error: true,
+        selectedModule: false,
+        recognizedMessages: ['quality stream conflict'],
+      });
+      const [secondSimulation] = await readHandoff('different.zip');
+      expect(secondSimulation.id).not.toBe(simulation.id);
+      expect(secondSimulation.detail.relatedRequestId).not.toBe(simulation.detail.relatedRequestId);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('aligns error counts with Moscow hours, groups AI and robotics, and reports partial retention', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-error-trend-'));
     try {
@@ -104,9 +285,19 @@ describe('retained log reader and archive', () => {
           }),
         },
         row(3, '2026-11-11T17:15:00.000Z', '/api/robotics/projects', 'warn'),
+        {
+          ...row(11, '2026-11-11T17:16:00.000Z', '/'),
+          source: 'postgres',
+          message: '2026-11-11 17:16:00 UTC [15] ERROR:  quality stream conflict',
+        },
+        {
+          ...row(12, '2026-11-11T17:16:01.000Z', '/'),
+          source: 'postgres',
+          message: '2026-11-11 17:16:01 UTC [15] ERROR:  deadlock detected',
+        },
       ];
       const raw = rows.map((event) => JSON.stringify(event)).join('\n') + '\n';
-      const file = 'seg-0000000000000001-0000000000000010.jsonl';
+      const file = 'seg-0000000000000001-0000000000000012.jsonl';
       await writeFile(join(root, file), raw);
       await writeFile(
         join(root, 'catalog.json'),
@@ -121,6 +312,18 @@ describe('retained log reader and archive', () => {
               count: rows.length,
               first: rows[0]!.time,
               last: rows.at(-1)!.time,
+            },
+            {
+              file: 'seg-0000000000000013-0000000000005000.jsonl',
+              schema: 2,
+              sha256: 'a'.repeat(64),
+              bytes: 4 * 1024 * 1024,
+              rawBytes: 4 * 1024 * 1024,
+              count: 4990,
+              first: '2026-11-11T17:17:00.000Z',
+              last: '2026-11-11T17:19:00.000Z',
+              levels: ['info'],
+              sources: ['api'],
             },
           ],
         }),
@@ -137,7 +340,10 @@ describe('retained log reader and archive', () => {
         to: '2026-11-11T17:20:00.000Z',
         points: [
           { at: '2026-11-11T16:00:00.000Z', counts: { ai: 1 } },
-          { at: '2026-11-11T17:00:00.000Z', counts: { robotics: 1, ai: 1, api: 3, projects: 1 } },
+          {
+            at: '2026-11-11T17:00:00.000Z',
+            counts: { robotics: 1, ai: 1, api: 3, projects: 1, diagnostics: 1, database: 1 },
+          },
         ],
       });
       const journal = await queryLogs(
@@ -179,6 +385,54 @@ describe('retained log reader and archive', () => {
       expect((await readLogCatalog(root))?.requiredSources).toBeUndefined();
       expect(await queryLogs(root, filter, 100)).toMatchObject({ items: [], partial: false });
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it('marks quota losses in the requested history even when connected sources are healthy', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-trend-quota-'));
+    const coverage = vi.spyOn(requiredCoverage, 'hostRequiredCoverage').mockReturnValue({
+      ...requiredCoverage.unknownRequiredCoverage('fixture'),
+      state: 'ok',
+    });
+    try {
+      const window = {
+        from: '2026-10-02T00:00:00.000Z',
+        to: '2026-10-03T00:00:00.000Z',
+        bucketSeconds: 3600,
+      };
+      const catalog = {
+        version: 1,
+        collectedAt: window.to,
+        trimmed: true,
+        sources: [],
+        segments: [
+          {
+            file: 'seg-0000000000000001-0000000000000001.jsonl.gz',
+            schema: 2,
+            sha256: 'a'.repeat(64),
+            first: window.from,
+            last: window.from,
+            levels: ['info'],
+          },
+        ],
+      };
+      const catalogFile = join(root, 'catalog.json');
+      await writeFile(catalogFile, JSON.stringify(catalog));
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'partial', points: [] });
+      await writeFile(
+        catalogFile,
+        JSON.stringify({ ...catalog, errorHistoryLostThrough: window.from }),
+      );
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'partial', points: [] });
+      await writeFile(
+        catalogFile,
+        JSON.stringify({ ...catalog, errorHistoryLostThrough: '2026-10-01T23:59:59.999Z' }),
+      );
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'available', points: [] });
+      await writeFile(catalogFile, JSON.stringify({ ...catalog, errorHistoryLostThrough: null }));
+      expect(await errorTrend(root, window)).toMatchObject({ coverage: 'available', points: [] });
+    } finally {
+      coverage.mockRestore();
       await rm(root, { recursive: true, force: true });
     }
   });

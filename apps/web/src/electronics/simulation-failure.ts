@@ -135,7 +135,9 @@ export function simulationFailureMessage(failure: SimulationFailure): Simulation
 
 export function circuitStateMessage(result: SolveResult): SimulationStatusMessage | null {
   if (result.solved || result.status !== 'invalid') return null;
-  const diagnostic = result.diagnostics.find((entry) => entry.severity === 'error');
+  const diagnostic = result.diagnostics.find(
+    (entry) => entry.severity === 'error' && entry.code !== 'no_source',
+  );
   if (!diagnostic) return null;
   return { category: 'circuit-state', code: diagnostic.code, text: diagnostic.message };
 }

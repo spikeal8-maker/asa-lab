@@ -15,7 +15,7 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { TOKENS, SESSION_COOKIE } from './tokens.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AdminLogsService } from './admin-logs.service.js';
-import type { LogFilter, LogTrendWindow } from './admin-logs.worker.js';
+import type { LogExportFilter, LogFilter, LogTrendWindow } from './admin-logs.worker.js';
 import { LOG_SUBSYSTEMS, LOG_MODULES, logEditorModule } from './log-subsystems.js';
 
 function fail(code: string, status: number): never {
@@ -86,6 +86,34 @@ export function logFilter(input: unknown): LogFilter {
     search: text('search', 120),
     before: beforeTime ? { time: new Date(beforeTime).toISOString(), id: beforeId } : null,
   };
+}
+
+export function logExportFilter(input: unknown): LogExportFilter {
+  const filter = logFilter(input);
+  const value = input as Record<string, unknown>;
+  const mode = value['mode'];
+  const selected = value['handoffModule'];
+  if (mode === undefined && selected === undefined) return filter;
+  if (
+    mode !== 'handoff' ||
+    typeof selected !== 'string' ||
+    typeof value['from'] !== 'string' ||
+    !value['from'] ||
+    typeof value['to'] !== 'string' ||
+    !value['to'] ||
+    filter.from >= filter.to ||
+    filter.before ||
+    filter.scope !== 'all' ||
+    filter.level ||
+    filter.module ||
+    filter.source ||
+    filter.search ||
+    filter.subsystem
+  )
+    fail('validation_error', 400);
+  const module = logEditorModule(selected) ?? selected;
+  if (!(LOG_MODULES as readonly string[]).includes(module)) fail('validation_error', 400);
+  return { ...filter, handoffModule: module };
 }
 
 const TREND_BUCKETS = new Set([300, 900, 1800, 3600, 21600, 86400, 604800]);
@@ -200,7 +228,7 @@ export class AdminLogsController {
   ) {
     const owner = await this.allow(request);
     reply.header('Cache-Control', 'no-store');
-    const filter = logFilter(body);
+    const filter = logExportFilter(body);
     return this.response(() => this.logs.createExport(owner, filter));
   }
 

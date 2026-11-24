@@ -11,6 +11,7 @@ import {
   logModule,
 } from './log-subsystems.js';
 import { projectDatabaseEntry } from './database-diagnostics.js';
+import { createHandoffProjector } from './admin-log-handoff.js';
 import {
   hostRequiredCoverage,
   readRequiredSources,
@@ -52,6 +53,10 @@ export interface LogFilter {
   readonly level: string;
   readonly search: string;
   readonly before: { readonly time: string; readonly id: string } | null;
+}
+
+export interface LogExportFilter extends LogFilter {
+  readonly handoffModule?: string;
 }
 
 export interface LogTrendWindow {
@@ -99,6 +104,7 @@ export interface LogCatalog {
   readonly maxBytes: number;
   readonly bytes: number;
   readonly trimmed: boolean;
+  readonly errorHistoryLostThrough?: string | null;
   readonly sources: readonly {
     readonly source: string;
     readonly state: string;
@@ -294,14 +300,27 @@ function parseEntry(line: string): LogEntry {
   return entry;
 }
 
-async function* entries(root: string, segment: Segment): AsyncGenerator<LogEntry> {
+async function* entries(
+  root: string,
+  segment: Segment,
+  errorsOnly = false,
+): AsyncGenerator<LogEntry> {
   const { raw } = await segmentData(root, segment);
   for (const line of raw.toString('utf8').split('\n')) {
-    if (line) yield parseEntry(line);
+    if (!line) continue;
+    // The trend measures recorded error severity. The detailed log reader
+    // still projects historical events independently of their stored level.
+    if (errorsOnly && !/"level"\s*:\s*"error"/.test(line)) continue;
+    yield parseEntry(line);
   }
 }
 
 function errorSystem(event: LogEntry): string {
+  if (
+    event.source === 'postgres' &&
+    /\bERROR:\s+(?:quality stream conflict|telemetry project denied)(?:\s|$)/i.test(event.message)
+  )
+    return 'diagnostics';
   if (
     event.origin === 'ai_image_jobs' ||
     event.origin === 'ai_usage_journal' ||
@@ -369,19 +388,28 @@ export async function errorTrend(root: string, window: LogTrendWindow): Promise<
 
   const selected = catalog.segments
     .filter((part) => Date.parse(part.last) >= from && Date.parse(part.first) < to)
+    .filter((part) => {
+      return (
+        part.schema !== LOG_STORE_FORMAT ||
+        !part.sha256 ||
+        !part.levels?.length ||
+        part.levels.includes('error')
+      );
+    })
     .sort((a, b) => b.last.localeCompare(a.last));
   const seen = new Set<string>();
   const buckets = new Map<number, Record<string, number>>();
   const started = performance.now();
-  let scanned = 0;
+  let scannedBytes = 0;
   for (const part of selected) {
-    if (scanned >= 160_000 || performance.now() - started > 5_000) {
+    const rawBytes = part.rawBytes ?? MAX_SEGMENT_BYTES;
+    if (scannedBytes + rawBytes > 512 * 1024 * 1024 || performance.now() - started > 8_000) {
       // An unread segment can overlap any preceding bucket. Do not show a partial count as its total.
       from = Math.max(from, origin + Math.ceil((Date.parse(part.last) + 1 - origin) / step) * step);
       break;
     }
-    for await (const event of entries(root, part)) {
-      scanned++;
+    scannedBytes += rawBytes;
+    for await (const event of entries(root, part, true)) {
       const time = Date.parse(event.time);
       if (
         event.level !== 'error' ||
@@ -401,9 +429,16 @@ export async function errorTrend(root: string, window: LogTrendWindow): Promise<
   }
   if (!(from < to)) return unavailable;
   const coverage = hostRequiredCoverage(catalog, await trendHealth(root));
+  const loss = catalog.errorHistoryLostThrough;
+  const lossThrough = typeof loss === 'string' ? Date.parse(loss) : NaN;
+  const errorHistoryVerified =
+    loss === null || (loss === undefined && !catalog.trimmed) || lossThrough < requestedFrom;
   return {
     coverage:
-      from === requestedFrom && to === requestedTo && coverage.state === 'ok'
+      from === requestedFrom &&
+      to === requestedTo &&
+      coverage.state === 'ok' &&
+      errorHistoryVerified
         ? 'available'
         : 'partial',
     from: new Date(from).toISOString(),
@@ -484,7 +519,7 @@ function crc32(data: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-export async function exportLogs(root: string, filter: LogFilter, output: string) {
+export async function exportLogs(root: string, filter: LogExportFilter, output: string) {
   const catalog = await readLogCatalog(root);
   if (!catalog) throw new Error('LOG_COLLECTOR_UNAVAILABLE');
   const handle = await open(output, 'wx', 0o600);
@@ -497,6 +532,11 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
   let part = 0;
   const exportedSegments: Segment[] = [];
   let batchEntries: LogEntry[] = [];
+  const projectHandoff = filter.handoffModule ? createHandoffProjector() : null;
+  const handoffStart = Date.parse(filter.from);
+  const handoffEnd = Date.parse(filter.to);
+  let errorCount = 0;
+  let moduleCount = 0;
   const write = async (data: Buffer): Promise<void> => {
     if (offset + data.length > MAX_EXPORT_BYTES) throw new Error('LOG_EXPORT_TOO_LARGE');
     await handle.writeFile(data);
@@ -559,6 +599,7 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
     ): Promise<void> => {
       const file = `records/part-${String(++part).padStart(5, '0')}.jsonl`;
       await add(file, raw, prepared);
+      if (projectHandoff) return;
       const times = events.map((event) => event.time).sort();
       exportedSegments.push({
         file,
@@ -584,6 +625,7 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
       const lines = raw.toString('utf8').split('\n').filter(Boolean);
       const events = lines.map(parseEntry);
       const whole =
+        !projectHandoff &&
         segment.file.endsWith('.gz') &&
         segment.schema === 2 &&
         typeof segment.sha256 === 'string' &&
@@ -627,11 +669,22 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
         uncompressed += raw.length;
       } else {
         for (const event of events) {
-          if (!matches(event, { ...filter, before: null })) continue;
-          const line = `${JSON.stringify(event)}\n`;
+          const moduleMatch = event.module === filter.handoffModule;
+          if (projectHandoff) {
+            const time = Date.parse(event.time);
+            if (
+              time < handoffStart ||
+              time >= handoffEnd ||
+              (!moduleMatch && event.level !== 'error')
+            )
+              continue;
+            if (moduleMatch) moduleCount += 1;
+            if (event.level === 'error') errorCount += 1;
+          } else if (!matches(event, { ...filter, before: null })) continue;
+          const line = `${JSON.stringify(projectHandoff ? projectHandoff(event, moduleMatch) : event)}\n`;
           const lineBytes = Buffer.byteLength(line);
           batch += line;
-          batchEntries.push(event);
+          if (!projectHandoff) batchEntries.push(event);
           batchBytes += lineBytes;
           uncompressed += lineBytes;
           count += 1;
@@ -643,38 +696,55 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
     await flush();
     // Search text may itself be private historical content. Record that a search
     // was applied without copying that text into the archive's metadata.
-    const { search, ...exportFilter } = filter;
+    const { search, handoffModule, ...exportFilter } = filter;
     await add(
       'manifest.json',
       Buffer.from(
         JSON.stringify(
-          {
-            filter: exportFilter,
-            searchApplied: Boolean(search),
-            count,
-            catalog: {
-              version: 1,
-              collectedAt: new Date().toISOString(),
-              bytes: exportedSegments.reduce((sum, segment) => sum + segment.bytes, 0),
-              retentionDays: Number.isSafeInteger(catalog.retentionDays)
-                ? catalog.retentionDays
-                : null,
-              maxBytes: Number.isSafeInteger(catalog.maxBytes) ? catalog.maxBytes : null,
-              trimmed: catalog.trimmed === true,
-              sources: [],
-              segments: exportedSegments,
-            },
-            sourceStatusIncluded: false,
-            exportedAt: new Date().toISOString(),
-            normalized: true,
-            coverage: {
-              application: catalog.applicationOwned ? 'embedded' : 'host-collector',
-              host: catalog.applicationOwned ? 'not_included' : 'collector_snapshot',
-              complete: false,
-              statement:
-                'Only retained matching evidence; absence of events does not prove absence of errors',
-            },
-          },
+          projectHandoff
+            ? {
+                format: 'asa-log-handoff-v1',
+                fromInclusive: filter.from,
+                toExclusive: filter.to,
+                module: handoffModule,
+                count,
+                errorCount,
+                moduleCount,
+                normalized: false,
+                coverage: {
+                  application: catalog.applicationOwned ? 'embedded' : 'host-collector',
+                  host: catalog.applicationOwned ? 'not_included' : 'collector_snapshot',
+                  complete: false,
+                  trimmed: catalog.trimmed === true,
+                },
+              }
+            : {
+                filter: exportFilter,
+                searchApplied: Boolean(search),
+                count,
+                catalog: {
+                  version: 1,
+                  collectedAt: new Date().toISOString(),
+                  bytes: exportedSegments.reduce((sum, segment) => sum + segment.bytes, 0),
+                  retentionDays: Number.isSafeInteger(catalog.retentionDays)
+                    ? catalog.retentionDays
+                    : null,
+                  maxBytes: Number.isSafeInteger(catalog.maxBytes) ? catalog.maxBytes : null,
+                  trimmed: catalog.trimmed === true,
+                  sources: [],
+                  segments: exportedSegments,
+                },
+                sourceStatusIncluded: false,
+                exportedAt: new Date().toISOString(),
+                normalized: true,
+                coverage: {
+                  application: catalog.applicationOwned ? 'embedded' : 'host-collector',
+                  host: catalog.applicationOwned ? 'not_included' : 'collector_snapshot',
+                  complete: false,
+                  statement:
+                    'Only retained matching evidence; absence of events does not prove absence of errors',
+                },
+              },
           null,
           2,
         ),
@@ -683,7 +753,9 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
     await add(
       'README.txt',
       Buffer.from(
-        'Журналы ASA Lab\nЗаписи JSONL: одна строка — одно событие. В каждой записи указаны время UTC, источник, модуль, уровень и сообщение.\nЭто сохранённые диагностические записи с очисткой известных секретов. Полнота, ограничения источников и фильтры указаны в manifest.json.\ntruncated=true означает ограничение длины исходного сообщения. Отсутствие событий не доказывает отсутствие сбоев.\ntimeBasis=file_mtime означает время изменения файла, если собственное время события не распознано.\n',
+        projectHandoff
+          ? 'Журналы ASA Lab для разбора\nОдна строка JSONL — одно событие. Метки error и selectedModule показывают, почему запись попала в архив. Запись с обеими метками сохранена один раз. Коды, длительности и связи между запросами оставлены для диагностики. Идентификаторы действуют только внутри архива. Содержимое сообщений и данные пользователей удалены. В manifest.json указаны интервал UTC, число записей и состав хранилища. Отсутствие записи не доказывает отсутствие сбоя.\n'
+          : 'Журналы ASA Lab\nЗаписи JSONL: одна строка — одно событие. В каждой записи указаны время UTC, источник, модуль, уровень и сообщение.\nЭто сохранённые диагностические записи с очисткой известных секретов. Полнота, ограничения источников и фильтры указаны в manifest.json.\ntruncated=true означает ограничение длины исходного сообщения. Отсутствие событий не доказывает отсутствие сбоев.\ntimeBasis=file_mtime означает время изменения файла, если собственное время события не распознано.\n',
       ),
     );
     const centralOffset = offset;
@@ -704,7 +776,7 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
 if (parentPort) {
   const task = workerData as {
     root: string;
-    filter: LogFilter;
+    filter: LogExportFilter;
     kind: 'query' | 'export' | 'trend';
     limit: number;
     output: string;

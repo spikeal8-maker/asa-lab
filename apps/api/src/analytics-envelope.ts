@@ -98,6 +98,46 @@ export function referrerOrigin(value: unknown): string | null {
     return invalid();
   }
 }
+export function parseSiteActivityEnvelope(raw: unknown, receivedAt: string) {
+  const value = object(raw);
+  exact(value, ['schemaVersion', 'eventId', 'actorExpectation', 'intervals']);
+  const intervals = value['intervals'];
+  if (
+    value['schemaVersion'] !== 2 ||
+    !Array.isArray(intervals) ||
+    !intervals.length ||
+    intervals.length > 16
+  )
+    invalid();
+  const received = Date.parse(receivedAt);
+  let previousEndAge = Infinity;
+  const spans = intervals.map((item) => {
+    const interval = object(item);
+    exact(interval, ['fromAgoMs', 'toAgoMs']);
+    const { fromAgoMs, toAgoMs } = interval;
+    if (
+      typeof fromAgoMs !== 'number' ||
+      typeof toAgoMs !== 'number' ||
+      !Number.isSafeInteger(fromAgoMs) ||
+      !Number.isSafeInteger(toAgoMs) ||
+      fromAgoMs > 90_000 ||
+      fromAgoMs > previousEndAge ||
+      toAgoMs < 0 ||
+      fromAgoMs - toAgoMs < 1000
+    )
+      invalid();
+    previousEndAge = toAgoMs;
+    return {
+      from: new Date(received - fromAgoMs).toISOString(),
+      to: new Date(received - toAgoMs).toISOString(),
+    };
+  });
+  return {
+    eventId: uuid(value['eventId']),
+    actorExpectation: expectation(value['actorExpectation']),
+    semantic: spans,
+  };
+}
 export function qualitySemantic(v: Record<string, unknown>) {
   if (
     !['product-analytics', 'client-diagnostics'].includes(v['pipeline'] as string) ||

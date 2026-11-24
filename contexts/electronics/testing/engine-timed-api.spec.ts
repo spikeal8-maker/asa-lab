@@ -114,7 +114,7 @@ function pirCircuit(): ElectronicsEngineDocument {
 }
 
 describe('Electronics canonical timed engine facade', () => {
-  it('upgrades only the exact installed HC-SR04 v1 profile to the no-echo-capable profile', () => {
+  it('upgrades only the exact installed HC-SR04 v1 profile to the rail-connected output profile', () => {
     const legacy: SchematicComponent = {
       id: 'sonar',
       kind: 'visual',
@@ -131,13 +131,13 @@ describe('Electronics canonical timed engine facade', () => {
       electricalModelId: 'hc-sr04-distance-sensor',
       electricalModelVersion: 1,
       modelProfileId: 'hc-sr04-canonical-echo-v1',
-      modelProfileVersion: 2,
+      modelProfileVersion: 3,
     });
     expect(electricalModelIdentityForComponent(legacy)).toEqual(installed);
     expect(componentModelIdentityIsInstalled(legacy)).toBe(true);
     for (const unknown of [
       { ...legacy, electricalModelVersion: 2 },
-      { ...legacy, modelProfileVersion: 3 },
+      { ...legacy, modelProfileVersion: 4 },
       { ...legacy, modelProfileId: 'hc-sr04-foreign-profile' },
     ]) {
       expect(componentModelIdentityIsInstalled(unknown)).toBe(false);

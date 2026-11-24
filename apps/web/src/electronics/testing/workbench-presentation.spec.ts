@@ -611,7 +611,20 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(endpointDrag.slice(0, 360)).toContain('if (!structuralEditAllowed()) return;');
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
-    expect(stageSource).toContain('onPointerDownCapture={c.beginStagePointer}');
+    const stagePointerCapture = stageSource
+      .slice(
+        stageSource.indexOf('onPointerDownCapture='),
+        stageSource.indexOf('onPointerDown={handleStagePointerDown}'),
+      )
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => line.trim());
+    expect(stagePointerCapture).toEqual([
+      'onPointerDownCapture={(event) => {',
+      'if ((event.target as Element).closest(\'[data-testid="ultrasonic-target"]\')) return;',
+      'c.beginStagePointer(event);',
+      '}}',
+    ]);
     expect(controllerSource).toContain('placeCatalogComponent(event)');
 
     // Runtime presentation is a running-simulation contract; static solve data
