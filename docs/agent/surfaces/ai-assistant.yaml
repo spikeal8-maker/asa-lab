@@ -1,6 +1,60 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-LOCAL-LLAMACPP
+    routes: ['#/admin/ai?section=connections&provider=llamacpp-local', /api/admin/v1/ai/llamacpp, /api/admin/v1/ai/llamacpp/models, /api/admin/v1/ai/llamacpp/apply, /api/ai/status, '/api/ai/threads/:threadId/messages', '/api/ai/threads/:threadId/messages/stream']
+    implementation:
+      files: &llamacpp_files
+        - apps/api/src/ai-llamacpp.ts
+        - apps/api/src/ai-llamacpp-settings.ts
+        - apps/api/src/ai-llamacpp-slot.ts
+        - apps/api/src/ai-chat.service.ts
+        - apps/api/src/ai-chat.controller.ts
+        - apps/api/src/ai-admin.controller.ts
+        - apps/api/src/ai-generation-policy.ts
+        - apps/api/src/ai-token-budgets.ts
+        - apps/api/src/ai-provider-usage.ts
+        - apps/api/src/ai-usage-journal.ts
+        - apps/api/src/ai-text-history.ts
+        - packages/contracts/src/ai-generation-policy.ts
+        - packages/contracts/src/ai-chat-feedback.ts
+        - migrations/0333_ai_llamacpp_local.sql
+        - apps/web/src/admin/AdminLlamaCppPage.tsx
+        - apps/web/src/admin/AiAdminWorkspace.tsx
+        - apps/web/src/admin/ai-admin-navigation.ts
+        - apps/web/src/admin/AdminAiGenerationPolicy.tsx
+        - apps/web/src/admin/AdminAiTokenBudgets.tsx
+        - apps/web/src/ai/AiChatPage.tsx
+        - apps/api/src/ai-llamacpp.spec.ts
+        - apps/api/src/ai-llamacpp-settings.spec.ts
+        - apps/api/src/ai-llamacpp-slot.spec.ts
+        - apps/api/src/ai-llamacpp-chat.spec.ts
+        - apps/api/src/ai-llamacpp-history.spec.ts
+        - apps/web/src/admin/testing/ai-llamacpp.spec.ts
+        - tests/admin/ai-llamacpp.embedded.spec.ts
+        - tests/admin/ai-llamacpp.pg.spec.ts
+        - e2e/ai-llamacpp.spec.ts
+        - e2e/ai-llamacpp-live.e2e.ts
+        - playwright.ai-llamacpp-live.config.ts
+        - tools/ai-llamacpp-live.mjs
+        - package.json
+        - .github/workflows/ai-chat-focused.yml
+        - docs/deployment/LLAMACPP_LOCAL.md
+        - docs/product/ai/spec/06-administration.md
+        - docs/product/ai/evidence/AI_LOCAL_LLAMACPP_001.md
+        - docs/agent/contracts/ai-assistant.yaml
+        - docs/agent/surfaces/ai-assistant.yaml
+        - docs/testing/test-catalog.yaml
+    invariants: &llamacpp_invariants [AI-LOCAL-LLAMACPP-001, AI-OWNER-001, AI-ADMISSION-001, AI-SESSION-001, AI-GENERATION-POLICY-001, AI-REPLAY-001, AI-USAGE-001, AI-HISTORY-001]
+    tests: &llamacpp_tests [TST-AI-LLAMACPP-CORE-001, TST-AI-LLAMACPP-PG-001, TST-AI-LLAMACPP-E2E-001, TST-AI-LLAMACPP-LIVE-001]
+    controls:
+      - id: CTRL-AI-LOCAL-LLAMACPP
+        label: Discover and atomically verify a separate private llama.cpp endpoint, then admit owner-bound cancellable generation with existing policy and usage
+        change_class: L3_CRITICAL
+        files: *llamacpp_files
+        invariants: *llamacpp_invariants
+        tests: *llamacpp_tests
+
   - id: SURF-AI-SCHOOL-CANONICAL-MIGRATIONS
     routes: [cli:gate:ai-image-queue, cli:db:migrate:check]
     implementation:

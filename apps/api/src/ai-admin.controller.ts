@@ -19,6 +19,7 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
 import { isAiProvider, isKnownModelForProvider } from './ai-model-catalog.js';
 import { OllamaError } from './ai-ollama.js';
+import { LlamaCppError } from './ai-llamacpp.js';
 import { ComfyUiError } from './ai-comfyui.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AiUsageUnavailable } from './ai-usage-journal.js';
@@ -77,6 +78,7 @@ export class AiAdminController {
         problem instanceof AiServiceError ||
         problem instanceof AiWebSearchError ||
         problem instanceof OllamaError ||
+        problem instanceof LlamaCppError ||
         problem instanceof ComfyUiError ||
         problem instanceof AiPolicyError
       ) {
@@ -364,6 +366,37 @@ export class AiAdminController {
   async ollama(@Req() request: FastifyRequest) {
     const principalId = await this.requirePlatformAdmin(request);
     return this.safe(() => this.ai.ollamaSettings(principalId));
+  }
+
+  @Get('llamacpp')
+  @Header('Cache-Control', 'private, no-store')
+  async llamaCpp(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.llamaCppConfig(actor));
+  }
+
+  @Post('llamacpp/models')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async llamaCppModels(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.llamaCppModels(actor, raw));
+  }
+
+  @Put('llamacpp/apply')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async applyLlamaCpp(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const requestId = (raw as { requestId?: unknown } | null)?.requestId;
+    if (
+      typeof requestId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)
+    )
+      return reject('ai_llamacpp_config_invalid', 'Нужен уникальный идентификатор проверки.', 400);
+    return this.safe(() => this.ai.applyLlamaCppSettings(actor, raw, requestId.toLowerCase()));
   }
 
   @Put('ollama')

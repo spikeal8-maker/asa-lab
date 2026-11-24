@@ -135,16 +135,45 @@ export class AiTextHistoryStore {
     owner: string,
     threadId: string,
     requestId: string,
+    maxUtf8Bytes?: number,
   ): Promise<readonly { role: 'user' | 'assistant'; content: string }[]> {
     const result = await this.pool.query<{
       role: 'user' | 'assistant';
       content: string;
       web_search?: AiWebSearchEvidence | null;
     }>(
-      'SELECT context.*, ai_web_search_evidence($1,$2,$3,false) AS web_search FROM ai_text_generation_context($1,$2,$3) context',
+      maxUtf8Bytes === undefined
+        ? 'SELECT context.*, ai_web_search_evidence($1,$2,$3,false) AS web_search FROM ai_text_generation_context($1,$2,$3) context'
+        : 'SELECT context.*, ai_web_search_evidence($1,$2,$3,false) AS web_search FROM ai_text_generation_context_llamacpp($1,$2,$3) context',
       [owner, threadId, requestId],
     );
     if (result.rows.length === 0) throw new Error('AI_CONTEXT_UNAVAILABLE');
+    if (maxUtf8Bytes !== undefined) {
+      // llama.cpp's confirmed context bounds admission conservatively: a UTF-8
+      // byte is an upper bound for the common byte-token vocabulary. This is a
+      // safety budget, never a tokenizer estimate or reported token consumption.
+      // Reserve the newest prompt and trim oldest history; do not split codepoints.
+      if (!Number.isSafeInteger(maxUtf8Bytes) || maxUtf8Bytes < 1)
+        throw new Error('AI_CONTEXT_UNAVAILABLE');
+      let remaining = maxUtf8Bytes;
+      const context = result.rows.map((row, index, rows) => ({
+        role: row.role,
+        content:
+          row.content + (index === rows.length - 1 ? webEvidenceContext(row.web_search) : ''),
+      }));
+      for (let index = context.length - 1; index >= 0; index--) {
+        const item = context[index]!;
+        if (Buffer.byteLength(item.content, 'utf8') > remaining) {
+          const bytes = Buffer.from(item.content, 'utf8');
+          let end = Math.min(remaining, bytes.length);
+          // A continuation byte marks an incomplete final codepoint.
+          while (end > 0 && end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
+          item.content = bytes.subarray(0, end).toString('utf8');
+        }
+        remaining -= Buffer.byteLength(item.content, 'utf8');
+      }
+      return context.filter((item) => item.content.length > 0);
+    }
     // Keep the latest complete answer available for code follow-ups, with a fixed
     // total history budget. Trim oldest rows first instead of every answer at 3000.
     let remaining = 96000;

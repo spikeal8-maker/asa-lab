@@ -37,7 +37,7 @@ export interface AiCloudCatalogModel {
 }
 export interface AiGenerationModel {
   readonly id: string;
-  readonly provider: 'openai' | 'deepseek' | 'ollama-cloud' | 'ollama' | 'polza';
+  readonly provider: 'openai' | 'deepseek' | 'ollama-cloud' | 'ollama' | 'polza' | 'llamacpp-local';
   readonly label: string;
   readonly ready: boolean;
   readonly selectable: boolean;

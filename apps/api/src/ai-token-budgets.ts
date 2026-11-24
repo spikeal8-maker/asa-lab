@@ -53,6 +53,7 @@ export class AiTokenBudgetStore {
         actor,
         JSON.stringify([
           'ollama-local',
+          'llamacpp-local',
           ...getAiModelCatalog()
             .models.filter((m) => m.adapterCompatible)
             .map((m) => m.id),

@@ -1,6 +1,6 @@
 import type { AiProvider } from './ai-model-config';
 
-export type AiProviderChoice = AiProvider | 'ollama' | 'polza';
+export type AiProviderChoice = AiProvider | 'ollama' | 'llamacpp-local' | 'polza';
 export type AiSection =
   | 'overview'
   | 'settings'
@@ -26,7 +26,14 @@ export const AI_ADMIN_SECTIONS: readonly { id: AiSection; label: string }[] = [
   { id: 'transcription', label: 'Транскрибация' },
 ];
 
-const PROVIDERS: readonly string[] = ['ollama', 'ollama-cloud', 'deepseek', 'openai', 'polza'];
+const PROVIDERS: readonly string[] = [
+  'ollama',
+  'llamacpp-local',
+  'ollama-cloud',
+  'deepseek',
+  'openai',
+  'polza',
+];
 const DEFAULT: AiAdminNavigation = { section: 'overview', provider: 'ollama' };
 const preferenceKey = (principalId: string) => `asa-ai-admin-navigation:v1:${principalId}`;
 
