@@ -1780,6 +1780,35 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: AI-LOCAL-LLAMACPP-001
+          issue: 1333
+          scope: independent llama.cpp provider, atomic administration and canonical chat integration
+          status: in_progress
+          selected_at: '2026-11-24'
+          source_branch: codex/ai-local-llamacpp-001
+          implementation_started: false
+          owner_acceptance: pending
+          deployment: not_performed
+          demo_status: NOT_RUN
+          change_class: L3_CRITICAL
+          selection: >-
+            Owner explicitly commissions Issue1333: independent llamacpp-local
+            adapter, a separate existing-style page beside local Ollama, automatic
+            authenticated discovery, verified context and tools, atomic checked
+            settings, canonical catalog/access/history/usage/budgets/cancellation
+            and real chat responses. Preserve all other providers and personal
+            defaults. Run focused, browser, regression and exact-source CI plus
+            independent final-candidate review. Existing authorized llama-server
+            inference and test/school network checks are in scope. Private network
+            addresses and secrets remain outside GitHub and browser projections.
+            Deployment uses only the canonical procedure after confirmed
+            acceptance; no automatic merge, acceptance claim, working database
+            mutation or server reconfiguration is authorized by source work.
+          author_coordination: >-
+            One task checkout with three explicitly coordinated disjoint authors:
+            transport/settings, service/SQL/contracts and UI/tests. Controller owns
+            governance, convergence and CI; a new independent reviewer evaluates
+            the final source. Each author confirms exact paths before editing.
         - id: ASAI-LOCAL-CLEAN-TRANSITION-001
           issue: 373
           scope: guarded clean database and bucket transition of existing local review installation
