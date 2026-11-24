@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { aiPublicErrorMessage, AI_TEXT_UNAVAILABLE } from '@asa-lab/contracts';
 import { expect, it, vi } from 'vitest';
+import { HttpException } from '@nestjs/common';
 import { AiChatController } from './ai-chat.controller';
 import { AiAdminController } from './ai-admin.controller';
 import type { AdminControlPlaneService } from './admin-control-plane.service';
@@ -13,6 +14,7 @@ import { validBudgetInput } from './ai-token-budgets';
 import { providerUsage } from './ai-provider-usage';
 import { usageFailureCode } from './ai-usage-journal';
 import { LlamaCppError } from './ai-llamacpp';
+import { OllamaError } from './ai-ollama';
 
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const THREAD = '22222222-2222-4222-8222-222222222222';
@@ -26,6 +28,37 @@ function request(origin = 'http://localhost') {
     cookies: {},
     headers: { origin, host: 'localhost', 'content-type': 'application/json' },
   } as unknown as FastifyRequest;
+}
+
+function adminFailure(problem: Error) {
+  const fail = vi.fn(async () => {
+    throw problem;
+  });
+  const controller = new AiAdminController(
+    active,
+    {
+      resolveAccess: vi.fn(async () => ({
+        scopes: [{ kind: 'platform', role: 'platform_admin' }],
+      })),
+    } as unknown as AdminControlPlaneService,
+    {
+      applyLlamaCppSettings: fail,
+      llamaCppModels: fail,
+      ollamaSettings: fail,
+    } as unknown as AiChatService,
+  );
+  return { controller, fail };
+}
+
+async function httpFailure(operation: Promise<unknown>) {
+  try {
+    await operation;
+  } catch (problem) {
+    expect(problem).toBeInstanceOf(HttpException);
+    const error = problem as HttpException;
+    return { status: error.getStatus(), response: error.getResponse() };
+  }
+  throw new Error('Expected an HTTP failure response');
 }
 
 it('accepts the independent provider at the actual chat controller boundary', async () => {
@@ -143,6 +176,83 @@ it('keeps an upstream key error separate from the ASA login session', async () =
   expect(aiPublicErrorMessage('ai_llamacpp_auth', 'private endpoint and key')).toBe(
     AI_TEXT_UNAVAILABLE,
   );
+});
+
+it.each([
+  { state: 'confirmed failed', code: 'ai_llamacpp_unavailable', status: 503, confirmed: true },
+  { state: 'early unavailable', code: 'ai_llamacpp_unavailable', status: 503, confirmed: false },
+  { state: 'pending', code: 'ai_llamacpp_apply_pending', status: 409, confirmed: false },
+  { state: 'unconfirmed failure', code: 'ai_llamacpp_apply_failed', status: 409, confirmed: false },
+  { state: 'early validation', code: 'ai_llamacpp_config_invalid', status: 400, confirmed: false },
+  {
+    state: 'confirmed authentication failure',
+    code: 'ai_llamacpp_auth',
+    status: 502,
+    confirmed: true,
+  },
+])(
+  'projects the durable apply marker only for $state and excludes private error fields',
+  async ({ code, status, confirmed }) => {
+    const secret = 'private-key-and-partial-answer-fixture';
+    const endpoint = 'http://192.168.70.80:8080';
+    const message = 'Не удалось применить настройки llama.cpp.';
+    const problem = Object.assign(
+      new LlamaCppError(
+        code,
+        status,
+        message,
+        secret,
+        { inputTokens: 1, outputTokens: 2, actualModel: secret },
+        confirmed ? 'failed' : undefined,
+      ),
+      { apiKey: secret, baseUrl: endpoint },
+    );
+    const { controller } = adminFailure(problem);
+    const response = await httpFailure(
+      controller.applyLlamaCpp(request(), {
+        requestId: REQUEST,
+        apiKey: secret,
+        baseUrl: endpoint,
+      }),
+    );
+    expect(response).toEqual({
+      status,
+      response: { error: { code, message, ...(confirmed ? { applyState: 'failed' } : {}) } },
+    });
+    expect(JSON.stringify(response)).not.toContain(secret);
+    expect(JSON.stringify(response)).not.toContain(endpoint);
+  },
+);
+
+it('does not expose an apply marker through discovery, another provider or early controller validation', async () => {
+  const message = 'Проверка недоступна.';
+  const { controller, fail } = adminFailure(
+    new LlamaCppError('ai_llamacpp_unavailable', 503, message, '', undefined, 'failed'),
+  );
+  expect(await httpFailure(controller.llamaCppModels(request(), {}))).toEqual({
+    status: 503,
+    response: { error: { code: 'ai_llamacpp_unavailable', message } },
+  });
+  const invalid = await httpFailure(
+    controller.applyLlamaCpp(request(), { requestId: 'invalid', applyState: 'failed' }),
+  );
+  expect(invalid).toEqual({
+    status: 400,
+    response: {
+      error: {
+        code: 'ai_llamacpp_config_invalid',
+        message: 'Нужен уникальный идентификатор проверки.',
+      },
+    },
+  });
+  expect(fail).toHaveBeenCalledTimes(1);
+  const ollama = adminFailure(
+    Object.assign(new OllamaError('ai_ollama_unreachable', 503, message), { applyState: 'failed' }),
+  );
+  expect(await httpFailure(ollama.controller.ollama(request()))).toEqual({
+    status: 503,
+    response: { error: { code: 'ai_ollama_unreachable', message } },
+  });
 });
 
 it('admits llama.cpp in policy and budgets without masquerading as Ollama', () => {

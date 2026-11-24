@@ -313,6 +313,75 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     expect(f.encrypt).toHaveBeenCalledOnce();
     expect(f.config.revision).toBe(5);
   });
+  it('does not mark an early admin outage terminal and later recovers the same completed request', async () => {
+    const f = fixture();
+    const input = { ...initial, apiKey: 'new-key', apiKeyEndpoint: initial.baseUrl };
+    const completed = await f.store.apply('actor', input, 'admin-outage-replay');
+    const execute = f.query.getMockImplementation()!;
+    let adminUnavailable = true;
+    f.query.mockImplementation(async (sql, params) => {
+      if (sql.includes('ai_llamacpp_admin_get') && adminUnavailable)
+        throw new Error('private database connection details');
+      return execute(sql, params);
+    });
+    const calls = f.fetchImpl.mock.calls.length;
+    const outage = await f.store
+      .apply('actor', input, 'admin-outage-replay')
+      .catch((error) => error);
+    expect(outage).toMatchObject({
+      code: 'ai_llamacpp_unavailable',
+      status: 503,
+      applyState: undefined,
+    });
+    expect(outage.message).not.toMatch(/private|database|connection/);
+    expect(f.receipts.get('admin-outage-replay')?.state).toBe('complete');
+    adminUnavailable = false;
+    expect(await f.store.apply('actor', input, 'admin-outage-replay')).toEqual(completed);
+    expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
+    expect(f.encrypt).toHaveBeenCalledOnce();
+    expect(f.config.revision).toBe(5);
+  });
+  it.each([
+    ['validation', 'ai_llamacpp_config_invalid'],
+    ['claim', 'ai_llamacpp_config_changed'],
+    ['authorization', 'ai_llamacpp_admin_denied'],
+  ])('does not mark an early %s error as a confirmed terminal receipt', async (phase, code) => {
+    const f = fixture();
+    if (phase === 'claim') f.bumpRevision();
+    if (phase === 'authorization') f.deny();
+    await expect(
+      f.store.apply(
+        'actor',
+        phase === 'validation' ? { ...initial, model: '' } : initial,
+        'early-error',
+      ),
+    ).rejects.toMatchObject({ code, applyState: undefined });
+    expect(f.receipts.size).toBe(0);
+    expect(f.fetchImpl).not.toHaveBeenCalled();
+  });
+  it('marks a confirmed unavailable failure terminal on recovery and replay without changing receipt JSON', async () => {
+    const f = fixture();
+    f.withSlot.mockRejectedValue(new Error('private slot infrastructure details'));
+    await expect(f.store.apply('actor', initial, 'terminal-unavailable')).rejects.toMatchObject({
+      code: 'ai_llamacpp_unavailable',
+      status: 503,
+      applyState: 'failed',
+    });
+    expect(f.receipts.get('terminal-unavailable')?.state).toBe('failed');
+    expect(Object.keys(f.receipts.get('terminal-unavailable')!.error as object).sort()).toEqual([
+      'code',
+      'message',
+      'status',
+    ]);
+    await expect(f.store.apply('actor', initial, 'terminal-unavailable')).rejects.toMatchObject({
+      code: 'ai_llamacpp_unavailable',
+      status: 503,
+      applyState: 'failed',
+    });
+    expect(f.withSlot).toHaveBeenCalledOnce();
+    expect(f.fetchImpl).not.toHaveBeenCalled();
+    expect(f.config).toEqual(initial);
+  });
   it('keeps the request pending when a claim is durable but its response is lost', async () => {
     const f = fixture();
     const execute = f.query.getMockImplementation()!;
@@ -328,10 +397,12 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     await expect(f.store.apply('actor', initial, 'lost-claim')).rejects.toMatchObject({
       code: 'ai_llamacpp_apply_pending',
       status: 409,
+      applyState: undefined,
     });
     expect(f.receipts.get('lost-claim')?.state).toBe('pending');
     await expect(f.store.apply('actor', initial, 'lost-claim')).rejects.toMatchObject({
       code: 'ai_llamacpp_apply_pending',
+      applyState: undefined,
     });
     expect(f.config).toEqual(initial);
     expect(f.fetchImpl).not.toHaveBeenCalled();
@@ -376,6 +447,7 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
       await expect(f.store.apply('actor', input, 'unknown-commit')).rejects.toMatchObject({
         code: 'ai_llamacpp_apply_pending',
         status: 409,
+        applyState: undefined,
       });
       expect(f.receipts.get('unknown-commit')?.state).toBe(committed ? 'complete' : 'pending');
       expect(f.receipts.get('unknown-commit')?.error).toBeUndefined();
@@ -432,11 +504,13 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     await expect(f.store.apply('actor', input, 'failure-request')).rejects.toMatchObject({
       code: 'ai_llamacpp_auth',
       status: 502,
+      applyState: 'failed',
     });
     expect(f.config).toEqual(initial);
     const calls = f.fetchImpl.mock.calls.length;
     await expect(f.store.apply('actor', input, 'failure-request')).rejects.toMatchObject({
       code: 'ai_llamacpp_auth',
+      applyState: 'failed',
     });
     expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
     expect(JSON.stringify(f.receipts.get('failure-request'))).not.toContain('candidate-secret');
@@ -455,7 +529,11 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     );
     const input = { ...initial, apiKey: 'candidate-secret', apiKeyEndpoint: initial.baseUrl };
     const error = await f.store.apply('actor', input, 'unknown-failure').catch((value) => value);
-    expect(error).toMatchObject({ code: 'ai_llamacpp_apply_pending', status: 409 });
+    expect(error).toMatchObject({
+      code: 'ai_llamacpp_apply_pending',
+      status: 409,
+      applyState: undefined,
+    });
     expect(error.message).not.toMatch(/candidate-secret|private|database/);
     expect(f.receipts.get('unknown-failure')?.state).toBe('pending');
     expect(f.config).toEqual(initial);
@@ -479,12 +557,14 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     await expect(f.store.apply('actor', initial, 'durable-failure')).rejects.toMatchObject({
       code: 'ai_llamacpp_auth',
       status: 502,
+      applyState: 'failed',
     });
     expect(f.receipts.get('durable-failure')?.state).toBe('failed');
     expect(f.config).toEqual(initial);
     const calls = f.fetchImpl.mock.calls.length;
     await expect(f.store.apply('actor', initial, 'durable-failure')).rejects.toMatchObject({
       code: 'ai_llamacpp_auth',
+      applyState: 'failed',
     });
     expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
   });
@@ -503,6 +583,7 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     await expect(f.store.apply('actor', initial, 'unread-failure')).rejects.toMatchObject({
       code: 'ai_llamacpp_apply_pending',
       status: 409,
+      applyState: undefined,
     });
     expect(f.receipts.get('unread-failure')?.state).toBe('failed');
     expect(f.config).toEqual(initial);
@@ -511,6 +592,7 @@ describe('llama.cpp checked apply and durable receipt semantics', () => {
     await expect(f.store.apply('actor', initial, 'unread-failure')).rejects.toMatchObject({
       code: 'ai_llamacpp_auth',
       status: 502,
+      applyState: 'failed',
     });
     expect(f.fetchImpl).toHaveBeenCalledTimes(calls);
   });

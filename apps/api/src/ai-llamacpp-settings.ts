@@ -441,7 +441,14 @@ export class LlamaCppSettingsStore {
     }
     if (receipt?.state === 'complete') return safeResult(receipt.result);
     if (receipt?.state === 'failed')
-      throw new LlamaCppError(receipt.error.code, receipt.error.status, receipt.error.message);
+      throw new LlamaCppError(
+        receipt.error.code,
+        receipt.error.status,
+        receipt.error.message,
+        '',
+        undefined,
+        'failed',
+      );
     if (receipt?.state !== 'claimed') throw pendingApply();
 
     try {
@@ -629,7 +636,14 @@ export class LlamaCppSettingsStore {
       // the same request ID when storage cannot establish the outcome.
       if (outcome?.state === 'complete') return safeResult(outcome.result);
       if (outcome?.state === 'failed')
-        throw new LlamaCppError(outcome.error.code, outcome.error.status, outcome.error.message);
+        throw new LlamaCppError(
+          outcome.error.code,
+          outcome.error.status,
+          outcome.error.message,
+          '',
+          undefined,
+          'failed',
+        );
       throw pendingApply();
     }
   }

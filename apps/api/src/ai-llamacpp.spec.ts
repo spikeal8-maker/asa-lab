@@ -264,7 +264,7 @@ describe('llama.cpp real-format discovery', () => {
           apiKey: 'secret-fixture',
           fetchImpl: async () => new Response('secret-fixture private-host body', { status }),
         }),
-      ).rejects.toMatchObject({ code: 'ai_llamacpp_auth', status: 502 });
+      ).rejects.toMatchObject({ code: 'ai_llamacpp_auth', status: 502, applyState: undefined });
     },
   );
   it.each([{ data: [{ id: 'dup' }, { id: 'dup' }] }, { data: 'bad' }, { data: [{ id: '' }] }])(

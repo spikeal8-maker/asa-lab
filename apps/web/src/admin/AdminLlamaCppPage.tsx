@@ -66,13 +66,9 @@ function accessDenied(error: AdminApiError, status: number): boolean {
 }
 
 function confirmedApplyFailure(error: AdminApiError): boolean {
-  // A proxy/malformed/generic error does not prove that the durable attempt ended.
-  return (
-    (typeof error.code === 'string' &&
-      error.code.startsWith('ai_llamacpp_') &&
-      error.code !== 'ai_llamacpp_apply_pending') ||
-    error.code === 'ai_tool_call_invalid'
-  );
+  // Error names/statuses, including an early settings read failure, do not
+  // establish the outcome of an earlier attempt. Only a durable receipt does.
+  return (error as AdminApiError & { applyState?: unknown }).applyState === 'failed';
 }
 
 function optionalNumber(value: unknown): value is number | null {
@@ -195,7 +191,6 @@ export function AdminLlamaCppPage({
           setError(errorText(response.error, response.status));
         } else if (configShape(response.data)) {
           restore(response.data);
-          attempt.current = null;
         } else setError('ASA вернула несовместимые настройки подключения.');
       },
     );

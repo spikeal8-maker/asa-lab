@@ -67,12 +67,25 @@ export class AiAdminController {
     }
   }
 
-  private async safe<T>(call: () => Promise<T>): Promise<T> {
+  private async safe<T>(
+    call: () => Promise<T>,
+    options: { llamaCppApply?: boolean } = {},
+  ): Promise<T> {
     try {
       return await call();
     } catch (problem) {
       if (problem instanceof AiUsageUnavailable) {
         return reject('ai_usage_unavailable', 'Не удалось загрузить данные использования ИИ.', 503);
+      }
+      if (
+        options.llamaCppApply === true &&
+        problem instanceof LlamaCppError &&
+        problem.applyState === 'failed'
+      ) {
+        throw new HttpException(
+          { error: { code: problem.code, message: problem.message, applyState: 'failed' } },
+          problem.status,
+        );
       }
       if (
         problem instanceof AiServiceError ||
@@ -396,7 +409,9 @@ export class AiAdminController {
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)
     )
       return reject('ai_llamacpp_config_invalid', 'Нужен уникальный идентификатор проверки.', 400);
-    return this.safe(() => this.ai.applyLlamaCppSettings(actor, raw, requestId.toLowerCase()));
+    return this.safe(() => this.ai.applyLlamaCppSettings(actor, raw, requestId.toLowerCase()), {
+      llamaCppApply: true,
+    });
   }
 
   @Put('ollama')

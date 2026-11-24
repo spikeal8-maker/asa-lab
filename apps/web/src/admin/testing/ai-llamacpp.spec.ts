@@ -36,11 +36,11 @@ const updated = vi.fn();
 const dirty = vi.fn();
 
 const ok = (data: unknown) => ({ ok: true, status: 200, data }) as never;
-const failure = (code: string, status: number) =>
+const failure = (code: string, status: number, applyState?: 'failed') =>
   ({
     ok: false,
     status,
-    error: { code, message: 'UNTRUSTED UPSTREAM MESSAGE' },
+    error: { code, message: 'UNTRUSTED UPSTREAM MESSAGE', ...(applyState ? { applyState } : {}) },
   }) as never;
 
 beforeEach(() => {
@@ -261,6 +261,7 @@ it.each([
   ['server_error', 502],
   ['server_error', 504],
   ['ai_llamacpp_apply_pending', 409],
+  ['ai_llamacpp_unavailable', 503],
 ] as const)(
   'keeps the request id after unknown %s/%i and clears the key only on success',
   async (code, status) => {
@@ -291,6 +292,82 @@ it.each([
   },
 );
 
+it('preserves an uncertain attempt through a config reload when its input is unchanged', async () => {
+  config = { ...config, enabled: true, model: 'fixture-model' };
+  const original = vi.mocked(call).getMockImplementation()!;
+  let lostResponse = true;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.endsWith('/apply') && lostResponse) {
+      lostResponse = false;
+      return failure('server_error', 504);
+    }
+    return original(path, init);
+  });
+  await render();
+  await tick();
+  await submit();
+  const reloadButton = [...host.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Загрузить настройки',
+  )!;
+  await act(async () => reloadButton.click());
+  await tick();
+  await submit();
+  const saves = requests('/apply').map(body);
+  expect(saves).toHaveLength(2);
+  expect(saves[1]).toEqual(saves[0]);
+});
+
+it('retains the same attempt across a lost response and a later unconfirmed settings-read failure', async () => {
+  config = { ...config, enabled: true, model: 'fixture-model' };
+  const original = vi.mocked(call).getMockImplementation()!;
+  let saves = 0;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.endsWith('/apply')) {
+      saves++;
+      if (saves === 1) return failure('server_error', 504);
+      if (saves === 2) return failure('ai_llamacpp_unavailable', 503);
+    }
+    return original(path, init);
+  });
+  await render();
+  await tick();
+  await submit();
+  await submit();
+  await submit();
+  const attempts = requests('/apply').map(body);
+  expect(attempts).toHaveLength(3);
+  expect(attempts[1]).toEqual(attempts[0]);
+  expect(attempts[2]).toEqual(attempts[0]);
+  expect(config.revision).toBe(5);
+});
+
+it.each([
+  ['ai_llamacpp_busy', 409],
+  ['ai_llamacpp_unavailable', 503],
+] as const)(
+  'starts a fresh explicit retry only after a confirmed failed receipt: %s',
+  async (code, status) => {
+    config = { ...config, enabled: true, model: 'fixture-model' };
+    const original = vi.mocked(call).getMockImplementation()!;
+    let first = true;
+    vi.mocked(call).mockImplementation(async (path, init) => {
+      if (path.endsWith('/apply') && first) {
+        first = false;
+        return failure(code, status, 'failed');
+      }
+      return original(path, init);
+    });
+    await render();
+    await tick();
+    await submit();
+    await submit();
+    const attempts = requests('/apply').map(body);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1].requestId).not.toBe(attempts[0].requestId);
+    expect({ ...attempts[1], requestId: attempts[0].requestId }).toEqual(attempts[0]);
+  },
+);
+
 it.each(['edit', 'apply'] as const)(
   'ignores an older config reload after a later %s',
   async (action) => {
@@ -307,7 +384,7 @@ it.each(['edit', 'apply'] as const)(
         });
       if (path.endsWith('/apply') && rejectFirstApply) {
         rejectFirstApply = false;
-        return failure('ai_llamacpp_busy', 409);
+        return failure('ai_llamacpp_busy', 409, 'failed');
       }
       return original(path, init);
     });

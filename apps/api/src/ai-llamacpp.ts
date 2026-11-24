@@ -32,6 +32,7 @@ export class LlamaCppError extends Error {
     message: string,
     readonly partialText = '',
     readonly usage?: AiProviderUsage,
+    readonly applyState?: 'failed',
   ) {
     super(message);
     this.name = 'LlamaCppError';
