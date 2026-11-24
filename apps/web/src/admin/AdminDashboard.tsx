@@ -780,7 +780,9 @@ function DashboardContent({
   readonly dashboard: AdminProductDashboard;
   readonly canReadErrors: boolean;
 }): JSX.Element {
-  const [audienceMetric, setAudienceMetric] = useState<'active' | 'logins' | 'time'>('active');
+  const [audienceMetric, setAudienceMetric] = useState<'active' | 'logins' | 'time' | 'site-time'>(
+    'active',
+  );
   const overview = dashboard.overview;
   const points =
     overview?.points ??
@@ -798,7 +800,19 @@ function DashboardContent({
   const labels = timeLabels(points, dashboard.bucketSeconds);
   const pointLabels = points.map((point) => moscowInterval(point.from, point.to));
   const axes = { labels, pointLabels };
-  const durations = audienceMetric === 'time';
+  const siteTime = audienceMetric === 'site-time';
+  const measuredFrom = Date.parse(dashboard.siteActivity?.measuredFrom ?? '');
+  const siteDurations = new Map(
+    dashboard.siteActivity?.points.map((point) => [Date.parse(point.at), point]),
+  );
+  const durationPoints = siteTime
+    ? points.map((point) =>
+        Date.parse(point.to) > measuredFrom
+          ? (siteDurations.get(Date.parse(point.at)) ?? null)
+          : null,
+      )
+    : points;
+  const durations = audienceMetric === 'time' || siteTime;
   const counts = audienceMetric === 'active';
   const minutes = (seconds: number | null) => (seconds === null ? null : seconds / 60);
   const people: ChartSeries[] = [
@@ -806,11 +820,11 @@ function DashboardContent({
       id: 'accounts',
       label: 'Аккаунты',
       color: '#0877b3',
-      values: points.map((point) =>
+      values: points.map((point, index) =>
         counts
           ? point.activeAccounts
           : durations
-            ? minutes(point.accountSeconds)
+            ? minutes(durationPoints[index]?.accountSeconds ?? null)
             : point.accountLogins,
       ),
     },
@@ -818,11 +832,11 @@ function DashboardContent({
       id: 'students',
       label: 'Ученики',
       color: '#16835f',
-      values: points.map((point) =>
+      values: points.map((point, index) =>
         counts
           ? point.activeStudents
           : durations
-            ? minutes(point.studentSeconds)
+            ? minutes(durationPoints[index]?.studentSeconds ?? null)
             : point.studentLogins,
       ),
     },
@@ -879,13 +893,34 @@ function DashboardContent({
       <MultiLineChart
         className="admin-chart-wide"
         title="Активные пользователи"
-        description="В каждом интервале аккаунт или ученическое место учитывается один раз по успешному событию или подтверждённой работе в модуле. Линия новых аккаунтов показывает регистрации. Входы можно посмотреть отдельно. Время — среднее среди пользователей с замерами в редакторах и играх, без простоя и двойного учёта параллельных вкладок."
+        description={
+          siteTime
+            ? 'Среднее измеренное активное время на страницах сайта, в редакторах и играх. Фоновое ожидание и перекрытия между вкладками исключены. Пропуски означают отсутствие замеров.'
+            : 'В каждом интервале аккаунт или ученическое место учитывается один раз по успешному событию или подтверждённой работе в модуле. Линия новых аккаунтов показывает регистрации. Входы можно посмотреть отдельно. Время — среднее среди пользователей с замерами в редакторах и играх, без простоя и двойного учёта параллельных вкладок.'
+        }
         {...axes}
         primaryUnit={counts ? 'Пользователи' : durations ? 'Мин / пользователь' : 'Входы'}
         series={people}
-        emptyMessage={durations ? 'В этом периоде нет замеров активного времени.' : undefined}
+        emptyMessage={
+          siteTime
+            ? 'В этом периоде нет замеров активного времени по всему сайту.'
+            : durations
+              ? 'В этом периоде нет замеров активного времени.'
+              : undefined
+        }
         controls={
           <>
+            {siteTime ? (
+              <span className="admin-chart-recent" aria-label="Начало измерений по сайту">
+                {Number.isFinite(measuredFrom) ? (
+                  <>
+                    Замеры с <strong>{MOSCOW_DATE_TIME.format(measuredFrom)} МСК</strong>
+                  </>
+                ) : (
+                  'Замеры по сайту пока не поступили'
+                )}
+              </span>
+            ) : null}
             {overview && dashboard.range !== 'yesterday' && dashboard.range !== 'custom' ? (
               <span
                 className="admin-chart-recent"
@@ -902,7 +937,10 @@ function DashboardContent({
               <option value="active">Активность</option>
               <option value="logins">Успешные входы</option>
               <option value="time" disabled={!overview}>
-                Активное время
+                Активное время · редакторы и игры
+              </option>
+              <option value="site-time" disabled={!dashboard.siteActivity}>
+                Активное время · весь сайт
               </option>
             </select>
           </>

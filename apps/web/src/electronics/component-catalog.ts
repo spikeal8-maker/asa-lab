@@ -293,12 +293,21 @@ export function familyById(familyId: string): ComponentFamily | null {
   return workbenchCatalog().find((family) => family.familyId === familyId) ?? null;
 }
 
-export function familyForVariant(variantId: string | null | undefined): ComponentFamily | null {
-  if (!variantId) return null;
+export function familyForVariant(
+  variantOrTypeId: string | null | undefined,
+): ComponentFamily | null {
+  if (!variantOrTypeId) return null;
+  const families = workbenchCatalog();
   return (
-    workbenchCatalog().find((family) =>
-      family.variants.some((variant) => variant.variantId === variantId),
-    ) ?? null
+    families.find((family) =>
+      family.variants.some((variant) => variant.variantId === variantOrTypeId),
+    ) ??
+    families.find((family) =>
+      family.variants.some(
+        (variant) => variant.enabled && variant.componentTypeId === variantOrTypeId,
+      ),
+    ) ??
+    null
   );
 }
 

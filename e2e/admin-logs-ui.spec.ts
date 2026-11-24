@@ -6,6 +6,7 @@ const evidence =
   process.env['ASA_ADMIN_LOGS_EVIDENCE_DIR'] ??
   'e2e/artifacts/owner-preview/access-a-ui/admin-logs';
 test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
+test.use({ timezoneId: 'America/Los_Angeles' });
 
 async function fixture(
   page: Page,
@@ -195,14 +196,16 @@ for (const width of [1440, 1025, 1024, 390, 320]) {
       .boundingBox();
     const searchBox = await page.getByRole('searchbox').boundingBox();
     if (width >= 1025) expect(Math.abs(moduleBox!.y - searchBox!.y)).toBeLessThan(2);
-    if (width === 1024) {
-      const levelBox = await page
-        .getByRole('combobox', { name: 'Уровень', exact: true })
+    if (width <= 1024) expect(searchBox!.y).toBeGreaterThan(moduleBox!.y);
+    if (width === 1440) {
+      const show = await page.getByRole('button', { name: 'Показать', exact: true }).boundingBox();
+      const exportFiltered = await page
+        .getByRole('button', { name: 'Скачать по фильтрам' })
         .boundingBox();
-      expect(Math.abs(levelBox!.y - searchBox!.y)).toBeLessThan(2);
-      expect(Math.abs(levelBox!.width - searchBox!.width)).toBeLessThan(2);
-      expect(searchBox!.x).toBeGreaterThan(levelBox!.x);
+      expect(Math.abs(show!.y - exportFiltered!.y)).toBeLessThan(2);
+      expect(Math.abs(show!.height - exportFiltered!.height)).toBeLessThan(2);
     }
+    await expect(page.getByLabel('Источник', { exact: true })).toBeHidden();
     await expect(
       page.getByText('Источники и полнота: 151 дозагружаются; 0 с ошибкой; 1 недоступны'),
     ).toBeVisible();
@@ -210,13 +213,39 @@ for (const width of [1440, 1025, 1024, 390, 320]) {
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
     await page.screenshot({ path: `${evidence}/logs-${width}.png`, fullPage: true });
+    await page.getByText('Другие выгрузки за период', { exact: true }).click();
     await page.getByRole('button', { name: 'Скачать все журналы', exact: true }).click();
     await expect(page.getByRole('link', { name: /Скачать ZIP/ })).toBeVisible();
     expect(f.exports()).toBe(1);
   });
 }
 
-test('source coverage is readable and archive buttons use dates independently of screen filters', async ({
+test('apply and filtered download share a row when wider fonts tighten the toolbar', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await fixture(page, 'populated');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  await page.addStyleTag({
+    content: `
+      .admin-logs-filters { max-width: 900px; }
+      .admin-logs-filters :is(button, summary) { font: 17px monospace; }
+    `,
+  });
+  const show = await page.getByRole('button', { name: 'Показать', exact: true }).boundingBox();
+  const exportFiltered = await page
+    .getByRole('button', { name: 'Скачать по фильтрам' })
+    .boundingBox();
+  expect(Math.abs(show!.y - exportFiltered!.y)).toBeLessThan(2);
+  expect(Math.abs(show!.height - exportFiltered!.height)).toBeLessThan(2);
+  expect(
+    await page
+      .locator('.admin-logs-filters')
+      .evaluate((form) => form.scrollWidth <= form.clientWidth),
+  ).toBe(true);
+});
+
+test('filtered and broad archives use the exact Moscow range with their respective filters', async ({
   page,
 }) => {
   const f = await fixture(page, 'populated');
@@ -224,25 +253,71 @@ test('source coverage is readable and archive buttons use dates independently of
   await page.getByText(/Источники и полнота:/).click();
   await expect(page.getByText('Нет доступа к этому журналу.')).toBeVisible();
   await expect(page.getByText(/старые записи этого источника сокращены/)).toBeVisible();
+  await page.getByText('Дополнительные фильтры', { exact: true }).click();
+  await page.getByLabel('С (МСК)', { exact: true }).fill('2026-10-07T12:52:07');
+  await page.getByLabel('По (МСК)', { exact: true }).fill('2026-10-07T14:15:22');
   await page.getByLabel(/^Источник/).selectOption('scratch');
   await page.getByLabel(/^Модуль/).selectOption('scratch');
   await page.getByLabel(/^Подсистема/).selectOption('scratch');
   await page.getByLabel('Поиск', { exact: true }).fill('failure');
+  const filteredDownload = page.getByRole('button', { name: 'Скачать по фильтрам' });
+  await expect(filteredDownload).toBeDisabled();
   await page.getByRole('button', { name: 'Показать', exact: true }).click();
   await expect.poll(() => f.queries().at(-1)?.get('search')).toBe('failure');
-  expect(f.queries().at(-1)?.get('source')).toBe('scratch');
-  expect(f.queries().at(-1)?.get('subsystem')).toBe('scratch');
+  const criteria = {
+    from: '2026-10-07T12:52:07+03:00',
+    to: '2026-10-07T14:15:22+03:00',
+    scope: 'all',
+    source: 'scratch',
+    module: 'scratch',
+    subsystem: 'scratch',
+    level: 'error',
+    search: 'failure',
+  };
+  expect(Object.fromEntries(f.queries().at(-1)!)).toEqual(criteria);
   await page.getByRole('button', { name: /Показать ещё/ }).click();
   await expect.poll(() => f.queries().at(-1)?.has('beforeTime')).toBe(true);
+  await filteredDownload.click();
+  await expect(page.getByRole('link', { name: /Скачать ZIP/ })).toBeVisible();
+  expect(f.exportBodies()[0]).toEqual(criteria);
+  await page.getByText('Другие выгрузки за период', { exact: true }).click();
   await page.getByRole('button', { name: 'Скачать ошибки', exact: true }).click();
   await expect(page.getByRole('link', { name: /Скачать ZIP/ })).toBeVisible();
-  expect(f.exportBodies()[0]).toEqual(expect.objectContaining({ level: 'error' }));
-  expect(f.exportBodies()[0]).not.toHaveProperty('source');
-  expect(f.exportBodies()[0]).not.toHaveProperty('search');
-  expect(f.exportBodies()[0]).not.toHaveProperty('subsystem');
+  expect(f.exportBodies()[1]).toEqual({
+    from: criteria.from,
+    to: criteria.to,
+    level: 'error',
+    scope: 'all',
+  });
   await page.getByRole('button', { name: 'Скачать журналы приложения', exact: true }).click();
-  await expect.poll(() => f.exportBodies().length).toBe(2);
-  expect(f.exportBodies()[1]).toEqual(expect.objectContaining({ scope: 'application' }));
+  await expect.poll(() => f.exportBodies().length).toBe(3);
+  expect(f.exportBodies()[2]).toEqual(expect.objectContaining({ scope: 'application' }));
+});
+
+test('the handoff archive uses the selected module and ignores ordinary filters', async ({
+  page,
+}) => {
+  const f = await fixture(page, 'populated');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  await page.getByText('Другие выгрузки за период', { exact: true }).click();
+  const download = page.getByRole('button', { name: 'Скачать архив для разбора', exact: true });
+  await expect(download).toBeDisabled();
+  await page.getByLabel('С (МСК)', { exact: true }).fill('2026-10-07T12:52:07');
+  await page.getByLabel('По (МСК)', { exact: true }).fill('2026-10-07T14:15:22');
+  await page.getByLabel(/^Модуль/).selectOption('electronics');
+  await page.getByLabel(/^Уровень/).selectOption('warn');
+  await page.getByLabel('Поиск', { exact: true }).fill('private search');
+  await download.click();
+  await expect(page.getByRole('link', { name: /Скачать ZIP/ })).toBeVisible();
+  expect(f.exportBodies()).toEqual([
+    {
+      from: '2026-10-07T12:52:07+03:00',
+      to: '2026-10-07T14:15:22+03:00',
+      scope: 'all',
+      mode: 'handoff',
+      handoffModule: 'electronics',
+    },
+  ]);
 });
 
 test('a failed subsystem cannot hide behind a fresh collector', async ({ page }) => {
@@ -266,6 +341,7 @@ test('search continues past a partial scan and never displays a false empty resu
   expect(f.queries()[1]!.get('scanCursor')).toBe('10000000-0000-4000-8000-000000000009');
   await expect(page.getByText(/За выбранный период и фильтры записей нет/)).toHaveCount(0);
   expect(f.queries()[0]!.get('scope')).toBe('application');
+  await page.getByText('Дополнительные фильтры', { exact: true }).click();
   await page.getByRole('combobox', { name: 'Показывать', exact: true }).selectOption('host');
   await page.getByRole('button', { name: 'Показать', exact: true }).click();
   await expect.poll(() => f.queries().at(-1)?.get('scope')).toBe('host');
@@ -297,10 +373,12 @@ for (const state of ['empty', 'error', 'loading', 'unavailable'] as const) {
       await expect(page.locator('.admin-log-entry')).toHaveCount(1);
     }
     if (state === 'loading') await expect(page.getByText(/Загружаем журналы/)).toBeVisible();
-    if (state === 'unavailable')
+    if (state === 'unavailable') {
+      await page.getByText('Другие выгрузки за период', { exact: true }).click();
       await expect(
         page.getByRole('button', { name: 'Скачать все журналы', exact: true }),
       ).toBeDisabled();
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);

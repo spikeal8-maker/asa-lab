@@ -466,7 +466,6 @@ describe('ordinary image mount lifecycle', () => {
         ),
       ),
     );
-    const entry = catalogEntry('battery-holder-aa-2')!;
     const probes: { href: string; error: () => void; load: () => void }[] = [];
     class ProbeImage {
       naturalWidth = 10;
@@ -482,7 +481,18 @@ describe('ordinary image mount lifecycle', () => {
     vi.stubGlobal('Image', ProbeImage);
     const host = document.body.appendChild(document.createElement('div'));
     const root = createRoot(host);
-    function Consumer({ asset, events }: { asset: string; events: readonly string[] }) {
+    function Consumer({
+      asset,
+      events,
+      componentTypeId,
+      selected,
+    }: {
+      asset: string;
+      events: readonly string[];
+      componentTypeId: string;
+      selected: boolean;
+    }) {
+      const entry = catalogEntry(componentTypeId)!;
       useLayoutEffect(() => {
         const image = host.querySelector('image')!;
         for (const kind of events) image.dispatchEvent(new Event(kind));
@@ -504,6 +514,7 @@ describe('ordinary image mount lifecycle', () => {
           width: 100,
           height: 100,
           visualState: 'default',
+          selected,
         }),
       );
     }
@@ -520,14 +531,48 @@ describe('ordinary image mount lifecycle', () => {
       host,
       probes,
       unmount,
-      render: async (asset: string, events: readonly string[]) => {
-        await act(async () => root.render(createElement(Consumer, { asset, events })));
+      render: async (
+        asset: string,
+        events: readonly string[],
+        componentTypeId = 'battery-holder-aa-2',
+        selected = false,
+      ) => {
+        await act(async () =>
+          root.render(createElement(Consumer, { asset, events, componentTypeId, selected })),
+        );
       },
       advance: async (ms: number) => {
         await act(async () => vi.advanceTimersByTimeAsync(ms));
       },
     };
   }
+  it('unmounts both ultrasonic images before loading the replacement variant', async () => {
+    const fixture = mount();
+    const ping = catalogEntry('ultrasonic-sensor')!;
+    const hc = catalogEntry('ultrasonic-hc-sr04')!;
+    expect(hc.asset).not.toBe(ping.asset);
+    const selectedImages = () => [
+      fixture.host.querySelector('image[pointer-events="none"]')!,
+      fixture.host.querySelector('.workbench-selection-silhouette image')!,
+    ];
+
+    await fixture.render(ping.asset, [], ping.key, true);
+    const previous = selectedImages();
+    expect(previous.map((image) => image.getAttribute('href'))).toEqual([ping.asset, ping.asset]);
+
+    await fixture.render(hc.asset, [], hc.key, true);
+    const replacement = selectedImages();
+    expect(previous.map((image) => image.isConnected)).toEqual([false, false]);
+    expect(replacement.map((image) => image.getAttribute('href'))).toEqual([hc.asset, hc.asset]);
+
+    await fixture.render(ping.asset, [], ping.key, true);
+    expect(replacement.map((image) => image.isConnected)).toEqual([false, false]);
+    expect(selectedImages().map((image) => image.getAttribute('href'))).toEqual([
+      ping.asset,
+      ping.asset,
+    ]);
+  });
+
   it('starts ordinary image requests only after the SVG image is connected', async () => {
     const fixture = mount();
     const initial = '/assets/electronics/connected-initial.svg';

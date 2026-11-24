@@ -24,7 +24,10 @@ function response(body: Record<string, unknown>) {
       schemaVersion: 2,
       eventId: body.eventId,
       receiptId: body.eventId,
-      operation: body.operation ?? body.eventType ?? 'quality',
+      operation:
+        body.operation ??
+        body.eventType ??
+        (Array.isArray(body.intervals) ? 'site.activity' : 'quality'),
       receivedAt: new Date().toISOString(),
       persistedAt: new Date().toISOString(),
       ...(body.operation
@@ -92,6 +95,7 @@ afterEach(async () => {
       window.removeEventListener(type, listener, capture);
     vi.clearAllTimers();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   }
@@ -105,6 +109,40 @@ const qualityCalls = () =>
 const qualityBodies = () => qualityCalls().map(([, init]) => JSON.parse(init!.body as string));
 const savedQuality = () => JSON.parse(sessionStorage.getItem('asa:quality:v2:product')!);
 const savedQueue = () => JSON.parse(sessionStorage.getItem('asa:analytics:v2')!);
+
+it('installs one site activity tracker only after explicit opt-in and confirmed identity', async () => {
+  vi.stubEnv('VITE_ASA_SITE_ACTIVITY', undefined);
+  let pointerInput: EventListener | undefined;
+  const nativeAdd = document.addEventListener.bind(document);
+  vi.spyOn(document, 'addEventListener').mockImplementation((type, listener, options) => {
+    if (type === 'pointerdown') pointerInput = listener as EventListener;
+    nativeAdd(type, listener, options);
+  });
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+  const start = Date.now();
+  vi.spyOn(performance, 'now').mockImplementation(() => Date.now() - start);
+  const siteCalls = () =>
+    transport.mock.calls.filter(([url]) => url === '/api/analytics/v2/site-activity');
+  const { observeAnalytics } = await import('./analytics-runtime');
+  observeAnalytics();
+  expect(pointerInput).toBeUndefined();
+  context.setTelemetryContext(actor, true, 'home');
+  observeAnalytics();
+  expect(pointerInput).toBeUndefined();
+  vi.stubEnv('VITE_ASA_SITE_ACTIVITY', '1');
+  observeAnalytics();
+  const installed = pointerInput;
+  observeAnalytics();
+  expect(pointerInput).toBe(installed);
+  installed?.({ isTrusted: true } as Event);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(siteCalls()).toHaveLength(1);
+  expect(JSON.parse(String(siteCalls()[0]?.[1]?.body))).toMatchObject({
+    actorExpectation: actor,
+    intervals: [{ fromAgoMs: 60_000, toAgoMs: 30_000 }],
+  });
+  expect(transport.mock.calls.some(([url]) => url === '/api/analytics/v2/events')).toBe(true);
+});
 
 describe('workspace handoff in the actual analytics runtime', () => {
   it('does not turn repeated context/online notifications during a telemetry 503 into retries or auth work', async () => {

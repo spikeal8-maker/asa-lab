@@ -240,6 +240,14 @@ export interface AdminProductDashboardView {
   };
   readonly aiUsage: AiDashboardUsage | null;
   readonly accountRegistrations: readonly { readonly at: string; readonly count: number }[];
+  readonly siteActivity: {
+    readonly measuredFrom: string | null;
+    readonly points: readonly {
+      readonly at: string;
+      readonly accountSeconds: number | null;
+      readonly studentSeconds: number | null;
+    }[];
+  } | null;
   readonly timeline: readonly Record<string, unknown>[];
   readonly modules: readonly Record<string, unknown>[];
   readonly loginMethods: readonly Record<string, unknown>[];
@@ -1070,9 +1078,11 @@ export class AdminControlPlaneService {
       payload: Record<string, unknown>;
       ai_usage: AiDashboardUsage | null;
       registrations: AdminProductDashboardView['accountRegistrations'];
+      site_activity: AdminProductDashboardView['siteActivity'];
     }>(
       `SELECT admin_get_operational_overview($1,$2,$3,$4,$5,$6) AS payload,
               admin_get_dashboard_registrations($1,$2,$3,$4,$5,$6) AS registrations,
+              admin_get_site_activity_overview($1,$2,$3,$4,$5,$6) AS site_activity,
               CASE WHEN $2::varchar = 'platform' AND $3::uuid IS NULL
                    THEN admin_get_ai_dashboard_usage($1,$4,$5,$6) END AS ai_usage`,
       [
@@ -1093,6 +1103,7 @@ export class AdminControlPlaneService {
       range: input.range,
       aiUsage: result.rows[0]?.ai_usage ?? null,
       accountRegistrations: result.rows[0]?.registrations ?? [],
+      siteActivity: result.rows[0]?.site_activity ?? null,
       max: {
         configured: config.enabled,
         featureEnabled: config.featureEnabled,
