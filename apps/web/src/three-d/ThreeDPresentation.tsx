@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import type { ThreeDDocument } from '@asa-lab/three-d';
+import { beginDiagnosticContext } from '../client-diagnostics';
 import { SceneRuntime } from './viewport/SceneRuntime';
 import { geometryResultIsCurrent } from './geometry/result-state';
 import { hoverCameraDirection } from './hover-camera-direction';
@@ -46,6 +47,12 @@ export const ThreeDPresentation = forwardRef<
     }),
     [],
   );
+  // An interactive preview owns the diagnostic context only while it is mounted.
+  // A passive card can be mounted alongside another active editor.
+  useEffect(() => {
+    if (!passive) return beginDiagnosticContext('three-d');
+    return undefined;
+  }, [passive]);
   useEffect(() => {
     const element = host.current;
     if (!element) return;

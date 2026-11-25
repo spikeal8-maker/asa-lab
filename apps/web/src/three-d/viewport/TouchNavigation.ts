@@ -30,6 +30,9 @@ export class TouchNavigation {
     container.addEventListener('pointermove', this.move, { capture: true, passive: false });
     container.addEventListener('pointerup', this.up, { capture: true });
     container.addEventListener('pointercancel', this.up, { capture: true });
+    container.addEventListener('lostpointercapture', this.lostCapture, { capture: true });
+    container.ownerDocument.addEventListener('pointerup', this.outsideEnd, { capture: true });
+    container.ownerDocument.addEventListener('pointercancel', this.outsideEnd, { capture: true });
     container.ownerDocument.defaultView?.addEventListener('blur', this.cancel);
   }
 
@@ -42,20 +45,69 @@ export class TouchNavigation {
     event.stopImmediatePropagation();
   }
 
+  private capturePointer(id: number): boolean {
+    try {
+      this.canvas.setPointerCapture(id);
+      return this.canvas.hasPointerCapture(id);
+    } catch (error) {
+      if (
+        error instanceof DOMException &&
+        (error.name === 'NotFoundError' || error.name === 'InvalidStateError')
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  private settleRemainingTouches(): void {
+    if (this.points.size === 0) this.mode = null;
+    else if (this.points.size === 1) this.mode = 'settling';
+  }
+
+  private forgetTouch(id: number): void {
+    if (!this.points.delete(id)) return;
+    const wasModel = this.mode === 'model';
+    this.settleRemainingTouches();
+    if (wasModel) this.callbacks.cancelModelGesture();
+  }
+
+  private readonly lostCapture = (event: PointerEvent): void => {
+    if (event.target === this.canvas && !this.canvas.hasPointerCapture(event.pointerId))
+      this.forgetTouch(event.pointerId);
+  };
+
+  private readonly outsideEnd = (event: PointerEvent): void => {
+    if (this.points.has(event.pointerId) && !event.composedPath().includes(this.container))
+      this.forgetTouch(event.pointerId);
+  };
+
   private readonly down = (event: PointerEvent): void => {
     if (event.pointerType !== 'touch' || event.target !== this.canvas) return;
+    this.forgetTouch(event.pointerId);
+    if (this.mode === 'model') this.callbacks.cancelModelGesture();
+    // A touch may have ended without reaching the viewport. Drop inactive IDs
+    // before deciding whether the new contact is a single touch or a pinch.
+    for (const id of this.points.keys()) {
+      if (!this.capturePointer(id)) this.points.delete(id);
+    }
     const point = { x: event.clientX, y: event.clientY };
-    this.points.set(event.pointerId, point);
-    if (this.points.size === 1) {
+    if (this.points.size === 0) {
       this.origin = point;
       this.moved = false;
       this.mode = this.callbacks.targetsModel(point.x, point.y) ? 'model' : 'orbit';
-      if (this.mode === 'model') return;
+      if (this.mode === 'model') {
+        this.points.set(event.pointerId, point);
+        return;
+      }
     } else {
-      if (this.mode === 'model') this.callbacks.cancelModelGesture();
       this.mode = 'multi';
     }
-    for (const id of this.points.keys()) this.canvas.setPointerCapture(id);
+    if (!this.capturePointer(event.pointerId)) {
+      this.settleRemainingTouches();
+      return;
+    }
+    this.points.set(event.pointerId, point);
     this.consume(event);
   };
 
@@ -95,8 +147,7 @@ export class TouchNavigation {
     if (this.mode !== 'model' && this.canvas.hasPointerCapture(event.pointerId)) {
       this.canvas.releasePointerCapture(event.pointerId);
     }
-    if (this.points.size === 0) this.mode = null;
-    else if (this.points.size === 1) this.mode = 'settling';
+    this.settleRemainingTouches();
   };
 
   private readonly cancel = (): void => {
@@ -114,6 +165,13 @@ export class TouchNavigation {
     this.container.removeEventListener('pointermove', this.move, { capture: true });
     this.container.removeEventListener('pointerup', this.up, { capture: true });
     this.container.removeEventListener('pointercancel', this.up, { capture: true });
+    this.container.removeEventListener('lostpointercapture', this.lostCapture, { capture: true });
+    this.container.ownerDocument.removeEventListener('pointerup', this.outsideEnd, {
+      capture: true,
+    });
+    this.container.ownerDocument.removeEventListener('pointercancel', this.outsideEnd, {
+      capture: true,
+    });
     this.container.ownerDocument.defaultView?.removeEventListener('blur', this.cancel);
   }
 }

@@ -9,6 +9,54 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('client diagnostics isolation', () => {
+  it('keeps robotics and 3D window errors separate and restores the underlying context', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const transport = vi.fn<typeof fetch>(async () =>
+      Response.json({ accepted: true }, { status: 202 }),
+    );
+    const browser = {
+      fetch: transport,
+      sessionStorage: { getItem: () => null, setItem() {} },
+      location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+      addEventListener: vi.fn(),
+    };
+    vi.stubGlobal('window', browser);
+    vi.stubGlobal('fetch', transport);
+    const { beginDiagnosticContext, installClientDiagnostics } =
+      await import('./client-diagnostics');
+    installClientDiagnostics();
+    const onError = browser.addEventListener.mock.calls.find(([type]) => type === 'error')![1];
+    const report = (name: string) =>
+      onError({
+        filename: `https://asa.invalid/assets/${name}-abcdef01.js`,
+        lineno: 1,
+        colno: 7,
+      });
+    const closeScratch = beginDiagnosticContext('scratch');
+    const closeRobotics = beginDiagnosticContext('robotics');
+    report('RobotField');
+    const close3D = beginDiagnosticContext('three-d');
+    closeScratch();
+    report('SceneRuntime');
+    close3D();
+    report('RobotFieldAgain');
+    closeRobotics();
+    report('Portal');
+    await vi.advanceTimersByTimeAsync(0);
+    const reports = transport.mock.calls
+      .filter(([path]) => path === '/api/diagnostics/client')
+      .map(([, init]) => JSON.parse(init!.body as string));
+    expect(reports.map(({ code, module, script }) => ({ code, module, script }))).toEqual([
+      { code: 'window_error', module: 'robotics', script: '/assets/RobotField-abcdef01.js' },
+      { code: 'window_error', module: 'three-d', script: '/assets/SceneRuntime-abcdef01.js' },
+      { code: 'window_error', module: 'robotics', script: '/assets/RobotFieldAgain-abcdef01.js' },
+      { code: 'window_error', module: 'portal', script: '/assets/Portal-abcdef01.js' },
+    ]);
+    expect(reports[0].instanceId).toBe(reports[2].instanceId);
+  });
+
   it('attributes game notification failures to the game while preserving draft diagnostics', async () => {
     vi.resetModules();
     vi.useFakeTimers();
