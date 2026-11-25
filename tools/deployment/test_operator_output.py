@@ -18,6 +18,7 @@ from deployment.contracts import Blocked
 PREVIOUS = {"revision": "a" * 40, "schema": 319}
 CANDIDATE = {"revision": "b" * 40, "schema": 324}
 DIGEST = "sha256:" + "c" * 64
+BACKUP_EXECUTABLE = "/opt/asa-school-gfs/releases/backup/asa-school-gfs-cli.py"
 
 
 class HumanOperatorTests(unittest.TestCase):
@@ -116,7 +117,7 @@ class HumanOperatorTests(unittest.TestCase):
             patch.object(manager, "discover_release", discover),
             patch.object(manager.release_transport, "discover_release", discover),
             patch.object(manager, "assert_ci", return_value="2026-11-15T19:12:12Z"),
-            patch.object(manager, "school_backup_available", return_value=True),
+            patch.object(manager, "school_backup_executable", return_value=BACKUP_EXECUTABLE),
             patch.object(manager, "verify_offsite_backup", side_effect=Blocked("OFFSITE_BACKUP", "stale", "renew")),
             patch.object(manager, "run") as command,
         ):
@@ -134,10 +135,10 @@ class HumanOperatorTests(unittest.TestCase):
             display.installed(install, PREVIOUS, CANDIDATE)
             display.stage("offsite")
             if len(seen) == 1:
-                raise manager.SchoolBackupNeeded(DIGEST)
+                raise manager.SchoolBackupNeeded(DIGEST, BACKUP_EXECUTABLE)
 
         def backup(command):
-            self.assertEqual(command, ["/usr/bin/systemctl", "start", "asa-school-gfs-full.service"])
+            self.assertEqual(command, [BACKUP_EXECUTABLE, "full"])
             with system.operation_lock(self.root):
                 self.assertEqual(len(seen), 1)
 
@@ -155,7 +156,7 @@ class HumanOperatorTests(unittest.TestCase):
 
     def test_cloud_backup_failure_or_invalid_receipt_never_starts_second_backup(self):
         def need_backup(*_args, **_kwargs):
-            raise manager.SchoolBackupNeeded(DIGEST)
+            raise manager.SchoolBackupNeeded(DIGEST, BACKUP_EXECUTABLE)
 
         for backup_error, code, attempts in (
             (Blocked("COMMAND", "backup failed", "inspect"), "OFFSITE_BACKUP_CREATE", 1),
