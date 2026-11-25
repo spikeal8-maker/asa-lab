@@ -32,6 +32,32 @@ const FAILURE_CODES = new Set([
   'ai_ollama_invalid',
   'ai_ollama_upstream_error',
   'ai_ollama_empty',
+  'ai_tool_call_invalid',
+  'ai_llamacpp_url_invalid',
+  'ai_llamacpp_url_denied',
+  'ai_llamacpp_model_invalid',
+  'ai_llamacpp_model_missing',
+  'ai_llamacpp_key_invalid',
+  'ai_llamacpp_encryption_unavailable',
+  'ai_llamacpp_key_decryption_failed',
+  'ai_llamacpp_auth',
+  'ai_llamacpp_busy',
+  'ai_llamacpp_unreachable',
+  'ai_llamacpp_timeout',
+  'ai_llamacpp_invalid',
+  'ai_llamacpp_interrupted',
+  'ai_llamacpp_response_empty',
+  'ai_llamacpp_context_invalid',
+  'ai_llamacpp_context_exceeded',
+  'ai_llamacpp_config_invalid',
+  'ai_llamacpp_config_changed',
+  'ai_llamacpp_admin_denied',
+  'ai_llamacpp_unavailable',
+  'ai_llamacpp_apply_pending',
+  'ai_llamacpp_apply_failed',
+  'ai_llamacpp_replay_conflict',
+  'ai_llamacpp_upstream_error',
+  'ai_llamacpp_request_rejected',
 ]);
 export function usageFailureCode(problem: unknown): string {
   const code = problem && typeof problem === 'object' ? (problem as { code?: unknown }).code : null;
@@ -130,7 +156,9 @@ export class AiUsageJournal {
       operation: attempt?.operation === 'regeneration' ? 'regeneration' : 'chat',
       provider:
         attempt &&
-        ['openai', 'deepseek', 'ollama', 'ollama-cloud', 'polza'].includes(attempt.provider)
+        ['openai', 'deepseek', 'ollama', 'ollama-cloud', 'polza', 'llamacpp-local'].includes(
+          attempt.provider,
+        )
           ? attempt.provider
           : null,
       requestedModel: providerModel(attempt?.model),

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
 import { AdminCloudCatalogConnection } from './AdminCloudCatalogConnection';
 import { AdminOllamaPage } from './AdminOllamaPage';
+import { AdminLlamaCppPage } from './AdminLlamaCppPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminPolzaConnection } from './AdminPolzaConnection';
 import { AdminAiTranscription } from './AdminAiTranscription';
@@ -34,6 +35,7 @@ interface LocalState {
 
 const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string }> = [
   { id: 'ollama', label: 'Ollama', hint: 'Локально · без ключа' },
+  { id: 'llamacpp-local', label: 'llama.cpp', hint: 'Локально · ключ при необходимости' },
   { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
@@ -69,6 +71,7 @@ function AiAdminWorkspaceSession({
   const [cloud, setCloud] = useState<AiAdminConfig | null>(null);
   const [polza, setPolza] = useState<AiPolzaAdminConfig | null>(null);
   const [local, setLocal] = useState<LocalState | null>(null);
+  const [llamaCpp, setLlamaCpp] = useState<LocalState | null>(null);
   const [statusRevision, setStatusRevision] = useState(0);
   const refreshStatus = useCallback(() => setStatusRevision((v) => v + 1), []);
 
@@ -152,7 +155,8 @@ function AiAdminWorkspaceSession({
     void Promise.all([
       call<AiAdminConfig>('/api/admin/v1/ai'),
       call<LocalState>('/api/admin/v1/ai/ollama'),
-    ]).then(([cloudResponse, localResponse]) => {
+      call<LocalState>('/api/admin/v1/ai/llamacpp'),
+    ]).then(([cloudResponse, localResponse, llamaCppResponse]) => {
       if (!mounted) return;
       if (!cloudResponse.ok && (cloudResponse.status === 401 || cloudResponse.status === 403)) {
         onAccessDenied();
@@ -160,6 +164,13 @@ function AiAdminWorkspaceSession({
       if (!localResponse.ok && (localResponse.status === 401 || localResponse.status === 403)) {
         onAccessDenied();
       }
+      if (
+        !llamaCppResponse.ok &&
+        (llamaCppResponse.status === 401 || llamaCppResponse.status === 403)
+      ) {
+        onAccessDenied();
+      }
+      setLlamaCpp(llamaCppResponse.ok ? llamaCppResponse.data : null);
       setCloud(cloudResponse.ok ? cloudResponse.data : null);
       setLocal(localResponse.ok ? localResponse.data : null);
     });
@@ -186,6 +197,8 @@ function AiAdminWorkspaceSession({
   function providerStatus(value: ProviderChoice): string {
     if (value === 'polza')
       return polza?.enabled ? 'Включён' : polza?.apiKeyConfigured ? 'Ключ сохранён' : 'Нет ключа';
+    if (value === 'llamacpp-local')
+      return llamaCpp === null ? 'Проверяем' : llamaCpp.enabled ? 'Включён' : 'Выключен';
     if (value === 'ollama')
       return local === null ? 'Проверяем' : local.enabled ? 'Включена' : 'Выключена';
     if (!cloud) return 'Проверяем';
@@ -277,6 +290,12 @@ function AiAdminWorkspaceSession({
           </div>
           {provider === 'ollama' ? (
             <AdminOllamaPage onAccessDenied={onAccessDenied} onUpdated={refreshStatus} />
+          ) : provider === 'llamacpp-local' ? (
+            <AdminLlamaCppPage
+              onAccessDenied={onAccessDenied}
+              onUpdated={refreshStatus}
+              onDirtyChange={setConnectionDirty}
+            />
           ) : provider === 'polza' ? (
             <AdminPolzaConnection
               onAccessDenied={onAccessDenied}
