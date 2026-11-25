@@ -299,4 +299,34 @@ describe('learning assessments API', () => {
     ).rejects.toMatchObject({ status: 400 });
     expect(target.query).not.toHaveBeenCalled();
   });
+
+  it('reports removed-learner conflicts for legacy review, exact review and official selection', async () => {
+    const target = controller([]);
+    target.query.mockRejectedValue({ code: 'P5L03' });
+    const conflict = { status: 409, response: { error: { code: 'learner_removed' } } };
+
+    await expect(
+      target.value.review(request(), CLASSROOM_ID, ATTEMPT_ID, { decision: 'accepted', points: 5 }),
+    ).rejects.toMatchObject(conflict);
+    await expect(
+      target.value.review(request(), CLASSROOM_ID, ATTEMPT_ID, {
+        decision: 'accepted',
+        points: 5,
+        requestId: 'review:exact',
+      }),
+    ).rejects.toMatchObject(conflict);
+    await expect(
+      target.value.selectAttempt(request(), CLASSROOM_ID, RUN_A, {
+        attemptId: ATTEMPT_ID,
+        reason: 'Официальный результат',
+        requestId: 'selection:exact',
+      }),
+    ).rejects.toMatchObject(conflict);
+
+    const unexpected = new Error('database unavailable');
+    target.query.mockRejectedValue(unexpected);
+    await expect(
+      target.value.review(request(), CLASSROOM_ID, ATTEMPT_ID, { decision: 'accepted', points: 5 }),
+    ).rejects.toBe(unexpected);
+  });
 });
