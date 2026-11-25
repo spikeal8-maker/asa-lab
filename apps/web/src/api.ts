@@ -2665,9 +2665,10 @@ export const api = {
     call<LearningReviewContext>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context${activityRunId === undefined ? '' : `?activityRunId=${encodeURIComponent(activityRunId)}`}`,
     ),
-  exactLearningSubmission: (classroomId: string, attemptId: string) =>
+  exactLearningSubmission: (classroomId: string, attemptId: string, signal?: AbortSignal) =>
     call<ExactLearningSubmission>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/submission`,
+      { ...(signal ? { signal } : {}) },
     ),
   selectLearningAttempt: (
     classroomId: string,

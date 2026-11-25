@@ -82,7 +82,9 @@ export interface ParticipantWorks {
   filteredWorks: number;
   offset: number;
   hasMore: boolean;
-  items: Array<ClassroomStudentWork & { feedback: ProjectFeedback | null }>;
+  items: Array<
+    ClassroomStudentWork & { feedback: ProjectFeedback | null; originActivityRunId: string | null }
+  >;
 }
 export interface ParticipantSummary {
   classCount: number;

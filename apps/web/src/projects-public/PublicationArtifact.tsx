@@ -8,6 +8,7 @@ import type {
 } from '@asa-lab/contracts';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
+import { ProjectPlaybackStage } from '../modules/ProjectPlaybackStage';
 
 const Scene = lazy(() =>
   import('./ElectronicsPublicationScene').then((module) => ({
@@ -35,13 +36,21 @@ class SceneBoundary extends Component<
     return this.state.failed ? this.props.fallback : this.props.children;
   }
 }
-export function PublicationArtifact({
-  publication,
-  onUnavailable,
-}: {
+type ArtifactProps = {
   readonly publication: PublicProject;
   readonly onUnavailable: () => void;
-}): JSX.Element {
+};
+
+export function PublicationArtifact(props: ArtifactProps): JSX.Element {
+  const content = <ArtifactContent {...props} />;
+  return ['three-d', 'electronics', 'robotics'].includes(props.publication.moduleKey) ? (
+    <ProjectPlaybackStage>{content}</ProjectPlaybackStage>
+  ) : (
+    content
+  );
+}
+
+function ArtifactContent({ publication, onUnavailable }: ArtifactProps): JSX.Element {
   const [artifact, setArtifact] = useState<
     | ElectronicsDisplayArtifact
     | ElectronicsSimulationArtifact

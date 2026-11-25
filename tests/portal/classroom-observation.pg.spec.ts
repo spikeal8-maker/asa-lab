@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { createInitialRoboticsProject } from '@asa-lab/robotics/document';
 import { hashSessionToken } from '../../contexts/identity/domain/session-token';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -596,6 +597,201 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       ),
     ).toBe(true);
   }, 60_000);
+
+  it('reads exactly one free project revision through existing teacher visibility', async () => {
+    const f = await fixture(2);
+    const [learner, peer] = f.seats;
+    const free = await f.project(learner!.principal, 'three-d', 'active', f.classId);
+    const otherClass = await f.createClass();
+    const teacherCookie = `asa_session=${f.teacherToken}`;
+    const previewUrl = (projectId = free, classroomId = f.classId, seatId = learner!.id) =>
+      `/api/classrooms/${classroomId}/observation/learners/${seatId}/projects/${projectId}/free-preview`;
+    const lookup = (url = previewUrl(), cookie = teacherCookie) =>
+      inject(api, { method: 'GET', url, headers: { cookie } });
+    const initial = await lookup();
+    expect(initial.statusCode, initial.body).toBe(200);
+    expect(initial.headers['cache-control']).toContain('no-store');
+    expect(initial.json()).toEqual({
+      projectId: free,
+      moduleKey: 'three-d',
+      revision: 1,
+      document: { value: 0 },
+      preview: null,
+    });
+
+    const robotDocument = createInitialRoboticsProject();
+    const robot = await f.project(learner!.principal, 'robotics', 'active', f.classId);
+    await admin.query('UPDATE project_drafts SET document_json=$2::jsonb WHERE project_id=$1', [
+      robot,
+      JSON.stringify(robotDocument),
+    ]);
+    const list = await f.projects({ module: 'robotics', learner: learner!.id });
+    expect(list.items.map((item) => item.id)).toEqual([robot]);
+    const profile = await read<{ items: { id: string }[] }>('classroom_participant_works', [
+      f.actor.principal_id,
+      f.classId,
+      learner!.id,
+      'robotics',
+      false,
+      false,
+      0,
+    ]);
+    expect(profile.items.map((item) => item.id)).toEqual([robot]);
+    const robotPreview = await lookup(previewUrl(robot));
+    expect(robotPreview.statusCode, robotPreview.body).toBe(200);
+    expect(robotPreview.json()).toMatchObject({
+      moduleKey: 'robotics',
+      projectId: robot,
+      document: robotDocument,
+    });
+    expect((await lookup(previewUrl(robot, otherClass))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(robot, f.classId, peer!.id))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(robot), `asa_student_session=${peer!.token}`)).statusCode).toBe(
+      401,
+    );
+
+    expect((await lookup(previewUrl(free, otherClass))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(free, f.classId, peer!.id))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(), `asa_student_session=${learner!.token}`)).statusCode).toBe(
+      401,
+    );
+
+    const issued = await f.assign([learner!.id]);
+    const started = await f.start(issued.run, learner);
+    expect((await lookup(previewUrl(started.projectId))).statusCode).toBe(404);
+    const assignedRevision = (
+      await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [
+        started.projectId,
+      ])
+    ).rows[0].revision;
+    const submitted = (
+      await runtime.query('SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)', [
+        learner!.principal,
+        started.projectId,
+        randomUUID(),
+        assignedRevision,
+      ])
+    ).rows[0];
+    expect(submitted.result_code).toBe('ok');
+    expect((await lookup(previewUrl(started.projectId))).statusCode).toBe(404);
+    const works = await lookup(`/api/classrooms/${f.classId}/participants/${learner!.id}/works`);
+    expect(works.statusCode, works.body).toBe(200);
+    expect(works.json().items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: free, originActivityRunId: null, canonicalState: null }),
+        expect.objectContaining({
+          id: started.projectId,
+          originActivityRunId: issued.run,
+          canonicalState: expect.objectContaining({
+            activityRunId: issued.run,
+            workflowState: 'submitted',
+          }),
+        }),
+      ]),
+    );
+
+    await admin.query(
+      'UPDATE project_drafts SET revision=2,document_json=\'{"value":2}\'::jsonb WHERE project_id=$1',
+      [free],
+    );
+    await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [free]);
+    const archived = await lookup();
+    expect(archived.statusCode, archived.body).toBe(200);
+    expect(archived.json()).toMatchObject({ revision: 2, document: { value: 2 } });
+    expect(initial.json()).toMatchObject({ revision: 1, document: { value: 0 } });
+    expect(
+      await read('classroom_management_remove_seat', [f.actor.account_id, f.classId, learner!.id]),
+    ).toBe(true);
+    expect((await lookup()).statusCode).toBe(404);
+  });
+
+  it('resolves the latest saved submission of the visible project and keeps removed seats read-only', async () => {
+    const f = await fixture(2);
+    const [learner, peer] = f.seats;
+    const issued = await f.assign([learner!.id]);
+    const started = await f.start(issued.run, learner);
+    const reviewUrl = (classroomId = f.classId, seatId = learner!.id) =>
+      `/api/classrooms/${classroomId}/observation/learners/${seatId}/projects/${started.projectId}/review`;
+    const teacherCookie = `asa_session=${f.teacherToken}`;
+    const lookup = (url = reviewUrl(), cookie = teacherCookie) =>
+      inject(api, { method: 'GET', url, headers: { cookie } });
+    const submit = async () => {
+      const revision = (
+        await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [
+          started.projectId,
+        ])
+      ).rows[0].revision;
+      const submission = (
+        await runtime.query(
+          'SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)',
+          [learner!.principal, started.projectId, randomUUID(), revision],
+        )
+      ).rows[0];
+      expect(submission.result_code).toBe('ok');
+      return submission;
+    };
+    expect((await lookup()).statusCode).toBe(404);
+    const first = await submit();
+    const opened = await lookup();
+    expect(opened.statusCode, opened.body).toBe(200);
+    expect(opened.json()).toEqual({
+      assignmentId: issued.assignment,
+      activityRunId: issued.run,
+      attemptId: started.attemptId,
+      submissionId: first.submission_id,
+      projectVersionId: first.project_version_id,
+      canReview: true,
+    });
+    const otherClass = await f.createClass();
+    for (const url of [reviewUrl(otherClass), reviewUrl(f.classId, peer!.id)]) {
+      expect((await lookup(url)).statusCode).toBe(404);
+    }
+    expect((await lookup(reviewUrl(), `asa_student_session=${learner!.token}`)).statusCode).toBe(
+      401,
+    );
+    expect(
+      (
+        await runtime.query(
+          "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'changes_requested',NULL,'Доработать','Уточнение',NULL,$5)",
+          [f.actor.account_id, f.actor.principal_id, f.classId, started.attemptId, randomUUID()],
+        )
+      ).rows[0].result_code,
+    ).toBe('ok');
+    const next = await f.start(issued.run, learner);
+    expect(next.attemptId).not.toEqual(started.attemptId);
+    expect((await lookup()).json()).toEqual(opened.json());
+
+    const latest = await submit();
+    expect((await lookup()).json()).toMatchObject({
+      assignmentId: issued.assignment,
+      activityRunId: issued.run,
+      attemptId: next.attemptId,
+      submissionId: latest.submission_id,
+      projectVersionId: latest.project_version_id,
+    });
+    await expect(
+      admin.query("UPDATE projects SET status='archived' WHERE id=$1", [started.projectId]),
+    ).rejects.toThrow('learning_work_protected');
+    const setClassStatus = (status: 'active' | 'archived') =>
+      read('classroom_management_set_status', [f.actor.account_id, f.classId, status]);
+    expect(await setClassStatus('archived')).toBe(true);
+    const archived = await lookup();
+    expect(archived.statusCode, archived.body).toBe(200);
+    expect(archived.json()).toMatchObject({ canReview: false, attemptId: next.attemptId });
+    expect(await setClassStatus('active')).toBe(true);
+
+    expect(
+      await read('classroom_management_remove_seat', [f.actor.account_id, f.classId, learner!.id]),
+    ).toBe(true);
+    expect((await lookup()).statusCode).toBe(404);
+    const history = await inject(api, {
+      method: 'GET',
+      url: `/api/classrooms/${f.classId}/attempts/${next.attemptId}/submission`,
+      headers: { cookie: teacherCookie },
+    });
+    expect(history.statusCode, history.body).toBe(200);
+    expect(history.json()).toMatchObject({ submissionId: latest.submission_id });
+  });
 
   it('rejects out-of-audience modern work; preserves whole-class legacy work and stable submission counts after corrections/withdrawal', async () => {
     const f = await fixture(3),

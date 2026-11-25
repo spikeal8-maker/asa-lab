@@ -1,18 +1,15 @@
 .classroom-work-card-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 216px), 1fr));
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .classroom-work-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: 6px 8px 6px 6px;
   border: 1px solid var(--classroom-line, #d9e4ec);
   border-radius: 8px;
   background: var(--surface, #fff);
@@ -20,14 +17,16 @@
 :is(.classroom-owner-workspace.classroom-workspace .classroom-observation, .classroom-student)
   .classroom-work-card
   > .classroom-work-card-preview {
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
   min-width: 0;
   min-height: 44px;
-  padding: 4px;
-  border: 1px solid transparent;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
   background: transparent;
   color: inherit;
   text-align: start;
@@ -35,20 +34,25 @@
 :is(.classroom-owner-workspace.classroom-workspace .classroom-observation, .classroom-student)
   .classroom-work-card
   > .classroom-work-card-preview:hover:not(:disabled) {
-  border-color: transparent;
   background: var(--classroom-tint, #f1f8fc);
 }
 .classroom-work-card-picture {
+  position: relative;
   display: grid;
+  flex: none;
   place-items: center;
   aspect-ratio: 4 / 3;
-  border-radius: 6px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--classroom-line, #d9e4ec);
+  border-radius: 7px 7px 0 0;
   background: var(--classroom-tint, #f1f8fc);
   color: var(--classroom-secondary, #526777);
   font-size: 11px;
   text-align: center;
 }
 .classroom-work-card-picture :is(img, .project-preview-figure) {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -60,6 +64,7 @@
   display: grid;
   gap: 2px;
   min-width: 0;
+  padding: 7px 8px 3px;
   font-size: 13px;
   line-height: 1.3;
   overflow-wrap: anywhere;
@@ -82,28 +87,16 @@
 .classroom-work-card-title time {
   font-size: 12px;
 }
-.classroom-work-card > .classroom-work-card-editor {
+:is(.classroom-owner-workspace.classroom-workspace .classroom-observation, .classroom-student)
+  .classroom-work-card
+  > .classroom-work-card-editor {
+  align-self: flex-end;
   min-width: 44px;
   min-height: 44px;
+  margin: 0 6px 6px;
   font-size: 13px;
 }
 .classroom-work-card > a.classroom-work-card-editor {
   display: inline-flex;
   align-items: center;
-}
-@container (max-width: 550px) {
-  .classroom-work-card {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-    padding: 6px;
-  }
-  :is(.classroom-owner-workspace.classroom-workspace .classroom-observation, .classroom-student)
-    .classroom-work-card
-    > .classroom-work-card-preview {
-    grid-template-columns: 64px minmax(0, 1fr);
-    gap: 8px;
-  }
-  .classroom-work-card-editor {
-    justify-self: end;
-  }
 }

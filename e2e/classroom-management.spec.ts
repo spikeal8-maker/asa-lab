@@ -271,7 +271,8 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await previewOpener.click();
   // Работа проверяется одним окном на весь продукт: картинка, что было задано
   // и отклик рядом — оценивать модель, не видя условия, невозможно.
-  const feedbackDialog = page.getByRole('dialog', { name: 'Работа: Алина К.' });
+  const feedbackDialog = page.getByRole('dialog', { name: 'Работа: Моя модель' });
+  await feedbackDialog.getByRole('button', { name: 'Отклик на проект', exact: true }).click();
   await feedbackDialog.getByRole('button', { name: 'Хорошо' }).click();
   await feedbackDialog.getByLabel('Комментарий').fill('Добавь отверстие под винт.');
   await feedbackDialog.getByRole('button', { name: 'Сохранить отклик' }).click();
@@ -454,9 +455,10 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
     .click();
   const preview = page.getByRole('dialog', { name: 'Работа: Алина К.' });
   await expect(preview.getByTestId('work-preview-image')).toBeVisible();
+  await preview.getByRole('button', { name: 'Отклик на проект', exact: true }).click();
   await preview.getByRole('button', { name: 'Хорошо' }).click();
   await preview.getByLabel('Комментарий').fill('Ровные углы, молодец.');
-  await preview.getByRole('button', { name: /отклик/i }).click();
+  await preview.getByRole('button', { name: 'Сохранить отклик', exact: true }).click();
   await expect(preview.getByText('Отклик сохранён — ученик увидит его у себя.')).toBeVisible();
   await page.screenshot({ path: `${evidenceDir}/work-preview.png` });
   await preview.getByRole('button', { name: 'Закрыть' }).click();

@@ -1,17 +1,16 @@
 import { onSessionLoggedOut } from '../session-fetch';
 import { ClassroomAssignmentIssuer } from './ClassroomAssignmentIssuer';
 import { QuizQuestionFields } from './QuizQuestionFields';
-import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
   type ExactLearningSubmission,
   type GradebookEntry,
   type LearningReviewContext,
 } from '../api';
-import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
-import type { ClassroomExactElectronicsViewerProps } from './ClassroomExactElectronicsViewer';
-import type { ClassroomExactThreeDViewerProps } from './ClassroomExactThreeDViewer';
 import { LearningConditions } from './LearningConditions';
+import type { ObservationProjectReview } from '../classroom-observation-api';
+import { FrozenProjectPreview } from './ClassroomSubmittedProjectPreview';
 import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import './classroom-gradebook.css';
@@ -50,160 +49,28 @@ function score(item: GradebookEntry) {
 }
 type Frozen = ExactLearningSubmission;
 
-const ExactThreeDViewer = lazy(() =>
-  import('./ClassroomExactThreeDViewer').catch(() => ({
-    default: ({ fallback }: ClassroomExactThreeDViewerProps) => (
-      <>
-        <p role="status">Не удалось запустить 3D-просмотр.</p>
-        {fallback}
-      </>
-    ),
-  })),
-);
-
-const ExactElectronicsViewer = lazy(() =>
-  import('./ClassroomExactElectronicsViewer').catch(() => ({
-    default: ({ fallback }: ClassroomExactElectronicsViewerProps) => (
-      <>
-        <p role="status">Не удалось загрузить симуляцию.</p>
-        {fallback}
-      </>
-    ),
-  })),
-);
-
-const ExactArduinoSource = lazy(() =>
-  import('./ClassroomExactArduinoSource').catch(() => ({ default: () => null })),
-);
-
-function FrozenProjectPreview({
-  submission,
-}: {
-  submission: Extract<Frozen, { projectVersionId: string }>;
-}) {
-  const [open, setOpen] = useState(false);
-  const viewerId = useId();
-  const opener = useRef<HTMLButtonElement>(null);
-  const fallback = submission.preview?.figure ? (
-    <ProjectPreviewFigure figure={submission.preview.figure} label="Точный снимок сданной работы" />
-  ) : (
-    <p>Визуальный предпросмотр для этого снимка недоступен.</p>
-  );
-  if (submission.moduleKey === 'electronics') {
-    return (
-      <div
-        className="gradebook-electronics-preview"
-        onKeyDown={(event) => {
-          if (
-            event.defaultPrevented ||
-            event.key !== 'Escape' ||
-            !open ||
-            document.fullscreenElement
-          )
-            return;
-          event.preventDefault();
-          setOpen(false);
-          opener.current?.focus();
-        }}
-      >
-        {submission.electronicsSimulation && (
-          <button
-            ref={opener}
-            type="button"
-            className="btn-secondary"
-            aria-controls={viewerId}
-            aria-expanded={open}
-            onClick={() => setOpen(!open)}
-          >
-            {open ? 'Скрыть симуляцию' : 'Открыть симуляцию'}
-          </button>
-        )}
-        <div id={viewerId} hidden={!open}>
-          {open && (
-            <Suspense
-              fallback={
-                <>
-                  {fallback}
-                  <p role="status">Загружаем схему…</p>
-                </>
-              }
-            >
-              <ExactElectronicsViewer
-                artifact={submission.electronicsSimulation}
-                submissionId={submission.submissionId}
-                projectVersionId={submission.projectVersionId}
-                fallback={fallback}
-              />
-            </Suspense>
-          )}
-        </div>
-        {!open && fallback}
-        <Suspense fallback={null}>
-          <ExactArduinoSource document={submission.document} />
-        </Suspense>
-      </div>
-    );
-  }
-  if (submission.moduleKey !== 'three-d') return fallback;
-
-  return (
-    <div
-      className="gradebook-three-d-preview"
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !open) return;
-        event.preventDefault();
-        setOpen(false);
-        opener.current?.focus();
-      }}
-    >
-      <button
-        ref={opener}
-        type="button"
-        className="btn-secondary"
-        aria-controls={viewerId}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {open ? 'Скрыть 3D-модель' : 'Показать 3D-модель'}
-      </button>
-      <div id={viewerId} hidden={!open}>
-        {open && (
-          <Suspense
-            fallback={
-              <>
-                <p role="status">Загружаем 3D-модель…</p>
-                {fallback}
-              </>
-            }
-          >
-            <ExactThreeDViewer document={submission.document} fallback={fallback} />
-          </Suspense>
-        )}
-      </div>
-      {!open && fallback}
-    </div>
-  );
-}
-
-function ReviewDetail({
+export function ReviewDetail({
   classroomId,
   item,
   readOnly,
+  pinned,
   onChanged,
   onClose,
 }: {
   classroomId: string;
-  item: GradebookEntry;
+  item: Pick<GradebookEntry, 'assignmentId' | 'seatId' | 'displayLabel' | 'assignmentTitle'>;
   readOnly: boolean;
-  onChanged: () => Promise<void>;
+  pinned?: ObservationProjectReview;
+  onChanged?: (() => Promise<void>) | undefined;
   onClose: () => void;
 }) {
   const [context, setContext] = useState<LearningReviewContext | null>(null);
   const destination = useLearningDestination();
   const [attemptId, setAttemptId] = useState<string | null>(
-    destination.assignment === item.assignmentId && destination.seat === item.seatId
-      ? destination.attempt
-      : null,
+    pinned?.attemptId ??
+      (destination.assignment === item.assignmentId && destination.seat === item.seatId
+        ? destination.attempt
+        : null),
   );
   const [loadedSubmission, setFrozen] = useState<Frozen | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -211,20 +78,36 @@ function ReviewDetail({
   const [points, setPoints] = useState('');
   const [feedback, setFeedback] = useState('');
   const [reason, setReason] = useState('');
+  const backToProject = useRef<HTMLButtonElement>(null);
   const request = useRef<{ payload: string; id: string } | null>(null);
+  useEffect(() => {
+    if (pinned) backToProject.current?.focus();
+  }, [pinned]);
   const load = useCallback(async () => {
-    const result = await api.learningReviewContext(classroomId, item.assignmentId, item.seatId);
+    const result = await api.learningReviewContext(
+      classroomId,
+      item.assignmentId,
+      item.seatId,
+      pinned?.activityRunId,
+    );
     if (!result.ok) {
       setError(result.error.message);
       return;
     }
     setContext(result.data);
     setAttemptId((current) => current ?? result.data.attempts[0]?.id ?? null);
-  }, [classroomId, item.assignmentId, item.seatId]);
+  }, [classroomId, item.assignmentId, item.seatId, pinned?.activityRunId]);
   useEffect(() => {
     void load();
   }, [load]);
-  const attempt = context?.attempts.find((entry) => entry.id === attemptId);
+  const attempt = context?.attempts.find(
+    (entry) =>
+      entry.id === attemptId &&
+      (!pinned ||
+        (context.activityRunId === pinned.activityRunId &&
+          entry.submissionId === pinned.submissionId &&
+          entry.projectVersionId === pinned.projectVersionId)),
+  );
   const latest = attempt?.results[0] ?? null;
   const frozen = loadedSubmission?.submissionId === attempt?.submissionId ? loadedSubmission : null;
   useEffect(() => {
@@ -237,13 +120,31 @@ function ReviewDetail({
     let active = true;
     void api.exactLearningSubmission(classroomId, attemptId).then((result) => {
       if (!active) return;
-      if (result.ok) setFrozen(result.data);
-      else setError(result.error.message);
+      if (!result.ok) {
+        setError(result.error.message);
+      } else if (
+        !pinned ||
+        ('projectVersionId' in result.data &&
+          result.data.submissionId === pinned.submissionId &&
+          result.data.projectVersionId === pinned.projectVersionId)
+      ) {
+        setFrozen(result.data);
+      } else {
+        setError('Сохранённая сдача не совпадает с выбранной работой.');
+      }
     });
     return () => {
       active = false;
     };
-  }, [classroomId, attemptId, attempt?.submissionId, latest?.id, latest?.feedback, latest?.points]);
+  }, [
+    classroomId,
+    attemptId,
+    attempt?.submissionId,
+    latest?.id,
+    latest?.feedback,
+    latest?.points,
+    pinned,
+  ]);
   async function review(decision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused') {
     if (readOnly || !attempt || !context || !frozen || busy) return;
     const input = {
@@ -268,7 +169,7 @@ function ReviewDetail({
       return;
     }
     await load();
-    await onChanged();
+    await onChanged?.();
   }
   const terminal =
     attempt?.state === 'closed' && latest !== null && latest.decision !== 'changes_requested';
@@ -279,16 +180,19 @@ function ReviewDetail({
       <header>
         <div>
           <h3>
-            {item.displayLabel} · {item.assignmentTitle}
+            {item.displayLabel} ·{' '}
+            {pinned ? (context?.title ?? item.assignmentTitle) : item.assignmentTitle}
           </h3>
-          <p>
-            {readOnly
-              ? 'Ученик удалён из класса. Сдача доступна для просмотра.'
-              : 'Проверяется зафиксированная сдача.'}
-          </p>
+          {!pinned && (
+            <p>
+              {readOnly
+                ? 'Ученик удалён из класса. Сдача доступна для просмотра.'
+                : 'Проверяется зафиксированная сдача.'}
+            </p>
+          )}
         </div>
-        <button className="btn-secondary" onClick={onClose}>
-          Закрыть проверку
+        <button ref={backToProject} className="btn-secondary" onClick={onClose}>
+          {pinned ? 'К работе' : 'Закрыть проверку'}
         </button>
       </header>
       {error ? <p role="alert">{error}</p> : null}
@@ -296,18 +200,18 @@ function ReviewDetail({
       {context ? (
         <>
           <p>{context.instructions}</p>
-          {!readOnly ? (
+          {!readOnly && !pinned ? (
             <>
               <LearningConditions
                 classroomId={classroomId}
                 assignmentId={item.assignmentId}
-                onChanged={() => void onChanged()}
+                onChanged={() => void onChanged?.()}
               />
               <LearningConditions
                 classroomId={classroomId}
                 assignmentId={item.assignmentId}
                 seatId={item.seatId}
-                onChanged={() => void onChanged()}
+                onChanged={() => void onChanged?.()}
               />
             </>
           ) : null}
@@ -326,22 +230,29 @@ function ReviewDetail({
                 : 'Шкала не задана: в журнале будут исходные баллы, без скрытого перевода в оценки.'}
             </p>
           ) : null}
-          <label>
-            Попытка{' '}
-            <select
-              aria-label="Попытка"
-              value={attemptId ?? ''}
-              onChange={(event) => setAttemptId(event.target.value)}
-            >
-              {context.attempts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.number} · {LABELS[a.state] ?? a.state}
-                  {a.revisionOfAttemptId ? ' · доработка' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!attempt ? <p>Ученик ещё не начал работу.</p> : null}
+          {!pinned && (
+            <label>
+              Попытка{' '}
+              <select
+                aria-label="Попытка"
+                value={attemptId ?? ''}
+                onChange={(event) => setAttemptId(event.target.value)}
+              >
+                {context.attempts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.number} · {LABELS[a.state] ?? a.state}
+                    {a.revisionOfAttemptId ? ' · доработка' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {!attempt &&
+            (pinned ? (
+              <p role="alert">Сохранённая сдача недоступна для проверки.</p>
+            ) : (
+              <p>Ученик ещё не начал работу.</p>
+            ))}
           {attempt && !attempt.submissionId ? (
             <p>Попытка в работе. Оценивать несданный черновик нельзя.</p>
           ) : null}
@@ -394,15 +305,21 @@ function ReviewDetail({
                 </p>
               ) : (
                 <>
-                  <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
+                  {!pinned && (
+                    <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
+                  )}
                   <FrozenProjectPreview
                     key={[attempt.id, frozen.submissionId, frozen.projectVersionId].join(':')}
                     submission={frozen}
+                    initiallyOpen={Boolean(pinned)}
                   />
                 </>
               )}
               <details>
                 <summary>Содержимое и контрольная сумма сдачи</summary>
+                {pinned && 'projectVersionId' in frozen && (
+                  <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
+                )}
                 <p>{frozen.digest}</p>
                 {frozen.kind !== 'essay' && frozen.kind !== 'quiz' && frozen.kind !== 'file' ? (
                   <pre>{JSON.stringify(frozen.document, null, 2)}</pre>
@@ -498,7 +415,7 @@ function ReviewDetail({
                 if (!result.ok) setError(result.error.message);
                 else {
                   await load();
-                  await onChanged();
+                  await onChanged?.();
                 }
               }}
             >

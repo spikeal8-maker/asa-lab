@@ -9,6 +9,8 @@ export class ClassroomObservationService {
     fn:
       | 'classroom_observation_summary'
       | 'classroom_observation_projects'
+      | 'classroom_observation_project_review'
+      | 'classroom_observation_free_project_preview'
       | 'classroom_observation_history'
       | 'classroom_participant_prepare',
     args: unknown[],

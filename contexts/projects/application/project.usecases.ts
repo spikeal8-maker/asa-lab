@@ -472,8 +472,15 @@ export class OpenProjectUseCase {
     tenantId: string,
     projectId: string,
     actor: ProjectActor,
+    purpose?: 'own-preview',
   ): Promise<UseCaseResult<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] }>> {
-    const loaded = await this.repository.load(tenantId, projectId, actor);
+    const loaded =
+      purpose === 'own-preview'
+        ? await this.repository.load(tenantId, projectId, actor, {
+            includeVersions: false,
+            ownPreview: true,
+          })
+        : await this.repository.load(tenantId, projectId, actor);
     return loaded === null
       ? fail('project_not_found', 'project not found')
       : { ok: true, value: loaded };

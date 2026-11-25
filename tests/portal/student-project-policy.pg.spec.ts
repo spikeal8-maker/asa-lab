@@ -6,6 +6,7 @@ import { publicScratchFixture } from '../../apps/api/src/testing/fixtures/public
 import { PublicScratchPlayerService } from '../../apps/api/src/public-scratch-player';
 import { buildTestApp, inject, type NestApp } from './app';
 import { studentProjectPolicyFixture } from './student-project-policy-fixture';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 let admin: pg.Pool;
 let runtime: pg.Pool;
 let app: NestApp;
@@ -29,6 +30,84 @@ afterAll(async () => {
   await Promise.all([admin?.end(), app?.close()]);
 });
 describe('StudentSeat actual immutable publication and audited permissions', () => {
+  it('reads a saved Seat project privately and keeps classroom review authority out of personal previews', async () => {
+    const own = await fixture();
+    const foreign = await fixture();
+    const url = `/api/projects/${own.projectId}/preview`;
+    const read = (token?: string) =>
+      inject(app, {
+        method: 'GET',
+        url,
+        ...(token ? { cookies: { asa_student_session: token } } : {}),
+      });
+    const original = await admin.query(
+      'SELECT revision,document_json FROM project_drafts WHERE project_id=$1',
+      [own.projectId],
+    );
+    const saved = await read(own.token);
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.headers['cache-control']).toBe('private, no-store');
+    expect(saved.json()).toMatchObject({
+      projectId: own.projectId,
+      revision: original.rows[0].revision,
+      document: original.rows[0].document_json,
+      moduleKey: 'electronics',
+    });
+    expect((await read(foreign.token)).statusCode).toBe(404);
+    expect((await read()).statusCode).toBe(401);
+    const repository = new PgProjectRepository(runtime);
+    const teacher = { principalId: own.actor, userId: own.teacher.teacherId };
+    expect(await repository.load(own.teacher.tenantId, own.projectId, teacher)).not.toBeNull();
+    expect(
+      await repository.load(own.teacher.tenantId, own.projectId, teacher, {
+        includeVersions: false,
+        ownPreview: true,
+      }),
+    ).toBeNull();
+    const after = await admin.query(
+      'SELECT revision,document_json FROM project_drafts WHERE project_id=$1',
+      [own.projectId],
+    );
+    expect(after.rows).toEqual(original.rows);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM project_publication_state WHERE project_id=$1',
+          [own.projectId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+  });
+  it('keeps a legacy Seat assignment in the learner preview while excluding its draft from teacher template previews', async () => {
+    const pupil = await fixture('classroom');
+    const authored = await admin.query(
+      "INSERT INTO teacher_assignments(tenant_id,owner_principal_id,title,brief,module_key,visibility) VALUES($1,$2,'Модель','Соберите схему','electronics','private') RETURNING id",
+      [pupil.teacher.tenantId, pupil.actor],
+    );
+    const assignment = await admin.query(
+      "INSERT INTO classroom_assignments(tenant_id,classroom_id,assignment_id,status,created_by) VALUES($1,$2,$3,'open',$4) RETURNING id",
+      [pupil.teacher.tenantId, pupil.classroomId, authored.rows[0].id, pupil.teacher.teacherId],
+    );
+    await admin.query(
+      'INSERT INTO classroom_assignment_work(tenant_id,assignment_id,seat_id,project_id,submitted_at) VALUES($1,$2,$3,$4,now())',
+      [pupil.teacher.tenantId, assignment.rows[0].id, pupil.seatId, pupil.projectId],
+    );
+    const endpoint = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${pupil.projectId}/preview`,
+      cookies: { asa_student_session: pupil.token },
+    });
+    expect(endpoint.statusCode, endpoint.body).toBe(200);
+    const repository = new PgProjectRepository(runtime);
+    const teacher = { principalId: pupil.actor, userId: pupil.teacher.teacherId };
+    expect(await repository.load(pupil.teacher.tenantId, pupil.projectId, teacher)).not.toBeNull();
+    expect(
+      await repository.load(pupil.teacher.tenantId, pupil.projectId, teacher, {
+        includeVersions: false,
+        ownPreview: true,
+      }),
+    ).toBeNull();
+  });
   it.each([
     { scope: 'personal', label: 'normal Seat-owned personal Project Core flow' },
     { scope: 'classroom', label: 'synthetic teacher-created class source assigned to Seat' },
