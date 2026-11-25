@@ -281,27 +281,29 @@ _SCHOOL_FULL_RECEIPT = "/var/backups/asa-school-gfs/receipts/latest-full.json"
 
 
 class SchoolBackupNeeded(Exception):
-    def __init__(self, digest):
+    def __init__(self, digest, executable):
         self.digest = digest
+        self.executable = executable
 
 
-def school_backup_available(install, policy):
+def school_backup_executable(install, policy):
     if not (sys.platform.startswith("linux") and os.geteuid() == 0
             and install.profile == "production" and install.root == Path("/srv/asa-lab")
             and install.project == "asa-lab-school" and policy == {"receipt": _SCHOOL_FULL_RECEIPT}):
-        return False
+        return None
     try:
         launcher = Path(_SCHOOL_BACKUP_CLI)
         executable = launcher.resolve(strict=True)
         info = executable.stat()
-        return (
+        trusted = (
             stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
             and bool(info.st_mode & stat.S_IXUSR)
             and all(parent.stat().st_uid == 0 and not parent.stat().st_mode & 0o022
                     for parent in set(executable.parents) | set(launcher.parents))
         )
+        return str(executable) if trusted else None
     except (OSError, RuntimeError):
-        return False
+        return None
 
 
 def update(install, *, check=False, scheduled=False, fresh=False, deployment_digest=None,
@@ -390,10 +392,13 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         try:
             verify_offsite_backup(policy, before)
         except Blocked as error:
-            if not operator or error.code != 'OFFSITE_BACKUP' or not school_backup_available(install, policy):
+            if not operator or error.code != 'OFFSITE_BACKUP':
+                raise
+            backup_executable = school_backup_executable(install, policy)
+            if backup_executable is None:
                 raise
             if not check:
-                raise SchoolBackupNeeded(deployment_digest) from error
+                raise SchoolBackupNeeded(deployment_digest, backup_executable) from error
             needs_cloud = True
         if display and not needs_cloud:
             display.cloud_verified()
@@ -628,7 +633,7 @@ def execute(args, argv, display=None):
         else:
             print('Создаю полную копию на Яндекс Диске. Дождитесь проверки архива.', flush=True)
         try:
-            run([_SCHOOL_BACKUP_CLI, "full"])
+            run([backup.executable, "full"])
         except Blocked as error:
             return report_failure(args, display, 'OFFSITE_BACKUP_CREATE', str(error),
                                   'Проверьте sudo asa-school-gfs errors --hours 1.')
