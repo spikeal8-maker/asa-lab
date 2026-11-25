@@ -59,3 +59,29 @@ BEGIN
     END LOOP;
 END;
 $migration$;
+
+-- The profile lists both free and assigned projects. Its legacy assignment text
+-- can be empty for work started from an Activity Run. Identify that work from
+-- the same classroom origin as the class project list, on the authorized page.
+DO $migration$
+DECLARE
+    definition text := pg_get_functiondef(
+        'public.classroom_participant_works(uuid,uuid,uuid,varchar,boolean,boolean,integer)'::regprocedure
+    );
+    expanded text;
+BEGIN
+    expanded := replace(definition,
+        $old$'canonicalState',NULL,'assignment',$old$,
+        $new$'originActivityRunId',(
+            SELECT run.id FROM public.learning_project_origins origin
+              JOIN public.activity_runs run
+                ON run.id=origin.activity_run_id AND run.tenant_id=origin.school_tenant_id
+             WHERE origin.project_id=p.id AND origin.project_tenant_id=p.tenant_id
+               AND run.classroom_id=p_class
+        ),'canonicalState',NULL,'assignment',$new$);
+    IF expanded = definition THEN
+        RAISE EXCEPTION 'Unexpected classroom participant works projection';
+    END IF;
+    EXECUTE expanded;
+END;
+$migration$;

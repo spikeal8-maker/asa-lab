@@ -674,6 +674,21 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     ).rows[0];
     expect(submitted.result_code).toBe('ok');
     expect((await lookup(previewUrl(started.projectId))).statusCode).toBe(404);
+    const works = await lookup(`/api/classrooms/${f.classId}/participants/${learner!.id}/works`);
+    expect(works.statusCode, works.body).toBe(200);
+    expect(works.json().items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: free, originActivityRunId: null, canonicalState: null }),
+        expect.objectContaining({
+          id: started.projectId,
+          originActivityRunId: issued.run,
+          canonicalState: expect.objectContaining({
+            activityRunId: issued.run,
+            workflowState: 'waiting_review',
+          }),
+        }),
+      ]),
+    );
 
     await admin.query(
       'UPDATE project_drafts SET revision=2,document_json=\'{"value":2}\'::jsonb WHERE project_id=$1',

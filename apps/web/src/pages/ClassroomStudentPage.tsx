@@ -1242,7 +1242,9 @@ export function ClassroomStudentPage({
             responding.moduleKey,
             classroomId,
             seatId,
-            Boolean(responding.canonicalState || responding.assignment),
+            Boolean(
+              responding.originActivityRunId || responding.canonicalState || responding.assignment,
+            ),
             !previewReadOnly,
           )}
           allowGallerySharing={
@@ -1251,6 +1253,7 @@ export function ClassroomStudentPage({
             student.safeMode === false &&
             responding.status === 'active' &&
             responding.assignment === null &&
+            !responding.originActivityRunId &&
             !responding.canonicalState &&
             !responding.submittedAt &&
             !responding.awaitingReview
