@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
+import './join-class.css';
 
 type JoinState =
   | { kind: 'code' }

@@ -29,6 +29,20 @@ async function serveBuiltApp(page: Page) {
 }
 test.beforeEach(async ({ page }) => serveBuiltApp(page));
 
+test('classroom entry remains retryable when its page fails to load', async ({ page }) => {
+  await page.route('**/api/**', (route) => route.fulfill({ json: { authenticated: false } }));
+  const chunk = '**/assets/JoinClassPage-*.js';
+  await page.route(chunk, (route) => route.abort());
+  await page.goto('/#/join-class');
+  const failure = page.getByRole('alert');
+  await expect(failure).toContainText('Страница не загрузилась');
+  await expect(failure.getByRole('button', { name: 'На главную' })).toBeVisible();
+
+  await page.unroute(chunk);
+  await failure.getByRole('button', { name: 'Попробовать снова' }).click();
+  await expect(page.getByLabel('Код класса', { exact: true })).toHaveAttribute('type', 'password');
+});
+
 for (const width of [1440, 320]) {
   test(`manual class code stays masked until revealed and retries without losing input at ${width}px`, async ({
     page,

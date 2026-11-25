@@ -33,7 +33,9 @@ const OrganizationLoginPage = lazy(() =>
     default: module.OrganizationLoginPage,
   })),
 );
-import { JoinClassPage } from './pages/JoinClassPage';
+const JoinClassPage = lazy(() =>
+  import('./pages/JoinClassPage').then((module) => ({ default: module.JoinClassPage })),
+);
 import { studentSessionPayload } from './creator-portal/student-session';
 import type { OwnProgressActor } from './creator-portal/personal-progress';
 import type { PublicIntent } from './pages/PublicEntryPage';
@@ -973,12 +975,18 @@ export function App(): JSX.Element {
     }
     if (publicView.kind === 'join-class') {
       return (
-        <JoinClassPage
+        <PageDeliveryBoundary
           key={window.location.hash}
-          onBack={() => setPublicView({ kind: 'sign-in' })}
-          onHome={goToPublicHome}
-          onSignedIn={() => void checkSession()}
-        />
+          label="Открываем вход в класс"
+          backLabel="На главную"
+          onBack={goToPublicHome}
+        >
+          <JoinClassPage
+            onBack={() => setPublicView({ kind: 'sign-in' })}
+            onHome={goToPublicHome}
+            onSignedIn={() => void checkSession()}
+          />
+        </PageDeliveryBoundary>
       );
     }
     if (publicView.kind === 'organization-sign-in') {
@@ -1081,13 +1089,19 @@ export function App(): JSX.Element {
       setView({ kind });
     };
     return (
-      <JoinClassPage
+      <PageDeliveryBoundary
         key={window.location.hash}
-        accountDisplayName={session.session.account.displayName}
+        label="Открываем вход в класс"
+        backLabel="На главную"
         onBack={() => leaveJoin('home')}
-        onHome={() => leaveJoin('home')}
-        onSignedIn={() => leaveJoin('attending')}
-      />
+      >
+        <JoinClassPage
+          accountDisplayName={session.session.account.displayName}
+          onBack={() => leaveJoin('home')}
+          onHome={() => leaveJoin('home')}
+          onSignedIn={() => leaveJoin('attending')}
+        />
+      </PageDeliveryBoundary>
     );
   }
 
