@@ -421,18 +421,23 @@ export function ClassroomStudentPage({
       role="group"
       aria-label="Ученик и навигация"
     >
-      <button
-        type="button"
-        className="classroom-student-back"
-        aria-label="← К классу"
-        title={classroomTitle}
-        onClick={() => {
-          if (confirmDiscard()) onBack();
-        }}
-      >
-        <span aria-hidden="true">←</span>
-        <span className="classroom-student-back-label">К классу</span>
-      </button>
+      <div className="classroom-student-class-context">
+        <button
+          type="button"
+          className="classroom-student-back"
+          aria-label="← К классу"
+          title={classroomTitle}
+          onClick={() => {
+            if (confirmDiscard()) onBack();
+          }}
+        >
+          <span aria-hidden="true">←</span>
+          <span className="classroom-student-back-label">К классу</span>
+        </button>
+        <span className="classroom-student-class-name" title={classroomTitle}>
+          {classroomTitle}
+        </span>
+      </div>
       <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
         <button
           type="button"
@@ -1221,6 +1226,7 @@ export function ClassroomStudentPage({
           classroomId={classroomId}
           seatId={seatId}
           variant="teacherProfile"
+          compact
         />
       ) : null}
       {tab === 'activity' ? (

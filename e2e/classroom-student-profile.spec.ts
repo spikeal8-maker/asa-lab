@@ -137,12 +137,14 @@ async function setup(
     firstWorkAwaiting?: boolean;
     firstWorkSnapshot?: number;
     firstWorkTitle?: string;
+    classroomTitle?: string;
     avatars?: ParticipantProfile['avatars'];
   } = {},
 ) {
   const state = await fixture(page, options.count ?? 3, {
     status: options.archived ? 'archived' : 'active',
     account: options.account,
+    classroomTitle: options.classroomTitle,
   });
   // Legacy request-error diagnostics are receipts, never classroom mutations.
   await page.route('**/api/diagnostics/client', (route) =>
@@ -983,7 +985,9 @@ test('UI-04 compact teacher profile has only context-specific controls and real 
     await expect(main.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
     await expect(main.locator('[data-grade-source="journal"]')).toHaveCount(30);
     await expect(main.locator('[data-grade-source="results"]')).toHaveCount(30);
-    await expect(main.locator('.teacher-profile-grades')).toHaveCount(0);
+    await expect(
+      main.getByRole('list', { name: 'Оценки текущего класса', exact: true }),
+    ).toBeVisible();
     await noOverflow(page);
     await shot(page, `ui04-grades-${width}`);
 
@@ -1033,6 +1037,55 @@ test('UI-04 compact teacher profile has only context-specific controls and real 
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Иванов Иван Петрович');
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
+});
+
+test('teacher profile shows the class beside Back and all grades in one scrollable row', async ({
+  page,
+}) => {
+  const classroomTitle = '7А Робототехника и конструирование длинное название класса';
+  const state = await setup(page, { classroomTitle, manual: 4, results: 4 });
+  await state.open();
+  const identity = page.getByRole('group', { name: 'Ученик и навигация' });
+  const back = identity.getByRole('button', { name: '← К классу' });
+  const name = identity.getByText(classroomTitle, { exact: true });
+  await openTeacherTab(page, 'grades');
+  const summary = page.getByRole('region', { name: 'Оценки', exact: true });
+  const rail = summary.getByRole('list', { name: 'Оценки текущего класса' });
+  await expect(rail.getByRole('listitem')).toHaveCount(8);
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const backBox = await back.boundingBox();
+    const nameBox = await name.boundingBox();
+    const identityBox = await identity.boundingBox();
+    expect(backBox).not.toBeNull();
+    expect(nameBox).not.toBeNull();
+    expect(identityBox).not.toBeNull();
+    expect(backBox!.width).toBeGreaterThanOrEqual(44);
+    expect(backBox!.height).toBeGreaterThanOrEqual(44);
+    expect(nameBox!.x).toBeGreaterThanOrEqual(backBox!.x + backBox!.width - 1);
+    expect(nameBox!.y).toBeGreaterThanOrEqual(backBox!.y);
+    expect(nameBox!.y + nameBox!.height).toBeLessThanOrEqual(backBox!.y + backBox!.height);
+    expect(identityBox!.height).toBeLessThanOrEqual(52);
+    const rowCount = await rail
+      .getByRole('listitem')
+      .evaluateAll((items) => new Set(items.map((item) => item.getBoundingClientRect().top)).size);
+    expect(rowCount).toBe(1);
+    await noOverflow(page);
+    await shot(page, `teacher-profile-class-and-grades-${width}`);
+  }
+  await rail.press('End');
+  await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await rail.press('Home');
+  await expect.poll(() => rail.evaluate((element) => element.scrollLeft)).toBe(0);
+  const initialRequests = state.requests.filter((entry) => entry.kind === 'grades').length;
+  await summary.getByRole('button', { name: 'Подробнее' }).click();
+  await expect(summary.getByText('Комментарий к опубликованному результату').first()).toBeVisible();
+  await expect(summary.getByText('Преподаватель', { exact: true }).first()).toBeVisible();
+  await summary.getByRole('button', { name: 'Компактно' }).click();
+  await expect(rail.getByRole('listitem')).toHaveCount(8);
+  expect(state.requests.filter((entry) => entry.kind === 'grades')).toHaveLength(initialRequests);
+  await back.click();
+  await expect(page.getByRole('heading', { name: classroomTitle, exact: true })).toBeVisible();
 });
 
 for (const count of [0, 1, 30, 100]) {
@@ -1549,6 +1602,7 @@ for (const newerFirst of [true, false]) {
     ]);
     await expect(result).toHaveCount(1);
     await expect(result.locator('strong')).toHaveText('Без балла');
+    await summary.getByRole('button', { name: 'Подробнее' }).click();
     await expect(result.locator('.participant-grade-feedback')).toContainText(latest.feedback);
     await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
     await noOverflow(page);
