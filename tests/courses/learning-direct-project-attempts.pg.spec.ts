@@ -340,6 +340,159 @@ afterAll(async () => {
 });
 
 describe('LRN-VS-002 canonical direct project attempt', () => {
+  it('keeps a removed learner’s official history readable and serializes new grading with removal', async () => {
+    const classroom = await createClass();
+    const seat = await createSeat(classroom, 'Оценка до удаления');
+    const learner = await activateSeat(seat);
+    const version = await createActivity('История результата', 'teacher_selected', true);
+    const assignment = await assign(classroom, version, 'whole_class');
+    const project = await createProject(learner, 'Зафиксированная работа');
+    const attempt = (
+      await inTenant((client) =>
+        client.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+          learner,
+          seat,
+          assignment,
+          project,
+        ]),
+      )
+    ).rows[0];
+    expect(attempt.result_code).toBe('ok');
+    const submission = (
+      await inTenant((client) =>
+        client.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
+          learner,
+          seat,
+          assignment,
+          'removed:submit:' + ++sequence,
+        ]),
+      )
+    ).rows[0];
+    expect(submission.result_code).toBe('ok');
+
+    const teacherScope = [teacherAccount, teacherPrincipal, classroom];
+    const reviewSql = 'SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)';
+    const originalReview = [
+      ...teacherScope,
+      attempt.attempt_id,
+      'accepted',
+      8,
+      null,
+      null,
+      null,
+      'removed:review:' + ++sequence,
+    ];
+    const reviewed = (await app.query(reviewSql, originalReview)).rows[0];
+    expect(reviewed.result_code).toBe('ok');
+    const selectionSql = 'SELECT learning_teacher_select_attempt($1,$2,$3,$4,$5,$6,$7,$8) AS code';
+    const selectionScope = [...teacherScope, attempt.participation_id, attempt.attempt_id];
+    const originalSelection = [
+      ...selectionScope,
+      null,
+      'Официальный результат',
+      'removed:select:' + ++sequence,
+    ];
+    expect((await app.query(selectionSql, originalSelection)).rows[0].code).toBe('ok');
+    const exactSubmission = () =>
+      app.query('SELECT * FROM learning_teacher_exact_submission($1,$2,$3)', [
+        teacherAccount,
+        classroom,
+        attempt.attempt_id,
+      ]);
+    const frozen = (await exactSubmission()).rows;
+    expect(frozen).toHaveLength(1);
+    const readAssessmentState = async () =>
+      (
+        await admin.query(
+          `SELECT
+             ARRAY(SELECT id FROM learning_evaluations
+               WHERE attempt_id=$1 AND evaluator_kind='teacher' ORDER BY id) AS teacher_evaluations,
+             ARRAY(SELECT id FROM assessment_results WHERE attempt_id=$1 ORDER BY id) AS results,
+             ARRAY(SELECT id FROM audit_events
+               WHERE entity_id=$2 AND action='learning.result.selected' ORDER BY id) AS selection_events,
+             (SELECT assessment_result_id FROM gradebook_entries
+               WHERE classroom_assignment_id=$3 AND seat_id=$4) AS official_result`,
+          [attempt.attempt_id, attempt.participation_id, assignment, seat],
+        )
+      ).rows[0];
+    const beforeRemoval = await readAssessmentState();
+    expect(beforeRemoval.teacher_evaluations).toHaveLength(1);
+    expect(beforeRemoval.selection_events).toHaveLength(1);
+    expect(beforeRemoval).toMatchObject({
+      results: [reviewed.assessment_result_id],
+      official_result: reviewed.assessment_result_id,
+    });
+
+    const pendingReview = [
+      ...teacherScope,
+      attempt.attempt_id,
+      'accepted',
+      9,
+      null,
+      'Новая проверка',
+      reviewed.assessment_result_id,
+      'removed:correction:' + ++sequence,
+    ];
+    const remover = await app.connect();
+    let reviewer: pg.PoolClient | undefined;
+    let correction: Promise<unknown> | undefined;
+    let removalCommitted = false;
+    try {
+      reviewer = await app.connect();
+      await remover.query('BEGIN');
+      await reviewer.query("SET statement_timeout = '20s'");
+      const removerPid = (await remover.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const reviewerPid = (await reviewer.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      expect(
+        (
+          await remover.query('SELECT classroom_management_remove_seat($1,$2,$3) AS removed', [
+            teacherAccount,
+            classroom,
+            seat,
+          ])
+        ).rows[0].removed,
+      ).toBe(true);
+      correction = reviewer.query(reviewSql, pendingReview).then(
+        (result) => result.rows[0],
+        (error: unknown) => error,
+      );
+      await expect
+        .poll(
+          async () =>
+            (await admin.query('SELECT pg_blocking_pids($1) AS blockers', [reviewerPid])).rows[0]
+              .blockers,
+          { timeout: 10_000 },
+        )
+        .toContain(removerPid);
+      await remover.query('COMMIT');
+      removalCommitted = true;
+      expect(await correction).toMatchObject({ code: 'P5L03' });
+    } finally {
+      remover.release(!removalCommitted);
+      try {
+        await correction;
+      } finally {
+        reviewer?.release(true);
+      }
+    }
+
+    expect((await app.query(reviewSql, originalReview)).rows[0]).toMatchObject({
+      result_code: 'ok',
+      assessment_result_id: reviewed.assessment_result_id,
+    });
+    expect((await app.query(selectionSql, originalSelection)).rows[0].code).toBe('ok');
+    await expect(
+      app.query(selectionSql, [
+        ...selectionScope,
+        attempt.attempt_id,
+        'Новый выбор',
+        'removed:reselect:' + ++sequence,
+      ]),
+    ).rejects.toMatchObject({ code: 'P5L03' });
+    expect((await exactSubmission()).rows).toEqual(frozen);
+    expect(await readAssessmentState()).toEqual(beforeRemoval);
+  }, 60_000);
+
   it('counts only current named Direct Seats and their exact origin attempts', async () => {
     const classroomId = await createClass();
     const namedSeat = await createSeat(classroomId, 'Named learner');
