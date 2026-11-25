@@ -792,6 +792,7 @@ export function useElectronicsWorkbenchHost(
     let latestResultDocument: SchematicDocument | null = null;
     let latestCommittedHorizon = 0;
     let generationConfirmed = false;
+    let opticsIdle = false;
     // Time to the first accepted result includes lazy module loading and Worker startup.
     // It is deliberately independent of the canonical Arduino clock and Run timing.
     const startupBudgetMs = electronicsColdStartBudgetMs(
@@ -1205,6 +1206,7 @@ export function useElectronicsWorkbenchHost(
         readHostHorizonMicroseconds: () => {
           return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
         },
+        allowIdlePollCoalescing: () => opticsIdle && !!ledPresentation.displayedFrame,
         scheduleArduinoWake: (due, dispatch) =>
           armHostWake(
             currentSession() &&
@@ -1261,12 +1263,14 @@ export function useElectronicsWorkbenchHost(
           latestResultDocument = runtimeDocumentRef.current;
           if (ledTemporal) {
             normalHostClockRef.current = false;
-            ledPresentation.accept(
-              nextResult,
-              ledTemporal,
-              Math.round(window.performance.now() * 1000),
-            );
+            opticsIdle =
+              ledPresentation.accept(
+                nextResult,
+                ledTemporal,
+                Math.round(window.performance.now() * 1000),
+              ).size === 0;
           } else {
+            opticsIdle = false;
             if (
               clockProfileId === 'electrothermal-events-v2' ||
               (clockProfileId === undefined &&

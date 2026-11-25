@@ -48,6 +48,8 @@ export interface LiveSimulationWorkerCallbacks {
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
   /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
   readonly readHostHorizonMicroseconds?: () => number | null;
+  /** Defer idle polls only when the host has no active optical averaging to age out. */
+  readonly allowIdlePollCoalescing?: () => boolean;
   /** Arm an asynchronous real host wake, or return null when this clock cannot schedule it. */
   readonly scheduleArduinoWake?: (
     hostDueMicroseconds: number,
@@ -105,6 +107,9 @@ interface ArduinoWakeSnapshot {
       readonly programFingerprint?: string;
       readonly resumeAtMs?: number;
       readonly tones?: Readonly<Record<string, unknown>>;
+      readonly outputVoltages?: Readonly<Record<string, number>>;
+      readonly faults?: readonly unknown[];
+      readonly serial?: unknown;
       readonly servo?: unknown;
       readonly pulseWait?: unknown;
       readonly ultrasonicAdapter?: unknown;
@@ -112,10 +117,15 @@ interface ArduinoWakeSnapshot {
   }[];
 }
 
+interface ArduinoWake {
+  readonly dueMicroseconds: number;
+  readonly coalesceIdlePolls: boolean;
+}
+
 function acknowledgedArduinoWake(
   advance: SimulationTimedAdvancePayload,
   snapshot: ArduinoWakeSnapshot,
-): number | null {
+): ArduinoWake | null {
   const committed = advance.committedHorizonMicroseconds;
   // This engine profile admits one Uno and only axial resistors/red LEDs. Other
   // topologies can have independent deadlines not represented by the MCU wake.
@@ -146,7 +156,19 @@ function acknowledgedArduinoWake(
     return null;
   const due = Math.round(runtime.resumeAtMs * 1000);
   // Very short instruction yields keep the ordinary polling path.
-  return Number.isSafeInteger(due) && due - committed > 5_000 ? due : null;
+  if (!Number.isSafeInteger(due) || due - committed <= 5_000) return null;
+  return {
+    dueMicroseconds: due,
+    coalesceIdlePolls:
+      snapshot.inputs.length === 0 &&
+      advance.diagnostics.length === 0 &&
+      advance.ledTemporal.components.every((channel) => !channel.truncated) &&
+      (advance.ledTemporal.arduinoIndicators ?? []).every((channel) => !channel.truncated) &&
+      runtime.faults?.length === 0 &&
+      !runtime.serial &&
+      runtime.outputVoltages !== undefined &&
+      Object.values(runtime.outputVoltages).every((voltage) => voltage === 0 || voltage === 5),
+  };
 }
 
 function boundedInputObservationHorizon(
@@ -349,7 +371,7 @@ export class ElectronicsLiveSimulationWorkerController {
   private publishedInputBudget: LiveSimulationInputBudget | null = null;
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
-  private acknowledgedWake: number | null = null;
+  private acknowledgedWake: ArduinoWake | null = null;
   private cancelReservedWake: (() => void) | null = null;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private firstPositiveObservation = false;
@@ -700,14 +722,21 @@ export class ElectronicsLiveSimulationWorkerController {
   }
 
   private reserveArduinoWake(horizon: number, generationId: number): boolean {
-    const due = this.acknowledgedWake;
+    const wake = this.acknowledgedWake;
     const schedule = this.callbacks?.scheduleArduinoWake;
+    if (!schedule || !wake) return false;
+    const windowEnd = this.committedHorizonMicroseconds + this.observationWindowMicroseconds;
+    // A quiet held state needs its next complete observation or its actual wake,
+    // whichever comes first. The host still supplies the elapsed demand.
+    const coalesceIdlePolls =
+      wake.coalesceIdlePolls && this.callbacks?.allowIdlePollCoalescing?.() === true;
+    const due = coalesceIdlePolls
+      ? Math.min(wake.dueMicroseconds, windowEnd)
+      : wake.dueMicroseconds;
     if (
-      !schedule ||
-      due === null ||
       horizon >= due ||
-      due > this.committedHorizonMicroseconds + this.observationWindowMicroseconds ||
-      due - horizon > ARDUINO_WAKE_RESERVATION_MICROSECONDS
+      due > windowEnd ||
+      (!coalesceIdlePolls && due - horizon > ARDUINO_WAKE_RESERVATION_MICROSECONDS)
     )
       return false;
     if (this.cancelReservedWake) return true;
