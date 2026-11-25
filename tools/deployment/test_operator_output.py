@@ -137,7 +137,7 @@ class HumanOperatorTests(unittest.TestCase):
                 raise manager.SchoolBackupNeeded(DIGEST)
 
         def backup(command):
-            self.assertEqual(command, ["/usr/bin/systemctl", "start", "asa-school-gfs-full.service"])
+            self.assertEqual(command, ["/usr/local/bin/asa-school-gfs", "full"])
             with system.operation_lock(self.root):
                 self.assertEqual(len(seen), 1)
 

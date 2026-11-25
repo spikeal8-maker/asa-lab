@@ -276,7 +276,7 @@ def verify_offsite_backup(policy, current):
         raise Blocked('OFFSITE_BACKUP', message, 'Проверьте состояние копий и при необходимости сделайте полную копию.') from exc
 
 
-_SCHOOL_FULL_UNIT = "asa-school-gfs-full.service"
+_SCHOOL_BACKUP_CLI = "/usr/local/bin/asa-school-gfs"
 _SCHOOL_FULL_RECEIPT = "/var/backups/asa-school-gfs/receipts/latest-full.json"
 
 
@@ -291,9 +291,16 @@ def school_backup_available(install, policy):
             and install.project == "asa-lab-school" and policy == {"receipt": _SCHOOL_FULL_RECEIPT}):
         return False
     try:
-        return run(["/usr/bin/systemctl", "show", "--property=LoadState", "--value",
-                    _SCHOOL_FULL_UNIT], capture=True) == "loaded"
-    except Blocked:
+        launcher = Path(_SCHOOL_BACKUP_CLI)
+        executable = launcher.resolve(strict=True)
+        info = executable.stat()
+        return (
+            stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022
+            and bool(info.st_mode & stat.S_IXUSR)
+            and all(parent.stat().st_uid == 0 and not parent.stat().st_mode & 0o022
+                    for parent in set(executable.parents) | set(launcher.parents))
+        )
+    except (OSError, RuntimeError):
         return False
 
 
@@ -621,10 +628,10 @@ def execute(args, argv, display=None):
         else:
             print('Создаю полную копию на Яндекс Диске. Дождитесь проверки архива.', flush=True)
         try:
-            run(["/usr/bin/systemctl", "start", _SCHOOL_FULL_UNIT])
+            run([_SCHOOL_BACKUP_CLI, "full"])
         except Blocked as error:
             return report_failure(args, display, 'OFFSITE_BACKUP_CREATE', str(error),
-                                  'Проверьте журнал asa-school-gfs-full.service.')
+                                  'Проверьте sudo asa-school-gfs errors --hours 1.')
         args.deployment_digest = backup.digest
         # Reacquire the lock, rerun prerequisites and require a valid receipt
         # for the currently running version. Never start a second backup here.
