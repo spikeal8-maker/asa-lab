@@ -611,8 +611,9 @@ describe('Arduino wake reservation', () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
     let horizon = 0;
-    let allowIdlePollCoalescing = false;
+    let opticsIdle = false;
     const presentation = new LedTemporalPresentation();
+    const allowIdlePollCoalescing = vi.fn(() => opticsIdle && !!presentation.displayedFrame);
     const onFailure = vi.fn();
     const scheduleArduinoWake = vi.fn<
       NonNullable<LiveSimulationWorkerCallbacks['scheduleArduinoWake']>
@@ -620,9 +621,9 @@ describe('Arduino wake reservation', () => {
     const callbacks = {
       readHostHorizonMicroseconds: () => horizon,
       scheduleArduinoWake,
-      allowIdlePollCoalescing: () => allowIdlePollCoalescing && !!presentation.displayedFrame,
+      allowIdlePollCoalescing,
       onResult: (result, temporal) => {
-        allowIdlePollCoalescing = presentation.accept(result, temporal, horizon).size === 0;
+        opticsIdle = presentation.accept(result, temporal, horizon).size === 0;
       },
       onFailure,
     } satisfies LiveSimulationWorkerCallbacks;
@@ -680,11 +681,114 @@ describe('Arduino wake reservation', () => {
       scheduleArduinoWake,
       complete,
       presentation,
+      allowIdlePollCoalescing,
       setHorizon: (next: number) => {
         horizon = next;
       },
     };
   }
+
+  it.each(['stop', 'Serial input'] as const)(
+    'leaves the reentrant action in control if the host disallows coalescing after %s',
+    async (action) => {
+      const { controller, executor, tick, scheduleArduinoWake, allowIdlePollCoalescing } =
+        await start(true, withSketch(quietSource), false);
+      allowIdlePollCoalescing.mockImplementationOnce(() => {
+        if (action === 'stop') controller.stop();
+        else controller.sendSerialRx('uno', 'A', 10_000);
+        return false;
+      });
+      tick(10_000);
+
+      expect(scheduleArduinoWake).not.toHaveBeenCalled();
+      expect(executor.advances).toHaveLength(action === 'stop' ? 2 : 3);
+      if (action === 'Serial input')
+        expect(executor.advances[2]?.inputEvents).toEqual([
+          { atMicroseconds: 1001, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+        ]);
+      controller.dispose();
+    },
+  );
+
+  it('discards a wake registered while the host restarts the generation', async () => {
+    const quiet = withSketch(quietSource);
+    const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start(
+      true,
+      quiet,
+      false,
+    );
+    const cancel = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce(() => {
+      controller.restart(quiet);
+      return cancel;
+    });
+    tick(10_000);
+
+    expect(executor.preflights).toHaveLength(2);
+    expect(cancel).toHaveBeenCalledOnce();
+    setHorizon(26_000);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(executor.advances).toHaveLength(2);
+    controller.dispose();
+  });
+
+  it('leaves a nested reservation active and cancels only the abandoned host timer', async () => {
+    const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start(
+      true,
+      withSketch(quietSource),
+      false,
+    );
+    const abandoned = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce(() => {
+      tick(11_000);
+      return abandoned;
+    });
+    tick(10_000);
+
+    expect(scheduleArduinoWake).toHaveBeenCalledTimes(2);
+    expect(abandoned).toHaveBeenCalledOnce();
+    expect(scheduleArduinoWake.mock.results[1]?.value).not.toHaveBeenCalled();
+    setHorizon(26_000);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(executor.advances).toHaveLength(2);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(executor.advances[2]?.requestedHorizonMicroseconds).toBe(26_000);
+    controller.dispose();
+  });
+
+  it('abandons dispatch if cancelling the pending timer stops the simulation', async () => {
+    const { controller, executor, tick, scheduleArduinoWake } = await start(
+      true,
+      withSketch(quietSource),
+      false,
+    );
+    const cancel = vi.fn(() => controller.stop());
+    scheduleArduinoWake.mockReturnValueOnce(cancel);
+    tick(10_000);
+    tick(26_000);
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(executor.advances).toHaveLength(2);
+    controller.dispose();
+  });
+
+  it('falls back to the actual host demand if a scheduling callback fires synchronously', async () => {
+    const { controller, executor, tick, scheduleArduinoWake } = await start(
+      true,
+      withSketch(quietSource),
+      false,
+    );
+    const cancel = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce((_due, dispatch) => {
+      dispatch();
+      return cancel;
+    });
+    tick(10_000);
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(executor.advances[2]?.requestedHorizonMicroseconds).toBe(10_000);
+    controller.dispose();
+  });
 
   it('coalesces quiet polling to a bounded refresh or the earlier acknowledged wake', async () => {
     const quiet = withSketch(quietSource);

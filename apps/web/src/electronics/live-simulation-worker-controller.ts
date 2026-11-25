@@ -372,7 +372,7 @@ export class ElectronicsLiveSimulationWorkerController {
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
   private acknowledgedWake: ArduinoWake | null = null;
-  private cancelReservedWake: (() => void) | null = null;
+  private wakeReservation: { readonly token: object; readonly cancel: () => void } | null = null;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private firstPositiveObservation = false;
   private inFlight = false;
@@ -716,20 +716,28 @@ export class ElectronicsLiveSimulationWorkerController {
   }
 
   private releaseWakeReservation(): void {
-    const cancel = this.cancelReservedWake;
-    this.cancelReservedWake = null;
-    cancel?.();
+    const reservation = this.wakeReservation;
+    this.wakeReservation = null;
+    reservation?.cancel();
   }
 
-  private reserveArduinoWake(horizon: number, generationId: number): boolean {
+  private reserveArduinoWake(
+    horizon: number,
+    generationId: number,
+    isCurrent: () => boolean,
+  ): boolean {
     const wake = this.acknowledgedWake;
     const schedule = this.callbacks?.scheduleArduinoWake;
     if (!schedule || !wake) return false;
-    const windowEnd = this.committedHorizonMicroseconds + this.observationWindowMicroseconds;
+    const ownsIdlePoll = () =>
+      isCurrent() && this.acknowledgedWake === wake && this.pendingInputEvents.length === 0;
+
     // A quiet held state needs its next complete observation or its actual wake,
     // whichever comes first. The host still supplies the elapsed demand.
     const coalesceIdlePolls =
       wake.coalesceIdlePolls && this.callbacks?.allowIdlePollCoalescing?.() === true;
+    if (!ownsIdlePoll()) return false;
+    const windowEnd = this.committedHorizonMicroseconds + this.observationWindowMicroseconds;
     const due = coalesceIdlePolls
       ? Math.min(wake.dueMicroseconds, windowEnd)
       : wake.dueMicroseconds;
@@ -739,19 +747,27 @@ export class ElectronicsLiveSimulationWorkerController {
       (!coalesceIdlePolls && due - horizon > ARDUINO_WAKE_RESERVATION_MICROSECONDS)
     )
       return false;
-    if (this.cancelReservedWake) return true;
+    const existingReservation = this.wakeReservation;
+    if (existingReservation) return true;
     const hostDue = due + this.horizonOffsetMicroseconds;
     if (!Number.isSafeInteger(hostDue)) return false;
+    const token = {};
+    let fired = false;
     const cancel = schedule(hostDue, () => {
-      if (!cancel || generationId !== this.generationId || this.cancelReservedWake !== cancel)
-        return;
-      this.cancelReservedWake = null;
+      fired = true;
+      if (generationId !== this.generationId || this.wakeReservation?.token !== token) return;
+      this.wakeReservation = null;
       // Use the same bounded host read as every existing dispatch. A timer
       // cannot force advancement to a model time that has not elapsed.
       this.pump();
     });
     if (!cancel) return false;
-    this.cancelReservedWake = cancel;
+    if (!ownsIdlePoll() || fired || this.wakeReservation) {
+      // The host may have installed a newer timer during the callback.
+      if (this.wakeReservation?.cancel !== cancel) cancel();
+      return this.wakeReservation !== null;
+    }
+    this.wakeReservation = { token, cancel };
     return true;
   }
 
@@ -769,17 +785,20 @@ export class ElectronicsLiveSimulationWorkerController {
       (this.paused && pendingTarget !== this.startupTarget)
     )
       return;
+    const isCurrent = () =>
+      generationId === this.generationId &&
+      document === this.canonicalDocument &&
+      !this.inFlight &&
+      !this.resuming &&
+      (!this.paused || pendingTarget === this.startupTarget) &&
+      pendingTarget ===
+        (this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget);
     if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
       // A native RAF may acknowledge new progress between the last host tick
       // and this serial dispatch. Refresh the same bounded demand at its use.
       const hostHorizon = this.callbacks.readHostHorizonMicroseconds();
       if (
-        generationId !== this.generationId ||
-        document !== this.canonicalDocument ||
-        this.inFlight ||
-        this.paused ||
-        this.resuming ||
-        pendingTarget !== this.latestTarget ||
+        !isCurrent() ||
         hostHorizon === null ||
         !Number.isSafeInteger(hostHorizon) ||
         hostHorizon < 0
@@ -811,10 +830,12 @@ export class ElectronicsLiveSimulationWorkerController {
       this.pendingInputEvents.length === 0 &&
       !this.firstPositiveObservation &&
       sameArduinoSources(this.dispatchedDocument, document) &&
-      this.reserveArduinoWake(pendingTarget.requestedHorizonMicroseconds, generationId)
+      this.reserveArduinoWake(pendingTarget.requestedHorizonMicroseconds, generationId, isCurrent)
     )
       return;
+    if (!isCurrent()) return;
     this.releaseWakeReservation();
+    if (!isCurrent()) return;
     // An input can commit beyond the presentation-limited host tick. Older
     // demand may observe the same committed time but must never rewind it.
     const target = isStartup
