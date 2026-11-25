@@ -58,9 +58,14 @@ class UnionFind {
 /** Connections are ideal wires; legacy `wire` components also collapse to a node. */
 export function buildNetlist(document: ElectronicsDocument): Netlist {
   const union = new UnionFind();
+  const keys: string[] = [];
   for (const component of document.components) {
     const terminals = terminalsForComponent(component);
-    for (const terminal of terminals) union.find(terminalKey(component.id, terminal));
+    for (const terminal of terminals) {
+      const key = terminalKey(component.id, terminal);
+      keys.push(key);
+      union.find(key);
+    }
     for (const [left, right] of component.internalConnections ?? []) {
       union.union(terminalKey(component.id, left), terminalKey(component.id, right));
     }
@@ -99,27 +104,22 @@ export function buildNetlist(document: ElectronicsDocument): Netlist {
     );
   }
 
-  const keys = document.components
-    .flatMap((component) =>
-      terminalsForComponent(component).map((terminal) => terminalKey(component.id, terminal)),
-    )
-    .sort(compareTerminalKeys);
+  keys.sort(compareTerminalKeys);
   const keysByRoot = new Map<string, string[]>();
   for (const key of keys) {
     const root = union.find(key);
-    const members = keysByRoot.get(root) ?? [];
-    members.push(key);
-    keysByRoot.set(root, members);
+    const members = keysByRoot.get(root);
+    if (members) members.push(key);
+    else keysByRoot.set(root, [key]);
   }
-  const canonicalGroups = [...keysByRoot.values()]
-    .map((members) => members.sort(compareTerminalKeys))
-    .sort((left, right) => compareTerminalKeys(left[0] ?? '', right[0] ?? ''));
 
   const nodeOf = new Map<string, number>();
   const terminalsByNode = new Map<number, readonly string[]>();
-  for (const [index, members] of canonicalGroups.entries()) {
+  // Sorted keys insert each group at its smallest key and order its members.
+  for (const members of keysByRoot.values()) {
+    const index = terminalsByNode.size;
     terminalsByNode.set(index, members);
     for (const key of members) nodeOf.set(key, index);
   }
-  return { nodeOf, nodeCount: canonicalGroups.length, terminalsByNode };
+  return { nodeOf, nodeCount: terminalsByNode.size, terminalsByNode };
 }
