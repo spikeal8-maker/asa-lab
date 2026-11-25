@@ -236,6 +236,7 @@ jobs:
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
       - name: Selected Electronics browser qualification
+        id: selected_electronics_browser
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
@@ -271,6 +272,75 @@ jobs:
             reports
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Complete preselected Arduino clock reference
+        if: >-
+          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
+              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        timeout-minutes: 15
+        env:
+          ASA_ELECTRONICS_ORIGINAL_GATE_OUTCOME: ${{ steps.selected_electronics_browser.outcome }}
+        shell: bash
+        run: |
+          output="$RUNNER_TEMP/asa-electronics-clock-reference"
+          mkdir -p "$output/reports" "$output/artifacts"
+          chmod 0777 "$output/reports" "$output/artifacts"
+          main_report=reports/electronics-failures.ndjson
+          extra_report="$output/reports/electronics-failures.ndjson"
+          summary="$output/reference.json"
+          state="$(python3 tools/electronics-clock-reference.py plan \
+            "$ASA_ELECTRONICS_EXPECTED_SHA" "$summary" "$main_report" "$extra_report" "$ASA_ELECTRONICS_ORIGINAL_GATE_OUTCOME")"
+          if [[ "$state" == RUN_REMAINING ]]; then
+            compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
+            code=0
+            "${compose[@]}" run --rm --no-deps -e NX_SKIP_NX_CACHE=true \
+              -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE \
+              --volume "$output/reports:/workspace/reports" \
+              --volume "$output/artifacts:/workspace/e2e/artifacts" \
+              test-runner python3 tools/electronics-clock-reference.py run || code=$?
+            python3 tools/electronics-clock-reference.py finish \
+              "$ASA_ELECTRONICS_EXPECTED_SHA" "$summary" "$main_report" "$extra_report" "$ASA_ELECTRONICS_ORIGINAL_GATE_OUTCOME" "$code"
+          else
+            printf '%s\n' "$state"
+          fi
+
+      - name: Upload separate clock-reference qualification
+        if: >-
+          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
+              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-clock-reference-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/asa-electronics-clock-reference
+          if-no-files-found: error
+          retention-days: 14
+
+
+      - name: Verify actual simulation pace under load
+        if: >-
+          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
+              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          output="$RUNNER_TEMP/asa-electronics-overload/reports"
+          mkdir -p "$output"
+          chmod 0777 "$output"
+          compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
+          "${compose[@]}" run --rm --no-deps -e NX_SKIP_NX_CACHE=true --volume "$output:/workspace/reports" \
+            test-runner node apps/web/src/electronics/testing/simulation-speed.browser.mjs --overload
+
+      - name: Upload actual simulation pace under load evidence
+        if: >-
+          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
+              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-overload-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/asa-electronics-overload/reports/electronics-overload
+          if-no-files-found: error
+          retention-days: 14
+
 
       - name: Remove isolated test stack
         if: always()

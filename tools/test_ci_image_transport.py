@@ -426,6 +426,7 @@ def strict_shard_contract(contract):
     for step in browser["required_steps"]:
         if step.get("run", "").endswith('test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"'):
             step["run"] += QUALIFICATION_SHARD_CLI
+            step["id"] = "selected_electronics_browser"
             gate_count += 1
         if step.get("uses") == "actions/upload-artifact@v4":
             name = step.get("with", {}).get("name")

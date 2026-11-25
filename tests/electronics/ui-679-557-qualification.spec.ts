@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -380,6 +381,158 @@ function withoutFocusedSharding<T extends BrowserJob>(original: T): T {
   return browser;
 }
 
+function withoutFocusedNativeQualifications<T extends BrowserJob>(original: T): T {
+  const browser = structuredClone(original);
+  const route = browser.steps.filter(
+    (step) => step.name === 'Complete preselected Arduino clock reference',
+  );
+  const upload = browser.steps.filter(
+    (step) => step.name === 'Upload separate clock-reference qualification',
+  );
+  const pace = browser.steps.filter(
+    (step) => step.name === 'Verify actual simulation pace under load',
+  );
+  const paceUploads = browser.steps.filter(
+    (step) => step.name === 'Upload actual simulation pace under load evidence',
+  );
+  expect(pace).toHaveLength(1);
+  expect(paceUploads).toHaveLength(1);
+  expect(route).toHaveLength(1);
+  expect(upload).toHaveLength(1);
+  const onlySelectedStrictJob =
+    "${{ always() && matrix.browser_case.label == 'arduino-realtime' &&\n" +
+    "    env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}";
+  const completion = route[0]!;
+  const archive = upload[0]!;
+  const originalGate = browser.steps.find((step) => step.name === focusedGateName)!;
+  expect(originalGate.id).toBe('selected_electronics_browser');
+  expect(completion.if).toBe(onlySelectedStrictJob);
+  expect(completion.env).toEqual({
+    ASA_ELECTRONICS_ORIGINAL_GATE_OUTCOME: '${{ steps.selected_electronics_browser.outcome }}',
+  });
+  delete originalGate.id;
+  expect(completion.run).toContain('tools/electronics-clock-reference.py plan');
+  expect(completion.run).toContain('test-runner python3 tools/electronics-clock-reference.py run');
+  expect(completion.run).toContain('tools/electronics-clock-reference.py finish');
+  expect(completion['continue-on-error']).toBeUndefined();
+  expect(archive).toEqual({
+    name: 'Upload separate clock-reference qualification',
+    if: onlySelectedStrictJob,
+    uses: 'actions/upload-artifact@v4',
+    with: {
+      name: 'electronics-r4-m1-clock-reference-${{ github.run_id }}-${{ github.run_attempt }}',
+      path: '${{ runner.temp }}/asa-electronics-clock-reference',
+      'if-no-files-found': 'error',
+      'retention-days': 14,
+    },
+  });
+  const paceVerify = pace[0]!;
+  const paceArchive = paceUploads[0]!;
+  expect(paceVerify.if).toBe(onlySelectedStrictJob);
+  expect(paceVerify.run).toContain(
+    'test-runner node apps/web/src/electronics/testing/simulation-speed.browser.mjs --overload',
+  );
+  expect(paceVerify['continue-on-error']).toBeUndefined();
+  expect(paceArchive).toEqual({
+    name: 'Upload actual simulation pace under load evidence',
+    if: onlySelectedStrictJob,
+    uses: 'actions/upload-artifact@v4',
+    with: {
+      name: 'electronics-r4-m1-overload-${{ github.run_id }}-${{ github.run_attempt }}',
+      path: '${{ runner.temp }}/asa-electronics-overload/reports/electronics-overload',
+      'if-no-files-found': 'error',
+      'retention-days': 14,
+    },
+  });
+  const steps = browser.steps.map((step) => step.name);
+  expect(steps.indexOf('Upload browser evidence')).toBeLessThan(steps.indexOf(completion.name));
+  expect(steps.indexOf(completion.name)).toBeLessThan(steps.indexOf(archive.name));
+  expect(steps.indexOf(archive.name)).toBeLessThan(steps.indexOf(paceVerify.name));
+  expect(steps.indexOf(paceVerify.name)).toBeLessThan(steps.indexOf(paceArchive.name));
+  expect(steps.indexOf(paceArchive.name)).toBeLessThan(steps.indexOf('Remove isolated test stack'));
+  const additional = new Set([completion, archive, paceVerify, paceArchive]);
+  browser.steps = browser.steps.filter((step) => !additional.has(step));
+  return browser;
+}
+
+describe('strict clock reference selection', () => {
+  it('matches a literal titled case and rejects regex-like and suffix variants', () => {
+    const title = 'D13 [LED] (50 + 1)? ^$. | \\ path';
+    const pattern = execFileSync(
+      process.platform === 'win32' ? 'python' : 'python3',
+      [
+        '-c',
+        "import runpy, sys; print(runpy.run_path('tools/electronics-clock-reference.py')['selector']([sys.argv[1]]))",
+        title,
+      ],
+      { encoding: 'utf8' },
+    ).trim();
+    const selector = new RegExp(pattern);
+    expect(selector.test('test file ' + title)).toBe(true);
+    expect(selector.test(title.replace('.', 'X'))).toBe(false);
+    expect(selector.test(title.replace('[LED]', 'L'))).toBe(false);
+    expect(selector.test(title + ' same prefix')).toBe(false);
+  });
+});
+
+describe('strict clock reference report', () => {
+  it('requires the original command verdict as well as both complete reference journals', () => {
+    const program = [
+      'import json, runpy, tempfile',
+      'from pathlib import Path',
+      "m = runpy.run_path('tools/electronics-clock-reference.py')",
+      "head = '0' * 40",
+      'def journal(path, roster, hardware, failed=False):',
+      "    timing = dict(status='available', scope='test-runner', phase='before', architecture='x86_64')",
+      "    timing['hardwareClass'] = dict(status=hardware, referenceId=m['HARDWARE'])",
+      "    rows = [dict(event='started', expectedSourceSha=head, qualificationProfile='strict-real-time', mode='test'),",
+      "            dict(event='begin', expectedTestCount=len(roster), runnerTiming=timing)]",
+      '    for index, (case_id, (_, titles)) in enumerate(roster.items()):',
+      "        state = 'failed' if failed and index == 0 else 'passed'",
+      "        rows.append(dict(event='testEnd', testId=case_id, expectedStatus='passed',",
+      '                         status=state, retry=0, titlePath=titles, location=dict(file=titles[2])))',
+      "    counts = dict.fromkeys(m['END_STATUSES'], 0)",
+      '    counts.update(passed=len(roster)-int(failed), failed=int(failed))',
+      "    rows.append(dict(event='end', status='failed' if failed else 'passed',",
+      '                     observedAttemptCounts=counts, dataEventsOmitted=0, runnerErrorCount=0, evidenceLimited=False))',
+      "    path.write_text('\\n'.join(json.dumps(dict(row, sequence=i, schemaVersion=1))",
+      "                              for i, row in enumerate(rows, 1)), encoding='utf-8')",
+      'with tempfile.TemporaryDirectory() as tmp:',
+      '    directory = Path(tmp)',
+      "    initial, extra, receipt = [directory / name for name in ('first', 'extra', 'receipt')]",
+      "    journal(extra, m['REMAINING'], 'reference')",
+      "    m['store'](directory / 'reference-before.json', m['load_report'](extra, head, m['REMAINING'])['before'])",
+      '    outcomes = []',
+      '    for outcome, hardware, failed, next_exit in [',
+      "        ('success', 'reference', False, None), ('success', 'reference', False, 0),",
+      "        ('failure', 'reference', False, 0), ('', 'reference', False, 0),",
+      "        ('success', 'other', False, 0), ('success', 'unverified', False, 0),",
+      "        ('failure', 'reference', True, 0), ('success', 'reference', False, 7),",
+      '    ]:',
+      "        journal(initial, m['ORIGINAL'], hardware, failed)",
+      "        decision = m['finish'](head, receipt, initial, extra, outcome, next_exit)",
+      "        data = json.loads(receipt.read_text(encoding='utf-8'))",
+      "        outcomes.append([decision, data['status'], len(data['original']['failedIds']), len(data['observedIds'])])",
+      '    print(json.dumps(outcomes))',
+    ].join('\n');
+    const outcomes = execFileSync(
+      process.platform === 'win32' ? 'python' : 'python3',
+      ['-c', program],
+      { encoding: 'utf8' },
+    );
+    expect(JSON.parse(outcomes)).toEqual([
+      ['RUN_REMAINING', 'REFERENCE_INCOMPLETE', 0, 10],
+      ['REFERENCE_PASSED', 'REFERENCE_PASSED', 0, 25],
+      ['REFERENCE_INCOMPLETE', 'REFERENCE_INCOMPLETE', 0, 10],
+      ['REFERENCE_INCOMPLETE', 'REFERENCE_INCOMPLETE', 0, 10],
+      ['REFERENCE_ABSENT', 'REFERENCE_ABSENT', 0, 0],
+      ['REFERENCE_UNVERIFIED', 'REFERENCE_UNVERIFIED', 0, 0],
+      ['REFERENCE_FAILED', 'REFERENCE_FAILED', 1, 10],
+      ['REFERENCE_INCOMPLETE', 'REFERENCE_INCOMPLETE', 0, 25],
+    ]);
+  });
+});
+
 describe('additive workflow retains existing execution protections', () => {
   it('copies focused, benchmark, pinned transport and runtime commands without weakening', () => {
     const original = parse(readFileSync('.github/workflows/electronics-r4-m1-focused.yml', 'utf8'));
@@ -390,7 +543,9 @@ describe('additive workflow retains existing execution protections', () => {
     expect(Object.keys(scoped.jobs)).toEqual(['focused', 'benchmark', 'browser']);
     for (const job of ['focused', 'benchmark'])
       expect(scoped.jobs[job]).toEqual(original.jobs[job]);
-    const browser = withoutFocusedFailureEvidence(withoutFocusedSharding(original.jobs.browser));
+    const browser = withoutFocusedFailureEvidence(
+      withoutFocusedSharding(withoutFocusedNativeQualifications(original.jobs.browser)),
+    );
     browser.name = 'Scoped six-case UI qualification (not full Electronics)';
     browser.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE = 'strict-real-time';
     browser.env.ASA_ELECTRONICS_BROWSER_GATE = 'gate:electronics-ui-679-557:browser';
