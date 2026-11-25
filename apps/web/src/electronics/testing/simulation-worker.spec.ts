@@ -649,8 +649,9 @@ describe('ASA Electronics Worker module message loop', () => {
   });
 
   it('isolates retained algebra by live generation and project and revokes it on a fault', async () => {
-    const engine = await import('@asa-lab/electronics/engine');
-    const open = vi.spyOn(engine, 'createElectronicsAdvanceSession');
+    const open = vi.spyOn(electronicsEngine, 'createElectronicsAdvanceSession');
+    // Module resets isolate the Worker; its reimport must see the same real engine with this spy.
+    vi.doMock('@asa-lab/electronics/engine', () => electronicsEngine);
     let receive: (response: ElectronicsSimulationWorkerResponse) => void;
     const scope = {
       onmessage: null as ((event: MessageEvent<ElectronicsSimulationWorkerRequest>) => void) | null,
@@ -701,6 +702,7 @@ describe('ASA Electronics Worker module message loop', () => {
       await send({ ...newProject, generationId: 4 });
       expect(lastOwner()).not.toBe(recoveredOwner);
     } finally {
+      vi.doUnmock('@asa-lab/electronics/engine');
       open.mockRestore();
     }
   });
