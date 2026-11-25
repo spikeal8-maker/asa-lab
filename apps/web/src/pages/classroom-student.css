@@ -682,6 +682,15 @@
   font-size: 13px;
   line-height: 20px;
 }
+.classroom-student .teacher-profile-grade-heading {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+}
+.classroom-student .teacher-profile-grade-heading button {
+  min-height: 44px;
+}
 .classroom-student .teacher-profile-grades > p {
   grid-column: 1 / -1;
   margin: 0;
@@ -764,8 +773,7 @@
 }
 .teacher-profile-grade-paging {
   display: flex;
-  grid-column: 2;
-  grid-row: 1;
+  grid-column: 1 / -1;
   gap: 4px;
 }
 @media (max-width: 600px) {
@@ -782,14 +790,6 @@
     padding: 4px 2px;
     font-size: 12px;
     white-space: nowrap;
-  }
-  .classroom-student .teacher-profile-grades {
-    /* Keep the heading and real 44px paging controls on a shared first row. */
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .teacher-profile-grade-paging {
-    grid-column: 2;
-    grid-row: 1;
   }
   .classroom-student .classroom-student-navrow {
     grid-template-columns: auto minmax(0, 1fr);
@@ -974,6 +974,25 @@
   padding: 0 8px;
   white-space: nowrap;
 }
+.classroom-student-class-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.classroom-student-class-context .classroom-student-back {
+  flex: 0 0 auto;
+}
+.classroom-student-class-name {
+  min-width: 0;
+  max-width: min(22cqw, 240px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--student-ink);
+  font-size: 13px;
+  font-weight: 650;
+}
 .classroom-student .classroom-student-identity-rail .classroom-student-navigation {
   display: grid;
   grid-column: 2;
@@ -1088,7 +1107,7 @@
 }
 @container teacher-profile (max-width: 599px) {
   .classroom-student .classroom-student-identity-rail {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: max-content minmax(0, 1fr);
     gap: 2px;
     height: 46px;
     min-height: 46px;
@@ -1099,6 +1118,13 @@
     width: 44px;
     padding: 0;
     font-size: 20px;
+  }
+  .classroom-student-class-context {
+    gap: 4px;
+  }
+  .classroom-student-class-name {
+    max-width: 24cqw;
+    font-size: 12px;
   }
   .classroom-student-identity-rail .classroom-student-back-label,
   .classroom-student .classroom-student-identity-rail .student-pager-name {

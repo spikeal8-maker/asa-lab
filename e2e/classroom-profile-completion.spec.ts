@@ -1138,6 +1138,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     ).toEqual([expect.objectContaining({ revision: 2, value: null })]);
     // The full teacher grade panel preserves server revisions after focus refresh.
     const gradesRegion = page.getByRole('region', { name: 'Оценки', exact: true });
+    await gradesRegion.getByRole('button', { name: 'Подробнее', exact: true }).click();
     const manualGrades = gradesRegion.getByRole('list', { name: 'Ручные оценки', exact: true });
     await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
     await expect(

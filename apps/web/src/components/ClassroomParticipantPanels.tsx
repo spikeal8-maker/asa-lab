@@ -1017,7 +1017,7 @@ export function ParticipantGradeHistory({
   classroomId,
   seatId,
   seatSession = false,
-  compact = false,
+  compact: preferCompact = false,
   variant = 'default',
 }: {
   classroomId: string;
@@ -1027,6 +1027,9 @@ export function ParticipantGradeHistory({
   variant?: 'default' | 'teacherProfile';
 }): JSX.Element {
   const teacherProfile = variant === 'teacherProfile';
+  const [detailedView, setDetailedView] = useState(false);
+  const canSwitchView = teacherProfile && preferCompact;
+  const compact = preferCompact && !detailedView;
   const gradeRail = useRef<HTMLUListElement>(null);
   const time = useSchoolTime();
   const historyTime = useMemo(
@@ -1369,6 +1372,14 @@ export function ParticipantGradeHistory({
           )
           .slice(0, 3)
       : (data?.journal.grades ?? []);
+  const gradeViewHeading = (
+    <header className="teacher-profile-grade-heading">
+      <h2>{compact ? 'Оценки этого класса' : 'Оценки'}</h2>
+      <button type="button" onClick={() => setDetailedView((value) => !value)}>
+        {compact ? 'Подробнее' : 'Компактно'}
+      </button>
+    </header>
+  );
   if (teacherProfile && compact) {
     // Presentation only: keep both independently paged streams and their current
     // server-selected revisions. No additional reads or inferred total count.
@@ -1404,11 +1415,8 @@ export function ParticipantGradeHistory({
       rail?.scrollBy({ left: direction * rail.clientWidth, behavior: 'smooth' });
     };
     return (
-      <section
-        className="participant-grades teacher-profile-grades"
-        aria-label="Оценки этого класса"
-      >
-        <h2>Оценки этого класса</h2>
+      <section className="participant-grades teacher-profile-grades" aria-label="Оценки">
+        {gradeViewHeading}
         {error ? (
           <p role="alert">
             {error}{' '}
@@ -1508,7 +1516,11 @@ export function ParticipantGradeHistory({
       className={`participant-grades${compact ? ' participant-grade-summary' : ''}`}
       aria-label={teacherProfile ? 'Оценки' : compact ? 'Последние оценки' : 'Оценки и история'}
     >
-      <h2>{teacherProfile ? 'Оценки' : compact ? 'Последние оценки' : 'Оценки и история'}</h2>
+      {canSwitchView ? (
+        gradeViewHeading
+      ) : (
+        <h2>{teacherProfile ? 'Оценки' : compact ? 'Последние оценки' : 'Оценки и история'}</h2>
+      )}
       {error ? (
         <p role="alert">
           {error}
