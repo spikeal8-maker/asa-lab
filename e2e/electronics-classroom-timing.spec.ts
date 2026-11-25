@@ -2093,12 +2093,7 @@ function qualifyNativeObservedPhase(
   });
   return fixedGeometry && sameRun && coherentWitness && electricalWitness ? observedPhase : null;
 }
-async function nativeSamples(
-  page: Page,
-  label: string,
-  raw: Probe,
-  phaseMs: number,
-): Promise<string[]> {
+async function nativeSamples(page: Page, label: string, raw: Probe): Promise<string[]> {
   const findings: string[] = [];
   const basis = nativeAssetBasis(raw);
   const initialFrame = raw.frames.find((frame) => frame.status === 'ready');
@@ -2157,7 +2152,7 @@ async function nativeSamples(
             };
             next = requestAnimationFrame(waitForPhase);
           }),
-        { active, phaseMs, epoch: expected.epoch, source: expected.source },
+        { active, phaseMs: 300, epoch: expected.epoch, source: expected.source },
       );
       const name = label + (active ? '-high-' : '-low-') + attempt;
       const path = resolve(artifactRoot, name + '.png');
@@ -2334,7 +2329,7 @@ test('Classroom D13: visible 100, 200, 300, 150 and asymmetric phases on one cir
       findings.push(...result.metrics.findings.map((message) => half + ' ms: ' + message));
       results.set(half, result.metrics);
       if (half === 300 && result.metrics.cycles >= completeCycles)
-        findings.push(...(await nativeSamples(page, 'matrix-300', result.raw, half)));
+        findings.push(...(await nativeSamples(page, 'matrix-300', result.raw)));
       if ((await stop(page, 'matrix-' + half)) > 1_000)
         findings.push(half + ' ms: Stop exceeded 1 second');
     }

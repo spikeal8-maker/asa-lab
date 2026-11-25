@@ -2236,8 +2236,41 @@ describe('v3 preserves real functional publication and native observations', () 
   it('retains the exact primary observer, original model guards and every acquisition outside the allowlist', () => {
     const originalObserver = readFileSync(
       new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
+      'utf8',
     );
-    expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
+    const nativeAcquireStart = '      const { beforeShot, frameOffset } = await page.evaluate(\n';
+    const nativeAcquireEnd =
+      "      const name = label + (active ? '-high-' : '-low-') + attempt;\n";
+    const start = originalObserver.indexOf(nativeAcquireStart);
+    const end = originalObserver.indexOf(nativeAcquireEnd);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    expect(originalObserver.lastIndexOf(nativeAcquireStart)).toBe(start);
+    expect(originalObserver.lastIndexOf(nativeAcquireEnd)).toBe(end);
+    // Reconstruct the frozen observer with just the previous D13 pre-screenshot
+    // handoff. All the observer, screenshots, classifier and v3 checks outside
+    // that one acquisition remain covered by the original digest.
+    const previousNativeAcquire = `      await page.waitForFunction(
+        (active) => {
+          const paint = (window as ProbeWindow).__classroomD13?.paints.at(-1);
+          return (
+            paint?.stable &&
+            paint.assetsReady &&
+            paint.ledLit === active &&
+            paint.lActive === active
+          );
+        },
+        active,
+        { timeout: 5_000 },
+      );
+      const { beforeShot, frameOffset } = await page.evaluate(() => {
+        const probe = (window as ProbeWindow).__classroomD13!;
+        return { beforeShot: probe.paints.at(-1)!, frameOffset: probe.frames.length };
+      });
+`;
+    const frozenObserver =
+      originalObserver.slice(0, start) + previousNativeAcquire + originalObserver.slice(end);
+    expect(createHash('sha256').update(frozenObserver).digest('hex')).toBe(
       'd93b7d2fa15f6c458d291b6534841a1d1d3e9701c75623370a9a0a6e2697d5b8',
     );
     expect(readyCompact).toContain(
@@ -3729,6 +3762,7 @@ function nativeFixture() {
     previousAt: 90,
     stable: true,
     assetsReady: true,
+    running: 'running',
     ledLit: true,
     lActive: true,
     led: { rect },
@@ -3833,14 +3867,32 @@ describe('native photographed phase qualification', () => {
     const f = nativeFixture();
     const reports: Array<Record<string, unknown>> = [];
     let shots = 0;
+    let now = 0;
+    let nextId = 0;
+    let expireWithoutPhase = false;
+    const frames = new Map<number, () => void>();
+    const timers = new Map<number, () => void>();
     const browserProbe = {
       ...f.capture,
       paints: [f.paint],
       frames: f.capture.frames.map((frame) => JSON.stringify(frame)),
     };
     const oracle = nativeQualificationOracle({
-      window: { __classroomD13: browserProbe },
-      performance: { now: () => 400 },
+      window: {
+        __classroomD13: browserProbe,
+        setTimeout: (callback: () => void, delay: number) => {
+          expect(delay).toBe(5_000);
+          timers.set(++nextId, callback);
+          return nextId;
+        },
+      },
+      clearTimeout: (id: number) => timers.delete(id),
+      requestAnimationFrame: (callback: () => void) => {
+        frames.set(++nextId, callback);
+        return nextId;
+      },
+      cancelAnimationFrame: (id: number) => frames.delete(id),
+      performance: { now: () => now },
       nativeAssetBasis: () => ({}),
       nativeReferences: async () => f.references,
       PNG: { sync: { read: (png: unknown) => png } },
@@ -3850,11 +3902,58 @@ describe('native photographed phase qualification', () => {
       test: { info: () => ({ attach: async () => {} }) },
     });
     const page = {
-      waitForFunction: async () => {
-        browserProbe.paints = [f.paint];
+      evaluate: async (
+        read: (argument?: unknown) => unknown,
+        argument?: { active?: boolean; phaseMs?: number; epoch?: number; source?: string },
+      ) => {
+        const active = argument?.active;
+        if (active === undefined) {
+          now = f.capture.capturedAt;
+          return read(argument);
+        }
         browserProbe.frames = [];
+        const opposite = { ...f.paint, at: 68, previousAt: 52, ledLit: !active, lActive: !active };
+        const onset = {
+          ...f.paint,
+          at: 84,
+          previousAt: 68,
+          stable: false,
+          ledLit: active,
+          lActive: active,
+        };
+        const latest = { ...f.paint, previousAt: 84, ledLit: active, lActive: active };
+        const nextFrame = (paints: typeof browserProbe.paints, at: number) => {
+          expect(frames.size).toBe(1);
+          const [id, run] = frames.entries().next().value!;
+          frames.delete(id);
+          browserProbe.paints = paints;
+          now = at;
+          run();
+        };
+        const pending = read(argument);
+        // Archived LOW capture attempts had already changed to HIGH. Also reject a
+        // stale same-phase plateau, foreign evidence and a too-late leading pair.
+        nextFrame([opposite, onset, { ...latest, ledLit: !active, lActive: !active }], 101);
+        nextFrame([{ ...opposite, ledLit: active, lActive: active }, onset, latest], 101);
+        browserProbe.source = 'superseded sketch';
+        nextFrame([opposite, onset, latest], 101);
+        browserProbe.source = f.expected.source;
+        browserProbe.epoch = f.expected.epoch + 1;
+        nextFrame([opposite, onset, latest], 101);
+        browserProbe.epoch = f.expected.epoch;
+        nextFrame([opposite, onset, latest], 336);
+        if (expireWithoutPhase) {
+          expect(timers.size).toBe(1);
+          const [id, expire] = timers.entries().next().value!;
+          timers.delete(id);
+          expire();
+        } else {
+          nextFrame([opposite, onset, latest], 101);
+        }
+        expect(frames.size).toBe(0);
+        expect(timers.size).toBe(0);
+        return pending;
       },
-      evaluate: async (read: (argument?: unknown) => unknown, argument?: unknown) => read(argument),
       screenshot: async () => {
         browserProbe.paints = f.capture.paints;
         browserProbe.frames = f.capture.frames.map((frame) => JSON.stringify(frame));
@@ -3886,6 +3985,13 @@ describe('native photographed phase qualification', () => {
     expect(
       await oracle.samples(page, 'runtime-only-high', { ...f.capture, frames: f.capture.frames }),
     ).toEqual(['native image never captured an unambiguous LOW phase']);
+
+    expireWithoutPhase = true;
+    const shotsBeforeTimeout = shots;
+    await expect(
+      oracle.samples(page, 'no-fresh-phase', { ...f.capture, frames: f.capture.frames }),
+    ).rejects.toThrow('No fresh live phase for native D13 capture');
+    expect(shots).toBe(shotsBeforeTimeout);
   });
   it.each(['UNKNOWN', 'MISMATCH'])('rejects %s regardless of stable DOM witnesses', (phase) => {
     const f = nativeFixture();
