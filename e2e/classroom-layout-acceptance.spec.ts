@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fixture, classId } from './fixtures/classroom-owner';
 import { classroomTextDefects } from './classroom-readable-text';
@@ -612,5 +613,198 @@ test('teacher compact class list remains readable with sidebar and on phones', a
   const sectionSwitch = page.getByRole('combobox', { name: 'Раздел класса' });
   await expect(sectionSwitch).toBeVisible();
   await expect(sectionSwitch.locator('option')).toHaveCount(8);
+  expect(state.errors).toEqual([]);
+});
+
+test('exact submitted 3D review is lazy, keyboard accessible and fits the classroom layout', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const state = await fixture(page, 1);
+  const pupil = state.students()[0]!;
+  const assignment = 'submitted-exact-3d';
+  const assignmentTitle = 'Трёхмерная модель длинной опоры для лабораторной установки';
+  const attempt = 'attempt-exact-3d';
+  const submission = 'submission-exact-3d';
+  const version = 'version-exact-3d';
+  const submittedAt = '2026-10-12T12:00:00Z';
+  const document = {
+    ...createEmptyThreeDDocument(),
+    nodes: [createThreeDNode('box', 'frozen-box')],
+  };
+  let moduleKey = 'three-d';
+  let payload: unknown = document;
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const root = '/api/classrooms/' + classId;
+    if (path === root + '/gradebook')
+      return route.fulfill({
+        json: {
+          scheme: null,
+          items: [
+            {
+              seatId: pupil.id,
+              displayLabel: pupil.displayLabel,
+              assignmentId: assignment,
+              assignmentTitle,
+              attemptId: attempt,
+              attemptNumber: 1,
+              state: 'submitted',
+              submittedAt,
+              points: null,
+              maxPoints: null,
+              displayGrade: null,
+              canonicalState: {
+                activityRunId: 'run-exact-3d',
+                workflowState: 'waiting_review',
+                flags: [],
+                selectedResult: null,
+              },
+            },
+          ],
+        },
+      });
+    if (path === root + '/assignments/' + assignment + '/students/' + pupil.id + '/review-context')
+      return route.fulfill({
+        json: {
+          participationId: 'participation-exact-3d',
+          activityRunId: 'run-exact-3d',
+          resultMode: 'completion',
+          moduleKey,
+          selectionPolicy: 'first',
+          teacherSelectedAttemptId: null,
+          attempts: [
+            {
+              id: attempt,
+              number: 1,
+              state: 'submitted',
+              submissionId: submission,
+              projectVersionId: version,
+              submittedAt,
+              results: [],
+            },
+          ],
+        },
+      });
+    if (path === root + '/attempts/' + attempt + '/submission')
+      return route.fulfill({
+        json: {
+          kind: 'project',
+          submissionId: submission,
+          projectVersionId: version,
+          sourceRevision: 7,
+          digest: 'frozen-digest',
+          moduleKey,
+          document: payload,
+          preview: {
+            figure: {
+              kind: 'schematic',
+              viewBox: { width: 100, height: 100 },
+              shapes: [{ shape: 'rect', x: 10, y: 10, width: 80, height: 80, fill: '#99bbed' }],
+            },
+          },
+        },
+      });
+    if (path === root + '/assignments/' + assignment + '/conditions')
+      return route.fulfill({
+        json: {
+          impact: { participants: 1, activeAttempts: 0, submittedAttempts: 1, excused: false },
+          runId: 'run-exact-3d',
+          revision: 1,
+          overrides: {},
+          effective: { values: {}, sources: {}, extraAttempts: 0, teacherUnlocked: false },
+        },
+      });
+    return route.fallback();
+  });
+  await page.goto('/#/classrooms/' + classId);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Журнал', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  const cell = page.getByRole('button', { name: new RegExp(assignmentTitle) });
+  const detail = page.getByRole('region', { name: 'Проверка сдачи' });
+  const fixed = detail.getByTestId('submission-version-id');
+  const disclosure = detail.getByRole('button', { name: /^(Показать|Скрыть) 3D-модель$/ });
+  const viewer = detail.getByRole('region', { name: 'Сданная 3D-модель' });
+  const presentation = viewer.getByTestId('three-d-presentation');
+  const canvas = presentation.locator('canvas');
+  await cell.click();
+  await expect(fixed).toHaveText(version);
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+  await expect(canvas).toHaveCount(0);
+
+  const viewerRequests: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      path.startsWith('/api/projects/') ||
+      (path.startsWith('/api/classrooms/') && !['GET', 'HEAD'].includes(request.method()))
+    )
+      viewerRequests.push(request.method() + ' ' + path);
+  });
+  await disclosure.press('Enter');
+  await expect(viewer).toHaveAttribute('data-ready', 'true', { timeout: 15_000 });
+  await expect(canvas).toBeVisible();
+  const initialCamera = await presentation.getAttribute('data-camera-state');
+  expect(initialCamera).toBeTruthy();
+  await canvas.press('ArrowRight');
+  await expect(presentation).not.toHaveAttribute('data-camera-state', initialCamera!);
+
+  mkdirSync(out, { recursive: true });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const stage = (await canvas.boundingBox())!;
+    expect(stage.x).toBeGreaterThanOrEqual(0);
+    expect(stage.x + stage.width).toBeLessThanOrEqual(width + 1);
+    for (const control of [disclosure, ...(await viewer.getByRole('button').all())]) {
+      const target = (await control.boundingBox())!;
+      expect(target.width).toBeGreaterThanOrEqual(44);
+      expect(target.height).toBeGreaterThanOrEqual(44);
+    }
+    await viewer.screenshot({ path: out + '/exact-three-d-review-' + width + '.png' });
+  }
+  await canvas.press('Escape');
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+  await expect(disclosure).toBeFocused();
+  await expect(canvas).toHaveCount(0);
+  expect(viewerRequests).toEqual([]);
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
+  payload = { schemaVersion: -1 };
+  await cell.click();
+  await expect(fixed).toHaveText(version);
+  await disclosure.click();
+  await expect(
+    detail.getByRole('status').filter({ hasText: 'Не удалось запустить 3D-просмотр.' }),
+  ).toBeVisible();
+  await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
+  await expect(canvas).toHaveCount(0);
+
+  await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
+  payload = document;
+  await page.evaluate(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type: string, ...options: unknown[]) {
+      return type.startsWith('webgl') ? null : Reflect.apply(original, this, [type, ...options]);
+    } as typeof original;
+  });
+  await cell.click();
+  await expect(fixed).toHaveText(version);
+  await disclosure.click();
+  await expect(
+    detail.getByRole('status').filter({ hasText: 'Не удалось запустить 3D-просмотр.' }),
+  ).toBeVisible();
+  await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
+  await expect(canvas).toHaveCount(0);
+
+  await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
+  moduleKey = 'electronics';
+  await cell.click();
+  await expect(fixed).toHaveText(version);
+  await expect(disclosure).toHaveCount(0);
+  await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
   expect(state.errors).toEqual([]);
 });
