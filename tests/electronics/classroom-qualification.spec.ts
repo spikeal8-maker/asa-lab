@@ -2273,6 +2273,10 @@ describe('v3 preserves real functional publication and native observations', () 
     expect(createHash('sha256').update(frozenObserver).digest('hex')).toBe(
       'd93b7d2fa15f6c458d291b6534841a1d1d3e9701c75623370a9a0a6e2697d5b8',
     );
+    // Freeze the complete updated observer, including the revised acquisition.
+    expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
+      '17bbb85eab857bca7673dda0b596c493730b7a8a0e551ba71eb35e36d5c5018c',
+    );
     expect(readyCompact).toContain(
       "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
     );
