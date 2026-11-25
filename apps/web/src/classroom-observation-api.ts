@@ -1,3 +1,5 @@
+import type { ClassroomFreeElectronicsSimulation } from '@asa-lab/contracts';
+import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import { call, type ApiResult } from './api-call';
 
 /** Works: distinct supported projects (active + archived); assigned/submitted/
@@ -30,6 +32,22 @@ export interface ObservationProject {
   updatedAt: string;
   status: string;
   assigned: boolean;
+}
+export interface ObservationProjectReview {
+  assignmentId: string;
+  activityRunId: string;
+  attemptId: string;
+  submissionId: string;
+  projectVersionId: string;
+  canReview: boolean;
+}
+export interface ObservationFreeProjectPreview {
+  projectId: string;
+  moduleKey: 'three-d' | 'electronics' | 'robotics';
+  revision: number;
+  document: unknown;
+  preview: ModulePreviewDescriptor | null;
+  electronicsSimulation?: ClassroomFreeElectronicsSimulation;
 }
 export interface ObservationEvent {
   id: string;
@@ -78,6 +96,21 @@ export const observationApi = {
   projects: (classroomId: string, filters: Record<string, string | number | undefined> = {}) =>
     call<ObservationProjectsPage>(
       `/api/classrooms/${classroomId}/observation/projects?${query(filters)}`,
+    ),
+  projectReview: (classroomId: string, seatId: string, projectId: string, signal: AbortSignal) =>
+    call<ObservationProjectReview>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/observation/learners/${encodeURIComponent(seatId)}/projects/${encodeURIComponent(projectId)}/review`,
+      { signal },
+    ),
+  freeProjectPreview: (
+    classroomId: string,
+    seatId: string,
+    projectId: string,
+    signal: AbortSignal,
+  ) =>
+    call<ObservationFreeProjectPreview>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/observation/learners/${encodeURIComponent(seatId)}/projects/${encodeURIComponent(projectId)}/free-preview`,
+      { signal },
     ),
   history: (classroomId: string, filters: Record<string, string | number | undefined> = {}) =>
     call<ObservationHistoryPage>(

@@ -675,7 +675,9 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
           high: high.proof,
           changedPixels: changedNativePixels(low.png, high.png),
         });
-        await guest.getByText('Код Arduino', { exact: true }).click();
+        await guest
+          .getByRole('button', { name: mode === 'blocks' ? 'Блоки' : 'Код', exact: true })
+          .click();
         if (mode === 'blocks') {
           const publicGraph = String(artifact.components[0].stateProperties.arduinoBlocks);
           const expected = renderedProgramBlocks(
@@ -818,9 +820,9 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
       });
       expect(afterFullscreen.horizon).toBeGreaterThan(beforeFullscreen.horizon);
       expect(await readProof(guest)).toMatchObject({ created: 1, terminated: 0 });
-      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Стоп');
+      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Остановить');
       await guest.getByTestId('public-electronics-reset').click();
-      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Начать');
+      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Запустить');
       await guest.getByTestId('public-electronics-start').click();
       await expect.poll(() => workers.length).toBe(2);
       await expect
@@ -833,7 +835,7 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
       const focusInfrastructure = await restoreNativeChromiumFocus(guest);
       await expect.poll(() => guest.evaluate(() => document.visibilityState)).toBe('visible');
       await expect.poll(() => guest.evaluate(() => document.hasFocus())).toBe(true);
-      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Стоп');
+      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Остановить');
       // Real foreground-tab transition supplies native visibility/focus events;
       // fail visibly if this browser cannot exercise background visibility.
       const backgroundAt = await mark(guest);
@@ -860,7 +862,7 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
       ).toBe(true);
       await guest.bringToFront();
       await foreground.close();
-      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Начать');
+      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Запустить');
       await guest.getByTestId('public-electronics-start').click();
       await expect.poll(() => workers.length).toBe(3);
       await expect
@@ -871,7 +873,7 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
         .toBe(true);
       // Navigate through the real SPA link while still running, retaining the
       // observer document; a full page.goto would only prove browser teardown.
-      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Стоп');
+      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Остановить');
       await guest.locator('a.public-project-back').click();
       await expect(guest.getByTestId('public-electronics-viewer')).toHaveCount(0);
       await expect.poll(async () => (await readProof(guest)).terminated).toBe(3);

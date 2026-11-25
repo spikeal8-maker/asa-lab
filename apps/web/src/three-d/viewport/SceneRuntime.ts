@@ -274,6 +274,7 @@ export class SceneRuntime {
         },
         onInteractionEnd: () => this.flushDeferredResults(),
       },
+      !readOnly,
     );
 
     this.touchNavigation = new TouchNavigation(this.container, this.renderer.domElement, {

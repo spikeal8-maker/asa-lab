@@ -18,8 +18,9 @@ import { SeatContextUseCase, STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape } from './validation.js';
 import { canonicalClassroomAvatar } from './classroom-participant-avatar.js';
 import {
-  LearningCanonicalProjectionService,
   canonicalProjectionFromEvidence,
+  canonicalReadsEnabled,
+  type CanonicalLearningSurfaceState,
   type EvidenceRow,
 } from './learning-canonical-projection.service.js';
 
@@ -232,7 +233,8 @@ export class ClassroomParticipantsController {
     @Query('offset') offset: string | undefined,
   ) {
     if (
-      (module !== undefined && !['three-d', 'electronics', 'blocks'].includes(module)) ||
+      (module !== undefined &&
+        !['three-d', 'electronics', 'blocks', 'robotics'].includes(module)) ||
       (archive !== undefined && !['true', 'false'].includes(archive)) ||
       (assignments !== undefined && !['true', 'false'].includes(assignments)) ||
       (offset !== undefined && !/^\d{1,6}$/.test(offset)) ||
@@ -250,21 +252,45 @@ export class ClassroomParticipantsController {
       assignments === 'true',
       Number(offset ?? 0),
     ])) as {
-      items: Array<{ id: string; canonicalState: unknown }>;
+      items: Array<{
+        id: string;
+        originActivityRunId: string | null;
+        canonicalState: CanonicalLearningSurfaceState | null;
+      }>;
     };
-    // Existing shared resolver supplies the same canonical labels as the
-    // journal. One class query, never one API request per work.
+    if (data.items.length === 0 || !canonicalReadsEnabled()) return data;
     const context = await this.accounts.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) fail('unauthorized', 'Сессия завершена.', 401);
-    const projections = await new LearningCanonicalProjectionService(this.db()).forTeacher(
-      context.accountId,
-      classId,
+    // Match each visible project to its own run before deriving its teacher
+    // state. One handout can have several runs, and new work has no legacy row.
+    const { rows } = await this.db().query<{ project_id: string; evidence: EvidenceRow }>(
+      `SELECT page.project_id, source.evidence
+         FROM learning_canonical_evidence_for_teacher($1,$2) source
+         JOIN unnest($4::uuid[], $5::uuid[]) page(project_id, run_id)
+           ON CASE WHEN page.run_id IS NOT NULL
+                THEN source.evidence->>'activityRunId' = page.run_id::text
+                ELSE COALESCE(source.evidence->>'projectId', source.evidence#>>'{legacyWork,projectId}') = page.project_id::text
+              END
+        WHERE source.evidence->>'seatId' = $3`,
+      [
+        context.accountId,
+        classId,
+        seatId,
+        data.items.map((item) => item.id),
+        data.items.map((item) => item.originActivityRunId),
+      ],
     );
-    const surfaces = new Map(
-      [...projections.values()]
-        .filter((p) => p.state.provenance.seatId === seatId && p.projectId !== null)
-        .map((p) => [p.projectId, p.surface]),
-    );
+    const asOf = new Date().toISOString();
+    const surfaces = new Map<string, CanonicalLearningSurfaceState | null>();
+    for (const { project_id, evidence } of rows) {
+      // Ambiguous history has no single state to attribute to this project.
+      surfaces.set(
+        project_id,
+        surfaces.has(project_id)
+          ? null
+          : canonicalProjectionFromEvidence(evidence, project_id, asOf, 'teacher').surface,
+      );
+    }
     for (const work of data.items) {
       work.canonicalState = surfaces.get(work.id) ?? null;
     }

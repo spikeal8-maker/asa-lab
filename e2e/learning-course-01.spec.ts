@@ -1692,7 +1692,7 @@ for (const module of ['three-d', 'electronics'])
     } else {
       await saveArduinoReviewSketch(learner.page, revisedSketch);
       await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
-      await detail.getByText('Код Arduino', { exact: true }).click();
+      await detail.getByRole('button', { name: 'Код', exact: true }).click();
       const source = detail.getByRole('region', { name: 'Arduino Uno', exact: true });
       await expect(source).toBeVisible();
       expect(await source.textContent()).toBe(originalSketch);
@@ -1742,7 +1742,9 @@ for (const module of ['three-d', 'electronics'])
       await workerClosed;
       await expect(toggle).toBeFocused();
       await expect(playback).toHaveCount(0);
-      await expect(source).toBeVisible();
+      await expect(source).toHaveCount(0);
+      await detail.getByRole('button', { name: 'Код', exact: true }).click();
+      await expect(source).toHaveText(originalSketch);
       page.off('request', recordPlayback);
       expect(playbackRequests).toEqual([]);
     }
@@ -1779,7 +1781,7 @@ for (const module of ['three-d', 'electronics'])
     await cell.click();
     await expect(detail.getByTestId('submission-version-id')).not.toHaveText(firstVersion);
     if (module === 'electronics') {
-      await detail.getByText('Код Arduino', { exact: true }).click();
+      await detail.getByRole('button', { name: 'Код', exact: true }).click();
       const source = detail.getByRole('region', { name: 'Arduino Uno', exact: true });
       await expect(source).toBeVisible();
       expect(await source.textContent()).toBe(revisedSketch);

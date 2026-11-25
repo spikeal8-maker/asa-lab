@@ -1,4 +1,6 @@
 .public-robotics-viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
   border: 1px solid #cbd9e3;
@@ -8,6 +10,8 @@
 }
 
 .public-robotics-tools {
+  grid-row: 1;
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -24,7 +28,14 @@
   gap: 6px;
 }
 
-.public-robotics-tools > label {
+.public-robotics-options:not([hidden]) {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.public-robotics-tools label {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -74,9 +85,31 @@
 }
 
 .public-robotics-stage {
+  grid-row: 2;
+  grid-column: 1;
   height: clamp(260px, 60vh, 620px);
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+.public-robotics-viewer > .arduino-program-preview {
+  grid-area: 2 / 1;
+  z-index: 1;
+  height: var(--playback-height);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 0 8px;
+  background: white;
+}
+
+@container playback (min-width: 640px) {
+  .public-robotics-viewer:has(> .arduino-program-preview) {
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 42%);
+  }
+  .public-robotics-viewer > .arduino-program-preview {
+    grid-column: 2;
+    border-inline-start: 1px solid var(--playback-line);
+  }
 }
 
 .public-robotics-scene {
@@ -105,7 +138,14 @@
   font: 15px sans-serif;
 }
 
-.public-robotics-caption {
+.robotics-preview-commands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-block: 4px;
+}
+
+.robotics-preview-message {
   margin: 0;
   padding: 12px 16px;
   border-top: 1px solid #dce5ed;

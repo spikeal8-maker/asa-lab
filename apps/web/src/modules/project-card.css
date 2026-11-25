@@ -80,6 +80,38 @@
   filter: none;
 }
 
+button.project-cover-button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.project-cover-button:focus-visible {
+  outline: 3px solid var(--module-accent, #0877b3);
+  outline-offset: -3px;
+}
+.project-cover-view {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 94%);
+  color: #344c5b;
+  pointer-events: none;
+}
+.project-preview.project-cover-button {
+  position: relative;
+}
+.project-cover-view svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* The module glyph is not a picture of the work — it is what a card shows
  * before there is one — so it keeps the margins a symbol needs. */
 .project-card-glyph {
