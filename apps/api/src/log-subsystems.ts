@@ -34,6 +34,11 @@ export const LOG_EDITOR_MODULES = [
   'checkers',
 ] as const;
 export const LOG_MODULES = ['portal', 'auth', 'system', ...LOG_EDITOR_MODULES] as const;
+export const CLIENT_DIAGNOSTIC_MODULES: ReadonlySet<string> = new Set([
+  'portal',
+  'auth',
+  ...LOG_EDITOR_MODULES,
+]);
 
 export function logEditorModule(value: string): string | undefined {
   if (value === 'blocks') return 'scratch';
