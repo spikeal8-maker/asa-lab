@@ -276,10 +276,16 @@ function ProjectList({
       {preview ? (
         <WorkPreview
           key={`${classroomId}:${preview.seatId}:${preview.id}`}
-          reviewScope={
-            preview.assigned &&
-            (preview.moduleKey === 'three-d' || preview.moduleKey === 'electronics')
-              ? { classroomId, seatId: preview.seatId, canReview: preview.status !== 'archived' }
+          previewScope={
+            preview.moduleKey === 'three-d' || preview.moduleKey === 'electronics'
+              ? preview.assigned
+                ? {
+                    kind: 'submission',
+                    classroomId,
+                    seatId: preview.seatId,
+                    canReview: preview.status !== 'archived',
+                  }
+                : { kind: 'free', classroomId, seatId: preview.seatId }
               : undefined
           }
           readOnly

@@ -1,5 +1,6 @@
 import type {
   ClassroomElectronicsSimulation,
+  ClassroomFreeElectronicsSimulation,
   ElectronicsSimulationArtifact,
   ElectronicsSimulationPayload,
 } from '@asa-lab/contracts';
@@ -90,7 +91,10 @@ export class PublicElectronicsRuntime {
   private readonly sessionId: string;
   private readonly classroom: boolean;
   constructor(
-    source: ElectronicsSimulationArtifact | ClassroomElectronicsSimulation,
+    source:
+      | ElectronicsSimulationArtifact
+      | ClassroomElectronicsSimulation
+      | ClassroomFreeElectronicsSimulation,
     private readonly onStop: (message?: string, unavailable?: true) => void,
     controller = new ElectronicsLiveSimulationWorkerController(
       new ElectronicsSimulationWorkerClient(undefined, PUBLIC_SIMULATION_BUDGET.requestMs),
@@ -100,7 +104,9 @@ export class PublicElectronicsRuntime {
     this.classroom = classroom;
     this.artifact = classroom ? source.simulation : source;
     this.sessionId = classroom
-      ? 'classroom-submission:' + source.submissionId + ':' + source.projectVersionId
+      ? 'submissionId' in source
+        ? 'classroom-submission:' + source.submissionId + ':' + source.projectVersionId
+        : 'classroom-project:' + source.projectId + ':' + source.revision
       : 'publication:' + source.provenance.publicationId + ':' + source.provenance.revisionNumber;
     this.document = publicSimulationDocument(this.artifact);
     this.controller = controller;

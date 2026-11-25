@@ -204,6 +204,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0332', // Additive dashboard site activity and scoped aggregate.
         '0333', // Freeze new grading for removed classroom seats.
         '0334', // Resolve a visible classroom project to its exact submission.
+        '0335', // Open one saved revision of a visible free project.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -567,6 +568,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0332', // Additive dashboard site activity and scoped aggregate.
           '0333', // Freeze new grading for removed classroom seats.
           '0334', // Resolve a visible classroom project to its exact submission.
+          '0335', // Open one saved revision of a visible free project.
         ]);
         expect(
           await applyIsolatedTestPlan(

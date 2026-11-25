@@ -4,11 +4,13 @@ import { ThreeDPresentation, type ThreeDPresentationHandle } from '../three-d/Th
 
 export interface ClassroomExactThreeDViewerProps {
   readonly document: unknown;
+  readonly label?: string;
   readonly fallback: ReactNode;
 }
 
 export default function ClassroomExactThreeDViewer({
   document,
+  label = 'Сданная 3D-модель',
   fallback,
 }: ClassroomExactThreeDViewerProps): JSX.Element {
   const parsed = useMemo(() => parseThreeDDocument(document), [document]);
@@ -26,7 +28,7 @@ export default function ClassroomExactThreeDViewer({
 
   const ready = status === 'ready';
   return (
-    <section aria-label="Сданная 3D-модель" className="gradebook-three-d-view" data-ready={ready}>
+    <section aria-label={label} className="gradebook-three-d-view" data-ready={ready}>
       <div className="gradebook-three-d-tools" role="group" aria-label="Управление 3D-просмотром">
         <button
           type="button"

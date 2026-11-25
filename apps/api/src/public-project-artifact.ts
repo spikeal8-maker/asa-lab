@@ -4,6 +4,8 @@ import type { RoboticsProject } from '@asa-lab/robotics/document';
 import {
   validatePublicProjectDisplayArtifact,
   validateClassroomElectronicsSimulation,
+  validateClassroomFreeElectronicsSimulation,
+  type ClassroomFreeElectronicsSimulation,
   type ClassroomElectronicsSimulation,
   publicArduinoBlocks,
   PUBLIC_ELECTRONICS_PROPERTIES,
@@ -162,6 +164,18 @@ export function createClassroomElectronicsSimulation(
   const simulation = projection?.simulation();
   return simulation
     ? validateClassroomElectronicsSimulation({ submissionId, projectVersionId, simulation })
+    : null;
+}
+
+export function createClassroomFreeElectronicsSimulation(
+  registry: ModuleRegistry,
+  document: unknown,
+  projectId: string,
+  revision: number,
+): ClassroomFreeElectronicsSimulation | null {
+  const simulation = createElectronicsProjection(registry, document)?.simulation();
+  return simulation
+    ? validateClassroomFreeElectronicsSimulation({ projectId, revision, simulation })
     : null;
 }
 

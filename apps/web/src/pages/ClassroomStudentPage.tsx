@@ -1210,10 +1210,11 @@ export function ClassroomStudentPage({
       {responding ? (
         <WorkPreview
           key={`${classroomId}:${seatId}:${responding.id}:${previewReadOnly}`}
-          reviewScope={
-            (responding.canonicalState || responding.assignment) &&
-            (responding.moduleKey === 'three-d' || responding.moduleKey === 'electronics')
-              ? { classroomId, seatId, canReview: !previewReadOnly }
+          previewScope={
+            responding.moduleKey === 'three-d' || responding.moduleKey === 'electronics'
+              ? responding.canonicalState || responding.assignment
+                ? { kind: 'submission', classroomId, seatId, canReview: !previewReadOnly }
+                : { kind: 'free', classroomId, seatId }
               : undefined
           }
           manageFocus

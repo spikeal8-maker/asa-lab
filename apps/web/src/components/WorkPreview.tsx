@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api, type ProjectFeedback } from '../api';
-import { observationApi, type ObservationProjectReview } from '../classroom-observation-api';
-import { FrozenProjectPreview, type FrozenProject } from './ClassroomSubmittedProjectPreview';
+import {
+  observationApi,
+  type ObservationFreeProjectPreview,
+  type ObservationProjectReview,
+} from '../classroom-observation-api';
+import {
+  FreeProjectPreview,
+  FrozenProjectPreview,
+  type FrozenProject,
+} from './ClassroomSubmittedProjectPreview';
 import { ReviewDetail } from './ClassroomGradebook';
 import { AssignmentView, type AssignmentViewData } from './AssignmentView';
 import { useDialogFocus } from './settings-navigation';
@@ -22,6 +30,7 @@ import './work-preview.css';
 
 type SavedWork =
   | { kind: 'none' | 'unavailable' }
+  | { kind: 'free'; project: ObservationFreeProjectPreview }
   | { kind: 'ready'; target: ObservationProjectReview; submission: FrozenProject };
 
 const BADGES: ReadonlyArray<{ value: string; label: string }> = [
@@ -80,7 +89,7 @@ export function WorkPreview({
   workTitle,
   submittedAt,
   assignment,
-  reviewScope,
+  previewScope,
   readOnly = false,
   manageFocus = false,
   onClose,
@@ -102,12 +111,10 @@ export function WorkPreview({
    * работой, тем же видом, который читал ученик.
    */
   readonly assignment?: AssignmentViewData | null;
-  readonly reviewScope?:
-    | {
-        readonly classroomId: string;
-        readonly seatId: string;
-        readonly canReview: boolean;
-      }
+  readonly previewScope?:
+    | ({ readonly classroomId: string; readonly seatId: string } & (
+        { readonly kind: 'submission'; readonly canReview: boolean } | { readonly kind: 'free' }
+      ))
     | undefined;
   readonly manageFocus?: boolean;
   readonly onClose: () => void;
@@ -144,23 +151,44 @@ export function WorkPreview({
   const [error, setError] = useState<string | null>(null);
   const [savedWork, setSavedWork] = useState<SavedWork | null>(null);
   const [reviewing, setReviewing] = useState(false);
-  const reviewClassroomId = reviewScope?.classroomId;
-  const reviewSeatId = reviewScope?.seatId;
+  const reviewScope = previewScope?.kind === 'submission' ? previewScope : undefined;
+  const previewClassroomId = previewScope?.classroomId;
+  const previewSeatId = previewScope?.seatId;
+  const isFree = previewScope?.kind === 'free';
   const showSavedWork = Boolean(reviewScope && savedWork?.kind !== 'none');
   const feedbackEnabled = !readOnly && !showSavedWork;
-  const compactHeader = readOnly || showSavedWork;
+  const compactHeader = readOnly || showSavedWork || isFree;
   const time = useSchoolTime();
   const dialog = useRef<HTMLDivElement>(null);
   const reviewAction = useRef<HTMLButtonElement>(null);
   useDialogFocus(readOnly || manageFocus, dialog);
 
   useEffect(() => {
-    if (!reviewClassroomId || !reviewSeatId) return;
+    if (!previewClassroomId || !previewSeatId) return;
     const request = new AbortController();
     void (async () => {
+      if (isFree) {
+        const result = await observationApi.freeProjectPreview(
+          previewClassroomId,
+          previewSeatId,
+          projectId,
+          request.signal,
+        );
+        if (request.signal.aborted) return;
+        if (
+          result.ok &&
+          result.data?.projectId === projectId &&
+          result.data.moduleKey === moduleKey &&
+          Number.isSafeInteger(result.data.revision) &&
+          result.data.revision > 0
+        )
+          setSavedWork({ kind: 'free', project: result.data });
+        else setSavedWork({ kind: 'unavailable' });
+        return;
+      }
       const lookup = await observationApi.projectReview(
-        reviewClassroomId,
-        reviewSeatId,
+        previewClassroomId,
+        previewSeatId,
         projectId,
         request.signal,
       );
@@ -170,7 +198,7 @@ export function WorkPreview({
         return;
       }
       const submission = await api.exactLearningSubmission(
-        reviewClassroomId,
+        previewClassroomId,
         lookup.data.attemptId,
       );
       if (request.signal.aborted) return;
@@ -188,7 +216,7 @@ export function WorkPreview({
       setSavedWork({ kind: 'ready', target: lookup.data, submission: submission.data });
     })();
     return () => request.abort();
-  }, [moduleKey, projectId, reviewClassroomId, reviewSeatId]);
+  }, [isFree, moduleKey, previewClassroomId, previewSeatId, projectId]);
 
   useEffect(() => {
     if (!feedbackEnabled) return;
@@ -240,7 +268,7 @@ export function WorkPreview({
         className={[
           'modal work-preview',
           readOnly ? 'work-preview-readonly' : '',
-          showSavedWork ? 'work-preview-saved' : '',
+          showSavedWork || isFree ? 'work-preview-saved' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -285,7 +313,31 @@ export function WorkPreview({
         ) : (
           <div className="work-preview-body">
             <div className="work-preview-picture">
-              {showSavedWork ? (
+              {savedWork?.kind === 'free' ? (
+                <div className="work-preview-exact">
+                  <p>
+                    <strong>Сохранённая версия</strong>
+                  </p>
+                  <FreeProjectPreview
+                    project={savedWork.project}
+                    snapshot={
+                      <WorkSnapshot
+                        projectId={projectId}
+                        revision={savedWork.project.revision}
+                        alt={`Снимок работы ученика ${learnerName}`}
+                        testId="work-preview-image"
+                        fallback={<p className="work-preview-empty">Снимок недоступен</p>}
+                      />
+                    }
+                  />
+                </div>
+              ) : isFree && (savedWork?.kind !== 'unavailable' || !snapshotRevision) ? (
+                <p role="status">
+                  {savedWork?.kind === 'unavailable'
+                    ? 'Предпросмотр сохранённой работы недоступен.'
+                    : 'Загружаем сохранённую работу…'}
+                </p>
+              ) : showSavedWork ? (
                 savedWork?.kind === 'ready' ? (
                   <div className="work-preview-exact">
                     <p>

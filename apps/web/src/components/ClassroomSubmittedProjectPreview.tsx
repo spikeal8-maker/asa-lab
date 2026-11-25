@@ -1,4 +1,5 @@
-import { lazy, Suspense, useId, useRef, useState } from 'react';
+import { lazy, Suspense, useId, useRef, useState, type ReactNode } from 'react';
+import type { ObservationFreeProjectPreview } from '../classroom-observation-api';
 import type { ExactLearningSubmission } from '../api';
 import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
 import type { ClassroomExactElectronicsViewerProps } from './ClassroomExactElectronicsViewer';
@@ -40,16 +41,53 @@ export function FrozenProjectPreview({
   submission: FrozenProject;
   initiallyOpen?: boolean;
 }) {
+  return (
+    <ClassroomProjectPlayback
+      project={submission}
+      initiallyOpen={initiallyOpen}
+      snapshotLabel="Точный снимок сданной работы"
+    />
+  );
+}
+
+export function FreeProjectPreview({
+  project,
+  snapshot,
+}: {
+  project: ObservationFreeProjectPreview;
+  snapshot: ReactNode;
+}) {
+  return (
+    <ClassroomProjectPlayback
+      project={project}
+      initiallyOpen
+      snapshotLabel="Снимок сохранённой работы"
+      snapshot={snapshot}
+    />
+  );
+}
+
+function ClassroomProjectPlayback({
+  project,
+  initiallyOpen,
+  snapshotLabel,
+  snapshot,
+}: {
+  project: FrozenProject | ObservationFreeProjectPreview;
+  initiallyOpen: boolean;
+  snapshotLabel: string;
+  snapshot?: ReactNode;
+}) {
   const [open, setOpen] = useState(initiallyOpen);
   const viewerId = useId();
   const opener = useRef<HTMLButtonElement>(null);
-  const fallback = submission.preview?.figure ? (
-    <ProjectPreviewFigure figure={submission.preview.figure} label="Точный снимок сданной работы" />
+  const fallback = project.preview?.figure ? (
+    <ProjectPreviewFigure figure={project.preview.figure} label={snapshotLabel} />
   ) : (
-    <p>Визуальный предпросмотр для этого снимка недоступен.</p>
+    (snapshot ?? <p>Визуальный предпросмотр для этого снимка недоступен.</p>)
   );
-  if (submission.moduleKey === 'electronics') {
-    const expanded = open && Boolean(submission.electronicsSimulation);
+  if (project.moduleKey === 'electronics') {
+    const expanded = open && Boolean(project.electronicsSimulation);
     return (
       <div
         className="gradebook-electronics-preview"
@@ -67,7 +105,7 @@ export function FrozenProjectPreview({
           opener.current?.focus();
         }}
       >
-        {!initiallyOpen && submission.electronicsSimulation && (
+        {!initiallyOpen && project.electronicsSimulation && (
           <button
             ref={opener}
             type="button"
@@ -90,9 +128,16 @@ export function FrozenProjectPreview({
               }
             >
               <ExactElectronicsViewer
-                artifact={submission.electronicsSimulation}
-                submissionId={submission.submissionId}
-                projectVersionId={submission.projectVersionId}
+                artifact={project.electronicsSimulation}
+                identity={
+                  'submissionId' in project
+                    ? {
+                        kind: 'submission',
+                        submissionId: project.submissionId,
+                        projectVersionId: project.projectVersionId,
+                      }
+                    : { kind: 'free', projectId: project.projectId, revision: project.revision }
+                }
                 fallback={fallback}
               />
             </Suspense>
@@ -100,12 +145,12 @@ export function FrozenProjectPreview({
         </div>
         {!expanded && fallback}
         <Suspense fallback={null}>
-          <ExactArduinoSource document={submission.document} />
+          <ExactArduinoSource document={project.document} />
         </Suspense>
       </div>
     );
   }
-  if (submission.moduleKey !== 'three-d') return fallback;
+  if (project.moduleKey !== 'three-d') return fallback;
 
   return (
     <div
@@ -139,7 +184,11 @@ export function FrozenProjectPreview({
               </>
             }
           >
-            <ExactThreeDViewer document={submission.document} fallback={fallback} />
+            <ExactThreeDViewer
+              document={project.document}
+              label={'submissionId' in project ? 'Сданная 3D-модель' : 'Сохранённая 3D-модель'}
+              fallback={fallback}
+            />
           </Suspense>
         )}
       </div>

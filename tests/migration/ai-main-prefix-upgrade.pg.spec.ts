@@ -113,6 +113,7 @@ const expectedPending = [
   '0332', // Additive dashboard site activity and scoped aggregate.
   '0333', // Freeze new grading for removed classroom seats.
   '0334', // Resolve a visible classroom project to its exact submission.
+  '0335', // Open one saved revision of a visible free project.
 ];
 
 interface Identity {

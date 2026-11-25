@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpException,
   Inject,
   Param,
@@ -12,6 +13,8 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type pg from 'pg';
+import type { ModuleRegistry } from '@asa-lab/module-sdk';
+import { createClassroomFreeElectronicsSimulation } from './public-project-artifact.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 import { ClassroomObservationService } from './classroom-observation.service.js';
@@ -41,6 +44,7 @@ export class ClassroomObservationController {
   constructor(
     @Inject(TOKENS.activeContextUseCase) private readonly accounts: ActiveContextUseCase,
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
+    @Inject(TOKENS.moduleRegistry) private readonly modules: ModuleRegistry,
   ) {}
   private db() {
     if (!this.pool) fail('database_unavailable', 'Сервер данных недоступен.', 503);
@@ -127,6 +131,42 @@ export class ClassroomObservationController {
       uuid(seatId),
       uuid(projectId),
     ]);
+  }
+  @Get(':classroomId/observation/learners/:seatId/projects/:projectId/free-preview')
+  @Header('Cache-Control', 'private, no-store')
+  async freeProjectPreview(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classId: string,
+    @Param('seatId') seatId: string,
+    @Param('projectId') projectId: string,
+  ) {
+    const saved = await this.db().read<{
+      projectId: string;
+      moduleKey: 'three-d' | 'electronics';
+      revision: number;
+      document: unknown;
+    }>('classroom_observation_free_project_preview', [
+      await this.actor(request),
+      uuid(classId),
+      uuid(seatId),
+      uuid(projectId),
+    ]);
+    const provider = this.modules.get(saved.moduleKey)?.provider;
+    const validated = provider?.validate(saved.document);
+    const electronicsSimulation =
+      saved.moduleKey === 'electronics'
+        ? createClassroomFreeElectronicsSimulation(
+            this.modules,
+            saved.document,
+            saved.projectId,
+            saved.revision,
+          )
+        : null;
+    return {
+      ...saved,
+      preview: validated?.ok ? (provider?.createPreview(validated.payload) ?? null) : null,
+      ...(electronicsSimulation ? { electronicsSimulation } : {}),
+    };
   }
   @Get(':classroomId/observation/history')
   async history(

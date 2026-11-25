@@ -549,6 +549,11 @@ const upgradeArtifacts = [
     '0334_classroom_project_review_target.sql',
     '5d5a87000fce9a0dd440193d22814b420b070f3f52f771074ae2ddd0067ac57f',
   ],
+  [
+    '0335',
+    '0335_classroom_free_project_preview.sql',
+    'f584906b615f22dfdeae7bfc6b1e735fb674a5fe585bb293703eac66b4e5bf0f',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

@@ -597,6 +597,67 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     ).toBe(true);
   }, 60_000);
 
+  it('reads exactly one free project revision through existing teacher visibility', async () => {
+    const f = await fixture(2);
+    const [learner, peer] = f.seats;
+    const free = await f.project(learner!.principal, 'three-d', 'active', f.classId);
+    const otherClass = await f.createClass();
+    const teacherCookie = `asa_session=${f.teacherToken}`;
+    const previewUrl = (projectId = free, classroomId = f.classId, seatId = learner!.id) =>
+      `/api/classrooms/${classroomId}/observation/learners/${seatId}/projects/${projectId}/free-preview`;
+    const lookup = (url = previewUrl(), cookie = teacherCookie) =>
+      inject(api, { method: 'GET', url, headers: { cookie } });
+    const initial = await lookup();
+    expect(initial.statusCode, initial.body).toBe(200);
+    expect(initial.headers['cache-control']).toContain('no-store');
+    expect(initial.json()).toEqual({
+      projectId: free,
+      moduleKey: 'three-d',
+      revision: 1,
+      document: { value: 0 },
+      preview: null,
+    });
+
+    expect((await lookup(previewUrl(free, otherClass))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(free, f.classId, peer!.id))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(), `asa_student_session=${learner!.token}`)).statusCode).toBe(
+      401,
+    );
+
+    const issued = await f.assign([learner!.id]);
+    const started = await f.start(issued.run, learner);
+    expect((await lookup(previewUrl(started.projectId))).statusCode).toBe(404);
+    const assignedRevision = (
+      await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [
+        started.projectId,
+      ])
+    ).rows[0].revision;
+    const submitted = (
+      await runtime.query('SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)', [
+        learner!.principal,
+        started.projectId,
+        randomUUID(),
+        assignedRevision,
+      ])
+    ).rows[0];
+    expect(submitted.result_code).toBe('ok');
+    expect((await lookup(previewUrl(started.projectId))).statusCode).toBe(404);
+
+    await admin.query(
+      'UPDATE project_drafts SET revision=2,document_json=\'{"value":2}\'::jsonb WHERE project_id=$1',
+      [free],
+    );
+    await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [free]);
+    const archived = await lookup();
+    expect(archived.statusCode, archived.body).toBe(200);
+    expect(archived.json()).toMatchObject({ revision: 2, document: { value: 2 } });
+    expect(initial.json()).toMatchObject({ revision: 1, document: { value: 0 } });
+    expect(
+      await read('classroom_management_remove_seat', [f.actor.account_id, f.classId, learner!.id]),
+    ).toBe(true);
+    expect((await lookup()).statusCode).toBe(404);
+  });
+
   it('resolves the latest saved submission of the visible project and keeps removed seats read-only', async () => {
     const f = await fixture(2);
     const [learner, peer] = f.seats;

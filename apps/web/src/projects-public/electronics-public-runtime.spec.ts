@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   ClassroomElectronicsSimulation,
+  ClassroomFreeElectronicsSimulation,
   ElectronicsSimulationArtifact,
   ElectronicsSimulationPayload,
 } from '@asa-lab/contracts';
@@ -47,7 +48,7 @@ const artifact = (): ElectronicsSimulationArtifact => ({
   ...simulation(),
   provenance: { publicationId: '123e4567-e89b-42d3-a456-426614174001', revisionNumber: 1 },
 });
-function setup(submission?: ClassroomElectronicsSimulation) {
+function setup(submission?: ClassroomElectronicsSimulation | ClassroomFreeElectronicsSimulation) {
   vi.stubGlobal(
     'requestAnimationFrame',
     vi.fn(() => 1),
@@ -109,6 +110,31 @@ describe('bounded classroom electronics host', () => {
     expect(host.input('button', { state: false })).toBeNull();
   });
 
+  it('starts each free project revision in its own private namespace', () => {
+    const free = {
+      projectId: '123e4567-e89b-42d3-a456-426614174004',
+      revision: 7,
+      simulation: simulation(),
+    };
+    const serialized = JSON.stringify(free);
+    const { host, controller } = setup(free);
+    expect(controller.start).toHaveBeenCalledExactlyOnceWith(
+      'classroom-project:' + free.projectId + ':7',
+      expect.anything(),
+      expect.anything(),
+    );
+    host.input('button', { state: true });
+    host.stop();
+    expect(JSON.stringify(free)).toBe(serialized);
+    expect(controller.dispose).toHaveBeenCalledTimes(1);
+    const reopened = setup({ ...free, revision: 8 });
+    expect(reopened.controller.start).toHaveBeenCalledWith(
+      'classroom-project:' + free.projectId + ':8',
+      expect.anything(),
+      expect.anything(),
+    );
+    reopened.host.dispose();
+  });
   it('keeps a passive no-source circuit open after the Worker supplies a ready frame', async () => {
     vi.stubGlobal(
       'requestAnimationFrame',

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
+import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { ClassroomObservationController } from './classroom-observation.controller.js';
 import { ClassroomJoinController } from './classroom-join.controller.js';
 
@@ -10,14 +11,16 @@ const seatId = '20000000-0000-4000-8000-000000000001';
 function fixture() {
   const resolve = vi.fn().mockResolvedValue({ principalId: 'teacher' });
   const query = vi.fn().mockResolvedValue({ rows: [{ data: { items: [], totals: {} } }] });
+  const get = vi.fn();
   const controller = new ClassroomObservationController(
     { resolve } as unknown as ActiveContextUseCase,
     { query } as unknown as pg.Pool,
+    { get } as unknown as ModuleRegistry,
   );
   const request = {
     cookies: { asa_session: 'account', asa_student_session: 'seat' },
   } as unknown as FastifyRequest;
-  return { controller, resolve, query, request };
+  return { controller, resolve, query, request, get };
 }
 describe('observation request boundary', () => {
   it('uses revalidated Account credentials; no Seat fallback and no database query on missing authentication', async () => {
@@ -66,6 +69,34 @@ describe('observation request boundary', () => {
     f.resolve.mockResolvedValueOnce(null);
     await expect(
       f.controller.projectReview(f.request, classId, seatId, projectId),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(f.query).not.toHaveBeenCalled();
+  });
+  it('opens only one authorized saved free revision and does not project a denied document', async () => {
+    const f = fixture();
+    const projectId = '30000000-0000-4000-8000-000000000001';
+    const saved = { projectId, moduleKey: 'three-d', revision: 5, document: { objects: [] } };
+    f.query.mockResolvedValueOnce({ rows: [{ data: saved }] });
+    await expect(
+      f.controller.freeProjectPreview(f.request, classId, seatId, projectId),
+    ).resolves.toEqual({ ...saved, preview: null });
+    expect(f.query).toHaveBeenCalledExactlyOnceWith(
+      'SELECT classroom_observation_free_project_preview($1,$2,$3,$4) AS data',
+      ['teacher', classId, seatId, projectId],
+    );
+    expect(f.get).toHaveBeenCalledExactlyOnceWith('three-d');
+    f.query.mockResolvedValueOnce({ rows: [{ data: null }] });
+    await expect(
+      f.controller.freeProjectPreview(f.request, classId, seatId, projectId),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(f.get).toHaveBeenCalledTimes(1);
+    f.query.mockClear();
+    await expect(
+      f.controller.freeProjectPreview(f.request, classId, 'invalid', projectId),
+    ).rejects.toMatchObject({ status: 400 });
+    f.resolve.mockResolvedValueOnce(null);
+    await expect(
+      f.controller.freeProjectPreview(f.request, classId, seatId, projectId),
     ).rejects.toMatchObject({ status: 401 });
     expect(f.query).not.toHaveBeenCalled();
   });

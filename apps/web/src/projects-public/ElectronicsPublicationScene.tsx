@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   ClassroomElectronicsSimulation,
+  ClassroomFreeElectronicsSimulation,
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
   PublicDisplayComponent,
@@ -57,13 +58,13 @@ export function ElectronicsPublicationScene({
 }
 
 export function ClassroomElectronicsSimulationScene({
-  submission,
+  source,
   onUnavailable,
 }: {
-  readonly submission: ClassroomElectronicsSimulation;
+  readonly source: ClassroomElectronicsSimulation | ClassroomFreeElectronicsSimulation;
   readonly onUnavailable: (message?: string) => void;
 }): JSX.Element {
-  return <ElectronicsPlaybackScene source={submission} onUnavailable={onUnavailable} />;
+  return <ElectronicsPlaybackScene source={source} onUnavailable={onUnavailable} />;
 }
 
 function ElectronicsPlaybackScene({
@@ -71,7 +72,10 @@ function ElectronicsPlaybackScene({
   onUnavailable,
 }: {
   readonly source:
-    ElectronicsDisplayArtifact | ElectronicsSimulationArtifact | ClassroomElectronicsSimulation;
+    | ElectronicsDisplayArtifact
+    | ElectronicsSimulationArtifact
+    | ClassroomElectronicsSimulation
+    | ClassroomFreeElectronicsSimulation;
   readonly onUnavailable?: (message?: string) => void;
 }): JSX.Element {
   const classroom = 'simulation' in source;
@@ -209,7 +213,13 @@ function ElectronicsPlaybackScene({
       ref={section}
       className="public-electronics-viewer"
       data-testid={classroom ? 'classroom-electronics-viewer' : 'public-electronics-viewer'}
-      aria-label={classroom ? 'Сданная электрическая схема' : 'Опубликованная электрическая схема'}
+      aria-label={
+        !classroom
+          ? 'Опубликованная электрическая схема'
+          : 'submissionId' in source
+            ? 'Сданная электрическая схема'
+            : 'Сохранённая электрическая схема'
+      }
     >
       <div className="public-electronics-tools" role="toolbar" aria-label="Просмотр схемы">
         <span>Схема · просмотр</span>
