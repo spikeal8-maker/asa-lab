@@ -43,6 +43,32 @@ describe('observation request boundary', () => {
     await expect(f.controller.projects(f.request, classId)).rejects.toMatchObject({ status: 404 });
     await expect(f.controller.history(f.request, classId)).rejects.toMatchObject({ status: 404 });
   });
+  it('resolves a project review with exact class and seat, and hides unauthorized targets', async () => {
+    const f = fixture();
+    const projectId = '30000000-0000-4000-8000-000000000001';
+    const data = { assignmentId: classId, attemptId: seatId, projectVersionId: projectId };
+    f.query.mockResolvedValueOnce({ rows: [{ data }] });
+    await expect(
+      f.controller.projectReview(f.request, classId, seatId, projectId),
+    ).resolves.toEqual(data);
+    expect(f.query).toHaveBeenCalledWith(
+      'SELECT classroom_observation_project_review($1,$2,$3,$4) AS data',
+      ['teacher', classId, seatId, projectId],
+    );
+    f.query.mockResolvedValueOnce({ rows: [{ data: null }] });
+    await expect(
+      f.controller.projectReview(f.request, classId, seatId, projectId),
+    ).rejects.toMatchObject({ status: 404 });
+    f.query.mockClear();
+    await expect(
+      f.controller.projectReview(f.request, classId, 'invalid', projectId),
+    ).rejects.toMatchObject({ status: 400 });
+    f.resolve.mockResolvedValueOnce(null);
+    await expect(
+      f.controller.projectReview(f.request, classId, seatId, projectId),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(f.query).not.toHaveBeenCalled();
+  });
   it('authorizes the entire class set before separate explicit preparation', async () => {
     const f = fixture();
     f.query.mockResolvedValueOnce({ rows: [{ data: null }] });

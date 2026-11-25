@@ -1209,7 +1209,13 @@ export function ClassroomStudentPage({
       ) : null}
       {responding ? (
         <WorkPreview
-          key={`${responding.id}:${previewReadOnly}`}
+          key={`${classroomId}:${seatId}:${responding.id}:${previewReadOnly}`}
+          reviewScope={
+            (responding.canonicalState || responding.assignment) &&
+            (responding.moduleKey === 'three-d' || responding.moduleKey === 'electronics')
+              ? { classroomId, seatId, canReview: !previewReadOnly }
+              : undefined
+          }
           manageFocus
           projectId={responding.id}
           snapshotRevision={responding.snapshotRevision}
@@ -1218,6 +1224,9 @@ export function ClassroomStudentPage({
           workTitle={responding.title}
           submittedAt={responding.submittedAt ?? null}
           assignment={responding.assignment}
+          onReviewed={async () => {
+            await Promise.all([loadWorks(), load()]);
+          }}
           onClose={() => setResponding(null)}
           onOpenEditor={() => {
             const work = responding;

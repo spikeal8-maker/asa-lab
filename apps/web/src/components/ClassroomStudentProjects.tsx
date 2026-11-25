@@ -275,7 +275,13 @@ function ProjectList({
       )}
       {preview ? (
         <WorkPreview
-          key={preview.id}
+          key={`${classroomId}:${preview.seatId}:${preview.id}`}
+          reviewScope={
+            preview.assigned &&
+            (preview.moduleKey === 'three-d' || preview.moduleKey === 'electronics')
+              ? { classroomId, seatId: preview.seatId, canReview: preview.status !== 'archived' }
+              : undefined
+          }
           readOnly
           snapshotRefresh={snapshotRefresh}
           projectId={preview.id}

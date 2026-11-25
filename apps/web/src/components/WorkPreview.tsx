@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api, type ProjectFeedback } from '../api';
+import { observationApi, type ObservationProjectReview } from '../classroom-observation-api';
+import { FrozenProjectPreview, type FrozenProject } from './ClassroomSubmittedProjectPreview';
+import { ReviewDetail } from './ClassroomGradebook';
 import { AssignmentView, type AssignmentViewData } from './AssignmentView';
 import { useDialogFocus } from './settings-navigation';
 import { useSchoolTime } from './school-time';
@@ -16,6 +19,10 @@ import './work-preview.css';
  * and the comment beside it, and the editor stays one click away for the times
  * the answer really is "let me fix this with them".
  */
+
+type SavedWork =
+  | { kind: 'none' | 'unavailable' }
+  | { kind: 'ready'; target: ObservationProjectReview; submission: FrozenProject };
 
 const BADGES: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'excellent', label: 'Отлично' },
@@ -73,10 +80,12 @@ export function WorkPreview({
   workTitle,
   submittedAt,
   assignment,
+  reviewScope,
   readOnly = false,
   manageFocus = false,
   onClose,
   onOpenEditor,
+  onReviewed,
   onGraded,
 }: {
   readonly projectId: string;
@@ -93,9 +102,17 @@ export function WorkPreview({
    * работой, тем же видом, который читал ученик.
    */
   readonly assignment?: AssignmentViewData | null;
+  readonly reviewScope?:
+    | {
+        readonly classroomId: string;
+        readonly seatId: string;
+        readonly canReview: boolean;
+      }
+    | undefined;
   readonly manageFocus?: boolean;
   readonly onClose: () => void;
   readonly onOpenEditor: () => void;
+  readonly onReviewed?: () => Promise<void>;
 } & (
   | {
       readonly readOnly: true;
@@ -125,12 +142,56 @@ export function WorkPreview({
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedWork, setSavedWork] = useState<SavedWork | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const reviewClassroomId = reviewScope?.classroomId;
+  const reviewSeatId = reviewScope?.seatId;
+  const showSavedWork = Boolean(reviewScope && savedWork?.kind !== 'none');
+  const feedbackEnabled = !readOnly && !showSavedWork;
+  const compactHeader = readOnly || showSavedWork;
   const time = useSchoolTime();
   const dialog = useRef<HTMLDivElement>(null);
+  const reviewAction = useRef<HTMLButtonElement>(null);
   useDialogFocus(readOnly || manageFocus, dialog);
 
   useEffect(() => {
-    if (readOnly) return;
+    if (!reviewClassroomId || !reviewSeatId) return;
+    const request = new AbortController();
+    void (async () => {
+      const lookup = await observationApi.projectReview(
+        reviewClassroomId,
+        reviewSeatId,
+        projectId,
+        request.signal,
+      );
+      if (request.signal.aborted) return;
+      if (!lookup.ok) {
+        setSavedWork({ kind: lookup.status === 404 ? 'none' : 'unavailable' });
+        return;
+      }
+      const submission = await api.exactLearningSubmission(
+        reviewClassroomId,
+        lookup.data.attemptId,
+      );
+      if (request.signal.aborted) return;
+      if (
+        !submission.ok ||
+        !submission.data ||
+        !('projectVersionId' in submission.data) ||
+        submission.data.submissionId !== lookup.data.submissionId ||
+        submission.data.projectVersionId !== lookup.data.projectVersionId ||
+        submission.data.moduleKey !== moduleKey
+      ) {
+        setSavedWork({ kind: 'unavailable' });
+        return;
+      }
+      setSavedWork({ kind: 'ready', target: lookup.data, submission: submission.data });
+    })();
+    return () => request.abort();
+  }, [moduleKey, projectId, reviewClassroomId, reviewSeatId]);
+
+  useEffect(() => {
+    if (!feedbackEnabled) return;
     void api.projectFeedback(projectId).then((result) => {
       if (!result.ok) return;
       const entry = result.data.items[0] ?? null;
@@ -141,11 +202,12 @@ export function WorkPreview({
     void api.galleryState(projectId).then((result) => {
       if (result.ok) setShared(result.data.published);
     });
-  }, [projectId, readOnly]);
+  }, [projectId, feedbackEnabled]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent): void {
-      if (event.key === 'Escape' && !busy) onClose();
+      if (event.key === 'Escape' && !busy && !event.defaultPrevented && !document.fullscreenElement)
+        onClose();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -153,7 +215,7 @@ export function WorkPreview({
 
   async function save(event: FormEvent): Promise<void> {
     event.preventDefault();
-    if (readOnly) return;
+    if (!feedbackEnabled) return;
     if (badge === null && !comment.trim()) {
       setError('Поставьте значок или напишите комментарий.');
       return;
@@ -175,15 +237,21 @@ export function WorkPreview({
     <div className="modal-backdrop" role="presentation">
       <div
         ref={dialog}
-        className={readOnly ? 'modal work-preview work-preview-readonly' : 'modal work-preview'}
+        className={[
+          'modal work-preview',
+          readOnly ? 'work-preview-readonly' : '',
+          showSavedWork ? 'work-preview-saved' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         role="dialog"
         aria-modal="true"
-        aria-label={readOnly && workTitle ? `Работа: ${workTitle}` : `Работа: ${learnerName}`}
+        aria-label={compactHeader && workTitle ? `Работа: ${workTitle}` : `Работа: ${learnerName}`}
       >
         <header className="work-preview-head">
           <div>
-            <h2>{readOnly && workTitle ? workTitle : learnerName}</h2>
-            {readOnly ? (
+            <h2>{compactHeader && workTitle ? workTitle : learnerName}</h2>
+            {compactHeader ? (
               <p>{learnerName}</p>
             ) : (
               <p>
@@ -197,113 +265,163 @@ export function WorkPreview({
           </button>
         </header>
 
-        <div className="work-preview-body">
-          <div className="work-preview-picture">
-            <WorkSnapshot
-              projectId={projectId}
-              revision={snapshotRevision}
-              refresh={snapshotRefresh}
-              alt={`Работа ученика ${learnerName}`}
-              testId="work-preview-image"
-              fallback={
-                <p className="work-preview-empty" data-testid="work-preview-image">
-                  {readOnly || snapshotRevision !== null
-                    ? 'Снимок недоступен'
-                    : 'Ученик открыл задание, но пока ничего не собрал.'}
-                </p>
-              }
-            />
-            <button type="button" className="btn-secondary" onClick={onOpenEditor}>
-              Открыть в редакторе
-            </button>
-            {/* Sharing a child's work is a teacher's decision, never the
+        {reviewing && reviewScope && savedWork?.kind === 'ready' ? (
+          <ReviewDetail
+            classroomId={reviewScope.classroomId}
+            item={{
+              assignmentId: savedWork.target.assignmentId,
+              seatId: reviewScope.seatId,
+              displayLabel: learnerName,
+              assignmentTitle: workTitle ?? 'Задание',
+            }}
+            readOnly={!reviewScope.canReview || !savedWork.target.canReview}
+            pinned={savedWork.target}
+            onChanged={onReviewed}
+            onClose={() => {
+              setReviewing(false);
+              requestAnimationFrame(() => reviewAction.current?.focus());
+            }}
+          />
+        ) : (
+          <div className="work-preview-body">
+            <div className="work-preview-picture">
+              {showSavedWork ? (
+                savedWork?.kind === 'ready' ? (
+                  <div className="work-preview-exact">
+                    <p>
+                      <strong>Сданная версия</strong>
+                    </p>
+                    <FrozenProjectPreview submission={savedWork.submission} initiallyOpen />
+                  </div>
+                ) : (
+                  <p role="status">
+                    {savedWork?.kind === 'unavailable'
+                      ? 'Не удалось открыть сохранённую сдачу.'
+                      : 'Загружаем сохранённую сдачу…'}
+                  </p>
+                )
+              ) : (
+                <WorkSnapshot
+                  projectId={projectId}
+                  revision={snapshotRevision}
+                  refresh={snapshotRefresh}
+                  alt={`Работа ученика ${learnerName}`}
+                  testId="work-preview-image"
+                  fallback={
+                    <p className="work-preview-empty" data-testid="work-preview-image">
+                      {readOnly || snapshotRevision !== null
+                        ? 'Снимок недоступен'
+                        : 'Ученик открыл задание, но пока ничего не собрал.'}
+                    </p>
+                  }
+                />
+              )}
+              <div className="work-preview-actions">
+                <button type="button" className="btn-secondary" onClick={onOpenEditor}>
+                  Открыть в редакторе
+                </button>
+                {savedWork?.kind === 'ready' &&
+                reviewScope?.canReview &&
+                savedWork.target.canReview ? (
+                  <button
+                    ref={reviewAction}
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => setReviewing(true)}
+                  >
+                    Оценить сдачу
+                  </button>
+                ) : null}
+                {/* Sharing a child's work is a teacher's decision, never the
                 child's: a ten-year-old should not be publishing their homework
                 mid-lesson, and somebody should look at the picture before the
                 rest of the platform does. */}
-            {!readOnly && snapshotRevision !== null ? (
-              <button
-                type="button"
-                className={shared ? 'assignment-remove' : 'btn-secondary'}
-                disabled={sharing}
-                onClick={async () => {
-                  setSharing(true);
-                  const result = shared
-                    ? await api.unpublishFromGallery(projectId)
-                    : await api.publishToGallery(projectId);
-                  setSharing(false);
-                  if (result.ok) setShared(!shared);
-                }}
-              >
-                {shared ? 'Убрать из галереи' : 'Поделиться в галерее'}
-              </button>
-            ) : null}
-          </div>
-
-          {assignment ? (
-            <section className="work-preview-task" aria-label="Что было задано">
-              <span className="work-preview-label">Задание: {assignment.title}</span>
-              <AssignmentView assignment={assignment} compact />
-            </section>
-          ) : null}
-
-          {!readOnly ? (
-            <form className="work-preview-form" onSubmit={(event) => void save(event)}>
-              <span className="work-preview-label">Отклик на проект</span>
-              <p>
-                Значок и комментарий не являются официальной оценкой. Учебная сдача проверяется в
-                журнале класса.
-              </p>
-              <div className="feedback-badges" role="group" aria-label="Значок">
-                {BADGES.map((option) => (
+                {feedbackEnabled && snapshotRevision !== null ? (
                   <button
                     type="button"
-                    key={option.value}
-                    className={badge === option.value ? 'active' : undefined}
-                    aria-pressed={badge === option.value}
-                    disabled={busy}
-                    onClick={() => {
-                      setBadge(badge === option.value ? null : option.value);
-                      setSaved(false);
+                    className={shared ? 'assignment-remove' : 'btn-secondary'}
+                    disabled={sharing}
+                    onClick={async () => {
+                      setSharing(true);
+                      const result = shared
+                        ? await api.unpublishFromGallery(projectId)
+                        : await api.publishToGallery(projectId);
+                      setSharing(false);
+                      if (result.ok) setShared(!shared);
                     }}
                   >
-                    {option.label}
+                    {shared ? 'Убрать из галереи' : 'Поделиться в галерее'}
                   </button>
-                ))}
+                ) : null}
               </div>
-              <label htmlFor="work-preview-comment">Комментарий</label>
-              <textarea
-                id="work-preview-comment"
-                rows={5}
-                maxLength={1000}
-                value={comment}
-                disabled={busy}
-                placeholder="Что получилось и что стоит поправить"
-                onChange={(event) => {
-                  setComment(event.target.value);
-                  setSaved(false);
-                }}
-              />
-              {error ? (
-                <p className="form-error" role="alert">
-                  {error}
+            </div>
+
+            {assignment ? (
+              <section className="work-preview-task" aria-label="Что было задано">
+                <span className="work-preview-label">Задание: {assignment.title}</span>
+                <AssignmentView assignment={assignment} compact />
+              </section>
+            ) : null}
+
+            {feedbackEnabled ? (
+              <form className="work-preview-form" onSubmit={(event) => void save(event)}>
+                <span className="work-preview-label">Отклик на проект</span>
+                <p>
+                  Значок и комментарий не являются официальной оценкой. Учебная сдача проверяется в
+                  журнале класса.
                 </p>
-              ) : null}
-              {saved ? (
-                <p className="notice-success" role="status">
-                  Отклик сохранён — ученик увидит его у себя.
-                </p>
-              ) : null}
-              {existing && !saved ? (
-                <p className="work-preview-existing">
-                  Отклик от {existing.author} · {time.date(existing.updatedAt)}
-                </p>
-              ) : null}
-              <button type="submit" className="btn-primary" disabled={busy}>
-                {busy ? 'Сохраняем…' : existing ? 'Обновить отклик' : 'Сохранить отклик'}
-              </button>
-            </form>
-          ) : null}
-        </div>
+                <div className="feedback-badges" role="group" aria-label="Значок">
+                  {BADGES.map((option) => (
+                    <button
+                      type="button"
+                      key={option.value}
+                      className={badge === option.value ? 'active' : undefined}
+                      aria-pressed={badge === option.value}
+                      disabled={busy}
+                      onClick={() => {
+                        setBadge(badge === option.value ? null : option.value);
+                        setSaved(false);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <label htmlFor="work-preview-comment">Комментарий</label>
+                <textarea
+                  id="work-preview-comment"
+                  rows={5}
+                  maxLength={1000}
+                  value={comment}
+                  disabled={busy}
+                  placeholder="Что получилось и что стоит поправить"
+                  onChange={(event) => {
+                    setComment(event.target.value);
+                    setSaved(false);
+                  }}
+                />
+                {error ? (
+                  <p className="form-error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                {saved ? (
+                  <p className="notice-success" role="status">
+                    Отклик сохранён — ученик увидит его у себя.
+                  </p>
+                ) : null}
+                {existing && !saved ? (
+                  <p className="work-preview-existing">
+                    Отклик от {existing.author} · {time.date(existing.updatedAt)}
+                  </p>
+                ) : null}
+                <button type="submit" className="btn-primary" disabled={busy}>
+                  {busy ? 'Сохраняем…' : existing ? 'Обновить отклик' : 'Сохранить отклик'}
+                </button>
+              </form>
+            ) : null}
+          </div>
+        )}
         <span className="sr-only">{moduleKey}</span>
       </div>
     </div>

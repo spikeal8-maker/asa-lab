@@ -327,6 +327,7 @@ export class DirectManipulator {
     private readonly orbit: OrbitLike,
     private readonly getEntries: () => ReadonlyMap<string, DirectManipulationEntry>,
     private readonly callbacks: DirectManipulatorCallbacks,
+    editable: boolean,
   ) {
     this.handleRoot.name = 'ASA direct-manipulation handles';
     this.rotationRing.name = 'ASA direct-manipulation rotation ring';
@@ -380,6 +381,8 @@ export class DirectManipulator {
     );
     this.overlay.append(this.modifierHint);
 
+    // The selection marquee consumes the same pointer used by the preview camera.
+    if (!editable) return;
     this.canvas.addEventListener('pointerdown', this.handlePointerDown, true);
     this.canvas.addEventListener('pointermove', this.handlePointerMove, true);
     this.canvas.addEventListener('pointerup', this.handlePointerUp, true);

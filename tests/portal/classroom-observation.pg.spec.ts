@@ -597,6 +597,88 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     ).toBe(true);
   }, 60_000);
 
+  it('resolves the latest saved submission of the visible project and keeps removed seats read-only', async () => {
+    const f = await fixture(2);
+    const [learner, peer] = f.seats;
+    const issued = await f.assign([learner!.id]);
+    const started = await f.start(issued.run, learner);
+    const reviewUrl = (classroomId = f.classId, seatId = learner!.id) =>
+      `/api/classrooms/${classroomId}/observation/learners/${seatId}/projects/${started.projectId}/review`;
+    const teacherCookie = `asa_session=${f.teacherToken}`;
+    const lookup = (url = reviewUrl(), cookie = teacherCookie) =>
+      inject(api, { method: 'GET', url, headers: { cookie } });
+    const submit = async () => {
+      const revision = (
+        await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [
+          started.projectId,
+        ])
+      ).rows[0].revision;
+      const submission = (
+        await runtime.query(
+          'SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)',
+          [learner!.principal, started.projectId, randomUUID(), revision],
+        )
+      ).rows[0];
+      expect(submission.result_code).toBe('ok');
+      return submission;
+    };
+    expect((await lookup()).statusCode).toBe(404);
+    const first = await submit();
+    const opened = await lookup();
+    expect(opened.statusCode, opened.body).toBe(200);
+    expect(opened.json()).toEqual({
+      assignmentId: issued.assignment,
+      activityRunId: issued.run,
+      attemptId: started.attemptId,
+      submissionId: first.submission_id,
+      projectVersionId: first.project_version_id,
+      canReview: true,
+    });
+    const otherClass = await f.createClass();
+    for (const url of [reviewUrl(otherClass), reviewUrl(f.classId, peer!.id)]) {
+      expect((await lookup(url)).statusCode).toBe(404);
+    }
+    expect((await lookup(reviewUrl(), `asa_student_session=${learner!.token}`)).statusCode).toBe(
+      401,
+    );
+    expect(
+      (
+        await runtime.query(
+          "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'changes_requested',NULL,'Доработать','Уточнение',NULL,$5)",
+          [f.actor.account_id, f.actor.principal_id, f.classId, started.attemptId, randomUUID()],
+        )
+      ).rows[0].result_code,
+    ).toBe('ok');
+    const next = await f.start(issued.run, learner);
+    expect(next.attemptId).not.toEqual(started.attemptId);
+    expect((await lookup()).json()).toEqual(opened.json());
+
+    const latest = await submit();
+    expect((await lookup()).json()).toMatchObject({
+      assignmentId: issued.assignment,
+      activityRunId: issued.run,
+      attemptId: next.attemptId,
+      submissionId: latest.submission_id,
+      projectVersionId: latest.project_version_id,
+    });
+    await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [started.projectId]);
+    const archived = await lookup();
+    expect(archived.statusCode, archived.body).toBe(200);
+    expect(archived.json()).toMatchObject({ canReview: false, attemptId: next.attemptId });
+
+    expect(
+      await read('classroom_management_remove_seat', [f.actor.account_id, f.classId, learner!.id]),
+    ).toBe(true);
+    expect((await lookup()).statusCode).toBe(404);
+    const history = await inject(api, {
+      method: 'GET',
+      url: `/api/classrooms/${f.classId}/attempts/${next.attemptId}/submission`,
+      headers: { cookie: teacherCookie },
+    });
+    expect(history.statusCode, history.body).toBe(200);
+    expect(history.json()).toMatchObject({ submissionId: latest.submission_id });
+  });
+
   it('rejects out-of-audience modern work; preserves whole-class legacy work and stable submission counts after corrections/withdrawal', async () => {
     const f = await fixture(3),
       [a, b, outside] = f.seats;

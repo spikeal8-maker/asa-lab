@@ -114,6 +114,20 @@ export class ClassroomObservationController {
       Number(limit ?? 30),
     ]);
   }
+  @Get(':classroomId/observation/learners/:seatId/projects/:projectId/review')
+  async projectReview(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classId: string,
+    @Param('seatId') seatId: string,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.db().read('classroom_observation_project_review', [
+      await this.actor(request),
+      uuid(classId),
+      uuid(seatId),
+      uuid(projectId),
+    ]);
+  }
   @Get(':classroomId/observation/history')
   async history(
     @Req() request: FastifyRequest,

@@ -31,6 +31,14 @@ export interface ObservationProject {
   status: string;
   assigned: boolean;
 }
+export interface ObservationProjectReview {
+  assignmentId: string;
+  activityRunId: string;
+  attemptId: string;
+  submissionId: string;
+  projectVersionId: string;
+  canReview: boolean;
+}
 export interface ObservationEvent {
   id: string;
   action: string;
@@ -78,6 +86,11 @@ export const observationApi = {
   projects: (classroomId: string, filters: Record<string, string | number | undefined> = {}) =>
     call<ObservationProjectsPage>(
       `/api/classrooms/${classroomId}/observation/projects?${query(filters)}`,
+    ),
+  projectReview: (classroomId: string, seatId: string, projectId: string, signal: AbortSignal) =>
+    call<ObservationProjectReview>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/observation/learners/${encodeURIComponent(seatId)}/projects/${encodeURIComponent(projectId)}/review`,
+      { signal },
     ),
   history: (classroomId: string, filters: Record<string, string | number | undefined> = {}) =>
     call<ObservationHistoryPage>(

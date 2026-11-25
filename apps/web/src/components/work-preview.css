@@ -120,17 +120,17 @@
   padding: 16px;
 }
 
-.work-preview-readonly .work-preview-head {
+:is(.work-preview-readonly, .work-preview-saved) .work-preview-head {
   gap: 12px;
   margin-bottom: 12px;
 }
 
-.work-preview-readonly .work-preview-head > div {
+:is(.work-preview-readonly, .work-preview-saved) .work-preview-head > div {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.work-preview-readonly .work-preview-head h2 {
+:is(.work-preview-readonly, .work-preview-saved) .work-preview-head h2 {
   font-size: 20px;
 }
 
@@ -152,32 +152,82 @@
 }
 
 @media (max-width: 440px) {
-  .work-preview-readonly .work-preview-head {
+  :is(.work-preview-readonly, .work-preview-saved) .work-preview-head {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
   }
 
-  .work-preview-readonly .work-preview-head > div {
+  :is(.work-preview-readonly, .work-preview-saved) .work-preview-head > div {
     display: contents;
   }
 
-  .work-preview-readonly .work-preview-head h2 {
+  :is(.work-preview-readonly, .work-preview-saved) .work-preview-head h2 {
     grid-column: 1 / -1;
     grid-row: 2;
     margin: 0;
     overflow-wrap: anywhere;
   }
 
-  .work-preview-readonly .work-preview-head p {
+  :is(.work-preview-readonly, .work-preview-saved) .work-preview-head p {
     grid-column: 1;
     grid-row: 1;
     overflow-wrap: anywhere;
   }
 
-  .work-preview-readonly .work-preview-head > button {
+  :is(.work-preview-readonly, .work-preview-saved) .work-preview-head > button {
     grid-column: 2;
     grid-row: 1;
   }
+}
+
+.work-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal.work-preview-saved {
+  width: min(880px, calc(100vw - 24px));
+  max-width: min(880px, calc(100vw - 24px));
+  padding: 16px;
+}
+
+.work-preview-saved .work-preview-body {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.work-preview-exact {
+  width: 100%;
+  min-width: 0;
+}
+
+.work-preview-exact > p {
+  margin: 0 0 6px;
+}
+
+.work-preview-saved .work-preview-actions > button {
+  width: auto;
+  margin: 0;
+  padding-inline: 12px;
+  font-size: 14px;
+}
+
+.work-preview-saved .gradebook-three-d-tools > button:last-child {
+  padding-inline: 8px;
+}
+
+.work-preview-saved button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.work-preview-saved .gradebook-three-d-stage canvas {
+  cursor: grab;
+}
+
+.work-preview-saved .gradebook-three-d-stage canvas:active {
+  cursor: grabbing;
 }

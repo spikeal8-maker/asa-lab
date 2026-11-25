@@ -112,6 +112,7 @@ const expectedPending = [
   '0331', // Limit session revocation to the removed classroom seat.
   '0332', // Additive dashboard site activity and scoped aggregate.
   '0333', // Freeze new grading for removed classroom seats.
+  '0334', // Resolve a visible classroom project to its exact submission.
 ];
 
 interface Identity {
