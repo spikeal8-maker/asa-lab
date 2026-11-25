@@ -35,6 +35,7 @@ export function JoinClassPage({
     initialClassCode ? { kind: 'resolving' } : { kind: 'code' },
   );
   const [code, setCode] = useState(initialClassCode);
+  const [showCode, setShowCode] = useState(false);
   const [studentCode, setStudentCode] = useState('');
   const [busy, setBusy] = useState(initialClassCode.length > 0);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export function JoinClassPage({
     const result = await api.resolveClassroomCode(code);
     setBusy(false);
     if (result.ok) {
+      setShowCode(false);
       setState({ kind: 'student-code', classroom: result.data.classroom });
       return;
     }
@@ -148,15 +150,32 @@ export function JoinClassPage({
             <h2>Введите код класса</h2>
             <p className="subtitle">Код класса написан на карточке, которую выдал преподаватель.</p>
             <label htmlFor="class-code">Код класса</label>
-            <input
-              id="class-code"
-              autoFocus
-              autoComplete="one-time-code"
-              value={code}
-              disabled={busy}
-              placeholder="ABC DEF 234"
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
-            />
+            <div className="join-class-code-field">
+              <input
+                id="class-code"
+                type={showCode ? 'text' : 'password'}
+                autoFocus
+                autoComplete="one-time-code"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="text"
+                value={code}
+                disabled={busy}
+                placeholder="ABC DEF 234"
+                onChange={(event) => setCode(event.target.value.toUpperCase())}
+              />
+              <button
+                type="button"
+                className="btn-ghost join-class-code-toggle"
+                aria-controls="class-code"
+                aria-label={showCode ? 'Скрыть код класса' : 'Показать код класса'}
+                title={showCode ? 'Скрыть код класса' : 'Показать код класса'}
+                onClick={() => setShowCode((visible) => !visible)}
+              >
+                <span className="join-class-code-eye" aria-hidden="true" />
+              </button>
+            </div>
             {error ? (
               <p className="form-error" role="alert">
                 {error}
