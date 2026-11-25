@@ -769,8 +769,11 @@ test('assigned without a project stays one row through start, submission and rev
       return modal;
     }
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/#/classrooms/${classroom.id}`);
-    await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+    await page.getByRole('button', { name: '← К классу', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Проекты', exact: true })
+      .click();
     const classroomPreview = await openSavedModel();
     await classroomPreview.screenshot({ path: `${screenshots}/exact-work-classroom-1440.png` });
     await classroomPreview.getByRole('button', { name: 'Закрыть', exact: true }).click();
@@ -800,7 +803,7 @@ test('assigned without a project stays one row through start, submission and rev
     expect(reviewResponse.ok(), await reviewResponse.text()).toBe(true);
     const review = await reviewResponse.json();
     await profilePreview.getByRole('button', { name: 'Закрыть', exact: true }).click();
-    await page.getByRole('button', { name: 'Задания', exact: true }).click();
+    await selectTeacherProfileTab(page, 'assignments');
     await page.getByRole('button', { name: 'Обновить задания' }).click();
     await expect(row).toContainText('На доработке');
     await post(page, `/api/classrooms/${classroom.id}/attempts/${submitted.attemptId}/review`, {

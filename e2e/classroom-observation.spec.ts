@@ -346,7 +346,10 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     });
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(classUrl);
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Ученики', exact: true })
+      .click();
     await page
       .getByRole('row')
       .filter({ hasText: 'Анна Наблюдаемая' })
@@ -375,7 +378,9 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     });
     await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(projectTitle);
     await page.goto(classUrl);
-    await page.getByRole('button', { name: 'История', exact: true }).click();
+    await page
+      .getByRole('combobox', { name: 'Раздел класса', exact: true })
+      .selectOption({ label: 'История' });
     const history = page.getByRole('region', { name: 'История класса' });
     await expect(history).toContainText(projectTitle);
     await expect

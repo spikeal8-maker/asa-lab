@@ -722,10 +722,16 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       submissionId: latest.submission_id,
       projectVersionId: latest.project_version_id,
     });
-    await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [started.projectId]);
+    await expect(
+      admin.query("UPDATE projects SET status='archived' WHERE id=$1", [started.projectId]),
+    ).rejects.toThrow('learning_work_protected');
+    const setClassStatus = (status: 'active' | 'archived') =>
+      read('classroom_management_set_status', [f.actor.account_id, f.classId, status]);
+    expect(await setClassStatus('archived')).toBe(true);
     const archived = await lookup();
     expect(archived.statusCode, archived.body).toBe(200);
     expect(archived.json()).toMatchObject({ canReview: false, attemptId: next.attemptId });
+    expect(await setClassStatus('active')).toBe(true);
 
     expect(
       await read('classroom_management_remove_seat', [f.actor.account_id, f.classId, learner!.id]),
