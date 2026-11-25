@@ -964,8 +964,9 @@ test('UI-04 compact teacher profile has only context-specific controls and real 
     const mobile = await main.getByRole('combobox', { name: 'Раздел профиля' }).isVisible();
     if (mobile) {
       const section = (await main.locator('.classroom-student-section-rail').boundingBox())!;
+      const summary = (await main.getByRole('group', { name: 'Сводка ученика' }).boundingBox())!;
       expect(section.height).toBe(44);
-      expect(section.y - identity.y - identity.height).toBeLessThanOrEqual(6);
+      expect(section.y - summary.y - summary.height).toBeLessThanOrEqual(6);
       await expect(
         main.getByRole('combobox', { name: 'Раздел профиля' }).locator('option'),
       ).toHaveText(profileSectionLabels);
@@ -1036,6 +1037,52 @@ test('UI-04 compact teacher profile has only context-specific controls and real 
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Иванов Иван Петрович');
   expect(state.errors).toEqual([]);
+  expect(state.mutations).toEqual([]);
+});
+
+test('teacher profile summary stays by the selected name and reports effective protection', async ({
+  page,
+}) => {
+  const state = await setup(page, { helper: true, safe: false });
+  await state.open();
+  const identity = page.getByRole('group', { name: 'Ученик и навигация' });
+  const summary = page.getByRole('group', { name: 'Сводка ученика' });
+  await expect(summary.getByText('Помощник', { exact: true })).toBeVisible();
+  await expect(summary).toContainText('Рейтинг 39.05 · №1');
+  await expect(summary).toContainText('Работ 10');
+  await expect(summary).toContainText('Сдано 0');
+  await expect(summary).toContainText('Ждут 0');
+  // Class protection applies even when the learner's individual switch is off.
+  await expect(identity.getByText('Защита включена', { exact: true })).toBeVisible();
+  await expect(
+    identity.getByRole('button', { name: /^Выбрать ученика:/ }),
+  ).toHaveAccessibleDescription('Защита включена');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const identityBox = (await identity.boundingBox())!;
+    const summaryBox = (await summary.boundingBox())!;
+    expect(summaryBox.y - identityBox.y - identityBox.height).toBeLessThanOrEqual(4);
+    expect(summaryBox.height).toBeLessThanOrEqual(20);
+    if (width <= 390) {
+      const protection = identity.getByText('Защита вкл.', { exact: true });
+      await expect(protection).toBeVisible();
+      expect(await protection.evaluate((label) => label.scrollWidth <= label.clientWidth)).toBe(
+        true,
+      );
+    }
+    await expect(
+      identity.getByRole('button', { name: /^Выбрать ученика:/ }),
+    ).toHaveAccessibleDescription('Защита включена');
+    await noOverflow(page);
+    await shot(page, `teacher-profile-summary-${width}`);
+  }
+  await openTeacherTab(page, 'settings');
+  await openTeacherSettings(page, 'Защита ученика');
+  await expect(
+    page.getByRole('checkbox', { name: /Защита ученика в настройках:/ }),
+  ).not.toBeChecked();
+  await expect(identity.getByText('Защита вкл.', { exact: true })).toBeVisible();
+  await expect(summary).toBeVisible();
   expect(state.mutations).toEqual([]);
 });
 
@@ -1688,8 +1735,7 @@ test('mobile work filters share a row and one card fills the grid while multiple
     if (width <= 600)
       expect(card.width).toBeGreaterThanOrEqual((await grid.boundingBox())!.width - 2);
     const head = page.locator('.classroom-student-works-head');
-    const toolbar = head.getByRole('group', { name: 'Показатели и фильтры работ' });
-    const summary = (await toolbar.locator('.classroom-student-work-summary').boundingBox())!;
+    const toolbar = head.getByRole('group', { name: 'Фильтры работ' });
     const archive = (await toolbar.locator('.classroom-student-archive-filter').boundingBox())!;
     const awaiting = (await toolbar.locator('.classroom-student-filter').boundingBox())!;
     expect(archive.height).toBeGreaterThanOrEqual(44);
@@ -1772,15 +1818,8 @@ test('mobile work filters share a row and one card fills the grid while multiple
         expect(unboxed.border).toBe('0px');
         expect(unboxed.background).toMatch(/^(?:transparent|rgba\(0, 0, 0, 0\))$/);
       }
-      if (width === 390) {
-        expect(Math.abs(summary.y - archive.y)).toBeLessThanOrEqual(14);
-        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(48);
-      }
-      if (width === 320) {
-        expect(summary.y).toBeLessThanOrEqual(archive.y);
-        // Two 44px touch-safe rows: metrics/info then archive/status.
-        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(94);
-      }
+      expect(Math.abs(target.y - archive.y)).toBeLessThanOrEqual(1);
+      expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(48);
     } else await expect(head.locator('#student-works')).toBeVisible();
     await noOverflow(page);
     await shot(page, `work-one-${width}`);
