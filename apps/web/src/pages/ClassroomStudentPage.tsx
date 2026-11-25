@@ -4,7 +4,6 @@ import {
   type ClassroomStudentSeat,
   type ClassroomStudentWork,
   type ModuleSummary,
-  type Project,
   type ProjectFeedback,
 } from '../api';
 import {
@@ -12,7 +11,8 @@ import {
   type ParticipantProfile,
   type ParticipantWorks,
 } from '../classroom-participants-api';
-import { ProjectCard } from '../modules/ProjectCard';
+import { ClassroomWorkCard } from '../components/ClassroomWorkCard';
+import { isDrawableFigure, ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
 import { WorkPreview } from '../components/WorkPreview';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { SystemTabs } from '../components/SystemTabs';
@@ -29,6 +29,7 @@ import { onSessionLoggedOut } from '../session-fetch';
 import { ParticipantAssignmentsList } from '../components/ParticipantAssignmentsList';
 import type { ClassroomStudentNavigation } from '../components/classroom-student-navigation';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import '../modules/project-card.css';
 import './classroom-student.css';
 import { ClassroomProjectSettings } from '../components/ClassroomProjectSettings';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
@@ -50,21 +51,6 @@ function markTone(
   if (badge === 'excellent' || badge === 'good' || badge === 'progress' || badge === 'redo')
     return badge;
   return edited ? 'teacher' : undefined;
-}
-function asProject(work: ClassroomStudentWork): Project {
-  return {
-    id: work.id,
-    scope: 'personal',
-    classroomId: null,
-    moduleKey: work.moduleKey,
-    title: work.title,
-    status: work.status,
-    createdAt: work.createdAt,
-    updatedAt: work.updatedAt,
-    preview: work.preview,
-    copiedFrom: null,
-    snapshotRevision: work.snapshotRevision,
-  };
 }
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
@@ -706,6 +692,7 @@ export function ClassroomStudentPage({
     );
   const { student, metrics, settings } = profile;
   const readOnly = profile.status !== 'active' || Boolean(seatActions?.readOnly);
+  const previewReadOnly = readOnly || responding?.status === 'archived';
   const settingsLocked = readOnly || student.status === 'suspended';
   const controlsBusy = roleBusy || safeBusy || Boolean(seatActions?.busy);
   const updateRole = (role: string): void => {
@@ -1096,46 +1083,55 @@ export function ClassroomStudentPage({
                 : 'Нет доступных работ по этому фильтру.'}
             </p>
           ) : null}
-          <ul className="project-card-grid">
-            {visible.map((work) => (
-              <ProjectCard
-                key={work.id}
-                project={asProject(work)}
-                module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
-                timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
-                footerLabel={
-                  canonicalLearningLabel(work.canonicalState) ??
-                  (work.awaitingReview
-                    ? 'Ждёт ответа'
-                    : work.feedback?.badge
-                      ? (BADGE_LABELS[work.feedback.badge] ?? 'Отклик есть')
-                      : work.lastEditedByTeacher
-                        ? 'Правил педагог'
-                        : 'Работа')
-                }
-                footerTone={
-                  work.canonicalState?.workflowState === 'waiting_review' ||
-                  (!work.canonicalState && work.awaitingReview)
-                    ? 'redo'
-                    : markTone(work.feedback, work.lastEditedByTeacher)
-                }
-                primaryLabel="Открыть"
-                open={{
-                  href: `#/projects/${work.id}`,
-                  onNavigate: () => onOpenProject(work.id, work.moduleKey),
-                }}
-                menuItems={
-                  readOnly || work.status === 'archived'
-                    ? []
-                    : [
-                        {
-                          label: work.feedback ? 'Изменить отклик' : 'Оценить работу',
-                          onSelect: () => setResponding(work),
-                        },
-                      ]
-                }
-              />
-            ))}
+          <ul className="classroom-work-card-list">
+            {visible.map((work) => {
+              const label =
+                canonicalLearningLabel(work.canonicalState) ??
+                (work.awaitingReview
+                  ? 'Ждёт ответа'
+                  : work.feedback?.badge
+                    ? (BADGE_LABELS[work.feedback.badge] ?? 'Отклик есть')
+                    : work.lastEditedByTeacher
+                      ? 'Правил педагог'
+                      : 'Работа');
+              const tone =
+                work.canonicalState?.workflowState === 'waiting_review' ||
+                (!work.canonicalState && work.awaitingReview)
+                  ? 'redo'
+                  : markTone(work.feedback, work.lastEditedByTeacher);
+              const figure = work.preview?.descriptor.figure;
+              return (
+                <ClassroomWorkCard
+                  key={work.id}
+                  projectId={work.id}
+                  title={work.title}
+                  learner={student.displayLabel}
+                  moduleLabel={
+                    modules.find((entry) => entry.moduleKey === work.moduleKey)?.displayName ??
+                    work.moduleKey
+                  }
+                  status={
+                    <span className={tone ? `project-card-mark tone-${tone}` : undefined}>
+                      {label}
+                    </span>
+                  }
+                  archived={work.status === 'archived'}
+                  updatedAt={work.updatedAt}
+                  dateLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
+                  revision={work.snapshotRevision}
+                  fallback={
+                    figure && isDrawableFigure(figure) ? (
+                      <ProjectPreviewFigure figure={figure} label={work.title} />
+                    ) : null
+                  }
+                  onPreview={() => setResponding(work)}
+                  editor={{
+                    href: `#/projects/${work.id}`,
+                    onOpen: () => onOpenProject(work.id, work.moduleKey),
+                  }}
+                />
+              );
+            })}
           </ul>
           {works?.hasMore ? (
             <button
@@ -1213,6 +1209,8 @@ export function ClassroomStudentPage({
       ) : null}
       {responding ? (
         <WorkPreview
+          key={`${responding.id}:${previewReadOnly}`}
+          manageFocus
           projectId={responding.id}
           snapshotRevision={responding.snapshotRevision}
           moduleKey={responding.moduleKey}
@@ -1226,11 +1224,15 @@ export function ClassroomStudentPage({
             setResponding(null);
             onOpenProject(work.id, work.moduleKey);
           }}
-          onGraded={() => {
-            setResponding(null);
-            void loadWorks();
-            void load();
-          }}
+          {...(previewReadOnly
+            ? { readOnly: true as const }
+            : {
+                onGraded: () => {
+                  setResponding(null);
+                  void loadWorks();
+                  void load();
+                },
+              })}
         />
       ) : null}
     </main>
