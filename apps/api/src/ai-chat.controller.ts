@@ -25,6 +25,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { isAiModel } from './ai-model-catalog.js';
 import { OLLAMA_SELECTION } from './ai-ollama.js';
+import { LLAMACPP_SELECTION, LlamaCppError } from './ai-llamacpp.js';
 import {
   AiChatService,
   AiServiceError,
@@ -99,6 +100,7 @@ export class AiChatController {
     } catch (problem) {
       if (
         problem instanceof AiServiceError ||
+        problem instanceof LlamaCppError ||
         problem instanceof AiWebSearchError ||
         problem instanceof AiPolicyError ||
         problem instanceof AiToolPolicyError ||
@@ -488,6 +490,7 @@ export class AiChatController {
     if (
       model !== undefined &&
       model !== OLLAMA_SELECTION &&
+      model !== LLAMACPP_SELECTION &&
       !isAiModel(model) &&
       !(
         typeof model === 'string' &&
@@ -536,6 +539,7 @@ export class AiChatController {
     if (
       model !== undefined &&
       model !== OLLAMA_SELECTION &&
+      model !== LLAMACPP_SELECTION &&
       !isAiModel(model) &&
       !(
         typeof model === 'string' &&
@@ -646,11 +650,15 @@ export class AiChatController {
       });
     } catch (problem) {
       const code =
-        problem instanceof AiServiceError || problem instanceof AiWebSearchError
+        problem instanceof AiServiceError ||
+        problem instanceof AiWebSearchError ||
+        problem instanceof LlamaCppError
           ? problem.code
           : 'ai_provider_unavailable';
       const message =
-        problem instanceof AiServiceError || problem instanceof AiWebSearchError
+        problem instanceof AiServiceError ||
+        problem instanceof AiWebSearchError ||
+        problem instanceof LlamaCppError
           ? problem.message
           : 'Не удалось получить ответ модели. Сообщение сохранено.';
       event('error', { code, message: aiPublicErrorMessage(code, message) });

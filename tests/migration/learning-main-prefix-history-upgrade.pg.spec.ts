@@ -544,6 +544,11 @@ const upgradeArtifacts = [
     '0333_classroom_removed_assessment_read_only.sql',
     '0267f24afc0126f8101ff7b15f178064244606e67c18af3d9428a8c0f8f796fa',
   ],
+  [
+    '0334',
+    '0334_ai_llamacpp_local.sql',
+    '25b478efea2a05a0fb682dc05605a4863f066ad6412b6b1af333690dfac4ffb7',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

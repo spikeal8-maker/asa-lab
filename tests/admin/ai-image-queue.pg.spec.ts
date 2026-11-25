@@ -59,6 +59,7 @@ const schoolPendingFiles = [
   '0331_classroom_seat_scoped_session_revoke.sql',
   '0332_admin_site_activity.sql',
   '0333_classroom_removed_assessment_read_only.sql',
+  '0334_ai_llamacpp_local.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.

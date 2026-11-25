@@ -12,6 +12,7 @@ const PROVIDERS = [
   { id: 'polza', label: 'Polza AI' },
   { id: 'ollama-cloud', label: 'Ollama Cloud' },
   { id: 'ollama', label: 'Ollama · локально' },
+  { id: 'llamacpp-local', label: 'llama.cpp · локально' },
 ] as const;
 
 export function policyShape(value: unknown): value is AiGenerationPolicy {
@@ -266,6 +267,7 @@ export function AdminAiGenerationPolicy({
             (model.ready &&
               model.adapterCompatible !== false &&
               (model.provider === 'ollama' ||
+                model.provider === 'llamacpp-local' ||
                 model.provider === 'ollama-cloud' ||
                 preference(model.id).eligible))),
       )
@@ -644,8 +646,12 @@ export function AdminAiGenerationPolicy({
                           </button>
                         </details>
                       ) : null}
-                      {section === 'connections' && provider.id === 'ollama' ? (
-                        <p>Локально используется модель, выбранная в подключении Ollama.</p>
+                      {section === 'connections' &&
+                      (provider.id === 'ollama' || provider.id === 'llamacpp-local') ? (
+                        <p>
+                          Локально используется модель, выбранная в подключении{' '}
+                          {provider.id === 'ollama' ? 'Ollama' : 'llama.cpp'}.
+                        </p>
                       ) : null}
                       {models.map((model) => (
                         <div className="asa-ai-policy-model-row" key={model.id}>
@@ -692,6 +698,7 @@ export function AdminAiGenerationPolicy({
                                     busy ||
                                     ((!model.selectable ||
                                       (model.provider !== 'ollama' &&
+                                        model.provider !== 'llamacpp-local' &&
                                         model.provider !== 'ollama-cloud' &&
                                         !preference(model.id).eligible)) &&
                                       !allowedModels.includes(model.id))
@@ -701,6 +708,7 @@ export function AdminAiGenerationPolicy({
                                     if (
                                       checked &&
                                       (model.provider === 'ollama' ||
+                                        model.provider === 'llamacpp-local' ||
                                         model.provider === 'ollama-cloud') &&
                                       !preference(model.id).eligible
                                     )

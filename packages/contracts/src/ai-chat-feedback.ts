@@ -10,7 +10,7 @@ export function aiPublicErrorMessage(code: string, fallback = AI_TEXT_UNAVAILABL
     return AI_IMAGE_UNAVAILABLE;
   if (/^ai_(web_search|search|weather)_/.test(code)) return AI_SEARCH_UNAVAILABLE;
   if (
-    /^ai_(provider|ollama|model|response|stream|key|encryption|budget|paid|native_tools|tool_call|usage)_/.test(
+    /^ai_(provider|ollama|llamacpp|model|response|stream|key|encryption|budget|paid|native_tools|tool_call|usage)_/.test(
       code,
     ) ||
     ['ai_disabled', 'ai_paid_limit', 'ai_rate_limit', 'ai_platform_quota_exhausted'].includes(code)

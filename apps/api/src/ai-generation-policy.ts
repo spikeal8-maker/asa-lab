@@ -110,6 +110,8 @@ export interface PolicyRow {
   providerReady?: Record<string, boolean>;
   localModel?: string | null;
   localEnabled?: boolean;
+  llamaCppModel?: string | null;
+  llamaCppEnabled?: boolean;
   modelPreferences?: AiModelPreference[];
   providerOrder?: Record<string, number>;
   observations?: AiCatalogObservation[];
@@ -136,7 +138,9 @@ export function validPolicyInput(raw: unknown): AiGenerationPolicyUpdate {
     v.systemPrompt.length > 12000 ||
     !Array.isArray(v.allowedModels) ||
     v.allowedModels.length > 2400 ||
-    v.allowedModels.some((m) => m !== 'ollama-local' && !isKnownAiModel(m)) ||
+    v.allowedModels.some(
+      (m) => m !== 'ollama-local' && m !== 'llamacpp-local' && !isKnownAiModel(m),
+    ) ||
     new Set(v.allowedModels).size !== v.allowedModels.length ||
     !(
       v.defaultModel === null ||
@@ -175,7 +179,9 @@ export function validPolicyInput(raw: unknown): AiGenerationPolicyUpdate {
       Array.isArray(v.providerOrder) ||
       Object.entries(v.providerOrder).some(
         ([id, order]) =>
-          !['openai', 'deepseek', 'ollama-cloud', 'ollama', 'polza'].includes(id) ||
+          !['openai', 'deepseek', 'ollama-cloud', 'ollama', 'polza', 'llamacpp-local'].includes(
+            id,
+          ) ||
           !Number.isSafeInteger(order) ||
           Math.abs(order) > 1000000,
       ))
@@ -388,6 +394,18 @@ export class AiGenerationPolicyStore {
           order: row.modelPreferences?.find((p) => p.id === 'ollama-local')?.order ?? 0,
           adapterCompatible: true,
           allowed: row.allowedModels.includes('ollama-local'),
+        },
+        {
+          id: 'llamacpp-local',
+          provider: 'llamacpp-local',
+          label: row.llamaCppModel ?? 'Модель llama.cpp не настроена',
+          inputModalities: ['text'],
+          selectable: true,
+          ready: !!row.llamaCppModel && !!row.llamaCppEnabled,
+          eligible: row.modelPreferences?.find((p) => p.id === 'llamacpp-local')?.eligible ?? true,
+          order: row.modelPreferences?.find((p) => p.id === 'llamacpp-local')?.order ?? 0,
+          adapterCompatible: true,
+          allowed: row.allowedModels.includes('llamacpp-local'),
         },
       ],
     };
