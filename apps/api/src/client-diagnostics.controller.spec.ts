@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { ClientDiagnosticsController } from './client-diagnostics.controller.js';
+import { logSubsystem } from './log-subsystems.js';
 
 function reportRequest(address = '203.0.113.1'): FastifyRequest {
   return {
@@ -11,6 +12,31 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it.each(['three-d', 'robotics'])(
+    'keeps %s browser errors in their own log category',
+    (module) => {
+      const output = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+      try {
+        const controller = new ClientDiagnosticsController();
+        expect(
+          controller.report(reportRequest(), {
+            code: 'window_error',
+            module,
+            revision: 'abcdef0',
+            phase: 'runtime',
+          }),
+        ).toEqual({ accepted: true });
+        const event = JSON.parse(String(output.mock.calls[0]![0]));
+        expect(event).toMatchObject({ module, level: 'error', untrustedClientReport: true });
+        expect(logSubsystem('api', '/api/diagnostics/client', '', event.kind, event.module)).toBe(
+          module,
+        );
+      } finally {
+        output.mockRestore();
+      }
+    },
+  );
+
   it.each(['chess', 'checkers'])('accepts %s request failure reports', (module) => {
     const controller = new ClientDiagnosticsController();
     const body = {
