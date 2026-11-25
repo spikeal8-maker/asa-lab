@@ -3672,6 +3672,7 @@ type TemporalFrame = {
   requestedHorizonMicroseconds: number;
   committedHorizonMicroseconds: number;
   continuationHorizonMicroseconds: number | null;
+  validYield: boolean;
   computeMs: number | null;
   solved: boolean;
   qualityPassed: boolean;
@@ -3714,6 +3715,20 @@ async function observeOwnerTemporal(page: Page): Promise<void> {
       reanchors: probe.__ledPlayoutReanchors!,
     };
     probe.__ownerTemporal = captured;
+    function validTemporalYield(advance: SimulationTimedAdvancePayload): boolean {
+      const committed = advance.committedHorizonMicroseconds;
+      return (
+        advance.executionStatus === 'yielded' &&
+        advance.result === null &&
+        advance.ledTemporal === undefined &&
+        advance.diagnostics.length === 0 &&
+        Number.isSafeInteger(committed) &&
+        committed >= 0 &&
+        Number.isSafeInteger(advance.requestedHorizonMicroseconds) &&
+        committed <= advance.requestedHorizonMicroseconds &&
+        advance.state.continuation?.committedHorizonMicroseconds === committed
+      );
+    }
     // Capture the complete compact response stream on delivery, independently
     // of the canonical-state history consumed by the generic journeys.
     // No canonical matrix/state is copied or polled for each intermediate frame.
@@ -3770,8 +3785,21 @@ async function observeOwnerTemporal(page: Page): Promise<void> {
             });
             return;
           }
-          if (response.kind !== 'advance' || !response.advance) return;
           const advance = response.advance;
+          if (
+            response.kind !== 'advance' ||
+            !advance?.state ||
+            !Array.isArray(advance.diagnostics) ||
+            (advance.result != null && !Array.isArray(advance.result.components))
+          ) {
+            if (request || response.kind === 'advance')
+              captured.errors.push({
+                at: performance.now(),
+                requestId: response.requestId,
+                code: 'invalid_advance',
+              });
+            return;
+          }
           captured.frames.push({
             at: performance.now(),
             requestAt: request?.at ?? null,
@@ -3783,6 +3811,7 @@ async function observeOwnerTemporal(page: Page): Promise<void> {
             engineRevision: request?.engineRevision ?? null,
             projectSessionId: response.projectSessionId,
             executionStatus: advance.executionStatus,
+            validYield: validTemporalYield(advance),
             requestedHorizonMicroseconds: advance.requestedHorizonMicroseconds,
             committedHorizonMicroseconds: advance.committedHorizonMicroseconds,
             continuationHorizonMicroseconds:
@@ -4333,8 +4362,11 @@ function assertTemporalFrames(raw: TemporalProbe, source: string, generationId?:
     );
     if (frame.executionStatus === 'yielded') {
       check(
-        frame.components.length === 0 && !frame.solved && frame.ledTemporal === null,
-        `${id}: yielded optical publication`,
+        frame.validYield &&
+          frame.components.length === 0 &&
+          !frame.solved &&
+          frame.ledTemporal === null,
+        `${id}: invalid yielded checkpoint`,
       );
       continue;
     }
@@ -5392,6 +5424,39 @@ type D2LReceipt = {
   boardHref: string;
 };
 type D2Raw = Awaited<ReturnType<typeof observation>> & { temporal: TemporalProbe; l: D2LReceipt[] };
+type D2CaptureFrame = Pick<
+  TemporalFrame,
+  | 'at'
+  | 'requestId'
+  | 'generationId'
+  | 'responseGenerationId'
+  | 'executionStatus'
+  | 'validYield'
+  | 'committedHorizonMicroseconds'
+> & {
+  sourceMatches: boolean;
+  brightness: Array<number | null>;
+};
+
+function d2NativeWorkerWindowValid(
+  frames: D2CaptureFrame[],
+  errors: TemporalProbe['errors'],
+  generationId: number,
+): boolean {
+  // An unpublished checkpoint can occur between two paints. Only an electrical
+  // ready receipt can witness a PNG in d2CheckNative's full causal timeline.
+  return (
+    errors.length === 0 &&
+    frames.every(
+      (row) =>
+        row.sourceMatches &&
+        row.generationId === generationId &&
+        row.responseGenerationId === generationId &&
+        (row.executionStatus === 'ready' || (row.executionStatus === 'yielded' && row.validYield)),
+    )
+  );
+}
+
 type D2Boundary = {
   stage: D2Stage;
   actionAt: number;
@@ -7067,6 +7132,7 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
                 sourceMatches: row.source === source,
                 generationId: row.generationId,
                 responseGenerationId: row.responseGenerationId,
+                validYield: row.validYield,
                 committedHorizonMicroseconds: row.committedHorizonMicroseconds,
                 executionStatus: row.executionStatus,
                 brightness: ['led0', 'led1', 'led2'].map(
@@ -7075,6 +7141,9 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
                     null,
                 ),
               })),
+            errors: probe.__ownerTemporal!.errors.filter(
+              (row) => row.at >= from - 50 && row.at <= at,
+            ),
             at,
           });
         },
@@ -7083,16 +7152,8 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
     ) as {
       paint: PaintReceipt[];
       l: D2LReceipt[];
-      frames: Array<{
-        at: number;
-        requestId: string;
-        sourceMatches: boolean;
-        generationId: number | null;
-        responseGenerationId: number;
-        committedHorizonMicroseconds: number;
-        executionStatus: TemporalFrame['executionStatus'];
-        brightness: Array<number | null>;
-      }>;
+      frames: D2CaptureFrame[];
+      errors: TemporalProbe['errors'];
       at: number;
     };
     const png = PNG.sync.read(bytes);
@@ -7155,13 +7216,7 @@ async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Pr
       d2Vector(beforeShot.paint.brightness) === vector &&
       capturePaint.some((row) => row.at >= captureFrom && row.stablePreviousFrame) &&
       capturePaint.every((row) => d2Vector(row.brightness) === vector) &&
-      during.frames.every(
-        (row) =>
-          row.sourceMatches &&
-          row.generationId === generationId &&
-          row.responseGenerationId === generationId &&
-          row.executionStatus === 'ready',
-      ) &&
+      d2NativeWorkerWindowValid(during.frames, during.errors, generationId) &&
       captureL.some((row) => row.at >= captureFrom) &&
       captureL.every((row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible);
     const coherentWitness =

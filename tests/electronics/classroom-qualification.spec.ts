@@ -107,6 +107,8 @@ const functionNames = new Set([
   'temporalObservation',
   'validTemporalPaint',
   'individualMillisPaintEdges',
+  'validTemporalYield',
+  'd2NativeWorkerWindowValid',
   'temporalPhysicalBrightness',
   'temporalJointWitness',
   'temporalStartupBoundary',
@@ -153,7 +155,7 @@ const oracleJavaScript = ts.transpileModule(
   `${declarations.join('\n')}
 ({ profile: ownerQualificationProfile, qualify: recordOwnerQualifiedWallClock,
    required: ownerQualificationRequiredSites, complete: requireOwnerQualificationComplete,
-   millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness, individualMillisPaintEdges,
+   millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness, individualMillisPaintEdges, d2NativeWorkerWindowValid, validTemporalYield,
    clock: assertTemporalWallClock,
    v3: { sites: OWNER_V3_TIMING_SITES, acquisitions: OWNER_V3_ACQUISITION_SITES,
      cases: OWNER_V3_CASES, caseBudgets: OWNER_V3_CASE_BUDGETS, pace: OWNER_V3_PACE, registry: OWNER_V3_REGISTRY_REVISION,
@@ -204,6 +206,12 @@ function oracle(
     test: { info: () => ({ title: v3Value?.title ?? value?.title ?? '' }) },
   }) as {
     v3: V3Oracle;
+    validTemporalYield: (advance: Record<string, unknown>) => boolean;
+    d2NativeWorkerWindowValid: (
+      frames: Array<Record<string, unknown>>,
+      errors: Array<{ at: number; requestId: string; code: string }>,
+      generation: number,
+    ) => boolean;
     individualMillisPaintEdges: (
       rows: readonly unknown[],
       index: number,
@@ -2296,6 +2304,83 @@ describe('v3 preserves real functional publication and native observations', () 
     const detachedDecoderPending = structuredClone(next);
     detachedDecoderPending.imageDiagnostics[1]!.resourceDecoded = false;
     expect(edges([first, detachedDecoderPending], 1, 10)).toHaveLength(1);
+  });
+
+  it('allows an owned unpublished D2 checkpoint between ready receipts without using it to witness a PNG', () => {
+    const { d2NativeWorkerWindowValid, validTemporalYield, v3 } = oracle();
+    const advance = {
+      executionStatus: 'yielded',
+      result: null,
+      diagnostics: [],
+      committedHorizonMicroseconds: 500,
+      requestedHorizonMicroseconds: 1000,
+      state: { continuation: { committedHorizonMicroseconds: 500 } },
+    };
+    const raw = startupFixture();
+    const before = { ...raw.frames[0]!, sourceMatches: true };
+    const after = { ...raw.frames[1]!, sourceMatches: true };
+    const yielded = {
+      ...before,
+      requestId: 'yield',
+      at: 110,
+      requestAt: 105,
+      executionStatus: 'yielded',
+      solved: false,
+      qualityPassed: false,
+      components: [],
+      validYield: validTemporalYield(advance),
+      committedHorizonMicroseconds: advance.committedHorizonMicroseconds,
+      requestedHorizonMicroseconds: advance.requestedHorizonMicroseconds,
+      continuationHorizonMicroseconds: advance.committedHorizonMicroseconds,
+    };
+    const frames = [before, yielded, after];
+    const dark = raw.paintRuns[0]!;
+    const paintRuns = [
+      {
+        ...dark,
+        first: { ...dark.first, at: 115, previousFrameAt: 100 },
+        lastAt: 115,
+        witnessAt: [115],
+      },
+    ];
+    expect(d2NativeWorkerWindowValid(frames, [], 7)).toBe(true);
+    const physical = v3.causality({ frames, paintRuns }, 'source', 7, 100, 120);
+    expect(physical.violations).toEqual([]);
+    expect(physical.witnesses).toEqual([
+      expect.objectContaining({ requestId: '100', readyAt: 100 }),
+    ]);
+    const onlyYield = v3.causality({ frames: [yielded], paintRuns }, 'source', 7, 100, 120);
+    expect(onlyYield.witnesses).toEqual([]);
+    expect(onlyYield.violations).toContainEqual(
+      expect.objectContaining({ reason: 'no causally preceding electrical state' }),
+    );
+
+    for (const invalid of [
+      { sourceMatches: false },
+      { generationId: 8 },
+      { responseGenerationId: 8 },
+      { executionStatus: 'fault' },
+      { executionStatus: 'unknown' },
+      { validYield: false },
+    ])
+      expect(
+        d2NativeWorkerWindowValid([frames[0]!, { ...yielded, ...invalid }, frames[2]!], [], 7),
+      ).toBe(false);
+    for (const invalid of [
+      { result: {} },
+      { result: undefined },
+      { ledTemporal: {} },
+      { diagnostics: [{ code: 'fault' }] },
+      { state: {} },
+      { state: { continuation: { committedHorizonMicroseconds: 499 } } },
+      { requestedHorizonMicroseconds: 499 },
+      { committedHorizonMicroseconds: NaN },
+    ])
+      expect(validTemporalYield({ ...advance, ...invalid })).toBe(false);
+    for (const code of ['cancelled', 'internal', 'invalid_advance'])
+      expect(d2NativeWorkerWindowValid(frames, [{ at: 110, requestId: 'failed', code }], 7)).toBe(
+        false,
+      );
   });
 
   it('keeps the actual supersession allowance at 50 raw wall milliseconds', () => {
