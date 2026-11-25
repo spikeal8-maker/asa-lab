@@ -81,17 +81,23 @@ export function PublicArduinoBlocks({
           roots.find((block) => block.type === 'asa_loop') ??
           roots[0];
         if (!start || element.clientWidth === 0 || element.clientHeight === 0) return;
-        const scale = current.options.zoomOptions.startScale;
-        current.setScale(scale);
+        const startScale = current.options.zoomOptions.startScale;
         const bounds = current.getBlocksBoundingBox();
-        if (
-          (bounds.right - bounds.left) * scale <= element.clientWidth - 48 &&
-          (bounds.bottom - bounds.top) * scale <= element.clientHeight - 48
-        ) {
+        const width = Math.max(1, bounds.right - bounds.left);
+        const height = Math.max(1, bounds.bottom - bounds.top);
+        const fit = Math.min(
+          startScale,
+          (element.clientWidth - 32) / width,
+          (element.clientHeight - 32) / height,
+        );
+        if (fit >= 0.55) {
+          current.setScale(fit);
           current.scrollCenter();
         } else {
+          // Tall stacks should open at a legible scale on the first instruction.
+          current.setScale(startScale);
           const { x, y } = start.getRelativeToSurfaceXY();
-          current.scroll(20 - x * scale, 28 - y * scale);
+          current.scroll(20 - x * startScale, 28 - y * startScale);
         }
         positioned = true;
       };
