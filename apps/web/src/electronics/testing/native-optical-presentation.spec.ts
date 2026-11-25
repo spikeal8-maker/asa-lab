@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import {
   NativeOpticalPresentation,
@@ -109,5 +110,91 @@ describe('mounted-owner native optical projection port', () => {
     for (const id of ['red', 'green', 'uno']) port.rendered(id, snapshot);
     port.afterLayout(snapshot);
     expect(ack).not.toHaveBeenCalled();
+  });
+});
+
+describe('mounted vector render witness', () => {
+  function mounted(token = 'one') {
+    const previous = observation(token);
+    const active = vi.fn(() => true);
+    const lease = { isCurrent: () => true, isActive: active };
+    const ledAssets = new Map([
+      ['red', lease],
+      ['green', lease],
+    ]) as unknown as NativeOpticalObservation['ledAssets'];
+    return { value: { ...previous, ledAssets }, active };
+  }
+
+  it('requires a post-RAF task and the same active mounted vector', () => {
+    vi.useFakeTimers();
+    try {
+      const port = new NativeOpticalPresentation();
+      const { value, active } = mounted();
+      port.setObservation(value, true);
+      port.commit(value);
+      port.witnessAfterAnimationFrame();
+      expect(port.hasRenderWitness()).toBe(false);
+      vi.advanceTimersByTime(0);
+      expect(port.hasRenderWitness()).toBe(true);
+      port.setObservation({ ...value, frame: { ...value.frame, atMicroseconds: 2000 } });
+      expect(port.hasRenderWitness()).toBe(true);
+      active.mockReturnValue(false);
+      expect(port.hasRenderWitness()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(['hidden', 'replacement', 'unmount', 'stop'] as const)(
+    'retires the pending witness across %s',
+    (change) => {
+      vi.useFakeTimers();
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      try {
+        const port = new NativeOpticalPresentation();
+        const { value } = mounted();
+        port.setObservation(value, true);
+        port.commit(value);
+        port.witnessAfterAnimationFrame();
+        port.witnessAfterAnimationFrame();
+        expect(vi.getTimerCount()).toBe(1);
+        if (change === 'hidden') visibility.mockReturnValue('hidden');
+        if (change === 'replacement') {
+          const next = mounted('new').value;
+          port.setObservation(next, true);
+          port.commit(next);
+        }
+        if (change === 'unmount') port.setBarrier(null);
+        if (change === 'stop') port.setObservation(null);
+        vi.advanceTimersByTime(0);
+        visibility.mockReturnValue('visible');
+        expect(port.hasRenderWitness()).toBe(false);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        visibility.mockRestore();
+        vi.useRealTimers();
+      }
+    },
+  );
+  it('runs one queued retry after other render tasks and cancels it on reset', () => {
+    vi.useFakeTimers();
+    try {
+      const port = new NativeOpticalPresentation();
+      const { value } = mounted();
+      const retry = vi.fn();
+      port.setObservation(value, true);
+      port.commit(value);
+      port.witnessAfterAnimationFrame(retry, () => true);
+      vi.advanceTimersByTime(0);
+      expect(port.hasRenderWitness()).toBe(true);
+      expect(retry).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(1);
+      port.setObservation(null);
+      vi.runOnlyPendingTimers();
+      expect(retry).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

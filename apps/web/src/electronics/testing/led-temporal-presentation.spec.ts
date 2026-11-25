@@ -20,8 +20,13 @@ import {
   ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS,
   LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
   classroomRequestedHorizon,
-  sameOpticalFrame,
 } from '../led-temporal-presentation';
+import {
+  matchingOpticalValues,
+  opticalAssetLeasesReady,
+  recordOpticalAssetReadiness,
+  restorableOpticalObservation,
+} from '../native-optical-presentation';
 
 function channel(
   componentId: string,
@@ -310,6 +315,103 @@ describe('actual browser joint provenance oracle counterexamples', () => {
   });
 });
 
+describe('one early elapsed optical phase', () => {
+  function accepted(from: number, to: number, samples: ElectronicsLedTemporalSample[]) {
+    return {
+      ...window(from, to, [channel('led', samples)]),
+      arduinoIndicators: [
+        {
+          componentId: 'uno',
+          truncated: false,
+          samples: samples.map(({ atMicroseconds, brightness }) => ({
+            atMicroseconds,
+            voltage: brightness ? 5 : 0,
+          })),
+        },
+      ],
+    };
+  }
+
+  function solved(observation: ReturnType<typeof accepted>) {
+    const result = electrical(observation);
+    result.components.push({
+      componentId: 'uno',
+      current: 0,
+      voltageDrop: 5,
+      terminalVoltages: { d13: observation.arduinoIndicators[0]!.samples.at(-1)!.voltage },
+    });
+    return result;
+  }
+
+  function withDarkFrame() {
+    const presenter = new LedTemporalPresentation();
+    const initial = accepted(0, 0, [point(0, 0)]);
+    presenter.accept(solved(initial), initial, 0);
+    const dark = presenter.prepareFrame(0)!;
+    expect(presenter.acknowledgeFrame(dark, 0, true)).toBe(true);
+    return presenter;
+  }
+
+  it('samples only elapsed accepted time and reserves the following actual RAF for exactly one ACK', () => {
+    const presenter = withDarkFrame();
+    const high = accepted(0, 23_000, [point(0, 0), point(20_000, 80), point(23_000, 80)]);
+    presenter.accept(solved(high), high, 18_000);
+    expect(presenter.prepareElapsedFrame(19_999)).toBeNull();
+    const candidate = presenter.prepareElapsedFrame(21_000)!;
+    expect(candidate.atMicroseconds).toBe(21_000);
+    expect(candidate.brightness.get('led')).toBe(80);
+    expect(candidate.arduinoLStates.get('uno')).toBe(true);
+    expect(presenter.presentedMicroseconds).toBe(0);
+    expect(presenter.acknowledgeFrame(candidate, 21_000, true)).toBe(true);
+    expect(presenter.acknowledgeFrame(candidate, 21_000, true)).toBe(false);
+    expect(presenter.prepareFrame(22_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(21_000);
+    const next = presenter.prepareFrame(30_000)!;
+    expect(next.atMicroseconds).toBe(23_000);
+  });
+
+  it('releases a declined native proposal for the ordinary RAF and clears its ownership on reset', () => {
+    const presenter = withDarkFrame();
+    const high = accepted(0, 23_000, [point(0, 0), point(20_000, 80), point(23_000, 80)]);
+    presenter.accept(solved(high), high, 18_000);
+    const candidate = presenter.prepareElapsedFrame(21_000)!;
+    presenter.cancelElapsedFrame(candidate);
+    expect(presenter.acknowledgeFrame(candidate, 21_000, true)).toBe(false);
+    const normal = presenter.prepareFrame(22_000)!;
+    expect(normal.atMicroseconds).toBe(22_000);
+    expect(normal.brightness.get('led')).toBe(80);
+    presenter.reset();
+    expect(presenter.acknowledgeFrame(normal, 23_000, true)).toBe(false);
+    expect(presenter.prepareElapsedFrame(23_000)).toBeNull();
+  });
+
+  it('leaves multiple due optical transitions to the ordinary RAF path without ACK', () => {
+    const presenter = withDarkFrame();
+    const pulse = accepted(0, 25_000, [
+      point(0, 0),
+      point(2_000, 80),
+      point(20_000, 0),
+      point(25_000, 0),
+    ]);
+    presenter.accept(solved(pulse), pulse, 25_000);
+    expect(presenter.prepareElapsedFrame(25_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(0);
+    expect(presenter.prepareFrame(10_000)?.brightness.get('led')).toBe(80);
+  });
+
+  it('leaves fast-cycle integration with the ordinary RAF path', () => {
+    const presenter = withDarkFrame();
+    const samples = [point(0, 0)];
+    for (let index = 0; index < 16; index++)
+      samples.push(point(index * 1_000 + 100, index % 2 === 0 ? 80 : 0));
+    samples.push(point(16_000, 0));
+    const pulse = accepted(0, 16_000, samples);
+    presenter.accept(solved(pulse), pulse, 16_000);
+    expect(presenter.prepareElapsedFrame(16_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(0);
+    expect(presenter.prepareFrame(16_000)?.brightness.get('led')).toBeCloseTo(40);
+  });
+});
 describe('accepted per-LED temporal presentation', () => {
   it.each([0.1, 0.5, 1, 2, 10])('presents actual accepted history at requested rate %s', (rate) => {
     const presentation = new LedTemporalPresentation();
@@ -1635,27 +1737,12 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     ts.ScriptTarget.Latest,
     true,
   );
-  const names = new Set([
-    'recordOpticalAssetReadiness',
-    'opticalAssetLeasesReady',
-    'matchingOpticalValues',
-    'matchingNativeAssets',
-    'restorableOpticalObservation',
-  ]);
-  const functions = host.statements.filter(
-    (statement) =>
-      ts.isFunctionDeclaration(statement) && statement.name && names.has(statement.name.text),
-  );
-  if (functions.length !== names.size)
-    throw new Error('actual host optical barrier declarations not found');
-  const barrier = runInNewContext(
-    ts.transpileModule(
-      functions.map((fn) => fn.getText(host)).join('\n') +
-        '\n({ record: recordOpticalAssetReadiness, ready: opticalAssetLeasesReady, same: matchingOpticalValues, rollback: restorableOpticalObservation });',
-      { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
-    ).outputText,
-    { sameOpticalFrame },
-  ) as {
+  const barrier = {
+    record: recordOpticalAssetReadiness,
+    ready: opticalAssetLeasesReady,
+    same: matchingOpticalValues,
+    rollback: restorableOpticalObservation,
+  } as unknown as {
     record: (pending: unknown, event: unknown) => boolean;
     ready: (pending: unknown, active?: boolean) => boolean;
     same: (previous: unknown, frame: unknown, assets: unknown) => boolean;
@@ -1811,7 +1898,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
-    state.nativeOpticalPresentation = { commit: () => {} };
+    state.nativeOpticalPresentation = { commit: () => {}, witnessAfterAnimationFrame: () => {} };
     state.settleSimulationPauseRef = { current: null };
     if (name === 'raf') {
       // Bind the real RAF's new display-only metric dependencies. The actual
@@ -1822,6 +1909,8 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       state.nativePreparationSourceRef = { current: source };
       state.latestCommittedHorizon = 0;
       state.setCommittedHorizonMicroseconds = () => {};
+      state.publishElapsedFrame = () => {};
+      state.elapsedWaitingForWitness = false;
     }
     const text = `${hostClosures.get('clearDisplay')!}\nconst presentLeds = ${hostClosures.get(name)!}; presentLeds();`;
     runInNewContext(
