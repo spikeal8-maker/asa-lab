@@ -165,10 +165,22 @@ async function saveArduinoReviewSketch(page: Page, source: string) {
     },
   });
   expect(saved.ok(), await saved.text()).toBe(true);
-  const body = (await saved.json()) as { draft: { document: SchematicDocument } };
+  await page.reload();
+
+  // The workbench fills in catalog defaults missing from this fixture. Commit the
+  // normalized draft through the editor before the assignment can submit that revision.
+  await page
+    .locator('.workbench-toolbar')
+    .getByRole('button', { name: 'Сохранить проект', exact: true })
+    .click();
+  await expect(
+    page.getByTestId('assignment-brief').getByText('Сохранено', { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  const confirmed = await page.request.get(path);
+  expect(confirmed.ok()).toBe(true);
+  const body = (await confirmed.json()) as { draft: { document: SchematicDocument } };
   const savedBoard = body.draft.document.components.find((row) => row.id === board.id);
   expect(savedBoard?.stateProperties?.['arduinoSource']).toBe(source);
-  await page.reload();
 }
 
 async function editRealProject(page: Page, module: string) {
@@ -1510,10 +1522,10 @@ for (const module of ['three-d', 'electronics'])
     await editRealProject(learner.page, module);
     const originalSketch = '// original\nvoid setup() {}\nvoid loop() {}\n';
     const revisedSketch = '// revision\nvoid setup() {}\nvoid loop() {}\n';
-    if (module === 'electronics') await saveArduinoReviewSketch(learner.page, originalSketch);
     const brief = learner.page.getByTestId('assignment-brief');
     await expect(brief.getByText('В работе', { exact: true })).toBeVisible();
     await expect(brief.getByText('Сохранено', { exact: true })).toBeVisible();
+    if (module === 'electronics') await saveArduinoReviewSketch(learner.page, originalSketch);
     await expect(
       brief.getByRole('button', { name: 'Отправить на проверку', exact: true }),
     ).toBeEnabled();
