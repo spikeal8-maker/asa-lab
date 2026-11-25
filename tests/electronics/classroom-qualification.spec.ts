@@ -101,6 +101,7 @@ const functionNames = new Set([
   'observation',
   'temporalObservation',
   'validTemporalPaint',
+  'individualMillisPaintEdges',
   'temporalPhysicalBrightness',
   'temporalJointWitness',
   'temporalStartupBoundary',
@@ -147,7 +148,7 @@ const oracleJavaScript = ts.transpileModule(
   `${declarations.join('\n')}
 ({ profile: ownerQualificationProfile, qualify: recordOwnerQualifiedWallClock,
    required: ownerQualificationRequiredSites, complete: requireOwnerQualificationComplete,
-   millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness,
+   millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness, individualMillisPaintEdges,
    clock: assertTemporalWallClock,
    v3: { sites: OWNER_V3_TIMING_SITES, acquisitions: OWNER_V3_ACQUISITION_SITES,
      cases: OWNER_V3_CASES, caseBudgets: OWNER_V3_CASE_BUDGETS, pace: OWNER_V3_PACE, registry: OWNER_V3_REGISTRY_REVISION,
@@ -198,6 +199,11 @@ function oracle(
     test: { info: () => ({ title: v3Value?.title ?? value?.title ?? '' }) },
   }) as {
     v3: V3Oracle;
+    individualMillisPaintEdges: (
+      rows: readonly unknown[],
+      index: number,
+      from: number,
+    ) => Array<{ at: number; level: number; confirming: { at: number; brightness: number[] } }>;
     profile: (value?: string, entrypoint?: string) => string;
     qualify: (
       ledger: Ledger | null,
@@ -782,6 +788,7 @@ type V3Oracle = {
     generation: number,
     from: number,
     to?: number,
+    individualFrames?: Array<{ at: number; brightness: number[] }>,
   ) => {
     witnesses: unknown[];
     violations: Array<{ at: number; reason: string }>;
@@ -2185,6 +2192,78 @@ describe('v3 preserves real functional publication and native observations', () 
     }
   });
 
+  it('witnesses a single millis output across adjacent native frames when its neighbour changes', () => {
+    const edges = oracle().individualMillisPaintEdges;
+    const receipt = (seq: number, levels: number[]) => ({
+      at: seq * 10,
+      previousFrameAt: (seq - 1) * 10,
+      rafSequence: seq,
+      brightness: levels,
+      images: levels.map((value, i) => ({
+        href: value ? 'on.svg' : 'off.svg',
+        lit: value > 0,
+        decoded: true,
+        visible: true,
+        unoccluded: true,
+        opacity: 1,
+        rect: { x: i, y: 2, width: 10, height: 20 },
+        hitTargets: ['led' + i],
+      })),
+      imageDiagnostics: levels.map((value) => ({
+        href: value ? 'on.svg' : 'off.svg',
+        resourceDecoded: true,
+        mountedLoadAt: 5,
+      })),
+    });
+    const first = receipt(1, [0, 70, 0]);
+    const next = receipt(2, [0, 70, 70]);
+    expect(edges([first, next], 1, 10)).toMatchObject([
+      { at: 10, level: 1, confirming: { at: 20, brightness: [0, 70, 70] } },
+    ]);
+    expect(edges([first, next], 2, 10)).toEqual([]);
+    expect(edges([first, next], 1, 11)).toEqual([]);
+    const invalid: Array<(row: typeof next) => void> = [
+      (row) => {
+        row.rafSequence++;
+      },
+      (row) => {
+        row.previousFrameAt--;
+      },
+      (row) => {
+        row.brightness[1] = 65;
+      },
+      (row) => {
+        row.images[1]!.href = row.imageDiagnostics[1]!.href = 'another.svg';
+      },
+      (row) => {
+        row.images[1]!.unoccluded = false;
+      },
+      (row) => {
+        row.images[1]!.decoded = false;
+      },
+      (row) => {
+        row.images[1]!.rect.x++;
+      },
+      (row) => {
+        row.imageDiagnostics[1]!.mountedLoadAt++;
+      },
+      (row) => {
+        row.imageDiagnostics[1]!.mountedLoadAt = row.at + 1;
+      },
+    ];
+    for (const change of invalid) {
+      const altered = structuredClone(next);
+      change(altered);
+      expect(edges([first, altered], 1, 10)).toEqual([]);
+    }
+    const hidden = structuredClone(next);
+    hidden.images[1]!.unoccluded = false;
+    expect(edges([first, hidden, receipt(3, [0, 70, 0])], 1, 10)).toEqual([]);
+    const detachedDecoderPending = structuredClone(next);
+    detachedDecoderPending.imageDiagnostics[1]!.resourceDecoded = false;
+    expect(edges([first, detachedDecoderPending], 1, 10)).toHaveLength(1);
+  });
+
   it('keeps the actual supersession allowance at 50 raw wall milliseconds', () => {
     const actual = oracle().v3;
     const frame = (at: number, brightness: number) => ({
@@ -2225,6 +2304,10 @@ describe('v3 preserves real functional publication and native observations', () 
     expect(actual.causality(raw(250), 'source', 7, 0).violations).toEqual([]);
     expect(actual.causality(raw(250), 'source', 7, 0).witnesses).toHaveLength(1);
     expect(actual.causality(raw(250.001), 'source', 7, 0).violations).toEqual([
+      expect.objectContaining({ reason: 'electrical state superseded more than 50 ms ago' }),
+    ]);
+    const individual = [{ at: 250.001, brightness: [80, 80, 80] }];
+    expect(actual.causality(raw(250), 'source', 7, 0, Infinity, individual).violations).toEqual([
       expect.objectContaining({ reason: 'electrical state superseded more than 50 ms ago' }),
     ]);
     expect(readyCompact).toContain('const OWNER_TEMPORAL_PUBLICATION_LAG_MS = 50;');

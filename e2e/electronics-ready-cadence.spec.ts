@@ -1761,6 +1761,7 @@ type StartupPaintEvidence = {
   l: { activeAttribute: string | null; opacity: number | null; visible: boolean } | null;
 };
 type PaintReceipt = {
+  rafSequence: number;
   at: number;
   previousFrameAt: number | null;
   brightness: number[];
@@ -2133,7 +2134,10 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
       };
       let previous = '';
       let previousFrameAt: number | null = null;
+      // Count the callback even if a missing native component prevents a receipt.
+      let rafSequence = 0;
       const paint = () => {
+        rafSequence++;
         const elements = Array.from({ length: ledCount }, (_, index) =>
           document.querySelector<SVGSVGElement>(
             `[data-component-id="led${index}"] .workbench-production-visual`,
@@ -2239,6 +2243,7 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
           const startupEvidence = readStartupEvidence(images.map((image) => image.href));
           const at = performance.now();
           paints.push({
+            rafSequence,
             at,
             previousFrameAt,
             brightness,
@@ -4470,6 +4475,65 @@ function paintEdges(runs: readonly TemporalPaintRun[], index: number) {
   return edges;
 }
 
+/** Time each pin from its own unchanged mounted image across two consecutive RAF callbacks. */
+function individualMillisPaintEdges(rows: readonly PaintReceipt[], index: number, from: number) {
+  const edges: Array<{
+    at: number;
+    level: number;
+    first: { at: number; brightness: number[] };
+    confirming: { at: number; brightness: number[] };
+  }> = [];
+  const signature = (row: PaintReceipt) => {
+    const lamp = row.images[index];
+    const load = row.imageDiagnostics[index];
+    const brightness = row.brightness[index];
+    if (
+      brightness === undefined ||
+      !Number.isFinite(brightness) ||
+      !lamp?.href ||
+      !lamp.decoded ||
+      !lamp.visible ||
+      !lamp.unoccluded ||
+      lamp.opacity !== 1 ||
+      lamp.lit !== brightness > 0 ||
+      load?.href !== lamp.href ||
+      load.mountedLoadAt === null ||
+      !Number.isFinite(load.mountedLoadAt) ||
+      load.mountedLoadAt < 0 ||
+      load.mountedLoadAt > row.at
+    )
+      return null;
+    return JSON.stringify([brightness, lamp, load.mountedLoadAt]);
+  };
+  let previous: PaintReceipt | undefined;
+  let previousSignature: string | null = null;
+  for (const row of rows) {
+    const currentSignature = signature(row);
+    if (
+      previous &&
+      previous.at >= from &&
+      row.at > previous.at &&
+      Number.isSafeInteger(previous.rafSequence) &&
+      row.rafSequence === previous.rafSequence + 1 &&
+      row.previousFrameAt === previous.at &&
+      currentSignature !== null &&
+      currentSignature === previousSignature
+    ) {
+      const level = Number(previous.brightness[index]! > 0);
+      if (edges.at(-1)?.level !== level)
+        edges.push({
+          at: previous.at,
+          level,
+          first: { at: previous.at, brightness: previous.brightness },
+          confirming: { at: row.at, brightness: row.brightness },
+        });
+    }
+    previous = row;
+    previousSignature = currentSignature;
+  }
+  return edges;
+}
+
 // This publication allowance is independent of the 250 ms model/wall bound.
 // It permits React/RAF handoff, but never an earlier cycle or another generation.
 const OWNER_TEMPORAL_PUBLICATION_LAG_MS = 50;
@@ -4679,6 +4743,7 @@ function temporalPaintCausality(
   generationId: number,
   from: number,
   to = Infinity,
+  individualFrames?: ReadonlyArray<{ at: number; brightness: number[] }>,
 ) {
   const ready = raw.frames.filter(
     (row) =>
@@ -4705,7 +4770,10 @@ function temporalPaintCausality(
   const violations: Array<{ at: number; brightness: number[]; reason: string }> = [
     ...startup.violations,
   ];
-  for (const run of validTemporalPaint(raw, from, to)) {
+  const observations =
+    individualFrames?.map((first) => ({ first, witnessAt: [first.at] })) ??
+    validTemporalPaint(raw, from, to);
+  for (const run of observations) {
     for (const at of run.witnessAt.filter((at) => at >= from && at <= to)) {
       const brightness = run.first.brightness;
       if (startup.h0ReadyAt !== null && at < startup.h0ReadyAt) {
@@ -5034,7 +5102,17 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
     if (ownerV3Ledger)
       await waitForOwnerV3Horizon(page, session.source, 'millis-ready-horizon-2250000');
     else await waitForOwnerMillisHorizon(page, session.source);
-    const raw = await temporalObservation(page);
+    const { raw, paints } = JSON.parse(
+      await page.evaluate(() => {
+        const probe = window as TemporalWindow;
+        return JSON.stringify({ raw: probe.__ownerTemporal, paints: probe.__ownerPaint });
+      }),
+    ) as { raw: TemporalProbe; paints: PaintReceipt[] };
+    const acquisition = {
+      lastPaintRaf: paints.at(-1)?.rafSequence,
+      lastWorkerRequest: raw.frames.at(-1)?.requestId,
+    };
+    metrics = { acquisition };
     const ready = assertTemporalFrames(raw, session.source);
     const clock = ownerV3Ledger
       ? assertOwnerV3TemporalClock(
@@ -5047,6 +5125,9 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
         )
       : assertTemporalWallClock(ready, 2250);
     const paint = validTemporalPaint(raw, session.startAt);
+    const individualEdges = [0, 1, 2].map((index) =>
+      individualMillisPaintEdges(paints, index, ready[0]!.at),
+    );
     const causal = temporalPaintCausality(
       raw,
       session.source,
@@ -5055,6 +5136,19 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
     );
     expect(causal.witnesses.length).toBeGreaterThan(0);
     expect(causal.violations).toEqual([]);
+    const individualFrames = individualEdges.flatMap((edges) =>
+      edges.flatMap((edge) => [edge.first, edge.confirming]),
+    );
+    const individualCausal = temporalPaintCausality(
+      raw,
+      session.source,
+      ready[0]!.generationId!,
+      ready[0]!.at,
+      Infinity,
+      individualFrames,
+    );
+    expect(individualCausal.violations).toEqual([]);
+    expect(individualCausal.witnesses).toHaveLength(individualFrames.length);
     const firstRunning = ready.find((row) => row.committedHorizonMicroseconds >= 10_000)!;
     expect(firstRunning.components.map((row) => Number((row.brightness ?? 0) > 0))).toEqual([
       1, 0, 1,
@@ -5062,7 +5156,7 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
     const perLed = [500, 200, 100].map((halfMs, index) => {
       const id = `led${index}`;
       const model = opticalEdges(ready, id);
-      const visible = paintEdges(paint, index);
+      const visible = individualEdges[index]!;
       // LED2 begins halfway through its first HIGH. Exclude only that stated
       // initial partial phase; all regular halves and complete cycles remain.
       const modelStart =
@@ -5118,7 +5212,7 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
     );
     for (const vector of ['101', '100', '110', '111', '000'])
       expect(vectors.has(vector)).toBe(true);
-    metrics = { clock, perLed, vectors: [...vectors], causal };
+    metrics = { acquisition, clock, perLed, vectors: [...vectors], causal, individualCausal };
     session.failures.assertEmpty();
   } finally {
     await retainOwnerTemporalEvidence(page, session, metrics);
