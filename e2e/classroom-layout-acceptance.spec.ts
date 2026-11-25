@@ -1245,3 +1245,71 @@ test('refreshing a reclassified classroom card retires its previous project prev
     finishSubmission();
   }
 });
+
+for (const width of [320, 390, 1024, 1440]) {
+  test(`own work opens its saved model without entering the editor at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixture(page, 2);
+    const project = {
+      id: '10000000-0000-4000-8000-000000000057',
+      moduleKey: 'three-d',
+      title: 'Опора датчика',
+      scope: 'personal',
+      classroomId: null,
+      status: 'active',
+      updatedAt: '2026-10-10T12:00:00Z',
+      createdAt: '2026-10-10T12:00:00Z',
+      preview: null,
+      snapshotRevision: null,
+      copiedFrom: null,
+    };
+    const detailReads: string[] = [];
+    await page.route(/\/api\/projects(?:[/?]|$)/, (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/api/projects') return route.fulfill({ json: { items: [project] } });
+      if (path === `/api/projects/${project.id}/preview`) {
+        detailReads.push(route.request().method());
+        return route.fulfill({
+          json: {
+            projectId: project.id,
+            revision: 3,
+            moduleKey: 'three-d',
+            preview: null,
+            document: { ...createEmptyThreeDDocument(), nodes: [createThreeDNode('box', 'foot')] },
+          },
+        });
+      }
+      return route.fallback();
+    });
+    await page.goto('/#/projects');
+    const card = page.getByTestId('project-card').filter({ hasText: project.title });
+    const cover = card.getByRole('button', { name: 'Предпросмотр работы ' + project.title });
+    await expect(cover).toBeVisible();
+    expect(detailReads).toEqual([]);
+    await cover.press('Enter');
+    const dialog = page.getByRole('dialog', { name: 'Работа: ' + project.title });
+    await expect(dialog.getByRole('region', { name: 'Сохранённая 3D-модель' })).toHaveAttribute(
+      'data-ready',
+      'true',
+    );
+    const view = dialog.getByTestId('three-d-presentation');
+    const initial = await view.getAttribute('data-camera-state');
+    await view.locator('canvas').press('ArrowRight');
+    await expect(view).not.toHaveAttribute('data-camera-state', initial!);
+    await expect(dialog.getByRole('link', { name: 'Открыть в редакторе' })).toHaveAttribute(
+      'href',
+      (await card.getByRole('link', { name: project.title, exact: true }).getAttribute('href'))!,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await dialog.getByRole('button', { name: 'Закрыть' }).press('Escape');
+    await expect(cover).toBeFocused();
+    expect(detailReads).toEqual(['GET']);
+    expect(state.mutations.filter((mutation) => mutation.path.startsWith('/api/projects'))).toEqual(
+      [],
+    );
+  });
+}

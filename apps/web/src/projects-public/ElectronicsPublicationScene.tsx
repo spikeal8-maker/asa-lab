@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   ClassroomElectronicsSimulation,
   ClassroomFreeElectronicsSimulation,
@@ -19,9 +19,11 @@ import { componentTransform } from '../electronics/workbench-model';
 import { roundedWirePath, wirePoints } from '../electronics/workbench-geometry';
 import { panZoomPublicView } from './public-view-gesture';
 
-const PublishedBlocks = lazy(() =>
-  import('./PublicArduinoBlocks').then((m) => ({ default: m.PublicArduinoBlocks })),
-);
+import {
+  publishedArduinoPrograms,
+  useArduinoProgramPreview,
+  type PreviewBoard,
+} from './ArduinoProgramPreview';
 
 /** Reconstruct only validated display fields; never accept an editor property bag. */
 export function publicDisplayComponentModel(source: PublicDisplayComponent): SchematicComponent {
@@ -54,21 +56,45 @@ export function ElectronicsPublicationScene({
 }: {
   readonly artifact: ElectronicsDisplayArtifact | ElectronicsSimulationArtifact;
 }): JSX.Element {
-  return <ElectronicsPlaybackScene source={artifact} />;
+  const programs = useMemo(
+    () => (artifact.schemaVersion === 3 ? publishedArduinoPrograms(artifact.components) : []),
+    [artifact],
+  );
+  return (
+    <ElectronicsPlaybackScene
+      key={`${artifact.provenance.publicationId}:${artifact.provenance.revisionNumber}`}
+      source={artifact}
+      programs={programs}
+    />
+  );
 }
 
 export function ClassroomElectronicsSimulationScene({
   source,
+  programs,
   onUnavailable,
 }: {
   readonly source: ClassroomElectronicsSimulation | ClassroomFreeElectronicsSimulation;
+  readonly programs: readonly PreviewBoard[];
   readonly onUnavailable: (message?: string) => void;
 }): JSX.Element {
-  return <ElectronicsPlaybackScene source={source} onUnavailable={onUnavailable} />;
+  return (
+    <ElectronicsPlaybackScene
+      key={
+        'submissionId' in source
+          ? `${source.submissionId}:${source.projectVersionId}`
+          : `${source.projectId}:${source.revision}`
+      }
+      source={source}
+      programs={programs}
+      onUnavailable={onUnavailable}
+    />
+  );
 }
 
 function ElectronicsPlaybackScene({
   source,
+  programs,
   onUnavailable,
 }: {
   readonly source:
@@ -76,18 +102,15 @@ function ElectronicsPlaybackScene({
     | ElectronicsSimulationArtifact
     | ClassroomElectronicsSimulation
     | ClassroomFreeElectronicsSimulation;
+  readonly programs: readonly PreviewBoard[];
   readonly onUnavailable?: (message?: string) => void;
 }): JSX.Element {
   const classroom = 'simulation' in source;
   const artifact = classroom ? source.simulation : source;
   const [runtime, setRuntime] = useState<PublicElectronicsRuntime | null>(null);
   const [message, setMessage] = useState('');
-  const [codeOpen, setCodeOpen] = useState(false);
+  const program = useArduinoProgramPreview(programs);
   const [toolsOpen, setToolsOpen] = useState(false);
-  const programs =
-    !classroom && artifact.schemaVersion === 3
-      ? artifact.components.filter((c) => typeof c.stateProperties?.arduinoSource === 'string')
-      : [];
   const [inputs, setInputs] = useState<ReadonlyMap<string, SchematicComponent>>(new Map());
   const idlePort = useMemo(() => new NativeOpticalPresentation(), []);
   const section = useRef<HTMLElement>(null);
@@ -211,6 +234,7 @@ function ElectronicsPlaybackScene({
   return (
     <section
       ref={section}
+      onKeyDown={program.onKeyDown}
       className="public-electronics-viewer"
       data-testid={classroom ? 'classroom-electronics-viewer' : 'public-electronics-viewer'}
       aria-label={
@@ -222,32 +246,16 @@ function ElectronicsPlaybackScene({
       }
     >
       <div className="public-electronics-tools" role="toolbar" aria-label="Просмотр схемы">
-        <span>Схема · просмотр</span>
-        {artifact.schemaVersion === 3 ? (
-          <>
-            <button
-              type="button"
-              data-testid={classroom ? 'classroom-electronics-start' : 'public-electronics-start'}
-              onClick={runtime ? stop : start}
-            >
-              {runtime ? 'Стоп' : 'Начать'}
-            </button>
-          </>
-        ) : null}
-        {programs.length ? (
+        {artifact.schemaVersion === 3 && (
           <button
             type="button"
-            aria-label="Код Arduino"
-            title="Код Arduino"
-            aria-expanded={codeOpen}
-            onClick={() => setCodeOpen(!codeOpen)}
+            data-testid={classroom ? 'classroom-electronics-start' : 'public-electronics-start'}
+            onClick={runtime ? stop : start}
           >
-            <span className="public-code-label-full">Код Arduino</span>
-            <span className="public-code-label-short" aria-hidden="true">
-              Код
-            </span>
+            {runtime ? 'Остановить' : 'Запустить'}
           </button>
-        ) : null}
+        )}
+        {program.button}
         <button
           type="button"
           className="public-electronics-more"
@@ -553,45 +561,7 @@ function ElectronicsPlaybackScene({
           </g>
         </svg>
       </NativeOpticalProvider>
-      {codeOpen ? (
-        <aside className="public-electronics-code" aria-label="Код Arduino">
-          <div className="public-electronics-code-heading">
-            <h2>Код Arduino</h2>
-            <button type="button" onClick={() => setCodeOpen(false)} aria-label="Закрыть код">
-              ×
-            </button>
-          </div>
-          {programs.map((c) => (
-            <div key={c.id}>
-              <h3>{c.name ?? 'Arduino'}</h3>
-              {['blocks', 'blocks-text'].includes(String(c.stateProperties?.arduinoCodeMode)) ? (
-                typeof c.stateProperties?.arduinoBlocks === 'string' ? (
-                  <Suspense fallback={<p role="status">Загружаем блоки…</p>}>
-                    <PublishedBlocks value={c.stateProperties.arduinoBlocks} />
-                  </Suspense>
-                ) : (
-                  <p role="status">
-                    В этой опубликованной версии структура блоков не сохранена. Автор может обновить
-                    публикацию из редактора.
-                  </p>
-                )
-              ) : (
-                <pre>
-                  <code>{String(c.stateProperties?.arduinoSource)}</code>
-                </pre>
-              )}
-              {c.stateProperties?.arduinoCodeMode === 'blocks-text' ? (
-                <details>
-                  <summary>Сгенерированный текст</summary>
-                  <pre>
-                    <code>{String(c.stateProperties.arduinoSource)}</code>
-                  </pre>
-                </details>
-              ) : null}
-            </div>
-          ))}
-        </aside>
-      ) : null}
+      {program.panel}
     </section>
   );
 }

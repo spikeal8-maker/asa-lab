@@ -1,0 +1,145 @@
+.project-playback-stage {
+  container: playback / inline-size;
+  min-width: 0;
+  width: 100%;
+  --playback-height: clamp(230px, min(72cqw, 58svh), 620px);
+  --playback-line: var(--asa-slate-200, #d6e1e7);
+}
+
+/* Every module keeps its own renderer, inputs and simulation lifecycle. */
+.project-playback-stage
+  :is(.public-three-d-viewer, .public-electronics-viewer, .public-robotics-viewer) {
+  min-width: 0;
+  border: 1px solid var(--playback-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface, white);
+}
+
+.project-playback-stage
+  :is(.public-three-d-viewer, .public-electronics-viewer, .public-robotics-viewer):fullscreen {
+  border-radius: 0;
+  border: 0;
+}
+
+.project-playback-stage
+  :is(.public-three-d-viewer, .public-electronics-viewer, .public-robotics-viewer):not(:fullscreen)
+  :is(.public-three-d-stage, .public-electronics-scene, .public-robotics-stage) {
+  height: var(--playback-height);
+}
+
+.project-playback-stage
+  :is(.public-three-d-tools, .public-electronics-tools, .public-robotics-tools) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px 5px;
+  background: var(--surface, white);
+  border-bottom: 1px solid var(--playback-line);
+}
+
+.project-playback-stage
+  :is(.public-three-d-tools, .public-electronics-tools, .public-robotics-tools)
+  button {
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink, #273f4d);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.project-playback-stage
+  :is(.public-electronics-tools, .public-robotics-tools, .public-three-d-tools)
+  button:is(:hover, [aria-pressed='true']) {
+  background: var(--asa-slate-100, #eef4f6);
+}
+.project-playback-stage .public-three-d-tools button:last-child {
+  margin-inline-start: auto;
+}
+.project-playback-stage .public-three-d-stage canvas {
+  cursor: grab;
+}
+.project-playback-stage .public-three-d-stage canvas:active {
+  cursor: grabbing;
+}
+.project-playback-stage
+  :is(.public-electronics-tools, .public-robotics-tools)
+  [data-testid$='-start'] {
+  background: #e2f3ec;
+  color: #155e46;
+  font-weight: 650;
+}
+
+.project-playback-fit > svg {
+  display: none;
+}
+@container playback (max-width: 420px) {
+  .project-playback-fit > span:first-child {
+    display: none;
+  }
+  .project-playback-fit > [aria-hidden='true'] {
+    display: inline;
+  }
+}
+.project-playback-stage .public-electronics-viewer > .arduino-program-preview {
+  grid-area: 2 / 1;
+  z-index: 1;
+  align-self: stretch;
+  width: 100%;
+  height: var(--playback-height);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 0 8px;
+}
+
+@container playback (min-width: 640px) {
+  .project-playback-stage .public-electronics-viewer:has(> .arduino-program-preview) {
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 42%);
+  }
+  .project-playback-stage .public-electronics-viewer > .arduino-program-preview {
+    grid-column: 2;
+    border-inline-start: 1px solid var(--playback-line);
+  }
+  .project-playback-stage .public-electronics-tools,
+  .project-playback-stage .public-electronics-hint {
+    grid-column: 1 / -1;
+  }
+}
+
+.project-playback-stage .public-electronics-tools > .public-electronics-more {
+  display: none;
+}
+
+@container playback (max-width: 600px) {
+  .project-playback-stage .public-electronics-tools > .public-electronics-more {
+    display: inline-grid;
+    place-items: center;
+    margin-inline-start: auto;
+  }
+  .project-playback-stage .public-electronics-tools .public-electronics-secondary-tools {
+    display: none;
+  }
+  .project-playback-stage .public-electronics-tools .public-electronics-secondary-tools.is-open {
+    display: flex;
+    flex-wrap: wrap;
+    flex-basis: 100%;
+    margin: 0;
+    gap: 2px;
+  }
+  .project-playback-stage
+    :is(.public-three-d-viewer, .public-electronics-viewer, .public-robotics-viewer) {
+    --playback-height: clamp(212px, min(105cqw, 56svh), 410px);
+  }
+}

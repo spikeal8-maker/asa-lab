@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { observationApi, type ObservationProjectsPage } from '../classroom-observation-api';
 import { useSchoolTime } from './school-time';
 import { ClassroomWorkCard } from './ClassroomWorkCard';
-import { WorkPreview } from './WorkPreview';
+import { classroomWorkScope, WorkPreview } from './WorkPreview';
 import './classroom-observation.css';
 
 const EDITORS: Record<string, string> = {
@@ -276,18 +276,13 @@ function ProjectList({
       {preview ? (
         <WorkPreview
           key={`${classroomId}:${preview.seatId}:${preview.id}`}
-          previewScope={
-            preview.moduleKey === 'three-d' || preview.moduleKey === 'electronics'
-              ? preview.assigned
-                ? {
-                    kind: 'submission',
-                    classroomId,
-                    seatId: preview.seatId,
-                    canReview: preview.status !== 'archived',
-                  }
-                : { kind: 'free', classroomId, seatId: preview.seatId }
-              : undefined
-          }
+          previewScope={classroomWorkScope(
+            preview.moduleKey,
+            classroomId,
+            preview.seatId,
+            preview.assigned,
+            preview.status !== 'archived',
+          )}
           readOnly
           snapshotRefresh={snapshotRefresh}
           projectId={preview.id}

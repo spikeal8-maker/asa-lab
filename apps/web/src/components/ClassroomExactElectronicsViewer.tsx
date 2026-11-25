@@ -9,7 +9,12 @@ import {
 } from '../electronics/production-manifest-adapter';
 import { ClassroomElectronicsSimulationScene } from '../projects-public/ElectronicsPublicationScene';
 
+import ClassroomExactArduinoSource, {
+  classroomArduinoPrograms,
+} from './ClassroomExactArduinoSource';
+
 export interface ClassroomExactElectronicsViewerProps {
+  readonly document: unknown;
   readonly artifact: unknown;
   readonly identity:
     | {
@@ -50,12 +55,14 @@ function Unavailable({ children, message }: { children: ReactNode; message: stri
 export default function ClassroomExactElectronicsViewer({
   artifact,
   identity,
+  document,
   fallback,
 }: ClassroomExactElectronicsViewerProps): JSX.Element {
   const submissionId = identity.kind === 'submission' ? identity.submissionId : undefined;
   const versionId = identity.kind === 'submission' ? identity.projectVersionId : undefined;
   const projectId = identity.kind === 'free' ? identity.projectId : undefined;
   const revision = identity.kind === 'free' ? identity.revision : undefined;
+  const programs = useMemo(() => classroomArduinoPrograms(document), [document]);
   const simulation = useMemo(() => {
     if (projectId) {
       const validated = validateClassroomFreeElectronicsSimulation(artifact);
@@ -96,8 +103,14 @@ export default function ClassroomExactElectronicsViewer({
     identity.kind === 'submission'
       ? 'Симуляция этой сдачи недоступна.'
       : 'Симуляция сохранённой работы недоступна.';
+  const savedFallback = (
+    <>
+      {fallback}
+      <ClassroomExactArduinoSource document={document} />
+    </>
+  );
   if (!simulation || status === 'failed')
-    return <Unavailable message={unavailableMessage}>{fallback}</Unavailable>;
+    return <Unavailable message={unavailableMessage}>{savedFallback}</Unavailable>;
   if (status === 'loading')
     return (
       <>
@@ -107,9 +120,10 @@ export default function ClassroomExactElectronicsViewer({
     );
 
   return (
-    <CircuitBoundary fallback={fallback} message={unavailableMessage}>
+    <CircuitBoundary fallback={savedFallback} message={unavailableMessage}>
       <ClassroomElectronicsSimulationScene
         source={simulation}
+        programs={programs}
         onUnavailable={() => setStatus('failed')}
       />
     </CircuitBoundary>

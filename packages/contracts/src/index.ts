@@ -147,7 +147,7 @@ export {
 } from './ai-chat-feedback.js';
 export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
 
-export { publicArduinoBlocks } from './public-arduino-blocks.js';
+export { publicArduinoBlocks, classroomArduinoBlocks } from './public-arduino-blocks.js';
 
 export type {
   ChessNetworkScope,

@@ -557,7 +557,7 @@ const upgradeArtifacts = [
   [
     '0336',
     '0336_classroom_free_project_preview.sql',
-    'f584906b615f22dfdeae7bfc6b1e735fb674a5fe585bb293703eac66b4e5bf0f',
+    '3a51f1eca6bb347c49077c59787be58cf52ac429c3c105fc66e96800991a33df',
   ],
 ] as const;
 

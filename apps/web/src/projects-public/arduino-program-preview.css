@@ -1,0 +1,88 @@
+.arduino-program-toggle {
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1px solid var(--border, #cbd7d2);
+  border-radius: 6px;
+  color: inherit;
+  background: var(--surface, white);
+  font: inherit;
+  cursor: pointer;
+}
+.arduino-program-toggle[aria-expanded='true'] {
+  box-shadow: inset 0 -2px currentColor;
+}
+.arduino-program-preview {
+  min-width: 0;
+  color: #243d46;
+  background: white;
+}
+.arduino-program-preview .public-electronics-code-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  min-height: 40px;
+}
+.project-playback-stage
+  :is(.public-electronics-viewer, .public-robotics-viewer)
+  > .arduino-program-preview {
+  min-height: 0;
+  max-height: var(--playback-height);
+  overflow: auto;
+}
+.arduino-program-preview .public-electronics-code-heading > button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  font-size: 22px;
+}
+.arduino-program-preview .public-electronics-code-heading {
+  gap: 2px;
+}
+.arduino-program-preview .public-electronics-code-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arduino-program-header-tools {
+  margin-inline-start: auto;
+}
+.arduino-program-zoom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.arduino-program-preview .arduino-program-zoom button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.arduino-program-preview .arduino-program-zoom img {
+  width: 25px;
+  height: 25px;
+  pointer-events: none;
+}
+.arduino-program-preview .public-arduino-blocks {
+  height: clamp(180px, 40svh, 410px);
+}
+.arduino-program-preview .public-arduino-blocks .blocklySvg {
+  width: 100%;
+  height: 100%;
+}
+.gradebook-arduino-source > .arduino-program-toggle {
+  justify-self: start;
+}
+.arduino-program-preview pre {
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

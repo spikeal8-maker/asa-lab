@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { createInitialRoboticsProject } from '@asa-lab/robotics/document';
 import { hashSessionToken } from '../../contexts/identity/domain/session-token';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -617,6 +618,37 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       document: { value: 0 },
       preview: null,
     });
+
+    const robotDocument = createInitialRoboticsProject();
+    const robot = await f.project(learner!.principal, 'robotics', 'active', f.classId);
+    await admin.query('UPDATE project_drafts SET document_json=$2::jsonb WHERE project_id=$1', [
+      robot,
+      JSON.stringify(robotDocument),
+    ]);
+    const list = await f.projects({ module: 'robotics', learner: learner!.id });
+    expect(list.items.map((item) => item.id)).toEqual([robot]);
+    const profile = await read<{ items: { id: string }[] }>('classroom_participant_works', [
+      f.actor.principal_id,
+      f.classId,
+      learner!.id,
+      'robotics',
+      false,
+      false,
+      0,
+    ]);
+    expect(profile.items.map((item) => item.id)).toEqual([robot]);
+    const robotPreview = await lookup(previewUrl(robot));
+    expect(robotPreview.statusCode, robotPreview.body).toBe(200);
+    expect(robotPreview.json()).toMatchObject({
+      moduleKey: 'robotics',
+      projectId: robot,
+      document: robotDocument,
+    });
+    expect((await lookup(previewUrl(robot, otherClass))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(robot, f.classId, peer!.id))).statusCode).toBe(404);
+    expect((await lookup(previewUrl(robot), `asa_student_session=${peer!.token}`)).statusCode).toBe(
+      401,
+    );
 
     expect((await lookup(previewUrl(free, otherClass))).statusCode).toBe(404);
     expect((await lookup(previewUrl(free, f.classId, peer!.id))).statusCode).toBe(404);

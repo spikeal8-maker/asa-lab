@@ -98,7 +98,8 @@ export class ClassroomObservationController {
     @Query('limit') limit?: string,
   ) {
     if (
-      (module !== undefined && !['three-d', 'electronics', 'blocks'].includes(module)) ||
+      (module !== undefined &&
+        !['three-d', 'electronics', 'blocks', 'robotics'].includes(module)) ||
       (assignment !== undefined && !['assigned', 'unassigned'].includes(assignment)) ||
       (archive !== undefined && !['true', 'false'].includes(archive)) ||
       (offset !== undefined && (!/^\d{1,6}$/.test(offset) || Number(offset) > 100000)) ||
@@ -142,7 +143,7 @@ export class ClassroomObservationController {
   ) {
     const saved = await this.db().read<{
       projectId: string;
-      moduleKey: 'three-d' | 'electronics';
+      moduleKey: 'three-d' | 'electronics' | 'robotics';
       revision: number;
       document: unknown;
     }>('classroom_observation_free_project_preview', [

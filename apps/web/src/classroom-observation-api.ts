@@ -43,7 +43,7 @@ export interface ObservationProjectReview {
 }
 export interface ObservationFreeProjectPreview {
   projectId: string;
-  moduleKey: 'three-d' | 'electronics';
+  moduleKey: 'three-d' | 'electronics' | 'robotics';
   revision: number;
   document: unknown;
   preview: ModulePreviewDescriptor | null;

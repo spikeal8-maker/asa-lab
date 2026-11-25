@@ -12,7 +12,7 @@ import { LearningConditions } from './LearningConditions';
 import { LearningAudience } from './LearningAudience';
 import { useSchoolTime } from './school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
-import { WorkPreview } from './WorkPreview';
+import { classroomWorkScope, WorkPreview } from './WorkPreview';
 import './classroom-assignments.css';
 import {
   canonicalLearningClass,
@@ -268,6 +268,14 @@ export function ClassroomAssignments({
 
         {previewing?.projectId ? (
           <WorkPreview
+            previewScope={classroomWorkScope(
+              open.moduleKey,
+              classroomId,
+              previewing.seatId,
+              true,
+              !archived,
+            )}
+            expectedAssignmentId={open.id}
             projectId={previewing.projectId}
             snapshotRevision={previewing.snapshotRevision}
             moduleKey={open.moduleKey}
@@ -281,11 +289,15 @@ export function ClassroomAssignments({
               setPreviewing(null);
               onOpenProject(projectId, open.moduleKey);
             }}
-            onGraded={() => {
-              void api.classroomAssignmentProgress(classroomId, open.id).then((result) => {
-                if (result.ok) setProgress(result.data.items);
-              });
-            }}
+            {...(archived
+              ? { readOnly: true as const }
+              : {
+                  onGraded: () => {
+                    void api.classroomAssignmentProgress(classroomId, open.id).then((result) => {
+                      if (result.ok) setProgress(result.data.items);
+                    });
+                  },
+                })}
           />
         ) : null}
         {editorDialog}

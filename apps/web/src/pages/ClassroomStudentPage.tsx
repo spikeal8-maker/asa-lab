@@ -7,7 +7,7 @@ import {
 } from '../classroom-participants-api';
 import { ClassroomWorkCard } from '../components/ClassroomWorkCard';
 import { isDrawableFigure, ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
-import { WorkPreview } from '../components/WorkPreview';
+import { classroomWorkScope, WorkPreview } from '../components/WorkPreview';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { SystemTabs } from '../components/SystemTabs';
 import { useSchoolTime } from '../components/school-time';
@@ -66,6 +66,7 @@ type SettingsCategory = 'identity' | 'access' | 'safety' | 'games' | 'projects';
 export function ClassroomStudentPage({
   classroomId,
   classroomTitle,
+  classSafeMode,
   seatId,
   navigation,
   onNavigateStudent,
@@ -76,6 +77,7 @@ export function ClassroomStudentPage({
 }: {
   readonly classroomId: string;
   readonly classroomTitle: string;
+  readonly classSafeMode?: boolean;
   readonly seatId: string;
   readonly navigation: ClassroomStudentNavigation | null;
   readonly onNavigateStudent: (seatId: string) => void;
@@ -1236,14 +1238,23 @@ export function ClassroomStudentPage({
       {responding ? (
         <WorkPreview
           key={`${classroomId}:${seatId}:${responding.id}:${previewReadOnly}`}
-          previewScope={
-            responding.moduleKey === 'three-d' || responding.moduleKey === 'electronics'
-              ? responding.canonicalState || responding.assignment
-                ? { kind: 'submission', classroomId, seatId, canReview: !previewReadOnly }
-                : { kind: 'free', classroomId, seatId }
-              : undefined
+          previewScope={classroomWorkScope(
+            responding.moduleKey,
+            classroomId,
+            seatId,
+            Boolean(responding.canonicalState || responding.assignment),
+            !previewReadOnly,
+          )}
+          allowGallerySharing={
+            !previewReadOnly &&
+            classSafeMode === false &&
+            student.safeMode === false &&
+            responding.status === 'active' &&
+            responding.assignment === null &&
+            !responding.canonicalState &&
+            !responding.submittedAt &&
+            !responding.awaitingReview
           }
-          manageFocus
           projectId={responding.id}
           snapshotRevision={responding.snapshotRevision}
           moduleKey={responding.moduleKey}

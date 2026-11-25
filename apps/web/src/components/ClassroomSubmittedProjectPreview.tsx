@@ -2,6 +2,7 @@ import { lazy, Suspense, useId, useRef, useState, type ReactNode } from 'react';
 import type { ObservationFreeProjectPreview } from '../classroom-observation-api';
 import type { ExactLearningSubmission } from '../api';
 import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
+import { ProjectPlaybackStage } from '../modules/ProjectPlaybackStage';
 import type { ClassroomExactElectronicsViewerProps } from './ClassroomExactElectronicsViewer';
 import type { ClassroomExactThreeDViewerProps } from './ClassroomExactThreeDViewer';
 import './classroom-gradebook.css';
@@ -28,6 +29,12 @@ const ExactElectronicsViewer = lazy(() =>
   })),
 );
 
+const RoboticsViewer = lazy(() =>
+  import('../robotics/RoboticsProjectViewer').catch(() => ({
+    default: ({ fallback }: { fallback: ReactNode }) => <>{fallback}</>,
+  })),
+);
+
 const ExactArduinoSource = lazy(() =>
   import('./ClassroomExactArduinoSource').catch(() => ({ default: () => null })),
 );
@@ -42,11 +49,13 @@ export function FrozenProjectPreview({
   initiallyOpen?: boolean;
 }) {
   return (
-    <ClassroomProjectPlayback
-      project={submission}
-      initiallyOpen={initiallyOpen}
-      snapshotLabel="Точный снимок сданной работы"
-    />
+    <ProjectPlaybackStage>
+      <ClassroomProjectPlayback
+        project={submission}
+        initiallyOpen={initiallyOpen}
+        snapshotLabel="Точный снимок сданной работы"
+      />
+    </ProjectPlaybackStage>
   );
 }
 
@@ -58,12 +67,14 @@ export function FreeProjectPreview({
   snapshot: ReactNode;
 }) {
   return (
-    <ClassroomProjectPlayback
-      project={project}
-      initiallyOpen
-      snapshotLabel="Снимок сохранённой работы"
-      snapshot={snapshot}
-    />
+    <ProjectPlaybackStage>
+      <ClassroomProjectPlayback
+        project={project}
+        initiallyOpen
+        snapshotLabel="Снимок сохранённой работы"
+        snapshot={snapshot}
+      />
+    </ProjectPlaybackStage>
   );
 }
 
@@ -86,6 +97,19 @@ function ClassroomProjectPlayback({
   ) : (
     (snapshot ?? <p>Визуальный предпросмотр для этого снимка недоступен.</p>)
   );
+  if (!('submissionId' in project) && project.moduleKey === 'robotics') {
+    const sessionId = `classroom-robot:${project.projectId}:${project.revision}`;
+    return (
+      <Suspense fallback={fallback}>
+        <RoboticsViewer
+          key={sessionId}
+          sessionId={sessionId}
+          document={project.document}
+          fallback={fallback}
+        />
+      </Suspense>
+    );
+  }
   if (project.moduleKey === 'electronics') {
     const expanded = open && Boolean(project.electronicsSimulation);
     return (
@@ -129,6 +153,7 @@ function ClassroomProjectPlayback({
             >
               <ExactElectronicsViewer
                 artifact={project.electronicsSimulation}
+                document={project.document}
                 identity={
                   'submissionId' in project
                     ? {
@@ -144,9 +169,11 @@ function ClassroomProjectPlayback({
           )}
         </div>
         {!expanded && fallback}
-        <Suspense fallback={null}>
-          <ExactArduinoSource document={project.document} />
-        </Suspense>
+        {!expanded && (
+          <Suspense fallback={null}>
+            <ExactArduinoSource document={project.document} />
+          </Suspense>
+        )}
       </div>
     );
   }
@@ -156,7 +183,14 @@ function ClassroomProjectPlayback({
     <div
       className="gradebook-three-d-preview"
       onKeyDown={(event) => {
-        if (initiallyOpen || event.key !== 'Escape' || !open) return;
+        if (
+          initiallyOpen ||
+          event.defaultPrevented ||
+          event.key !== 'Escape' ||
+          !open ||
+          document.fullscreenElement
+        )
+          return;
         event.preventDefault();
         setOpen(false);
         opener.current?.focus();

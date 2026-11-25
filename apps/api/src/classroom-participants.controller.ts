@@ -232,7 +232,8 @@ export class ClassroomParticipantsController {
     @Query('offset') offset: string | undefined,
   ) {
     if (
-      (module !== undefined && !['three-d', 'electronics', 'blocks'].includes(module)) ||
+      (module !== undefined &&
+        !['three-d', 'electronics', 'blocks', 'robotics'].includes(module)) ||
       (archive !== undefined && !['true', 'false'].includes(archive)) ||
       (assignments !== undefined && !['true', 'false'].includes(assignments)) ||
       (offset !== undefined && !/^\d{1,6}$/.test(offset)) ||
