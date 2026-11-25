@@ -16,6 +16,7 @@ import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import { createClassroomElectronicsSimulation } from './public-project-artifact.js';
 import {
   LearningCanonicalProjectionService,
   canonicalProjectionKey,
@@ -883,6 +884,15 @@ export class LearningAssessmentsController {
     }
     const provider = this.modules.get(String(row['module_key']))?.provider;
     const validated = provider?.validate(row['document_json']);
+    const electronicsSimulation =
+      row['module_key'] === 'electronics'
+        ? createClassroomElectronicsSimulation(
+            this.modules,
+            row['document_json'],
+            row['submission_id'],
+            row['project_version_id'],
+          )
+        : null;
     return {
       kind: 'project' as const,
       submissionId: row['submission_id'],
@@ -892,6 +902,7 @@ export class LearningAssessmentsController {
       moduleKey: row['module_key'],
       document: row['document_json'],
       preview: validated?.ok ? (provider?.createPreview(validated.payload) ?? null) : null,
+      ...(electronicsSimulation ? { electronicsSimulation } : {}),
     };
   }
 

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { validatePublicProjectDisplayArtifact, validatePublicArtifact } from '@asa-lab/contracts';
+import {
+  validateClassroomElectronicsSimulation,
+  validatePublicProjectDisplayArtifact,
+  validatePublicArtifact,
+} from '@asa-lab/contracts';
 function fixture() {
   return {
     schemaVersion: 2,
@@ -127,6 +131,41 @@ describe('public V3 execution projection', () => {
       ],
     };
   }
+  it('keeps strict publication and private submission envelopes distinct', () => {
+    const { provenance, ...payload } = simulation();
+    const input = {
+      submissionId: '123e4567-e89b-42d3-a456-426614174002',
+      projectVersionId: '123e4567-e89b-42d3-a456-426614174003',
+      simulation: payload,
+    };
+    const frozen = validateClassroomElectronicsSimulation(input);
+    expect(frozen).toEqual(input);
+    expect(frozen).not.toBe(input);
+    expect(Object.isFrozen(frozen?.simulation.components[0]?.stateProperties)).toBe(true);
+    expect(validatePublicProjectDisplayArtifact(input)).toEqual({
+      ok: false,
+      reason: 'invalid-public-artifact',
+    });
+    expect(validatePublicProjectDisplayArtifact(payload).ok).toBe(false);
+    expect(validatePublicProjectDisplayArtifact({ ...payload, provenance }).ok).toBe(true);
+    expect(
+      validatePublicProjectDisplayArtifact({
+        ...payload,
+        provenance,
+        submissionId: input.submissionId,
+      }).ok,
+    ).toBe(false);
+    expect(validateClassroomElectronicsSimulation({ ...input, provenance })).toBeNull();
+    expect(
+      validateClassroomElectronicsSimulation({ ...input, simulation: { ...payload, provenance } }),
+    ).toBeNull();
+    expect(
+      validateClassroomElectronicsSimulation({ ...input, projectVersionId: 'latest' }),
+    ).toBeNull();
+    Object.assign(payload.components[0]?.stateProperties ?? {}, { runtime: 'not allowlisted' });
+    expect(validateClassroomElectronicsSimulation(input)).toBeNull();
+  });
+
   it('accepts only saved public program as escaped text, detached and frozen', () => {
     const input = simulation();
     const result = validatePublicProjectDisplayArtifact(input);

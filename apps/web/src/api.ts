@@ -142,6 +142,7 @@ export type ExactLearningSubmission =
       moduleKey: string;
       document: unknown;
       preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
+      electronicsSimulation?: import('@asa-lab/contracts').ClassroomElectronicsSimulation;
     };
 
 export interface AuthoredActivityLearnerPreview {

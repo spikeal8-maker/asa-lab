@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import type { ClassroomElectronicsSimulation } from '@asa-lab/contracts';
 import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fixture, classId } from './fixtures/classroom-owner';
@@ -616,17 +617,34 @@ test('teacher compact class list remains readable with sidebar and on phones', a
   expect(state.errors).toEqual([]);
 });
 
-test('exact submitted project review keeps 3D and Arduino source accessible at all widths', async ({
+test('exact submitted project review keeps 3D, Arduino and Electronics playback accessible at all widths', async ({
   page,
 }) => {
+  test.setTimeout(90_000);
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        if (options?.name !== 'asa-electronics-simulation') return;
+        this.addEventListener('message', ({ data }) => {
+          if (data?.ok && data.kind === 'preflight' && data.result?.status === 'solved')
+            document.documentElement.dataset.solvedPlaybackSession = data.projectSessionId;
+        });
+      }
+    };
+  });
   await page.setViewportSize({ width: 1440, height: 1000 });
   const state = await fixture(page, 1);
   const pupil = state.students()[0]!;
   const assignment = 'submitted-exact-3d';
   const assignmentTitle = 'Трёхмерная модель длинной опоры для лабораторной установки';
   const attempt = 'attempt-exact-3d';
-  const submission = 'submission-exact-3d';
-  const version = 'version-exact-3d';
+  const submission = '123e4567-e89b-42d3-a456-426614174001';
+  const version = '123e4567-e89b-42d3-a456-426614174002';
+  const nextAttempt = 'attempt-exact-next';
+  const nextSubmission = '123e4567-e89b-42d3-a456-426614174003';
+  const nextVersion = '123e4567-e89b-42d3-a456-426614174004';
   const submittedAt = '2026-10-12T12:00:00Z';
   const document = {
     ...createEmptyThreeDDocument(),
@@ -634,6 +652,7 @@ test('exact submitted project review keeps 3D and Arduino source accessible at a
   };
   let moduleKey = 'three-d';
   let payload: unknown = document;
+  let electronicsSimulation: ClassroomElectronicsSimulation | null = null;
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const root = '/api/classrooms/' + classId;
@@ -683,15 +702,29 @@ test('exact submitted project review keeps 3D and Arduino source accessible at a
               submittedAt,
               results: [],
             },
+            ...(electronicsSimulation
+              ? [
+                  {
+                    id: nextAttempt,
+                    number: 2,
+                    state: 'submitted',
+                    submissionId: nextSubmission,
+                    projectVersionId: nextVersion,
+                    submittedAt,
+                    results: [],
+                  },
+                ]
+              : []),
           ],
         },
       });
-    if (path === root + '/attempts/' + attempt + '/submission')
+    if ([attempt, nextAttempt].some((id) => path === root + '/attempts/' + id + '/submission'))
       return route.fulfill({
         json: {
           kind: 'project',
-          submissionId: submission,
-          projectVersionId: version,
+          submissionId: path.includes(nextAttempt) ? nextSubmission : submission,
+          projectVersionId: path.includes(nextAttempt) ? nextVersion : version,
+          ...(electronicsSimulation ? { electronicsSimulation } : {}),
           sourceRevision: 7,
           digest: 'frozen-digest',
           moduleKey,
@@ -877,6 +910,144 @@ test('exact submitted project review keeps 3D and Arduino source accessible at a
   await expect(source).toHaveCount(0);
   await expect(sourceDisclosure).toBeFocused();
   expect(viewerRequests).toEqual([]);
+
+  await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
+  electronicsSimulation = {
+    submissionId: submission,
+    projectVersionId: version,
+    simulation: {
+      schemaVersion: 3,
+      status: 'simulation',
+      viewerFamily: 'electronics',
+      capabilities: { readOnly: true, interactive: true, download: false },
+      solverIterations: 24,
+      components: [
+        {
+          id: 'battery',
+          kind: 'source',
+          componentTypeId: 'battery-3v',
+          pinIds: ['positive', 'negative'],
+          position: { x: 0, y: 0 },
+          value: 3,
+        },
+        {
+          id: 'resistor',
+          kind: 'resistor',
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+          position: { x: 120, y: 0 },
+          value: 330,
+        },
+      ],
+      connections: [
+        {
+          id: 'w1',
+          from: { componentId: 'battery', terminal: 'positive' },
+          to: { componentId: 'resistor', terminal: 'lead-1' },
+        },
+        {
+          id: 'w2',
+          from: { componentId: 'battery', terminal: 'negative' },
+          to: { componentId: 'resistor', terminal: 'lead-2' },
+        },
+      ],
+    },
+  };
+  const playbackRequests: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      path.startsWith('/api/public-projects') ||
+      path.startsWith('/api/projects/') ||
+      (path.startsWith('/api/') &&
+        !path.startsWith('/api/diagnostics') &&
+        !path.startsWith('/api/analytics') &&
+        !['GET', 'HEAD'].includes(request.method()))
+    )
+      playbackRequests.push(request.method() + ' ' + path);
+  });
+
+  await cell.click();
+  await expect(fixed).toHaveText(version);
+  const toggle = detail.getByRole('button', { name: /^(Открыть|Скрыть) симуляцию$/ });
+  const playback = detail.getByRole('region', { name: 'Сданная электрическая схема' });
+  const start = playback.getByTestId('classroom-electronics-start');
+  const stage = playback.getByTestId('public-electronics-scene');
+  const isSimulationWorker = (worker: { url(): string }) =>
+    worker.url().includes('simulation.worker');
+  const launch = async () => {
+    const pending = page.waitForEvent('worker', { predicate: isSimulationWorker });
+    await start.click();
+    const worker = await pending;
+    return { closed: new Promise<void>((resolve) => worker.once('close', resolve)) };
+  };
+
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(playback).toHaveCount(0);
+  await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
+  await toggle.press('Enter');
+  await expect(playback).toBeVisible();
+  expect(page.workers().filter(isSimulationWorker)).toHaveLength(0);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const bounds = (await stage.boundingBox())!;
+    expect(bounds.width).toBeGreaterThan(0);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1);
+    const more = playback.getByRole('button', { name: 'Инструменты просмотра' });
+    const fullscreen = playback.getByRole('button', { name: 'На весь экран' });
+    if (width <= 390) {
+      await expect(more).toBeVisible();
+      await expect(fullscreen).toBeHidden();
+      await more.click();
+      await expect(fullscreen).toBeVisible();
+    }
+    for (const control of [toggle, ...(await playback.getByRole('button').all())]) {
+      if (!(await control.isVisible())) continue;
+      const target = (await control.boundingBox())!;
+      const label = width + ' px · ' + (await control.textContent());
+      expect(target.width, label).toBeGreaterThanOrEqual(44);
+      expect(target.height, label).toBeGreaterThanOrEqual(44);
+      expect(target.x, label).toBeGreaterThanOrEqual(bounds.x - 1);
+      expect(target.x + target.width, label).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+    }
+    if (width <= 390) await more.click();
+    await playback.screenshot({ path: out + '/exact-electronics-review-' + width + '.png' });
+  }
+
+  const workerForBlur = await launch();
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-solved-playback-session',
+    'classroom-submission:' + submission + ':' + version,
+  );
+  await expect(start).toHaveText('Стоп');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await workerForBlur.closed;
+  await expect(start).toHaveText('Начать');
+  await expect(playback.getByRole('status').filter({ hasText: 'потере фокуса' })).toBeVisible();
+
+  const workerForEscape = await launch();
+  await stage.press('Escape');
+  await workerForEscape.closed;
+  await expect(toggle).toBeFocused();
+  await expect(playback).toHaveCount(0);
+  await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
+
+  await toggle.click();
+  const workerForAttemptSwitch = await launch();
+  await detail.getByLabel('Попытка', { exact: true }).selectOption(nextAttempt);
+  await workerForAttemptSwitch.closed;
+  await expect(fixed).toHaveText(nextVersion);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(
+    detail.getByRole('status').filter({ hasText: 'Симуляция этой сдачи недоступна.' }),
+  ).toBeVisible();
+  await expect(playback).toHaveCount(0);
+  await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
+  await expect(sourceDisclosure).toBeVisible();
+  expect(page.workers().filter(isSimulationWorker)).toHaveLength(0);
+  expect(playbackRequests).toEqual([]);
 
   await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
   await page.setViewportSize({ width: 1440, height: 1000 });
