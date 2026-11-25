@@ -2,6 +2,7 @@ import {
   advanceClockedArduinoRuntime,
   analyseArduinoProgramSyntax,
   arduinoRuntimeStateMatchesProgram,
+  ownedArduinoRuntimeStateMatchesProgram,
   createOwnedClockedArduinoRuntime,
   type ArduinoRuntimeEvent,
   type ArduinoRuntimeState,
@@ -570,6 +571,18 @@ function ordinaryOwnedGraph(value: unknown, visited = new Set<object>()): boolea
   });
 }
 
+const originalRuntimeValidator = arduinoRuntimeStateMatchesProgram;
+
+function matchesOwnedRuntime(
+  owner: NonNullable<OwnedClockRequest['runtime']>,
+  source: string,
+  state: ArduinoRuntimeState,
+): boolean {
+  return arduinoRuntimeStateMatchesProgram === originalRuntimeValidator
+    ? ownedArduinoRuntimeStateMatchesProgram(owner, source, state)
+    : arduinoRuntimeStateMatchesProgram(source, state);
+}
+
 function originalOwnedProducers(): boolean {
   // The two stable module literals must reject strict components before touching
   // their unused methods. Descriptor reads never execute a replacement getter.
@@ -582,6 +595,7 @@ function originalOwnedProducers(): boolean {
     pnp !== undefined &&
     'value' in pnp &&
     pnp.value === 'pnp-transistor' &&
+    arduinoRuntimeStateMatchesProgram === originalRuntimeValidator &&
     arduinoGroundTerminalsHaveOriginalDefinition() &&
     strictElectricalTerminalsHaveOriginalDefinition() &&
     strictElectricalIdentitiesHaveOriginalDefinition() &&
@@ -1444,7 +1458,7 @@ function* iterateArduinoCircuitClock(
         // Physical/quality consumers always receive the detached held view.
         if (
           ownership?.runtime &&
-          !arduinoRuntimeStateMatchesProgram(loadedSources.get(board.id) ?? '', state)
+          !matchesOwnedRuntime(ownership.runtime, loadedSources.get(board.id) ?? '', state)
         )
           throw new Error('Invalid private Arduino state at electrical boundary.');
         return [board.id, arduinoSnapshotFromState(state)] as const;
@@ -1980,7 +1994,7 @@ function* iterateArduinoCircuitClock(
         !integerTime(reachedMicroseconds) ||
         reachedMicroseconds > targetMicroseconds ||
         invalidClockPhysicalCheckpoint(document, profile, reachedMicroseconds, physicalState) ||
-        !arduinoRuntimeStateMatchesProgram(source, runtime) ||
+        !matchesOwnedRuntime(ownership.runtime, source, runtime) ||
         runtime.clockProfile !== 'instruction-us-v1' ||
         runtime.faults.length > 0 ||
         runtime.virtualTimeMs > reachedMicroseconds / 1000 ||
@@ -2050,6 +2064,7 @@ function* iterateArduinoCircuitClock(
       if (ownership && ownership.runtime === undefined) {
         ownership.runtime = createOwnedClockedArduinoRuntime(source, currentRuntime, {
           accountForStableLoops: true,
+          retainEventHistory: true,
         });
         ownership.source = source;
       }

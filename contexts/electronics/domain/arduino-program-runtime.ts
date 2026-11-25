@@ -22,6 +22,15 @@ import {
 } from './arduino-adc-observation.js';
 import type { Terminal } from './document.js';
 import {
+  ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT,
+  ArduinoRuntimeEventQueue,
+  disposeRuntimeHistory,
+  isArduinoGpioTerminal,
+  registerRuntimeHistory,
+  runtimeHistoryIsValid,
+  verifiedRuntimeHistory,
+} from './arduino-runtime-history.js';
+import {
   advanceArduinoPulseWait,
   beginArduinoPulseWait,
   isArduinoPulseWaitState,
@@ -123,7 +132,7 @@ export type ArduinoProgramAction =
   | ArduinoPinModeAction;
 
 export const ARDUINO_RUNTIME_STATE_VERSION = 7 as const;
-export const ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT = 256 as const;
+export { ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT };
 export type ArduinoClockProfile = 'legacy-ms-v1' | 'instruction-us-v1';
 
 export interface ArduinoRuntimeEvent {
@@ -401,10 +410,6 @@ function programFingerprint(source: string): string {
     .padStart(8, '0')}`;
 }
 
-function isArduinoGpioTerminal(value: unknown): value is Terminal {
-  return typeof value === 'string' && /^(?:d(?:[0-9]|1[0-3])|a[0-5])$/.test(value);
-}
-
 function toneStateIsValid(tone: ArduinoToneState): boolean {
   return (
     isArduinoTimedWaveformState(tone) ||
@@ -510,7 +515,10 @@ function pendingEvaluationIsValid(state: ArduinoRuntimeState): boolean {
   }
 }
 
-function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
+function runtimeStateIsValid(
+  state: ArduinoRuntimeState,
+  history?: ArduinoRuntimeState['eventQueue'],
+): boolean {
   const pinModeEntries = Object.entries(state.pinModes ?? {});
   const outputVoltageEntries = Object.entries(state.outputVoltages ?? {});
   const toneEntries = Object.entries(state.tones ?? {});
@@ -574,8 +582,8 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     state.loopIterations >= 0 &&
     Number.isSafeInteger(state.nextEventSequence) &&
     state.nextEventSequence >= 0 &&
-    Array.isArray(state.eventQueue) &&
-    state.eventQueue.length <= ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT &&
+    Array.isArray(history ?? state.eventQueue) &&
+    (history ?? state.eventQueue).length <= ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT &&
     (state.pulseWait == null ||
       (isArduinoPulseWaitState(state.pulseWait) &&
         isArduinoGpioTerminal(state.pulseWait.terminal) &&
@@ -589,30 +597,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
     valid(state.randomState) &&
     (state.serial === undefined || isArduinoSerialState(state.serial)) &&
     (state.servo === undefined || isArduinoServoRuntimeState(state.servo)) &&
-    state.eventQueue.every(
-      (event, index) =>
-        event !== null &&
-        typeof event === 'object' &&
-        Number.isSafeInteger(event.sequence) &&
-        event.sequence >= 0 &&
-        event.sequence < state.nextEventSequence &&
-        (index === 0 || event.sequence > state.eventQueue[index - 1]!.sequence) &&
-        Number.isSafeInteger(event.atMicroseconds) &&
-        event.atMicroseconds >= 0 &&
-        (index === 0 || event.atMicroseconds >= state.eventQueue[index - 1]!.atMicroseconds) &&
-        isArduinoGpioTerminal(event.terminal) &&
-        ['pin-mode-change', 'output-change', 'tone-start', 'tone-stop'].includes(event.kind) &&
-        (event.mode === undefined ||
-          event.mode === 'INPUT' ||
-          event.mode === 'INPUT_PULLUP' ||
-          event.mode === 'OUTPUT') &&
-        (event.voltage === undefined ||
-          (Number.isFinite(event.voltage) && event.voltage >= 0 && event.voltage <= 5)) &&
-        (event.frequencyHz === undefined ||
-          (Number.isFinite(event.frequencyHz) &&
-            event.frequencyHz >= 1 &&
-            event.frequencyHz <= 20_000)),
-    ) &&
+    runtimeHistoryIsValid(state, history) &&
     state.variables !== null &&
     typeof state.variables === 'object' &&
     Object.values(state.variables).every((value) => Number.isFinite(value)) &&
@@ -3106,7 +3091,23 @@ export function arduinoRuntimeStateMatchesProgram(
   source: string,
   state: ArduinoRuntimeState,
 ): boolean {
-  if (!state || !runtimeStateIsValid(state)) return false;
+  return runtimeStateMatchesProgram(source, state);
+}
+
+export function ownedArduinoRuntimeStateMatchesProgram(
+  owner: object,
+  source: string,
+  state: ArduinoRuntimeState,
+): boolean {
+  return runtimeStateMatchesProgram(source, state, verifiedRuntimeHistory(owner, state));
+}
+
+function runtimeStateMatchesProgram(
+  source: string,
+  state: ArduinoRuntimeState,
+  history?: ArduinoRuntimeState['eventQueue'],
+): boolean {
+  if (!state || !runtimeStateIsValid(state, history)) return false;
   const compilation = compileArduinoProgram(source);
   if (!functionFramesMatch(compilation, state)) return false;
   const instructions = runtimeInstructions(compilation, state.phase, state.activeFunction);
@@ -3221,6 +3222,7 @@ export function advanceClockedArduinoRuntime(
 }
 
 interface OwnedRuntimeMemory {
+  history?: ReturnType<typeof registerRuntimeHistory>;
   readonly compilation: ArduinoProgramCompilation;
   readonly inactiveScopes: InactiveScopePool;
   readonly stableLoop: StableOwnedLoop | undefined;
@@ -3277,7 +3279,10 @@ function createOwnedInstructionWorkspace(
 export function createOwnedClockedArduinoRuntime(
   source: string,
   initial?: ArduinoRuntimeState,
-  options: { readonly accountForStableLoops?: boolean } = {},
+  options: {
+    readonly accountForStableLoops?: boolean;
+    readonly retainEventHistory?: boolean;
+  } = {},
 ) {
   const compilation = compileArduinoProgram(source);
   let readsMillis = false;
@@ -3342,7 +3347,7 @@ export function createOwnedClockedArduinoRuntime(
       : undefined,
   };
   let previous = initial;
-  return {
+  const context = {
     advance(time: number, instructionBudget: number, stopAtElectricalBoundary = false) {
       if (!memory) throw new Error('Disposed Arduino request.');
       const advanced = advanceRuntime(
@@ -3361,10 +3366,13 @@ export function createOwnedClockedArduinoRuntime(
       return advanced;
     },
     dispose() {
+      disposeRuntimeHistory(context);
       memory = undefined;
       previous = undefined;
     },
   };
+  if (options.retainEventHistory) memory.history = registerRuntimeHistory(context);
+  return context;
 }
 
 function advanceRuntime(
@@ -3513,7 +3521,10 @@ function advanceRuntime(
   let loopStartedAtMs = compatible ? previous.loopStartedAtMs : resetAtMs;
   let loopIterations = compatible ? previous.loopIterations : 0;
   let nextEventSequence = compatible ? previous.nextEventSequence : 0;
-  const eventQueue = compatible ? [...previous.eventQueue] : [];
+  const eventQueue = new ArduinoRuntimeEventQueue(
+    compatible ? previous : undefined,
+    owned?.history,
+  );
   const events: ArduinoRuntimeEvent[] = [];
   const emit = (
     event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>,
@@ -3525,11 +3536,8 @@ function advanceRuntime(
       atMicroseconds: microsecondsFromMilliseconds(atMs),
     };
     nextEventSequence += 1;
-    eventQueue.push(sequenced);
+    eventQueue.append(sequenced, nextEventSequence);
     events.push(sequenced);
-    if (eventQueue.length > ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT) {
-      eventQueue.splice(0, eventQueue.length - ARDUINO_RUNTIME_EVENT_QUEUE_LIMIT);
-    }
   };
   let advanceStatementCount = 0;
   let continuousStatementCount = 0;
@@ -4020,7 +4028,7 @@ function advanceRuntime(
     setupActions.length = 0;
     loopActions.length = 0;
     events.length = 0;
-    eventQueue.length = 0;
+    eventQueue.clear();
     nextEventSequence = 0;
     pinModes.clear();
     outputVoltages.clear();
@@ -4057,7 +4065,7 @@ function advanceRuntime(
       loopStartedAtMs,
       loopIterations,
       nextEventSequence,
-      eventQueue: owned ? [...eventQueue] : eventQueue,
+      eventQueue: eventQueue.snapshot(owned !== undefined),
       ...(pendingEvaluation ? { pendingEvaluation } : {}),
       ...(rng !== undefined && { randomState: rng }),
       ...(pulseWait ? { pulseWait } : {}),
@@ -4075,6 +4083,7 @@ function advanceRuntime(
     diagnostics,
   };
   if (owned) {
+    eventQueue.retain(advanced.state);
     const projection = (key: 'variables' | 'locals' | 'scopes', materialize: () => unknown) => ({
       enumerable: true,
       configurable: true,
