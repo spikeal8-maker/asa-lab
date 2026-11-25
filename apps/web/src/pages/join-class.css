@@ -7,60 +7,6 @@
   gap: 10px;
 }
 
-.join-class-code-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  align-items: stretch;
-  gap: 4px;
-}
-
-.join-class-code-field input {
-  min-width: 0;
-  min-height: 44px;
-}
-
-.join-class-code-field input::-ms-reveal {
-  display: none;
-}
-
-.join-class-code-field .join-class-code-toggle {
-  display: grid;
-  place-items: center;
-  min-height: 44px;
-  padding: 0;
-  position: relative;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.join-class-code-eye {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid currentColor;
-  border-radius: 74% 16%;
-  transform: rotate(45deg);
-}
-
-.join-class-code-eye::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.join-class-code-field input[type='password'] + button::after {
-  content: '';
-  position: absolute;
-  width: 20px;
-  height: 1.5px;
-  background: currentColor;
-  transform: rotate(-45deg);
-}
-
 .join-class-card .btn-primary {
   margin-top: 8px;
 }

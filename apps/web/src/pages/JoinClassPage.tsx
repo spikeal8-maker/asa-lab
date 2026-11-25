@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
+import { ClassCodeField } from '../components/ClassCodeField';
 import './join-class.css';
 
 type JoinState =
@@ -151,32 +152,15 @@ export function JoinClassPage({
             <h2>Введите код класса</h2>
             <p className="subtitle">Код класса написан на карточке, которую выдал преподаватель.</p>
             <label htmlFor="class-code">Код класса</label>
-            <div className="join-class-code-field">
-              <input
-                id="class-code"
-                type={showCode ? 'text' : 'password'}
-                autoFocus
-                autoComplete="one-time-code"
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
-                inputMode="text"
-                value={code}
-                disabled={busy}
-                placeholder="ABC DEF 234"
-                onChange={(event) => setCode(event.target.value.toUpperCase())}
-              />
-              <button
-                type="button"
-                className="btn-ghost join-class-code-toggle"
-                aria-controls="class-code"
-                aria-label={showCode ? 'Скрыть код класса' : 'Показать код класса'}
-                title={showCode ? 'Скрыть код класса' : 'Показать код класса'}
-                onClick={() => setShowCode((visible) => !visible)}
-              >
-                <span className="join-class-code-eye" aria-hidden="true" />
-              </button>
-            </div>
+            <ClassCodeField
+              id="class-code"
+              value={code}
+              visible={showCode}
+              disabled={busy}
+              autoFocus
+              onChange={setCode}
+              onVisibilityChange={setShowCode}
+            />
             {error ? (
               <p className="form-error" role="alert">
                 {error}
