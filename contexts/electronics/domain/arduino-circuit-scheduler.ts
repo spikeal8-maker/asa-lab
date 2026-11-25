@@ -81,6 +81,7 @@ import {
   solveRcCircuitWithHeldArduino,
   solveRcCircuitWithHeldArduinoAndExternalShaft,
   TT_NATIVE_DRIVE_MAX_INTERVAL_US,
+  type ArduinoElectricalTemplateOwner,
   type ComponentResult,
   type SolveResult,
   type ArduinoThermalEpoch,
@@ -673,6 +674,7 @@ export function createOwnedArduinoCircuitClockRequest(
     readonly inputEvents?: readonly unknown[];
     readonly state?: { readonly continuation: { readonly serializedState: string } | null };
   },
+  electricalTemplateOwner?: ArduinoElectricalTemplateOwner,
 ) {
   // Nothing can retain the graph before this decision. Once a generic callback
   // could have seen it, restoration of the public producers cannot promote it.
@@ -720,6 +722,7 @@ export function createOwnedArduinoCircuitClockRequest(
         check,
         validatedDigest,
         observeSevenSegmentTemporal,
+        electricalTemplateOwner,
       ),
   };
 }
@@ -736,6 +739,7 @@ function createArduinoCircuitClockRequest(
   stillOwned: () => boolean,
   validatedDigest?: string,
   observeSevenSegmentTemporal = false,
+  electricalTemplateOwner?: ArduinoElectricalTemplateOwner,
 ) {
   let collector =
     observeLedTemporal || observeSevenSegmentTemporal
@@ -759,7 +763,7 @@ function createArduinoCircuitClockRequest(
       : null;
   let preparation: ClockPreparation | undefined = {
     sourceSupport: new Map(),
-    operatingPoint: createArduinoOperatingPointReuse(),
+    operatingPoint: createArduinoOperatingPointReuse(electricalTemplateOwner),
     ...(collector ? { observeLedState: collector.observe } : {}),
     ...(collector &&
     observeSevenSegmentTemporal &&
@@ -790,6 +794,7 @@ function createArduinoCircuitClockRequest(
       if (disposed || !data) return undefined;
       const admitted = stillOwned();
       if (!admitted) {
+        preparation?.operatingPoint.revokeTemplates();
         if (suspended) {
           previous = suspended.checkpoint();
           suspended.clock.return(undefined as never);
@@ -824,6 +829,17 @@ function createArduinoCircuitClockRequest(
       suspended = undefined;
       const advanced = next.value;
       previous = advanced.state ?? undefined;
+      if (electricalTemplateOwner && advanced.executionStatus !== 'yielded') {
+        if (
+          advanced.executionStatus === 'ready' &&
+          advanced.result?.solved &&
+          advanced.result.quality.passed &&
+          advanced.diagnostics.length === 0 &&
+          stillOwned()
+        )
+          preparation?.operatingPoint.retainTemplates();
+        else preparation?.operatingPoint.revokeTemplates();
+      }
       return {
         advanced,
         ledTemporal:
@@ -1491,6 +1507,15 @@ function* iterateArduinoCircuitClock(
   };
   const operatingPointReuse =
     ownedPreparation?.operatingPoint ?? createArduinoOperatingPointReuse();
+  if (
+    !ownership ||
+    !eventPhysics ||
+    inputs.length !== 0 ||
+    compileDiagnostics.size !== 0 ||
+    pendingProgramLoads.size !== 0 ||
+    !executionSources.get(runnableBoards[0]?.id ?? '')?.trim()
+  )
+    operatingPointReuse.revokeTemplates();
   const adcInputs = (
     boardId: string,
     time: number,

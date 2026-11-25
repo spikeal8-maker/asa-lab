@@ -38,7 +38,13 @@ import {
   type HcSr04EnvironmentSample,
 } from './domain/models/hc-sr04-runtime.js';
 import type { BrushedMotorExternalShaftState } from './domain/models/brushed-motor-transient-model.js';
-import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
+import {
+  createArduinoElectricalTemplateOwner,
+  type ArduinoElectricalTemplateOwner,
+  type ComponentResult,
+  type Diagnostic,
+  type NodeResult,
+} from './domain/solver.js';
 import { type ElectronicsLedTemporalObservation } from './domain/led-temporal-observation.js';
 export type {
   ElectronicsLedTemporalObservation,
@@ -394,12 +400,17 @@ export function createElectronicsAdvanceSession(
   options: {
     readonly observeLedTemporal?: boolean;
     readonly observeSevenSegmentTemporal?: boolean;
+    readonly electricalTemplateOwner?: ArduinoElectricalTemplateOwner;
   } = {},
 ) {
   // The caller can change its document/state while the Worker yields; own this request snapshot.
   const ownedDocument = structuredClone(document);
   const ownedRequest = structuredClone(request);
-  const ownership = createOwnedArduinoCircuitClockRequest(ownedDocument, ownedRequest);
+  const ownership = createOwnedArduinoCircuitClockRequest(
+    ownedDocument,
+    ownedRequest,
+    options.electricalTemplateOwner,
+  );
   const iterator = advanceElectronicsRequest(
     ownedDocument,
     ownedRequest,
@@ -418,6 +429,11 @@ export function createElectronicsAdvanceSession(
     step: () => (disposed ? undefined : iterator.next().value!),
     dispose,
   };
+}
+
+/** A Worker creates one electrical-template owner for each live project and generation. */
+export function createElectronicsWorkerElectricalTemplateOwner() {
+  return createArduinoElectricalTemplateOwner();
 }
 
 interface HcSr04TestIdentity {

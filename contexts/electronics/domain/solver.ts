@@ -523,23 +523,101 @@ const sevenSegmentDefinitionIsOriginal = captureDeviceModelDefinition([
   electricalModelFor(sevenSegmentReference).requiredTerminals,
 ]);
 
-/** Pure electrical work only. Owned by one advance, never persisted or shared. */
-export function createArduinoOperatingPointReuse() {
+interface ArduinoOperatingPointSlot {
+  readonly key: readonly unknown[];
+  point?: ArduinoAlgebraicPoint;
+}
+
+/** Both graphs are private structured clones of already admitted circuit documents. */
+function sameOrderedElectricalDocument(left: ElectronicsDocument, right: ElectronicsDocument) {
+  const leftToRight = new Map<object, object>();
+  const seenRight = new Set<object>();
+  const matches = (a: unknown, b: unknown): boolean => {
+    if (Object.is(a, b)) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+    if (leftToRight.has(a)) return leftToRight.get(a) === b;
+    if (seenRight.has(b)) return false;
+    leftToRight.set(a, b);
+    seenRight.add(b);
+    const keys = Reflect.ownKeys(a);
+    const otherKeys = Reflect.ownKeys(b);
+    if (keys.length !== otherKeys.length) return false;
+    const aRecord = a as Readonly<Record<PropertyKey, unknown>>;
+    const bRecord = b as Readonly<Record<PropertyKey, unknown>>;
+    return keys.every(
+      (key, index) => key === otherKeys[index] && matches(aRecord[key], bRecord[key]),
+    );
+  };
+  return matches(left, right);
+}
+
+interface ArduinoElectricalTemplateRetention {
+  load(document: ElectronicsDocument): readonly ArduinoOperatingPointSlot[];
+  save(document: ElectronicsDocument, slots: readonly ArduinoOperatingPointSlot[]): void;
+  clear(): void;
+}
+
+const electricalTemplateOwnerBrand = Symbol('electrical-template-owner');
+export interface ArduinoElectricalTemplateOwner {
+  readonly [electricalTemplateOwnerBrand]: true;
+  dispose(): void;
+}
+const electricalTemplateOwners = new WeakMap<
+  ArduinoElectricalTemplateOwner,
+  ArduinoElectricalTemplateRetention
+>();
+
+/** The owner exposes revocation only. Solves and retained slots remain private to this module. */
+export function createArduinoElectricalTemplateOwner(): ArduinoElectricalTemplateOwner {
+  let previous:
+    { document: ElectronicsDocument; slots: readonly ArduinoOperatingPointSlot[] } | undefined;
+  let disposed = false;
+  const owner: ArduinoElectricalTemplateOwner = Object.freeze({
+    [electricalTemplateOwnerBrand]: true as const,
+    dispose() {
+      previous = undefined;
+      disposed = true;
+      electricalTemplateOwners.delete(owner);
+    },
+  });
+  electricalTemplateOwners.set(owner, {
+    load(document) {
+      if (previous && sameOrderedElectricalDocument(previous.document, document))
+        return previous.slots;
+      previous = undefined;
+      return [];
+    },
+    save(document, slots) {
+      if (!disposed) previous = slots.length > 0 ? { document, slots } : undefined;
+    },
+    clear() {
+      previous = undefined;
+    },
+  });
+  return owner;
+}
+
+/** Only a completed electrical template can leave a request's local algebra slots. */
+export function createArduinoOperatingPointReuse(owner?: ArduinoElectricalTemplateOwner) {
+  let retention = owner && electricalTemplateOwners.get(owner);
   let previousDocument: ElectronicsDocument | undefined;
   let eligible = false;
   let hasSevenSegment = false;
-  const slots: { readonly key: readonly unknown[]; point?: ArduinoAlgebraicPoint }[] = [];
-  return (
+  const slots: ArduinoOperatingPointSlot[] = [];
+  const lookup = (
     document: ElectronicsDocument,
     branches: readonly (ReturnType<typeof arduinoOutputBranchesFromSnapshot>[number] & {
       readonly component: SchematicComponent;
     })[],
     snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
     failedIds: ReadonlySet<string>,
-  ): { point?: ArduinoAlgebraicPoint } | undefined => {
+  ): ArduinoOperatingPointSlot | undefined => {
     if (previousDocument !== document) {
       previousDocument = document;
       slots.length = 0;
+      // Slot wrappers and quality owners are per request.
+      if (retention) slots.push(...retention.load(document).map((slot) => ({ ...slot })));
       hasSevenSegment = document.components.some((component) => component.kind === 'seven-segment');
       eligible = document.components.every((component) => {
         const model = electricalModelFor(component);
@@ -603,6 +681,22 @@ export function createArduinoOperatingPointReuse() {
     if (slots.length > 32) slots.pop();
     return slot;
   };
+  return Object.assign(lookup, {
+    retainTemplates() {
+      if (previousDocument)
+        retention?.save(
+          previousDocument,
+          slots.filter((slot) => slot.point?.template),
+        );
+    },
+    revokeTemplates() {
+      if (!retention) return;
+      retention.clear();
+      retention = undefined;
+      slots.length = 0;
+      previousDocument = undefined;
+    },
+  });
 }
 
 type ArduinoOperatingPointReuse = ReturnType<typeof createArduinoOperatingPointReuse>;

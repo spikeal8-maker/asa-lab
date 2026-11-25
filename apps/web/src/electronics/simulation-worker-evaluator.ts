@@ -4,6 +4,7 @@ import {
   analyseElectronicsSnapshot,
   prepareElectronicsSnapshot,
   projectElectronicsArduinoSerial,
+  type createElectronicsWorkerElectricalTemplateOwner,
   type ElectronicsTimedAdvanceResult,
 } from '@asa-lab/electronics/engine';
 import type { SchematicDocument, SolveResult } from '../api';
@@ -199,6 +200,7 @@ export async function evaluateSimulationWorkerRequestBatched(
   request: EvaluationRequest,
   isCurrent: () => boolean,
   yieldControl: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 0)),
+  electricalTemplateOwner?: ReturnType<typeof createElectronicsWorkerElectricalTemplateOwner>,
 ): Promise<ElectronicsSimulationWorkerResponse | null> {
   if (
     request.kind !== 'advance' ||
@@ -219,7 +221,11 @@ export async function evaluateSimulationWorkerRequestBatched(
         state: owned.state,
         ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
       },
-      { observeLedTemporal: true, observeSevenSegmentTemporal: true },
+      {
+        observeLedTemporal: true,
+        observeSevenSegmentTemporal: true,
+        ...(electricalTemplateOwner ? { electricalTemplateOwner } : {}),
+      },
     );
     let computeMs = globalThis.performance.now() - prepareStarted;
     let sliceStarted = globalThis.performance.now();
