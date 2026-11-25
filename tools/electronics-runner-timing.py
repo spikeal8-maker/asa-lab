@@ -23,7 +23,7 @@ def named_fields(text, names, separator=" "):
     return {key.strip(): value.strip() for key, _, value in rows if key.strip() in names}
 
 
-def cgroup_path(proc):
+def cgroup_mount(proc):
     membership = next(
         (line[3:] for line in (read_path(proc / "self/cgroup") or "").splitlines()
          if line.startswith("0::/")), None,
@@ -33,6 +33,8 @@ def cgroup_path(proc):
     for line in (read_path(proc / "self/mountinfo", 65536) or "").splitlines():
         mount, _, details = line.partition(" - ")
         if not details.startswith("cgroup2 "):
+            continue
+        if len(mount.split()) < 5:
             continue
         root, target = (
             re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), value)
@@ -44,7 +46,9 @@ def cgroup_path(proc):
             continue
         if ".." in relative.parts:
             continue
-        return Path(target).joinpath(*relative.parts)
+        if not Path(target).is_absolute():
+            continue
+        return root, Path(target), Path(target).joinpath(*relative.parts)
     return None
 
 
@@ -52,7 +56,8 @@ def sample_resources(proc=Path("/proc")):
     cpu_columns = "user nice system idle iowait irq softirq steal guest guestNice".split()
     cpu_rows = (read_path(proc / "stat") or "").splitlines()
     cpu_values = cpu_rows[0].split()[1:] if cpu_rows and cpu_rows[0].startswith("cpu ") else []
-    cgroup = cgroup_path(proc)
+    location = cgroup_mount(proc)
+    cgroup = location[2] if location else None
     cgroup_stats = None
     if cgroup is not None:
         try:
@@ -83,6 +88,115 @@ def sample_resources(proc=Path("/proc")):
         "selfCgroupV2": cgroup_stats,
     }
 
+
+REFERENCE_CLASS = "intel-xeon-6975p-c-4vcpu"
+REFERENCE_MODEL = ("GenuineIntel", "Intel(R) Xeon(R) 6975P-C")
+
+
+def cpu_list(text):
+    """Parse a kernel CPU list. Reject contradictory, malformed or excessive masks."""
+    cpus = set()
+    if not isinstance(text, str):
+        return None
+    for item in text.split(","):
+        match = re.fullmatch(r"([0-9]{1,5})(?:-([0-9]{1,5}))?", item)
+        if not match:
+            return None
+        first = int(match[1])
+        last = int(match[2] or match[1])
+        if first > last or last >= 8192 or any(cpu in cpus for cpu in range(first, last + 1)):
+            return None
+        cpus.update(range(first, last + 1))
+    return cpus
+
+
+def runner_cpu_models(proc, allowed):
+    """The summary cpuinfo model can belong to an unrelated CPU on a large host."""
+    found = {}
+    # Only classify a complete source. Do not trust a partially read final processor record.
+    try:
+        with (proc / "cpuinfo").open(encoding="utf-8") as stream:
+            raw = stream.read(1_048_577)
+    except (OSError, UnicodeError):
+        return None
+    if not raw or len(raw) > 1_048_576:
+        return None
+    for record in re.split(r"\n[ \t]*\n", raw.strip()):
+        fields = {}
+        for line in record.splitlines():
+            key, _, value = line.partition(":")
+            key = key.strip()
+            if key in ("processor", "vendor_id", "model name"):
+                if key in fields:
+                    return None
+                fields[key] = value.strip()
+        identifier = fields.get("processor", "")
+        if not re.fullmatch(r"[0-9]{1,5}", identifier):
+            return None
+        cpu = int(identifier)
+        if cpu in allowed:
+            if cpu in found or not fields.get("vendor_id") or not fields.get("model name"):
+                return None
+            found[cpu] = (fields["vendor_id"], fields["model name"])
+    return set(found.values()) if found.keys() == allowed else None
+
+
+def visible_parent_quotas(proc):
+    location = cgroup_mount(proc)
+    if not location:
+        return None
+    _, mount, leaf = location
+    if leaf == mount:
+        # Docker commonly exposes only this cgroup. cpu.max of the leaf is
+        # already in the test-runner sample, independently of its outcome.
+        return []
+    current = leaf.parent
+    quotas = []
+    while True:
+        quota = read_path(current / "cpu.max")
+        if quota is not None:
+            quotas.append(quota)
+        elif current != mount or "cpu" not in (read_path(current / "cgroup.controllers") or "").split():
+            return None
+        if current == mount:
+            return quotas
+        current = current.parent
+
+
+def classify_visible_hardware(cpu, resources, parent_quotas):
+    """Use only CPU identity and capacity visible to this process before the run."""
+    def result(status, reason):
+        return {"status": status, "referenceId": REFERENCE_CLASS, "reason": reason}
+
+    affinity = cpu_list(resources.get("allowedCpuList"))
+    group = resources.get("selfCgroupV2") or {}
+    cpuset = cpu_list(group.get("cpuset.cpus.effective"))
+    if not affinity or not cpuset or not affinity.issubset(cpuset):
+        return result("unverified", "cpu-mask-unverified")
+    if not cpu or not all(cpu):
+        return result("unverified", "cpu-model-unverified")
+    if cpu != REFERENCE_MODEL:
+        return result("other", "different-cpu-model")
+    if len(affinity) != 4:
+        return result("other", "different-vcpu-count")
+    if parent_quotas is None:
+        return result("unverified", "cgroup-unavailable")
+    for quota in [group.get("cpu.max"), *parent_quotas]:
+        match = re.fullmatch(r"(max|[0-9]{1,20}) ([1-9][0-9]{0,19})", quota or "")
+        if not match or match[1] == "0":
+            return result("unverified", "cpu-quota-unverified")
+        if match[1] != "max" and int(match[1]) < 4 * int(match[2]):
+            return result("other", "cpu-quota-below-four")
+    return result("reference", "model-affinity-and-visible-quotas-match")
+
+
+def classify_test_runner(proc, resources, linux):
+    if not linux:
+        return {"status": "unverified", "referenceId": REFERENCE_CLASS, "reason": "linux-data-unavailable"}
+    allowed = cpu_list(resources.get("allowedCpuList"))
+    models = runner_cpu_models(proc, allowed) if allowed else None
+    cpu = next(iter(models)) if models and len(models) == 1 else None
+    return classify_visible_hardware(cpu, resources, visible_parent_quotas(proc))
 
 def reference_work(iterations):
     value = 0x43C0FFEE
@@ -129,6 +243,8 @@ def sample(scope, phase, proc=Path("/proc")):
         "kernel": platform.release(),
         "architecture": platform.machine(),
         "cpu": cpu,
+        **({"hardwareClass": classify_test_runner(proc, resources, platform.system() == "Linux")}
+           if scope == "test-runner" and phase == "before" else {}),
         **({"runnerImageOs": os.environ.get("ImageOS", "")[:128],
             "runnerImageVersion": os.environ.get("ImageVersion", "")[:128]} if scope == "host" else {}),
         **resources,
@@ -146,5 +262,9 @@ if __name__ == "__main__":
         if len(row.encode("utf-8")) > 3000:
             raise ValueError("Oversize timing sample")
     except (OSError, ValueError):
-        row = json.dumps({"status": "unavailable", "scope": scope, "phase": phase})
+        unavailable = {"status": "unavailable", "scope": scope, "phase": phase}
+        if scope == "test-runner" and phase == "before":
+            unavailable["hardwareClass"] = {"status": "unverified", "referenceId": REFERENCE_CLASS,
+                                            "reason": "timing-sample-unavailable"}
+        row = json.dumps(unavailable)
     print(row)

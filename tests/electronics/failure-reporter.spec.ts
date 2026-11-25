@@ -583,3 +583,57 @@ describe('incremental Electronics failure evidence', () => {
     });
   }, 25_000);
 });
+
+it('classifies the Linux test-runner hardware before strict timing scenarios', () => {
+  const candidates =
+    process.platform === 'win32' ? [['py', '-3'], ['python'], ['python3']] : [['python3']];
+  const available = candidates.find(([command, ...args]) => {
+    const probe = spawnSync(command!, [...args, '--version'], { encoding: 'utf8' });
+    return probe.status === 0 && /^Python 3\./.test(probe.stdout || probe.stderr);
+  });
+  if (!available) throw new Error('Python 3 is required to check the Electronics runner class.');
+  const [command, ...args] = available;
+  const run = spawnSync(command!, [...args, '-B', 'tools/test_electronics_runner_timing.py'], {
+    encoding: 'utf8',
+  });
+  expect(run.error).toBeUndefined();
+  expect(run.status, run.stderr || run.stdout).toBe(0);
+});
+
+it.runIf(process.platform === 'linux')(
+  'records hardware class in the actual pre-run process sample within journal limits',
+  () => {
+    vi.stubEnv('GITHUB_ACTIONS', 'true');
+    vi.stubEnv('ASA_ELECTRONICS_QUALIFICATION_PROFILE', 'strict-real-time');
+    const root = directory();
+    mkdirSync(join(root, 'tools'));
+    writeFileSync(
+      join(root, 'tools', 'electronics-runner-timing.py'),
+      readFileSync(resolve('tools/electronics-runner-timing.py')),
+    );
+    const instance = new ElectronicsFailureReporter({ rootDir: root, _mode: 'test' });
+    reporters.push(instance);
+    instance.onBegin({}, { allTests: () => [] });
+    const begin = entries(root).find((row) => row.event === 'begin');
+    expect(begin).toMatchObject({
+      runnerTiming: {
+        status: 'available',
+        scope: 'test-runner',
+        phase: 'before',
+        hardwareClass: {
+          referenceId: 'intel-xeon-6975p-c-4vcpu',
+          status: expect.stringMatching(/^(reference|other|unverified)$/),
+        },
+      },
+    });
+    expect(Buffer.byteLength(JSON.stringify(begin?.runnerTiming))).toBeLessThanOrEqual(3000);
+    instance.onEnd({ status: 'failed', duration: 1 });
+    const rows = entries(root);
+    expect(rows.find((row) => row.event === 'begin')).toEqual(begin);
+    expect(rows.at(-1)).toMatchObject({ status: 'failed', runnerTiming: { phase: 'after' } });
+    expect(rows.at(-1)?.runnerTiming).not.toHaveProperty('hardwareClass');
+    expect(statSync(join(root, FAILURE_REPORT_PATH)).size).toBeLessThanOrEqual(
+      FAILURE_REPORT_MAX_BYTES,
+    );
+  },
+);
