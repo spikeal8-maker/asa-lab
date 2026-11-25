@@ -29,6 +29,7 @@ on:
       - 'tools/run-electronics-browser-benchmark.mjs'
       - 'tools/electronics-benchmark-assets*.mjs'
       - 'tools/electronics-failure-reporter.mjs'
+      - 'tools/electronics-runner-timing.py'
       - 'playwright.config.ts'
       - 'tools/run-electronics-load-benchmark.mjs'
       - 'tools/run-electronics-memory-benchmark.mjs'
@@ -226,6 +227,11 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
+      - name: Sample strict browser runner resources before qualification
+        if: ${{ env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        continue-on-error: true
+        run: python3 tools/electronics-runner-timing.py host before >> reports/electronics-runner-host-timing.ndjson
+
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
@@ -234,6 +240,11 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
           pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD} ${ASA_ELECTRONICS_BROWSER_FILTER:+--workers=1 "$ASA_ELECTRONICS_BROWSER_FILTER" "$ASA_ELECTRONICS_REALTIME_TITLES"}
+
+      - name: Sample strict browser runner resources after qualification
+        if: ${{ always() && env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        continue-on-error: true
+        run: python3 tools/electronics-runner-timing.py host after >> reports/electronics-runner-host-timing.ndjson
 
       - name: Show isolated stack state
         if: always()
