@@ -121,7 +121,7 @@
   display: grid;
   gap: 4px;
 }
-.gradebook-detail pre {
+.gradebook-detail details > pre {
   max-height: 240px;
   overflow: auto;
   font-size: 12px;
@@ -131,11 +131,12 @@
   gap: 8px;
   min-width: 0;
 }
-.gradebook-exact code {
+.gradebook-exact > code,
+.gradebook-exact details > code {
   overflow-wrap: anywhere;
   font-size: 12px;
 }
-.gradebook-exact svg {
+.gradebook-exact .project-preview-figure {
   width: 100%;
   height: 240px;
 }
@@ -159,104 +160,19 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.gradebook-electronics-preview {
-  container: gradebook-electronics / inline-size;
+.gradebook-electronics-preview,
+.gradebook-three-d-preview {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
-.gradebook-electronics-preview > button {
-  justify-self: start;
-}
-.gradebook-electronics-preview .public-electronics-tools {
-  padding: 6px;
-  justify-content: flex-start;
-}
-.classroom-owner-workspace.classroom-workspace
-  .gradebook-detail
-  .gradebook-electronics-preview
-  .public-electronics-tools
-  button {
-  min-width: 44px;
-  min-height: 44px;
-}
-.gradebook-electronics-preview .public-electronics-more {
-  display: none;
-}
-.gradebook-electronics-preview .public-electronics-secondary-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-@container gradebook-electronics (max-width: 520px) {
-  .gradebook-electronics-preview .public-electronics-tools > span {
-    display: none;
-  }
-  .gradebook-electronics-preview .public-electronics-more {
-    display: inline-grid;
-    place-items: center;
-  }
-  .gradebook-electronics-preview .public-electronics-secondary-tools {
-    display: none;
-    flex-basis: 100%;
-  }
-  .gradebook-electronics-preview .public-electronics-secondary-tools.is-open {
-    display: flex;
-  }
-  .gradebook-electronics-preview
-    .public-electronics-viewer:not(:fullscreen)
-    .public-electronics-scene {
-    height: clamp(180px, 34svh, 230px);
-  }
-}
-.gradebook-electronics-preview .public-electronics-scene {
-  height: clamp(180px, 38svh, 300px);
-}
-.gradebook-electronics-preview .public-electronics-viewer:fullscreen .public-electronics-scene {
-  height: calc(100svh - 130px);
-}
-.gradebook-three-d-preview {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
+.gradebook-electronics-preview > button,
 .gradebook-three-d-preview > button {
   justify-self: start;
 }
-.gradebook-three-d-view {
-  overflow: hidden;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.gradebook-three-d-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px;
-  border-bottom: 1px solid var(--border);
-}
-.classroom-owner-workspace.classroom-workspace
-  .gradebook-detail
-  :is(.gradebook-three-d-preview, .gradebook-three-d-tools, .gradebook-electronics-preview)
-  > button.btn-secondary {
+.classroom-owner-workspace.classroom-workspace .gradebook-detail .project-playback-stage button {
   min-width: 44px;
   min-height: 44px;
-}
-.gradebook-three-d-stage {
-  position: relative;
-  height: clamp(180px, 38svh, 300px);
-}
-.gradebook-three-d-stage > [role='status'] {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-}
-.gradebook-three-d-view[data-ready='false'] .three-d-presentation {
-  visibility: hidden;
 }
 .gradebook-detail .gradebook-review {
   display: grid;

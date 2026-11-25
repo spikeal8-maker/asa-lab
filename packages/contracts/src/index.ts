@@ -58,12 +58,14 @@ export {
   PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   validatePublicProjectDisplayArtifact,
   validateClassroomElectronicsSimulation,
+  validateClassroomFreeElectronicsSimulation,
 } from './public-project-display-artifact.js';
 export type {
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
   ElectronicsSimulationPayload,
   ClassroomElectronicsSimulation,
+  ClassroomFreeElectronicsSimulation,
   PublicSimulationComponent,
   PublicProjectDisplayArtifact,
   PublicDisplayComponent,
@@ -145,7 +147,7 @@ export {
 } from './ai-chat-feedback.js';
 export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
 
-export { publicArduinoBlocks } from './public-arduino-blocks.js';
+export { publicArduinoBlocks, classroomArduinoBlocks } from './public-arduino-blocks.js';
 
 export type {
   ChessNetworkScope,

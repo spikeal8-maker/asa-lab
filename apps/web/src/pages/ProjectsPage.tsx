@@ -5,6 +5,7 @@ import { PortalLink } from '../components/PortalLink';
 import { creatorViewToHref } from '../creator-portal/navigation';
 import { CircuitIcon, PlusIcon } from '../electronics/workbench-icons';
 import { ProjectPreview } from '../modules/ProjectPreviewFigure';
+import { ProjectCover } from '../modules/OwnProjectPreview';
 
 export function ProjectsPage({
   classroomId,
@@ -85,10 +86,13 @@ export function ProjectsPage({
             });
             return (
               <li key={project.id} className="project-gallery-card" data-testid="project-card">
-                <PortalLink
+                <ProjectCover
+                  project={project}
                   className="project-preview"
-                  href={editorHref}
-                  onNavigate={() => onOpenProject(project.id, project.moduleKey)}
+                  editor={{
+                    href: editorHref,
+                    onNavigate: () => onOpenProject(project.id, project.moduleKey),
+                  }}
                 >
                   <ProjectPreview
                     project={project}
@@ -98,11 +102,11 @@ export function ProjectsPage({
                       </span>
                     }
                   />
-                </PortalLink>
+                </ProjectCover>
                 <div className="project-card-meta">
                   <div>
                     <h2>{project.title}</h2>
-                    <p>Электроника · {classroomTitle}</p>
+                    <p>{classroomTitle}</p>
                   </div>
                   <PortalLink
                     className="btn-secondary"

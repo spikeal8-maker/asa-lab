@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import {
-  api,
-  type ClassroomStudentSeat,
-  type ClassroomStudentWork,
-  type ModuleSummary,
-  type ProjectFeedback,
-} from '../api';
+import { api, type ClassroomStudentSeat, type ModuleSummary, type ProjectFeedback } from '../api';
 import {
   participantsApi,
   type ParticipantProfile,
@@ -13,7 +7,7 @@ import {
 } from '../classroom-participants-api';
 import { ClassroomWorkCard } from '../components/ClassroomWorkCard';
 import { isDrawableFigure, ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
-import { WorkPreview } from '../components/WorkPreview';
+import { classroomWorkScope, WorkPreview } from '../components/WorkPreview';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { SystemTabs } from '../components/SystemTabs';
 import { useSchoolTime } from '../components/school-time';
@@ -52,6 +46,13 @@ function markTone(
     return badge;
   return edited ? 'teacher' : undefined;
 }
+const WORKS_PAGE_SIZE = 30;
+
+function workAwaitsReview(work: ParticipantWorks['items'][number]): boolean {
+  if (!work.canonicalState) return work.awaitingReview === true;
+  return ['submitted', 'waiting_review'].includes(work.canonicalState.workflowState);
+}
+
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
   { key: 'grades', label: 'Оценки', module: null },
@@ -70,6 +71,7 @@ type SettingsCategory = 'identity' | 'access' | 'safety' | 'games' | 'projects';
 export function ClassroomStudentPage({
   classroomId,
   classroomTitle,
+  classSafeMode,
   seatId,
   navigation,
   onNavigateStudent,
@@ -80,6 +82,7 @@ export function ClassroomStudentPage({
 }: {
   readonly classroomId: string;
   readonly classroomTitle: string;
+  readonly classSafeMode?: boolean;
   readonly seatId: string;
   readonly navigation: ClassroomStudentNavigation | null;
   readonly onNavigateStudent: (seatId: string) => void;
@@ -112,7 +115,9 @@ export function ClassroomStudentPage({
   const [workLoading, setWorkLoading] = useState(false);
   const workRequest = useRef(0);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
-  const [responding, setResponding] = useState<ClassroomStudentWork | null>(null);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const respondingIndex = works?.items.findIndex((work) => work.id === respondingId) ?? -1;
+  const responding = works?.items[respondingIndex];
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
   const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
   const [roleBusy, setRoleBusy] = useState(false);
@@ -295,7 +300,7 @@ export function ClassroomStudentPage({
       setArchive(false);
       setOnlyAwaiting(false);
     }
-    setResponding(null);
+    setRespondingId(null);
     setAwardKeys([]);
     setRoleBusy(false);
     void load();
@@ -310,7 +315,7 @@ export function ClassroomStudentPage({
       generation.current++;
       setProfile(null);
       setWorks(null);
-      setResponding(null);
+      setRespondingId(null);
       setAwardKeys([]);
       setLearnerPickerOpen(false);
       setLearnerRoster(null);
@@ -334,16 +339,36 @@ export function ClassroomStudentPage({
     };
   }, []);
   const loadWorks = useCallback(
-    async (offset = 0) => {
+    async (offset = 0, previewProjectId?: string) => {
       if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
       const token = ++generation.current;
-      setWorkLoading(true);
-      workRequest.current = offset;
+      if (!previewProjectId) {
+        setWorkLoading(true);
+        workRequest.current = offset;
+      }
       setWorksError(null);
       const result = await participantsApi.works(classroomId, seatId, module, archive, offset);
       if (generation.current !== token || scope.current !== `${classroomId}:${seatId}`) return;
       setWorkLoading(false);
-      if (result.ok)
+      if (result.ok) {
+        if (previewProjectId) {
+          const refreshed = result.data.items.find((work) => work.id === previewProjectId);
+          if (refreshed)
+            setWorks((old) =>
+              old
+                ? {
+                    ...old,
+                    items: old.items.map((work) =>
+                      work.id === previewProjectId ? refreshed : work,
+                    ),
+                  }
+                : old,
+            );
+          else setRespondingId((id) => (id === previewProjectId ? null : id));
+          return;
+        }
+        if (offset === 0)
+          setRespondingId((id) => (result.data.items.some((work) => work.id === id) ? id : null));
         setWorks((old) =>
           offset && old
             ? {
@@ -354,9 +379,10 @@ export function ClassroomStudentPage({
               }
             : result.data,
         );
-      else {
+      } else {
         if ([401, 403, 404].includes(result.status)) {
           setWorks(null);
+          setRespondingId(null);
           workRequest.current = 0;
         }
         setWorksError(result.error.message);
@@ -371,6 +397,13 @@ export function ClassroomStudentPage({
       generation.current++;
     };
   }, [loadWorks, showsWorks]);
+  useEffect(() => {
+    if (!respondingId || respondingIndex < 0) return;
+    const offset = Math.floor(respondingIndex / WORKS_PAGE_SIZE) * WORKS_PAGE_SIZE;
+    const refresh = () => void loadWorks(offset, respondingId);
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [loadWorks, respondingId, respondingIndex]);
 
   const activeStudent =
     profile?.student.id === seatId && loadedScope === `${classroomId}:${seatId}`
@@ -745,12 +778,7 @@ export function ClassroomStudentPage({
       }
     })();
   };
-  const visible = (works?.items ?? []).filter(
-    (work) =>
-      !onlyAwaiting ||
-      work.canonicalState?.workflowState === 'waiting_review' ||
-      (!work.canonicalState && work.awaitingReview),
-  );
+  const visible = (works?.items ?? []).filter((work) => !onlyAwaiting || workAwaitsReview(work));
   return (
     <main
       className="portal-content classroom-student"
@@ -1085,20 +1113,19 @@ export function ClassroomStudentPage({
           ) : null}
           <ul className="classroom-work-card-list">
             {visible.map((work) => {
+              const awaiting = workAwaitsReview(work);
               const label =
-                canonicalLearningLabel(work.canonicalState) ??
-                (work.awaitingReview
+                (awaiting && work.canonicalState
+                  ? 'Ждёт проверки'
+                  : canonicalLearningLabel(work.canonicalState)) ??
+                (awaiting
                   ? 'Ждёт ответа'
                   : work.feedback?.badge
                     ? (BADGE_LABELS[work.feedback.badge] ?? 'Отклик есть')
                     : work.lastEditedByTeacher
                       ? 'Правил педагог'
                       : 'Работа');
-              const tone =
-                work.canonicalState?.workflowState === 'waiting_review' ||
-                (!work.canonicalState && work.awaitingReview)
-                  ? 'redo'
-                  : markTone(work.feedback, work.lastEditedByTeacher);
+              const tone = awaiting ? 'redo' : markTone(work.feedback, work.lastEditedByTeacher);
               const figure = work.preview?.descriptor.figure;
               return (
                 <ClassroomWorkCard
@@ -1124,7 +1151,7 @@ export function ClassroomStudentPage({
                       <ProjectPreviewFigure figure={figure} label={work.title} />
                     ) : null
                   }
-                  onPreview={() => setResponding(work)}
+                  onPreview={() => setRespondingId(work.id)}
                   editor={{
                     href: `#/projects/${work.id}`,
                     onOpen: () => onOpenProject(work.id, work.moduleKey),
@@ -1138,7 +1165,7 @@ export function ClassroomStudentPage({
               type="button"
               className="classroom-student-more"
               disabled={workLoading}
-              onClick={() => void loadWorks(works.offset + 30)}
+              onClick={() => void loadWorks(works.offset + WORKS_PAGE_SIZE)}
             >
               Ещё работы
             </button>
@@ -1209,8 +1236,27 @@ export function ClassroomStudentPage({
       ) : null}
       {responding ? (
         <WorkPreview
-          key={`${responding.id}:${previewReadOnly}`}
-          manageFocus
+          key={`${classroomId}:${seatId}:${responding.id}:${previewReadOnly}`}
+          previewScope={classroomWorkScope(
+            responding.moduleKey,
+            classroomId,
+            seatId,
+            Boolean(
+              responding.originActivityRunId || responding.canonicalState || responding.assignment,
+            ),
+            !previewReadOnly,
+          )}
+          allowGallerySharing={
+            !previewReadOnly &&
+            classSafeMode === false &&
+            student.safeMode === false &&
+            responding.status === 'active' &&
+            responding.assignment === null &&
+            !responding.originActivityRunId &&
+            !responding.canonicalState &&
+            !responding.submittedAt &&
+            !responding.awaitingReview
+          }
           projectId={responding.id}
           snapshotRevision={responding.snapshotRevision}
           moduleKey={responding.moduleKey}
@@ -1218,17 +1264,20 @@ export function ClassroomStudentPage({
           workTitle={responding.title}
           submittedAt={responding.submittedAt ?? null}
           assignment={responding.assignment}
-          onClose={() => setResponding(null)}
+          onReviewed={async () => {
+            await Promise.all([loadWorks(), load()]);
+          }}
+          onClose={() => setRespondingId(null)}
           onOpenEditor={() => {
             const work = responding;
-            setResponding(null);
+            setRespondingId(null);
             onOpenProject(work.id, work.moduleKey);
           }}
           {...(previewReadOnly
             ? { readOnly: true as const }
             : {
                 onGraded: () => {
-                  setResponding(null);
+                  setRespondingId(null);
                   void loadWorks();
                   void load();
                 },

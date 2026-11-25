@@ -5,6 +5,7 @@ import { ProjectCardMenu } from './ProjectCardMenu';
 import { ModuleGlyph, moduleAccent } from './ModuleGlyph';
 import { ProjectPreview } from './ProjectPreviewFigure';
 import { ProjectModuleIcon } from './ProjectModuleIcon';
+import { ProjectCover } from './OwnProjectPreview';
 import './project-card.css';
 
 /**
@@ -118,17 +119,14 @@ export function ProjectCard({
           </span>
         ) : null}
         {open ? (
-          // The whole picture is a click target, but it is not a second link for
-          // a screen reader: the title below already names this destination.
-          <PortalLink
+          <ProjectCover
+            project={project}
             className="project-card-surface"
-            href={open.href}
-            onNavigate={open.onNavigate}
-            tabIndex={-1}
-            aria-hidden="true"
+            editor={open}
+            redundantEditorLink
           >
             {preview}
-          </PortalLink>
+          </ProjectCover>
         ) : (
           <div className="project-card-surface">{preview}</div>
         )}

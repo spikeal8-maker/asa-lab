@@ -111,6 +111,13 @@ export interface ClassroomElectronicsSimulation {
   readonly simulation: ElectronicsSimulationPayload;
 }
 
+/** A saved revision of a free project in a closed teacher view. */
+export interface ClassroomFreeElectronicsSimulation {
+  readonly projectId: string;
+  readonly revision: number;
+  readonly simulation: ElectronicsSimulationPayload;
+}
+
 export type PublicProjectDisplayArtifact =
   | PublicArtifact
   | ElectronicsDisplayArtifact
@@ -266,6 +273,29 @@ export function validateClassroomElectronicsSimulation(
     const snapshot = JSON.parse(JSON.stringify(simulation)) as ElectronicsSimulationPayload;
     freezeArtifact(snapshot);
     return Object.freeze({ submissionId, projectVersionId, simulation: snapshot });
+  } catch {
+    return null;
+  }
+}
+
+export function validateClassroomFreeElectronicsSimulation(
+  input: unknown,
+): ClassroomFreeElectronicsSimulation | null {
+  try {
+    const envelope = object(input, ['projectId', 'revision', 'simulation']);
+    const { projectId, revision, simulation } = envelope;
+    if (
+      typeof projectId !== 'string' ||
+      !artifactUuid.test(projectId) ||
+      typeof revision !== 'number' ||
+      !Number.isSafeInteger(revision) ||
+      revision < 1 ||
+      !isSimulationPayload(simulation, false)
+    )
+      return null;
+    const snapshot = JSON.parse(JSON.stringify(simulation)) as ElectronicsSimulationPayload;
+    freezeArtifact(snapshot);
+    return Object.freeze({ projectId, revision, simulation: snapshot });
   } catch {
     return null;
   }

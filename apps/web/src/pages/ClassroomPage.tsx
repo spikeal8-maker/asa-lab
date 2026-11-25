@@ -1887,6 +1887,7 @@ function ClassroomPageContent({
       ) : null}
       {openStudent !== null && studentNavigation !== null ? (
         <ClassroomStudentPage
+          classSafeMode={classroom.safeModeDefault}
           classroomId={classroomId}
           classroomTitle={classroom.title}
           seatId={openStudent}

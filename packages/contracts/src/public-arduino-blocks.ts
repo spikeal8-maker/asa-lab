@@ -6,7 +6,37 @@ const FIELD_NAMES = new Set(
 
 /** Bounded public code projection. Editor metadata, plugin state and comments are not transported. */
 export function publicArduinoBlocks(raw: unknown): string | null {
-  if (typeof raw !== 'string' || raw.length > 65536 || !raw.trim()) return null;
+  return projectArduinoBlocks(raw, {
+    characters: 65536,
+    blocks: 512,
+    depth: 64,
+    variables: 128,
+    allowEmpty: false,
+  });
+}
+
+/** Private saved circuits can contain larger workspaces than an opt-in publication. */
+export function classroomArduinoBlocks(raw: unknown): string | null {
+  return projectArduinoBlocks(raw, {
+    characters: 500_000,
+    blocks: 4096,
+    depth: 512,
+    variables: 1024,
+    allowEmpty: true,
+  });
+}
+
+function projectArduinoBlocks(
+  raw: unknown,
+  limits: {
+    characters: number;
+    blocks: number;
+    depth: number;
+    variables: number;
+    allowEmpty: boolean;
+  },
+): string | null {
+  if (typeof raw !== 'string' || raw.length > limits.characters || !raw.trim()) return null;
   let count = 0;
   const record = (v: unknown): Record<string, unknown> => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error();
@@ -18,7 +48,7 @@ export function publicArduinoBlocks(raw: unknown): string | null {
     return v;
   };
   const block = (v: unknown, depth: number): Record<string, unknown> => {
-    if (++count > 512 || depth > 64) throw Error();
+    if (++count > limits.blocks || depth > limits.depth) throw Error();
     const b = record(v),
       type = text(b.type, 80);
     if (!/^(asa_[a-z0-9_]+|math_number|text|logic_boolean|data_variable)$/.test(type))
@@ -82,13 +112,18 @@ export function publicArduinoBlocks(raw: unknown): string | null {
   };
   try {
     const root = record(JSON.parse(raw)),
-      blocks = record(root.blocks);
-    if (!Array.isArray(blocks.blocks) || !blocks.blocks.length) return null;
+      blocks =
+        limits.allowEmpty &&
+        root.blocks === undefined &&
+        (Object.keys(root).length === 0 || Array.isArray(root.variables))
+          ? { blocks: [] }
+          : record(root.blocks);
+    if (!Array.isArray(blocks.blocks) || (!blocks.blocks.length && !limits.allowEmpty)) return null;
     const result: Record<string, unknown> = {
       blocks: { languageVersion: 0, blocks: blocks.blocks.map((b) => block(b, 0)) },
     };
     if (root.variables !== undefined) {
-      if (!Array.isArray(root.variables) || root.variables.length > 128) throw Error();
+      if (!Array.isArray(root.variables) || root.variables.length > limits.variables) throw Error();
       result.variables = root.variables.map((v) => {
         const variable = record(v);
         return {
@@ -99,7 +134,7 @@ export function publicArduinoBlocks(raw: unknown): string | null {
       });
     }
     const value = JSON.stringify(result);
-    return value.length <= 65536 ? value : null;
+    return value.length <= limits.characters ? value : null;
   } catch {
     return null;
   }

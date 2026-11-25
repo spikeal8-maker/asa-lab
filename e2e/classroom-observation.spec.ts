@@ -5,6 +5,7 @@ import type pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
 import type {
+  ObservationFreeProjectPreview,
   ObservationSummary,
   ObservationHistoryPage,
 } from '../apps/web/src/classroom-observation-api';
@@ -24,7 +25,7 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
   page,
   browser,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(210_000);
   await loginWithOrganization(page, teacher);
   await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать класс' }).first().click();
@@ -151,7 +152,10 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     await expect(blankCard.getByText('Без снимка', { exact: true })).toBeVisible();
     await blankCard.getByRole('button', { name: /^Предпросмотр работы / }).click();
     const blankPreview = page.getByRole('dialog', { name: `Работа: ${blankTitle}` });
-    await expect(blankPreview.getByText('Снимок недоступен', { exact: true })).toBeVisible();
+    await expect(blankPreview.getByText('Сохранённая версия', { exact: true })).toBeVisible();
+    await expect(
+      blankPreview.getByRole('region', { name: 'Сохранённая 3D-модель' }),
+    ).toHaveAttribute('data-ready', 'true');
     await blankPreview.getByRole('button', { name: 'Закрыть', exact: true }).click();
     await showArchive.uncheck();
     await expect(blankCard).toHaveCount(0);
@@ -237,20 +241,49 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       }
     };
     page.on('request', collectRequest);
+    const savedReads: string[] = [];
+    const trackSavedRevision = (request: Request) => {
+      const path = new URL(request.url()).pathname;
+      if (path.endsWith(`/projects/${project.id}/free-preview`)) savedReads.push(path);
+    };
+    page.on('request', trackSavedRevision);
+    const fetched = page.waitForResponse((result) =>
+      new URL(result.url()).pathname.endsWith(`/projects/${project.id}/free-preview`),
+    );
     await previewTrigger.focus();
     await page.keyboard.press('Enter');
+    const saved = await fetched;
+    expect(saved.ok(), await saved.text()).toBe(true);
+    expect((await saved.json()) as ObservationFreeProjectPreview).toMatchObject({
+      projectId: project.id,
+      revision,
+    });
     const preview = page.getByRole('dialog', { name: `Работа: ${projectTitle}` });
     await expect(preview.getByRole('button', { name: 'Закрыть', exact: true })).toBeFocused();
-    const previewImage = preview.getByRole('img');
-    const firstSnapshotSrc = (await cardPicture.getAttribute('src'))!;
-    await expect(previewImage).toHaveAttribute('src', firstSnapshotSrc);
-    await expect
-      .poll(() => previewImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
-      .toBeGreaterThan(0);
+    const model = preview.getByRole('region', { name: 'Сохранённая 3D-модель' });
+    await expect(model).toHaveAttribute('data-ready', 'true');
+    const presentation = model.getByTestId('three-d-presentation');
+    const canvas = presentation.locator('canvas');
+    const camera = await presentation.getAttribute('data-camera-state');
+    await canvas.scrollIntoViewIfNeeded();
+    const bounds = (await canvas.boundingBox())!;
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 35, y - 15, { steps: 4 });
+    await page.mouse.up();
+    await expect(presentation).not.toHaveAttribute('data-camera-state', camera!);
     await expect(page.getByTestId('asa3d-viewport')).toHaveCount(0);
     await expect(preview.getByText('Отклик на проект', { exact: true })).toHaveCount(0);
-    // Republish the real scene snapshot at the same draft revision.
-    const originalWidth = await previewImage.evaluate(
+    await expect(preview.getByRole('button', { name: 'Оценить сдачу' })).toHaveCount(0);
+
+    // A new card thumbnail refreshes without reloading the opened saved document.
+    const firstSnapshotSrc = (await cardPicture.getAttribute('src'))!;
+    await expect
+      .poll(() => cardPicture.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
+    const originalWidth = await cardPicture.evaluate(
       (image: HTMLImageElement) => image.naturalWidth,
     );
     const replacementWidth = originalWidth === 192 ? 168 : 192;
@@ -284,14 +317,13 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     await expect(works).toHaveAttribute('aria-busy', 'false');
     await expect(preview).toBeVisible();
     await expect
-      .poll(() => previewImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
-      .toBe(replacementWidth);
-    await expect
       .poll(() => cardPicture.evaluate((image: HTMLImageElement) => image.naturalWidth))
       .toBe(replacementWidth);
-    const refreshedSnapshotSrc = (await previewImage.getAttribute('src'))!;
-    expect(refreshedSnapshotSrc).not.toBe(firstSnapshotSrc);
-    await expect(cardPicture).toHaveAttribute('src', refreshedSnapshotSrc);
+    await expect(cardPicture).not.toHaveAttribute('src', firstSnapshotSrc);
+    await expect(model).toHaveAttribute('data-ready', 'true');
+    expect(savedReads).toHaveLength(1);
+    page.off('request', trackSavedRevision);
+    await preview.getByRole('button', { name: 'Закрыть', exact: true }).focus();
     await page.keyboard.press('Shift+Tab');
     await expect(preview.getByRole('button', { name: 'Открыть в редакторе' })).toBeFocused();
     await page.keyboard.press('Escape');
@@ -312,15 +344,43 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       path: 'e2e/artifacts/owner-preview/classroom-observation/preview-390.png',
       fullPage: true,
     });
-    await page.setViewportSize({ width: 1440, height: 900 });
     await page.keyboard.press('Escape');
-    await workRow.getByRole('button', { name: /^Открыть в редакторе:/ }).click();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Ученики', exact: true })
+      .click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'Анна Наблюдаемая' })
+      .locator('.classroom-student-name')
+      .click();
+    await expect(page.locator('.classroom-student-picker-name')).toHaveText('Анна Наблюдаемая');
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Все работы', exact: true })
+      .click();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page
+      .getByRole('button', { name: new RegExp(`Предпросмотр работы ${projectTitle}`) })
+      .click();
+    const profilePreview = page.getByRole('dialog', { name: `Работа: ${projectTitle}` });
+    await expect(
+      profilePreview.getByRole('region', { name: 'Сохранённая 3D-модель' }),
+    ).toHaveAttribute('data-ready', 'true');
+    await expect(profilePreview.getByText('Отклик на проект', { exact: true })).toBeVisible();
+    await profilePreview.screenshot({
+      path: 'e2e/artifacts/owner-preview/classroom-observation/free-profile-390.png',
+    });
+    await profilePreview.getByRole('button', { name: 'Открыть в редакторе', exact: true }).click();
     await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
       timeout: 30_000,
     });
     await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(projectTitle);
     await page.goto(classUrl);
-    await page.getByRole('button', { name: 'История', exact: true }).click();
+    await page
+      .getByRole('combobox', { name: 'Раздел класса', exact: true })
+      .selectOption({ label: 'История' });
     const history = page.getByRole('region', { name: 'История класса' });
     await expect(history).toContainText(projectTitle);
     await expect
