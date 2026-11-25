@@ -684,7 +684,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
           originActivityRunId: issued.run,
           canonicalState: expect.objectContaining({
             activityRunId: issued.run,
-            workflowState: 'waiting_review',
+            workflowState: 'submitted',
           }),
         }),
       ]),

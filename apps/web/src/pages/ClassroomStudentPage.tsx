@@ -48,6 +48,11 @@ function markTone(
 }
 const WORKS_PAGE_SIZE = 30;
 
+function workAwaitsReview(work: ParticipantWorks['items'][number]): boolean {
+  if (!work.canonicalState) return work.awaitingReview === true;
+  return ['submitted', 'waiting_review'].includes(work.canonicalState.workflowState);
+}
+
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
   { key: 'grades', label: 'Оценки', module: null },
@@ -773,12 +778,7 @@ export function ClassroomStudentPage({
       }
     })();
   };
-  const visible = (works?.items ?? []).filter(
-    (work) =>
-      !onlyAwaiting ||
-      work.canonicalState?.workflowState === 'waiting_review' ||
-      (!work.canonicalState && work.awaitingReview),
-  );
+  const visible = (works?.items ?? []).filter((work) => !onlyAwaiting || workAwaitsReview(work));
   return (
     <main
       className="portal-content classroom-student"
@@ -1113,20 +1113,19 @@ export function ClassroomStudentPage({
           ) : null}
           <ul className="classroom-work-card-list">
             {visible.map((work) => {
+              const awaiting = workAwaitsReview(work);
               const label =
-                canonicalLearningLabel(work.canonicalState) ??
-                (work.awaitingReview
+                (awaiting && work.canonicalState
+                  ? 'Ждёт проверки'
+                  : canonicalLearningLabel(work.canonicalState)) ??
+                (awaiting
                   ? 'Ждёт ответа'
                   : work.feedback?.badge
                     ? (BADGE_LABELS[work.feedback.badge] ?? 'Отклик есть')
                     : work.lastEditedByTeacher
                       ? 'Правил педагог'
                       : 'Работа');
-              const tone =
-                work.canonicalState?.workflowState === 'waiting_review' ||
-                (!work.canonicalState && work.awaitingReview)
-                  ? 'redo'
-                  : markTone(work.feedback, work.lastEditedByTeacher);
+              const tone = awaiting ? 'redo' : markTone(work.feedback, work.lastEditedByTeacher);
               const figure = work.preview?.descriptor.figure;
               return (
                 <ClassroomWorkCard
