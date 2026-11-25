@@ -139,6 +139,26 @@
   width: 100%;
   height: 240px;
 }
+.gradebook-arduino-source {
+  min-width: 0;
+}
+.gradebook-arduino-source > summary {
+  min-height: 44px;
+  padding-block: 12px;
+  cursor: pointer;
+}
+.gradebook-arduino-source > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.gradebook-arduino-source pre {
+  margin-block: 4px 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .gradebook-three-d-preview {
   display: grid;
   gap: 8px;

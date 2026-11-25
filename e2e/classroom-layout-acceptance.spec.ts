@@ -616,7 +616,7 @@ test('teacher compact class list remains readable with sidebar and on phones', a
   expect(state.errors).toEqual([]);
 });
 
-test('exact submitted 3D review is lazy, keyboard accessible and fits the classroom layout', async ({
+test('exact submitted project review keeps 3D and Arduino source accessible at all widths', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -802,9 +802,88 @@ test('exact submitted 3D review is lazy, keyboard accessible and fits the classr
 
   await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
   moduleKey = 'electronics';
+  const firstSource = '#include <Arduino.h>\n\n// ' + 'длиннаяСтрока'.repeat(24) + '\n';
+  const secondSource = 'void setup() {}\nvoid loop() {}\n';
+  const board = { kind: 'visual', value: 5, position: { x: 0, y: 0 } };
+  const circuit = {
+    schemaVersion: 4,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+    connections: [],
+  };
+  const noCode = [
+    { ...board, id: 'empty', componentTypeId: 'arduino-uno' },
+    {
+      ...board,
+      id: 'blank',
+      componentTypeId: 'arduino-uno',
+      stateProperties: { arduinoSource: ' ' },
+    },
+    {
+      ...board,
+      id: 'other',
+      kind: 'resistor',
+      stateProperties: { arduinoSource: 'invalid board' },
+    },
+  ];
+  payload = {
+    ...circuit,
+    components: [
+      {
+        ...board,
+        id: 'first',
+        componentTypeId: 'arduino-uno',
+        name: 'Контроллер освещения',
+        stateProperties: { arduinoSource: firstSource },
+      },
+      {
+        ...board,
+        id: 'legacy',
+        variantId: 'arduino-uno',
+        stateProperties: { arduinoSource: secondSource },
+      },
+      ...noCode,
+    ],
+  };
   await cell.click();
   await expect(fixed).toHaveText(version);
   await expect(disclosure).toHaveCount(0);
   await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
+
+  const sourceDisclosure = detail.getByText('Код Arduino', { exact: true });
+  const source = detail.getByRole('region', { name: 'Плата 1 · Контроллер освещения' });
+  const legacy = detail.getByRole('region', { name: 'Плата 2 · Arduino Uno' });
+  await expect(sourceDisclosure).toBeVisible();
+  await expect(source).toHaveCount(0);
+  await sourceDisclosure.press('Enter');
+  await expect(source).toBeVisible();
+  expect(await source.textContent()).toBe(firstSource);
+  expect(await source.locator('code').evaluate((node) => node.childElementCount)).toBe(0);
+  expect(await legacy.textContent()).toBe(secondSource);
+  await expect(detail.locator('.gradebook-arduino-source pre')).toHaveCount(2);
+
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const trigger = (await sourceDisclosure.boundingBox())!;
+    const bounds = (await source.boundingBox())!;
+    expect(trigger.height).toBeGreaterThanOrEqual(44);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1);
+    await detail.locator('.gradebook-arduino-source').screenshot({
+      path: out + '/exact-arduino-review-' + width + '.png',
+    });
+  }
+  await source.press('Escape');
+  await expect(source).toHaveCount(0);
+  await expect(sourceDisclosure).toBeFocused();
+  expect(viewerRequests).toEqual([]);
+
+  await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  payload = { ...circuit, components: noCode };
+  await cell.click();
+  await expect(fixed).toHaveText(version);
+  await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
+  await expect(sourceDisclosure).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
