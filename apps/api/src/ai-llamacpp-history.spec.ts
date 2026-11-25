@@ -52,3 +52,19 @@ it('keeps the existing latest-answer behavior for every provider without a llama
     { role: 'user', content: 'After' },
   ]);
 });
+
+it('keeps the projected llama.cpp history from starting with an orphan or partial assistant turn', async () => {
+  const recent = [
+    { role: 'user' as const, content: 'Recent question' },
+    { role: 'assistant' as const, content: 'Recent answer' },
+    { role: 'user' as const, content: 'Latest question' },
+  ];
+  const store = history([
+    { role: 'user', content: 'Old question' },
+    { role: 'assistant', content: 'Long old answer '.repeat(40) },
+    ...recent.slice(0, 2),
+    { role: 'user', content: 'Unanswered older question' },
+    recent[2]!,
+  ]);
+  expect(await store.generationContext('owner', 'thread', 'request', 80)).toEqual(recent);
+});

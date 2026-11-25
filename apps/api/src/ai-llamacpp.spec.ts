@@ -404,35 +404,39 @@ describe('llama.cpp completions, SSE, tools and usage', () => {
     expect(sent.messages.at(-1)?.content).toBe('source evidence');
     expect(sent.max_tokens).toBe(8192 - 7650 - 32);
   });
-  it('keeps a recent whole turn that fits the tokenizer after removing older history', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
-      if (!String(url).endsWith('/input_tokens')) return Response.json(completed());
-      const body = JSON.parse(String(options?.body));
-      const input = body.messages.length > 4 ? 9200 : 5500;
-      return Response.json({ input_tokens: input });
-    });
-    const recent = 'ответ'.repeat(1000);
-    await generateLlamaCppText(
-      args(fetchImpl, {
-        contextTokens: 8192,
-        instructions: 'инструкции'.repeat(450),
-        context: [
-          { role: 'user', content: 'old' },
-          { role: 'assistant', content: 'outdated answer' },
-          { role: 'user', content: 'recent' },
-          { role: 'assistant', content: recent },
-          { role: 'user', content: 'latest question' },
-        ],
-      }),
-    );
-    const sent = JSON.parse(String(fetchImpl.mock.calls.at(-1)?.[1]?.body));
-    expect(sent.messages.slice(1)).toEqual([
-      { role: 'user', content: 'recent' },
-      { role: 'assistant', content: recent },
-      { role: 'user', content: 'latest question' },
-    ]);
-    expect(sent.max_tokens).toBe(2048);
-  });
+  it.each([200, 400])(
+    'keeps a recent whole turn after the full history gets status %s from the tokenizer',
+    async (status) => {
+      const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
+        if (!String(url).endsWith('/input_tokens')) return Response.json(completed());
+        const body = JSON.parse(String(options?.body));
+        if (body.messages.length > 4 && status === 400) return new Response(null, { status });
+        const input = body.messages.length > 4 ? 9200 : 5500;
+        return Response.json({ input_tokens: input });
+      });
+      const recent = 'ответ'.repeat(1000);
+      await generateLlamaCppText(
+        args(fetchImpl, {
+          contextTokens: 8192,
+          instructions: 'инструкции'.repeat(450),
+          context: [
+            { role: 'user', content: 'old' },
+            { role: 'assistant', content: 'outdated answer' },
+            { role: 'user', content: 'recent' },
+            { role: 'assistant', content: recent },
+            { role: 'user', content: 'latest question' },
+          ],
+        }),
+      );
+      const sent = JSON.parse(String(fetchImpl.mock.calls.at(-1)?.[1]?.body));
+      expect(sent.messages.slice(1)).toEqual([
+        { role: 'user', content: 'recent' },
+        { role: 'assistant', content: recent },
+        { role: 'user', content: 'latest question' },
+      ]);
+      expect(sent.max_tokens).toBe(2048);
+    },
+  );
   it('uses JSON Chat Completions without Ollama or MTP parameters', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () => Response.json(completed()));
     const result = await generateLlamaCppText(

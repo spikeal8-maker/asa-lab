@@ -149,30 +149,38 @@ export class AiTextHistoryStore {
     );
     if (result.rows.length === 0) throw new Error('AI_CONTEXT_UNAVAILABLE');
     if (maxUtf8Bytes !== undefined) {
-      // llama.cpp's confirmed context bounds admission conservatively: a UTF-8
-      // byte is an upper bound for the common byte-token vocabulary. This is a
-      // safety budget, never a tokenizer estimate or reported token consumption.
-      // Reserve the newest prompt and trim oldest history; do not split codepoints.
+      // Bound history read into a llama.cpp request. The transport budgets the
+      // full request once instructions, attachments and tools are available.
       if (!Number.isSafeInteger(maxUtf8Bytes) || maxUtf8Bytes < 1)
         throw new Error('AI_CONTEXT_UNAVAILABLE');
-      let remaining = maxUtf8Bytes;
-      const context = result.rows.map((row, index, rows) => ({
-        role: row.role,
-        content:
-          row.content + (index === rows.length - 1 ? webEvidenceContext(row.web_search) : ''),
-      }));
-      for (let index = context.length - 1; index >= 0; index--) {
-        const item = context[index]!;
-        if (Buffer.byteLength(item.content, 'utf8') > remaining) {
-          const bytes = Buffer.from(item.content, 'utf8');
-          let end = Math.min(remaining, bytes.length);
-          // A continuation byte marks an incomplete final codepoint.
-          while (end > 0 && end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
-          item.content = bytes.subarray(0, end).toString('utf8');
-        }
-        remaining -= Buffer.byteLength(item.content, 'utf8');
+      const rows = result.rows;
+      const latest = rows.at(-1)!;
+      const newest = Buffer.from(latest.content + webEvidenceContext(latest.web_search), 'utf8');
+      let newestSize = Math.min(newest.length, maxUtf8Bytes);
+      while (newestSize > 0 && newestSize < newest.length && (newest[newestSize]! & 0xc0) === 0x80)
+        newestSize--;
+      if (newestSize === 0) return [];
+      let remaining = maxUtf8Bytes - newest.length;
+      // Older unanswered questions do not form a turn. Omitting them keeps
+      // templates requiring alternating user/assistant roles compatible.
+      const history: { role: 'user' | 'assistant'; content: string }[] = [];
+      for (let index = rows.length - 2; index >= 1; index--) {
+        const answer = rows[index]!;
+        const question = rows[index - 1]!;
+        if (answer.role !== 'assistant' || question.role !== 'user') continue;
+        const turnSize = Buffer.byteLength(question.content) + Buffer.byteLength(answer.content);
+        if (turnSize > remaining) break;
+        history.push(
+          { role: answer.role, content: answer.content },
+          { role: question.role, content: question.content },
+        );
+        remaining -= turnSize;
+        index--;
       }
-      return context.filter((item) => item.content.length > 0);
+      return [
+        ...history.reverse(),
+        { role: latest.role, content: newest.subarray(0, newestSize).toString('utf8') },
+      ];
     }
     // Keep the latest complete answer available for code follow-ups, with a fixed
     // total history budget. Trim oldest rows first instead of every answer at 3000.

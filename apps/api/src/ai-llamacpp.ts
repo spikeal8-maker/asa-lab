@@ -547,6 +547,7 @@ export function validLlamaCppGeneration(args: {
   );
 }
 type TokenCountPath = '/v1/chat/completions/input_tokens' | '/apply-template' | '/tokenize';
+type InputTokenCount = number | null | 'template_rejected';
 
 async function postTokenCountRequest(
   args: LlamaCppStreamArgs,
@@ -645,7 +646,7 @@ async function requestBody(
   if (wireBytes + output <= wireBudget) return body;
   const counterSignal = AbortSignal.any([signal, AbortSignal.timeout(3500)]);
   let legacyCounter = false;
-  const count = async (messages: typeof payload.messages) => {
+  const count = async (messages: typeof payload.messages): Promise<InputTokenCount> => {
     if (counterSignal.aborted) return null;
     try {
       const request = JSON.stringify({
@@ -661,13 +662,16 @@ async function requestBody(
         legacyCounter = [404, 405, 501].includes(response.status);
         const counter = await tokenCountJson(response, 2048);
         if (!legacyCounter) {
+          if (response.status === 400 || response.status === 422) return 'template_rejected';
           const input = counter?.input_tokens;
           return typeof input === 'number' && Number.isSafeInteger(input) && input > 0
             ? input
             : null;
         }
       }
-      const rendered = await tokenCountJson(await post('/apply-template', request), MAX_JSON);
+      const template = await post('/apply-template', request);
+      const rendered = await tokenCountJson(template, MAX_JSON);
+      if (template.status === 400 || template.status === 422) return 'template_rejected';
       if (typeof rendered?.prompt !== 'string' || !rendered.prompt) return null;
       const tokens = await tokenCountJson(
         await post(
@@ -694,7 +698,11 @@ async function requestBody(
   const minOutput = Math.min(output, 128);
   const inputTokens = await count(payload.messages);
   const tokenBudget = context - 32;
-  const maxReply = inputTokens === null ? wireBudget - wireBytes : tokenBudget - inputTokens;
+  const availableReply = (tokens: InputTokenCount, bytes: number) => {
+    if (tokens === 'template_rejected') return 0;
+    return tokens === null ? wireBudget - bytes : tokenBudget - tokens;
+  };
+  const maxReply = availableReply(inputTokens, wireBytes);
   if (maxReply >= minOutput)
     return JSON.stringify({ ...payload, max_tokens: Math.min(output, maxReply) });
 
@@ -710,10 +718,10 @@ async function requestBody(
     const middle = Math.floor((low + high) / 2);
     const messages = [payload.messages[0]!, ...payload.messages.slice(turnStarts[middle]!)];
     const candidate = JSON.stringify({ ...payload, messages });
-    let available = wireBudget - Buffer.byteLength(candidate, 'utf8');
-    if (available < output && inputTokens !== null) {
-      const tokens = await count(messages);
-      if (tokens !== null) available = tokenBudget - tokens;
+    const candidateBytes = Buffer.byteLength(candidate, 'utf8');
+    let available = wireBudget - candidateBytes;
+    if (inputTokens === 'template_rejected' || (available < output && inputTokens !== null)) {
+      available = availableReply(await count(messages), candidateBytes);
     }
     if (available >= minOutput) {
       fitted = JSON.stringify({ ...payload, messages, max_tokens: Math.min(output, available) });
