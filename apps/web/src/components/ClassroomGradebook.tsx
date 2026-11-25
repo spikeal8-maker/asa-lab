@@ -1,7 +1,7 @@
 import { onSessionLoggedOut } from '../session-fetch';
 import { ClassroomAssignmentIssuer } from './ClassroomAssignmentIssuer';
 import { QuizQuestionFields } from './QuizQuestionFields';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   api,
   type ExactLearningSubmission,
@@ -9,6 +9,7 @@ import {
   type LearningReviewContext,
 } from '../api';
 import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
+import type { ClassroomExactThreeDViewerProps } from './ClassroomExactThreeDViewer';
 import { LearningConditions } from './LearningConditions';
 import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
@@ -47,6 +48,71 @@ function score(item: GradebookEntry) {
   return null;
 }
 type Frozen = ExactLearningSubmission;
+
+const ExactThreeDViewer = lazy(() =>
+  import('./ClassroomExactThreeDViewer').catch(() => ({
+    default: ({ fallback }: ClassroomExactThreeDViewerProps) => (
+      <>
+        <p role="status">Не удалось запустить 3D-просмотр.</p>
+        {fallback}
+      </>
+    ),
+  })),
+);
+
+function FrozenProjectPreview({
+  submission,
+}: {
+  submission: Extract<Frozen, { projectVersionId: string }>;
+}) {
+  const [open, setOpen] = useState(false);
+  const viewerId = useId();
+  const opener = useRef<HTMLButtonElement>(null);
+  const fallback = submission.preview?.figure ? (
+    <ProjectPreviewFigure figure={submission.preview.figure} label="Точный снимок сданной работы" />
+  ) : (
+    <p>Визуальный предпросмотр для этого снимка недоступен.</p>
+  );
+  if (submission.moduleKey !== 'three-d') return fallback;
+
+  return (
+    <div
+      className="gradebook-three-d-preview"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !open) return;
+        event.preventDefault();
+        setOpen(false);
+        opener.current?.focus();
+      }}
+    >
+      <button
+        ref={opener}
+        type="button"
+        className="btn-secondary"
+        aria-controls={viewerId}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? 'Скрыть 3D-модель' : 'Показать 3D-модель'}
+      </button>
+      <div id={viewerId} hidden={!open}>
+        {open && (
+          <Suspense
+            fallback={
+              <>
+                <p role="status">Загружаем 3D-модель…</p>
+                {fallback}
+              </>
+            }
+          >
+            <ExactThreeDViewer document={submission.document} fallback={fallback} />
+          </Suspense>
+        )}
+      </div>
+      {!open && fallback}
+    </div>
+  );
+}
 
 function ReviewDetail({
   classroomId,
@@ -258,14 +324,7 @@ function ReviewDetail({
               ) : (
                 <>
                   <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
-                  {frozen.preview?.figure ? (
-                    <ProjectPreviewFigure
-                      figure={frozen.preview.figure}
-                      label="Точный снимок сданной работы"
-                    />
-                  ) : (
-                    <p>Визуальный предпросмотр для этого снимка недоступен.</p>
-                  )}
+                  <FrozenProjectPreview key={frozen.submissionId} submission={frozen} />
                 </>
               )}
               <details>
