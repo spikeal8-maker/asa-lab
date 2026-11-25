@@ -138,6 +138,13 @@ describe('structured server error evidence', () => {
     });
     expect(JSON.stringify(safe)).not.toMatch(/private-value|SELECT/);
   });
+  it.each(['three-d', 'robotics'])('accepts %s only as untrusted request context', (module) => {
+    const request = {
+      headers: { 'x-asa-diagnostic-module': module },
+    } as unknown as FastifyRequest;
+    expect(diagnosticContext(request)).toEqual({ module, untrustedClientContext: true });
+  });
+
   it('logs one correlated 500 and keeps the public error response and expected 4xx semantics', () => {
     const reply = vi.fn();
     const adapter = {

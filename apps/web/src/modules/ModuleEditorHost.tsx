@@ -187,8 +187,13 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   }, [props.moduleKey, props.onModuleResolved, props.projectId, returnToDependency]);
 
   useEffect(() => {
-    if (state.kind === 'ready' && state.moduleKey === 'electronics')
-      return beginDiagnosticContext('electronics');
+    if (state.kind !== 'ready') return undefined;
+    if (
+      state.moduleKey === 'electronics' ||
+      state.moduleKey === 'three-d' ||
+      state.moduleKey === 'robotics'
+    )
+      return beginDiagnosticContext(state.moduleKey);
     return undefined;
   }, [state.kind, state.kind === 'ready' ? state.moduleKey : null, props.projectId]);
 
