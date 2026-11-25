@@ -135,6 +135,8 @@ async function setup(
     named?: boolean;
     moreWorks?: number;
     firstWorkAwaiting?: boolean;
+    firstWorkSnapshot?: number;
+    firstWorkTitle?: string;
     avatars?: ParticipantProfile['avatars'];
   } = {},
 ) {
@@ -344,13 +346,18 @@ async function setup(
           hasMore: offset === 0,
           items: Array.from({ length: offset === 0 ? 1 : (options.moreWorks ?? 1) }, (_, i) => ({
             id: `work-${offset}-${i}`,
-            title: offset === 0 ? 'Открытая модель' : i === 0 ? 'Ожидает проверки' : `Модель ${i}`,
+            title:
+              offset === 0
+                ? (options.firstWorkTitle ?? 'Открытая модель')
+                : i === 0
+                  ? 'Ожидает проверки'
+                  : `Модель ${i}`,
             moduleKey: url.searchParams.get('module') ?? 'three-d',
             status: url.searchParams.get('archive') === 'true' ? 'archived' : 'active',
             createdAt: '2026-10-10T10:00:00Z',
             updatedAt: '2026-10-10T10:00:00Z',
             preview: null,
-            snapshotRevision: null,
+            snapshotRevision: offset === 0 ? (options.firstWorkSnapshot ?? null) : null,
             submittedAt: null,
             assignment: null,
             feedback: null,
@@ -1170,7 +1177,7 @@ test('all ten section labels, honest loaded-only filtering, private works, archi
           await identityCategory.click();
         await expect(region.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
       } else if (name !== 'Оценки')
-        await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
+        await expect(page.locator('.classroom-work-card-list > li')).toHaveCount(1);
       await shot(page, `tab-${name}-${width}`);
     }
   }
@@ -1605,9 +1612,14 @@ for (const invalid of ['2026-02-30T00:00:00Z', '2026-02-01T00:00:00+03:60']) {
 test('mobile work filters share a row and one card fills the grid while multiple cards remain readable', async ({
   page,
 }) => {
-  const state = await setup(page, { manual: 0, results: 0, moreWorks: 4 });
+  const state = await setup(page, {
+    manual: 0,
+    results: 0,
+    moreWorks: 4,
+    firstWorkTitle: 'Очень длинное название исследовательской модели с описанием эксперимента',
+  });
   await state.open();
-  const grid = page.locator('.project-card-grid');
+  const grid = page.locator('.classroom-work-card-list');
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const card = (await grid.locator(':scope > li').first().boundingBox())!;
@@ -1659,8 +1671,12 @@ test('mobile work filters share a row and one card fills the grid while multiple
         'all',
       );
       await expect(sectionRail.locator('.classroom-student-section-action')).toHaveCount(0);
-      const frame = (await grid.locator(':scope > li .project-card-frame').first().boundingBox())!;
-      expect(frame.height / frame.width).toBeLessThan(0.6);
+      const first = grid.locator(':scope > li').first();
+      const picture = (await first.locator('.classroom-work-card-picture').boundingBox())!;
+      const title = (await first.locator('.classroom-work-card-title').boundingBox())!;
+      expect(picture.width).toBeLessThanOrEqual(64);
+      expect(picture.x + picture.width).toBeLessThan(title.x);
+      expect(title.width).toBeGreaterThanOrEqual(150);
       const sectionSelect = sectionRail.getByRole('combobox', { name: 'Раздел профиля' });
       const sectionRect = (await sectionSelect.boundingBox())!;
       expect(sectionRect.width).toBeLessThanOrEqual(192);
@@ -1717,16 +1733,17 @@ test('mobile work filters share a row and one card fills the grid while multiple
     const boxes = await Promise.all(
       (await grid.locator(':scope > li').all()).map(async (card) => (await card.boundingBox())!),
     );
-    if (width === 390) {
-      expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThanOrEqual(1);
-      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThan(boxes[1]!.x);
-    } else if (width === 320)
-      expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height);
-    // Reveal each card's actions through its real keyboard focus path. Role
-    // locators across the whole grid change indices as hover visibility changes.
+    if (width <= 390) expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height);
+    const first = grid.locator(':scope > li').first();
+    const resting = (await first.boundingBox())!;
+    const opener = first.getByRole('button', { name: /^Предпросмотр работы / });
+    await opener.hover();
+    const hovered = (await first.boundingBox())!;
+    expect(Math.abs(hovered.width - resting.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(hovered.height - resting.height)).toBeLessThanOrEqual(1);
+    await expect(first.getByText('Без снимка')).toBeVisible();
     for (const card of await grid.locator(':scope > li').all()) {
-      await card.locator('.project-card-title a').focus();
-      const link = card.getByRole('link', { name: 'Открыть', exact: true });
+      const link = card.getByRole('link', { name: /^Открыть в редакторе:/ });
       await expect(link).toBeVisible();
       await link.focus();
       const box = (await link.boundingBox())!;
@@ -1748,6 +1765,67 @@ test('mobile work filters share a row and one card fills the grid while multiple
   expect(state.mutations).toEqual([]);
 });
 
+test('touch and keyboard open the exact work snapshot and archive preview has no feedback actions', async ({
+  browser,
+}) => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  try {
+    const state = await setup(page, { manual: 0, results: 0, firstWorkSnapshot: 7 });
+    const snapshot = '/api/projects/work-0-0/snapshot?rev=7';
+    const requests: string[] = [];
+    await page.route('**/api/projects/work-0-0/snapshot*', (route) => {
+      const url = new URL(route.request().url());
+      requests.push(url.pathname + url.search);
+      return route.fulfill({
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGNQTp4JRAwQCgAdmgR9tP9K3AAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      });
+    });
+    await page.route('**/api/projects/work-0-0/feedback', (route) =>
+      route.fulfill({ json: { items: [] } }),
+    );
+    await page.route('**/api/gallery/work-0-0/state', (route) =>
+      route.fulfill({ json: { published: false } }),
+    );
+    await state.open();
+    const card = page.locator('.classroom-work-card');
+    const opener = card.getByRole('button', { name: /^Предпросмотр работы / });
+    const editor = card.getByRole('link', { name: /^Открыть в редакторе:/ });
+    await expect(card.locator('img')).toHaveAttribute('src', snapshot);
+    await expect(card.locator('img')).toHaveAttribute('loading', 'lazy');
+    await expect(editor).toHaveAttribute('href', '#/projects/work-0-0');
+    await opener.tap();
+    const dialog = page.getByRole('dialog', { name: `Работа: ${longName}` });
+    await expect(dialog.getByTestId('work-preview-image')).toHaveAttribute('src', snapshot);
+    await expect(dialog.getByRole('button', { name: 'Закрыть' })).toBeFocused();
+    await expect(dialog.getByRole('button', { name: 'Сохранить отклик' })).toBeVisible();
+    await noOverflow(page);
+    await dialog.getByRole('button', { name: 'Закрыть' }).press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+
+    await page.getByRole('checkbox', { name: 'Включая архив' }).check();
+    await expect(card.getByText('Архив', { exact: true })).toBeVisible();
+    await opener.press('Enter');
+    const archive = page.getByRole('dialog', { name: 'Работа: Открытая модель' });
+    await expect(archive.getByTestId('work-preview-image')).toHaveAttribute('src', snapshot);
+    await expect(archive.getByRole('button', { name: 'Открыть в редакторе' })).toBeVisible();
+    await expect(archive.getByRole('textbox', { name: 'Комментарий' })).toHaveCount(0);
+    await expect(archive.getByRole('button', { name: 'Поделиться в галерее' })).toHaveCount(0);
+    await archive.getByRole('button', { name: 'Закрыть' }).press('Escape');
+    await expect(opener).toBeFocused();
+    expect(requests.length).toBeGreaterThan(0);
+    expect([...new Set(requests)]).toEqual([snapshot]);
+    expect(state.mutations).toEqual([]);
+    expect(state.errors).toEqual([]);
+  } finally {
+    await page.close();
+  }
+});
+
 for (const width of [390, 320]) {
   test(`filtering loaded awaiting works explains incomplete pages at ${width}px`, async ({
     page,
@@ -1761,7 +1839,7 @@ for (const width of [390, 320]) {
     });
     await state.open();
     await page.getByRole('combobox', { name: 'Статус работ' }).selectOption('awaiting');
-    await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
+    await expect(page.locator('.classroom-work-card-list > li')).toHaveCount(1);
     const scope = page.getByRole('note').filter({ hasText: 'только загруженные работы' });
     await expect(scope).toBeVisible();
     await expect(scope).toContainText('Есть ещё страницы.');
@@ -1770,7 +1848,7 @@ for (const width of [390, 320]) {
     expect(scopeBox.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
     await noOverflow(page);
     await page.getByRole('button', { name: 'Ещё работы' }).click();
-    await expect(page.locator('.project-card-grid > li')).toHaveCount(2);
+    await expect(page.locator('.classroom-work-card-list > li')).toHaveCount(2);
     await expect(scope).toHaveCount(0);
     await noOverflow(page);
     expect(state.errors).toEqual([]);

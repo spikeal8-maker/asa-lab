@@ -74,6 +74,7 @@ export function WorkPreview({
   submittedAt,
   assignment,
   readOnly = false,
+  manageFocus = false,
   onClose,
   onOpenEditor,
   onGraded,
@@ -92,6 +93,7 @@ export function WorkPreview({
    * работой, тем же видом, который читал ученик.
    */
   readonly assignment?: AssignmentViewData | null;
+  readonly manageFocus?: boolean;
   readonly onClose: () => void;
   readonly onOpenEditor: () => void;
 } & (
@@ -99,6 +101,12 @@ export function WorkPreview({
       readonly readOnly: true;
       readonly snapshotRevision?: never;
       readonly snapshotRefresh: number;
+      readonly onGraded?: never;
+    }
+  | {
+      readonly readOnly: true;
+      readonly snapshotRevision: number | null;
+      readonly snapshotRefresh?: never;
       readonly onGraded?: never;
     }
   | {
@@ -119,7 +127,7 @@ export function WorkPreview({
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
   const dialog = useRef<HTMLDivElement>(null);
-  useDialogFocus(readOnly, dialog);
+  useDialogFocus(readOnly || manageFocus, dialog);
 
   useEffect(() => {
     if (readOnly) return;

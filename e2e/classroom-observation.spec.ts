@@ -176,8 +176,8 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       await page.setViewportSize({ width, height: 900 });
       await expect(workRow).toBeVisible();
       const geometry = await workRow.evaluate((row) => {
-        const title = row.querySelector<HTMLElement>('.observation-project-title strong')!;
-        const action = row.querySelector<HTMLButtonElement>('.observation-editor-action')!;
+        const title = row.querySelector<HTMLElement>('.classroom-work-card-title strong')!;
+        const action = row.querySelector<HTMLButtonElement>('.classroom-work-card-editor')!;
         const textNode = title.firstChild as Text;
         const brokenWords: string[] = [];
         const value = textNode.textContent ?? '';

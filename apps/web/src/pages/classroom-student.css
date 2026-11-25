@@ -661,12 +661,6 @@
 .classroom-student .classroom-student-section {
   margin-bottom: 12px;
 }
-.classroom-student .project-card-primary,
-.classroom-student .project-card-tools > summary,
-.classroom-student .project-card-tools button {
-  min-width: 44px;
-  min-height: 44px;
-}
 .classroom-student .participant-visibility-note {
   margin: 4px 0 8px;
   font-size: 12px;
@@ -804,12 +798,6 @@
   .classroom-student-navigation {
     grid-column: 2;
     width: 100%;
-  }
-  .classroom-student .project-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .classroom-student .project-card-grid > :only-child {
-    grid-column: 1 / -1;
   }
 }
 .classroom-student-picker {
@@ -955,11 +943,6 @@
   }
   .classroom-student-navigation button {
     min-width: 44px;
-  }
-}
-@media (max-width: 350px) {
-  .classroom-student .project-card-grid {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1531,27 +1514,6 @@
   }
   .classroom-student .classroom-student-archive-filter {
     padding: 0 2px;
-  }
-  .classroom-student .project-card-grid .project-card-frame {
-    aspect-ratio: 16 / 9;
-  }
-  /* Keep the intended mobile work preview independent of shared square cards. */
-  .classroom-student .project-card-grid:not(.list) .project-card:not(.is-learning) {
-    aspect-ratio: auto;
-  }
-  .classroom-student
-    .project-card-grid:not(.list)
-    .project-card:not(.is-learning)
-    .project-card-frame {
-    flex: 0 0 auto;
-    aspect-ratio: 16 / 9;
-  }
-  .classroom-student .project-card-grid .project-card-body {
-    padding: 8px 10px;
-  }
-  .classroom-student .project-card-grid .project-card-title {
-    font-size: 14px;
-    line-height: 1.3;
   }
 }
 @container teacher-profile (max-width: 350px) {

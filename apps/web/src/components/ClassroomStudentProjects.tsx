@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { observationApi, type ObservationProjectsPage } from '../classroom-observation-api';
 import { useSchoolTime } from './school-time';
-import { WorkPreview, WorkSnapshot } from './WorkPreview';
+import { ClassroomWorkCard } from './ClassroomWorkCard';
+import { WorkPreview } from './WorkPreview';
 import './classroom-observation.css';
 
 const EDITORS: Record<string, string> = {
@@ -215,45 +216,22 @@ function ProjectList({
           {page.items.length === 0 ? (
             <p>По этим фильтрам доступных работ нет.</p>
           ) : (
-            <ul className="observation-projects">
+            <ul className="observation-projects classroom-work-card-list">
               {page.items.map((work) => (
-                <li className="observation-project-card" key={work.id} data-project-id={work.id}>
-                  <button
-                    type="button"
-                    className="observation-preview-trigger"
-                    aria-label={`Предпросмотр работы ${work.title}, ${work.student}`}
-                    aria-haspopup="dialog"
-                    onClick={() => setPreviewId(work.id)}
-                  >
-                    <span className="observation-project-picture">
-                      <WorkSnapshot
-                        projectId={work.id}
-                        refresh={snapshotRefresh}
-                        alt=""
-                        lazy
-                        fallback={<span>Без снимка</span>}
-                      />
-                    </span>
-                    <span className="observation-project-title">
-                      <strong>{work.title}</strong>
-                      <span>{work.student}</span>
-                      <span className="observation-project-meta">
-                        <span>{EDITORS[work.moduleKey] ?? work.moduleKey}</span>
-                        <span>{work.assigned ? 'По заданию' : 'Без задания'}</span>
-                        {work.status === 'archived' ? <span>Архив</span> : null}
-                      </span>
-                      <time dateTime={work.updatedAt}>{time.dateTime(work.updatedAt)}</time>
-                    </span>
-                  </button>
-                  <button
-                    className="observation-editor-action"
-                    type="button"
-                    aria-label={`Открыть в редакторе: ${work.title}`}
-                    onClick={() => onOpenProject(work.id, work.moduleKey, work.seatId)}
-                  >
-                    Открыть в редакторе
-                  </button>
-                </li>
+                <ClassroomWorkCard
+                  key={work.id}
+                  projectId={work.id}
+                  title={work.title}
+                  learner={work.student}
+                  moduleLabel={EDITORS[work.moduleKey] ?? work.moduleKey}
+                  status={<span>{work.assigned ? 'По заданию' : 'Без задания'}</span>}
+                  archived={work.status === 'archived'}
+                  updatedAt={work.updatedAt}
+                  dateLabel={time.dateTime(work.updatedAt)}
+                  refresh={snapshotRefresh}
+                  onPreview={() => setPreviewId(work.id)}
+                  editor={{ onOpen: () => onOpenProject(work.id, work.moduleKey, work.seatId) }}
+                />
               ))}
             </ul>
           )}
