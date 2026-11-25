@@ -362,7 +362,14 @@ async function legacyOriginal(label: string, writer: SubmissionWriter) {
       });
     });
   }
-  return { ...original, writer, seatId, assignmentId };
+  return {
+    ...original,
+    writer,
+    seatId,
+    assignmentId,
+    classroomId,
+    teacherPrincipal: source.principalId,
+  };
 }
 
 type LegacyOriginal = Awaited<ReturnType<typeof legacyOriginal>>;
@@ -533,6 +540,58 @@ async function assertSubmittedVersion(
 }
 
 describe('explicit Public Projects on real PostgreSQL', () => {
+  it('leaves a legacy submitted version readable and rejects new review after classroom removal', async () => {
+    const source = await legacyOriginal('removed-legacy-review', 'legacy');
+    const submitted = (
+      await inTenant(source.teacher.tenantId, (client) => submitOriginal(client, source))
+    ).rows[0];
+    expect(submitted).toMatchObject({ result_code: 'ok', attempt_state: 'evaluating' });
+    const submissionScope = [source.accountId, source.classroomId, submitted.attempt_id];
+    const exactSubmission = () =>
+      runtime.query('SELECT * FROM learning_teacher_exact_submission($1,$2,$3)', submissionScope);
+    const frozen = (await exactSubmission()).rows;
+    expect(frozen).toHaveLength(1);
+    const readAssessmentState = async () =>
+      (
+        await admin.query(
+          `SELECT attempt.state,
+             (SELECT jsonb_agg(to_jsonb(evaluation) ORDER BY evaluation.id)
+                FROM learning_evaluations evaluation WHERE evaluation.attempt_id=attempt.id) AS evaluations,
+             (SELECT count(*)::int FROM assessment_results WHERE attempt_id=attempt.id) AS results,
+             (SELECT count(*)::int FROM gradebook_entries
+                WHERE classroom_assignment_id=attempt.classroom_assignment_id AND seat_id=attempt.seat_id)
+                AS official_results
+           FROM learning_attempts attempt WHERE attempt.id=$1`,
+          [submitted.attempt_id],
+        )
+      ).rows[0];
+    const beforeRemoval = await readAssessmentState();
+    expect(beforeRemoval).toMatchObject({
+      state: 'evaluating',
+      evaluations: [{ evaluator_kind: 'automatic', status: 'needs_review' }],
+      results: 0,
+      official_results: 0,
+    });
+    expect(
+      (
+        await runtime.query('SELECT classroom_management_remove_seat($1,$2,$3) AS removed', [
+          source.accountId,
+          source.classroomId,
+          source.seatId,
+        ])
+      ).rows[0].removed,
+    ).toBe(true);
+
+    await expect(
+      runtime.query(
+        "SELECT * FROM learning_attempt_review($1,$2,$3,$4,'changes_requested',NULL,NULL,'Уточнение')",
+        [source.accountId, source.teacherPrincipal, source.classroomId, submitted.attempt_id],
+      ),
+    ).rejects.toMatchObject({ code: 'P5L03' });
+    expect((await exactSubmission()).rows).toEqual(frozen);
+    expect(await readAssessmentState()).toEqual(beforeRemoval);
+  }, 30_000);
+
   it('freezes an exact version, metadata and raster until explicit republish, then deduplicates retries', async () => {
     const source = await fixture('frozen');
     const metadata = {

@@ -139,6 +139,47 @@
   width: 100%;
   height: 240px;
 }
+.gradebook-three-d-preview {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.gradebook-three-d-preview > button {
+  justify-self: start;
+}
+.gradebook-three-d-view {
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.gradebook-three-d-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.classroom-owner-workspace.classroom-workspace
+  .gradebook-detail
+  :is(.gradebook-three-d-preview, .gradebook-three-d-tools)
+  > button.btn-secondary {
+  min-width: 44px;
+  min-height: 44px;
+}
+.gradebook-three-d-stage {
+  position: relative;
+  height: clamp(180px, 38svh, 300px);
+}
+.gradebook-three-d-stage > [role='status'] {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.gradebook-three-d-view[data-ready='false'] .three-d-presentation {
+  visibility: hidden;
+}
 .gradebook-detail .gradebook-review {
   display: grid;
   grid-template-columns: 1fr;

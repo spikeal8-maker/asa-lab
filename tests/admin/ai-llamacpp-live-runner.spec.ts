@@ -98,12 +98,12 @@ function harness() {
   });
   const readFileSync = vi.fn((name: string, encoding?: string) => {
     state.events.push('read:' + name);
-    const bytes = files.get(name);
+    const bytes = files.get(name.replaceAll('\\', '/'));
     if (!bytes) throw new Error('Missing isolated fixture file: ' + name);
     return encoding === 'utf8' ? bytes.toString('utf8') : Buffer.from(bytes);
   });
   const readdirSync = vi.fn((directory: string) => {
-    const prefix = directory + '/';
+    const prefix = directory.replaceAll('\\', '/') + '/';
     const names = [
       ...new Set(
         [...files.keys()]

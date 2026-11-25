@@ -18,7 +18,7 @@ surfaces:
         - apps/api/src/ai-text-history.ts
         - packages/contracts/src/ai-generation-policy.ts
         - packages/contracts/src/ai-chat-feedback.ts
-        - migrations/0333_ai_llamacpp_local.sql
+        - migrations/0334_ai_llamacpp_local.sql
         - apps/web/src/admin/AdminLlamaCppPage.tsx
         - apps/web/src/admin/AiAdminWorkspace.tsx
         - apps/web/src/admin/ai-admin-navigation.ts
