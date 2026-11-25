@@ -1,5 +1,6 @@
 import type { ComponentKind, SchematicComponent, Terminal } from './document.js';
 import { isArduinoUno } from './arduino-model.js';
+import { L298N_TERMINALS, L298N_TYPE } from './models/l298n-dc-model.js';
 import { captureDeviceModelDefinition } from './models/device-model.js';
 import {
   componentModelIdentityIsInstalled,
@@ -234,6 +235,14 @@ export function strictElectricalTerminalsHaveOriginalDefinition(): boolean {
   return strictTerminalDefinitionsAreOriginal();
 }
 
+const L298N_MODEL: ElectricalModelDescriptor = {
+  id: 'l298n-dual-hbridge',
+  kind: 'visual',
+  support: 'supported',
+  topology: 'multi-junction',
+  requiredTerminals: L298N_TERMINALS,
+};
+
 const DC_MOTOR_MODEL: ElectricalModelDescriptor = {
   id: 'dc-motor',
   kind: 'visual',
@@ -278,37 +287,39 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
   const identity = electricalModelIdentityForComponent(component);
   const installed = componentModelIdentityIsInstalled(component);
   const base =
-    installed && component.componentTypeId === 'soil-moisture-sensor'
-      ? SOIL_MODEL
-      : installed && component.componentTypeId === 'pir-sensor'
-        ? PIR_MODEL
-        : installed && component.componentTypeId === 'temperature-sensor'
-          ? TMP36_MODEL
-          : installed && component.componentTypeId === 'ultrasonic-sensor'
-            ? PING_ULTRASONIC_MODEL
-            : installed && component.componentTypeId === 'ultrasonic-hc-sr04'
-              ? HC_SR04_MODEL
-              : installed && component.componentTypeId === 'servo-motor'
-                ? SERVO_MOTOR_MODEL
-                : !installed
-                  ? MODELS.visual
-                  : isArduinoUno(component)
-                    ? ARDUINO_UNO_MODEL
-                    : component.componentTypeId === 'dc-motor' ||
-                        component.componentTypeId === 'gearmotor' ||
-                        component.componentTypeId === 'vibration-motor'
-                      ? DC_MOTOR_MODEL
-                      : component.componentTypeId === 'electrolytic-capacitor'
-                        ? ELECTROLYTIC_CAPACITOR_MODEL
-                        : component.componentTypeId === 'multimeter'
-                          ? DIGITAL_MULTIMETER_MODEL
-                          : component.componentTypeId === 'signal-generator'
-                            ? FUNCTION_GENERATOR_MODEL
-                            : component.componentTypeId === 'oscilloscope'
-                              ? OSCILLOSCOPE_MODEL
-                              : component.componentTypeId === 'switch-spst'
-                                ? SPST_MODEL
-                                : MODELS[component.kind];
+    installed && component.componentTypeId === L298N_TYPE
+      ? L298N_MODEL
+      : installed && component.componentTypeId === 'soil-moisture-sensor'
+        ? SOIL_MODEL
+        : installed && component.componentTypeId === 'pir-sensor'
+          ? PIR_MODEL
+          : installed && component.componentTypeId === 'temperature-sensor'
+            ? TMP36_MODEL
+            : installed && component.componentTypeId === 'ultrasonic-sensor'
+              ? PING_ULTRASONIC_MODEL
+              : installed && component.componentTypeId === 'ultrasonic-hc-sr04'
+                ? HC_SR04_MODEL
+                : installed && component.componentTypeId === 'servo-motor'
+                  ? SERVO_MOTOR_MODEL
+                  : !installed
+                    ? MODELS.visual
+                    : isArduinoUno(component)
+                      ? ARDUINO_UNO_MODEL
+                      : component.componentTypeId === 'dc-motor' ||
+                          component.componentTypeId === 'gearmotor' ||
+                          component.componentTypeId === 'vibration-motor'
+                        ? DC_MOTOR_MODEL
+                        : component.componentTypeId === 'electrolytic-capacitor'
+                          ? ELECTROLYTIC_CAPACITOR_MODEL
+                          : component.componentTypeId === 'multimeter'
+                            ? DIGITAL_MULTIMETER_MODEL
+                            : component.componentTypeId === 'signal-generator'
+                              ? FUNCTION_GENERATOR_MODEL
+                              : component.componentTypeId === 'oscilloscope'
+                                ? OSCILLOSCOPE_MODEL
+                                : component.componentTypeId === 'switch-spst'
+                                  ? SPST_MODEL
+                                  : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
@@ -327,6 +338,13 @@ export function unsupportedElectricalComponents(
 
 function productionRequiredTerminals(component: SchematicComponent): readonly Terminal[] {
   if (!component.componentTypeId) return [];
+  if (component.componentTypeId === L298N_TYPE) {
+    const pins: Terminal[] = [...L298N_TERMINALS];
+    const state = component.stateProperties ?? {};
+    if (state['enaJumperInstalled'] === false) pins.push('ENA');
+    if (state['enbJumperInstalled'] === false) pins.push('ENB');
+    return pins;
+  }
   if (component.componentTypeId === 'switch-spst') return SPST_MODEL.requiredTerminals;
   if (component.componentTypeId === 'soil-moisture-sensor') return SOIL_MODEL.requiredTerminals;
   if (component.componentTypeId === 'temperature-sensor') return TMP36_MODEL.requiredTerminals;

@@ -1,7 +1,11 @@
 import { Body, Controller, HttpCode, HttpException, Inject, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContext } from '@asa-lab/identity';
-import { parseAnalyticsEnvelope, type ActorExpectation } from './analytics-envelope.js';
+import {
+  parseAnalyticsEnvelope,
+  parseSiteActivityEnvelope,
+  type ActorExpectation,
+} from './analytics-envelope.js';
 import {
   ProductAnalyticsService,
   observationMetadata,
@@ -16,6 +20,10 @@ import { parseAcquisitionEnvelope } from './acquisition-envelope.js';
 
 @Controller('api/analytics/v2')
 export class ProductAnalyticsV2Controller {
+  // Presence measurement is optional. At most one request can occupy the
+  // optional analytics lane; product telemetry uses its existing lane.
+  private siteActivityBusy = false;
+
   constructor(
     @Inject(TOKENS.productAnalytics) private readonly analytics: ProductAnalyticsService,
     @Inject(TOKENS.acquisitionAnalytics)
@@ -48,19 +56,35 @@ export class ProductAnalyticsV2Controller {
   private async persist(
     request: FastifyRequest,
     raw: unknown,
-    route: 'events' | 'module-session' | 'quality' | 'acquisition',
+    route: 'events' | 'module-session' | 'quality' | 'acquisition' | 'site-activity',
   ) {
     const receivedAt = requestReceivedAt(request);
+    const site = route === 'site-activity' ? parseSiteActivityEnvelope(raw, receivedAt) : null;
     const envelope =
-      route === 'acquisition' ? parseAcquisitionEnvelope(raw) : parseAnalyticsEnvelope(raw, route);
-    const connection = clientConnection(request);
+      route === 'site-activity'
+        ? site!
+        : route === 'acquisition'
+          ? parseAcquisitionEnvelope(raw)
+          : parseAnalyticsEnvelope(raw, route);
+    if (site && this.siteActivityBusy)
+      return {
+        schemaVersion: 2,
+        accepted: false,
+        state: 'skipped',
+        operation: 'site.activity',
+        eventId: site.eventId,
+        reason: 'capacity',
+      };
+    if (site) this.siteActivityBusy = true;
     try {
-      const writer = route === 'acquisition' ? this.acquisitionAnalytics : this.analytics;
+      const writer = site || route === 'acquisition' ? this.acquisitionAnalytics : this.analytics;
       return await writer.authenticatedRequest(
         request.cookies[SESSION_COOKIE],
         request.cookies[STUDENT_SESSION_COOKIE],
         async (account, student) => {
           const actor = await this.actor(account, student, envelope.actorExpectation);
+          if (site)
+            return writer.persistSiteActivity(site.eventId, actor, site.semantic, receivedAt);
           if (route === 'acquisition')
             return writer.persistAcquisition(
               envelope.eventId,
@@ -73,7 +97,10 @@ export class ProductAnalyticsV2Controller {
             actor,
             'operation' in envelope ? envelope.operation : 'acquisition.observed',
             envelope.semantic,
-            observationMetadata({ ...connection, userAgent: request.headers['user-agent'] }),
+            observationMetadata({
+              ...clientConnection(request),
+              userAgent: request.headers['user-agent'],
+            }),
             receivedAt,
           );
         },
@@ -103,6 +130,8 @@ export class ProductAnalyticsV2Controller {
                 ? 400
                 : 503;
       throw new HttpException({ error: { code } }, status);
+    } finally {
+      if (site) this.siteActivityBusy = false;
     }
   }
   @Post('events')
@@ -124,5 +153,10 @@ export class ProductAnalyticsV2Controller {
   @HttpCode(200)
   quality(@Req() request: FastifyRequest, @Body() raw: unknown) {
     return this.persist(request, raw, 'quality');
+  }
+  @Post('site-activity')
+  @HttpCode(200)
+  siteActivity(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    return this.persist(request, raw, 'site-activity');
   }
 }

@@ -5,6 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { observeActualIntersections } from '../tests/electronics/actual-intersections';
 import type { SchematicDocument } from '../apps/web/src/api';
+import type { ElectronicsSimulationWorkerResponse } from '../apps/web/src/electronics/simulation-worker-protocol';
 import {
   localProjectDraftFingerprint,
   localProjectDraftKey,
@@ -4751,16 +4752,156 @@ test('simulation fault semantics: unpowered supported circuit stays distinct fro
     'data-simulation-status',
     'running',
   );
-  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
-    'data-simulation-category',
-    'circuit-state',
-  );
-  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
-    'data-simulation-code',
-    'no_source',
-  );
+  await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+});
+
+test('standalone ultrasonic variants start silently and replace the old SVG before the new image loads', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const touch = await page.context().newCDPSession(page);
+  await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 2 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Ультразвуковой датчик без питания');
+  await saveDocument(page, projectId, {
+    ...mobileEmptyDocument(),
+    components: [
+      {
+        id: 'sonar',
+        kind: 'visual',
+        componentTypeId: 'ultrasonic-sensor',
+        variantId: 'ultrasonic-sensor',
+        position: { x: 200, y: 200 },
+        value: 0,
+        pinIds: ['gnd', 'vcc', 'signal'],
+        stateProperties: { distanceMeters: 1 },
+      },
+    ],
+  });
+  await page.goto('/#/home/' + projectId);
+  const sensor = page.locator('[data-testid="schematic-component"][data-component-id="sonar"]');
+  const image = sensor.locator('image[pointer-events="none"]');
+  const outline = sensor.locator('.workbench-selection-silhouette image');
+  await expect(image).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
+  await sensor.locator('.workbench-part').press('Enter');
+  const variant = page.getByRole('combobox', { name: /Вариант.*в проекте/ });
+  const overlay = page.getByTestId('ultrasonic-target-overlay');
+  const target = overlay.getByRole('slider', { name: 'Расстояние до цели, см' });
+  const canvas = page.locator('.workbench-canvas');
+  const dragTarget = async (input: 'mouse' | 'touch' | 'cancelled-touch' = 'mouse') => {
+    const before = (await overlay.getAttribute('data-distance-m'))!;
+    const beforeViewport = (await canvas.getAttribute('viewBox'))!;
+    const { x, y, endX, endY } = await target.evaluate((node) => {
+      const circle = node as SVGCircleElement;
+      const matrix = circle.getScreenCTM()!;
+      const cx = circle.cx.baseVal.value;
+      const cy = circle.cy.baseVal.value;
+      const start = new DOMPoint(cx, cy).matrixTransform(matrix);
+      const end = new DOMPoint(cx + 12, cy + 20).matrixTransform(matrix);
+      return { x: start.x, y: start.y, endX: end.x, endY: end.y };
+    });
+    if (input === 'mouse') {
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(endX, endY, { steps: 5 });
+      await page.mouse.up();
+    } else {
+      await mobileNativeDrag(page, { x, y }, { x: endX, y: endY }, input === 'cancelled-touch');
+    }
+    if (input === 'cancelled-touch') {
+      await expect(overlay).toHaveAttribute('data-distance-m', before);
+    } else {
+      await expect
+        .poll(async () => Number(await overlay.getAttribute('data-distance-m')))
+        .toBeLessThan(Number(before));
+    }
+    await expect(canvas).toHaveAttribute('viewBox', beforeViewport);
+    await expect(canvas).not.toHaveClass(/panning/);
+    return (await overlay.getAttribute('data-distance-m'))!;
+  };
+  await expect(overlay).toContainText('100 см / 39,4 in');
+  const baseline = (await e01Server(page, projectId)).draft;
+  const savedDistance = await dragTarget();
+  const savedResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === '/api/projects/' + projectId + '/draft',
+  );
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  const saved = await savedResponse;
+  expect(saved.status()).toBe(200);
+  const persistedSensor = {
+    id: 'sonar',
+    stateProperties: { distanceMeters: Number(savedDistance) },
+  };
+  expect(saved.request().postDataJSON()).toMatchObject({
+    baseRevision: baseline.revision,
+    document: { components: [persistedSensor] },
+  });
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const durable = (await e01Server(page, projectId)).draft;
+  expect(durable.revision).toBe(baseline.revision + 1);
+  expect(durable.document.components).toMatchObject([persistedSensor]);
+
+  await page.reload();
+  await sensor.locator('.workbench-part').press('Enter');
+  await expect(overlay).toHaveAttribute('data-distance-m', savedDistance);
+
+  const simulate = page.locator('.workbench-pill.simulate');
+  const banner = page.locator('.workbench-simulation-message');
+  const start = page.getByRole('button', { name: 'Начать моделирование' });
+  const stop = page.getByRole('button', { name: 'Остановить моделирование' });
+  const runAndStop = async () => {
+    const initialDistance = (await overlay.getAttribute('data-distance-m'))!;
+    await start.click();
+    await expect(simulate).toHaveAttribute('data-simulation-status', 'running');
+    await expect(banner).toHaveCount(0);
+    await expect(overlay).toHaveAttribute('data-power', 'no-power');
+    await expect(overlay).toContainText('нет питания');
+    await dragTarget('cancelled-touch');
+    await dragTarget('touch');
+    await stop.click();
+    await expect(overlay).toHaveAttribute('data-distance-m', initialDistance);
+  };
+  await runAndStop();
+
+  await expect(outline).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
+  const previous = await image.elementHandle();
+  const previousOutline = await outline.elementHandle();
+  let releaseAsset = () => {};
+  const heldAsset = new Promise<void>((done) => {
+    releaseAsset = done;
+  });
+  const hcAsset = '**/components/sensors/ultrasonic-hc-sr04/component.svg*';
+  await page.route(hcAsset, async (route) => {
+    await heldAsset;
+    await route.continue();
+  });
+  try {
+    const pendingRequest = page.waitForRequest(hcAsset);
+    await variant.selectOption('ultrasonic-hc-sr04');
+    await pendingRequest;
+    await expect(sensor).toHaveAttribute('data-component-type', 'ultrasonic-hc-sr04');
+    await expect(image).toHaveAttribute('href', /ultrasonic-hc-sr04\/component\.svg/);
+    await expect(outline).toHaveAttribute('href', /ultrasonic-hc-sr04\/component\.svg/);
+    expect(await previous.evaluate((element) => element.isConnected)).toBe(false);
+    expect(await previousOutline.evaluate((element) => element.isConnected)).toBe(false);
+  } finally {
+    releaseAsset();
+    // Let the delayed image handlers finish before removing the interceptor.
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+  await runAndStop();
+  await variant.selectOption('ultrasonic-sensor');
+  await expect(sensor).toHaveAttribute('data-component-type', 'ultrasonic-sensor');
+  await expect(image).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
+  await expect(outline).toHaveAttribute('href', /ultrasonic-sensor\/component\.svg/);
 });
 
 test('simulation fault semantics: an unmodelled part stops without a false solved frame', async ({
@@ -6718,6 +6859,669 @@ test('6 V incandescent lamp warms into the owner glow and explains its fixed pro
     path: `${ARTIFACT_DIR}/electronics-incandescent-lamp-runtime.png`,
     fullPage: true,
   });
+  failures.assertEmpty();
+});
+
+function l298nWorkbenchCircuit(kind: 'manual' | 'onboard' | 'arduino'): SchematicDocument {
+  const onboard = kind === 'onboard';
+  const arduino = kind === 'arduino';
+  const components: SchematicDocument['components'][number][] = [];
+  const connections: SchematicDocument['connections'][number][] = [];
+  const wire = (id: string, fromId: string, from: string, toId: string, to: string) => {
+    connections.push({
+      id,
+      from: { componentId: fromId, terminal: from },
+      to: { componentId: toId, terminal: to },
+      vertices: [],
+    });
+  };
+  const supply = (id: string, x: number, y: number, volts: number, amps: number) => {
+    components.push({
+      id,
+      kind: 'source',
+      componentTypeId: 'regulated-power-supply',
+      variantId: 'regulated-power-supply',
+      name: 'Лабораторный источник ' + volts + ' В',
+      position: { x, y },
+      value: volts,
+      state: true,
+      pinIds: ['positive', 'negative'],
+      stateProperties: {
+        voltageSetpointVolt: volts,
+        currentLimitAmp: amps,
+        outputEnabled: true,
+        outputResistanceOhm: 0.05,
+      },
+    });
+  };
+
+  supply('motor-rail', 75, arduino ? 320 : 70, onboard ? 9 : 6, onboard ? 3 : 2);
+  wire('motor-vs', 'motor-rail', 'positive', 'driver', '+12V');
+  wire('motor-ground', 'motor-rail', 'negative', 'driver', 'GND');
+  components.push({
+    id: 'driver',
+    kind: 'visual',
+    componentTypeId: 'l298n-motor-driver',
+    variantId: 'red-43mm',
+    name: 'L298N',
+    position: { x: 650, y: 270 },
+    value: 0,
+    pinIds: [
+      '+12V',
+      'GND',
+      '+5V',
+      'OUT1',
+      'OUT2',
+      'OUT3',
+      'OUT4',
+      'IN1',
+      'IN2',
+      'IN3',
+      'IN4',
+      'ENA',
+      ...(arduino ? [] : ['ENB']),
+    ],
+    stateProperties: {
+      enaJumperInstalled: false,
+      enbJumperInstalled: arduino,
+      regulatorJumperInstalled: onboard,
+    },
+  });
+
+  for (const [id, y, type, first, second] of [
+    ['motor-a', 130, 'dc-motor', 'OUT1', 'OUT2'],
+    ['motor-b', 410, onboard ? 'dc-motor' : 'gearmotor', 'OUT3', 'OUT4'],
+  ] as const) {
+    components.push({
+      id,
+      kind: 'visual',
+      componentTypeId: type,
+      variantId: type,
+      name: id,
+      position: { x: 920, y },
+      value: 0,
+      pinIds: ['negative', 'positive'],
+      stateProperties: {
+        motorAssemblyProfileId:
+          type === 'dc-motor' ? 'pololu-1117-130-6v' : 'adafruit-3777-tt-48to1',
+      },
+    });
+    wire(id + '-positive', 'driver', first, id, 'positive');
+    wire(id + '-negative', 'driver', second, id, 'negative');
+  }
+
+  if (arduino) {
+    const arduinoSource = [
+      'void setup() {',
+      '  pinMode(2, OUTPUT); pinMode(3, OUTPUT); pinMode(4, OUTPUT);',
+      '  pinMode(7, OUTPUT); pinMode(8, OUTPUT); pinMode(9, OUTPUT);',
+      '  digitalWrite(2, HIGH); digitalWrite(4, LOW);',
+      '  digitalWrite(7, LOW); digitalWrite(8, HIGH);',
+      '  analogWrite(3, 192); analogWrite(9, 80);',
+      '}',
+      'void loop() { delay(1000); }',
+    ].join('\n');
+    components.push({
+      id: 'uno',
+      kind: 'visual',
+      componentTypeId: 'arduino-uno',
+      variantId: 'arduino-uno',
+      name: 'Arduino Uno',
+      position: { x: 180, y: 60 },
+      value: 0,
+      pinIds: [
+        ...Array.from({ length: 6 }, (_, pin) => 'a' + pin),
+        ...Array.from({ length: 14 }, (_, pin) => 'd' + pin),
+        'aref',
+        'gnd-top',
+        'ioref',
+        'power-3v3',
+        'power-5v',
+        'power-gnd-1',
+        'power-gnd-2',
+        'reset',
+        'scl',
+        'sda',
+        'vin',
+      ],
+      stateProperties: { arduinoSource },
+    });
+    wire('logic-vs', 'uno', 'power-5v', 'driver', '+5V');
+    wire('logic-ground', 'uno', 'power-gnd-1', 'driver', 'GND');
+    for (const [terminal, pin] of [
+      ['IN1', 'd2'],
+      ['IN2', 'd4'],
+      ['IN3', 'd7'],
+      ['IN4', 'd8'],
+      ['ENA', 'd3'],
+    ] as const) {
+      wire('uno-' + terminal.toLowerCase(), 'uno', pin, 'driver', terminal);
+    }
+  } else {
+    if (!onboard) {
+      supply('logic-rail', 75, 260, 5, 0.5);
+      wire('logic-vs', 'logic-rail', 'positive', 'driver', '+5V');
+      wire('logic-ground', 'logic-rail', 'negative', 'driver', 'GND');
+    }
+    const logicId = onboard ? 'driver' : 'logic-rail';
+    const highPin = onboard ? '+5V' : 'positive';
+    const lowPin = onboard ? 'GND' : 'negative';
+    wire('b-in3-low', logicId, lowPin, 'driver', 'IN3');
+    wire('b-in4-high', logicId, highPin, 'driver', 'IN4');
+    for (const [id, x, y, terminal, high] of [
+      ['a-in1', 320, 120, 'IN1', true],
+      ['a-in2', 465, 120, 'IN2', false],
+      ['a-enable', 320, 285, 'ENA', true],
+      ['b-enable', 465, 285, 'ENB', true],
+    ] as const) {
+      components.push({
+        id,
+        kind: 'switch',
+        componentTypeId: 'switch-spdt',
+        variantId: 'switch-spdt',
+        name: id,
+        position: { x, y },
+        value: 0,
+        state: high,
+        pinIds: ['throw-left', 'common', 'throw-right'],
+        stateProperties: { selectedThrow: high ? 'right' : 'left' },
+      });
+      wire(id + '-high', logicId, highPin, id, 'throw-right');
+      wire(id + '-low', logicId, lowPin, id, 'throw-left');
+      wire(id + '-control', id, 'common', 'driver', terminal);
+    }
+  }
+
+  return {
+    schemaVersion: 4,
+    components,
+    connections,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
+type L298nFrame = {
+  readonly at: number;
+  readonly lit: boolean;
+  readonly control: Readonly<Record<string, number | undefined>>;
+  readonly rpmA: number;
+  readonly rpmB: number;
+  readonly currentA: number;
+  readonly currentB: number;
+  readonly modeA: string | undefined;
+  readonly modeB: string | undefined;
+};
+
+type L298nWorkerProbe = Window & { __l298nFrames?: L298nFrame[]; __l298nFaults?: string[] };
+
+async function observeL298nWorker(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const probe = window as L298nWorkerProbe;
+    const frames: L298nFrame[] = [];
+    const faults: string[] = [];
+    probe.__l298nFrames = frames;
+    probe.__l298nFaults = faults;
+    window.Worker = new Proxy(window.Worker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation') {
+          return worker;
+        }
+        worker.addEventListener(
+          'message',
+          (event: MessageEvent<ElectronicsSimulationWorkerResponse>) => {
+            const response = event.data;
+            if (!response.ok || response.kind !== 'advance') return;
+            const advance = response.advance;
+            if (advance.executionStatus === 'fault') {
+              faults.push(...advance.diagnostics.map((item) => item.code));
+              return;
+            }
+            const result = advance.result;
+            if (advance.executionStatus !== 'ready' || !result?.solved || !result.quality?.passed) {
+              return;
+            }
+            const driver = result.components.find((part) => part.componentId === 'driver');
+            const a = result.components.find((part) => part.componentId === 'motor-a');
+            const b = result.components.find((part) => part.componentId === 'motor-b');
+            if (!driver || !a || !b || a.motorRpm === undefined || b.motorRpm === undefined) return;
+            frames.push({
+              at: advance.committedHorizonMicroseconds,
+              lit: driver.lit === true,
+              control: driver.terminalVoltages ?? {},
+              rpmA: a.motorRpm,
+              rpmB: b.motorRpm,
+              currentA: a.current,
+              currentB: b.current,
+              modeA: a.motorOperatingMode,
+              modeB: b.motorOperatingMode,
+            });
+            if (frames.length > 180) frames.shift();
+          },
+        );
+        return worker;
+      },
+    });
+  });
+}
+
+async function l298nFrame(
+  page: Page,
+  description: string,
+  accepts: (frame: L298nFrame) => boolean,
+): Promise<L298nFrame> {
+  let match: L298nFrame | undefined;
+  await expect
+    .poll(
+      async () => {
+        const state = await page.evaluate(() => {
+          const probe = window as L298nWorkerProbe;
+          return { frames: probe.__l298nFrames ?? [], faults: probe.__l298nFaults ?? [] };
+        });
+        expect(state.faults).toEqual([]);
+        match = state.frames.find(accepts);
+        return Boolean(match);
+      },
+      { message: description, timeout: 15_000 },
+    )
+    .toBe(true);
+  if (!match) throw new Error(description);
+  return match;
+}
+
+function l298nPart(page: Page, id: string) {
+  return page
+    .getByTestId('schematic-component')
+    .and(page.locator('[data-component-id="' + id + '"]'));
+}
+
+function l298nTerminal(page: Page, id: string, pin: string) {
+  return page.locator('[data-terminal-component-id="' + id + '"][data-terminal-id="' + pin + '"]');
+}
+
+function l298nLed(page: Page) {
+  return page.locator('[data-l298n-led="driver"]');
+}
+
+async function expectL298nRenderedMotors(page: Page, gearmotor = true): Promise<void> {
+  await expect
+    .poll(async () =>
+      Number(
+        await l298nPart(page, 'motor-a')
+          .getByTestId('dc-motor-phase')
+          .getAttribute('data-motor-rpm'),
+      ),
+    )
+    .toBeGreaterThan(0);
+  await expect
+    .poll(async () =>
+      Number(
+        await l298nPart(page, 'motor-b')
+          .getByTestId(gearmotor ? 'gearmotor-phase' : 'dc-motor-phase')
+          .getAttribute(gearmotor ? 'data-output-rpm' : 'data-motor-rpm'),
+      ),
+    )
+    .toBeLessThan(0);
+}
+
+test('L298N stays on the workbench after catalog drag and real Save/reopen', async ({
+  page,
+  browser,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'L298N catalog placement');
+  const initial = await e01Server(page, projectId);
+  expect(initial.draft.document.components).toEqual([]);
+  await page.goto('/#/home/' + projectId);
+  const stage = page.locator('.workbench-stage');
+  await expect(stage).toBeVisible();
+  await expect(page.getByTestId('schematic-component')).toHaveCount(0);
+  await page.getByLabel('Категория компонентов').selectOption('motors');
+  await page.getByRole('textbox', { name: 'Поиск компонентов' }).fill('L298N');
+
+  const stageBox = await stage.boundingBox();
+  if (!stageBox) throw new Error('workbench stage is not rendered');
+  await dragCatalogComponent(page, 'Драйвер двигателей L298N', {
+    x: stageBox.x + stageBox.width * 0.4,
+    y: stageBox.y + stageBox.height * 0.54,
+  });
+  const board = component(page, 'l298n-motor-driver');
+  await expect(board).toBeVisible();
+  const bodyImage = 'image[pointer-events="none"][href*="/components/drivers/l298n/component.svg"]';
+  await expect(board.locator(bodyImage)).toBeVisible();
+  const position = {
+    x: await board.getAttribute('data-x'),
+    y: await board.getAttribute('data-y'),
+  };
+
+  const saveResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === '/api/projects/' + projectId + '/draft',
+  );
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  const put = await saveResponse;
+  expect(put.status()).toBe(200);
+  expect(put.request().postDataJSON()).toMatchObject({ baseRevision: initial.draft.revision });
+  const saved = await e01Server(page, projectId);
+  expect(saved.draft.revision).toBe(initial.draft.revision + 1);
+  expect(saved.draft.document.components).toHaveLength(1);
+  const placed = saved.draft.document.components[0]!;
+  expect(placed).toMatchObject({
+    componentTypeId: 'l298n-motor-driver',
+    stateProperties: {
+      enaJumperInstalled: true,
+      enbJumperInstalled: true,
+      regulatorJumperInstalled: true,
+    },
+  });
+  expect(placed.pinIds).toHaveLength(11);
+  expect(placed.pinIds).toEqual(
+    expect.arrayContaining([
+      '+12V',
+      'GND',
+      '+5V',
+      'OUT1',
+      'OUT2',
+      'OUT3',
+      'OUT4',
+      'IN1',
+      'IN2',
+      'IN3',
+      'IN4',
+    ]),
+  );
+
+  const freshContext = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+    viewport: { width: 1440, height: 900 },
+  });
+  try {
+    await freshContext.addCookies(await page.context().cookies());
+    const fresh = await freshContext.newPage();
+    await fresh.goto('/#/home/' + projectId);
+    const reopened = component(fresh, 'l298n-motor-driver');
+    await expect(reopened).toBeVisible();
+    await expect(reopened.locator(bodyImage)).toBeVisible();
+    await expect(reopened).toHaveAttribute('data-component-id', placed.id);
+    await expect(reopened).toHaveAttribute('data-x', position.x ?? '');
+    await expect(reopened).toHaveAttribute('data-y', position.y ?? '');
+  } finally {
+    await freshContext.close();
+  }
+});
+
+test('L298N works without Arduino on a shared ground with two independent SPDT-controlled channels', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await observeL298nWorker(page);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'L298N autonomous dual motor');
+  await saveDocument(page, projectId, l298nWorkbenchCircuit('manual'));
+  await page.goto('/#/home/' + projectId);
+  await expect(l298nLed(page)).toHaveAttribute('data-l298n-led-state', 'off');
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  const driven = await l298nFrame(
+    page,
+    'both motors turn in opposite directions',
+    (frame) =>
+      frame.lit &&
+      frame.rpmA > 1_000 &&
+      frame.rpmB < -1_000 &&
+      frame.currentA > 0.01 &&
+      frame.currentB < -0.01,
+  );
+  await expect(l298nLed(page)).toHaveAttribute('data-l298n-led-state', 'on');
+  await expectL298nRenderedMotors(page);
+
+  await l298nPart(page, 'a-in1').getByTestId('spdt-actuator').click();
+  const brake = await l298nFrame(
+    page,
+    'A brakes while B keeps driving',
+    (frame) =>
+      frame.at > driven.at &&
+      frame.control['IN1'] === 0 &&
+      frame.control['IN2'] === 0 &&
+      (frame.control['ENA'] ?? 0) > 4 &&
+      frame.currentA < -0.01 &&
+      frame.rpmA > 0 &&
+      frame.rpmB < -1_000 &&
+      frame.currentB < -0.01,
+  );
+
+  await l298nPart(page, 'a-in2').getByTestId('spdt-actuator').click();
+  const reversed = await l298nFrame(
+    page,
+    'A reverses independently of B',
+    (frame) =>
+      frame.at > brake.at &&
+      frame.rpmA < -1_000 &&
+      frame.rpmB < -1_000 &&
+      frame.currentA < -0.01 &&
+      frame.currentB < -0.01,
+  );
+
+  await l298nPart(page, 'a-enable').getByTestId('spdt-actuator').click();
+  const coastA = await l298nFrame(
+    page,
+    'A coasts with a moving rotor and B keeps driving',
+    (frame) =>
+      frame.at > reversed.at &&
+      frame.control['ENA'] === 0 &&
+      Math.abs(frame.currentA) < 0.000_001 &&
+      frame.modeA === 'coasting' &&
+      frame.rpmA < 0 &&
+      frame.rpmB < -1_000 &&
+      frame.currentB < -0.01,
+  );
+
+  await l298nPart(page, 'b-enable').getByTestId('spdt-actuator').click();
+  await l298nFrame(
+    page,
+    'both rotors coast without drive current',
+    (frame) =>
+      frame.at > coastA.at &&
+      frame.control['ENB'] === 0 &&
+      frame.modeB === 'coasting' &&
+      Math.abs(frame.currentB) < 0.000_001 &&
+      frame.rpmB < 0 &&
+      frame.modeA === 'coasting' &&
+      Math.abs(frame.currentA) < 0.000_001,
+  );
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await expect(l298nLed(page)).toHaveAttribute('data-l298n-led-state', 'off');
+  failures.assertEmpty();
+});
+
+test('L298N onboard 5V jumper powers the logic from the motor supply', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await observeL298nWorker(page);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'L298N onboard regulator');
+  const circuit = l298nWorkbenchCircuit('onboard');
+  await saveDocument(page, projectId, circuit);
+  await page.goto('/#/home/' + projectId);
+  await l298nPart(page, 'driver').locator('.workbench-part').press('Enter');
+  await expect(page.getByTestId('l298n-jumper-regulatorJumperInstalled')).toBeChecked();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await l298nFrame(
+    page,
+    'the onboard regulator drives both loads without an external logic rail',
+    (frame) => {
+      const logic = frame.control['+5V'] ?? 0;
+      const supply = frame.control['+12V'] ?? 0;
+      return (
+        frame.lit &&
+        logic > 4.9 &&
+        logic < 5.1 &&
+        supply > 7.5 &&
+        frame.rpmA > 1_000 &&
+        frame.rpmB < -1_000
+      );
+    },
+  );
+  await expect(l298nLed(page)).toHaveAttribute('data-l298n-led-state', 'on');
+  await expectL298nRenderedMotors(page, false);
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+});
+
+test('L298N Arduino PWM on both enable pins survives jumper edits and real Save/reopen', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await observeL298nWorker(page);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'L298N two Arduino PWM outputs');
+  const circuit = l298nWorkbenchCircuit('arduino');
+  await saveDocument(page, projectId, circuit);
+  const seed = await e01Server(page, projectId);
+  await page.goto('/#/home/' + projectId);
+
+  const driver = l298nPart(page, 'driver').locator('.workbench-part');
+  await driver.press('Enter');
+  const ena = page.getByTestId('l298n-jumper-enaJumperInstalled');
+  const enb = page.getByTestId('l298n-jumper-enbJumperInstalled');
+  const regulator = page.getByTestId('l298n-jumper-regulatorJumperInstalled');
+  const pad = l298nTerminal(page, 'driver', 'ENB');
+  const undo = page.getByRole('button', { name: 'Отменить (Ctrl+Z)', exact: true });
+  const redo = page.getByRole('button', { name: 'Повторить (Ctrl+Shift+Z)', exact: true });
+  const wires = page.getByTestId('schematic-wire');
+  await expect(ena).not.toBeChecked();
+  await expect(enb).toBeChecked();
+  await expect(regulator).not.toBeChecked();
+  await expect(pad).toHaveCount(0);
+  await enb.uncheck();
+  await expect(pad).toBeVisible();
+  await undo.click();
+  await expect(pad).toHaveCount(0);
+  await redo.click();
+  await expect(pad).toBeVisible();
+
+  await l298nTerminal(page, 'uno', 'd9').press('Enter');
+  await pad.press('Enter');
+  await expect(wires).toHaveCount(circuit.connections.length + 1);
+  await expect(pad.locator('..')).toHaveAttribute('data-connected', 'true');
+  await undo.click();
+  await expect(wires).toHaveCount(circuit.connections.length);
+  await redo.click();
+  await expect(wires).toHaveCount(circuit.connections.length + 1);
+  await driver.press('Enter');
+
+  for (const [checkbox, terminal] of [
+    [ena, 'ENA'],
+    [enb, 'ENB'],
+  ] as const) {
+    await checkbox.click();
+    await expect(checkbox).not.toBeChecked();
+    await expect(l298nTerminal(page, 'driver', terminal).locator('..')).toHaveAttribute(
+      'data-connected',
+      'true',
+    );
+    await expect(wires).toHaveCount(circuit.connections.length + 1);
+  }
+
+  const saveResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === '/api/projects/' + projectId + '/draft',
+  );
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  const put = await saveResponse;
+  expect(put.status()).toBe(200);
+  expect(put.request().postDataJSON()).toMatchObject({ baseRevision: seed.draft.revision });
+  const saved = await e01Server(page, projectId);
+  expect(saved.draft.revision).toBe(seed.draft.revision + 1);
+  const expectedPowerPins = {
+    enaJumperInstalled: false,
+    enbJumperInstalled: false,
+    regulatorJumperInstalled: false,
+  };
+  const savedDriver = saved.draft.document.components.find((part) => part.id === 'driver');
+  expect(savedDriver?.stateProperties).toMatchObject(expectedPowerPins);
+  expect(savedDriver?.pinIds).toEqual(expect.arrayContaining(['ENA', 'ENB']));
+  expect(
+    saved.draft.document.components.find((part) => part.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(circuit.components.find((part) => part.id === 'uno')?.stateProperties?.['arduinoSource']);
+  const enableWires = (['ENA', 'ENB'] as const).map((terminal, index) => {
+    const toEnable = saved.draft.document.connections.filter(
+      (wire) => wire.to.componentId === 'driver' && wire.to.terminal === terminal,
+    );
+    expect(toEnable).toHaveLength(1);
+    expect(toEnable[0]?.from).toEqual({ componentId: 'uno', terminal: index === 0 ? 'd3' : 'd9' });
+    return toEnable[0]!;
+  });
+
+  const assertRunning = async (target: Page) => {
+    await target.getByRole('button', { name: 'Начать моделирование' }).click();
+    await l298nFrame(
+      target,
+      'Arduino drives both physical output directions',
+      (frame) => frame.lit && frame.rpmA > 1_000 && frame.rpmB < -1_000,
+    );
+    await l298nFrame(
+      target,
+      'ENA and ENB have different PWM states in the solved circuit',
+      (frame) =>
+        frame.rpmA > 0 &&
+        frame.rpmB < 0 &&
+        (frame.control['ENA'] ?? 0) > 4 &&
+        frame.control['ENB'] === 0 &&
+        Math.abs(frame.currentA) > 0.01,
+    );
+    await expect(l298nLed(target)).toHaveAttribute('data-l298n-led-state', 'on');
+    await expectL298nRenderedMotors(target);
+    await target.getByRole('button', { name: 'Остановить моделирование' }).click();
+  };
+  await assertRunning(page);
+
+  const freshContext = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+    viewport: { width: 1440, height: 900 },
+  });
+  await freshContext.addCookies(await page.context().cookies());
+  try {
+    expect((await freshContext.storageState()).origins).toEqual([]);
+    const fresh = await freshContext.newPage();
+    const freshFailures = collectBrowserFailures(fresh, { allowAdminAccessProbe: true });
+    await observeL298nWorker(fresh);
+    const serverRead = fresh.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === '/api/projects/' + projectId,
+    );
+    await fresh.goto('/#/home/' + projectId);
+    const delivered = await serverRead;
+    expect(delivered.status()).toBe(200);
+    expect((await delivered.json()).draft).toEqual(saved.draft);
+    for (const wire of enableWires) {
+      await expect(
+        fresh.getByTestId('schematic-wire').and(fresh.locator('[data-wire-id="' + wire.id + '"]')),
+      ).toBeVisible();
+      await expect(l298nTerminal(fresh, 'driver', wire.to.terminal).locator('..')).toHaveAttribute(
+        'data-connected',
+        'true',
+      );
+    }
+    await l298nPart(fresh, 'driver').locator('.workbench-part').press('Enter');
+    for (const property of Object.keys(expectedPowerPins)) {
+      await expect(fresh.getByTestId('l298n-jumper-' + property)).not.toBeChecked();
+    }
+    await assertRunning(fresh);
+    freshFailures.assertEmpty();
+  } finally {
+    await freshContext.close();
+  }
   failures.assertEmpty();
 });
 
@@ -10168,6 +10972,13 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
+  await expect(
+    page.locator('.workbench-simulation-message[data-simulation-code="no_source"]'),
+  ).toHaveCount(0);
   await page.evaluate(() => {
     document
       .querySelector('[data-testid="schematic-component"][data-component-id="meter"]')

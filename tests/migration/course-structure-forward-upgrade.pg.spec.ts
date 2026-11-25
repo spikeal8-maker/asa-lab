@@ -201,7 +201,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0329', // Dated journal corrections can omit a reason.
         '0330', // Aggregate AI usage and new registrations over the dashboard window.
         '0331', // Limit session revocation to the removed classroom seat.
-        '0332', // Freeze new grading for removed classroom seats.
+        '0332', // Additive dashboard site activity and scoped aggregate.
+        '0333', // Freeze new grading for removed classroom seats.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -562,7 +563,8 @@ describe('Course Builder structure forward upgrade', () => {
           '0329', // Dated journal corrections can omit a reason.
           '0330', // Aggregate AI usage and new registrations over the dashboard window.
           '0331', // Limit session revocation to the removed classroom seat.
-          '0332', // Freeze new grading for removed classroom seats.
+          '0332', // Additive dashboard site activity and scoped aggregate.
+          '0333', // Freeze new grading for removed classroom seats.
         ]);
         expect(
           await applyIsolatedTestPlan(
