@@ -228,6 +228,7 @@ function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
 
 function sameCanonicalStructure(left: SchematicDocument, right: SchematicDocument): boolean {
   return (
+    left === right ||
     JSON.stringify(stripTimedRuntimeInputs(left)) === JSON.stringify(stripTimedRuntimeInputs(right))
   );
 }
