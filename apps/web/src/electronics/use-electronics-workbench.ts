@@ -1408,16 +1408,23 @@ export function useElectronicsWorkbenchHost(
   );
   usePiezoAudio(runtimeDocument, nativeOpticalPresentation, simulationRunning);
 
+  const staticPreflightResult = useMemo(() => {
+    if (!document || simulationRunning) return null;
+    const runningDocument = {
+      ...document,
+      simulation: { ...document.simulation, running: true },
+    };
+    return calculateSimulationPreflight(runningDocument);
+  }, [document, simulationRunning]);
+
   useEffect(() => {
-    if (!document || simulationRunning || status !== 'ready') return;
+    if (!document || !staticPreflightResult || status !== 'ready') return;
     const timer = window.setTimeout(() => {
-      const runningDocument = {
-        ...document,
-        simulation: { ...document.simulation, running: true },
-      };
-      const preview = calculateSimulationPreflight(runningDocument);
       const previewByComponent = new Map(
-        preview.components.map((componentResult) => [componentResult.componentId, componentResult]),
+        staticPreflightResult.components.map((componentResult) => [
+          componentResult.componentId,
+          componentResult,
+        ]),
       );
       for (const component of document.components) {
         if (component.kind !== 'led') continue;
@@ -1436,7 +1443,7 @@ export function useElectronicsWorkbenchHost(
       }
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [document, simulationRunning, status]);
+  }, [document, staticPreflightResult, status]);
 
   async function toggleSimulationWithAudio(): Promise<void> {
     if (!simulationRunning) {
@@ -3724,13 +3731,6 @@ export function useElectronicsWorkbenchHost(
     for (const item of result?.components ?? []) map.set(item.componentId, item);
     return map;
   }, [result]);
-  const staticPreflightResult = useMemo(() => {
-    if (!document || simulationRunning) return null;
-    return calculateSimulationPreflight({
-      ...document,
-      simulation: { ...document.simulation, running: true },
-    });
-  }, [document, simulationRunning]);
   const diagnosticResult = simulationRunning ? result : (staticPreflightResult ?? result);
   const runtimePresentationResultByComponent = useMemo(
     () => (simulationRunning ? resultByComponent : new Map<string, ComponentResult>()),

@@ -24,6 +24,8 @@ import type { LiveSimulationWorkerCallbacks } from '../live-simulation-worker-co
 import { ElectronicsLiveSimulationWorkerController } from '../live-simulation-worker-controller';
 import { loadSimulationWorkerController } from '../load-simulation-worker-controller';
 import { SimulationFailure } from '../simulation-failure';
+import * as liveSimulation from '../live-simulation';
+import * as productionAssets from '../production-asset-contracts';
 import { catalogEntry } from '../component-catalog';
 import { configureProductionLibrary } from '../production-manifest-adapter';
 import { ProductionComponentVisual, NativeOpticalProvider } from '../NativeOpticalComponentVisual';
@@ -420,6 +422,73 @@ afterEach(async () => {
 });
 
 describe('shared workbench with a local project host', () => {
+  it('shares the stopped calculation and only warms the latest ready document', async () => {
+    const project = localProjectHost();
+    const makeDocument = (ledColour: 'red' | 'green'): SchematicDocument => ({
+      ...initial,
+      components: [
+        ...initial.components,
+        {
+          id: 'led',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          value: 2,
+          position: { x: 200, y: 0 },
+          pinIds: ['anode', 'cathode'],
+          stateProperties: { ledColour },
+        },
+      ],
+    });
+    const diagnostic = {
+      code: 'component_overload',
+      severity: 'warning' as const,
+      message: 'Проверьте нагрузку светодиода',
+      componentIds: ['led'],
+    };
+    const calculate = vi.spyOn(liveSimulation, 'calculateSimulationPreflight').mockReturnValue({
+      ...ready,
+      diagnostics: [diagnostic],
+      components: [
+        { componentId: 'led', brightness: 42, lit: true, current: 0.01, voltageDrop: 2 },
+      ],
+    });
+    const warm = vi.spyOn(productionAssets, 'warmProductionAsset').mockImplementation(() => {});
+    const render = async (document: SchematicDocument, running = false) =>
+      act(async () =>
+        root.render(
+          createElement(LocalHostProbe, {
+            projectState: {
+              ...project,
+              document,
+              getCurrentDocument: () => document,
+              simulationRunning: running,
+              simulationStatus: running ? 'running' : 'stopped',
+            },
+          }),
+        ),
+      );
+
+    await render(makeDocument('red'));
+    expect(calculate).toHaveBeenCalledTimes(1);
+    expect(workbench.diagnosticsByComponent.get('led')).toEqual([diagnostic]);
+    await tick(119);
+
+    const latest = makeDocument('green');
+    await render(latest);
+    await tick(119);
+    expect(calculate).toHaveBeenCalledTimes(2);
+    expect(warm).not.toHaveBeenCalled();
+    await tick(1);
+    expect(calculate).toHaveBeenCalledTimes(2);
+    expect(warm).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/led_green_i042\.svg$/));
+
+    await render(makeDocument('red'));
+    await render(latest, true);
+    await tick(120);
+    expect(calculate).toHaveBeenCalledTimes(3);
+    expect(warm).toHaveBeenCalledTimes(1);
+  });
+
   it('scopes shortcuts to the embedded editing page and restores the legacy default exactly once', async () => {
     const projectState = {
       ...localProjectHost(),
