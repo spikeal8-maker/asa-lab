@@ -7,7 +7,7 @@ import {
   closeCourseLessonSettings,
   openCourseStructure,
 } from './learning-authoring-navigation';
-import { expect, test, type Browser, type Page, type Route } from '@playwright/test';
+import { expect, test, type Browser, type Page, type Request, type Route } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
@@ -1592,6 +1592,44 @@ for (const module of ['three-d', 'electronics'])
     expect(resumedAssignment?.canonicalState?.flags).toContain('revision_in_progress');
 
     await editRealProject(learner.page, module);
+    if (module === 'three-d') {
+      const currentProjectId = courseActivityProjectId(learner.page, module);
+      const laterDraft = await learner.page.request.get('/api/projects/' + currentProjectId);
+      expect(laterDraft.ok()).toBe(true);
+      expect((await laterDraft.json()).draft.document).not.toEqual(JSON.parse(submittedDocument));
+      await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
+      const viewerRequests: string[] = [];
+      const recordViewerRequest = (request: Request) => {
+        const path = new URL(request.url()).pathname;
+        if (
+          path.startsWith('/api/projects/') ||
+          (path.startsWith('/api/classrooms/') && !['GET', 'HEAD'].includes(request.method()))
+        )
+          viewerRequests.push(request.method() + ' ' + path);
+      };
+      page.on('request', recordViewerRequest);
+      const showModel = detail.getByRole('button', { name: 'Показать 3D-модель', exact: true });
+      await expect(detail.getByTestId('three-d-presentation')).toHaveCount(0);
+      await showModel.press('Enter');
+      await expect(detail.getByRole('region', { name: 'Сданная 3D-модель' })).toHaveAttribute(
+        'data-ready',
+        'true',
+        { timeout: 15_000 },
+      );
+      const canvas = detail.getByTestId('three-d-presentation').locator('canvas');
+      await canvas.press('ArrowRight');
+      await canvas.press('Escape');
+      await expect(showModel).toBeFocused();
+      await expect(canvas).toHaveCount(0);
+      page.off('request', recordViewerRequest);
+      expect(viewerRequests).toEqual([]);
+      await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
+      const evidence = detail
+        .locator('details')
+        .filter({ hasText: 'Содержимое и контрольная сумма сдачи' });
+      if ((await evidence.getAttribute('open')) === null) await evidence.locator('summary').click();
+      await expect(evidence.locator('pre')).toHaveText(submittedDocument);
+    }
     await expect(
       brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
     ).toBeEnabled();
@@ -4214,7 +4252,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     );
   }
   const navigationWrites: string[] = [];
-  const captureNavigationWrites = (request: import('@playwright/test').Request) => {
+  const captureNavigationWrites = (request: Request) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) return;
     const path = new URL(request.url()).pathname;
     if (
@@ -4488,7 +4526,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   const atomicStarts: string[] = [];
   const legacyStarts: string[] = [];
-  const observeStart = (request: import('@playwright/test').Request) => {
+  const observeStart = (request: Request) => {
     if (request.method() !== 'POST') return;
     const path = new URL(request.url()).pathname;
     const match = /^\/api\/learning\/work\/runs\/([^/]+)\/start$/.exec(path);
@@ -5896,7 +5934,7 @@ test('Course media errors survive saved author preview and learner delivery with
   const beforeInlineAcademic = await academicRows();
   expect(Object.values(beforeInlineAcademic)).toEqual(Array(7).fill([]));
   const inlineAcademicWrites: string[] = [];
-  const observeInlineWrite = (request: import('@playwright/test').Request) => {
+  const observeInlineWrite = (request: Request) => {
     const pathname = new URL(request.url()).pathname;
     if (
       !['GET', 'HEAD', 'OPTIONS'].includes(request.method()) &&
