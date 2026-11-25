@@ -329,11 +329,17 @@ const shardMatrix = `\${{ fromJSON(
     inputs.qualification_profile == 'classroom-d13-v3' ||
     inputs.qualification_profile == 'arduino-editor-error') &&
     '[{"label":"whole","shard":""}]' ||
-    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"},{"label":"arduino-realtime","shard":""}]'
   ) }}`;
 const shardSuffix = '-${{ matrix.browser_case.label }}';
 const shardCli =
-  ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}';
+  ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}' +
+  ' ${ASA_ELECTRONICS_BROWSER_FILTER:+--workers=1 "$ASA_ELECTRONICS_BROWSER_FILTER" "$ASA_ELECTRONICS_REALTIME_TITLES"}';
+const shardFilter = `\${{ matrix.browser_case.label == 'arduino-realtime' && '--grep' || (matrix.browser_case.shard != '' && '--grep-invert' || '') }}`;
+const realtimeTitles =
+  'Issue 682 acknowledged native realtime baseline ' +
+  '(?:delays|button-serial|short(?:20|30|50|100)|long(?:1000|5000|10000|20000)):' +
+  ' strict real time and acknowledged native evidence$';
 
 function withoutFocusedSharding<T extends BrowserJob>(original: T): T {
   const browser = structuredClone(original);
@@ -344,6 +350,8 @@ function withoutFocusedSharding<T extends BrowserJob>(original: T): T {
   expect(browser['continue-on-error']).toBeUndefined();
   expect(browser.if).toBeUndefined();
   expect(browser.env.ASA_ELECTRONICS_BROWSER_SHARD).toBe('${{ matrix.browser_case.shard }}');
+  expect(browser.env.ASA_ELECTRONICS_BROWSER_FILTER).toBe(shardFilter);
+  expect(browser.env.ASA_ELECTRONICS_REALTIME_TITLES).toBe(realtimeTitles);
   const wholeProject = 'asa-lab-electronics-${{ github.run_id }}';
   expect(browser.env.COMPOSE_PROJECT_NAME).toBe(wholeProject + shardSuffix);
 
@@ -366,6 +374,8 @@ function withoutFocusedSharding<T extends BrowserJob>(original: T): T {
 
   delete browser.strategy;
   delete browser.env.ASA_ELECTRONICS_BROWSER_SHARD;
+  delete browser.env.ASA_ELECTRONICS_BROWSER_FILTER;
+  delete browser.env.ASA_ELECTRONICS_REALTIME_TITLES;
   browser.env.COMPOSE_PROJECT_NAME = wholeProject;
   return browser;
 }

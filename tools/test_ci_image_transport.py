@@ -381,10 +381,22 @@ QUALIFICATION_SHARD_MATRIX = """${{ fromJSON(
     inputs.qualification_profile == 'classroom-d13-v3' ||
     inputs.qualification_profile == 'arduino-editor-error') &&
     '[{"label":"whole","shard":""}]' ||
-    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+    '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"},{"label":"arduino-realtime","shard":""}]'
   ) }}"""
 
-QUALIFICATION_SHARD_CLI = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}'
+QUALIFICATION_SHARD_CLI = (
+    ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}'
+    ' ${ASA_ELECTRONICS_BROWSER_FILTER:+--workers=1 "$ASA_ELECTRONICS_BROWSER_FILTER" "$ASA_ELECTRONICS_REALTIME_TITLES"}'
+)
+QUALIFICATION_SHARD_FILTER = (
+    "${{ matrix.browser_case.label == 'arduino-realtime' && '--grep' || "
+    "(matrix.browser_case.shard != '' && '--grep-invert' || '') }}"
+)
+QUALIFICATION_REALTIME_TITLES = (
+    'Issue 682 acknowledged native realtime baseline '
+    '(?:delays|button-serial|short(?:20|30|50|100)|long(?:1000|5000|10000|20000)):'
+    ' strict real time and acknowledged native evidence$'
+)
 QUALIFICATION_SHARD_SUFFIX = "-${{ matrix.browser_case.label }}"
 BROWSER_REPORT_NAME = "electronics-r4-m1-browser-${{ github.run_id }}"
 SHARDED_FAILURE_REPORT_UPLOAD = deepcopy(FAILURE_REPORT_UPLOAD)
@@ -402,6 +414,8 @@ def strict_shard_contract(contract):
     }
     env = browser["controls"]["env"]
     env["ASA_ELECTRONICS_BROWSER_SHARD"] = "${{ matrix.browser_case.shard }}"
+    env["ASA_ELECTRONICS_BROWSER_FILTER"] = QUALIFICATION_SHARD_FILTER
+    env["ASA_ELECTRONICS_REALTIME_TITLES"] = QUALIFICATION_REALTIME_TITLES
     env["COMPOSE_PROJECT_NAME"] += QUALIFICATION_SHARD_SUFFIX
     upload_names = {
         FAILURE_REPORT_UPLOAD["with"]["name"]: SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"],
@@ -1413,6 +1427,8 @@ def check_qualification_challenges(receipt):
         ("strict cannot omit s4 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s4","shard":"4/4"}', "")})),
         ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":"1/4"')})),
         ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/4"', '"shard":""')})),
+        ("strict cannot omit isolated Arduino real time", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace(',{"label":"arduino-realtime","shard":""}', "")})),
+        ("Arduino real time cannot run only a partial shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"arduino-realtime","shard":""', '"label":"arduino-realtime","shard":"1/4"')})),
         ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/4"')})),
         ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
         ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
@@ -1423,6 +1439,9 @@ def check_qualification_challenges(receipt):
         ("browser cannot ignore failed job", lambda w: w["jobs"]["browser"].update({"continue-on-error": True})),
         ("browser shard must reach runner env", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_BROWSER_SHARD")),
         ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/4"})),
+        ("ordinary shards cannot repeat isolated Arduino cases", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_FILTER": QUALIFICATION_SHARD_FILTER.replace("'--grep-invert'", "''")})),
+        ("whole profiles cannot be filtered", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_FILTER": "--grep-invert"})),
+        ("dedicated filter must keep all ten exact titles", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_REALTIME_TITLES": QUALIFICATION_REALTIME_TITLES.replace("|20000", "")})),
         ("Compose project must isolate all children", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}"})),
         ("Compose project cannot be static", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics"})),
         ("large archive cannot share a name", lambda w: [step["with"].update({"name": BROWSER_REPORT_NAME})
@@ -1439,11 +1458,11 @@ def check_qualification_challenges(receipt):
         ("shard CLI must reach Playwright", QUALIFICATION_SHARD_CLI, ""),
         ("shard CLI cannot be fixed at s1", QUALIFICATION_SHARD_CLI, " --shard=1/4"),
         ("strict shards cannot use default workers", QUALIFICATION_SHARD_CLI,
-            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "")),
+            QUALIFICATION_SHARD_CLI.replace("--workers=1 ", "")),
         ("strict shards cannot run two workers", QUALIFICATION_SHARD_CLI,
             QUALIFICATION_SHARD_CLI.replace("--workers=1", "--workers=2")),
         ("whole profiles cannot inherit a strict worker limit", QUALIFICATION_SHARD_CLI,
-            QUALIFICATION_SHARD_CLI.replace(" --workers=1", "") + " --workers=1"),
+            QUALIFICATION_SHARD_CLI.replace("--workers=1 ", "") + " --workers=1"),
         ("browser CLI cannot grep away cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep LED"),
         ("browser CLI cannot skip cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep-invert E11"),
         ("browser CLI cannot retry failed cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --retries=3"),

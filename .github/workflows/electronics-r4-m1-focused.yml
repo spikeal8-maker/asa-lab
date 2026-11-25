@@ -158,14 +158,15 @@ jobs:
       fail-fast: false
       matrix:
         # Keep the two classroom qualifications whole and preserve the
-        # arduino-editor-error dispatch. Strict CI runs four required shards.
+        # arduino-editor-error dispatch. Strict CI isolates Arduino real time
+        # from the four shards that run all remaining scenarios.
         browser_case: >-
           ${{ fromJSON(
               (inputs.qualification_profile == 'classroom-d13-v2' ||
               inputs.qualification_profile == 'classroom-d13-v3' ||
               inputs.qualification_profile == 'arduino-editor-error') &&
               '[{"label":"whole","shard":""}]' ||
-              '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"}]'
+              '[{"label":"s1","shard":"1/4"},{"label":"s2","shard":"2/4"},{"label":"s3","shard":"3/4"},{"label":"s4","shard":"4/4"},{"label":"arduino-realtime","shard":""}]'
             ) }}
     env:
       CI: 'true'
@@ -175,6 +176,8 @@ jobs:
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
       ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v3' && 'gate:electronics-classroom-d13-v3:browser' || inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
       ASA_ELECTRONICS_BROWSER_SHARD: ${{ matrix.browser_case.shard }}
+      ASA_ELECTRONICS_BROWSER_FILTER: ${{ matrix.browser_case.label == 'arduino-realtime' && '--grep' || (matrix.browser_case.shard != '' && '--grep-invert' || '') }}
+      ASA_ELECTRONICS_REALTIME_TITLES: 'Issue 682 acknowledged native realtime baseline (?:delays|button-serial|short(?:20|30|50|100)|long(?:1000|5000|10000|20000)): strict real time and acknowledged native evidence$'
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}-${{ matrix.browser_case.label }}
       ASA_TEST_UID: '1000'
@@ -230,7 +233,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
-          pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD --workers=1}
+          pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD} ${ASA_ELECTRONICS_BROWSER_FILTER:+--workers=1 "$ASA_ELECTRONICS_BROWSER_FILTER" "$ASA_ELECTRONICS_REALTIME_TITLES"}
 
       - name: Show isolated stack state
         if: always()
