@@ -13,6 +13,8 @@ import {
   ElectronicsSimulationWorkerClient,
   type ElectronicsSimulationWorkerLike,
 } from '../electronics/simulation-worker-client';
+import { evaluateSimulationWorkerRequest } from '../electronics/simulation-worker-evaluator';
+import type { ElectronicsSimulationWorkerResponse } from '../electronics/simulation-worker-protocol';
 import {
   PUBLIC_SIMULATION_BUDGET,
   PublicElectronicsRuntime,
@@ -107,14 +109,85 @@ describe('bounded classroom electronics host', () => {
     expect(host.input('button', { state: false })).toBeNull();
   });
 
-  it('terminates unsupported simulations and requests the saved fallback', () => {
-    const { host, controller, callbacks, stop } = setup(submission());
-    callbacks.onResult({ status: 'unsupported' } as Parameters<typeof callbacks.onResult>[0]);
-    expect(controller.dispose).toHaveBeenCalled();
-    expect(stop).toHaveBeenCalledWith('Эту схему не удалось смоделировать.', true);
-    expect(host.port.getSnapshot().committed).toBeNull();
-    expect(host.input('button', { state: true })).toBeNull();
+  it('keeps a passive no-source circuit open after the Worker supplies a ready frame', async () => {
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const responses: ElectronicsSimulationWorkerResponse[] = [];
+    const worker: ElectronicsSimulationWorkerLike = {
+      onmessage: null,
+      onerror: null,
+      onmessageerror: null,
+      postMessage: (request) => {
+        if (request.kind === 'cancel-generation') return;
+        const response = evaluateSimulationWorkerRequest(request);
+        responses.push(response);
+        worker.onmessage?.(new MessageEvent('message', { data: response }));
+      },
+      terminate: vi.fn(),
+    };
+    const exact = submission();
+    const passive: ClassroomElectronicsSimulation = {
+      ...exact,
+      simulation: {
+        ...exact.simulation,
+        components: [{ id: 'load', kind: 'resistor', position: { x: 0, y: 0 }, value: 1_000 }],
+      },
+    };
+    const stop = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(
+      new ElectronicsSimulationWorkerClient(() => worker, PUBLIC_SIMULATION_BUDGET.requestMs),
+    );
+    const host = new PublicElectronicsRuntime(passive, stop, controller);
+    host.start();
+    try {
+      await vi.waitFor(() => {
+        expect(responses).toContainEqual(
+          expect.objectContaining({
+            kind: 'advance',
+            advance: expect.objectContaining({
+              executionStatus: 'ready',
+              result: expect.objectContaining({
+                status: 'invalid',
+                diagnostics: expect.arrayContaining([
+                  expect.objectContaining({ code: 'no_source' }),
+                ]),
+              }),
+            }),
+          }),
+        );
+      });
+      expect(stop).not.toHaveBeenCalled();
+      expect(worker.terminate).not.toHaveBeenCalled();
+    } finally {
+      host.dispose();
+    }
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['unsupported', 'nonconvergent'] as const)(
+    'stops simulations with status %s and requests the saved fallback',
+    (status) => {
+      const { host, controller, callbacks, stop } = setup(submission());
+      callbacks.onResult({
+        solved: false,
+        status,
+        current: 0,
+        components: [],
+        nodes: [],
+        diagnostics: [],
+        iterations: 0,
+        numericalResidual: 0,
+        numericalTolerance: 0,
+      });
+      expect(controller.dispose).toHaveBeenCalled();
+      expect(stop).toHaveBeenCalledWith('Эту схему не удалось смоделировать.', true);
+      expect(host.port.getSnapshot().committed).toBeNull();
+      expect(host.input('button', { state: true })).toBeNull();
+    },
+  );
 });
 
 describe('bounded public electronics host', () => {

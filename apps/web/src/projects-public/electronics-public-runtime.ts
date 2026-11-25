@@ -8,6 +8,7 @@ import { catalogEntry, visualAsset } from '../electronics/component-catalog';
 import { ordinaryLedVisualState } from '../electronics/component-result-presentation';
 import { ElectronicsLiveSimulationWorkerController } from '../electronics/live-simulation-worker-controller';
 import { ElectronicsSimulationWorkerClient } from '../electronics/simulation-worker-client';
+import { preflightFailure } from '../electronics/simulation-failure';
 import {
   LedTemporalPresentation,
   classroomRequestedHorizon,
@@ -136,7 +137,7 @@ export class PublicElectronicsRuntime {
         this.active && this.ready ? this.requestedHorizon() : null,
       onResult: (result, temporal) => {
         if (!this.active) return;
-        if (this.classroom && result.status !== 'solved') {
+        if (this.classroom && preflightFailure(result)) {
           this.stop('Эту схему не удалось смоделировать.', true);
           return;
         }
