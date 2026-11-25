@@ -241,7 +241,8 @@ export function AdminAiTokenBudgets({
             запросов; неизвестный расход остаётся на проверке.
           </p>
           <p>
-            ollama-local — единый слот активной локальной модели: смена модели не обнуляет расход.
+            Для каждого подключения используется единый слот расхода: Ollama и llama.cpp независимы.
+            Смена модели внутри подключения не обнуляет его месячный расход.
           </p>
           <p>
             Эта кнопка сохраняет только бюджеты. Выбор моделей сохраняется отдельно. Проверки
@@ -280,7 +281,9 @@ export function AdminAiTokenBudgets({
                       <th scope="row" title={m.model}>
                         {m.model === 'ollama-local'
                           ? 'Локальная Ollama'
-                          : m.model.replace(/^ollama-cloud\//, '')}
+                          : m.model === 'llamacpp-local'
+                            ? 'Локальная llama.cpp'
+                            : m.model.replace(/^ollama-cloud\//, '')}
                       </th>
                       <td>
                         <input

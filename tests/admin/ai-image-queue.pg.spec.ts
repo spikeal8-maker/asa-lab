@@ -59,8 +59,9 @@ const schoolPendingFiles = [
   '0331_classroom_seat_scoped_session_revoke.sql',
   '0332_admin_site_activity.sql',
   '0333_classroom_removed_assessment_read_only.sql',
-  '0334_classroom_project_review_target.sql',
-  '0335_classroom_free_project_preview.sql',
+  '0334_ai_llamacpp_local.sql',
+  '0335_classroom_project_review_target.sql',
+  '0336_classroom_free_project_preview.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -99,8 +100,9 @@ const canonicalSqlDigests = {
   '0331': '37244b5a7bbaca3535e37695e6fb216b9d78058b00bb2c0de22defd9bb9d3114',
   '0332': '9cd6fcac8b83e12ca82151e310d827ccced774f8f4115c38441b8a90a184ea19',
   '0333': '0267f24afc0126f8101ff7b15f178064244606e67c18af3d9428a8c0f8f796fa',
-  '0334': '5d5a87000fce9a0dd440193d22814b420b070f3f52f771074ae2ddd0067ac57f',
-  '0335': 'f584906b615f22dfdeae7bfc6b1e735fb674a5fe585bb293703eac66b4e5bf0f',
+  '0334': '25b478efea2a05a0fb682dc05605a4863f066ad6412b6b1af333690dfac4ffb7',
+  '0335': '5d5a87000fce9a0dd440193d22814b420b070f3f52f771074ae2ddd0067ac57f',
+  '0336': 'f584906b615f22dfdeae7bfc6b1e735fb674a5fe585bb293703eac66b4e5bf0f',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {

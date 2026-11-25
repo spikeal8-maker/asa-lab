@@ -135,16 +135,53 @@ export class AiTextHistoryStore {
     owner: string,
     threadId: string,
     requestId: string,
+    maxUtf8Bytes?: number,
   ): Promise<readonly { role: 'user' | 'assistant'; content: string }[]> {
     const result = await this.pool.query<{
       role: 'user' | 'assistant';
       content: string;
       web_search?: AiWebSearchEvidence | null;
     }>(
-      'SELECT context.*, ai_web_search_evidence($1,$2,$3,false) AS web_search FROM ai_text_generation_context($1,$2,$3) context',
+      maxUtf8Bytes === undefined
+        ? 'SELECT context.*, ai_web_search_evidence($1,$2,$3,false) AS web_search FROM ai_text_generation_context($1,$2,$3) context'
+        : 'SELECT context.*, ai_web_search_evidence($1,$2,$3,false) AS web_search FROM ai_text_generation_context_llamacpp($1,$2,$3) context',
       [owner, threadId, requestId],
     );
     if (result.rows.length === 0) throw new Error('AI_CONTEXT_UNAVAILABLE');
+    if (maxUtf8Bytes !== undefined) {
+      // Bound history read into a llama.cpp request. The transport budgets the
+      // full request once instructions, attachments and tools are available.
+      if (!Number.isSafeInteger(maxUtf8Bytes) || maxUtf8Bytes < 1)
+        throw new Error('AI_CONTEXT_UNAVAILABLE');
+      const rows = result.rows;
+      const latest = rows.at(-1)!;
+      const newest = Buffer.from(latest.content + webEvidenceContext(latest.web_search), 'utf8');
+      let newestSize = Math.min(newest.length, maxUtf8Bytes);
+      while (newestSize > 0 && newestSize < newest.length && (newest[newestSize]! & 0xc0) === 0x80)
+        newestSize--;
+      if (newestSize === 0) return [];
+      let remaining = maxUtf8Bytes - newest.length;
+      // Older unanswered questions do not form a turn. Omitting them keeps
+      // templates requiring alternating user/assistant roles compatible.
+      const history: { role: 'user' | 'assistant'; content: string }[] = [];
+      for (let index = rows.length - 2; index >= 1; index--) {
+        const answer = rows[index]!;
+        const question = rows[index - 1]!;
+        if (answer.role !== 'assistant' || question.role !== 'user') continue;
+        const turnSize = Buffer.byteLength(question.content) + Buffer.byteLength(answer.content);
+        if (turnSize > remaining) break;
+        history.push(
+          { role: answer.role, content: answer.content },
+          { role: question.role, content: question.content },
+        );
+        remaining -= turnSize;
+        index--;
+      }
+      return [
+        ...history.reverse(),
+        { role: latest.role, content: newest.subarray(0, newestSize).toString('utf8') },
+      ];
+    }
     // Keep the latest complete answer available for code follow-ups, with a fixed
     // total history budget. Trim oldest rows first instead of every answer at 3000.
     let remaining = 96000;

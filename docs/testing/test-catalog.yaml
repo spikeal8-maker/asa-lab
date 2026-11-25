@@ -26,6 +26,46 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-AI-LLAMACPP-CORE-001
+    title: Private llama.cpp transport, encrypted atomic settings, canonical chat integration and independent provider regression
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-llamacpp
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, embedded-postgresql-report]
+  - id: TST-AI-LLAMACPP-PG-001
+    title: Restricted PostgreSQL llama.cpp admission, settings receipts and independent session-lock concurrency
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-llamacpp:pg
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-LLAMACPP-E2E-001
+    title: Separate llama.cpp admin card, automatic discovery, safe save and four-width layout with synthetic API responses
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-llamacpp
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [playwright-report, llama-cpp-admin-screenshots]
+  - id: TST-AI-LLAMACPP-LIVE-001
+    title: Explicit opt-in real llama.cpp through built ASA API and browser using only an isolated test database
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-llamacpp:live
+    timeout_seconds: 1800
+    owner: ai-assistant
+    artifacts: [llama-cpp-live-receipt, masked-browser-screenshots]
   - id: TST-LRN-FILE-COURSE-BROWSER-001
     title: Teacher and learner complete the immutable file-answer journey in a mixed Course with real private object storage
     suite: e2e

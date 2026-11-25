@@ -120,7 +120,7 @@ interface AiStatus {
   readonly canGenerate?: boolean;
   readonly providerEnabled?: boolean;
   readonly enabled: boolean;
-  readonly provider: 'openai' | 'deepseek' | 'ollama' | 'ollama-cloud';
+  readonly provider: 'openai' | 'deepseek' | 'ollama' | 'ollama-cloud' | 'llamacpp-local';
   readonly ollamaModel?: string | null;
   readonly model: string;
   readonly availableModels?: readonly string[];
@@ -2529,7 +2529,9 @@ export function AiChatPage({
                                 )?.label ??
                                 ((selectedModel || status?.model) === 'ollama-local'
                                   ? status?.ollamaModel || 'Локальная модель'
-                                  : selectedModel || status?.model))
+                                  : (selectedModel || status?.model) === 'llamacpp-local'
+                                    ? 'llama.cpp'
+                                    : selectedModel || status?.model))
                           }
                           onChange={(model) => {
                             setSelectedModel(model);
@@ -2556,7 +2558,9 @@ export function AiChatPage({
                                 (status.modelChoices?.find((m) => m.id === name)?.label ??
                                   (name === 'ollama-local'
                                     ? status.ollamaModel || 'Локальная модель'
-                                    : name)) +
+                                    : name === 'llamacpp-local'
+                                      ? 'llama.cpp'
+                                      : name)) +
                                 (tokenBudgets?.models?.find((row) => row.model === name)?.reason ===
                                 'ai_budget_pending'
                                   ? ' · расход ожидает подтверждения'
@@ -2573,7 +2577,7 @@ export function AiChatPage({
                             ? status.model === 'ollama-local'
                               ? status.ollamaModel || 'Локальная модель'
                               : (status.modelChoices?.find((m) => m.id === status.model)?.label ??
-                                status.model)
+                                (status.model === 'llamacpp-local' ? 'llama.cpp' : status.model))
                             : schoolPolicyDenied
                               ? 'Доступ закрыт'
                               : 'Модель'}

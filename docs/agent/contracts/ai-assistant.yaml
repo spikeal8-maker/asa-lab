@@ -4,6 +4,14 @@ domain: ai-assistant
 registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
+  - id: AI-LOCAL-LLAMACPP-001
+    statement: The independent llamacpp-local provider uses a separate platform-admin configuration and encrypted endpoint-bound server-only key. Discovery is bounded metadata-only OpenAI-compatible HTTP without redirects, pins only validated private DNS addresses and never autoloads router models. Checked apply uses durable request identity and revision CAS; failed or uncertain verification preserves the previous configuration. Canonical owner, school admission, generation policy, history, tools, usage, token budgets and replay remain authoritative. SSE consumes terminal usage before DONE, cancellation closes its own upstream, and an installation-scoped session lock serializes the entire model/tool operation without releasing another request. Runtime context is distinguished from training metadata and administrative limits; unknown capabilities or usage remain unknown. Ollama and cloud configuration are independent.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: AI-LOCAL-LLAMACPP-001
+    applies_to: [llamacpp_discovery, llamacpp_settings, llamacpp_transport, llamacpp_admission, local_generation_queue]
+    forbid: [browser_stored_provider_key, redirected_local_key, public_llamacpp_endpoint, dns_rebinding, cross_endpoint_key_reuse, automatic_model_autoload, failed_probe_overwrites_config, repeated_uncertain_probe, ollama_admission_alias, training_context_as_runtime, estimated_tokens_as_actual, cross_owner_stop, client_mtp]
+
   - id: AI-IMAGE-JOB-001
     statement: Local ComfyUI generation has canonical owner and school admission, independent UTC daily GPU quota, a durable bounded fair waiting queue with per-owner limits, and a separate single active GPU slot. A fixed native recipe is dispatched once after SQL CAS; uncertain dispatch is observed by its existing identity and never retried. Unknown jobs retain their slot. Only exact owned outputs become bounded metadata-stripped PNGs in private integrity-checked storage and owner-bound history/downloads. Cancellation never interrupts other GPU jobs. Deletion clears private prompts and schedules recoverable output cleanup while quota and usage tombstones survive. Readiness does not prove GPU quality; saving settings performs no generation. An optional immutable native image target binds one exact current HTML version and unique placeholder; verified image completion and one stable-operation file CAS commit atomically without another model call. Changed versions, newer user turns, cancellation or failure never overwrite the file; uncertain image outcomes wait for read-only recovery.
     master_refs:
