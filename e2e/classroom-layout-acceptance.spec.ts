@@ -1067,7 +1067,26 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
           id: 'pupil-loop',
           inputs: {
             DO: {
-              block: { type: 'asa_wait', id: 'pupil-wait', fields: { TIME: '2', UNIT: 'SECONDS' } },
+              block: {
+                type: 'asa_wait',
+                id: 'pupil-wait',
+                fields: { TIME: '2', UNIT: 'SECONDS' },
+                next: {
+                  block: {
+                    type: 'asa_digital_write',
+                    fields: { PIN: '13', LEVEL: 'HIGH' },
+                    next: {
+                      block: {
+                        type: 'asa_wait',
+                        fields: { TIME: '1', UNIT: 'SECONDS' },
+                        next: {
+                          block: { type: 'asa_digital_write', fields: { PIN: '13', LEVEL: 'LOW' } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -1081,7 +1100,8 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
     componentTypeId: 'arduino-uno',
     stateProperties: {
       arduinoCodeMode: 'blocks',
-      arduinoSource: 'void setup() {} void loop() { delay(2000); }',
+      arduinoSource:
+        'void setup() { pinMode(13, OUTPUT); } void loop() { delay(2000); digitalWrite(13, HIGH); delay(1000); digitalWrite(13, LOW); }',
     },
   };
   payload = {
@@ -1105,11 +1125,49 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
   const showBlocks = playback.getByRole('button', { name: 'Блоки', exact: true });
   await expect(showBlocks).toHaveAttribute('aria-expanded', 'false');
   await expect(playback.locator('pre')).toHaveCount(0);
+  await page.setViewportSize({ width: 320, height: 900 });
   await showBlocks.click();
   const blocks = playback.getByTestId('public-arduino-blocks');
   for (const id of ['pupil-loop', 'pupil-wait']) {
     await expect(blocks.locator(`.blocklyBlock[data-id="${id}"]`)).toBeVisible();
   }
+  const programPanel = playback.getByRole('complementary', { name: 'Программа' });
+  await programPanel.scrollIntoViewIfNeeded();
+  await expect
+    .poll(
+      () =>
+        blocks.evaluate((host) => {
+          const svg = host.querySelector('svg.blocklySvg')!;
+          const outlines = Array.from(
+            svg.querySelectorAll('.blocklyBlockCanvas path.blocklyPath'),
+            (path) => path.getBoundingClientRect(),
+          );
+          const panel = host.closest('.arduino-program-preview')!.getBoundingClientRect();
+          const canvas = svg.getBoundingClientRect();
+          const clearance = {
+            left: Math.round(
+              Math.min(...outlines.map((rect) => rect.left)) - Math.max(canvas.left, panel.left),
+            ),
+            top: Math.round(
+              Math.min(...outlines.map((rect) => rect.top)) - Math.max(canvas.top, panel.top),
+            ),
+            right: Math.round(
+              Math.min(canvas.right, panel.right) - Math.max(...outlines.map((rect) => rect.right)),
+            ),
+            bottom: Math.round(
+              Math.min(canvas.bottom, panel.bottom) -
+                Math.max(...outlines.map((rect) => rect.bottom)),
+            ),
+          };
+          if (!outlines.length) return ['no rendered blocks'];
+          return Object.entries(clearance).filter(([, pixels]) => pixels < -1);
+        }),
+      {
+        message:
+          'The entire saved loop, including its closing bracket, fits inside the visible program panel',
+      },
+    )
+    .toEqual([]);
   await expect(blocks.locator('.blocklyDraggable, .blocklyToolboxDiv')).toHaveCount(0);
   await expect(playback.locator('pre')).toHaveCount(0);
   await playback.getByRole('button', { name: 'Закрыть программу' }).press('Escape');

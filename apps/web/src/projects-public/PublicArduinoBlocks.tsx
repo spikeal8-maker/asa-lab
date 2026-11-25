@@ -85,19 +85,26 @@ export function PublicArduinoBlocks({
         const bounds = current.getBlocksBoundingBox();
         const width = Math.max(1, bounds.right - bounds.left);
         const height = Math.max(1, bounds.bottom - bounds.top);
-        const fit = Math.min(
-          startScale,
-          (element.clientWidth - 32) / width,
-          (element.clientHeight - 32) / height,
-        );
-        if (fit >= 0.55) {
+        const margin = element.clientWidth < 260 ? 16 : 32;
+        const fitHeight = (element.clientHeight - margin) / height;
+        const fit = Math.min(startScale, (element.clientWidth - margin) / width, fitHeight);
+        // A short, wide loop can still fit inside the narrower inline journal.
+        // Long programs keep a readable starting instruction and can be panned.
+        if (fit >= 0.55 || (fit >= 0.45 && fitHeight >= 0.55)) {
           current.setScale(fit);
           current.scrollCenter();
         } else {
           // Tall stacks should open at a legible scale on the first instruction.
-          current.setScale(startScale);
           const { x, y } = start.getRelativeToSurfaceXY();
-          current.scroll(20 - x * startScale, 28 - y * startScale);
+          const firstStatement = start.getInputTargetBlock('DO');
+          const first = firstStatement instanceof ScratchBlocks.BlockSvg ? firstStatement : start;
+          const leadingWidth = first.getRelativeToSurfaceXY().x - x + first.width;
+          const scale = Math.min(
+            startScale,
+            Math.max(0.6, (element.clientWidth - 36) / Math.max(1, leadingWidth)),
+          );
+          current.setScale(scale);
+          current.scroll(20 - x * scale, 28 - y * scale);
         }
         positioned = true;
       };

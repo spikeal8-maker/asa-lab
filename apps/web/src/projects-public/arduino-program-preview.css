@@ -72,6 +72,29 @@
 .arduino-program-preview .public-arduino-blocks {
   height: clamp(180px, 40svh, 410px);
 }
+/* A single board shares the stage with its heading. Blockly measures this box
+   for fitting and panning, so give it the actual remaining height. */
+.project-playback-stage
+  :is(.public-electronics-viewer, .public-robotics-viewer)
+  > .arduino-program-preview:has(.arduino-program-header-tools) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  & > div:last-child {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  & .public-arduino-blocks {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+  }
+  & details[open] {
+    max-height: 50%;
+    overflow: auto;
+  }
+}
 .arduino-program-preview .public-arduino-blocks .blocklySvg {
   width: 100%;
   height: 100%;
