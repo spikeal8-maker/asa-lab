@@ -449,7 +449,14 @@ describe('shared workbench with a local project host', () => {
       ...ready,
       diagnostics: [diagnostic],
       components: [
-        { componentId: 'led', brightness: 42, lit: true, current: 0.01, voltageDrop: 2 },
+        {
+          componentId: 'led',
+          brightness: 42,
+          lit: true,
+          current: 0.01,
+          voltageDrop: 2,
+          terminalVoltages: { anode: 2, cathode: 0 },
+        },
       ],
     });
     const warm = vi.spyOn(productionAssets, 'warmProductionAsset').mockImplementation(() => {});
