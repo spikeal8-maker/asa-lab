@@ -49,7 +49,7 @@ export function copyNumericalNode(node: NodeResult, terminals: readonly string[]
 /** Signed nodal GMIN dissipation, corroborated by physical terminal observations. */
 export function numericalShuntPowerWatt(
   compiled: CompiledCircuit,
-  result: SolveResult,
+  result: Pick<SolveResult, 'nodes'>,
   components: ReadonlyMap<string, ComponentResult>,
 ): number | null {
   if (result.nodes.length !== compiled.nets.length) return null;

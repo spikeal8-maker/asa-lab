@@ -70,12 +70,14 @@ import {
   compileCircuit,
   verifyCircuitQuality,
   createArduinoQualityTraversal,
+  createArduinoCheckpointQuality,
   type SimulationQuality,
 } from './simulation.js';
 import {
   prepareCircuitSolve,
   createArduinoOperatingPointReuse,
   createArduinoQualityLayoutOwner,
+  createArduinoElectricalCheckpointSolver,
   clockedRcStateIsCompatible,
   clockedPhysicalStateIsCompatible,
   solveCircuitWithHeldArduino,
@@ -1500,7 +1502,10 @@ function* iterateArduinoCircuitClock(
         ownership.quality.circuit !== qualityCircuit)
     ) {
       clearOwnedQuality(ownership);
-      const layout = createArduinoQualityLayoutOwner(operatingPointReuse);
+      const layout = createArduinoQualityLayoutOwner(operatingPointReuse, {
+        document: activeDocument,
+        compiled: qualityCircuit,
+      });
       ownership.quality = {
         document: activeDocument,
         circuit: qualityCircuit,
@@ -1829,7 +1834,7 @@ function* iterateArduinoCircuitClock(
   // Locate the first failed integer timestamp with the same thermal equation.
   // Monotone constant-load temperature/damage permits binary search with verified neighbours.
   let failureTime = Number.POSITIVE_INFINITY;
-  const locateFailure = (frame: SolveResult): void => {
+  const locateFailure = (frame: Pick<SolveResult, 'components'>): void => {
     failureTime = Number.POSITIVE_INFINITY;
     if (!eventPhysics || !physicalState) return;
     const from = Math.round(physicalState.simulationTimeMs * 1000);
@@ -1860,8 +1865,45 @@ function* iterateArduinoCircuitClock(
       failureTime = Math.min(failureTime, high);
     }
   };
+  const solveCheckpoint = createArduinoElectricalCheckpointSolver(
+    activeDocument,
+    operatingPointReuse,
+  );
+  let checkpointQuality:
+    { owner: object; verify: ReturnType<typeof createArduinoCheckpointQuality> } | undefined;
+  const checkedCheckpoint = (time: number) => {
+    const quality = ownership?.quality;
+    if (
+      !quality ||
+      !ownership?.runtime ||
+      !eventPhysics ||
+      inputs.length ||
+      !physicalState ||
+      quality.document !== activeDocument ||
+      quality.circuit !== qualityCircuit
+    )
+      return undefined;
+    const handle = solveCheckpoint(
+      preparation(),
+      snapshots(),
+      time / 1000,
+      physicalState,
+      thermalEpochs,
+    );
+    if (!handle) return undefined;
+    if (checkpointQuality?.owner !== quality.layout.owner)
+      checkpointQuality = {
+        owner: quality.layout.owner,
+        verify: createArduinoCheckpointQuality(
+          activeDocument,
+          quality.circuit,
+          quality.layout.owner,
+        ),
+      };
+    return checkpointQuality.verify(handle);
+  };
   const commitPhysics = (time: number): boolean => {
-    const advanced = advancePhysics(time);
+    const advanced = checkedCheckpoint(time) ?? advancePhysics(time);
     if (!advanced.solved || !advanced.quality.passed || !advanced.transientState) return false;
     ownedPreparation?.observeLedState?.(time, advanced.components);
     physicalState = advanced.transientState;

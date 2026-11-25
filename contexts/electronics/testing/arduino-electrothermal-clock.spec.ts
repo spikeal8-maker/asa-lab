@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import * as simulation from '../domain/simulation.js';
+import { describe, expect, it, vi } from 'vitest';
 import {
   parseElectronicsDocument,
   type ElectronicsDocument,
@@ -6,6 +7,7 @@ import {
 } from '../domain/document.js';
 import {
   advanceArduinoCircuitClock,
+  createOwnedArduinoCircuitClockRequest,
   type ArduinoCircuitInputEvent,
   type ArduinoCircuitClockState,
 } from '../domain/arduino-circuit-scheduler.js';
@@ -511,5 +513,99 @@ describe('shared clock electrothermal phase', () => {
       },
     };
     expect(advanceArduinoCircuitClock(doc, 13000, broken).executionStatus).toBe('fault');
+  });
+
+  it('matches the ordinary solve over repeated GPIO edges and a timed serial input', () => {
+    const sketch =
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);digitalWrite(13,LOW);delay(1);}';
+    const doc = circuit(
+      [
+        { ...uno, stateProperties: { arduinoSource: sketch } },
+        {
+          ...part('r', 'resistor', 330),
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        },
+        { ...part('led', 'led', 1), componentTypeId: 'led-5mm', pinIds: ['anode', 'cathode'] },
+      ],
+      [
+        ['uno', 'd13', 'r', 'lead-1'],
+        ['r', 'lead-2', 'led', 'anode'],
+        ['led', 'cathode', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const buildVerifier = simulation.createArduinoCheckpointQuality;
+    let challenged = false;
+    const verification = vi
+      .spyOn(simulation, 'createArduinoCheckpointQuality')
+      .mockImplementation((document, compiled, owner) => {
+        const verify = buildVerifier(document, compiled, owner);
+        return (handle) => {
+          if (challenged) return verify(handle);
+          challenged = true;
+          const changed = {
+            ...document,
+            components: document.components.map((component) =>
+              component.id === 'r' ? { ...component, value: 990 } : component,
+            ),
+          };
+          const wrongDocument = buildVerifier(changed, compileCircuit(changed), owner);
+          const wrongNetlist = buildVerifier(document, compileCircuit(document), owner);
+          let reads = 0;
+          const field = {
+            get: () => {
+              reads++;
+              return 0;
+            },
+          };
+          const copy = Object.create(handle, { current: field }) as typeof handle;
+          expect(Reflect.defineProperty(handle, 'current', field)).toBe(false);
+          expect(verify(copy)).toBeUndefined();
+          expect(wrongDocument(handle)).toBeUndefined();
+          expect(wrongNetlist(handle)).toBeUndefined();
+          expect(reads).toBe(0);
+          const checked = verify(handle);
+          expect(checked?.quality.passed).toBe(true);
+          expect(verify(handle)).toBeUndefined();
+          return checked;
+        };
+      });
+    const owner = createOwnedArduinoCircuitClockRequest(doc, {});
+    expect(owner.check()).toBe(true);
+    const req = owner.create(25000, undefined, { inputs: [], maxClockEvents: 16 }, true);
+    let sample: ReturnType<typeof req.step>;
+    try {
+      for (let attempt = 0; attempt < 1000; attempt++) {
+        sample = req.step();
+        if (sample?.advanced?.executionStatus === 'ready') break;
+      }
+      const reference = through(doc, 25000, undefined, 16);
+      expect(sample?.advanced?.result).toEqual(reference.result);
+      expect(sample?.advanced?.state).toEqual(reference.state);
+      expect(sample?.ledTemporal?.components[0]?.transitionCount).toBeGreaterThan(15);
+      expect(challenged).toBe(true);
+    } finally {
+      verification.mockRestore();
+      req.dispose();
+    }
+    const events: ArduinoCircuitInputEvent[] = [
+      { atMicroseconds: 26000, componentId: 'uno', property: 'serialRx', value: 'A' },
+    ];
+    const ordinary = createOwnedArduinoCircuitClockRequest(doc, { inputEvents: events });
+    expect(ordinary.check()).toBe(false);
+    const next = ordinary.create(
+      27000,
+      sample?.advanced?.state ?? undefined,
+      { inputs: events, maxClockEvents: 512 },
+      true,
+    );
+    try {
+      const observed = next.step()?.advanced;
+      const expected = through(doc, 27000, sample?.advanced?.state ?? undefined, 512, events);
+      expect(observed?.state).toEqual(expected.state);
+      expect(observed?.result).toEqual(expected.result);
+    } finally {
+      next.dispose();
+    }
   });
 });

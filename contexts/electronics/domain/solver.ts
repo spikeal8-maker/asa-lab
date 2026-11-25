@@ -109,6 +109,8 @@ import {
   isOscilloscopeDevice,
   isRegulatedPowerSupplyDevice,
   isResistorDevice,
+  RESISTOR_DEVICE_MODEL,
+  resistorDeviceModelHasOriginalDefinition,
   nextRegulatedPowerSupplyMode,
   observeRegulatedPowerSupply,
   regulatedPowerSupplyStampForMode,
@@ -739,9 +741,13 @@ function clearArduinoQualityCapture(state: ArduinoQualityLayoutState): void {
 }
 
 /** Package internal. The owned scheduler alone enables this after AST admission. */
-export function createArduinoQualityLayoutOwner(operatingPoint: ArduinoOperatingPointReuse) {
+export function createArduinoQualityLayoutOwner(
+  operatingPoint: ArduinoOperatingPointReuse,
+  checkpoint?: { readonly document: ElectronicsDocument; readonly compiled: object },
+) {
   const owner = {};
   arduinoQualityOwners.set(operatingPoint, owner);
+  if (checkpoint) checkpointBindings.set(owner, checkpoint);
   arduinoQualityLayouts.set(owner, { layouts: new WeakMap(), components: [], records: [] });
   return {
     owner,
@@ -750,6 +756,7 @@ export function createArduinoQualityLayoutOwner(operatingPoint: ArduinoOperating
       if (state?.receipt) arduinoQualityReceipts.delete(state.receipt);
       if (state) clearArduinoQualityCapture(state);
       arduinoQualityLayouts.delete(owner);
+      checkpointBindings.delete(owner);
       if (arduinoQualityOwners.get(operatingPoint) === owner)
         arduinoQualityOwners.delete(operatingPoint);
     },
@@ -2499,15 +2506,7 @@ function solveCircuitBase(
                 : stepMs / 1_000,
             );
       const failureMode = observation.failed ? ('open' as const) : ('none' as const);
-      thermalById.set(component.id, {
-        ...previous,
-        temperatureCelsius: observation.temperatureCelsius,
-        loadRatio: observation.loadRatio,
-        accumulatedDamage: observation.failed
-          ? Math.max(1, observation.accumulatedDamage)
-          : observation.accumulatedDamage,
-        failureMode,
-      });
+      thermalById.set(component.id, nextThermalEntry(previous, observation));
       if (failureMode === 'open') {
         failedComponentIds.add(component.id);
         failureOccurred = true;
@@ -5725,5 +5724,261 @@ function solveCircuitStep(
     numericalResidual,
     numericalTolerance,
     ...(controllerState ? { controllerState } : {}),
+  };
+}
+
+function nextThermalEntry(
+  previous: ThermalTransientStateEntry,
+  observation: Pick<
+    ReturnType<typeof advanceThermalState>,
+    'temperatureCelsius' | 'loadRatio' | 'accumulatedDamage' | 'failed'
+  >,
+): ThermalTransientStateEntry {
+  return {
+    ...previous,
+    temperatureCelsius: observation.temperatureCelsius,
+    loadRatio: observation.loadRatio,
+    accumulatedDamage: observation.failed
+      ? Math.max(1, observation.accumulatedDamage)
+      : observation.accumulatedDamage,
+    failureMode: observation.failed ? 'open' : 'none',
+  };
+}
+
+/** A synchronous, request-local observation for the clock and its independent quality check. */
+export interface ArduinoElectricalCheckpoint {
+  readonly components: readonly ComponentResult[];
+  readonly nodes: readonly NodeResult[];
+  readonly current: number;
+  readonly iterations: number;
+  readonly numericalResidual: number;
+  readonly numericalTolerance: number;
+  readonly transientState: CapacitorTransientState;
+  readonly transientAnalysis: NonNullable<SolveResult['transientAnalysis']>;
+  readonly controllerState: ArduinoControllerState;
+}
+
+const checkpointHandleBrand = Symbol('private electrical checkpoint');
+export interface ArduinoElectricalCheckpointHandle {
+  readonly [checkpointHandleBrand]: true;
+}
+const checkpointFrames = new WeakMap<
+  ArduinoElectricalCheckpointHandle,
+  {
+    readonly owner: object;
+    readonly document: ElectronicsDocument;
+    readonly compiled: object;
+    readonly frame: ArduinoElectricalCheckpoint;
+  }
+>();
+const checkpointBindings = new WeakMap<
+  object,
+  { readonly document: ElectronicsDocument; readonly compiled: object }
+>();
+/** Read only the private slot after matching all identities. Never inspect properties of a caller's handle. */
+export function takeArduinoElectricalCheckpoint(
+  handle: ArduinoElectricalCheckpointHandle,
+  owner: object,
+  document: ElectronicsDocument,
+  compiled: object,
+): ArduinoElectricalCheckpoint | undefined {
+  const entry = checkpointFrames.get(handle);
+  if (
+    !entry ||
+    entry.owner !== owner ||
+    entry.document !== document ||
+    entry.compiled !== compiled ||
+    !arduinoQualityLayouts.has(owner)
+  )
+    return undefined;
+  checkpointFrames.delete(handle);
+  return entry.frame;
+}
+interface ArduinoThermalColumn {
+  readonly componentId: string;
+  readonly profile: NonNullable<ReturnType<typeof thermalProfileFor>>;
+  readonly profileKey: string;
+  readonly observation: ComponentResult;
+}
+
+interface ArduinoElectricalColumns {
+  readonly components: readonly ComponentResult[];
+  readonly thermal: readonly ArduinoThermalColumn[];
+}
+
+function compileArduinoElectricalColumns(
+  template: ArduinoElectricalTemplate,
+  preparation: NonNullable<ReturnType<CircuitSolvePreparation>>,
+): ArduinoElectricalColumns | undefined {
+  if (!resistorDeviceModelHasOriginalDefinition()) return undefined;
+  const components = Object.freeze(
+    template.components.map(({ fields, indicators }) =>
+      Object.freeze({ ...fields, ...indicators }),
+    ),
+  );
+  const byId = new Map(components.map((component) => [component.componentId, component]));
+  const thermal: ArduinoThermalColumn[] = [];
+  for (const component of preparation.orderedThermalComponents) {
+    const profile = thermalProfileFor(component);
+    const observation = byId.get(component.id);
+    if (!profile || !observation) return undefined;
+    thermal.push({
+      componentId: component.id,
+      profile,
+      profileKey: thermalProfileKey(component, profile),
+      observation,
+    });
+  }
+  return { components, thermal };
+}
+
+// Only this canonical pure observer may run speculatively. A changed model, accessor, or
+// new device takes the existing solve before calling its observer.
+const originalCheckpointResistorObservation = RESISTOR_DEVICE_MODEL.observe;
+function checkpointHasOrdinaryStress(template: ArduinoElectricalTemplate): boolean {
+  for (const { input } of template.components) {
+    const { device, branches, voltageDrop } = input;
+    if (
+      device &&
+      (!isResistorDevice(device) ||
+        device.model !== RESISTOR_DEVICE_MODEL ||
+        !originalCheckpointResistorObservation ||
+        Object.getOwnPropertyDescriptor(device.model, 'observe')?.value !==
+          originalCheckpointResistorObservation)
+    )
+      return false;
+    const observation =
+      device &&
+      originalCheckpointResistorObservation?.(device.instance, { voltageDrop, current: 0 });
+    if (observation?.diagnostics.length) return false;
+    const reverseBreakdown = branches.some(
+      (entry) => entry.voltageDrop < -entry.branch.repetitivePeakReverseVoltage,
+    );
+    const stress = observation?.stressState ?? nonlinearBranchStress(branches, reverseBreakdown);
+    if (reverseBreakdown || (stress !== undefined && stress !== 'normal')) return false;
+  }
+  return true;
+}
+
+/** The generic solver owns topology changes, rejected steps and all public frames. */
+export function createArduinoElectricalCheckpointSolver(
+  document: ElectronicsDocument,
+  reuse: ArduinoOperatingPointReuse,
+) {
+  const columnsByTemplate = new WeakMap<ArduinoElectricalTemplate, ArduinoElectricalColumns>();
+  return (
+    preparation: CircuitSolvePreparation,
+    held: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+    timeMs: number,
+    previous: CapacitorTransientState,
+    epochs: ReadonlyMap<string, ArduinoThermalEpoch>,
+  ): ArduinoElectricalCheckpointHandle | undefined => {
+    const owner = arduinoQualityOwners.get(reuse);
+    const binding = owner && checkpointBindings.get(owner);
+    if (!owner || !binding || binding.document !== document) return undefined;
+    const prepared = preparation(document);
+    if (
+      !prepared ||
+      !Number.isFinite(timeMs) ||
+      !capacitorTransientStateIsCompatible(previous, [], [], [], timeMs, true)
+    )
+      return undefined;
+    const stepMs = timeMs - previous.simulationTimeMs;
+    if (
+      stepMs < 0 ||
+      stepMs > TRANSIENT_TARGET_STEP_MS ||
+      previous.capacitors.length ||
+      previous.bjtRegions?.length ||
+      previous.motors?.length ||
+      previous.multimeterFuses?.length ||
+      previous.thermal.some((entry) => entry.failureMode !== 'none') ||
+      previous.thermal.length !== prepared.orderedThermalComponents.length
+    )
+      return undefined;
+    const branches = document.components.flatMap((component) => {
+      const snapshot = held.get(component.id);
+      return snapshot
+        ? arduinoOutputBranchesFromSnapshot(component, snapshot, timeMs).map((branch) => ({
+            component,
+            ...branch,
+          }))
+        : [];
+    });
+    const point = reuse(document, branches, held, new Set())?.point;
+    const template = point?.template;
+    if (!point || !template || template.rawSevenSegmentDiagnostics || point.iterations <= 0)
+      return undefined;
+    const numerical = electricalNumericalQuality(point.solution, point.matrix, point.rhs);
+    if (
+      !Number.isFinite(numerical.numericalResidual) ||
+      !Number.isFinite(numerical.numericalTolerance) ||
+      numerical.numericalResidual > numerical.numericalTolerance ||
+      template.sourceCurrents.some(
+        (i) => !Number.isFinite(i) || Math.abs(i) > SHORT_CIRCUIT_CURRENT_A,
+      )
+    )
+      return undefined;
+    let columns = columnsByTemplate.get(template);
+    if (!columns) {
+      columns = compileArduinoElectricalColumns(template, prepared);
+      if (!columns) return undefined;
+      columnsByTemplate.set(template, columns);
+    }
+    if (!checkpointHasOrdinaryStress(template)) return undefined;
+    const thermal: ThermalTransientStateEntry[] = [];
+    for (const [index, column] of columns.thermal.entries()) {
+      const prior = previous.thermal[index];
+      if (
+        !prior ||
+        prior.componentId !== column.componentId ||
+        prior.profileKey !== column.profileKey ||
+        prior.failureMode !== 'none' ||
+        prior.temperatureCelsius >= column.profile.warningTemperatureCelsius ||
+        prior.accumulatedDamage >= 0.35
+      )
+        return undefined;
+      if (stepMs === 0) {
+        thermal.push(prior);
+        continue;
+      }
+      const epoch = epochs.get(column.componentId);
+      const observation = advanceThermalState(
+        column.profile,
+        column.observation,
+        epoch?.temperatureCelsius ?? prior.temperatureCelsius,
+        epoch?.accumulatedDamage ?? prior.accumulatedDamage,
+        epoch ? (Math.round(timeMs * 1000) - epoch.atMicroseconds) / 1_000_000 : stepMs / 1000,
+      );
+      if (observation.state !== 'normal' || observation.failed) return undefined;
+      thermal.push(nextThermalEntry(prior, observation));
+    }
+    const controllerState = controllerObservation(held, timeMs);
+    if (!controllerState) return undefined;
+    const result: ArduinoElectricalCheckpoint = {
+      components: columns.components,
+      nodes: template.nodes,
+      current: roundCurrent(Math.max(0, ...template.sourceCurrents.map(Math.abs))),
+      iterations: point.iterations,
+      ...numerical,
+      controllerState,
+      transientAnalysis: {
+        acceptedSteps: stepMs ? 1 : 0,
+        rejectedSteps: 0,
+        minStepMs: stepMs,
+        maxStepMs: stepMs,
+      },
+      transientState: {
+        version: 2,
+        simulationTimeMs: timeMs,
+        capacitors: [],
+        thermal,
+        bjtRegions: [],
+        motors: [],
+        multimeterFuses: [],
+      },
+    };
+    const handle = Object.freeze({ [checkpointHandleBrand]: true as const });
+    checkpointFrames.set(handle, { owner, document, compiled: binding.compiled, frame: result });
+    return handle;
   };
 }
