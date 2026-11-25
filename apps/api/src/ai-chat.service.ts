@@ -118,6 +118,18 @@ import {
 } from './ai-provider-stream.js';
 
 const ASSISTANT_INSTRUCTIONS = AI_DEFAULT_SYSTEM_PROMPT;
+const LLAMA_CPP_NO_INFERENCE: AiProviderUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  actualModel: null,
+};
+
+function isLlamaCppContextError(error: unknown): error is LlamaCppError {
+  return (
+    error instanceof LlamaCppError &&
+    ['ai_llamacpp_context_invalid', 'ai_llamacpp_context_exceeded'].includes(error.code)
+  );
+}
 
 export type { AiProvider, AiModel } from './ai-model-catalog.js';
 export type AiChatModel = AiModel | typeof OLLAMA_SELECTION | typeof LLAMACPP_SELECTION;
@@ -358,16 +370,9 @@ export class AiChatService {
 
   private llamaCppHistoryBudget(runtime: LlamaCppRuntime | null): number | undefined {
     if (!runtime) return undefined;
-    const context = Math.min(
-      runtime.contextTokens ?? Infinity,
-      runtime.confirmedContextTokens ?? Infinity,
-    );
-    if (!Number.isFinite(context)) return undefined;
-    // Conservative UTF-8 byte admission, not measured token usage. Reserve space
-    // for instructions, template and output; the upstream enforces its exact tokenizer.
-    const output = runtime.maxOutputTokens ?? Math.min(8192, Math.max(1, Math.floor(context / 4)));
-    const reserve = Math.min(16384, Math.max(256, Math.floor(context / 8)));
-    return Math.max(1, context - output - reserve);
+    // Bound the database projection without pre-truncating a user prompt that may
+    // fit the provider's tokenizer. The adapter budgets the final wire request.
+    return Math.max(96000, this.llamaCppArgs(runtime).contextTokens ?? 0);
   }
 
   async refreshProviderCatalog(actor: string, provider: 'openai' | 'deepseek') {
@@ -1577,6 +1582,7 @@ export class AiChatService {
       let usageAttempt: AiUsageAttempt | undefined;
       let usageFinished = false;
       let capturedUsage: AiProviderUsage | undefined;
+      let llamaInferenceStarted = false;
       try {
         await this.pool.query('SELECT ai_chat_generation_lease($1,$2,$3,$4::boolean)', [
           principalId,
@@ -1628,6 +1634,9 @@ export class AiChatService {
               instructions,
               signal: llamaSlot!.signal,
               onDelta: () => undefined,
+              onInferenceStart: () => {
+                llamaInferenceStarted = true;
+              },
             })
           : useOllama
             ? await streamOllamaText({
@@ -1642,7 +1651,10 @@ export class AiChatService {
                 fetchImpl: this.fetchImpl,
               })
             : await this.generate(runtime, apiKey, context, instructions);
-        capturedUsage = reply.usage;
+        capturedUsage =
+          useLlama && reply.stopped && !llamaInferenceStarted
+            ? LLAMA_CPP_NO_INFERENCE
+            : reply.usage;
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
           principalId,
           threadId,
@@ -1667,12 +1679,14 @@ export class AiChatService {
             requestId,
             'failed',
             usageFailureCode(problem),
-            capturedUsage ??
-              (problem instanceof ProviderStreamError ||
-              problem instanceof OllamaError ||
-              problem instanceof LlamaCppError
-                ? problem.usage
-                : undefined),
+            isLlamaCppContextError(problem) && !llamaInferenceStarted
+              ? LLAMA_CPP_NO_INFERENCE
+              : (capturedUsage ??
+                  (problem instanceof ProviderStreamError ||
+                  problem instanceof OllamaError ||
+                  problem instanceof LlamaCppError
+                    ? problem.usage
+                    : undefined)),
             usageAttempt,
           );
         if (
@@ -2231,6 +2245,8 @@ export class AiChatService {
       let usageAttempt: AiUsageAttempt | undefined;
       let usageFinished = false;
       let capturedUsage: AiProviderUsage | undefined;
+      let llamaInferenceCalls = 0;
+      let llamaCallsBeforeRound = 0;
       let fileMutationUnconfirmed = false;
       try {
         if (nativeImage)
@@ -2557,34 +2573,43 @@ export class AiChatService {
             },
             fetchImpl: this.fetchImpl,
           };
-          return useLlama
-            ? streamLlamaCppText({
+          if (useLlama) {
+            llamaCallsBeforeRound = llamaInferenceCalls;
+            return streamLlamaCppText({
+              ...shared,
+              ...this.llamaCppArgs(llama!),
+              // Do not pass the cloud wrapper as a custom transport: production
+              // must retain llama.cpp DNS validation and connection pinning.
+              fetchImpl: this.llamaCppFetch,
+              onInferenceStart: () => {
+                llamaInferenceCalls++;
+              },
+            }).then((result) =>
+              result.stopped && llamaCallsBeforeRound === llamaInferenceCalls
+                ? { ...result, usage: LLAMA_CPP_NO_INFERENCE }
+                : result,
+            );
+          }
+          return useOllama
+            ? streamOllamaText({
                 ...shared,
-                ...this.llamaCppArgs(llama!),
-                // Do not pass the cloud wrapper as a custom transport: production
-                // must retain llama.cpp DNS validation and connection pinning.
-                fetchImpl: this.llamaCppFetch,
+                baseUrl: local!.base_url,
+                model: local!.model,
+                thinking: local!.thinking ?? undefined,
+                contextTokens: local!.context_tokens ?? undefined,
+                ...(files?.images.length || pageImages.raw.length
+                  ? { images: [...(files?.images ?? []), ...pageImages.raw] }
+                  : {}),
               })
-            : useOllama
-              ? streamOllamaText({
-                  ...shared,
-                  baseUrl: local!.base_url,
-                  model: local!.model,
-                  thinking: local!.thinking ?? undefined,
-                  contextTokens: local!.context_tokens ?? undefined,
-                  ...(files?.images.length || pageImages.raw.length
-                    ? { images: [...(files?.images ?? []), ...pageImages.raw] }
-                    : {}),
-                })
-              : streamProviderText({
-                  ...shared,
-                  provider: runtime.provider,
-                  model: model as AiModel,
-                  apiKey,
-                  ...(files?.imageUrls.length || pageImages.urls.length
-                    ? { images: [...(files?.imageUrls ?? []), ...pageImages.urls] }
-                    : {}),
-                });
+            : streamProviderText({
+                ...shared,
+                provider: runtime.provider,
+                model: model as AiModel,
+                apiKey,
+                ...(files?.imageUrls.length || pageImages.urls.length
+                  ? { images: [...(files?.imageUrls ?? []), ...pageImages.urls] }
+                  : {}),
+              });
         };
         let result = await invokeModel({
           instructions:
@@ -3123,7 +3148,7 @@ export class AiChatService {
               requestId,
               'cancelled',
               null,
-              capturedUsage,
+              useLlama && llamaInferenceCalls === 0 ? LLAMA_CPP_NO_INFERENCE : capturedUsage,
               usageAttempt,
             );
           return {
@@ -3132,25 +3157,26 @@ export class AiChatService {
             stopped: true,
           };
         }
-        if (usageAttempt && !usageFinished)
+        if (usageAttempt && !usageFinished) {
+          const providerFailure =
+            problem instanceof ProviderStreamError ||
+            problem instanceof OllamaError ||
+            problem instanceof LlamaCppError;
+          let failedUsage = capturedUsage ?? (providerFailure ? problem.usage : undefined);
+          if (isLlamaCppContextError(problem) && llamaCallsBeforeRound === llamaInferenceCalls) {
+            failedUsage = llamaInferenceCalls === 0 ? LLAMA_CPP_NO_INFERENCE : capturedUsage;
+          } else if (providerFailure && (capturedUsage || llamaCallsBeforeRound > 0)) {
+            failedUsage = addNativeUsage(capturedUsage, problem.usage);
+          }
           await this.usage.finish(
             principalId,
             requestId,
             'failed',
             usageFailureCode(problem),
-            (problem instanceof ProviderStreamError ||
-              problem instanceof OllamaError ||
-              problem instanceof LlamaCppError) &&
-              capturedUsage
-              ? addNativeUsage(capturedUsage, problem.usage)
-              : (capturedUsage ??
-                  (problem instanceof ProviderStreamError ||
-                  problem instanceof OllamaError ||
-                  problem instanceof LlamaCppError
-                    ? problem.usage
-                    : undefined)),
+            failedUsage,
             usageAttempt,
           );
+        }
         if (
           (problem instanceof ProviderStreamError ||
             problem instanceof OllamaError ||

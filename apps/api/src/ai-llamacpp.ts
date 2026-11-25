@@ -505,6 +505,7 @@ export interface LlamaCppStreamArgs extends LlamaCppConnectionArgs {
   readonly instructions: string;
   readonly signal: AbortSignal;
   readonly onDelta: (delta: string) => void;
+  readonly onInferenceStart?: () => void;
   readonly onReasoningDelta?: ((delta: string) => void) | undefined;
   readonly tools?: readonly NativeToolDefinition[] | undefined;
   readonly toolResults?: readonly NativeToolResult[] | undefined;
@@ -545,7 +546,38 @@ export function validLlamaCppGeneration(args: {
     )
   );
 }
-function requestBody(args: LlamaCppStreamArgs, stream: boolean): string {
+type TokenCountPath = '/v1/chat/completions/input_tokens' | '/apply-template' | '/tokenize';
+
+async function postTokenCountRequest(
+  args: LlamaCppStreamArgs,
+  baseUrl: string,
+  path: TokenCountPath,
+  body: string,
+  signal: AbortSignal,
+): Promise<Response> {
+  return (args.fetchImpl ?? pinnedFetch)(baseUrl + path, {
+    method: 'POST',
+    headers: authHeaders(args.apiKey),
+    body,
+    signal,
+    redirect: 'error',
+  });
+}
+
+async function tokenCountJson(response: Response, limit: number) {
+  if (!response.ok) {
+    await response.body?.cancel();
+    return null;
+  }
+  return object(await limitedJson(response, limit));
+}
+
+async function requestBody(
+  args: LlamaCppStreamArgs,
+  stream: boolean,
+  baseUrl: string,
+  signal: AbortSignal,
+): Promise<string> {
   if (!validLlamaCppModel(args.model))
     throw new LlamaCppError('ai_llamacpp_model_invalid', 400, 'Выберите модель llama.cpp.');
   if (!validLlamaCppGeneration(args))
@@ -562,7 +594,7 @@ function requestBody(args: LlamaCppStreamArgs, stream: boolean): string {
         ? Math.max(1, Math.floor(args.contextTokens / 4))
         : AI_MAX_OUTPUT_TOKENS,
     );
-  const body = JSON.stringify({
+  const payload = {
     model: args.model,
     messages: [
       { role: 'system', content: args.instructions },
@@ -596,28 +628,106 @@ function requestBody(args: LlamaCppStreamArgs, stream: boolean): string {
     ...(args.temperature != null ? { temperature: args.temperature } : {}),
     ...(args.topP != null ? { top_p: args.topP } : {}),
     ...(args.tools?.length ? { tools: args.tools, parallel_tool_calls: false } : {}),
-  });
-  if (Buffer.byteLength(body, 'utf8') > MAX_REQUEST)
+  };
+  const body = JSON.stringify(payload);
+  const wireBytes = Buffer.byteLength(body, 'utf8');
+  if (wireBytes > MAX_REQUEST)
     throw new LlamaCppError(
       'ai_llamacpp_context_invalid',
       400,
       'Запрос превышает допустимый размер контекста.',
     );
-  // UTF-8 wire bytes are a conservative admission bound, never reported token usage.
-  // Include tool results and schemas, not only the user-visible message history.
-  if (
-    args.contextTokens != null &&
-    Buffer.byteLength(body, 'utf8') +
-      output +
-      Math.min(1024, Math.max(128, Math.floor(args.contextTokens / 16))) >
-      args.contextTokens
-  )
-    throw new LlamaCppError(
-      'ai_llamacpp_context_exceeded',
-      400,
-      'Сообщения и инструменты превышают безопасный лимит контекста llama.cpp.',
-    );
-  return body;
+  const context = args.contextTokens;
+  if (context == null) return body;
+  // Wire bytes give older servers a conservative budget. Versions with a token
+  // counter can measure the same messages, tools and template without inference.
+  const wireBudget = context - Math.min(1024, Math.max(128, Math.floor(context / 16)));
+  if (wireBytes + output <= wireBudget) return body;
+  const counterSignal = AbortSignal.any([signal, AbortSignal.timeout(3500)]);
+  let legacyCounter = false;
+  const count = async (messages: typeof payload.messages) => {
+    if (counterSignal.aborted) return null;
+    try {
+      const request = JSON.stringify({
+        ...payload,
+        messages,
+        stream: false,
+        stream_options: undefined,
+      });
+      const post = (path: TokenCountPath, body: string) =>
+        postTokenCountRequest(args, baseUrl, path, body, counterSignal);
+      if (!legacyCounter) {
+        const response = await post('/v1/chat/completions/input_tokens', request);
+        legacyCounter = [404, 405, 501].includes(response.status);
+        const counter = await tokenCountJson(response, 2048);
+        if (!legacyCounter) {
+          const input = counter?.input_tokens;
+          return typeof input === 'number' && Number.isSafeInteger(input) && input > 0
+            ? input
+            : null;
+        }
+      }
+      const rendered = await tokenCountJson(await post('/apply-template', request), MAX_JSON);
+      if (typeof rendered?.prompt !== 'string' || !rendered.prompt) return null;
+      const tokens = await tokenCountJson(
+        await post(
+          '/tokenize',
+          JSON.stringify({
+            model: args.model,
+            content: rendered.prompt,
+            add_special: true,
+            parse_special: true,
+          }),
+        ),
+        MAX_JSON,
+      );
+      return Array.isArray(tokens?.tokens) &&
+        tokens.tokens.length > 0 &&
+        tokens.tokens.every((token) => Number.isSafeInteger(token) && token >= 0)
+        ? tokens.tokens.length
+        : null;
+    } catch {
+      signal.throwIfAborted();
+      return null;
+    }
+  };
+  const minOutput = Math.min(output, 128);
+  const inputTokens = await count(payload.messages);
+  const tokenBudget = context - 32;
+  const maxReply = inputTokens === null ? wireBudget - wireBytes : tokenBudget - inputTokens;
+  if (maxReply >= minOutput)
+    return JSON.stringify({ ...payload, max_tokens: Math.min(output, maxReply) });
+
+  // Keep the system message, the latest user turn, and all tool call/result pairs.
+  // Earlier turns can be removed whole, starting with the oldest one.
+  const turnStarts = args.context.flatMap((message, i) =>
+    i > 0 && message.role === 'user' ? [i + 1] : [],
+  );
+  let low = 0;
+  let high = turnStarts.length - 1;
+  let fitted: string | undefined;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const messages = [payload.messages[0]!, ...payload.messages.slice(turnStarts[middle]!)];
+    const candidate = JSON.stringify({ ...payload, messages });
+    let available = wireBudget - Buffer.byteLength(candidate, 'utf8');
+    if (available < output && inputTokens !== null) {
+      const tokens = await count(messages);
+      if (tokens !== null) available = tokenBudget - tokens;
+    }
+    if (available >= minOutput) {
+      fitted = JSON.stringify({ ...payload, messages, max_tokens: Math.min(output, available) });
+      high = middle - 1;
+    } else {
+      low = middle + 1;
+    }
+  }
+  if (fitted !== undefined) return fitted;
+  throw new LlamaCppError(
+    'ai_llamacpp_context_exceeded',
+    400,
+    'Сообщения и инструменты превышают безопасный лимит контекста llama.cpp.',
+  );
 }
 function reportedUsage(payload: Record<string, unknown>): AiProviderUsage | undefined {
   const raw = object(payload.usage);
@@ -739,7 +849,6 @@ export function parseLlamaCppText(
 
 async function completion(args: LlamaCppStreamArgs, stream: boolean): Promise<LlamaCppTextResult> {
   const baseUrl = normalizeLlamaCppBaseUrl(args.baseUrl);
-  const body = requestBody(args, stream);
   if (args.signal.aborted) return { text: '', stopped: true };
   const timeout = AbortSignal.timeout(GENERATION_TIMEOUT);
   const signal = AbortSignal.any([args.signal, timeout]);
@@ -754,6 +863,9 @@ async function completion(args: LlamaCppStreamArgs, stream: boolean): Promise<Ll
       unlock();
       if (localQueue.idle && queues.get(baseUrl) === localQueue) queues.delete(baseUrl);
     };
+    const body = await requestBody(args, stream, baseUrl, signal);
+    signal.throwIfAborted();
+    args.onInferenceStart?.();
     const response = await (args.fetchImpl ?? pinnedFetch)(baseUrl + '/v1/chat/completions', {
       method: 'POST',
       headers: authHeaders(args.apiKey, stream),

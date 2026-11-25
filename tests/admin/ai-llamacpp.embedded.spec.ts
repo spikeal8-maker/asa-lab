@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { AiChatService } from '../../apps/api/src/ai-chat.service';
+import { AI_DEFAULT_SYSTEM_PROMPT } from '../../apps/api/src/ai-generation-policy';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
 import { aiIdentity, type AiIdentity } from './ai-student-access.contract';
 
@@ -39,6 +40,9 @@ const KEY = 'llamacpp-fixture-secret-never-log';
 const MODEL = 'fixture:qwen';
 let expectedKey: string | null = KEY;
 let responseText = 'Ответ локальной модели.';
+let modelContext = 212992;
+let modelCounter: 'none' | 'native' | 'legacy' = 'none';
+let countedInput = 4500;
 let mode: 'normal' | 'auth' | 'tools' | 'cancel' | 'network' = 'normal';
 let modelList = [MODEL];
 const packet = (value: unknown) => 'data: ' + JSON.stringify(value) + '\n\n';
@@ -48,16 +52,30 @@ const sends = vi.fn<typeof fetch>(async (raw, options) => {
   if (mode === 'auth') return new Response('private upstream diagnostic', { status: 401 });
   if (url.pathname === '/v1/models')
     return Response.json({
-      data: modelList.map((id) => ({ id, meta: { n_ctx: 212992, n_ctx_train: 262144 } })),
+      data: modelList.map((id) => ({ id, meta: { n_ctx: modelContext, n_ctx_train: 262144 } })),
     });
   if (url.pathname === '/props')
-    return Response.json({ default_generation_settings: { n_ctx: 212992 }, total_slots: 1 });
-  expect(url.pathname).toBe('/v1/chat/completions');
+    return Response.json({ default_generation_settings: { n_ctx: modelContext }, total_slots: 1 });
   const body = JSON.parse(String(options?.body));
   expect(body.model).toBe(MODEL);
   expect(new Headers(options?.headers).get('authorization')).toBe(
     expectedKey ? 'Bearer ' + expectedKey : null,
   );
+  if (url.pathname === '/v1/chat/completions/input_tokens')
+    return modelCounter === 'native'
+      ? Response.json({ input_tokens: countedInput })
+      : new Response(null, { status: 404 });
+  if (url.pathname === '/apply-template')
+    return modelCounter === 'legacy'
+      ? Response.json({ prompt: JSON.stringify(body.messages) })
+      : new Response(null, { status: 404 });
+  if (url.pathname === '/tokenize') {
+    expect(modelCounter).toBe('legacy');
+    expect(body).toMatchObject({ add_special: true, parse_special: true });
+    expect(body.content).toContain('вопрос');
+    return Response.json({ tokens: Array(countedInput).fill(1) });
+  }
+  expect(url.pathname).toBe('/v1/chat/completions');
   if (!body.stream) {
     return Response.json({
       model: MODEL,
@@ -484,6 +502,116 @@ it('uses bounded32 llama.cpp history for16 pairs while retaining legacy8 and reg
   expect(JSON.stringify(regenerated).includes(needle)).toBe(true);
   expect(JSON.stringify(regenerated).includes(future)).toBe(false);
 });
+
+it.each(['native', 'legacy'] as const)(
+  'answers JSON and SSE on a verified 8192-token model using the %s counter',
+  async (counter) => {
+    const current = await draft();
+    const policy = await service.generationPolicy(platform.principal_id);
+    const smallOwner = (await aiIdentity(admin)).principal_id;
+    modelContext = 8192;
+    modelCounter = counter;
+    try {
+      const applied = await service.applyLlamaCppSettings(
+        platform.principal_id,
+        {
+          ...current,
+          apiKey: KEY,
+          apiKeyEndpoint: current.baseUrl,
+          contextTokens: null,
+          maxOutputTokens: null,
+        },
+        randomUUID(),
+      );
+      expect(applied.test).toMatchObject({ contextTokens: 8192, toolsVerified: true });
+      await service.saveGenerationPolicy(platform.principal_id, {
+        configurationVersion: policy.configurationVersion,
+        systemPrompt: AI_DEFAULT_SYSTEM_PROMPT,
+        defaultModel: 'llamacpp-local',
+        allowedModels: ['llamacpp-local'],
+        requestId: randomUUID(),
+      });
+      const thread = await service.createThread(smallOwner);
+      await expect(
+        service.send(smallOwner, thread.id, 'Короткий вопрос', randomUUID()),
+      ).resolves.toMatchObject({ replayed: false });
+      const onDelta = vi.fn();
+      await service.sendStream(
+        smallOwner,
+        thread.id,
+        'Ещё один короткий вопрос',
+        randomUUID(),
+        onDelta,
+        new AbortController().signal,
+        'llamacpp-local',
+      );
+      expect(onDelta).toHaveBeenCalledWith('Ответ локальной модели.');
+      const body = JSON.parse(String(sends.mock.calls.at(-1)?.[1]?.body));
+      expect(body.messages.at(-1)?.content).toContain('Ещё один короткий вопрос');
+      expect(
+        body.tools.map((tool: { function: { name: string } }) => tool.function.name),
+      ).toContain('create_working_file');
+      const oversizedThread = await service.createThread(smallOwner);
+      const rejected = randomUUID();
+      const before = sends.mock.calls.length;
+      countedInput = 8300;
+      const submit = () =>
+        service.sendStream(
+          smallOwner,
+          oversizedThread.id,
+          'Вопрос, который не помещается',
+          rejected,
+          () => undefined,
+          new AbortController().signal,
+          'llamacpp-local',
+        );
+      await expect(submit()).rejects.toMatchObject({ code: 'ai_llamacpp_context_exceeded' });
+      const calls = sends.mock.calls.slice(before).map(([url]) => new URL(String(url)).pathname);
+      expect(calls).toContain('/v1/chat/completions/input_tokens');
+      expect(calls).not.toContain('/v1/chat/completions');
+      expect(
+        (
+          await db.query(
+            `SELECT j.status,j.error_code,j.input_tokens,j.output_tokens,j.actual_model,r.state
+         FROM ai_usage_journal j
+         JOIN ai_token_budget_reservations r USING (owner_principal_id,request_id)
+        WHERE j.owner_principal_id=$1 AND j.request_id=$2`,
+            [smallOwner, rejected],
+          )
+        ).rows,
+      ).toEqual([
+        {
+          status: 'failed',
+          error_code: 'ai_llamacpp_context_exceeded',
+          input_tokens: 0,
+          output_tokens: 0,
+          actual_model: null,
+          state: 'settled',
+        },
+      ]);
+      const after = sends.mock.calls.length;
+      await expect(submit()).resolves.toMatchObject({ replayed: true });
+      expect(sends.mock.calls).toHaveLength(after);
+    } finally {
+      countedInput = 4500;
+      modelCounter = 'none';
+      modelContext = 212992;
+      await service.saveGenerationPolicy(platform.principal_id, {
+        configurationVersion: (await service.generationPolicy(platform.principal_id))
+          .configurationVersion,
+        systemPrompt: policy.systemPrompt,
+        defaultModel: 'llamacpp-local',
+        allowedModels: ['llamacpp-local'],
+        requestId: randomUUID(),
+      });
+      await service.applyLlamaCppSettings(
+        platform.principal_id,
+        { ...current, revision: (await draft()).revision },
+        randomUUID(),
+      );
+    }
+  },
+);
 
 it('disables offline and connects a keyless server without requiring backend secret encryption', async () => {
   const current = await draft();

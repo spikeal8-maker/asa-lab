@@ -317,7 +317,11 @@ describe('llama.cpp completions, SSE, tools and usage', () => {
     expect(second.text).toBe('Файл создан.');
   });
   it('budgets all tool results and adapts the default output to a small confirmed context', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json(completed()));
+    const fetchImpl = vi.fn<typeof fetch>(async (url) =>
+      String(url).endsWith('/input_tokens') || String(url).endsWith('/apply-template')
+        ? new Response(null, { status: 404 })
+        : Response.json(completed()),
+    );
     await generateLlamaCppText(args(fetchImpl, { contextTokens: 8192 }));
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).max_tokens).toBe(2048);
     fetchImpl.mockClear();
@@ -334,7 +338,100 @@ describe('llama.cpp completions, SSE, tools and usage', () => {
         }),
       ),
     ).rejects.toMatchObject({ code: 'ai_llamacpp_context_exceeded' });
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual([
+      base + '/v1/chat/completions/input_tokens',
+      base + '/apply-template',
+    ]);
+  });
+  it('keeps the system, newest complete prompt and complete recent turns under a legacy budget', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (url) =>
+      String(url).endsWith('/input_tokens') || String(url).endsWith('/apply-template')
+        ? new Response(null, { status: 404 })
+        : Response.json(completed()),
+    );
+    const instructions = 's'.repeat(6600);
+    const latest = 'Свежий вопрос: "цитата" 🙂';
+    await generateLlamaCppText(
+      args(fetchImpl, {
+        contextTokens: 8192,
+        instructions,
+        context: [
+          { role: 'user', content: 'old' },
+          { role: 'assistant', content: 'escaped \\ " \n'.repeat(1400) },
+          { role: 'user', content: 'recent' },
+          { role: 'assistant', content: 'recent answer' },
+          { role: 'user', content: latest },
+        ],
+      }),
+    );
+    const wire = String(fetchImpl.mock.calls.at(-1)?.[1]?.body);
+    const { messages, max_tokens: maxTokens } = JSON.parse(wire);
+    expect(messages).toEqual([
+      { role: 'system', content: instructions },
+      { role: 'user', content: 'recent' },
+      { role: 'assistant', content: 'recent answer' },
+      { role: 'user', content: latest },
+    ]);
+    expect(maxTokens).toBeGreaterThanOrEqual(128);
+    expect(maxTokens).toBeLessThan(2048);
+    expect(Buffer.byteLength(wire) + maxTokens + 512).toBeLessThanOrEqual(8192);
+  });
+  it('uses the same tool schemas and results in native token counting and inference', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (url) =>
+      String(url).endsWith('/input_tokens')
+        ? Response.json({ input_tokens: 7650 })
+        : Response.json(completed()),
+    );
+    const tools = nativeTools({ search: true, weather: false });
+    await generateLlamaCppText(
+      args(fetchImpl, {
+        contextTokens: 8192,
+        instructions: 'и'.repeat(4200),
+        tools,
+        toolResults: [
+          {
+            call: { name: 'web_search', arguments: { query: 'test' } },
+            content: 'source evidence',
+          },
+        ],
+      }),
+    );
+    const input = JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body));
+    const sent = JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body));
+    expect(input.messages).toEqual(sent.messages);
+    expect(input.tools).toEqual(tools);
+    expect(sent.tools).toEqual(tools);
+    expect(sent.messages.at(-1)?.content).toBe('source evidence');
+    expect(sent.max_tokens).toBe(8192 - 7650 - 32);
+  });
+  it('keeps a recent whole turn that fits the tokenizer after removing older history', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
+      if (!String(url).endsWith('/input_tokens')) return Response.json(completed());
+      const body = JSON.parse(String(options?.body));
+      const input = body.messages.length > 4 ? 9200 : 5500;
+      return Response.json({ input_tokens: input });
+    });
+    const recent = 'ответ'.repeat(1000);
+    await generateLlamaCppText(
+      args(fetchImpl, {
+        contextTokens: 8192,
+        instructions: 'инструкции'.repeat(450),
+        context: [
+          { role: 'user', content: 'old' },
+          { role: 'assistant', content: 'outdated answer' },
+          { role: 'user', content: 'recent' },
+          { role: 'assistant', content: recent },
+          { role: 'user', content: 'latest question' },
+        ],
+      }),
+    );
+    const sent = JSON.parse(String(fetchImpl.mock.calls.at(-1)?.[1]?.body));
+    expect(sent.messages.slice(1)).toEqual([
+      { role: 'user', content: 'recent' },
+      { role: 'assistant', content: recent },
+      { role: 'user', content: 'latest question' },
+    ]);
+    expect(sent.max_tokens).toBe(2048);
   });
   it('uses JSON Chat Completions without Ollama or MTP parameters', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () => Response.json(completed()));
