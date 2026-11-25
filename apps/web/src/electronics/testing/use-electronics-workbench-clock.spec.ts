@@ -2809,6 +2809,71 @@ describe('mounted workbench LED temporal display', () => {
     expect(workbench.result).toBe(low.result);
   });
 
+  it.each(['native preparation', 'joint layout'] as const)(
+    'settles Pause when %s discards an early publication',
+    async (during) => {
+      const { low, high } = await prepareResidentLowBoundary();
+      await tick(10);
+      const port = workbench.nativeOpticalPresentation;
+      expect(port.hasRenderWitness()).toBe(true);
+      const priorResult = workbench.result;
+      const priorTime = workbench.simulationTimeMs;
+      const priorPreparation = port.getSnapshot().preparation;
+      const pausedInLayout = vi.fn();
+      onLayoutCommit = () => {
+        const snapshot = port.getSnapshot();
+        if (
+          during === 'native preparation' &&
+          (!snapshot.preparation || snapshot.preparation === priorPreparation)
+        )
+          return;
+        if (during === 'joint layout' && snapshot.observation === snapshot.committed) return;
+        onLayoutCommit = null;
+        workbench.setSimulationRate(0);
+        expect(workbench.simulationPacing.read().phase).toBe('pausing');
+        pausedInLayout();
+      };
+
+      await receive(low);
+      expect(pausedInLayout).toHaveBeenCalledTimes(1);
+      expect(workbench.simulationPacing.read().phase).toBe('paused');
+      expect(workbench.result).toBe(priorResult);
+      expect(workbench.simulationTimeMs).toBe(priorTime);
+      expect(workbench.committedComponentLedAsset(led)).toBe(high);
+      expect(port.getSnapshot().rollback).toBeNull();
+      expect(port.getSnapshot().preparation).toBeNull();
+      assertCommitted(80, 'lit');
+      await frames(2);
+      expect(workbench.simulationPacing.read().phase).toBe('paused');
+      assertCommitted(80, 'lit');
+    },
+  );
+
+  it('waits for an ordinary pending native frame before settling Pause with a prior visible vector', async () => {
+    const { high } = await prepareResidentLowBoundary();
+    await tick(10);
+    workbench.nativeOpticalPresentation.clearRenderWitness();
+    const next = observed([
+      { atMicroseconds: 93_750, brightness: 80, current: 0.01 },
+      { atMicroseconds: 100_000, brightness: 60, current: 0.008 },
+    ]);
+    await receive(next);
+    await frame(16);
+    const pending = workbench.preparedComponentLedAsset(led);
+    expect(pending?.asset).toMatch(/_i060\.svg$/);
+    assertCommitted(80, 'lit');
+
+    await act(async () => workbench.setSimulationRate(0));
+    expect(workbench.simulationPacing.read().phase).toBe('pausing');
+    expect(workbench.preparedComponentLedAsset(led)).toEqual(pending);
+    expect(workbench.committedComponentLedAsset(led)).toBe(high);
+
+    await loadMountedImages();
+    await frame();
+    assertCommitted(60, 'lit');
+    expect(workbench.simulationPacing.read().phase).toBe('paused');
+  });
+
   it('rechecks visibility before acknowledging a mounted early proposal', async () => {
     const { low, high } = await prepareResidentLowBoundary();
     await tick(10);

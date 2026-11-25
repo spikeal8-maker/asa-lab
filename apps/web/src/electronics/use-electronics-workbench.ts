@@ -1017,6 +1017,7 @@ export function useElectronicsWorkbenchHost(
             });
           }
           setLedAssetPreparation(null);
+          settlePause();
         }
       }
     };
