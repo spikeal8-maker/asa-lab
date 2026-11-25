@@ -18992,6 +18992,289 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-LIVE-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E1-EDITABLE-RAMP-LIVE
+      profile: TEST_ONLY
+      checkpoint: e1_test_only_editable_ramp_live_selected
+      owner_acceptance: pending
+      owner_authorization: The owner's explicit 2026-11-25 request is to drag/place a real ramp, edit height/width/angle,
+        run the real rover and see it at the existing4630 address. Select one isolated TEST_ONLY interactive
+        prerequisite, not ordinary saved-product terrain. This docs-only slice authorizes no source or runtime
+        before protected canonical integration. Exact source HIGH, inherited artifact HIGH, preserved-data
+        replay and frozen controller admission precede ONE bounded verification programme. Later owner-manually-started
+        exploratory generations are separately bounded below; no automatic replay or permission to rerun historical
+        consumed opt-ins.
+      registration_baseline:
+        main: 954eae8f5b772fd4afabc086b01df36caf2b09e9
+        historical_ui_task: parallel_lanes.robotics.historical_field_edit_gestures_task
+        e3_source: 99c71bd3cc51da4464595a2cfbdee0049a587e85
+        e3_merge: 7ba020057a2650731df6df5ef0ad0e9136b7df65
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-DEL-02
+        - REQ-DEL-05
+      scope: An isolated experimental HTML/Worker route has a visible ramp item in its sidebar, drag/place
+        preview and H/width/angle controls, with a real native rover. It reuses the accepted R5 Uno/electrical/native
+        boundary and pure metric ramp construction. Renderer and collider come from one validated geometry,
+        checked against actual compiled readbacks. It never adds a ramp type to the normal project schema
+        or pretends a drawing/animation is spatial mechanics.
+      planned_paths:
+      - apps/web/src/robotics/testing/editable-ramp-live/index.html
+      - apps/web/src/robotics/testing/editable-ramp-live/stand.ts
+      - apps/web/src/robotics/testing/editable-ramp-live/ramp.worker.ts
+      - apps/web/src/robotics/testing/editable-ramp-live/stand.browser.mjs
+      - apps/web/src/robotics/testing/editable-ramp-live/scene.ts
+      - apps/web/src/robotics/testing/editable-ramp-live/scene.fixture.json
+      - apps/web/src/robotics/testing/editable-ramp-live/scene.spec.ts
+      borrowed_source_admission:
+        policy: AGENTS.md section2.3; read-only GitHub API author.login checked for the selected incoming
+          package, not unrelated history.
+        repository_owner: spikeal8-maker
+        commits:
+        - sha: acf2fbbff6f682a5a148732ab878fcd5f6d82fd9
+          author_login: spikeal8-maker
+          role: four frozen TEST_ONLY R5 UI/Worker/runner files; original branch remains immutable
+        - sha: cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42
+          author_login: spikeal8-maker
+          role: immutable R5 fixture, programs/circuit and physical/native evidence reference
+        result: OWNER_LOGIN_MATCH; no foreign-author approval inferred or required for this selected package
+        pure_helper:
+          path: tests/robotics/field-core-qualification/editable-ramp-geometry.ts
+          bytes: 4549
+          sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848
+          use: unchanged direct TEST_ONLY pure import; not copied old harness/AST and never product-integrated
+      prototype_geometry:
+        unit: metres/radians internally, clearly labelled metric UI
+        draggable_item: Ramp with connected approach and deck assembly; label this honestly. All three authored
+          solids move together in XY with heading fixed0, preserving finite shared edges and no gaps, hidden
+          foundation or interior overlapping volumes. Independent deck/bridge editing is not included.
+        fixed_horizontal_length_m: 0.8
+        base_and_deck_thickness_m: 0.05
+        assembly_local_x:
+          lower:
+          - -0.8
+          - 0.0
+          ramp:
+          - 0.0
+          - 0.8
+          upper:
+          - 0.8
+          - 3.0
+        parameter_equations: For fixed L=.8, angle edit uses H=L*tan(theta), height edit uses theta=atan2(H,L);
+          width changes all three solids. Use the shared helper, positive finite dimensions and actual model
+          readback, not independently rounded render and collider formulas.
+        trial_envelope:
+          width_m:
+          - 0.4
+          - 1.2
+          height_m:
+          - 0.0
+          - 0.2
+          origin_x_m:
+          - -0.05
+          - 0.1
+          origin_y_m:
+          - -0.05
+          - 0.05
+          heading_rad: 0
+          angle_rule: 0 <= theta <= atan2(.2,.8); no independent angle/height inconsistency. L remains .8.
+          validation: Prospective bounded exploratory geometry, not a claim all settings climb. Pre-build
+            whole initial rover/support/bumper/can clearance and continuous approach/deck validation must
+            reject unsupported placement without moving the rover to fake success.
+        factory_only_can_placement: Preserve original .0122kg/.033m radius/.1152m height and inertia. Can
+          factory local x=L+.55, body-origin z=H+.0576 and COM=H+.0689311475409836; XY follows the assembly.
+          This is initial XML construction before time starts, never runtime pose writes. Rover initial pose,
+          mass, axle/armature, bumper, joints and drivetrain remain exact R5.
+        baseline:
+          id: baseline5
+          length_m: 0.8
+          width_m: 1.0
+          height_m: 0.0699909308207392
+          angle_deg: 5
+          origin_m:
+          - 0
+          - 0
+          - 0
+          heading_rad: 0
+          xml_sha256: acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0
+          parity: Baseline XML byte-exact to frozen R5. Native/program/raw comparison must distinguish any
+            integration mismatch before claiming reproduced baseline.
+        edited_case:
+          id: edited6
+          length_m: 0.8
+          width_m: 0.8
+          height_m: 0.08408338821254119
+          height_expression: .8*tan(6*pi/180) through the frozen shared helper
+          angle_deg: 6
+          origin_m:
+          - 0.02
+          - 0
+          - 0
+          heading_rad: 0
+          can_factory_world_x_m: 1.37
+          can_factory_body_z_m: 0.14168338821254117
+          status: Prospectively selected valid geometry; physical ascent/impact outcomes not guaranteed. Freeze
+            exact XML and compiled expected readbacks in scene.fixture before any native acquisition; no retuning
+            after data.
+      ui_lifecycle:
+      - Sidebar drag/place shows exactly one real geometric preview and no default card screenshot. Mouse
+        and supported touch input do not fight camera controls. Height/width/angle fields visibly agree with
+        the geometric equation and units.
+      - Parameter/placement edit is stopped and rebuilds only through explicit Apply/Reset with increasing
+        generation. A started or paused nonzero-time world cannot have its colliders teleported or spliced.
+        Pure preview may be updated without native allocation; apply creates a fresh Model/Data from validated
+        factory XML, reinitializes the real session and resets time. No post-build rover/can qpos/qvel writes.
+      - Reset disposes old model/data/session/listeners, rejects stale messages/tokens and old-generation
+        replies and presents the new parameters/time0. Play/Pause/Reset preserve coherent public native/electrical
+        time; no replay of stored poses as live motion.
+      - Worker ready returns actual compiled native mesh vertices/transforms, floor/upper extents, geom identities
+        and source digest. Stand uses these actual values; both plan and3D consume the same committed native
+        pose snapshot. Camera controls and picking remain separate from physical state.
+      electromechanical_contract:
+        session: Existing public createElectronicsTtNativeDriveTestSession on accepted main with one TT output
+          shaft, canonical Uno D5 and real common MNA/winding. No scheduler/solver/API changes, fabricated
+          motor speed, direct commanded chassis velocity or test-only force substitute.
+        phase: Preserve R5 actual PRE / mj_step1 / applied output torque / mj_step2 / measured shaft response
+          / accepted commit ordering, exact runId/generation/token and actual electrical clock. No public
+          scene time ahead of the accepted native reply.
+        programs: Original powered/control circuit and compiled Uno programs, diverge250003us and actual finalLOW4340082us,
+          byte/digest pins from R5. Keep original lower-loss diagnostic mechanical branch and signed work/energy
+          accounting, including legacy startup/common prefix; do not silently repair or recalibrate the motor.
+        limits: Known R5 late/startup reciprocal/left-held causal GAP remains explicit. Motion and real contact
+          evidence do not imply calibrated TT torque, completed D02/TIME or product readiness.
+        engine:
+          version: MuJoCo4.0.0 current inherited AOT finite-cap artifact
+          upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+          wasm_sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241
+          glue_sha256: 9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8
+          declarations_sha256: 779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff
+          profile: Exact R5 actual500us/implicitfast/Newton/dense/elliptic, gravity9.81, iterations100/50/20,
+            CCD100/tolerance1e-8 and flags65536/32. R5 fixture also contains historical stock51ae fields;
+            these do not override the actual AOT stand pins. No V1/V2 logging artifact or new engine build.
+      verification_programme:
+        qualification: Exactly four fresh worlds, in fixed order baseline powered, baseline LOW, edited powered,
+          edited LOW. One module, sequential one concurrent Model/Data/session. Each10s, <=500us native intervals,
+          <=22000 intervals and <=24000 session calls, <=256 events. Source/fixture freeze and independent
+          HIGH precede controller-only one opt-in; no import/factory/native default test.
+        physical_gates: Keep original R5 positive solved per-wheel finite top support and normal/point/slip
+          guards, transition order, at least100ms ramp and upper support, minimum .06m rise, actual native
+          bumper/can causal sign and side-support gates, matchedLOW/control and full signed energy thresholds.
+          Edited H>.06 preserves applicability; unchanged thresholds may yield FAIL/NOT_REACHED. Complete
+          valid acquisition is distinct from physical PASS and causal GAP. Preserve first failure and full
+          safe horizon; runtime/capacity failure stops safely, no blind retry.
+        clock_and_control: Both cases retain actual D5 pulse timeline/finalLOW, full native/electrical10s
+          and503-record common prehistory per powered/LOW pair, with explicit metadata identity normalization
+          only. Preserve full raw force/contact census, signed-zero PRE/POST/pose/clock identities, native/apply
+          torque and electrical samples, warnings, resource and cleanup ledgers.
+        capture: 'Reuse actual R5 live variable little-endian F64 ABI and unchanged force/J_PRE work methods:
+          one leading F64 payload-length word,209 fixed payload words,ncon packed native identity words and24
+          words per active contact. Record bytes=8*(210+ncon+24*nactive), with nactive<=ncon. Charge ALL ncon,
+          including inactive/excluded contacts, BEFORE each advance using the conservative pre-step capacity bound
+          up to the declared local maximum; never budget loaded/active rows alone. Each world remains max132 contacts/396
+          EFC rows and450000 cumulative all-native contacts. At<=44000 paired intervals and<=900000 cumulative
+          all-native contacts, raw<=8*(210*44000+25*900000)=253920000B; unchanged metadata/footer/error reserves9437184B
+          give263357184B (<256MiB). Four qualification worlds =2 exclusive paired receipts <=526714368B (<512MiB);
+          no local-contact maximum assumed for every step.'
+        operator_window: 'Only after a completed valid qualification acquisition with actual physical verdict retained, exact reviews and separately frozen controller
+          mount admission: up to4 remaining owner-manually-started exploratory generations, stopped -> Reset
+          -> new generation. Max8 fresh Model/Data/session generations TOTAL including four qualification
+          worlds and any failed/cancelled construction attempts; one module, one concurrent world, each<=10s/22000
+          intervals and same per-world ceilings. No auto replay or background restarts. Exploratory parameter
+          values/results are displayed as EXPLORATORY, not accepted physical cases; retain their failures
+          and capture under same per-pair bound. At most4 pair-equivalent receipts total <=1053428736B (<1GiB),
+          no overwrite of qualification or old data.'
+        previous_live_raw:
+          source: acf2fbbff6f682a5a148732ab878fcd5f6d82fd9
+          binary:
+            file: qualification.bin
+            bytes: 159423000
+            sha256: b791e3fe84a6ed043ff55a7a6b84466fbd22d22cba2d29b1fc40fb4280c63318
+          metadata:
+            file: qualification.jsonl
+            bytes: 279148
+            sha256: 3ade031c727a327ab9d82de4f09bd43ec51ea49600ded8cb3374dc7b4baa8735
+          admission: Mandatory immutable disk-only replay input, no imported old harness or native call. Verify
+            source/fixture/assets and actual old baseline/electrical/common-prefix/complete pair/capture evidence;
+            absent/mismatched input is an admission failure, never fake replay or re-acquisition. Historical
+            consumed old tokens remain disabled.
+      stand_admission:
+        requested_address: http://127.0.0.1:4630
+        current_observation: No4630 listener/HTTP service at read-only2026-11-25 check; existing frozen R5
+          bundle is an archive, not a running preview. No mounted/live claim by this document.
+        boundary: Separate actual check must prove existing stand startup/mount provenance, source and assets
+          fit AGENTS/portable contract and explicit owner experimental-address authorization. No Docker/API/DB/service/reverse-proxy/product-route/installation
+          changes, alternate address or hidden start. Existing4632 Docker services and all other projects
+          stay untouched. If actual policy/global blocker match forbids mount, retain BLOCKED/NOT_RUN and
+          use isolated CI for verification; never fabricate a mount.
+        operation: Only root/controller after protected selection + source/artifact HIGH can admit once-only
+          qualification and later bounded owner-started operator window. Retain exact source/manifest digest,
+          displayed parameters/generation/classification and receipt. Stop only this owned temporary stand
+          at the end of the authorized window; preserve archives and never stop another service. No product
+          deployment or working-DB operation.
+      verification:
+        pure: New scene.spec default runs pure parameter/angle inverse, finite bounds, common render/collider
+          geometry, exact baselineXML/digests, fixed edited XML/readback expectations, initial support/clearance,
+          stale generation/reset and negative/ambiguous old opt-in admissions. No Worker/glue/WASM initialization.
+          Test fake render-only edits and stale fixed-original matcher rejection.
+        source_gates: Seven-path exact preflight; pure/default-skip, format/lint/strict TS and focused scope/self-review;
+          independent source HIGH; immutable inherited asset/declaration/license/build-receipt admission +
+          independent artifact HIGH; then one separately frozen controller/browser/native programme, not an
+          old unconditional CLI.
+        browser: Actual isolated page realWebGL with actual UI sidebar drag, H/W/angle edit, Apply/Reset/Play/Pause
+          and native poses. Save screenshots/video/structured receipt on exact source, baseline plus the one
+          fixed edit and matched LOW. Native observations/labels must derive from real physical/electrical
+          trace; screenshots or successful packaging are not physics evidence. Startup stays blocked until
+          stand_admission passes; isolated CI is allowed if local live cannot be safely mounted.
+        registration: Sole current.yaml PLAN/control-plane, strict YAML and whole text/semantic inverse for
+          accepted priorE3/histories/blockers, actual Electronics docs validator, full governance on exact
+          bytes.
+      constraints:
+      - Preserve historical_field_edit_gestures_task byte/semantic exact, every EPA/R5/five-mesh/union failure/GAP/history
+        and downstream normal saved-product ramp/platform/bridge outcome. This prototype is one prerequisite,
+        not substitute for ordinary saved editor integration.
+      - No normal RobotFieldEditor/product world/schema/physics-runtime/API/database or production asset/dependency/config/workflow
+        changes. Seven new isolated paths only; helper and existing engine/session remain unchanged. No new
+        unreviewed engine build, numerical tolerance/coefficient/material tuning or old acquisition rerun.
+      - ROBOTICS-FIELD-CORE-D01-D02 and every global blocker retain exact original identity/binding/blocks.
+        No full physics acceptance, D01/D02/E2 closure, calibrated hardware claim, owner acceptance, release,
+        deployment or bridge/underpass claim. Selection does not override a separate applicable execution/deployment
+        blocker.
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/agent/contracts/deployment.yaml
+      - docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md
+    field_edit_gestures_result:
+      scope: UI_ONLY_source_preservation_not_owner_acceptance
+      source: 99c71bd3cc51da4464595a2cfbdee0049a587e85
+      source_pr: https://github.com/spikeal8-maker/asa-lab/pull/1319
+      protected_merge: 7ba020057a2650731df6df5ef0ad0e9136b7df65
+      required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45082810974/job/137403546860
+      required_conclusion: SUCCESS
+      scope_limit: Existing palette/3D XY gesture source accepted; no physical ramp/schema/native, owner/deployment
+        or D01/D02 closure. Preserve accepted task exactly below.
+      epa_source_snapshot:
+        observed_on: '2026-11-25'
+        pr: https://github.com/spikeal8-maker/asa-lab/pull/1314
+        head: 189f1a4a275a52c8f6ccbd9ccfbb82e5c40cc3b5
+        state: OPEN
+        required: SUCCESS
+        merge: null
+        archive: https://github.com/spikeal8-maker/asa-lab/tree/0a9dad7c0a9a7a5acd93a5449c9d2ff293320aaa/docs/evidence/robotics/epa-1071
+        limit: Factual observation only; earlier pending snapshot and immutable raw remain historical. Green
+          required is not merge, physical repair, owner acceptance or authorization to rerun.
+    historical_field_edit_gestures_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-EDIT-GESTURES-001
       issue: 1071
       branch: main
