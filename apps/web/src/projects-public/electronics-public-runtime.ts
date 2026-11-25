@@ -1,4 +1,8 @@
-import type { ElectronicsSimulationArtifact } from '@asa-lab/contracts';
+import type {
+  ClassroomElectronicsSimulation,
+  ElectronicsSimulationArtifact,
+  ElectronicsSimulationPayload,
+} from '@asa-lab/contracts';
 import type { SchematicComponent, SchematicDocument, SolveResult } from '../api';
 import { catalogEntry, visualAsset } from '../electronics/component-catalog';
 import { ordinaryLedVisualState } from '../electronics/component-result-presentation';
@@ -23,9 +27,9 @@ export const PUBLIC_SIMULATION_BUDGET = Object.freeze({
   assetMs: 3000,
 });
 
-/** The artifact is already validated. Reconstruct only public execution inputs. */
+/** The payload is already validated. Reconstruct only allowlisted execution inputs. */
 export function publicSimulationDocument(
-  artifact: ElectronicsSimulationArtifact,
+  artifact: ElectronicsSimulationPayload,
 ): SchematicDocument {
   return {
     schemaVersion: 4,
@@ -64,7 +68,7 @@ interface PendingFrame {
   observation?: NativeOpticalObservation;
 }
 
-/** A transient public host. Owns no Project API, persistence, editor, or solver. */
+/** A transient playback host with no Project API, persistence, editor, or solver. */
 export class PublicElectronicsRuntime {
   readonly port = new NativeOpticalPresentation();
   private readonly timeline = new LedTemporalPresentation();
@@ -81,14 +85,23 @@ export class PublicElectronicsRuntime {
   private inputWindowCount = 0;
   private inputCount = 0;
   private document: SchematicDocument;
+  private readonly artifact: ElectronicsSimulationPayload;
+  private readonly sessionId: string;
+  private readonly classroom: boolean;
   constructor(
-    readonly artifact: ElectronicsSimulationArtifact,
-    private readonly onStop: (message?: string) => void,
+    source: ElectronicsSimulationArtifact | ClassroomElectronicsSimulation,
+    private readonly onStop: (message?: string, unavailable?: true) => void,
     controller = new ElectronicsLiveSimulationWorkerController(
       new ElectronicsSimulationWorkerClient(undefined, PUBLIC_SIMULATION_BUDGET.requestMs),
     ),
   ) {
-    this.document = publicSimulationDocument(artifact);
+    const classroom = 'simulation' in source;
+    this.classroom = classroom;
+    this.artifact = classroom ? source.simulation : source;
+    this.sessionId = classroom
+      ? 'classroom-submission:' + source.submissionId + ':' + source.projectVersionId
+      : 'publication:' + source.provenance.publicationId + ':' + source.provenance.revisionNumber;
+    this.document = publicSimulationDocument(this.artifact);
     this.controller = controller;
     this.port.setBarrier((snapshot) => {
       const pending = this.pending;
@@ -111,31 +124,35 @@ export class PublicElectronicsRuntime {
     this.active = true;
     this.started = performance.now();
     this.inputWindow = this.started;
-    this.controller.start(
-      `publication:${this.artifact.provenance.publicationId}:${this.artifact.provenance.revisionNumber}`,
-      this.document,
-      {
-        onInitialReady: (offset) => {
-          if (this.active) {
-            this.offset = offset;
-            this.ready = true;
-            this.started = performance.now();
-          }
-        },
-        readHostHorizonMicroseconds: () =>
-          this.active && this.ready ? this.requestedHorizon() : null,
-        onResult: (result, temporal) => {
-          if (!this.active) return;
-          this.latest = result;
-          if (temporal) this.timeline.accept(result, temporal, performance.now() * 1000);
-          else this.timeline.acceptSnapshot(result, this.horizon);
-        },
-        onCommittedHorizon: (horizon) => {
-          this.horizon = horizon;
-        },
-        onFailure: (failure) => this.stop(`Моделирование остановлено: ${failure.message}`),
+    this.controller.start(this.sessionId, this.document, {
+      onInitialReady: (offset) => {
+        if (this.active) {
+          this.offset = offset;
+          this.ready = true;
+          this.started = performance.now();
+        }
       },
-    );
+      readHostHorizonMicroseconds: () =>
+        this.active && this.ready ? this.requestedHorizon() : null,
+      onResult: (result, temporal) => {
+        if (!this.active) return;
+        if (this.classroom && result.status !== 'solved') {
+          this.stop('Эту схему не удалось смоделировать.', true);
+          return;
+        }
+        this.latest = result;
+        if (temporal) this.timeline.accept(result, temporal, performance.now() * 1000);
+        else this.timeline.acceptSnapshot(result, this.horizon);
+      },
+      onCommittedHorizon: (horizon) => {
+        this.horizon = horizon;
+      },
+      onFailure: (failure) =>
+        this.stop(
+          'Моделирование остановлено: ' + failure.message,
+          this.classroom ? true : undefined,
+        ),
+    });
     if (this.active) this.raf = requestAnimationFrame(this.tick);
   }
   private requestedHorizon(): number {
@@ -285,7 +302,7 @@ export class PublicElectronicsRuntime {
     this.controller.update(this.document, this.requestedHorizon());
     return updated;
   }
-  stop(message?: string): void {
+  stop(message?: string, unavailable?: true): void {
     if (!this.active) return;
     this.active = false;
     this.ready = false;
@@ -299,7 +316,8 @@ export class PublicElectronicsRuntime {
     this.port.setRollback(null);
     this.port.setObservation(null);
     this.port.setClock(0);
-    this.onStop(message);
+    if (unavailable) this.onStop(message, unavailable);
+    else this.onStop(message);
   }
   dispose(): void {
     this.stop();

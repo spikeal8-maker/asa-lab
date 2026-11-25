@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ElectronicsSimulationArtifact } from '@asa-lab/contracts';
+import type {
+  ClassroomElectronicsSimulation,
+  ElectronicsSimulationArtifact,
+  ElectronicsSimulationPayload,
+} from '@asa-lab/contracts';
 import {
   ElectronicsLiveSimulationWorkerController,
   type LiveSimulationWorkerCallbacks,
@@ -15,12 +19,11 @@ import {
   publicSimulationDocument,
 } from './electronics-public-runtime';
 
-const artifact = (): ElectronicsSimulationArtifact => ({
+const simulation = (): ElectronicsSimulationPayload => ({
   schemaVersion: 3,
   status: 'simulation',
   viewerFamily: 'electronics',
   solverIterations: 24,
-  provenance: { publicationId: '123e4567-e89b-42d3-a456-426614174001', revisionNumber: 1 },
   capabilities: { readOnly: true, interactive: true, download: false },
   components: [
     { id: 'button', kind: 'button', position: { x: 0, y: 0 }, value: 0, state: false },
@@ -38,7 +41,11 @@ const artifact = (): ElectronicsSimulationArtifact => ({
   ],
   connections: [],
 });
-function setup() {
+const artifact = (): ElectronicsSimulationArtifact => ({
+  ...simulation(),
+  provenance: { publicationId: '123e4567-e89b-42d3-a456-426614174001', revisionNumber: 1 },
+});
+function setup(submission?: ClassroomElectronicsSimulation) {
   vi.stubGlobal(
     'requestAnimationFrame',
     vi.fn(() => 1),
@@ -55,7 +62,7 @@ function setup() {
   const stop = vi.fn();
   const source = artifact();
   const host = new PublicElectronicsRuntime(
-    source,
+    submission ?? source,
     stop,
     controller as unknown as ElectronicsLiveSimulationWorkerController,
   );
@@ -68,6 +75,48 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
+describe('bounded classroom electronics host', () => {
+  const submission = (): ClassroomElectronicsSimulation => ({
+    submissionId: '123e4567-e89b-42d3-a456-426614174002',
+    projectVersionId: '123e4567-e89b-42d3-a456-426614174003',
+    simulation: simulation(),
+  });
+
+  it('starts from the saved work under a version-specific namespace and disposes on close', () => {
+    const exact = submission();
+    const { host, controller, callbacks } = setup(exact);
+    const frozen = JSON.stringify(exact);
+    expect(controller.start).toHaveBeenCalledWith(
+      'classroom-submission:' + exact.submissionId + ':' + exact.projectVersionId,
+      expect.objectContaining({
+        components: expect.arrayContaining([
+          expect.objectContaining({
+            stateProperties: expect.objectContaining({
+              arduinoSource: exact.simulation.components[1]?.stateProperties?.arduinoSource,
+            }),
+          }),
+        ]),
+      }),
+      expect.anything(),
+    );
+    host.input('button', { state: true });
+    host.dispose();
+    expect(JSON.stringify(exact)).toBe(frozen);
+    expect(controller.dispose).toHaveBeenCalled();
+    expect(callbacks.readHostHorizonMicroseconds?.()).toBeNull();
+    expect(host.input('button', { state: false })).toBeNull();
+  });
+
+  it('terminates unsupported simulations and requests the saved fallback', () => {
+    const { host, controller, callbacks, stop } = setup(submission());
+    callbacks.onResult({ status: 'unsupported' } as Parameters<typeof callbacks.onResult>[0]);
+    expect(controller.dispose).toHaveBeenCalled();
+    expect(stop).toHaveBeenCalledWith('Эту схему не удалось смоделировать.', true);
+    expect(host.port.getSnapshot().committed).toBeNull();
+    expect(host.input('button', { state: true })).toBeNull();
+  });
+});
+
 describe('bounded public electronics host', () => {
   it('terminates an unresponsive Worker at the public request deadline', async () => {
     vi.useFakeTimers();
@@ -108,6 +157,11 @@ describe('bounded public electronics host', () => {
   it('uses exactly published saved source and keeps transient inputs out of immutable artifact', () => {
     const { host, source, controller } = setup();
     const frozen = JSON.stringify(source);
+    expect(controller.start).toHaveBeenCalledWith(
+      'publication:' + source.provenance.publicationId + ':1',
+      expect.anything(),
+      expect.anything(),
+    );
     host.input('button', { state: true });
     host.input('button', { state: false });
     expect(controller.update).toHaveBeenCalledTimes(2);

@@ -3,6 +3,8 @@ import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import type { RoboticsProject } from '@asa-lab/robotics/document';
 import {
   validatePublicProjectDisplayArtifact,
+  validateClassroomElectronicsSimulation,
+  type ClassroomElectronicsSimulation,
   publicArduinoBlocks,
   PUBLIC_ELECTRONICS_PROPERTIES,
   PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
@@ -73,6 +75,96 @@ function rawWithinBounds(value: unknown): boolean {
     return false;
   }
 }
+function createElectronicsProjection(registry: ModuleRegistry, document: unknown) {
+  if (!rawWithinBounds(document)) return null;
+  const entry = registry.get('electronics');
+  if (!entry?.provider) return null;
+  const parsed = validationMessage(entry, document);
+  if (!parsed.ok) return null;
+  const source = parsed.document as {
+    components: Record<string, unknown>[];
+    connections: Record<string, unknown>[];
+    simulation: { maxIterations: number };
+  };
+  const display = {
+    capabilities: { readOnly: true, interactive: true, download: false },
+    components: source.components.map((c) => {
+      const component = pick(c, COMPONENT_KEYS);
+      if (c.stateProperties && typeof c.stateProperties === 'object') {
+        const visual = pick(c.stateProperties as Record<string, unknown>, [
+          'mirrorX',
+          'mirrorY',
+          'pinLayout',
+        ]);
+        if (Object.keys(visual).length) component.visualProperties = visual;
+      }
+      return component;
+    }),
+    connections: source.connections.map((w) => pick(w, ['id', 'from', 'to', 'color', 'vertices'])),
+  };
+  const simulation = () => {
+    // Unknown physical configuration fails closed to the inert V2 viewer.
+    // Only explicitly classified editor metadata is omitted from execution.
+    const simulationComponents = source.components.map((c, index) => {
+      const component = {
+        ...display.components[index],
+        ...pick(c, [
+          'electricalModelId',
+          'electricalModelVersion',
+          'modelProfileId',
+          'modelProfileVersion',
+          'wiperPosition',
+          'holeBindings',
+          'internalConnections',
+        ]),
+      };
+      if (c.stateProperties && typeof c.stateProperties === 'object') {
+        const properties = c.stateProperties as Record<string, unknown>;
+        if (
+          Object.keys(properties).some(
+            (key) =>
+              !PUBLIC_ELECTRONICS_PROPERTIES.includes(key) &&
+              !PUBLIC_ELECTRONICS_EDITOR_PROPERTIES.includes(key),
+          )
+        )
+          return null;
+        const projected = pick(properties, PUBLIC_ELECTRONICS_PROPERTIES);
+        // Only the saved sketch may supply the read-only block graph.
+        delete projected.arduinoBlocks;
+        if (['blocks', 'blocks-text'].includes(String(properties.arduinoCodeMode))) {
+          const blocks = publicArduinoBlocks(properties.arduinoWorkspace);
+          if (blocks) projected.arduinoBlocks = blocks;
+        }
+        return { ...component, stateProperties: projected };
+      }
+      return component;
+    });
+    if (simulationComponents.some((component) => component === null)) return null;
+    return {
+      schemaVersion: 3,
+      status: 'simulation',
+      viewerFamily: 'electronics',
+      ...display,
+      solverIterations: source.simulation?.maxIterations,
+      components: simulationComponents,
+    };
+  };
+  return { display, simulation };
+}
+
+export function createClassroomElectronicsSimulation(
+  registry: ModuleRegistry,
+  document: unknown,
+  submissionId: unknown,
+  projectVersionId: unknown,
+): ClassroomElectronicsSimulation | null {
+  const projection = createElectronicsProjection(registry, document);
+  const simulation = projection?.simulation();
+  return simulation
+    ? validateClassroomElectronicsSimulation({ submissionId, projectVersionId, simulation })
+    : null;
+}
+
 /** Registry contains projection functions, never module execution or copy commands. */
 export function createPublicArtifactAdapters(
   registry: ModuleRegistry,
@@ -81,83 +173,26 @@ export function createPublicArtifactAdapters(
     [
       'electronics',
       (document, provenance) => {
-        if (!rawWithinBounds(document)) return null;
-        const entry = registry.get('electronics');
-        if (!entry?.provider) return null;
-        const parsed = validationMessage(entry, document);
-        if (!parsed.ok) return null;
-        const source = parsed.document as {
-          components: Record<string, unknown>[];
-          connections: Record<string, unknown>[];
-          simulation: { maxIterations: number };
-        };
-        const candidate = {
+        const projection = createElectronicsProjection(registry, document);
+        if (!projection) return null;
+        const validated = validatePublicProjectDisplayArtifact({
           schemaVersion: 2,
           status: 'display',
           viewerFamily: 'electronics',
           provenance,
-          capabilities: { readOnly: true, interactive: true, download: false },
-          components: source.components.map((c) => {
-            const component = pick(c, COMPONENT_KEYS);
-            if (c.stateProperties && typeof c.stateProperties === 'object') {
-              const visual = pick(c.stateProperties as Record<string, unknown>, [
-                'mirrorX',
-                'mirrorY',
-                'pinLayout',
-              ]);
-              if (Object.keys(visual).length) component.visualProperties = visual;
-            }
-            return component;
-          }),
-          connections: source.connections.map((w) =>
-            pick(w, ['id', 'from', 'to', 'color', 'vertices']),
-          ),
-        };
-        const validated = validatePublicProjectDisplayArtifact(candidate);
-        if (!validated.ok) return null;
-        // Unknown physical configuration fails closed to the inert V2 viewer.
-        // Only explicitly classified editor metadata is omitted from execution.
-        const simulationComponents = source.components.map((c, index) => {
-          const component = {
-            ...candidate.components[index],
-            ...pick(c, [
-              'electricalModelId',
-              'electricalModelVersion',
-              'modelProfileId',
-              'modelProfileVersion',
-              'wiperPosition',
-              'holeBindings',
-              'internalConnections',
-            ]),
-          };
-          if (c.stateProperties && typeof c.stateProperties === 'object') {
-            const properties = c.stateProperties as Record<string, unknown>;
-            if (
-              Object.keys(properties).some(
-                (key) =>
-                  !PUBLIC_ELECTRONICS_PROPERTIES.includes(key) &&
-                  !PUBLIC_ELECTRONICS_EDITOR_PROPERTIES.includes(key),
-              )
-            )
-              return null;
-            const projected = pick(properties, PUBLIC_ELECTRONICS_PROPERTIES);
-            // Only the frozen published sketch may supply the public block graph.
-            delete projected.arduinoBlocks;
-            if (['blocks', 'blocks-text'].includes(String(properties.arduinoCodeMode))) {
-              const blocks = publicArduinoBlocks(properties.arduinoWorkspace);
-              if (blocks) projected.arduinoBlocks = blocks;
-            }
-            return { ...component, stateProperties: projected };
-          }
-          return component;
+          ...projection.display,
         });
-        if (simulationComponents.some((c) => c === null)) return validated.artifact;
+        if (!validated.ok) return null;
+        const payload = projection.simulation();
+        if (!payload) return validated.artifact;
+        // Preserve public v3 wire format and provenance validation.
+        const { schemaVersion, status, viewerFamily, ...display } = payload;
         const simulation = validatePublicProjectDisplayArtifact({
-          ...candidate,
-          schemaVersion: 3,
-          status: 'simulation',
-          solverIterations: source.simulation?.maxIterations,
-          components: simulationComponents,
+          schemaVersion,
+          status,
+          viewerFamily,
+          provenance,
+          ...display,
         });
         return simulation.ok ? simulation.artifact : validated.artifact;
       },

@@ -1550,9 +1550,18 @@ for (const module of ['three-d', 'electronics'])
       .click();
     await page.getByRole('button', { name: 'Задания', exact: true }).click();
     const cell = page.getByRole('button', { name: new RegExp('Ирина · ' + title) });
+    const exactRead =
+      module === 'electronics'
+        ? page.waitForResponse((response) =>
+            /\/api\/classrooms\/[^/]+\/attempts\/[^/]+\/submission$/.test(
+              new URL(response.url()).pathname,
+            ),
+          )
+        : null;
     await cell.click();
     const detail = page.getByRole('region', { name: 'Проверка сдачи' });
     await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
+    const originalExactRead = await exactRead;
     const firstVersion = await detail.getByTestId('submission-version-id').innerText();
     const evidence = detail
       .locator('details')
@@ -1687,6 +1696,55 @@ for (const module of ['three-d', 'electronics'])
       const source = detail.getByRole('region', { name: 'Arduino Uno', exact: true });
       await expect(source).toBeVisible();
       expect(await source.textContent()).toBe(originalSketch);
+
+      expect(originalExactRead?.ok()).toBe(true);
+      const originalExact = await originalExactRead!.json();
+      const savedPlayback = originalExact.electronicsSimulation;
+      expect(savedPlayback).toMatchObject({
+        submissionId: originalExact.submissionId,
+        projectVersionId: firstVersion,
+        simulation: {
+          schemaVersion: 3,
+          components: expect.arrayContaining([
+            expect.objectContaining({ stateProperties: { arduinoSource: originalSketch } }),
+          ]),
+        },
+      });
+      const repeatedExact = await page.request.get(originalExactRead!.url());
+      expect(repeatedExact.ok()).toBe(true);
+      expect((await repeatedExact.json()).electronicsSimulation).toEqual(savedPlayback);
+      const learnerRead = await learner.page.request.get(originalExactRead!.url());
+      expect([401, 403]).toContain(learnerRead.status());
+
+      const playbackRequests: string[] = [];
+      const recordPlayback = (request: Request) => {
+        const path = new URL(request.url()).pathname;
+        if (
+          path.startsWith('/api/projects/') ||
+          path.startsWith('/api/public-projects') ||
+          (path.startsWith('/api/classrooms/') && !['GET', 'HEAD'].includes(request.method()))
+        )
+          playbackRequests.push(request.method() + ' ' + path);
+      };
+      page.on('request', recordPlayback);
+      const toggle = detail.getByRole('button', { name: /^(Открыть|Скрыть) симуляцию$/ });
+      const playback = detail.getByRole('region', { name: 'Сданная электрическая схема' });
+      await expect(playback).toHaveCount(0);
+      await toggle.click();
+      await expect(playback).toBeVisible({ timeout: 15_000 });
+      const pendingWorker = page.waitForEvent('worker', {
+        predicate: (worker) => worker.url().includes('simulation.worker'),
+      });
+      await playback.getByTestId('classroom-electronics-start').click();
+      const worker = await pendingWorker;
+      const workerClosed = new Promise<void>((resolve) => worker.once('close', resolve));
+      await toggle.press('Escape');
+      await workerClosed;
+      await expect(toggle).toBeFocused();
+      await expect(playback).toHaveCount(0);
+      await expect(source).toBeVisible();
+      page.off('request', recordPlayback);
+      expect(playbackRequests).toEqual([]);
     }
     await expect(
       brief.getByRole('button', { name: 'Отправить повторно', exact: true }),

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
+  ClassroomElectronicsSimulation,
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
   PublicDisplayComponent,
@@ -52,12 +53,35 @@ export function ElectronicsPublicationScene({
 }: {
   readonly artifact: ElectronicsDisplayArtifact | ElectronicsSimulationArtifact;
 }): JSX.Element {
+  return <ElectronicsPlaybackScene source={artifact} />;
+}
+
+export function ClassroomElectronicsSimulationScene({
+  submission,
+  onUnavailable,
+}: {
+  readonly submission: ClassroomElectronicsSimulation;
+  readonly onUnavailable: (message?: string) => void;
+}): JSX.Element {
+  return <ElectronicsPlaybackScene source={submission} onUnavailable={onUnavailable} />;
+}
+
+function ElectronicsPlaybackScene({
+  source,
+  onUnavailable,
+}: {
+  readonly source:
+    ElectronicsDisplayArtifact | ElectronicsSimulationArtifact | ClassroomElectronicsSimulation;
+  readonly onUnavailable?: (message?: string) => void;
+}): JSX.Element {
+  const classroom = 'simulation' in source;
+  const artifact = classroom ? source.simulation : source;
   const [runtime, setRuntime] = useState<PublicElectronicsRuntime | null>(null);
   const [message, setMessage] = useState('');
   const [codeOpen, setCodeOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const programs =
-    artifact.schemaVersion === 3
+    !classroom && artifact.schemaVersion === 3
       ? artifact.components.filter((c) => typeof c.stateProperties?.arduinoSource === 'string')
       : [];
   const [inputs, setInputs] = useState<ReadonlyMap<string, SchematicComponent>>(new Map());
@@ -66,14 +90,15 @@ export function ElectronicsPublicationScene({
   const activeRuntime = useRef<PublicElectronicsRuntime | null>(null);
   const stop = () => activeRuntime.current?.dispose();
   const start = () => {
-    if (artifact.schemaVersion !== 3 || activeRuntime.current) return;
+    if (activeRuntime.current || (!classroom && source.schemaVersion !== 3)) return;
     setMessage('');
-    const next = new PublicElectronicsRuntime(artifact, (reason) => {
+    const next = new PublicElectronicsRuntime(source, (reason, unavailable) => {
       if (activeRuntime.current !== next) return;
       activeRuntime.current = null;
       setRuntime(null);
       setInputs(new Map());
       setMessage(reason ?? '');
+      if (unavailable) onUnavailable?.(reason);
     });
     activeRuntime.current = next;
     setRuntime(next);
@@ -95,7 +120,7 @@ export function ElectronicsPublicationScene({
       document.removeEventListener('visibilitychange', background);
       window.removeEventListener('blur', blur);
     };
-  }, [artifact]);
+  }, [source]);
   const input = (id: string, patch: Pick<SchematicComponent, 'state' | 'wiperPosition'>) => {
     const updated = activeRuntime.current?.input(id, patch);
     if (updated) setInputs((current) => new Map(current).set(id, updated));
@@ -183,8 +208,8 @@ export function ElectronicsPublicationScene({
     <section
       ref={section}
       className="public-electronics-viewer"
-      data-testid="public-electronics-viewer"
-      aria-label="Опубликованная электрическая схема"
+      data-testid={classroom ? 'classroom-electronics-viewer' : 'public-electronics-viewer'}
+      aria-label={classroom ? 'Сданная электрическая схема' : 'Опубликованная электрическая схема'}
     >
       <div className="public-electronics-tools" role="toolbar" aria-label="Просмотр схемы">
         <span>Схема · просмотр</span>
@@ -192,7 +217,7 @@ export function ElectronicsPublicationScene({
           <>
             <button
               type="button"
-              data-testid="public-electronics-start"
+              data-testid={classroom ? 'classroom-electronics-start' : 'public-electronics-start'}
               onClick={runtime ? stop : start}
             >
               {runtime ? 'Стоп' : 'Начать'}
