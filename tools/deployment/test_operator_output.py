@@ -37,11 +37,12 @@ class HumanOperatorTests(unittest.TestCase):
             git=Mock(return_value="Merge pull request #1197 from author/backup\x1fTechnical title\n\x1e"),
         )
 
-    def plain(self, action):
+    def plain(self, action, *, pinned=True):
         stream = io.StringIO()
+        selection = ["--deployment-digest", DIGEST] if pinned else []
         with contextlib.redirect_stdout(stream):
             rc = manager.main([action, "--root", str(self.root), "--profile", "production",
-                               "--operator", "--human", "--deployment-digest", DIGEST])
+                               "--operator", "--human", *selection])
         return rc, stream.getvalue()
 
     def test_check_reports_facts_and_suppresses_raw_process_messages(self):
@@ -101,6 +102,97 @@ class HumanOperatorTests(unittest.TestCase):
         self.assertIn("Обновление не требуется", view)
         self.assertNotIn("Можно устанавливать", view)
         ci.assert_not_called()
+
+    def test_school_check_reports_backup_plan_without_starting_backup(self):
+        self.install.settings["updatePolicy"] = {"receipt": manager._SCHOOL_FULL_RECEIPT}
+        discover = Mock(return_value=CANDIDATE)
+        with (
+            patch.object(manager, "Installation", return_value=self.install),
+            patch.object(manager.application_rollback, "attest_private_state"),
+            patch.object(manager.application_rollback, "guard_update"),
+            patch.object(manager, "doctor"),
+            patch.object(manager, "clean_checkout"),
+            patch.object(manager, "attest_editor_env"),
+            patch.object(manager, "discover_release", discover),
+            patch.object(manager.release_transport, "discover_release", discover),
+            patch.object(manager, "assert_ci", return_value="2026-11-15T19:12:12Z"),
+            patch.object(manager, "school_backup_available", return_value=True),
+            patch.object(manager, "verify_offsite_backup", side_effect=Blocked("OFFSITE_BACKUP", "stale", "renew")),
+            patch.object(manager, "run") as command,
+        ):
+            rc, view = self.plain("check")
+        self.assertEqual(rc, 0, view)
+        self.assertIn("Сначала обновлятор создаст и проверит полную копию", view)
+        command.assert_not_called()
+
+    def test_cloud_backup_runs_outside_operation_lock_and_retries_same_digest(self):
+        self.install.settings["updatePolicy"] = {"receipt": manager._SCHOOL_FULL_RECEIPT}
+        seen = []
+
+        def stop_before_switch(install, action, digest, display):
+            seen.append((action, digest))
+            display.installed(install, PREVIOUS, CANDIDATE)
+            display.stage("offsite")
+            if len(seen) == 1:
+                raise manager.SchoolBackupNeeded(DIGEST)
+
+        def backup(command):
+            self.assertEqual(command, ["/usr/bin/systemctl", "start", "asa-school-gfs-full.service"])
+            with system.operation_lock(self.root):
+                self.assertEqual(len(seen), 1)
+
+        with (
+            patch.object(manager, "Installation", return_value=self.install),
+            patch.object(manager.application_rollback, "attest_private_state"),
+            patch.object(manager, "run_operator", side_effect=stop_before_switch),
+            patch.object(manager, "run", side_effect=backup) as command,
+        ):
+            rc, view = self.plain("update", pinned=False)
+        self.assertEqual(rc, 0, view)
+        self.assertEqual(seen, [("update", None), ("update", DIGEST)])
+        self.assertIn("Создаю копию на Яндекс Диске", view)
+        command.assert_called_once()
+
+    def test_cloud_backup_failure_or_invalid_receipt_never_starts_second_backup(self):
+        def need_backup(*_args, **_kwargs):
+            raise manager.SchoolBackupNeeded(DIGEST)
+
+        for backup_error, code, attempts in (
+            (Blocked("COMMAND", "backup failed", "inspect"), "OFFSITE_BACKUP_CREATE", 1),
+            (None, "OFFSITE_BACKUP", 2),
+        ):
+            with (
+                self.subTest(code=code),
+                patch.object(manager, "Installation", return_value=self.install),
+                patch.object(manager.application_rollback, "attest_private_state"),
+                patch.object(manager, "run_operator", side_effect=need_backup) as update,
+                patch.object(manager, "run", side_effect=backup_error) as command,
+            ):
+                rc, view = self.plain("update")
+                self.assertEqual(rc, 2, view)
+                self.assertIn(f"Код для диагностики — {code}.", view)
+                self.assertEqual(update.call_count, attempts)
+                command.assert_called_once()
+
+    def test_install_progress_color_depends_on_terminal_and_no_color(self):
+        for tty, variables, expected in (
+            (True, {"TERM": "xterm"}, True),
+            (True, {"TERM": "xterm", "NO_COLOR": ""}, False),
+            (False, {"TERM": "xterm"}, False),
+        ):
+            with self.subTest(tty=tty, variables=variables), patch.dict("os.environ", variables, clear=True):
+                stream = io.StringIO()
+                stream.isatty = lambda: tty
+                display = operator_output.OperatorOutput("install", stream)
+                display.installed(self.install, None, CANDIDATE)
+                display.available("2026-11-15T19:12:12Z")
+                display.stage("images")
+                display.completed({"state": "running"})
+                view = stream.getvalue()
+                self.assertIn("Первая установка", view)
+                self.assertIn("[01] Загружаю", view)
+                self.assertIn("ASA Lab установлен", view)
+                self.assertEqual("\x1b[" in view, expected)
 
     def test_backup_failure_reports_old_runtime_and_no_switch(self):
         def interrupted(install, _action, _digest, display):
