@@ -9,6 +9,7 @@ import {
   type LearningReviewContext,
 } from '../api';
 import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
+import type { ClassroomExactElectronicsViewerProps } from './ClassroomExactElectronicsViewer';
 import type { ClassroomExactThreeDViewerProps } from './ClassroomExactThreeDViewer';
 import { LearningConditions } from './LearningConditions';
 import { LegacyLearningReview } from './LegacyLearningReview';
@@ -60,6 +61,17 @@ const ExactThreeDViewer = lazy(() =>
   })),
 );
 
+const ExactElectronicsViewer = lazy(() =>
+  import('./ClassroomExactElectronicsViewer').catch(() => ({
+    default: ({ fallback }: ClassroomExactElectronicsViewerProps) => (
+      <>
+        <p role="status">Не удалось загрузить симуляцию.</p>
+        {fallback}
+      </>
+    ),
+  })),
+);
+
 const ExactArduinoSource = lazy(() =>
   import('./ClassroomExactArduinoSource').catch(() => ({ default: () => null })),
 );
@@ -79,12 +91,57 @@ function FrozenProjectPreview({
   );
   if (submission.moduleKey === 'electronics') {
     return (
-      <>
-        {fallback}
+      <div
+        className="gradebook-electronics-preview"
+        onKeyDown={(event) => {
+          if (
+            event.defaultPrevented ||
+            event.key !== 'Escape' ||
+            !open ||
+            document.fullscreenElement
+          )
+            return;
+          event.preventDefault();
+          setOpen(false);
+          opener.current?.focus();
+        }}
+      >
+        {submission.electronicsSimulation && (
+          <button
+            ref={opener}
+            type="button"
+            className="btn-secondary"
+            aria-controls={viewerId}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {open ? 'Скрыть симуляцию' : 'Открыть симуляцию'}
+          </button>
+        )}
+        <div id={viewerId} hidden={!open}>
+          {open && (
+            <Suspense
+              fallback={
+                <>
+                  {fallback}
+                  <p role="status">Загружаем схему…</p>
+                </>
+              }
+            >
+              <ExactElectronicsViewer
+                artifact={submission.electronicsSimulation}
+                submissionId={submission.submissionId}
+                projectVersionId={submission.projectVersionId}
+                fallback={fallback}
+              />
+            </Suspense>
+          )}
+        </div>
+        {!open && fallback}
         <Suspense fallback={null}>
           <ExactArduinoSource document={submission.document} />
         </Suspense>
-      </>
+      </div>
     );
   }
   if (submission.moduleKey !== 'three-d') return fallback;
@@ -338,7 +395,10 @@ function ReviewDetail({
               ) : (
                 <>
                   <code data-testid="submission-version-id">{frozen.projectVersionId}</code>
-                  <FrozenProjectPreview key={frozen.submissionId} submission={frozen} />
+                  <FrozenProjectPreview
+                    key={[attempt.id, frozen.submissionId, frozen.projectVersionId].join(':')}
+                    submission={frozen}
+                  />
                 </>
               )}
               <details>

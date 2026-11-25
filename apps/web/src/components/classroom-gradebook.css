@@ -159,6 +159,64 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.gradebook-electronics-preview {
+  container: gradebook-electronics / inline-size;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.gradebook-electronics-preview > button {
+  justify-self: start;
+}
+.gradebook-electronics-preview .public-electronics-tools {
+  padding: 6px;
+  justify-content: flex-start;
+}
+.classroom-owner-workspace.classroom-workspace
+  .gradebook-detail
+  .gradebook-electronics-preview
+  .public-electronics-tools
+  button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.gradebook-electronics-preview .public-electronics-more {
+  display: none;
+}
+.gradebook-electronics-preview .public-electronics-secondary-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+@container gradebook-electronics (max-width: 520px) {
+  .gradebook-electronics-preview .public-electronics-tools > span {
+    display: none;
+  }
+  .gradebook-electronics-preview .public-electronics-more {
+    display: inline-grid;
+    place-items: center;
+  }
+  .gradebook-electronics-preview .public-electronics-secondary-tools {
+    display: none;
+    flex-basis: 100%;
+  }
+  .gradebook-electronics-preview .public-electronics-secondary-tools.is-open {
+    display: flex;
+  }
+  .gradebook-electronics-preview
+    .public-electronics-viewer:not(:fullscreen)
+    .public-electronics-scene {
+    height: clamp(180px, 34svh, 230px);
+  }
+}
+.gradebook-electronics-preview .public-electronics-scene {
+  height: clamp(180px, 38svh, 300px);
+}
+.gradebook-electronics-preview .public-electronics-viewer:fullscreen .public-electronics-scene {
+  height: calc(100svh - 130px);
+}
 .gradebook-three-d-preview {
   display: grid;
   gap: 8px;
@@ -182,7 +240,7 @@
 }
 .classroom-owner-workspace.classroom-workspace
   .gradebook-detail
-  :is(.gradebook-three-d-preview, .gradebook-three-d-tools)
+  :is(.gradebook-three-d-preview, .gradebook-three-d-tools, .gradebook-electronics-preview)
   > button.btn-secondary {
   min-width: 44px;
   min-height: 44px;

@@ -57,10 +57,13 @@ export {
   PUBLIC_ELECTRONICS_PROPERTIES,
   PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   validatePublicProjectDisplayArtifact,
+  validateClassroomElectronicsSimulation,
 } from './public-project-display-artifact.js';
 export type {
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
+  ElectronicsSimulationPayload,
+  ClassroomElectronicsSimulation,
   PublicSimulationComponent,
   PublicProjectDisplayArtifact,
   PublicDisplayComponent,
