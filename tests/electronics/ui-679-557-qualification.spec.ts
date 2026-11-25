@@ -497,6 +497,9 @@ describe('strict clock reference report', () => {
       '                     observedAttemptCounts=counts, dataEventsOmitted=0, runnerErrorCount=0, evidenceLimited=False))',
       "    path.write_text('\\n'.join(json.dumps(dict(row, sequence=i, schemaVersion=1))",
       "                              for i, row in enumerate(rows, 1)), encoding='utf-8')",
+      'def journal_ids(path):',
+      "    rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]",
+      "    return sorted(row['testId'] for row in rows if row['event'] == 'testEnd')",
       'with tempfile.TemporaryDirectory() as tmp:',
       '    directory = Path(tmp)',
       "    initial, extra, receipt = [directory / name for name in ('first', 'extra', 'receipt')]",
@@ -513,6 +516,11 @@ describe('strict clock reference report', () => {
       "        decision = m['finish'](head, receipt, initial, extra, outcome, next_exit)",
       "        data = json.loads(receipt.read_text(encoding='utf-8'))",
       "        outcomes.append([decision, data['status'], len(data['original']['failedIds']), len(data['observedIds'])])",
+      "        if decision == 'REFERENCE_PASSED':",
+      '            first_ids, later_ids = [journal_ids(path) for path in (initial, extra)]',
+      "            outcomes[-1].append([len(data['original']['ids']), len(data['remaining']['ids']),",
+      "                data['original']['ids'] == first_ids, data['remaining']['ids'] == later_ids,",
+      "                set(first_ids).isdisjoint(later_ids), data['observedIds'] == first_ids + later_ids])",
       '    print(json.dumps(outcomes))',
     ].join('\n');
     const outcomes = execFileSync(
@@ -522,7 +530,7 @@ describe('strict clock reference report', () => {
     );
     expect(JSON.parse(outcomes)).toEqual([
       ['RUN_REMAINING', 'REFERENCE_INCOMPLETE', 0, 10],
-      ['REFERENCE_PASSED', 'REFERENCE_PASSED', 0, 25],
+      ['REFERENCE_PASSED', 'REFERENCE_PASSED', 0, 25, [10, 15, true, true, true, true]],
       ['REFERENCE_INCOMPLETE', 'REFERENCE_INCOMPLETE', 0, 10],
       ['REFERENCE_INCOMPLETE', 'REFERENCE_INCOMPLETE', 0, 10],
       ['REFERENCE_ABSENT', 'REFERENCE_ABSENT', 0, 0],

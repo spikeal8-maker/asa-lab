@@ -216,7 +216,7 @@ def finish(head, target, original_path, extra_path, original_outcome, exit_code)
         if data["status"] == "REFERENCE_INCOMPLETE":
             data["reason"] = "the original browser gate did not complete successfully"
         if hardware_class(original["before"]) == "reference":
-            data["observedIds"] = original["ids"]
+            data["observedIds"].extend(original["ids"])
         if data["status"] == "RUN_REMAINING" and exit_code is not None:
             data["remainingGateExitCode"] = exit_code
             selected_before = json.loads((extra_path.parent / "reference-before.json").read_text())
@@ -224,7 +224,7 @@ def finish(head, target, original_path, extra_path, original_outcome, exit_code)
             extra = load_report(extra_path, head, REMAINING)
             data["remaining"] = extra
             verify(hardware_class(extra["before"]) == "reference", "second browser before hardware did not match")
-            data["observedIds"] += extra["ids"]
+            data["observedIds"].extend(extra["ids"])
             if extra["failedIds"]:
                 data["status"] = "REFERENCE_FAILED"
             else:
