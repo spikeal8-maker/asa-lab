@@ -1,6 +1,7 @@
 import {
   advanceElectronicsToHorizon,
   createElectronicsAdvanceSession,
+  openDedicatedElectronicsAdvanceSession,
   analyseElectronicsSnapshot,
   prepareElectronicsSnapshot,
   projectElectronicsArduinoSerial,
@@ -19,6 +20,8 @@ import {
 } from './simulation-worker-protocol';
 
 type EvaluationRequest = SimulationPreflightRequest | SimulationAdvanceRequest;
+type ElectricalTemplateOwner = ReturnType<typeof createElectronicsWorkerElectricalTemplateOwner>;
+const yieldWorkerTask = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function failure(
   request: EvaluationRequest,
@@ -196,11 +199,36 @@ function timedResponse(
 }
 
 /** Continue fixed canonical batches privately; only a complete request is published. */
-export async function evaluateSimulationWorkerRequestBatched(
+export function evaluateSimulationWorkerRequestBatched(
   request: EvaluationRequest,
   isCurrent: () => boolean,
-  yieldControl: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 0)),
-  electricalTemplateOwner?: ReturnType<typeof createElectronicsWorkerElectricalTemplateOwner>,
+  yieldControl: () => Promise<void> = yieldWorkerTask,
+  electricalTemplateOwner?: ElectricalTemplateOwner,
+): Promise<ElectronicsSimulationWorkerResponse | null> {
+  return evaluateBatches(request, isCurrent, yieldControl, electricalTemplateOwner);
+}
+
+/** Only the dedicated Worker message loop supplies this entry's cancellation callback. */
+export function evaluateDedicatedSimulationWorkerRequest(
+  request: EvaluationRequest,
+  isCurrent: () => boolean,
+  electricalTemplateOwner?: ElectricalTemplateOwner,
+): Promise<ElectronicsSimulationWorkerResponse | null> {
+  return evaluateBatches(
+    request,
+    isCurrent,
+    yieldWorkerTask,
+    electricalTemplateOwner,
+    openDedicatedElectronicsAdvanceSession,
+  );
+}
+
+async function evaluateBatches(
+  request: EvaluationRequest,
+  isCurrent: () => boolean,
+  yieldControl: () => Promise<void>,
+  electricalTemplateOwner?: ElectricalTemplateOwner,
+  openDedicatedSession?: typeof openDedicatedElectronicsAdvanceSession,
 ): Promise<ElectronicsSimulationWorkerResponse | null> {
   if (
     request.kind !== 'advance' ||
@@ -214,24 +242,27 @@ export async function evaluateSimulationWorkerRequestBatched(
   try {
     const prepareStarted = globalThis.performance.now();
     const owned = structuredClone(request);
-    session = createElectronicsAdvanceSession(
-      owned.document,
-      {
-        requestedHorizonMicroseconds: owned.requestedHorizonMicroseconds,
-        state: owned.state,
-        ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
-      },
-      {
-        observeLedTemporal: true,
-        observeSevenSegmentTemporal: true,
-        ...(electricalTemplateOwner ? { electricalTemplateOwner } : {}),
-      },
-    );
+    const advance = {
+      requestedHorizonMicroseconds: owned.requestedHorizonMicroseconds,
+      state: owned.state,
+      ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
+    };
+    const observations = {
+      observeLedTemporal: true,
+      observeSevenSegmentTemporal: true,
+      ...(electricalTemplateOwner ? { electricalTemplateOwner } : {}),
+    };
+    const dedicated = openDedicatedSession?.(owned.document, advance, observations);
+    session = dedicated ?? createElectronicsAdvanceSession(owned.document, advance, observations);
     let computeMs = globalThis.performance.now() - prepareStarted;
     let sliceStarted = globalThis.performance.now();
+    let continuedInTurn = false;
     while (isCurrent()) {
       const before = globalThis.performance.now();
-      const timed = session.step();
+      const timed =
+        dedicated && continuedInTurn
+          ? dedicated.stepThroughOwnedPauses(sliceStarted + 8)
+          : session.step();
       const now = globalThis.performance.now();
       computeMs += now - before;
       if (!isCurrent()) return null;
@@ -239,7 +270,8 @@ export async function evaluateSimulationWorkerRequestBatched(
       if (now - sliceStarted >= 8) {
         await yieldControl();
         sliceStarted = globalThis.performance.now();
-      }
+        continuedInTurn = false;
+      } else continuedInTurn = true;
     }
     return null;
   } catch (error) {

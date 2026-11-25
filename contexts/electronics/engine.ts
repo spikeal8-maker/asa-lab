@@ -393,15 +393,18 @@ export function advanceElectronicsToHorizon(
   return advanceElectronicsRequest(document, request, false).next().value!;
 }
 
-/** Each next() performs at most maxEvents canonical MCU/barrier work; null means pending. */
-export function createElectronicsAdvanceSession(
+interface AdvanceSessionOptions {
+  readonly observeLedTemporal?: boolean;
+  readonly observeSevenSegmentTemporal?: boolean;
+  readonly electricalTemplateOwner?: ArduinoElectricalTemplateOwner;
+}
+
+type NativeWorkerSlice = { readonly deadline: number; readonly now: () => number };
+
+function openElectronicsAdvanceSession(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
-  options: {
-    readonly observeLedTemporal?: boolean;
-    readonly observeSevenSegmentTemporal?: boolean;
-    readonly electricalTemplateOwner?: ArduinoElectricalTemplateOwner;
-  } = {},
+  options: AdvanceSessionOptions,
 ) {
   // The caller can change its document/state while the Worker yields; own this request snapshot.
   const ownedDocument = structuredClone(document);
@@ -426,8 +429,49 @@ export function createElectronicsAdvanceSession(
     iterator.return(undefined as never);
   };
   return {
-    step: () => (disposed ? undefined : iterator.next().value!),
+    step: (workerSlice?: NativeWorkerSlice) =>
+      disposed ? undefined : iterator.next(workerSlice).value!,
     dispose,
+  };
+}
+
+/** Each next() performs at most maxEvents canonical MCU/barrier work; null means pending. */
+export function createElectronicsAdvanceSession(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  options: AdvanceSessionOptions = {},
+) {
+  const session = openElectronicsAdvanceSession(document, request, options);
+  return { step: () => session.step(), dispose: session.dispose };
+}
+
+/** Internal browser Worker entry. The clock and synchronous slice stay inside the Worker realm. */
+export function openDedicatedElectronicsAdvanceSession(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  options: AdvanceSessionOptions,
+) {
+  const workerGlobal = globalThis as typeof globalThis & {
+    DedicatedWorkerGlobalScope?: new () => object;
+    Performance?: { readonly prototype: { readonly now: () => number } };
+  };
+  const scope = workerGlobal.DedicatedWorkerGlobalScope;
+  if (typeof scope !== 'function' || !(globalThis instanceof scope)) return null;
+  const performance = globalThis.performance;
+  const originalNow = performance.now;
+  if (originalNow !== workerGlobal.Performance?.prototype.now) return null;
+  const now = originalNow.bind(performance);
+  const session = openElectronicsAdvanceSession(document, request, options);
+  return {
+    step: () => session.step(),
+    stepThroughOwnedPauses(deadline: number) {
+      return session.step(
+        Number.isFinite(deadline) && performance.now === originalNow
+          ? { deadline, now }
+          : undefined,
+      );
+    },
+    dispose: session.dispose,
   };
 }
 
@@ -925,7 +969,7 @@ function* advanceElectronicsRequest(
   observeLedTemporal = false,
   ownership?: ReturnType<typeof createOwnedArduinoCircuitClockRequest>,
   observeSevenSegmentTemporal = false,
-): Generator<null, ElectronicsTimedAdvanceResult, void> {
+): Generator<null, ElectronicsTimedAdvanceResult, NativeWorkerSlice | undefined> {
   // Recheck before even the initial structural/model guards can call a producer.
   ownership?.check();
   const state = request.state ?? resetElectronicsTimedState();
@@ -1009,12 +1053,13 @@ function* advanceElectronicsRequest(
       : null;
   let opticalObservation: ElectronicsLedTemporalObservation | null | undefined;
   let advanced: ArduinoCircuitClockAdvance;
+  let workerSlice: NativeWorkerSlice | undefined;
   try {
     do {
       if (driver) {
-        const next = driver.step()!;
+        const next = driver.step(workerSlice)!;
         if (next.advanced === null) {
-          yield null;
+          workerSlice = yield null;
           continue;
         }
         advanced = next.advanced;
@@ -1028,7 +1073,7 @@ function* advanceElectronicsRequest(
         );
       if (!internalBatches || advanced.executionStatus !== 'yielded') break;
       previous = advanced.state ?? undefined;
-      yield null;
+      workerSlice = yield null;
     } while (true);
   } finally {
     driver?.dispose();

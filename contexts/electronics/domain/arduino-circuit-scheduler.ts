@@ -804,7 +804,7 @@ function createArduinoCircuitClockRequest(
     { document, target, options };
   let disposed = false;
   return {
-    step() {
+    step(workerSlice?: { readonly deadline: number; readonly now: () => number }) {
       if (disposed || !data) return undefined;
       const admitted = stillOwned();
       if (!admitted) {
@@ -831,8 +831,18 @@ function createArduinoCircuitClockRequest(
           undefined,
           admitted,
         );
-      const next = clock.next();
+      let next = clock.next();
       ownership.continued = true;
+      // A native Worker can resume an already-owned pause within this same synchronous call.
+      // The clock still checks every checkpoint. A new entry repeats the producer check above.
+      while (
+        suspended &&
+        workerSlice &&
+        !next.done &&
+        next.value.kind === 'owned-clock-pause' &&
+        workerSlice.now() < workerSlice.deadline
+      )
+        next = clock.next();
       if (!next.done) {
         if (next.value.kind !== 'owned-clock-pause')
           throw new Error('Ordinary clock requested an external sample.');

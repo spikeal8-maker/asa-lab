@@ -3,6 +3,7 @@ import {
   analyseElectronicsSnapshot,
   createElectronicsAdvanceSession,
   createElectronicsWorkerElectricalTemplateOwner,
+  openDedicatedElectronicsAdvanceSession,
   resetElectronicsTimedState,
   pauseElectronicsTimedState,
   resumeElectronicsTimedState,
@@ -709,6 +710,14 @@ describe('ASA Electronics Worker module message loop', () => {
 });
 
 describe('bounded private Worker execution', () => {
+  it('does not grant a native dedicated slice to an ordinary module session', () => {
+    const request = { requestedHorizonMicroseconds: 100, state: resetElectronicsTimedState() };
+    expect(openDedicatedElectronicsAdvanceSession(arduinoCircuit, request, {})).toBeNull();
+    expect(createElectronicsAdvanceSession(arduinoCircuit, request)).not.toHaveProperty(
+      'stepThroughOwnedPauses',
+    );
+  });
+
   const request = () => ({
     ...preflightRequest('batched'),
     kind: 'advance' as const,

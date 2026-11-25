@@ -1,7 +1,7 @@
 import { createElectronicsWorkerElectricalTemplateOwner } from '@asa-lab/electronics/engine';
 import {
+  evaluateDedicatedSimulationWorkerRequest,
   evaluateSimulationWorkerRequest,
-  evaluateSimulationWorkerRequestBatched,
 } from './simulation-worker-evaluator';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -79,10 +79,9 @@ scope.onmessage = (event): void => {
       templateOwner.pending = true;
     }
     const owner = templateOwner;
-    void evaluateSimulationWorkerRequestBatched(
+    void evaluateDedicatedSimulationWorkerRequest(
       request,
       () => request.generationId >= activeGeneration && token === activeRequest,
-      undefined,
       owner?.reuse,
     ).then((response) => {
       if (owner && templateOwner === owner) {
