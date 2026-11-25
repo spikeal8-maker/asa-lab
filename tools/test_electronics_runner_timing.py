@@ -101,6 +101,32 @@ class ReferenceHardwareTests(unittest.TestCase):
         (self.leaf.parent / "cpu.max").unlink()
         self.assertEqual(self.hardware()["status"], "unverified")
 
+    def test_only_missing_quota_at_the_hierarchy_root_is_optional(self):
+        quota = self.mount / "cpu.max"
+        self.assertFalse(quota.exists())
+        self.assertEqual(self.hardware()["status"], "reference")
+        quota.write_text("200000 100000")
+        self.assertEqual(self.hardware()["status"], "other")
+        original_open = Path.open
+        for error in (PermissionError, OSError):
+            with self.subTest(error=error):
+                def open_path(path, *args, **kwargs):
+                    if path == quota:
+                        raise error("cgroup quota is unreadable")
+                    return original_open(path, *args, **kwargs)
+
+                with patch.object(Path, "open", open_path):
+                    self.assertEqual(self.hardware()["status"], "unverified")
+
+    def test_delegated_mount_cannot_attest_to_quotas_above_its_root(self):
+        self.write_scope("/delegated/actions/job", "/delegated")
+        self.assertEqual(self.hardware()["status"], "unverified")
+        quota = self.mount / "cpu.max"
+        quota.write_text("max 100000")
+        self.assertEqual(self.hardware()["status"], "unverified")
+        quota.write_text("200000 100000")
+        self.assertEqual(self.hardware()["status"], "other")
+
 
 if __name__ == "__main__":
     unittest.main()

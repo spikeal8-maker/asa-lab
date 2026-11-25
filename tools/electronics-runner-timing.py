@@ -144,26 +144,30 @@ def runner_cpu_models(proc, allowed):
 def visible_parent_quotas(proc):
     location = cgroup_mount(proc)
     if not location:
-        return None
-    _, mount, leaf = location
-    if leaf == mount:
-        # Docker commonly exposes only this cgroup. cpu.max of the leaf is
-        # already in the test-runner sample, independently of its outcome.
-        return []
-    current = leaf.parent
+        return [], False
+    root, mount, current = location
     quotas = []
-    while True:
-        quota = read_path(current / "cpu.max")
-        if quota is not None:
-            quotas.append(quota)
-        elif current != mount or "cpu" not in (read_path(current / "cgroup.controllers") or "").split():
-            return None
-        if current == mount:
-            return quotas
+    # The leaf quota was sampled separately, including when Docker exposes
+    # the leaf as the root of the process's own cgroup namespace.
+    while current != mount:
         current = current.parent
+        try:
+            with (current / "cpu.max").open(encoding="utf-8") as stream:
+                quotas.append(stream.read(8192).strip())
+        except FileNotFoundError:
+            # The actual hierarchy root has no cpu.max of its own.
+            if current != mount or root != "/":
+                return quotas, False
+            controllers = read_path(current / "cgroup.controllers")
+            if not controllers or "cpu" not in controllers.split():
+                return quotas, False
+        except (OSError, UnicodeError):
+            return quotas, False
+    # An explicitly delegated subtree has unknown ancestor quotas.
+    return quotas, root == "/"
 
 
-def classify_visible_hardware(cpu, resources, parent_quotas):
+def classify_visible_hardware(cpu, resources, parent_quotas, hierarchy_visible):
     """Use only CPU identity and capacity visible to this process before the run."""
     def result(status, reason):
         return {"status": status, "referenceId": REFERENCE_CLASS, "reason": reason}
@@ -179,14 +183,14 @@ def classify_visible_hardware(cpu, resources, parent_quotas):
         return result("other", "different-cpu-model")
     if len(affinity) != 4:
         return result("other", "different-vcpu-count")
-    if parent_quotas is None:
-        return result("unverified", "cgroup-unavailable")
     for quota in [group.get("cpu.max"), *parent_quotas]:
         match = re.fullmatch(r"(max|[0-9]{1,20}) ([1-9][0-9]{0,19})", quota or "")
         if not match or match[1] == "0":
             return result("unverified", "cpu-quota-unverified")
         if match[1] != "max" and int(match[1]) < 4 * int(match[2]):
             return result("other", "cpu-quota-below-four")
+    if not hierarchy_visible:
+        return result("unverified", "cgroup-unavailable")
     return result("reference", "model-affinity-and-visible-quotas-match")
 
 
@@ -196,7 +200,8 @@ def classify_test_runner(proc, resources, linux):
     allowed = cpu_list(resources.get("allowedCpuList"))
     models = runner_cpu_models(proc, allowed) if allowed else None
     cpu = next(iter(models)) if models and len(models) == 1 else None
-    return classify_visible_hardware(cpu, resources, visible_parent_quotas(proc))
+    parent_quotas, hierarchy_visible = visible_parent_quotas(proc)
+    return classify_visible_hardware(cpu, resources, parent_quotas, hierarchy_visible)
 
 def reference_work(iterations):
     value = 0x43C0FFEE
