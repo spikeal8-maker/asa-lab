@@ -1,6 +1,10 @@
 import { terminalKey, type Netlist } from './netlist.js';
-import type { CompiledCircuit } from './simulation.js';
 import type { ComponentResult, NodeResult, SolveResult } from './solver.js';
+
+export interface NumericalCircuitTopology {
+  readonly nets: readonly { readonly id: string }[];
+  readonly netlist: Pick<Netlist, 'nodeOf' | 'nodeCount'>;
+}
 
 export const GMIN = 1e-12;
 
@@ -48,7 +52,7 @@ export function copyNumericalNode(node: NodeResult, terminals: readonly string[]
 
 /** Signed nodal GMIN dissipation, corroborated by physical terminal observations. */
 export function numericalShuntPowerWatt(
-  compiled: CompiledCircuit,
+  compiled: NumericalCircuitTopology,
   result: Pick<SolveResult, 'nodes'>,
   components: ReadonlyMap<string, ComponentResult>,
 ): number | null {
