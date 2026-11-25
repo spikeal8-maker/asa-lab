@@ -22,7 +22,10 @@ import {
   DiagnosticOutbox,
   FAILURE_CATEGORIES,
   FAILURE_CODES,
+  type DiagnosticModule,
 } from './client-diagnostic-outbox';
+
+export type { DiagnosticModule } from './client-diagnostic-outbox';
 
 export type DiagnosticCode =
   | 'render_failed'
@@ -41,7 +44,6 @@ export type DiagnosticCode =
   | 'editor_heartbeat'
   | 'editor_unresponsive'
   | 'editor_recovered';
-export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth' | 'chess' | 'checkers';
 export interface DiagnosticDetail {
   readonly operation?: string;
   readonly method?: string;
@@ -76,17 +78,28 @@ function diagnosticOutbox(): DiagnosticOutbox {
   }
   return outbox;
 }
-let context = { module: 'portal' as DiagnosticModule, instanceId: newClientId() };
+interface DiagnosticContext {
+  readonly module: DiagnosticModule;
+  readonly instanceId: string;
+}
+const editorContexts: DiagnosticContext[] = [];
+let context: DiagnosticContext = { module: 'portal', instanceId: newClientId() };
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 export function beginDiagnosticContext(
   module: DiagnosticModule,
   instanceId = newClientId(),
 ): () => void {
-  context = { module, instanceId };
+  const active = { module, instanceId };
+  editorContexts.push(active);
+  context = active;
   return () => {
-    if (context.instanceId === instanceId)
-      context = { module: 'portal', instanceId: newClientId() };
+    const index = editorContexts.indexOf(active);
+    if (index < 0) return;
+    editorContexts.splice(index, 1);
+    if (context === active) {
+      context = editorContexts.at(-1) ?? { module: 'portal', instanceId: newClientId() };
+    }
   };
 }
 
@@ -321,7 +334,7 @@ export function installClientDiagnostics(): void {
       const durationMs = performance.now() - started;
       const failed = response.status === 429 || response.status >= 500;
       // Late responses from a closed editor cannot belong to its successor.
-      if (active.instanceId === context.instanceId && (failed || durationMs >= 10_000))
+      if (active === context && (failed || durationMs >= 10_000))
         reportClientDiagnostic(failed ? 'request_failed' : 'request_slow', module, {
           ...requestDetail,
           ...(failed ? { failureKind: 'http' } : {}),
@@ -337,7 +350,7 @@ export function installClientDiagnostics(): void {
         failureKind === 'cancelled' &&
         ['GET', 'HEAD'].includes(method) &&
         isLifecycleCancellation(signal?.reason);
-      if (active.instanceId === context.instanceId && !lifecycleRead)
+      if (active === context && !lifecycleRead)
         reportClientDiagnostic(
           failureKind === 'cancelled' && ['GET', 'HEAD'].includes(method)
             ? 'request_cancelled'
