@@ -29,6 +29,130 @@ async function serveBuiltApp(page: Page) {
 }
 test.beforeEach(async ({ page }) => serveBuiltApp(page));
 
+test('classroom entry remains retryable when its page fails to load', async ({ page }) => {
+  await page.route('**/api/**', (route) => route.fulfill({ json: { authenticated: false } }));
+  const chunk = '**/assets/JoinClassPage-*.js';
+  await page.route(chunk, (route) => route.abort());
+  await page.goto('/#/join-class');
+  const failure = page.getByRole('alert');
+  await expect(failure).toContainText('Страница не загрузилась');
+  await expect(failure.getByRole('button', { name: 'На главную' })).toBeVisible();
+
+  await page.unroute(chunk);
+  await failure.getByRole('button', { name: 'Попробовать снова' }).click();
+  await expect(page.getByLabel('Код класса', { exact: true })).toHaveAttribute('type', 'password');
+});
+
+for (const width of [1440, 320]) {
+  test(`manual class code stays masked until revealed and retries without losing input at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.route('**/api/**', (route) => route.fulfill({ json: { authenticated: false } }));
+    const codes: string[] = [];
+    await page.route('**/api/class-join/resolve', (route) => {
+      codes.push(route.request().postDataJSON().code);
+      if (codes.length === 1)
+        return route.fulfill({
+          status: 404,
+          json: { error: { code: 'not_found', message: 'Класс не найден.' } },
+        });
+      return route.fulfill({
+        json: {
+          classroom: {
+            id: fixtureClassId,
+            title: 'Мой класс',
+            teacherDisplayName: 'Учитель',
+            safeMode: true,
+          },
+        },
+      });
+    });
+    await page.goto('/#/join-class');
+
+    const code = page.getByLabel('Код класса', { exact: true });
+    const show = page.getByRole('button', { name: 'Показать код класса' });
+    const hide = page.getByRole('button', { name: 'Скрыть код класса' });
+    await expect(code).toHaveAttribute('type', 'password');
+    await code.fill('abc def 234');
+    await expect(code).toHaveValue('ABC DEF 234');
+    await code.focus();
+    await page.keyboard.press('Tab');
+    await expect(show).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(code).toHaveAttribute('type', 'text');
+    await expect(hide).toBeFocused();
+    await code.fill('abc def 345');
+    await expect(code).toHaveAttribute('type', 'text');
+    await page.getByRole('button', { name: 'Продолжить' }).click();
+    await expect(page.getByRole('alert')).toHaveText('Класс не найден.');
+    await expect(code).toHaveAttribute('type', 'text');
+    await expect(code).toHaveValue('ABC DEF 345');
+    await hide.click();
+    await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveValue('ABC DEF 345');
+    expect(codes).toEqual(['ABC DEF 345']);
+
+    const input = (await code.boundingBox())!;
+    const toggle = (await show.boundingBox())!;
+    expect(toggle.width).toBeGreaterThanOrEqual(44);
+    expect(toggle.height).toBeGreaterThanOrEqual(44);
+    expect(input.x + input.width).toBeLessThanOrEqual(toggle.x);
+    expect(toggle.x + toggle.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: test.info().outputPath(`class-code-masked-${width}.png`) });
+    await show.click();
+    await page.getByRole('button', { name: 'Продолжить' }).click();
+    await expect(page.getByRole('heading', { name: 'Введите код ученика' })).toBeVisible();
+    await expect(page.getByLabel('Код ученика', { exact: true })).toBeFocused();
+    expect(codes).toEqual(['ABC DEF 345', 'ABC DEF 345']);
+
+    await page.getByRole('button', { name: '← Назад' }).click();
+    await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveValue('ABC DEF 345');
+  });
+}
+
+test('a classroom link keeps the Account approval flow and skips the code field', async ({
+  page,
+}) => {
+  await fixture(page);
+  const resolveRequests: string[] = [];
+  await page.route('**/api/class-join/resolve', (route) => {
+    resolveRequests.push(route.request().postDataJSON().code);
+    return route.fulfill({
+      json: {
+        classroom: {
+          id: fixtureClassId,
+          title: 'Мой класс',
+          teacherDisplayName: 'Учитель',
+          safeMode: true,
+        },
+      },
+    });
+  });
+  const joinRequests: string[] = [];
+  await page.route('**/api/class-join/account', (route) => {
+    joinRequests.push(route.request().postDataJSON().code);
+    return route.fulfill({
+      json: {
+        classroom: { id: fixtureClassId, title: 'Мой класс' },
+        seatId: null,
+        alreadyMember: false,
+        status: 'pending',
+        requestId: 'classroom-join-request',
+      },
+    });
+  });
+  await page.goto('/#/join-class?code=ABC%20DEF%20234');
+  await expect(page.getByRole('heading', { name: 'Присоединиться к классу' })).toBeVisible();
+  await expect(page.getByLabel('Код класса', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Показать код класса' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Отправить заявку' }).click();
+  await expect(page.getByRole('heading', { name: 'Заявка отправлена' })).toBeVisible();
+  expect(resolveRequests).toEqual(['ABC DEF 234']);
+  expect(joinRequests).toEqual(['ABC DEF 234']);
+});
+
 for (const seat of [false, true])
   for (const width of [1440, 390])
     test(`R3B pinned hint follows native Back and Forward ${seat ? 'Seat' : 'Account'} ${width}px`, async ({
