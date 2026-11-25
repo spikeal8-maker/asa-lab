@@ -60,6 +60,11 @@ type MountedWitness = {
   nativeError: (element: object, trusted: boolean) => void;
   changed: (element: object, previousHref: string, href: string) => void;
   current: (element: object, href: string, connected: boolean) => number | null;
+  currentLoad: (
+    element: object,
+    href: string,
+    connected: boolean,
+  ) => { id: number; at: number } | null;
 };
 
 // Execute the real pure qualification and native-element witness functions.
@@ -513,6 +518,25 @@ describe('actual mounted SVG load witness', () => {
     actual.nativeLoad(element, 'high.webp', 25, true, true);
     actual.nativeError(element, true);
     expect(actual.current(element, 'high.webp', true)).toBeNull();
+  });
+  it('distinguishes trusted loads of the same href at the same clock tick', () => {
+    const actual = oracle().mounted();
+    const first = {},
+      replacement = {};
+    const href = 'high.svg';
+    actual.nativeLoad(first, href, 10, true, true);
+    const original = actual.currentLoad(first, href, true)!;
+    actual.nativeLoad(replacement, href, 10, true, true);
+    const second = actual.currentLoad(replacement, href, true)!;
+    expect(second.at).toBe(original.at);
+    expect(second.id).toBeGreaterThan(original.id);
+    expect(actual.currentLoad(first, href, true)).toEqual(original);
+    actual.nativeLoad(first, href, 10, false, true);
+    expect(actual.currentLoad(first, href, true)).toEqual(original);
+    actual.nativeLoad(first, href, 10, true, true);
+    const reload = actual.currentLoad(first, href, true)!;
+    expect(reload.at).toBe(original.at);
+    expect(reload.id).toBeGreaterThan(second.id);
   });
   it('keeps diagnostic decode outside painted signatures and retains actual load/error/href wiring', () => {
     expect(readyText).toContain("attributeFilter: ['href', 'xlink:href']");
@@ -2209,10 +2233,11 @@ describe('v3 preserves real functional publication and native observations', () 
         rect: { x: i, y: 2, width: 10, height: 20 },
         hitTargets: ['led' + i],
       })),
-      imageDiagnostics: levels.map((value) => ({
+      imageDiagnostics: levels.map((value, index) => ({
         href: value ? 'on.svg' : 'off.svg',
         resourceDecoded: true,
         mountedLoadAt: 5,
+        mountedLoadId: index + 1,
       })),
     });
     const first = receipt(1, [0, 70, 0]);
@@ -2248,6 +2273,9 @@ describe('v3 preserves real functional publication and native observations', () 
         row.imageDiagnostics[1]!.mountedLoadAt++;
       },
       (row) => {
+        row.imageDiagnostics[1]!.mountedLoadId++;
+      },
+      (row) => {
         row.imageDiagnostics[1]!.mountedLoadAt = row.at + 1;
       },
     ];
@@ -2259,6 +2287,12 @@ describe('v3 preserves real functional publication and native observations', () 
     const hidden = structuredClone(next);
     hidden.images[1]!.unoccluded = false;
     expect(edges([first, hidden, receipt(3, [0, 70, 0])], 1, 10)).toEqual([]);
+    const unidentified = [first, next].map((row) => {
+      const copy = structuredClone(row);
+      copy.imageDiagnostics[1]!.mountedLoadId = 0;
+      return copy;
+    });
+    expect(edges(unidentified, 1, 10)).toEqual([]);
     const detachedDecoderPending = structuredClone(next);
     detachedDecoderPending.imageDiagnostics[1]!.resourceDecoded = false;
     expect(edges([first, detachedDecoderPending], 1, 10)).toHaveLength(1);

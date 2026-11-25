@@ -1775,7 +1775,12 @@ type PaintReceipt = {
     hitTargets: string[];
     lit: boolean;
   }>;
-  imageDiagnostics: Array<{ href: string; resourceDecoded: boolean; mountedLoadAt: number | null }>;
+  imageDiagnostics: Array<{
+    href: string;
+    resourceDecoded: boolean;
+    mountedLoadAt: number | null;
+    mountedLoadId: number | null;
+  }>;
   stablePreviousFrame: boolean;
   startupEvidence?: StartupPaintEvidence;
 };
@@ -1987,11 +1992,16 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
       // The detached decoder below is a resource diagnostic. Readiness must
       // instead belong to this mounted SVG image and its current href.
       function createOwnerMountedImageWitness<T extends object>() {
-        const loaded = new WeakMap<T, { href: string; at: number }>();
+        const loaded = new WeakMap<T, { href: string; at: number; id: number }>();
+        let nextId = 1;
+        const currentLoad = (element: T, href: string, connected: boolean) => {
+          const witness = loaded.get(element);
+          return connected && witness?.href === href ? witness : null;
+        };
         return {
           nativeLoad(element: T, href: string, at: number, trusted: boolean, connected: boolean) {
             if (!trusted || !connected || !href || !Number.isFinite(at) || at < 0) return;
-            loaded.set(element, { href, at });
+            loaded.set(element, { href, at, id: nextId++ });
           },
           nativeError(element: T, trusted: boolean) {
             if (trusted) loaded.delete(element);
@@ -2000,9 +2010,9 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
             if (previousHref !== href) loaded.delete(element);
           },
           current(element: T, href: string, connected: boolean): number | null {
-            const witness = loaded.get(element);
-            return connected && witness?.href === href ? witness.at : null;
+            return currentLoad(element, href, connected)?.at ?? null;
           },
+          currentLoad,
         };
       }
       const mounted = createOwnerMountedImageWitness<SVGImageElement>();
@@ -2161,11 +2171,13 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
               );
             }
             observeHrefChanges(hrefChanges.takeRecords());
-            const mountedLoadAt = image ? mounted.current(image, href, image.isConnected) : null;
+            const load = image ? mounted.currentLoad(image, href, image.isConnected) : null;
+            const mountedLoadAt = load?.at ?? null;
             imageDiagnostics.push({
               href,
               resourceDecoded: decoded.get(href) === true,
               mountedLoadAt,
+              mountedLoadId: load?.id ?? null,
             });
             let opacity = 1;
             let visible = !!image;
@@ -4497,13 +4509,16 @@ function individualMillisPaintEdges(rows: readonly PaintReceipt[], index: number
       lamp.opacity !== 1 ||
       lamp.lit !== brightness > 0 ||
       load?.href !== lamp.href ||
+      load.mountedLoadId === null ||
+      !Number.isSafeInteger(load.mountedLoadId) ||
+      load.mountedLoadId <= 0 ||
       load.mountedLoadAt === null ||
       !Number.isFinite(load.mountedLoadAt) ||
       load.mountedLoadAt < 0 ||
       load.mountedLoadAt > row.at
     )
       return null;
-    return JSON.stringify([brightness, lamp, load.mountedLoadAt]);
+    return JSON.stringify([brightness, lamp, load.mountedLoadAt, load.mountedLoadId]);
   };
   let previous: PaintReceipt | undefined;
   let previousSignature: string | null = null;
