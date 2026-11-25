@@ -1674,8 +1674,8 @@ test('mobile work filters share a row and one card fills the grid while multiple
       const first = grid.locator(':scope > li').first();
       const picture = (await first.locator('.classroom-work-card-picture').boundingBox())!;
       const title = (await first.locator('.classroom-work-card-title').boundingBox())!;
-      expect(picture.width).toBeLessThanOrEqual(64);
-      expect(picture.x + picture.width).toBeLessThan(title.x);
+      expect(picture.width).toBeGreaterThanOrEqual(card.width - 2);
+      expect(picture.y + picture.height).toBeLessThanOrEqual(title.y);
       expect(title.width).toBeGreaterThanOrEqual(150);
       const sectionSelect = sectionRail.getByRole('combobox', { name: 'Раздел профиля' });
       const sectionRect = (await sectionSelect.boundingBox())!;
@@ -1760,6 +1760,88 @@ test('mobile work filters share a row and one card fills the grid while multiple
   await expect(grid.locator(':scope > li')).toHaveCount(1);
   expect((await grid.locator(':scope > li').boundingBox())!.width).toBeGreaterThanOrEqual(
     (await grid.boundingBox())!.width - 2,
+  );
+  expect(state.errors).toEqual([]);
+  expect(state.mutations).toEqual([]);
+});
+
+test('class projects and learner profile show full-width project covers in a wrapping grid', async ({
+  page,
+}) => {
+  const state = await setup(page, { manual: 0, results: 0, long: false, firstWorkSnapshot: 7 });
+  for (const [id, file] of [
+    ['work-0-0', 'three-d-house.png'],
+    ['project-1', 'electronics-simulation.png'],
+  ] as const) {
+    await page.route(`**/api/projects/${id}/snapshot*`, (route) =>
+      route.fulfill({ path: `apps/web/public/landing/${file}` }),
+    );
+  }
+
+  async function verifyCover(grid: Locator, dialogName: string, surface: string) {
+    const cards = grid.locator(':scope > li');
+    const card = cards.first();
+    const picture = card.locator('.classroom-work-card-picture');
+    const image = picture.locator('img');
+    const fallback = cards.nth(1).getByText('Без снимка', { exact: true });
+    const opener = card.getByRole('button', { name: /^Предпросмотр работы / });
+    const editor = card
+      .getByRole('link', { name: /^Открыть в редакторе:/ })
+      .or(card.getByRole('button', { name: /^Открыть в редакторе:/ }));
+    mkdirSync(artifacts, { recursive: true });
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await picture.scrollIntoViewIfNeeded();
+      await expect(image).toHaveAttribute('loading', 'lazy');
+      await expect
+        .poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth))
+        .toBeGreaterThan(1);
+      await expect(fallback).toBeVisible();
+      const cardBox = (await card.boundingBox())!;
+      const coverBox = (await picture.boundingBox())!;
+      const otherBox = (await cards.nth(1).boundingBox())!;
+      const titleBox = (await card.locator('.classroom-work-card-title').boundingBox())!;
+      const editorBox = (await editor.boundingBox())!;
+      expect(coverBox.width).toBeGreaterThanOrEqual(cardBox.width - 2);
+      expect(coverBox.height).toBeGreaterThan(cardBox.height / 2);
+      expect(coverBox.y + coverBox.height).toBeLessThanOrEqual(titleBox.y);
+      expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(editorBox.y);
+      expect(editorBox.height).toBeGreaterThanOrEqual(44);
+      if (width === 1440) expect(otherBox.y).toBeCloseTo(cardBox.y, 0);
+      else expect(otherBox.y).toBeGreaterThanOrEqual(cardBox.y + cardBox.height);
+      expect(await grid.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
+        true,
+      );
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await grid.screenshot({ path: `${artifacts}/project-covers-${surface}-${width}.png` });
+    }
+    await image.click();
+    const preview = page.getByRole('dialog', { name: dialogName });
+    await expect(preview).toBeVisible();
+    await expect(preview.getByRole('button', { name: 'Открыть в редакторе' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(preview).toBeHidden();
+    await opener.focus();
+    await opener.press('Enter');
+    await expect(preview).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(opener).toBeFocused();
+  }
+
+  await state.open();
+  await page.getByRole('button', { name: 'Ещё работы', exact: true }).click();
+  await verifyCover(page.locator('.classroom-work-card-list'), 'Работа: Ученик 01', 'profile');
+
+  await page.getByRole('button', { name: '← К классу', exact: true }).click();
+  const section = page.getByRole('combobox', { name: 'Раздел класса' });
+  await expect(section).toBeVisible();
+  await section.selectOption({ label: 'Проекты' });
+  await verifyCover(
+    page.getByRole('region', { name: 'Работы учеников' }).locator('.classroom-work-card-list'),
+    'Работа: Исследование электрической цепи',
+    'classroom',
   );
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
