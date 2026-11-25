@@ -60,6 +60,10 @@ const ExactThreeDViewer = lazy(() =>
   })),
 );
 
+const ExactArduinoSource = lazy(() =>
+  import('./ClassroomExactArduinoSource').catch(() => ({ default: () => null })),
+);
+
 function FrozenProjectPreview({
   submission,
 }: {
@@ -73,6 +77,16 @@ function FrozenProjectPreview({
   ) : (
     <p>Визуальный предпросмотр для этого снимка недоступен.</p>
   );
+  if (submission.moduleKey === 'electronics') {
+    return (
+      <>
+        {fallback}
+        <Suspense fallback={null}>
+          <ExactArduinoSource document={submission.document} />
+        </Suspense>
+      </>
+    );
+  }
   if (submission.moduleKey !== 'three-d') return fallback;
 
   return (

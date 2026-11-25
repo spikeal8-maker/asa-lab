@@ -9,6 +9,7 @@ import {
 } from './learning-authoring-navigation';
 import { expect, test, type Browser, type Page, type Request, type Route } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
+import type { SchematicDocument } from '@asa-lab/electronics';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
@@ -132,6 +133,41 @@ async function switchAccountWorkspace(page: Page, workspaceId: string): Promise<
   expect(session.status()).toBe(200);
   expect((await session.json()).activeWorkspace.workspaceId).toBe(workspaceId);
   await page.goto('/#/home');
+  await page.reload();
+}
+
+async function saveArduinoReviewSketch(page: Page, source: string) {
+  const projectId = courseActivityProjectId(page, 'electronics');
+  const path = '/api/projects/' + projectId;
+  const loaded = await page.request.get(path);
+  expect(loaded.ok()).toBe(true);
+  const { draft } = (await loaded.json()) as {
+    draft: { document: SchematicDocument; revision: number };
+  };
+  const board: SchematicDocument['components'][number] = {
+    id: 'review-arduino',
+    kind: 'visual',
+    componentTypeId: 'arduino-uno',
+    name: 'Arduino Uno',
+    value: 5,
+    position: { x: 0, y: 0 },
+    stateProperties: { arduinoSource: source },
+  };
+  const saved = await page.request.put(path + '/draft', {
+    headers: { origin: new URL(page.url()).origin },
+    data: {
+      document: {
+        ...draft.document,
+        components: [...draft.document.components.filter((row) => row.id !== board.id), board],
+      },
+      baseRevision: draft.revision,
+      mutationId: crypto.randomUUID(),
+    },
+  });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const body = (await saved.json()) as { draft: { document: SchematicDocument } };
+  const savedBoard = body.draft.document.components.find((row) => row.id === board.id);
+  expect(savedBoard?.stateProperties?.['arduinoSource']).toBe(source);
   await page.reload();
 }
 
@@ -1472,6 +1508,9 @@ for (const module of ['three-d', 'electronics'])
       .filter({ hasText: title });
     await row.getByRole('button', { name: 'Открыть', exact: true }).click();
     await editRealProject(learner.page, module);
+    const originalSketch = '// original\nvoid setup() {}\nvoid loop() {}\n';
+    const revisedSketch = '// revision\nvoid setup() {}\nvoid loop() {}\n';
+    if (module === 'electronics') await saveArduinoReviewSketch(learner.page, originalSketch);
     const brief = learner.page.getByTestId('assignment-brief');
     await expect(brief.getByText('В работе', { exact: true })).toBeVisible();
     await expect(brief.getByText('Сохранено', { exact: true })).toBeVisible();
@@ -1503,8 +1542,11 @@ for (const module of ['three-d', 'electronics'])
     const detail = page.getByRole('region', { name: 'Проверка сдачи' });
     await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
     const firstVersion = await detail.getByTestId('submission-version-id').innerText();
-    await detail.getByText('Содержимое и контрольная сумма сдачи', { exact: true }).click();
-    const submittedDocument = await detail.locator('pre').innerText();
+    const evidence = detail
+      .locator('details')
+      .filter({ hasText: 'Содержимое и контрольная сумма сдачи' });
+    await evidence.locator('summary').click();
+    const submittedDocument = await evidence.locator('pre').innerText();
     const submittedProjectId = courseActivityProjectId(learner.page, module);
     const readableOriginal = await learner.page.request.get(`/api/projects/${submittedProjectId}`);
     expect(readableOriginal.status()).toBe(200);
@@ -1524,9 +1566,9 @@ for (const module of ['three-d', 'electronics'])
     await learner.page.reload();
     await page.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();
     await cell.click();
-    await detail.getByText('Содержимое и контрольная сумма сдачи', { exact: true }).click();
+    await evidence.locator('summary').click();
     await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
-    await expect(detail.locator('pre')).toHaveText(submittedDocument);
+    await expect(evidence.locator('pre')).toHaveText(submittedDocument);
     await detail.getByLabel('Причина возврата или исправления').fill('Добавьте вторую фигуру.');
     await detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
     await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
@@ -1624,11 +1666,15 @@ for (const module of ['three-d', 'electronics'])
       page.off('request', recordViewerRequest);
       expect(viewerRequests).toEqual([]);
       await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
-      const evidence = detail
-        .locator('details')
-        .filter({ hasText: 'Содержимое и контрольная сумма сдачи' });
       if ((await evidence.getAttribute('open')) === null) await evidence.locator('summary').click();
       await expect(evidence.locator('pre')).toHaveText(submittedDocument);
+    } else {
+      await saveArduinoReviewSketch(learner.page, revisedSketch);
+      await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
+      await detail.getByText('Код Arduino', { exact: true }).click();
+      const source = detail.getByRole('region', { name: 'Arduino Uno', exact: true });
+      await expect(source).toBeVisible();
+      expect(await source.textContent()).toBe(originalSketch);
     }
     await expect(
       brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
@@ -1662,6 +1708,12 @@ for (const module of ['three-d', 'electronics'])
     await page.getByRole('button', { name: 'Задания', exact: true }).click();
     await cell.click();
     await expect(detail.getByTestId('submission-version-id')).not.toHaveText(firstVersion);
+    if (module === 'electronics') {
+      await detail.getByText('Код Arduino', { exact: true }).click();
+      const source = detail.getByRole('region', { name: 'Arduino Uno', exact: true });
+      await expect(source).toBeVisible();
+      expect(await source.textContent()).toBe(revisedSketch);
+    }
     await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
     await expect(cell).toContainText('Выполнено');
     await page.screenshot({
