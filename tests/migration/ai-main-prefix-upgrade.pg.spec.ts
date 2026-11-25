@@ -111,6 +111,7 @@ const expectedPending = [
   '0330', // Aggregate AI usage and new registrations over the dashboard window.
   '0331', // Limit session revocation to the removed classroom seat.
   '0332', // Additive dashboard site activity and scoped aggregate.
+  '0333', // Freeze new grading for removed classroom seats.
 ];
 
 interface Identity {
