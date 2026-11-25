@@ -399,7 +399,7 @@ interface AdvanceSessionOptions {
   readonly electricalTemplateOwner?: ArduinoElectricalTemplateOwner;
 }
 
-type NativeWorkerSlice = { readonly deadline: number; readonly now: () => number };
+type NativeWorkerSlice = { readonly canResume: () => boolean };
 
 function openElectronicsAdvanceSession(
   document: ElectronicsEngineDocument,
@@ -445,31 +445,75 @@ export function createElectronicsAdvanceSession(
   return { step: () => session.step(), dispose: session.dispose };
 }
 
+function captureDedicatedWorkerClock() {
+  const workerGlobal = globalThis as typeof globalThis & {
+    DedicatedWorkerGlobalScope?: new () => object;
+    Performance?: { readonly prototype: object };
+  };
+  const scope = workerGlobal.DedicatedWorkerGlobalScope;
+  if (typeof scope !== 'function' || !(workerGlobal instanceof scope)) return null;
+  const performance = workerGlobal.performance;
+  const prototype = workerGlobal.Performance?.prototype;
+  if (!prototype) return null;
+  const method: unknown = Object.getOwnPropertyDescriptor(prototype, 'now')?.value;
+  if (
+    typeof method !== 'function' ||
+    Function.prototype.toString.call(method) !== 'function now() { [native code] }'
+  )
+    return null;
+  // The native Performance method requires its receiver, unlike another native clock such as Date.now.
+  try {
+    Reflect.apply(method, undefined, []);
+    return null;
+  } catch {
+    // The Web IDL receiver check must reject the detached call.
+  }
+  const now = Function.prototype.bind.call(method, performance) as () => number;
+  return {
+    now,
+    isCurrent: () =>
+      workerGlobal.performance === performance &&
+      workerGlobal.Performance?.prototype === prototype &&
+      Object.getPrototypeOf(performance) === prototype &&
+      Object.getOwnPropertyDescriptor(performance, 'now') === undefined &&
+      Object.getOwnPropertyDescriptor(prototype, 'now')?.value === method,
+  };
+}
+
+// Anchor the method once. A live comparison alone could admit a newly wrapped prototype.
+const dedicatedWorkerClock = captureDedicatedWorkerClock();
+
 /** Internal browser Worker entry. The clock and synchronous slice stay inside the Worker realm. */
 export function openDedicatedElectronicsAdvanceSession(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
   options: AdvanceSessionOptions,
 ) {
-  const workerGlobal = globalThis as typeof globalThis & {
-    DedicatedWorkerGlobalScope?: new () => object;
-    Performance?: { readonly prototype: { readonly now: () => number } };
-  };
-  const scope = workerGlobal.DedicatedWorkerGlobalScope;
-  if (typeof scope !== 'function' || !(globalThis instanceof scope)) return null;
-  const performance = globalThis.performance;
-  const originalNow = performance.now;
-  if (originalNow !== workerGlobal.Performance?.prototype.now) return null;
-  const now = originalNow.bind(performance);
+  const clock = dedicatedWorkerClock;
+  if (!clock?.isCurrent()) return null;
   const session = openElectronicsAdvanceSession(document, request, options);
   return {
     step: () => session.step(),
     stepThroughOwnedPauses(deadline: number) {
-      return session.step(
-        Number.isFinite(deadline) && performance.now === originalNow
-          ? { deadline, now }
+      // A stalled clock still yields after a finite number of the existing canonical batches.
+      let remaining = 256;
+      let sliceExhausted = false;
+      const timed = session.step(
+        Number.isFinite(deadline) && clock.isCurrent()
+          ? {
+              canResume: () => {
+                if (remaining === 0) {
+                  sliceExhausted = true;
+                  return false;
+                }
+                if (!(clock.now() < deadline)) return false;
+                remaining--;
+                return true;
+              },
+            }
           : undefined,
       );
+      return { timed, sliceExhausted };
     },
     dispose: session.dispose,
   };

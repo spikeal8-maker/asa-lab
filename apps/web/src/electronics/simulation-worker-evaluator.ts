@@ -259,15 +259,14 @@ async function evaluateBatches(
     let continuedInTurn = false;
     while (isCurrent()) {
       const before = globalThis.performance.now();
-      const timed =
-        dedicated && continuedInTurn
-          ? dedicated.stepThroughOwnedPauses(sliceStarted + 8)
-          : session.step();
+      const batch =
+        dedicated && continuedInTurn ? dedicated.stepThroughOwnedPauses(sliceStarted + 8) : null;
+      const timed = batch ? batch.timed : session.step();
       const now = globalThis.performance.now();
       computeMs += now - before;
       if (!isCurrent()) return null;
       if (timed) return timedResponse(owned, timed, computeMs);
-      if (now - sliceStarted >= 8) {
+      if (batch?.sliceExhausted || now - sliceStarted >= 8) {
         await yieldControl();
         sliceStarted = globalThis.performance.now();
         continuedInTurn = false;

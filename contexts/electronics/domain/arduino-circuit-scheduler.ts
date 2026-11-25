@@ -804,7 +804,7 @@ function createArduinoCircuitClockRequest(
     { document, target, options };
   let disposed = false;
   return {
-    step(workerSlice?: { readonly deadline: number; readonly now: () => number }) {
+    step(workerSlice?: { readonly canResume: () => boolean }) {
       if (disposed || !data) return undefined;
       const admitted = stillOwned();
       if (!admitted) {
@@ -840,7 +840,7 @@ function createArduinoCircuitClockRequest(
         workerSlice &&
         !next.done &&
         next.value.kind === 'owned-clock-pause' &&
-        workerSlice.now() < workerSlice.deadline
+        workerSlice.canResume()
       )
         next = clock.next();
       if (!next.done) {
