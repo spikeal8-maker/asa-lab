@@ -60,11 +60,10 @@ export interface PublicDisplayConnection {
   readonly color?: string;
   readonly vertices?: readonly PublicDisplayPoint[];
 }
-export interface ElectronicsDisplayArtifact {
+interface ElectronicsDisplayPayload {
   readonly schemaVersion: 2;
   readonly status: 'display';
   readonly viewerFamily: 'electronics';
-  readonly provenance: PublicArtifactProvenance;
   readonly capabilities: {
     readonly readOnly: true;
     readonly interactive: true;
@@ -73,7 +72,11 @@ export interface ElectronicsDisplayArtifact {
   readonly components: readonly PublicDisplayComponent[];
   readonly connections: readonly PublicDisplayConnection[];
 }
-/** Public execution inputs, not a serialized editor or persisted runtime. */
+export interface ElectronicsDisplayArtifact extends ElectronicsDisplayPayload {
+  readonly provenance: PublicArtifactProvenance;
+}
+
+/** Allowlisted execution inputs, independent of how the saved revision is accessed. */
 export interface PublicSimulationComponent extends PublicDisplayComponent {
   readonly electricalModelId?: string;
   readonly electricalModelVersion?: number;
@@ -88,8 +91,8 @@ export interface PublicSimulationComponent extends PublicDisplayComponent {
   >;
   readonly internalConnections?: readonly (readonly [string, string])[];
 }
-export interface ElectronicsSimulationArtifact extends Omit<
-  ElectronicsDisplayArtifact,
+export interface ElectronicsSimulationPayload extends Omit<
+  ElectronicsDisplayPayload,
   'schemaVersion' | 'status' | 'components'
 > {
   readonly schemaVersion: 3;
@@ -97,6 +100,17 @@ export interface ElectronicsSimulationArtifact extends Omit<
   readonly solverIterations: number;
   readonly components: readonly PublicSimulationComponent[];
 }
+export interface ElectronicsSimulationArtifact extends ElectronicsSimulationPayload {
+  readonly provenance: PublicArtifactProvenance;
+}
+
+/** Closed teacher view of one saved attempt. Never valid as a public artifact. */
+export interface ClassroomElectronicsSimulation {
+  readonly submissionId: string;
+  readonly projectVersionId: string;
+  readonly simulation: ElectronicsSimulationPayload;
+}
+
 export type PublicProjectDisplayArtifact =
   | PublicArtifact
   | ElectronicsDisplayArtifact
@@ -226,7 +240,38 @@ function point(v: unknown) {
   num(p.x);
   num(p.y);
 }
-/** Strict v2 display schema. No editor/runtime DTO or arbitrary property bag. */
+const artifactUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function freezeArtifact(value: unknown): void {
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(freezeArtifact);
+    Object.freeze(value);
+  }
+}
+
+export function validateClassroomElectronicsSimulation(
+  input: unknown,
+): ClassroomElectronicsSimulation | null {
+  try {
+    const envelope = object(input, ['submissionId', 'projectVersionId', 'simulation']);
+    const { submissionId, projectVersionId, simulation } = envelope;
+    if (
+      typeof submissionId !== 'string' ||
+      !artifactUuid.test(submissionId) ||
+      typeof projectVersionId !== 'string' ||
+      !artifactUuid.test(projectVersionId)
+    )
+      return null;
+    if (!isSimulationPayload(simulation, false)) return null;
+    const snapshot = JSON.parse(JSON.stringify(simulation)) as ElectronicsSimulationPayload;
+    freezeArtifact(snapshot);
+    return Object.freeze({ submissionId, projectVersionId, simulation: snapshot });
+  } catch {
+    return null;
+  }
+}
+
+/** Strict public display schema. No editor/runtime DTO or arbitrary property bag. */
 export function validatePublicProjectDisplayArtifact(
   input: unknown,
 ):
@@ -258,6 +303,17 @@ export function validatePublicProjectDisplayArtifact(
     Object.getOwnPropertyDescriptor(input, 'schemaVersion')?.value === 3
   )
     return validateSimulationArtifact(input);
+  try {
+    if (!isDisplayPayload(input, true)) throw Error();
+    const artifact = JSON.parse(JSON.stringify(input)) as ElectronicsDisplayArtifact;
+    freezeArtifact(artifact);
+    return { ok: true, artifact };
+  } catch {
+    return { ok: false, reason: 'invalid-public-artifact' };
+  }
+}
+
+function isDisplayPayload(input: unknown, published: boolean): boolean {
   try {
     let nodes = 0;
     const seen = new Set<object>();
@@ -291,22 +347,24 @@ export function validatePublicProjectDisplayArtifact(
       'schemaVersion',
       'status',
       'viewerFamily',
-      'provenance',
+      ...(published ? ['provenance'] : []),
       'capabilities',
       'components',
       'connections',
     ]);
     if (a.schemaVersion !== 2 || a.status !== 'display' || a.viewerFamily !== 'electronics')
       throw Error();
-    const p = object(a.provenance, ['publicationId', 'revisionNumber']);
-    if (
-      typeof p.publicationId !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(p.publicationId) ||
-      !Number.isInteger(p.revisionNumber) ||
-      Number(p.revisionNumber) < 1 ||
-      Number(p.revisionNumber) > 2147483647
-    )
-      throw Error();
+    if (published) {
+      const p = object(a.provenance, ['publicationId', 'revisionNumber']);
+      if (
+        typeof p.publicationId !== 'string' ||
+        !artifactUuid.test(p.publicationId) ||
+        !Number.isInteger(p.revisionNumber) ||
+        Number(p.revisionNumber) < 1 ||
+        Number(p.revisionNumber) > 2147483647
+      )
+        throw Error();
+    }
     const cap = object(a.capabilities, ['readOnly', 'interactive', 'download']);
     if (cap.readOnly !== true || cap.interactive !== true || cap.download !== false) throw Error();
     if (
@@ -372,17 +430,9 @@ export function validatePublicProjectDisplayArtifact(
         w.vertices.forEach(point);
       }
     }
-    const result = JSON.parse(JSON.stringify(input)) as ElectronicsDisplayArtifact;
-    function freeze(v: unknown): void {
-      if (v && typeof v === 'object') {
-        Object.values(v).forEach(freeze);
-        Object.freeze(v);
-      }
-    }
-    freeze(result);
-    return { ok: true, artifact: result };
+    return true;
   } catch {
-    return { ok: false, reason: 'invalid-public-artifact' };
+    return false;
   }
 }
 
@@ -391,6 +441,17 @@ function validateSimulationArtifact(
 ):
   | { readonly ok: true; readonly artifact: ElectronicsSimulationArtifact }
   | { readonly ok: false; readonly reason: 'invalid-public-artifact' } {
+  try {
+    if (!isSimulationPayload(input, true)) throw Error();
+    const artifact = JSON.parse(JSON.stringify(input)) as ElectronicsSimulationArtifact;
+    freezeArtifact(artifact);
+    return { ok: true, artifact };
+  } catch {
+    return { ok: false, reason: 'invalid-public-artifact' };
+  }
+}
+
+function isSimulationPayload(input: unknown, published: boolean): boolean {
   try {
     let nodes = 0;
     const seen = new Set<object>();
@@ -425,7 +486,7 @@ function validateSimulationArtifact(
       'schemaVersion',
       'status',
       'viewerFamily',
-      'provenance',
+      ...(published ? ['provenance'] : []),
       'capabilities',
       'components',
       'connections',
@@ -546,26 +607,19 @@ function validateSimulationArtifact(
         delete display[key];
       return display;
     });
-    const display = validatePublicProjectDisplayArtifact({
-      viewerFamily: a.viewerFamily,
-      provenance: a.provenance,
-      capabilities: a.capabilities,
-      connections: a.connections,
-      schemaVersion: 2,
-      status: 'display',
-      components,
-    });
-    if (!display.ok || display.artifact.schemaVersion !== 2) throw Error();
-    const result = JSON.parse(JSON.stringify(input)) as ElectronicsSimulationArtifact;
-    const freeze = (value: unknown): void => {
-      if (value && typeof value === 'object') {
-        Object.values(value).forEach(freeze);
-        Object.freeze(value);
-      }
-    };
-    freeze(result);
-    return { ok: true, artifact: result };
+    return isDisplayPayload(
+      {
+        viewerFamily: a.viewerFamily,
+        ...(published ? { provenance: a.provenance } : {}),
+        capabilities: a.capabilities,
+        connections: a.connections,
+        schemaVersion: 2,
+        status: 'display',
+        components,
+      },
+      published,
+    );
   } catch {
-    return { ok: false, reason: 'invalid-public-artifact' };
+    return false;
   }
 }
