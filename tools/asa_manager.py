@@ -276,6 +276,27 @@ def verify_offsite_backup(policy, current):
         raise Blocked('OFFSITE_BACKUP', message, 'Проверьте состояние копий и при необходимости сделайте полную копию.') from exc
 
 
+_SCHOOL_FULL_UNIT = "asa-school-gfs-full.service"
+_SCHOOL_FULL_RECEIPT = "/var/backups/asa-school-gfs/receipts/latest-full.json"
+
+
+class SchoolBackupNeeded(Exception):
+    def __init__(self, digest):
+        self.digest = digest
+
+
+def school_backup_available(install, policy):
+    if not (sys.platform.startswith("linux") and os.geteuid() == 0
+            and install.profile == "production" and install.root == Path("/srv/asa-lab")
+            and install.project == "asa-lab-school" and policy == {"receipt": _SCHOOL_FULL_RECEIPT}):
+        return False
+    try:
+        return run(["/usr/bin/systemctl", "show", "--property=LoadState", "--value",
+                    _SCHOOL_FULL_UNIT], capture=True) == "loaded"
+    except Blocked:
+        return False
+
+
 def update(install, *, check=False, scheduled=False, fresh=False, deployment_digest=None,
            require_application_rollback=False, operator=False, display=None):
     if display:
@@ -326,8 +347,6 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         if display:
             display.current()
         return
-    if offsite_policy and not same_release:
-        verify_offsite_backup(install.settings['updatePolicy'], before)
     # An already accepted, identical release needs no new GitHub CI query for a
     # no-op update. The local release identity, images and entry are still checked
     # below. All real updates, checks, rollback preparation and collector repairs
@@ -356,6 +375,21 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
     if display:
         display.available(published_at)
+    needs_cloud = False
+    if offsite_policy and not same_release:
+        policy = install.settings['updatePolicy']
+        if display:
+            display.stage('offsite')
+        try:
+            verify_offsite_backup(policy, before)
+        except Blocked as error:
+            if not operator or error.code != 'OFFSITE_BACKUP' or not school_backup_available(install, policy):
+                raise
+            if not check:
+                raise SchoolBackupNeeded(deployment_digest) from error
+            needs_cloud = True
+        if display and not needs_cloud:
+            display.cloud_verified()
     if same_release:
         records = install.identity()
         for name, expected in release['images'].items():
@@ -370,10 +404,12 @@ def update(install, *, check=False, scheduled=False, fresh=False, deployment_dig
         print(f"{'NO_CHANGE' if same_release else 'AVAILABLE'} revision={release['revision']} schema={release['schema']}; read-only check, no installation changes")
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
-        if operator:
+        if operator and needs_cloud:
+            print('Доступен новый выпуск. При установке сначала будет создана и проверена полная копия на Яндекс Диске.')
+        elif operator:
             print('Обновление доступно. Выполните asa update. Менеджер проверит план миграций и сделает резервную копию.')
         if display:
-            display.checked()
+            display.checked(needs_cloud=needs_cloud)
         return
     preparation = {'readerGroupChanged': False}
     if same_release:
@@ -560,10 +596,10 @@ def main(argv=None):
     parser.add_argument("--install-blocks-port", type=int, help="Fresh localhost Scratch port")
     parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     args = parser.parse_args(argv)
-    if not args.human:
+    if not args.human and not (args.action == 'install' and sys.stdout.isatty()):
         return execute(args, argv)
-    if not args.operator or args.action not in ('check', 'update'):
-        parser.error('--human requires operator check or update')
+    if not (args.action == 'install' or (args.operator and args.action in ('check', 'update'))):
+        parser.error('--human requires install or operator check/update')
     display = OperatorOutput(args.action, sys.stdout)
     with open(os.devnull, 'w', encoding='utf-8') as sink:
         with redirect_stdout(sink), redirect_stderr(sink), quiet_commands():
@@ -575,6 +611,41 @@ def main(argv=None):
 
 
 def execute(args, argv, display=None):
+    try:
+        return execute_operation(args, argv, display)
+    except SchoolBackupNeeded as backup:
+        # The backup service takes the application's operation lock to export.
+        # The first pass has released that lock and has not switched the app.
+        if display:
+            display.cloud_started()
+        else:
+            print('Создаю полную копию на Яндекс Диске. Дождитесь проверки архива.', flush=True)
+        try:
+            run(["/usr/bin/systemctl", "start", _SCHOOL_FULL_UNIT])
+        except Blocked as error:
+            return report_failure(args, display, 'OFFSITE_BACKUP_CREATE', str(error),
+                                  'Проверьте журнал asa-school-gfs-full.service.')
+        args.deployment_digest = backup.digest
+        # Reacquire the lock, rerun prerequisites and require a valid receipt
+        # for the currently running version. Never start a second backup here.
+        try:
+            return execute_operation(args, argv, display)
+        except SchoolBackupNeeded:
+            return report_failure(args, display, 'OFFSITE_BACKUP', '',
+                                  'Проверьте квитанцию полной копии и повторите установку.')
+
+
+def report_failure(args, display, code, detail, action):
+    if display:
+        display.failed(code, detail)
+    else:
+        if args.operator:
+            print(operator_failure(code), file=sys.stderr)
+        print(f"BLOCKED {code}: {detail}\nSAFE_ACTION: {action}", file=sys.stderr)
+    return 2
+
+
+def execute_operation(args, argv, display=None):
     try:
         require((args.offsite_receipt is not None) == (args.action == 'configure-offsite'),
                 'OFFSITE_POLICY', 'Путь --offsite-receipt задаётся один раз командой configure-offsite.')
@@ -696,7 +767,9 @@ def execute(args, argv, display=None):
                 if args.collector_mode:
                     select_root_mode(install, args.collector_reader_gid)
                     install = Installation(install.root, install.profile)
-                update(install, fresh=True, **({'deployment_digest': args.deployment_digest} if args.deployment_digest is not None else {}))
+                update(install, fresh=True,
+                       **({'display': display} if display else {}),
+                       **({'deployment_digest': args.deployment_digest} if args.deployment_digest is not None else {}))
             elif args.action in ("check", "update"):
                 if args.collector_mode:
                     select_root_mode(install, args.collector_reader_gid)
@@ -731,13 +804,7 @@ def execute(args, argv, display=None):
         code = (exc.code if isinstance(exc, Blocked) else
                 "SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret) else "IO_OR_CONFIGURATION")
         action = exc.action if isinstance(exc, Blocked) else "Inspect the configuration and completed stages; do not discard data."
-        if display:
-            display.failed(code, str(exc) if isinstance(exc, Blocked) else '')
-        else:
-            if args.operator:
-                print(operator_failure(code), file=sys.stderr)
-            print(f"BLOCKED {code}: {exc}\nSAFE_ACTION: {action}", file=sys.stderr)
-        return 2
+        return report_failure(args, display, code, str(exc), action)
 
 
 if __name__ == "__main__":
