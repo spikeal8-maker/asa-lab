@@ -19175,18 +19175,22 @@ parallel_lanes:
           and503-record common prehistory per powered/LOW pair, with explicit metadata identity normalization
           only. Preserve full raw force/contact census, signed-zero PRE/POST/pose/clock identities, native/apply
           torque and electrical samples, warnings, resource and cleanup ledgers.
-        capture: Reuse bounded R5 full-capture ABI/force/J_PRE work methods and prospective schema index.
-          Each world max132 contacts/396 EFC rows and450000 cumulative contacts, enforced BEFORE each native
-          step. Per pair header2048*44000 +176*900000 =248512000B; retained metadata/footer/error reserves9437184B
-          give257949184B (<256MiB). Four qualification worlds =2 exclusive paired receipts <=515898368B (<512MiB);
-          no local-contact maximum assumed for every step.
+        capture: 'Reuse actual R5 live variable little-endian F64 ABI and unchanged force/J_PRE work methods:
+          one leading F64 payload-length word,209 fixed payload words,ncon packed native identity words and24
+          words per active contact. Record bytes=8*(210+ncon+24*nactive), with nactive<=ncon. Charge ALL ncon,
+          including inactive/excluded contacts, BEFORE each advance using the conservative pre-step capacity bound
+          up to the declared local maximum; never budget loaded/active rows alone. Each world remains max132 contacts/396
+          EFC rows and450000 cumulative all-native contacts. At<=44000 paired intervals and<=900000 cumulative
+          all-native contacts, raw<=8*(210*44000+25*900000)=253920000B; unchanged metadata/footer/error reserves9437184B
+          give263357184B (<256MiB). Four qualification worlds =2 exclusive paired receipts <=526714368B (<512MiB);
+          no local-contact maximum assumed for every step.'
         operator_window: 'Only after a completed valid qualification acquisition with actual physical verdict retained, exact reviews and separately frozen controller
           mount admission: up to4 remaining owner-manually-started exploratory generations, stopped -> Reset
           -> new generation. Max8 fresh Model/Data/session generations TOTAL including four qualification
           worlds and any failed/cancelled construction attempts; one module, one concurrent world, each<=10s/22000
           intervals and same per-world ceilings. No auto replay or background restarts. Exploratory parameter
           values/results are displayed as EXPLORATORY, not accepted physical cases; retain their failures
-          and capture under same per-pair bound. At most4 pair-equivalent receipts total <=1031796736B (<1GiB),
+          and capture under same per-pair bound. At most4 pair-equivalent receipts total <=1053428736B (<1GiB),
           no overwrite of qualification or old data.'
         previous_live_raw:
           source: acf2fbbff6f682a5a148732ab878fcd5f6d82fd9
