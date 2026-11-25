@@ -292,6 +292,7 @@ const focused = [
     '--emitDecoratorMetadata',
     '--skipLibCheck',
     'apps/web/src/build-metadata.d.ts',
+    'apps/web/src/vite-env.d.ts',
     'tests/blocks/save-diagnostics.spec.ts',
     'apps/web/src/client-diagnostics.ts',
     'apps/web/src/client-diagnostics.spec.ts',
