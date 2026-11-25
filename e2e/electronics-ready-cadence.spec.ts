@@ -5910,33 +5910,45 @@ function d2Median(values: readonly number[]): number {
   return ordered.length % 2 ? ordered[middle]! : (ordered[middle - 1]! + ordered[middle]!) / 2;
 }
 
-function d2PhaseMetrics(ordered: readonly D2PaintEdge[], stage: D2Stage) {
+function d2AdjacentPhaseSamples<T extends D2PaintEdge>(
+  ordered: readonly T[],
+  branch: number,
+  timeOf: (edge: T) => number = (edge) => edge.at,
+) {
+  const high: number[] = [];
+  const off: number[] = [];
+  for (let cycle = 0; cycle < D2_CYCLES; cycle++) {
+    const index = cycle * 6 + branch * 2;
+    const falling = timeOf(ordered[index + 1]!);
+    high.push(falling - timeOf(ordered[index]!));
+    // OFF is the immediately following joint all-dark phase. An LED's entire
+    // off interval also contains the other branches and is not this delay().
+    off.push(timeOf(ordered[index + 2]!) - falling);
+  }
+  return { high, off };
+}
+
+function d2PhaseMetrics(
+  ordered: readonly D2PaintEdge[],
+  stage: D2Stage,
+  measurement: 'model front' | 'browser observation',
+  phaseEvidence: (branch: number) => string,
+) {
   const cycles = Array.from(
     { length: D2_CYCLES },
     (_, cycle) => ordered[(cycle + 1) * 6]!.at - ordered[cycle * 6]!.at,
   );
   const phases = D2_PINS.map((pin, branch) => {
-    const high = d2Median(
-      Array.from({ length: D2_CYCLES }, (_, cycle) => {
-        const index = cycle * 6 + branch * 2;
-        return ordered[index + 1]!.at - ordered[index]!.at;
-      }),
-    );
-    // OFF is the immediately following joint all-dark phase. An LED's entire
-    // off interval also contains the other branches and is not this delay().
-    const off = d2Median(
-      Array.from({ length: D2_CYCLES }, (_, cycle) => {
-        const index = cycle * 6 + branch * 2;
-        return ordered[index + 2]!.at - ordered[index + 1]!.at;
-      }),
-    );
+    const samples = d2AdjacentPhaseSamples(ordered, branch);
+    const high = d2Median(samples.high);
+    const off = d2Median(samples.off);
     const ratio = off / high;
-    expect(ratio, stage.name + ' ' + pin + ' adjacent OFF/HIGH').toBeGreaterThanOrEqual(
-      stage.highMs === stage.offMs ? 0.8 : 2.4,
-    );
-    expect(ratio, stage.name + ' ' + pin + ' adjacent OFF/HIGH').toBeLessThanOrEqual(
-      stage.highMs === stage.offMs ? 1.25 : 3.6,
-    );
+    const [minimum, maximum] = stage.highMs === stage.offMs ? [0.8, 1.25] : [2.4, 3.6];
+    const label = `${stage.name} ${pin} ${measurement} adjacent OFF/HIGH ratio must be in [${minimum}, ${maximum}]`;
+    const message =
+      ratio >= minimum && ratio <= maximum ? label : label + '\n' + phaseEvidence(branch);
+    expect(ratio, message).toBeGreaterThanOrEqual(minimum);
+    expect(ratio, message).toBeLessThanOrEqual(maximum);
     return { pin, high, off, ratio };
   });
   return { medianCycleMs: d2Median(cycles), phaseMediansMs: phases, cycles };
@@ -6147,8 +6159,24 @@ function d2Analyze(
   expect(paintOrdered[0]!.at - actionAt, 'first visible D2 phase deadline').toBeLessThanOrEqual(
     5_000,
   );
-  const physicalPhases = d2PhaseMetrics(modelOrdered, stage);
-  const phases = d2PhaseMetrics(paintOrdered, stage);
+  const phaseEvidence = (branch: number) => {
+    const sources = [
+      ['Model fronts', d2AdjacentPhaseSamples(modelOrdered, branch)],
+      [
+        'Worker receipts of those fronts',
+        d2AdjacentPhaseSamples(modelOrdered, branch, (edge) => edge.receivedAt),
+      ],
+      ['Browser observations', d2AdjacentPhaseSamples(paintOrdered, branch)],
+    ] as const;
+    const ms = (value: number) => Number(value.toFixed(3));
+    const series = (values: readonly number[]) =>
+      `[${values.map(ms).join(', ')}] median ${ms(d2Median(values))}`;
+    return sources
+      .map(([clock, { high, off }]) => `${clock} (ms) HIGH ${series(high)}, OFF ${series(off)}`)
+      .join('\n');
+  };
+  const physicalPhases = d2PhaseMetrics(modelOrdered, stage, 'model front', phaseEvidence);
+  const phases = d2PhaseMetrics(paintOrdered, stage, 'browser observation', phaseEvidence);
   const causal = temporalPaintCausality(raw, stage.source, generationId, actionAt, terminalAt);
   expect(causal.startup.h0ReadyAt).not.toBeNull();
   expect(
