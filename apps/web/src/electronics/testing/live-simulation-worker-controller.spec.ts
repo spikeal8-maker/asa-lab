@@ -590,6 +590,8 @@ describe('Arduino wake reservation', () => {
 
   const quietSource =
     'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(60);digitalWrite(13,LOW);delay(60);}';
+  const shortSource = quietSource.replaceAll('delay(60)', 'delay(20)');
+
   function withSketch(source: string, resistance = 330): SchematicDocument {
     return {
       ...document,
@@ -692,7 +694,8 @@ describe('Arduino wake reservation', () => {
     'leaves the reentrant action in control if the host disallows coalescing after %s',
     async (action) => {
       const { controller, executor, tick, scheduleArduinoWake, allowIdlePollCoalescing } =
-        await start(true, withSketch(quietSource), false);
+        await start(true, withSketch(shortSource), false);
+      expect(scheduleArduinoWake).not.toHaveBeenCalled();
       allowIdlePollCoalescing.mockImplementationOnce(() => {
         if (action === 'stop') controller.stop();
         else controller.sendSerialRx('uno', 'A', 10_000);
@@ -711,7 +714,7 @@ describe('Arduino wake reservation', () => {
   );
 
   it('discards a wake registered while the host restarts the generation', async () => {
-    const quiet = withSketch(quietSource);
+    const quiet = withSketch(shortSource);
     const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start(
       true,
       quiet,
@@ -726,7 +729,7 @@ describe('Arduino wake reservation', () => {
 
     expect(executor.preflights).toHaveLength(2);
     expect(cancel).toHaveBeenCalledOnce();
-    setHorizon(26_000);
+    setHorizon(20_004);
     scheduleArduinoWake.mock.calls[0]![1]();
     expect(executor.advances).toHaveLength(2);
     controller.dispose();
@@ -735,7 +738,7 @@ describe('Arduino wake reservation', () => {
   it('leaves a nested reservation active and cancels only the abandoned host timer', async () => {
     const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start(
       true,
-      withSketch(quietSource),
+      withSketch(shortSource),
       false,
     );
     const abandoned = vi.fn();
@@ -748,24 +751,24 @@ describe('Arduino wake reservation', () => {
     expect(scheduleArduinoWake).toHaveBeenCalledTimes(2);
     expect(abandoned).toHaveBeenCalledOnce();
     expect(scheduleArduinoWake.mock.results[1]?.value).not.toHaveBeenCalled();
-    setHorizon(26_000);
+    setHorizon(20_004);
     scheduleArduinoWake.mock.calls[0]![1]();
     expect(executor.advances).toHaveLength(2);
     scheduleArduinoWake.mock.calls[1]![1]();
-    expect(executor.advances[2]?.requestedHorizonMicroseconds).toBe(26_000);
+    expect(executor.advances[2]?.requestedHorizonMicroseconds).toBe(20_004);
     controller.dispose();
   });
 
   it('abandons dispatch if cancelling the pending timer stops the simulation', async () => {
     const { controller, executor, tick, scheduleArduinoWake } = await start(
       true,
-      withSketch(quietSource),
+      withSketch(shortSource),
       false,
     );
     const cancel = vi.fn(() => controller.stop());
     scheduleArduinoWake.mockReturnValueOnce(cancel);
     tick(10_000);
-    tick(26_000);
+    tick(20_004);
 
     expect(cancel).toHaveBeenCalledOnce();
     expect(executor.advances).toHaveLength(2);
@@ -775,7 +778,7 @@ describe('Arduino wake reservation', () => {
   it('falls back to the actual host demand if a scheduling callback fires synchronously', async () => {
     const { controller, executor, tick, scheduleArduinoWake } = await start(
       true,
-      withSketch(quietSource),
+      withSketch(shortSource),
       false,
     );
     const cancel = vi.fn();
@@ -790,7 +793,7 @@ describe('Arduino wake reservation', () => {
     controller.dispose();
   });
 
-  it('coalesces quiet polling to a bounded refresh or the earlier acknowledged wake', async () => {
+  it('balances a confirmed long sleep and schedules each next boundary without another poll', async () => {
     const quiet = withSketch(quietSource);
     const { controller, executor, tick, scheduleArduinoWake, complete, setHorizon } = await start(
       true,
@@ -798,29 +801,27 @@ describe('Arduino wake reservation', () => {
       false,
     );
     const horizons = () => executor.advances.map((call) => call.requestedHorizonMicroseconds);
+    const deadlines = () => scheduleArduinoWake.mock.calls.map(([due]) => due);
+    expect(deadlines()).toEqual([20_668]);
     tick(10_000);
     tick(20_000);
     expect(horizons()).toEqual([0, 1000]);
-    expect(scheduleArduinoWake.mock.calls.map(([deadline]) => deadline)).toEqual([26_000]);
 
-    setHorizon(26_000);
+    setHorizon(20_668);
     scheduleArduinoWake.mock.calls[0]![1]();
-    expect(horizons()).toEqual([0, 1000, 26_000]);
+    expect(horizons()).toEqual([0, 1000, 20_668]);
     await complete();
-    tick(30_000);
-    tick(40_000);
-    setHorizon(51_000);
+    expect(deadlines()).toEqual([20_668, 40_336]);
+
+    setHorizon(40_336);
     scheduleArduinoWake.mock.calls[1]![1]();
-    expect(horizons()).toEqual([0, 1000, 26_000, 51_000]);
+    expect(horizons()).toEqual([0, 1000, 20_668, 40_336]);
     await complete();
-    tick(55_000);
-    expect(scheduleArduinoWake.mock.calls.map(([deadline]) => deadline)).toEqual([
-      26_000, 51_000, 60_004,
-    ]);
+    expect(deadlines()).toEqual([20_668, 40_336, 60_004]);
 
     setHorizon(60_013);
     scheduleArduinoWake.mock.calls[2]![1]();
-    expect(horizons()).toEqual([0, 1000, 26_000, 51_000, 60_013]);
+    expect(horizons()).toEqual([0, 1000, 20_668, 40_336, 60_013]);
     const edge = await complete();
     expect(edge.ledTemporal?.arduinoIndicators?.[0]?.samples).toContainEqual({
       atMicroseconds: 60_004,
@@ -838,6 +839,88 @@ describe('Arduino wake reservation', () => {
     expect(edge.result).toEqual(partitioned.result);
     expect(edge.diagnostics).toEqual(partitioned.diagnostics);
     ordinary.controller.dispose();
+    controller.dispose();
+  });
+
+  it('keeps the last short tail of the same balanced sleep available for its actual wake', async () => {
+    const quiet = withSketch(quietSource.replaceAll('delay(60)', 'delay(30)'));
+    const { controller, executor, scheduleArduinoWake, complete, setHorizon } = await start(
+      true,
+      quiet,
+      false,
+    );
+    const horizons = () => executor.advances.map((call) => call.requestedHorizonMicroseconds);
+    const deadlines = () => scheduleArduinoWake.mock.calls.map(([due]) => due);
+    expect(deadlines()).toEqual([15_502]);
+
+    // The host was busy when the earlier refresh was due. Its real elapsed
+    // demand leaves a tail shorter than the minimum for a new wake.
+    setHorizon(26_000);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    const hold = await complete();
+    expect(horizons()).toEqual([0, 1000, 26_000]);
+    expect(deadlines()).toEqual([15_502, 30_004]);
+
+    setHorizon(30_002);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(horizons()).toEqual([0, 1000, 26_000]);
+    expect(deadlines()).toEqual([15_502, 30_004, 30_004]);
+
+    setHorizon(30_008);
+    scheduleArduinoWake.mock.calls[2]![1]();
+    const edge = await complete();
+    expect(horizons()).toEqual([0, 1000, 26_000, 30_008]);
+    const samples = (advance: SimulationTimedAdvancePayload) =>
+      advance.ledTemporal?.arduinoIndicators?.[0]?.samples.map(({ atMicroseconds, voltage }) => [
+        atMicroseconds,
+        voltage > 0,
+      ]);
+    expect(samples(hold)).toEqual([
+      [1000, true],
+      [26_000, true],
+    ]);
+    expect(samples(edge)).toEqual([
+      [26_000, true],
+      [30_004, false],
+      [30_008, false],
+    ]);
+
+    const ordinary = await start(false, quiet, false);
+    ordinary.tick(26_000);
+    expect((await ordinary.complete()).ledTemporal).toEqual(hold.ledTemporal);
+    ordinary.tick(30_008);
+    const partitioned = await ordinary.complete();
+    expect(edge.ledTemporal).toEqual(partitioned.ledTemporal);
+    expect(edge.state).toEqual(partitioned.state);
+    expect(edge.result).toEqual(partitioned.result);
+    expect(edge.diagnostics).toEqual(partitioned.diagnostics);
+    ordinary.controller.dispose();
+    controller.dispose();
+  });
+
+  it('discards an idle tail registered while the host changes its clock origin', async () => {
+    const quiet = withSketch(quietSource.replaceAll('delay(60)', 'delay(30)'));
+    const { controller, executor, scheduleArduinoWake, setHorizon, complete } = await start(
+      true,
+      quiet,
+      false,
+    );
+    setHorizon(26_000);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    const cancel = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce(() => {
+      controller.reanchorHostDemand();
+      return cancel;
+    });
+    await complete();
+
+    expect(scheduleArduinoWake.mock.calls.map(([due]) => due)).toEqual([15_502, 30_004]);
+    expect(cancel).toHaveBeenCalledOnce();
+    setHorizon(30_008);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(executor.advances.map((advance) => advance.requestedHorizonMicroseconds)).toEqual([
+      0, 1000, 26_000,
+    ]);
     controller.dispose();
   });
 
@@ -903,7 +986,10 @@ describe('Arduino wake reservation', () => {
       expect(quiet.brightness.get('led')).toBe(0);
       expect(presentation.acknowledgeFrame(quiet, 33_400)).toBe(true);
       tick(40_000);
-      expect(scheduleArduinoWake).toHaveBeenCalledExactlyOnceWith(55_000, expect.any(Function));
+      expect(scheduleArduinoWake).toHaveBeenCalledExactlyOnceWith(
+        returnPin === 'ground' ? 51_031 : 51_032,
+        expect.any(Function),
+      );
       controller.dispose();
     },
   );
@@ -971,7 +1057,7 @@ describe('Arduino wake reservation', () => {
         false,
       );
       tick(10_000);
-      expect(scheduleArduinoWake).toHaveBeenCalledExactlyOnceWith(26_000, expect.any(Function));
+      expect(scheduleArduinoWake).toHaveBeenCalledExactlyOnceWith(20_668, expect.any(Function));
       if (action === 'input') controller.sendSerialRx('uno', 'A', 10_000);
       if (action === 'source')
         controller.update(withSketch(quietSource.replace('60', '50')), 10_000);
@@ -990,7 +1076,7 @@ describe('Arduino wake reservation', () => {
         expect(executor.advances[2]?.document.components).toEqual(
           withSketch(quietSource.replace('60', '50')).components,
         );
-      setHorizon(26_000);
+      setHorizon(20_668);
       scheduleArduinoWake.mock.calls[0]![1]();
       expect(executor.advances).toHaveLength(dispatched ? 3 : 2);
       controller.dispose();
