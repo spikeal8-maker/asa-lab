@@ -883,7 +883,7 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
   await expect(disclosure).toHaveCount(0);
   await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
 
-  const sourceDisclosure = detail.getByText('Код Arduino', { exact: true });
+  const sourceDisclosure = detail.getByRole('button', { name: 'Код', exact: true });
   const source = detail.getByRole('region', { name: 'Плата 1 · Контроллер освещения' });
   const legacy = detail.getByRole('region', { name: 'Плата 2 · Arduino Uno' });
   await expect(sourceDisclosure).toBeVisible();
@@ -1020,10 +1020,10 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
     'data-solved-playback-session',
     'classroom-submission:' + submission + ':' + version,
   );
-  await expect(start).toHaveText('Стоп');
+  await expect(start).toHaveText('Остановить');
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await workerForBlur.closed;
-  await expect(start).toHaveText('Начать');
+  await expect(start).toHaveText('Запустить');
   await expect(playback.getByRole('status').filter({ hasText: 'потере фокуса' })).toBeVisible();
 
   const workerForEscape = await launch();
@@ -1056,6 +1056,66 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
   await expect(fixed).toHaveText(version);
   await expect(detail.getByLabel('Точный снимок сданной работы')).toBeVisible();
   await expect(sourceDisclosure).toHaveCount(0);
+
+  await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
+  const savedWorkspace = {
+    blocks: {
+      languageVersion: 0,
+      blocks: [
+        {
+          type: 'asa_loop',
+          id: 'pupil-loop',
+          inputs: {
+            DO: {
+              block: { type: 'asa_wait', id: 'pupil-wait', fields: { TIME: '2', UNIT: 'SECONDS' } },
+            },
+          },
+        },
+      ],
+    },
+  };
+  const savedBoard = {
+    ...board,
+    id: 'uno',
+    kind: 'visual' as const,
+    componentTypeId: 'arduino-uno',
+    stateProperties: {
+      arduinoCodeMode: 'blocks',
+      arduinoSource: 'void setup() {} void loop() { delay(2000); }',
+    },
+  };
+  payload = {
+    ...circuit,
+    components: [
+      {
+        ...savedBoard,
+        stateProperties: {
+          ...savedBoard.stateProperties,
+          arduinoWorkspace: JSON.stringify(savedWorkspace),
+        },
+      },
+    ],
+  };
+  electronicsSimulation = {
+    ...electronicsSimulation,
+    simulation: { ...electronicsSimulation.simulation, components: [savedBoard], connections: [] },
+  };
+  await cell.click();
+  await toggle.click();
+  const showBlocks = playback.getByRole('button', { name: 'Блоки', exact: true });
+  await expect(showBlocks).toHaveAttribute('aria-expanded', 'false');
+  await expect(playback.locator('pre')).toHaveCount(0);
+  await showBlocks.click();
+  const blocks = playback.getByTestId('public-arduino-blocks');
+  for (const id of ['pupil-loop', 'pupil-wait']) {
+    await expect(blocks.locator(`.blocklyBlock[data-id="${id}"]`)).toBeVisible();
+  }
+  await expect(blocks.locator('.blocklyDraggable, .blocklyToolboxDiv')).toHaveCount(0);
+  await expect(playback.locator('pre')).toHaveCount(0);
+  await playback.getByRole('button', { name: 'Закрыть программу' }).press('Escape');
+  await expect(showBlocks).toBeFocused();
+  await expect(stage).toBeVisible();
+  expect(playbackRequests).toEqual([]);
   expect(state.errors).toEqual([]);
 });
 

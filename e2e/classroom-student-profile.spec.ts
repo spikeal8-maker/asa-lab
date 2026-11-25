@@ -1895,6 +1895,9 @@ test('touch and keyboard open the exact work snapshot and archive preview has no
     const dialog = page.getByRole('dialog', { name: 'Работа: Открытая модель' });
     await expect(dialog.getByTestId('work-preview-image')).toHaveAttribute('src', snapshot);
     await expect(dialog.getByRole('button', { name: 'Закрыть' })).toBeFocused();
+    const feedback = dialog.getByRole('button', { name: 'Отклик на проект', exact: true });
+    await expect(feedback).toHaveAttribute('aria-expanded', 'false');
+    await feedback.tap();
     await expect(dialog.getByRole('button', { name: 'Сохранить отклик' })).toBeVisible();
     await noOverflow(page);
     await dialog.getByRole('button', { name: 'Закрыть' }).press('Escape');
