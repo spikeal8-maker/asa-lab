@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   advanceElectronicsToHorizon,
+  createElectronicsAdvanceSession,
   parseElectronicsEngineDocument,
   resetElectronicsTimedState,
   type ElectronicsEngineDocument,
@@ -8,6 +9,7 @@ import {
   type ElectronicsTimedInputEvent,
   type ElectronicsTimedState,
 } from '../engine';
+import { RESISTOR_DEVICE_MODEL } from '../domain/models/linear-dc-models';
 
 type ReadyResult = Extract<ElectronicsTimedAdvanceResult, { executionStatus: 'ready' }>;
 
@@ -430,6 +432,81 @@ function electrothermalFixture(load: 'motor' | 'damage' | 'arduino-led'): Replay
 }
 
 describe('complete observation chunk physical state conformance', () => {
+  it.each([false, true])(
+    'resumes the millis clock after revocation during several quanta, arithmetic fault: %s',
+    (fault) => {
+      const sourceCode = `unsigned long next = 2; bool lit = LOW;
+        void setup(){pinMode(13,OUTPUT);}
+        void loop(){int now = millis();
+          if(now >= next){next += 2; lit = !lit; digitalWrite(13,lit);}
+          ${fault ? 'int divisor = 5 - now; int value = 12 / divisor;' : ''}
+        }`;
+      const document = parseDocument({
+        schemaVersion: 4,
+        components: [
+          board(sourceCode),
+          {
+            ...resistor('load', 330),
+            componentTypeId: 'resistor-axial',
+            pinIds: ['lead-1', 'lead-2'],
+          },
+        ],
+        connections: [
+          {
+            id: 'feed',
+            from: { componentId: 'uno', terminal: 'd13' },
+            to: { componentId: 'load', terminal: 'lead-1' },
+          },
+          {
+            id: 'return',
+            from: { componentId: 'load', terminal: 'lead-2' },
+            to: { componentId: 'uno', terminal: 'power-gnd-1' },
+          },
+        ],
+      });
+      const initial = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 0 });
+      const initialBytes = JSON.stringify(initial.state);
+      const request = { requestedHorizonMicroseconds: 6_000, state: initial.state, maxEvents: 256 };
+      const original = Object.getOwnPropertyDescriptor(RESISTOR_DEVICE_MODEL, 'observe')!;
+      let reference = advanceElectronicsToHorizon(document, request);
+      let expectedSteps = 1;
+      while (reference.executionStatus === 'yielded') {
+        expect(expectedSteps++).toBeLessThan(100);
+        reference = advanceElectronicsToHorizon(document, { ...request, state: reference.state });
+      }
+      expect(reference.executionStatus).toBe(fault ? 'fault' : 'ready');
+      const expected = fault
+        ? { ...reference, state: initial.state, committedHorizonMicroseconds: 0 }
+        : reference;
+
+      const session = createElectronicsAdvanceSession(document, request);
+      try {
+        for (let step = 0; step < 6; step++) expect(session.step()).toBeNull();
+        let callbacks = 0;
+        Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', {
+          ...original,
+          value: (...args: Parameters<NonNullable<typeof RESISTOR_DEVICE_MODEL.observe>>) => {
+            callbacks++;
+            return original.value(...args);
+          },
+        });
+        let actual;
+        for (let step = 6; step < expectedSteps; step++) {
+          actual = session.step();
+          if (callbacks > 0) Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', original);
+          if (step < expectedSteps - 1) expect(actual).toBeNull();
+        }
+        expect(callbacks).toBeGreaterThan(0);
+        expect(JSON.stringify(actual)).toBe(JSON.stringify(expected));
+        if (fault) expect(actual?.state).toStrictEqual(initial.state);
+        expect(JSON.stringify(initial.state)).toBe(initialBytes);
+      } finally {
+        Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', original);
+        session.dispose();
+      }
+    },
+  );
+
   it('retains future canonical inputs across complete observation requests', () => {
     const base = inputTraceFixture();
     const fixture = {

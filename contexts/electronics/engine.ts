@@ -997,6 +997,10 @@ function* advanceElectronicsRequest(
     do {
       if (driver) {
         const next = driver.step()!;
+        if (next.advanced === null) {
+          yield null;
+          continue;
+        }
         advanced = next.advanced;
         opticalObservation = next.ledTemporal;
       } else
