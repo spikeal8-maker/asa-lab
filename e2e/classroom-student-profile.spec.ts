@@ -199,6 +199,14 @@ async function setup(
     holdGrade: false,
     releaseGrade: () => {},
   };
+  await page.route(
+    `**/api/classrooms/${classId}/observation/learners/*/projects/*/free-preview`,
+    (route) =>
+      route.fulfill({
+        status: 404,
+        json: { error: { code: 'not_found', message: 'Класс недоступен.' } },
+      }),
+  );
   await page.route(`**/api/classrooms/${classId}/participants/*/*`, async (route) => {
     const url = new URL(route.request().url());
     const kind = url.pathname.split('/').at(-1)!;
@@ -1832,7 +1840,11 @@ test('class projects and learner profile show full-width project covers in a wra
 
   await state.open();
   await page.getByRole('button', { name: 'Ещё работы', exact: true }).click();
-  await verifyCover(page.locator('.classroom-work-card-list'), 'Работа: Ученик 01', 'profile');
+  await verifyCover(
+    page.locator('.classroom-work-card-list'),
+    'Работа: Открытая модель',
+    'profile',
+  );
 
   await page.getByRole('button', { name: '← К классу', exact: true }).click();
   const section = page.getByRole('combobox', { name: 'Раздел класса' });
@@ -1880,7 +1892,7 @@ test('touch and keyboard open the exact work snapshot and archive preview has no
     await expect(card.locator('img')).toHaveAttribute('loading', 'lazy');
     await expect(editor).toHaveAttribute('href', '#/projects/work-0-0');
     await opener.tap();
-    const dialog = page.getByRole('dialog', { name: `Работа: ${longName}` });
+    const dialog = page.getByRole('dialog', { name: 'Работа: Открытая модель' });
     await expect(dialog.getByTestId('work-preview-image')).toHaveAttribute('src', snapshot);
     await expect(dialog.getByRole('button', { name: 'Закрыть' })).toBeFocused();
     await expect(dialog.getByRole('button', { name: 'Сохранить отклик' })).toBeVisible();

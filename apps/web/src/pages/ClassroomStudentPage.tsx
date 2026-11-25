@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import {
-  api,
-  type ClassroomStudentSeat,
-  type ClassroomStudentWork,
-  type ModuleSummary,
-  type ProjectFeedback,
-} from '../api';
+import { api, type ClassroomStudentSeat, type ModuleSummary, type ProjectFeedback } from '../api';
 import {
   participantsApi,
   type ParticipantProfile,
@@ -52,6 +46,8 @@ function markTone(
     return badge;
   return edited ? 'teacher' : undefined;
 }
+const WORKS_PAGE_SIZE = 30;
+
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
   { key: 'grades', label: 'Оценки', module: null },
@@ -112,7 +108,9 @@ export function ClassroomStudentPage({
   const [workLoading, setWorkLoading] = useState(false);
   const workRequest = useRef(0);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
-  const [responding, setResponding] = useState<ClassroomStudentWork | null>(null);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const respondingIndex = works?.items.findIndex((work) => work.id === respondingId) ?? -1;
+  const responding = works?.items[respondingIndex];
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
   const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
   const [roleBusy, setRoleBusy] = useState(false);
@@ -295,7 +293,7 @@ export function ClassroomStudentPage({
       setArchive(false);
       setOnlyAwaiting(false);
     }
-    setResponding(null);
+    setRespondingId(null);
     setAwardKeys([]);
     setRoleBusy(false);
     void load();
@@ -310,7 +308,7 @@ export function ClassroomStudentPage({
       generation.current++;
       setProfile(null);
       setWorks(null);
-      setResponding(null);
+      setRespondingId(null);
       setAwardKeys([]);
       setLearnerPickerOpen(false);
       setLearnerRoster(null);
@@ -334,16 +332,36 @@ export function ClassroomStudentPage({
     };
   }, []);
   const loadWorks = useCallback(
-    async (offset = 0) => {
+    async (offset = 0, previewProjectId?: string) => {
       if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
       const token = ++generation.current;
-      setWorkLoading(true);
-      workRequest.current = offset;
+      if (!previewProjectId) {
+        setWorkLoading(true);
+        workRequest.current = offset;
+      }
       setWorksError(null);
       const result = await participantsApi.works(classroomId, seatId, module, archive, offset);
       if (generation.current !== token || scope.current !== `${classroomId}:${seatId}`) return;
       setWorkLoading(false);
-      if (result.ok)
+      if (result.ok) {
+        if (previewProjectId) {
+          const refreshed = result.data.items.find((work) => work.id === previewProjectId);
+          if (refreshed)
+            setWorks((old) =>
+              old
+                ? {
+                    ...old,
+                    items: old.items.map((work) =>
+                      work.id === previewProjectId ? refreshed : work,
+                    ),
+                  }
+                : old,
+            );
+          else setRespondingId((id) => (id === previewProjectId ? null : id));
+          return;
+        }
+        if (offset === 0)
+          setRespondingId((id) => (result.data.items.some((work) => work.id === id) ? id : null));
         setWorks((old) =>
           offset && old
             ? {
@@ -354,9 +372,10 @@ export function ClassroomStudentPage({
               }
             : result.data,
         );
-      else {
+      } else {
         if ([401, 403, 404].includes(result.status)) {
           setWorks(null);
+          setRespondingId(null);
           workRequest.current = 0;
         }
         setWorksError(result.error.message);
@@ -371,6 +390,13 @@ export function ClassroomStudentPage({
       generation.current++;
     };
   }, [loadWorks, showsWorks]);
+  useEffect(() => {
+    if (!respondingId || respondingIndex < 0) return;
+    const offset = Math.floor(respondingIndex / WORKS_PAGE_SIZE) * WORKS_PAGE_SIZE;
+    const refresh = () => void loadWorks(offset, respondingId);
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [loadWorks, respondingId, respondingIndex]);
 
   const activeStudent =
     profile?.student.id === seatId && loadedScope === `${classroomId}:${seatId}`
@@ -1124,7 +1150,7 @@ export function ClassroomStudentPage({
                       <ProjectPreviewFigure figure={figure} label={work.title} />
                     ) : null
                   }
-                  onPreview={() => setResponding(work)}
+                  onPreview={() => setRespondingId(work.id)}
                   editor={{
                     href: `#/projects/${work.id}`,
                     onOpen: () => onOpenProject(work.id, work.moduleKey),
@@ -1138,7 +1164,7 @@ export function ClassroomStudentPage({
               type="button"
               className="classroom-student-more"
               disabled={workLoading}
-              onClick={() => void loadWorks(works.offset + 30)}
+              onClick={() => void loadWorks(works.offset + WORKS_PAGE_SIZE)}
             >
               Ещё работы
             </button>
@@ -1228,17 +1254,17 @@ export function ClassroomStudentPage({
           onReviewed={async () => {
             await Promise.all([loadWorks(), load()]);
           }}
-          onClose={() => setResponding(null)}
+          onClose={() => setRespondingId(null)}
           onOpenEditor={() => {
             const work = responding;
-            setResponding(null);
+            setRespondingId(null);
             onOpenProject(work.id, work.moduleKey);
           }}
           {...(previewReadOnly
             ? { readOnly: true as const }
             : {
                 onGraded: () => {
-                  setResponding(null);
+                  setRespondingId(null);
                   void loadWorks();
                   void load();
                 },

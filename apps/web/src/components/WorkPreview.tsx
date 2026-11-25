@@ -80,23 +80,7 @@ export function WorkSnapshot({
   );
 }
 
-export function WorkPreview({
-  projectId,
-  snapshotRevision,
-  snapshotRefresh,
-  moduleKey,
-  learnerName,
-  workTitle,
-  submittedAt,
-  assignment,
-  previewScope,
-  readOnly = false,
-  manageFocus = false,
-  onClose,
-  onOpenEditor,
-  onReviewed,
-  onGraded,
-}: {
+type WorkPreviewProps = {
   readonly projectId: string;
   readonly moduleKey: string;
   readonly learnerName: string;
@@ -139,7 +123,39 @@ export function WorkPreview({
       readonly snapshotRefresh?: never;
       readonly onGraded: () => void;
     }
-)): JSX.Element {
+);
+
+export function WorkPreview(props: WorkPreviewProps): JSX.Element {
+  const { projectId, moduleKey, previewScope, readOnly } = props;
+  // Keep each viewer and its requests tied to the current class, pupil and work kind.
+  const identity = [
+    previewScope?.classroomId,
+    previewScope?.seatId,
+    projectId,
+    moduleKey,
+    previewScope?.kind,
+    readOnly,
+  ].join(':');
+  return <WorkPreviewDialog key={identity} {...props} />;
+}
+
+function WorkPreviewDialog({
+  projectId,
+  snapshotRevision,
+  snapshotRefresh,
+  moduleKey,
+  learnerName,
+  workTitle,
+  submittedAt,
+  assignment,
+  previewScope,
+  readOnly = false,
+  manageFocus = false,
+  onClose,
+  onOpenEditor,
+  onReviewed,
+  onGraded,
+}: WorkPreviewProps): JSX.Element {
   const [badge, setBadge] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   // Whether this work is already on the wall, so the button says the truth.
@@ -200,6 +216,7 @@ export function WorkPreview({
       const submission = await api.exactLearningSubmission(
         previewClassroomId,
         lookup.data.attemptId,
+        request.signal,
       );
       if (request.signal.aborted) return;
       if (
@@ -313,7 +330,7 @@ export function WorkPreview({
         ) : (
           <div className="work-preview-body">
             <div className="work-preview-picture">
-              {savedWork?.kind === 'free' ? (
+              {isFree && savedWork?.kind === 'free' ? (
                 <div className="work-preview-exact">
                   <p>
                     <strong>Сохранённая версия</strong>

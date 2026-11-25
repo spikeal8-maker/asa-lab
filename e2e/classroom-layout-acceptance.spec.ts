@@ -1058,3 +1058,130 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
   await expect(sourceDisclosure).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
+
+test('refreshing a reclassified classroom card retires its previous project preview immediately', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const state = await seedPresentation(page, true);
+  const pupil = state.students()[0]!;
+  const projectId = 'transition-project';
+  const title = 'Модель при смене типа работы';
+  const attemptId = 'transition-attempt';
+  const submissionId = '123e4567-e89b-42d3-a456-426614174019';
+  const projectVersionId = '123e4567-e89b-42d3-a456-426614174020';
+  const root = '/api/classrooms/' + classId;
+  const projectPath = root + '/observation/learners/' + pupil.id + '/projects/' + projectId;
+  const submissionPath = root + '/attempts/' + attemptId + '/submission';
+  const document = {
+    ...createEmptyThreeDDocument(),
+    nodes: [createThreeDNode('box', 'transition-box')],
+  };
+  let assigned = false;
+  let finishSubmission: () => void = () => undefined;
+  const pending = new Promise<void>((resolve) => {
+    finishSubmission = resolve;
+  });
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === root + '/observation/projects')
+      return route.fulfill({
+        json: {
+          items: [
+            {
+              id: projectId,
+              seatId: pupil.id,
+              student: pupil.displayLabel,
+              avatarKey: null,
+              title,
+              moduleKey: 'three-d',
+              assigned,
+              status: 'active',
+              updatedAt: '2026-10-12T12:00:00Z',
+            },
+          ],
+          total: 1,
+          hidden: 0,
+          nextOffset: null,
+          learners: [{ id: pupil.id, label: pupil.displayLabel }],
+        },
+      });
+    if (path === projectPath + '/free-preview')
+      return route.fulfill({
+        json: { projectId, revision: 6, moduleKey: 'three-d', document, preview: null },
+      });
+    if (path === projectPath + '/review')
+      return route.fulfill({
+        json: {
+          assignmentId: 'transition-assignment',
+          activityRunId: 'transition-run',
+          attemptId,
+          submissionId,
+          projectVersionId,
+          canReview: true,
+        },
+      });
+    if (path === submissionPath) {
+      await pending;
+      return route.fulfill({
+        json: {
+          kind: 'project',
+          submissionId,
+          projectVersionId,
+          sourceRevision: 7,
+          digest: 'frozen-digest',
+          moduleKey: 'three-d',
+          document,
+          preview: null,
+        },
+      });
+    }
+    return route.fallback();
+  });
+
+  await page.goto('/#/classrooms/' + classId);
+  await section(page, 'Проекты');
+  const card = page.getByRole('button', { name: new RegExp('Предпросмотр работы ' + title) });
+  const dialog = page.getByRole('dialog', { name: 'Работа: ' + title });
+  const free = dialog.getByRole('region', { name: 'Сохранённая 3D-модель' });
+  const frozen = dialog.getByRole('region', { name: 'Сданная 3D-модель' });
+  await card.click();
+  await expect(free).toHaveAttribute('data-ready', 'true');
+  const unexpected: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      (path.startsWith('/api/projects/') && !path.endsWith('/snapshot')) ||
+      (path.startsWith('/api/classrooms/') && request.method() !== 'GET') ||
+      path.startsWith('/api/public-projects')
+    )
+      unexpected.push(request.method() + ' ' + path);
+  });
+
+  try {
+    assigned = true;
+    const lookup = page.waitForRequest(
+      (request) => new URL(request.url()).pathname === submissionPath,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await lookup;
+    await expect(dialog.getByRole('status')).toHaveText('Загружаем сохранённую сдачу…');
+    await expect(dialog.locator('canvas')).toHaveCount(0);
+    await expect(free).toHaveCount(0);
+    await expect(frozen).toHaveCount(0);
+    finishSubmission();
+    await expect(frozen).toHaveAttribute('data-ready', 'true');
+    await expect(free).toHaveCount(0);
+
+    assigned = false;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(free).toHaveAttribute('data-ready', 'true');
+    await expect(frozen).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(card).toBeFocused();
+    expect(unexpected).toEqual([]);
+  } finally {
+    finishSubmission();
+  }
+});
