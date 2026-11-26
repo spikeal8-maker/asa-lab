@@ -225,11 +225,18 @@ async function assertLayout(page: Page, width: number, file: string) {
     ),
   ).toHaveCount(0);
   const mobileSectionRail = page.getByRole('group', { name: 'Разделы ученика' });
+  const summary = page.getByRole('group', { name: 'Сводка ученика', exact: true });
+  await expect(summary).toBeVisible();
+  const summaryBox = (await summary.boundingBox())!;
+  expect(summaryBox.height, 'one compact summary row').toBeLessThanOrEqual(20);
+  expect(summaryBox.y - navBox.y - navBox.height).toBeGreaterThanOrEqual(0);
+  expect(summaryBox.y - navBox.y - navBox.height).toBeLessThanOrEqual(4);
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
   if (await mobileSectionRail.isVisible()) {
     const railBox = (await mobileSectionRail.boundingBox())!;
     expect(railBox.height, 'one 44px section row').toBe(44);
-    expect(railBox.y - navBox.y - navBox.height).toBeLessThanOrEqual(6);
+    expect(railBox.y - summaryBox.y - summaryBox.height).toBeGreaterThanOrEqual(0);
+    expect(railBox.y - summaryBox.y - summaryBox.height).toBeLessThanOrEqual(6);
   } else {
     await expect(tabs).toBeVisible();
   }

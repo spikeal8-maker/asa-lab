@@ -251,7 +251,9 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await expect(learnerHeading).toBeVisible();
   const works = page.getByRole('region', { name: 'Все работы', exact: true });
   await expect(
-    works.getByLabel('Показатели работ ученика').getByText('Работ 1', { exact: true }),
+    page
+      .getByRole('group', { name: 'Сводка ученика', exact: true })
+      .getByText('Работ 1', { exact: true }),
   ).toBeVisible();
   const previewOpener = page.getByRole('button', {
     name: 'Предпросмотр работы Моя модель, Алина К.',

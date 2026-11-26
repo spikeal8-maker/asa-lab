@@ -260,7 +260,7 @@
   color: #8a3f06;
 }
 
-/* Teacher works: one compact toolbar rather than a second summary row. */
+/* Teacher works filters and visibility cue share one compact toolbar. */
 .classroom-student .classroom-student-works-head {
   display: flex;
   align-items: center;
@@ -288,14 +288,13 @@
 .classroom-student .classroom-student-work-summary {
   display: flex;
   align-items: center;
-  flex: 1 1 auto;
   flex-wrap: wrap;
   gap: 2px 11px;
   min-width: 0;
-  margin: 0;
+  margin: 0 0 3px;
   color: #526a78;
   font-size: 12px;
-  line-height: 18px;
+  line-height: 16px;
 }
 .classroom-student .classroom-student-work-summary > span {
   white-space: nowrap;
@@ -956,7 +955,7 @@
   min-width: 0;
   height: 46px;
   min-height: 46px;
-  margin: 0 0 6px;
+  margin: 0 0 2px;
   padding: 0;
   box-sizing: border-box;
   border-bottom: 1px solid var(--student-line);
@@ -982,6 +981,13 @@
 }
 .classroom-student-class-context .classroom-student-back {
   flex: 0 0 auto;
+}
+.classroom-student-class-title {
+  display: grid;
+  min-width: 0;
+}
+.classroom-student-mobile-protection {
+  display: none;
 }
 .classroom-student-class-name {
   min-width: 0;
@@ -1125,6 +1131,16 @@
   .classroom-student-class-name {
     max-width: 24cqw;
     font-size: 12px;
+  }
+  .classroom-student-mobile-protection {
+    display: block;
+    color: #526a78;
+    font-size: 10px;
+    line-height: 13px;
+    white-space: nowrap;
+  }
+  .classroom-student-rail-protection {
+    display: none;
   }
   .classroom-student-identity-rail .classroom-student-back-label,
   .classroom-student .classroom-student-identity-rail .student-pager-name {
@@ -1473,7 +1489,7 @@
 }
 
 /* Mobile teacher profile: navigation already names the selected section.
-   Keep one compact metrics + filters toolbar and a shorter genuine preview. */
+   Keep one compact filter toolbar and a shorter genuine preview. */
 @container teacher-profile (max-width: 599px) {
   .classroom-student .classroom-student-works-head {
     display: block;
@@ -1531,34 +1547,20 @@
     font-weight: 600;
   }
   .classroom-student .classroom-student-work-summary {
-    flex: 1 1 auto;
-    gap: 2px 5px;
+    flex-wrap: nowrap;
+    gap: 3px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
     font-size: 11px;
+  }
+  .classroom-student .classroom-student-work-summary > span {
+    flex: none;
   }
   .classroom-student .classroom-student-archive-filter {
     padding: 0 5px;
   }
   .classroom-student .classroom-student-archive-filter {
     padding: 0 2px;
-  }
-}
-@container teacher-profile (max-width: 350px) {
-  .classroom-student .classroom-student-works-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0 6px;
-  }
-  .classroom-student .classroom-student-work-summary {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    min-height: 44px;
-  }
-  .classroom-student .classroom-student-archive-filter {
-    justify-self: start;
-  }
-  .classroom-student .classroom-student-filter {
-    justify-self: end;
-    width: 64px;
   }
 }
