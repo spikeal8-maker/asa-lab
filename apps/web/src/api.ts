@@ -860,7 +860,7 @@ export interface AttendedClass {
   classroomId: string;
   classroomTitle: string;
   teacherDisplayName: string;
-  safeMode: boolean;
+  safeMode?: boolean;
   openCount: number;
   unfinishedCount: number;
 }
