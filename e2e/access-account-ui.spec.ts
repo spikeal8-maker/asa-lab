@@ -29,6 +29,77 @@ async function serveBuiltApp(page: Page) {
 }
 test.beforeEach(async ({ page }) => serveBuiltApp(page));
 
+for (const [width, path] of [
+  [1440, '/#/attending'],
+  [320, '/#/learning?view=classes'],
+] as const) {
+  test(`Account class code stays masked and resets after a successful request at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await fixture(page);
+    const received: string[] = [];
+    await page.route('**/api/class-join/account', (route) => {
+      received.push(route.request().postDataJSON().code);
+      if (received.length === 1)
+        return route.fulfill({
+          status: 404,
+          json: { error: { code: 'not_found', message: 'Класс не найден.' } },
+        });
+      return route.fulfill({
+        json: {
+          classroom: { id: fixtureClassId, title: 'Мой класс' },
+          seatId: null,
+          alreadyMember: false,
+          status: 'pending',
+          requestId: 'classroom-join-request',
+        },
+      });
+    });
+    await page.goto(path);
+
+    const form = page.locator('form.attended-join');
+    const code = form.getByLabel('Код класса', { exact: true });
+    const show = form.getByRole('button', { name: 'Показать код класса' });
+    const hide = form.getByRole('button', { name: 'Скрыть код класса' });
+    const submit = form.getByRole('button', { name: 'Войти в класс' });
+    await expect(code).toHaveAttribute('type', 'password');
+    await expect(submit).toBeDisabled();
+    await code.fill('abc def 234');
+    await code.focus();
+    await page.keyboard.press('Tab');
+    await expect(show).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(code).toHaveAttribute('type', 'text');
+    await expect(hide).toBeFocused();
+    await code.fill('abc def 345');
+    await submit.click();
+    await expect(form.getByRole('alert')).toHaveText('Класс не найден.');
+    await expect(code).toHaveAttribute('type', 'text');
+    await expect(code).toHaveValue('ABC DEF 345');
+    await hide.click();
+    await expect(code).toHaveAttribute('type', 'password');
+
+    const input = (await code.boundingBox())!;
+    const toggle = (await show.boundingBox())!;
+    const action = (await submit.boundingBox())!;
+    expect(toggle.width).toBeGreaterThanOrEqual(44);
+    expect(toggle.height).toBeGreaterThanOrEqual(44);
+    expect(input.x + input.width).toBeLessThanOrEqual(toggle.x);
+    expect(toggle.x + toggle.width).toBeLessThanOrEqual(width);
+    expect(action.x + action.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: test.info().outputPath(`account-class-code-${width}.png`) });
+
+    await show.click();
+    await submit.click();
+    await expect(form.getByRole('status')).toContainText('Заявка в класс «Мой класс» отправлена.');
+    await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveValue('');
+    await expect(submit).toBeDisabled();
+    expect(received).toEqual(['ABC DEF 345', 'ABC DEF 345']);
+  });
+}
+
 test('classroom entry remains retryable when its page fails to load', async ({ page }) => {
   await page.route('**/api/**', (route) => route.fulfill({ json: { authenticated: false } }));
   const chunk = '**/assets/JoinClassPage-*.js';
