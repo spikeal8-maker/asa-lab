@@ -16,6 +16,7 @@ import {
   type LogFilter,
   type LogEntry,
 } from './admin-logs.worker.js';
+import { createHandoffProjector } from './admin-log-handoff.js';
 import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
 import { QUALITY_COUNTERS } from './analytics-envelope.js';
 import { logFilter } from './admin-logs.controller.js';
@@ -44,6 +45,43 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('keeps allowlisted Scratch save reasons in a handoff without copying validation text', () => {
+    const project = createHandoffProjector();
+    const row = (detail: Record<string, unknown>) =>
+      project(
+        {
+          id: '1'.repeat(64),
+          time: '2026-11-22T09:22:01.001Z',
+          source: 'api',
+          subsystem: 'scratch',
+          module: 'scratch',
+          level: 'error',
+          message: JSON.stringify(detail),
+        } as LogEntry,
+        true,
+      );
+
+    expect(
+      row({
+        kind: 'client_diagnostic',
+        code: 'autosave_failed',
+        failureCode: 'scratch-save-asset-missing',
+      }),
+    ).toMatchObject({ detail: { failureCode: 'scratch-save-asset-missing' } });
+    expect(
+      row({
+        kind: 'http_response',
+        errorCode: 'validation_error',
+        reasonCode: 'blocks_asset_reference_missing',
+      }),
+    ).toMatchObject({
+      detail: { errorCode: 'validation_error', reasonCode: 'blocks_asset_reference_missing' },
+    });
+    expect(
+      row({ errorCode: 'validation_error', reasonCode: 'arbitrary project content' })?.detail,
+    ).not.toHaveProperty('reasonCode');
+  });
+
   it('exports one private-safe union of global errors and a module at exact bounds', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-log-handoff-'));
     try {
