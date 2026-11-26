@@ -30,6 +30,7 @@ on:
       - 'tools/electronics-benchmark-assets*.mjs'
       - 'tools/electronics-failure-reporter.mjs'
       - 'tools/electronics-runner-timing.py'
+      - 'tools/electronics-clock-reference.py'
       - 'playwright.config.ts'
       - 'tools/run-electronics-load-benchmark.mjs'
       - 'tools/run-electronics-memory-benchmark.mjs'
@@ -154,13 +155,13 @@ jobs:
     name: Actual editor live simulation journey (${{ matrix.browser_case.label }})
     needs: focused
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: ${{ (inputs.qualification_profile || 'strict-real-time') == 'strict-real-time' && 75 || 50 }}
     strategy:
       fail-fast: false
       matrix:
         # Keep the two classroom qualifications whole and preserve the
-        # arduino-editor-error dispatch. Strict CI isolates Arduino real time
-        # from the four shards that run all remaining scenarios.
+        # arduino-editor-error dispatch. Four strict shards run the universal
+        # cases. All five assigned runners can qualify for the reference cases.
         browser_case: >-
           ${{ fromJSON(
               (inputs.qualification_profile == 'classroom-d13-v2' ||
@@ -177,8 +178,7 @@ jobs:
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
       ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v3' && 'gate:electronics-classroom-d13-v3:browser' || inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
       ASA_ELECTRONICS_BROWSER_SHARD: ${{ matrix.browser_case.shard }}
-      ASA_ELECTRONICS_BROWSER_FILTER: ${{ matrix.browser_case.label == 'arduino-realtime' && '--grep' || (matrix.browser_case.shard != '' && '--grep-invert' || '') }}
-      ASA_ELECTRONICS_REALTIME_TITLES: 'Issue 682 acknowledged native realtime baseline (?:delays|button-serial|short(?:20|30|50|100)|long(?:1000|5000|10000|20000)): strict real time and acknowledged native evidence$'
+      ASA_ELECTRONICS_BROWSER_FILTER: ${{ matrix.browser_case.shard != '' && '--grep-invert' || '' }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}-${{ matrix.browser_case.label }}
       ASA_TEST_UID: '1000'
@@ -232,11 +232,31 @@ jobs:
         continue-on-error: true
         run: python3 tools/electronics-runner-timing.py host before >> reports/electronics-runner-host-timing.ndjson
 
+      - name: Prequalify assigned Electronics clock runner
+        if: ${{ env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        env:
+          COHORT_SLOT: ${{ matrix.browser_case.label }}
+        run: |
+          mkdir -p reports/cohort
+          chmod 0777 reports/cohort
+          python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' \
+            "$ASA_ELECTRONICS_EXPECTED_SHA" "$COHORT_SLOT" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > reports/cohort/identity.json
+          pattern="$(python3 tools/electronics-clock-reference.py pattern)"
+          printf 'ASA_ELECTRONICS_REALTIME_TITLES=%s\n' "$pattern" >> "$GITHUB_ENV"
+          compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
+          "${compose[@]}" run --rm --no-deps -T test-runner \
+            python3 tools/electronics-runner-timing.py test-runner before > reports/cohort/assignment.json
+          if [[ -n "$ASA_ELECTRONICS_BROWSER_SHARD" ]]; then
+            "${compose[@]}" run --rm --no-deps -T -e NX_SKIP_NX_CACHE=true test-runner \
+              python3 tools/electronics-clock-reference.py roster "$ASA_ELECTRONICS_BROWSER_SHARD" reports/cohort/universal-roster.json
+          fi
+
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
       - name: Selected Electronics browser qualification
         id: selected_electronics_browser
+        if: ${{ matrix.browser_case.label != 'arduino-realtime' && matrix.browser_case.label != 's3' }}
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE -e ASA_ELECTRONICS_FAILURE_REPORT test-runner
@@ -254,7 +274,7 @@ jobs:
       # The journal is flushed after each test, including before a job cancellation.
       # Keep it separately readable when retained traces make the full archive large.
       - name: Upload incremental browser failure evidence
-        if: always()
+        if: ${{ always() && matrix.browser_case.label != 'arduino-realtime' && matrix.browser_case.label != 's3' }}
         uses: actions/upload-artifact@v4
         with:
           name: electronics-r4-m1-failures-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}
@@ -273,52 +293,54 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Complete preselected Arduino clock reference
-        if: >-
-          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
-              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
-        timeout-minutes: 15
+      - name: Run all strict clock cases on each prequalified runner
+        if: ${{ always() && env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        timeout-minutes: 30
         env:
-          ASA_ELECTRONICS_ORIGINAL_GATE_OUTCOME: ${{ steps.selected_electronics_browser.outcome }}
-        shell: bash
+          ORIGINAL_GATE_OUTCOME: ${{ steps.selected_electronics_browser.outcome }}
         run: |
+          if [[ -n "$ASA_ELECTRONICS_BROWSER_SHARD" ]]; then
+            python3 -c 'import json,os; print(json.dumps(os.environ["ORIGINAL_GATE_OUTCOME"]))' > reports/cohort/universal-exit.json
+            if [[ -f reports/electronics-failures.ndjson ]]; then
+              cp reports/electronics-failures.ndjson reports/cohort/universal.ndjson
+            fi
+          fi
+          class="$(python3 tools/electronics-clock-reference.py classify reports/cohort/assignment.json)"
+          if [[ "$class" != reference ]]; then
+            printf 'Clock reference assignment: %s\n' "$class"
+            exit 0
+          fi
           output="$RUNNER_TEMP/asa-electronics-clock-reference"
           mkdir -p "$output/reports" "$output/artifacts"
           chmod 0777 "$output/reports" "$output/artifacts"
-          main_report=reports/electronics-failures.ndjson
-          extra_report="$output/reports/electronics-failures.ndjson"
-          summary="$output/reference.json"
-          state="$(python3 tools/electronics-clock-reference.py plan \
-            "$ASA_ELECTRONICS_EXPECTED_SHA" "$summary" "$main_report" "$extra_report" "$ASA_ELECTRONICS_ORIGINAL_GATE_OUTCOME")"
-          if [[ "$state" == RUN_REMAINING ]]; then
-            compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
-            code=0
-            "${compose[@]}" run --rm --no-deps -e NX_SKIP_NX_CACHE=true \
-              -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE \
-              --volume "$output/reports:/workspace/reports" \
-              --volume "$output/artifacts:/workspace/e2e/artifacts" \
-              test-runner python3 tools/electronics-clock-reference.py run || code=$?
-            python3 tools/electronics-clock-reference.py finish \
-              "$ASA_ELECTRONICS_EXPECTED_SHA" "$summary" "$main_report" "$extra_report" "$ASA_ELECTRONICS_ORIGINAL_GATE_OUTCOME" "$code"
-          else
-            printf '%s\n' "$state"
+          compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
+          code=0
+          "${compose[@]}" run --rm --no-deps -e NX_SKIP_NX_CACHE=true \
+            -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE \
+            --volume "$output/reports:/workspace/reports" \
+            --volume "$output/artifacts:/workspace/e2e/artifacts" \
+            test-runner python3 tools/electronics-clock-reference.py reference || code=$?
+          printf '%s\n' "$code" > reports/cohort/reference-exit.json
+          if [[ -f "$output/reports/reference-before.json" ]]; then
+            cp "$output/reports/reference-before.json" reports/cohort/reference-before.json
           fi
+          if [[ -f "$output/reports/electronics-failures.ndjson" ]]; then
+            cp "$output/reports/electronics-failures.ndjson" reports/cohort/reference.ndjson
+          fi
+          exit "$code"
 
       - name: Upload separate clock-reference qualification
-        if: >-
-          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
-              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        if: ${{ always() && env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
         uses: actions/upload-artifact@v4
         with:
-          name: electronics-r4-m1-clock-reference-${{ github.run_id }}-${{ github.run_attempt }}
+          name: electronics-r4-m1-clock-reference-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}
           path: ${{ runner.temp }}/asa-electronics-clock-reference
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
-
 
       - name: Verify actual simulation pace under load
         if: >-
-          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
+          ${{ always() && matrix.browser_case.label == 's4' &&
               env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
         timeout-minutes: 3
         shell: bash
@@ -332,7 +354,7 @@ jobs:
 
       - name: Upload actual simulation pace under load evidence
         if: >-
-          ${{ always() && matrix.browser_case.label == 'arduino-realtime' &&
+          ${{ always() && matrix.browser_case.label == 's4' &&
               env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
         uses: actions/upload-artifact@v4
         with:
@@ -341,6 +363,45 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Verify actual simulation pace on a slow CPU
+        if: >-
+          ${{ always() && matrix.browser_case.label == 's4' &&
+              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          output="$RUNNER_TEMP/asa-electronics-slow-cpu/reports"
+          mkdir -p "$output"
+          chmod 0777 "$output"
+          compose=(docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test)
+          "${compose[@]}" run --rm --no-deps -e NX_SKIP_NX_CACHE=true --volume "$output:/workspace/reports" \
+            test-runner node apps/web/src/electronics/testing/simulation-speed.browser.mjs --slow-cpu
+
+      - name: Upload actual simulation pace on a slow CPU evidence
+        if: >-
+          ${{ always() && matrix.browser_case.label == 's4' &&
+              env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-slow-cpu-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/asa-electronics-slow-cpu/reports/electronics-slow-cpu
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Collect generic pace proof receipts
+        if: ${{ always() && matrix.browser_case.label == 's4' && env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        run: |
+          cp "$RUNNER_TEMP/asa-electronics-overload/reports/electronics-overload/receipt.json" reports/cohort/overload-receipt.json
+          cp "$RUNNER_TEMP/asa-electronics-slow-cpu/reports/electronics-slow-cpu/receipt.json" reports/cohort/slow-cpu-receipt.json
+
+      - name: Upload cohort journal
+        if: ${{ always() && env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-r4-m1-cohort-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}
+          path: reports/cohort
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Remove isolated test stack
         if: always()
@@ -348,9 +409,53 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           down -v --remove-orphans
 
+  clock-qualification:
+    name: Complete strict Electronics qualification
+    needs: browser
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      BROWSER_RESULT: ${{ needs.browser.result }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ env.PROFILE == 'strict-real-time' }}
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        if: ${{ env.PROFILE == 'strict-real-time' }}
+        with:
+          pattern: electronics-r4-m1-cohort-${{ github.run_id }}-${{ github.run_attempt }}-*
+          path: cohort
+
+      - name: Verify exact universal and reference coverage
+        if: ${{ always() && env.PROFILE == 'strict-real-time' }}
+        run: |
+          mkdir -p assigned
+          for slot in s1 s2 s3 s4 arduino-realtime; do
+            path="cohort/electronics-r4-m1-cohort-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$slot"
+            if [[ -d "$path" ]]; then
+              mv "$path" "assigned/$slot"
+            fi
+          done
+          python3 tools/electronics-clock-reference.py aggregate "$EXPECTED_SHA" assigned \
+            clock-qualification.json "$BROWSER_RESULT" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && env.PROFILE == 'strict-real-time' }}
+        with:
+          name: electronics-r4-m1-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: clock-qualification.json
+          if-no-files-found: error
+          retention-days: 14
+
   review-images:
     name: Package exact-head review images
-    needs: [focused, benchmark, browser]
+    needs: [focused, benchmark, browser, clock-qualification]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:

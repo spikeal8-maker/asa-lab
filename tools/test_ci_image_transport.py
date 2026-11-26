@@ -388,19 +388,15 @@ QUALIFICATION_SHARD_CLI = (
     ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}'
     ' ${ASA_ELECTRONICS_BROWSER_FILTER:+--workers=1 "$ASA_ELECTRONICS_BROWSER_FILTER" "$ASA_ELECTRONICS_REALTIME_TITLES"}'
 )
-QUALIFICATION_SHARD_FILTER = (
-    "${{ matrix.browser_case.label == 'arduino-realtime' && '--grep' || "
-    "(matrix.browser_case.shard != '' && '--grep-invert' || '') }}"
-)
-QUALIFICATION_REALTIME_TITLES = (
-    'Issue 682 acknowledged native realtime baseline '
-    '(?:delays|button-serial|short(?:20|30|50|100)|long(?:1000|5000|10000|20000)):'
-    ' strict real time and acknowledged native evidence$'
-)
+QUALIFICATION_SHARD_FILTER = "${{ matrix.browser_case.shard != '' && '--grep-invert' || '' }}"
+QUALIFICATION_COHORT_TIMEOUT = "${{ (inputs.qualification_profile || 'strict-real-time') == 'strict-real-time' && 75 || 50 }}"
+QUALIFICATION_UNIVERSAL_JOB = "${{ matrix.browser_case.label != 'arduino-realtime' && matrix.browser_case.label != 's3' }}"
+QUALIFICATION_FAILURE_UPLOAD = "${{ always() && matrix.browser_case.label != 'arduino-realtime' && matrix.browser_case.label != 's3' }}"
 QUALIFICATION_SHARD_SUFFIX = "-${{ matrix.browser_case.label }}"
 BROWSER_REPORT_NAME = "electronics-r4-m1-browser-${{ github.run_id }}"
 SHARDED_FAILURE_REPORT_UPLOAD = deepcopy(FAILURE_REPORT_UPLOAD)
 SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"] += QUALIFICATION_SHARD_SUFFIX
+SHARDED_FAILURE_REPORT_UPLOAD["if"] = QUALIFICATION_FAILURE_UPLOAD
 
 
 def strict_shard_contract(contract):
@@ -415,7 +411,8 @@ def strict_shard_contract(contract):
     env = browser["controls"]["env"]
     env["ASA_ELECTRONICS_BROWSER_SHARD"] = "${{ matrix.browser_case.shard }}"
     env["ASA_ELECTRONICS_BROWSER_FILTER"] = QUALIFICATION_SHARD_FILTER
-    env["ASA_ELECTRONICS_REALTIME_TITLES"] = QUALIFICATION_REALTIME_TITLES
+    browser["controls"]["timeout-minutes"] = QUALIFICATION_COHORT_TIMEOUT
+    contract["jobs"]["review-images"]["controls"]["needs"] = ["focused", "benchmark", "browser", "clock-qualification"]
     env["COMPOSE_PROJECT_NAME"] += QUALIFICATION_SHARD_SUFFIX
     upload_names = {
         FAILURE_REPORT_UPLOAD["with"]["name"]: SHARDED_FAILURE_REPORT_UPLOAD["with"]["name"],
@@ -427,6 +424,7 @@ def strict_shard_contract(contract):
         if step.get("run", "").endswith('test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"'):
             step["run"] += QUALIFICATION_SHARD_CLI
             step["id"] = "selected_electronics_browser"
+            step["if"] = QUALIFICATION_UNIVERSAL_JOB
             gate_count += 1
         if step.get("uses") == "actions/upload-artifact@v4":
             name = step.get("with", {}).get("name")
@@ -434,6 +432,8 @@ def strict_shard_contract(contract):
                 require(name not in uploads, "Duplicate original browser evidence upload")
                 uploads.add(name)
                 step["with"]["name"] = upload_names[name]
+                if name == FAILURE_REPORT_UPLOAD["with"]["name"]:
+                    step["if"] = QUALIFICATION_FAILURE_UPLOAD
     require(gate_count == 1 and uploads == set(upload_names),
             "Sharding must extend one browser gate and both evidence uploads")
     return contract
@@ -524,6 +524,72 @@ def covers_required_triggers(actual, required):
     return True
 
 
+def check_clock_cohort(workflow):
+    jobs = workflow["jobs"]
+    browser = jobs["browser"]
+    strict = "${{ env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}"
+    always_strict = "${{ always() && env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}"
+    required = {
+        "Prequalify assigned Electronics clock runner": (strict, "electronics-clock-reference.py pattern",
+                                                           "test-runner before", "universal-roster.json"),
+        "Run all strict clock cases on each prequalified runner": (always_strict, "assignment.json",
+                                                                  "electronics-clock-reference.py reference",
+                                                                  'exit "$code"'),
+        "Upload cohort journal": (always_strict, "reports/cohort", "if-no-files-found"),
+        "Verify actual simulation pace under load": (None, "simulation-speed.browser.mjs --overload"),
+        "Verify actual simulation pace on a slow CPU": (None, "simulation-speed.browser.mjs --slow-cpu"),
+        "Collect generic pace proof receipts": (None, "overload-receipt.json", "slow-cpu-receipt.json"),
+    }
+    positions = {}
+    for name, (when, *fragments) in required.items():
+        found = [(index, step) for index, step in enumerate(browser["steps"]) if step.get("name") == name]
+        require(len(found) == 1, "Clock cohort step missing or duplicated: " + name)
+        index, step = found[0]
+        positions[name] = index
+        content = step.get("run", "") + str(step.get("with", {}))
+        require(not step.get("continue-on-error") and all(item in content for item in fragments),
+                "Clock cohort step changed: " + name)
+        if when:
+            require(step.get("if") == when, "Clock cohort assignment changed: " + name)
+        else:
+            require(" ".join(step.get("if", "").split()) ==
+                    "${{ always() && matrix.browser_case.label == 's4' && env.ASA_ELECTRONICS_QUALIFICATION_PROFILE == 'strict-real-time' }}",
+                    "Generic pace proof must run on s4")
+    original = next(index for index, step in enumerate(browser["steps"])
+                    if step.get("id") == "selected_electronics_browser")
+    require(positions["Prequalify assigned Electronics clock runner"] < original
+            < positions["Run all strict clock cases on each prequalified runner"]
+            < positions["Upload cohort journal"]
+            and positions["Verify actual simulation pace under load"] < positions["Collect generic pace proof receipts"]
+            < positions["Upload cohort journal"]
+            and positions["Verify actual simulation pace on a slow CPU"] < positions["Collect generic pace proof receipts"],
+            "Clock cohort evidence order changed")
+    upload = next(step for step in browser["steps"] if step.get("name") == "Upload cohort journal")
+    require(upload.get("uses") == "actions/upload-artifact@v4" and upload.get("with") == {
+        "name": "electronics-r4-m1-cohort-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.browser_case.label }}",
+        "path": "reports/cohort", "if-no-files-found": "error", "retention-days": 14,
+    }, "Clock cohort journal must retain run, attempt and runner identity")
+    result = jobs.get("clock-qualification") or {}
+    steps = result.get("steps", [])
+    verify_steps = [step for step in steps if step.get("name") == "Verify exact universal and reference coverage"]
+    require(result.get("needs") == "browser" and result.get("if") == "always()"
+            and "continue-on-error" not in result
+            and result.get("env") == {
+                "PROFILE": "${{ inputs.qualification_profile || 'strict-real-time' }}",
+                "EXPECTED_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+                "BROWSER_RESULT": "${{ needs.browser.result }}",
+            }
+            and len(verify_steps) == 1
+            and verify_steps[0].get("if") == "${{ always() && env.PROFILE == 'strict-real-time' }}"
+            and not verify_steps[0].get("continue-on-error")
+            and verify_steps[0].get("run", "").rstrip().endswith(
+                'clock-qualification.json "$BROWSER_RESULT" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"')
+            and any(step.get("uses") == "actions/download-artifact@v4" and step.get("with") == {
+                "pattern": "electronics-r4-m1-cohort-${{ github.run_id }}-${{ github.run_attempt }}-*",
+                "path": "cohort",
+            } for step in steps), "A failed or missing clock cohort must block acceptance")
+
+
 def check_workflow(path, contract, receipt, general_node, electronics):
     workflow = parse_yaml(read(path))
     require(FAILURE_REPORT_FLAG not in workflow.get("env", {}),
@@ -563,6 +629,8 @@ def check_workflow(path, contract, receipt, general_node, electronics):
             require(cursor < len(actual), "Missing/changed required step: " + job_id
                     + ":" + str(required.get("run", required.get("uses", "unknown"))))
             cursor += 1
+    if path == FOCUSED:
+        check_clock_cohort(workflow)
     # Check every Compose operation, including newly added ones. Parse folded
     # YAML commands first; checking just the first physical line misses flags.
     for job_id, job in workflow.get("jobs", {}).items():
@@ -1442,7 +1510,10 @@ def check_qualification_challenges(receipt):
         ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/4"})),
         ("ordinary shards cannot repeat isolated Arduino cases", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_FILTER": QUALIFICATION_SHARD_FILTER.replace("'--grep-invert'", "''")})),
         ("whole profiles cannot be filtered", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_FILTER": "--grep-invert"})),
-        ("dedicated filter must keep all ten exact titles", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_REALTIME_TITLES": QUALIFICATION_REALTIME_TITLES.replace("|20000", "")})),
+        ("all assigned runners must be preclassified", lambda w: [step.update({"if": False})
+            for step in w["jobs"]["browser"]["steps"]
+            if step.get("name") == "Prequalify assigned Electronics clock runner"]),
+        ("clock cohort cannot ignore failure", lambda w: w["jobs"]["clock-qualification"].update({"continue-on-error": True})),
         ("Compose project must isolate all children", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}"})),
         ("Compose project cannot be static", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics"})),
         ("large archive cannot share a name", lambda w: [step["with"].update({"name": BROWSER_REPORT_NAME})

@@ -1,4 +1,4 @@
-"""Complete the frozen clock-reference cases on the already selected strict CI runner."""
+"""Plan and verify the strict Electronics qualification on the preassigned CI cohort."""
 from collections import Counter
 import hashlib
 import json
@@ -114,8 +114,9 @@ WALL_CASES = {
     )),
 }
 
-ORIGINAL = {key: label for key, label in WALL_CASES.items() if label[0] == "arduino-realtime"}
-REMAINING = {key: label for key, label in WALL_CASES.items() if key not in ORIGINAL}
+UNIVERSAL_COUNTS = {"s1": 83, "s2": 127, "s3": 0, "s4": 42}
+UNIVERSAL_ROSTER_SHA256 = "de66b050228b2007489a207cf64061f3f65ade0b68990f2e8c8662cfc6a39d9c"
+SLOTS = (*UNIVERSAL_COUNTS, "arduino-realtime")
 END_STATUSES = ("passed", "failed", "timedOut", "skipped", "interrupted", "unknown")
 
 
@@ -172,17 +173,6 @@ def load_report(path, head, expected):
     }
 
 
-def pending(report, original_outcome):
-    observed = hardware_class(report["before"])
-    if observed == "other":
-        return "REFERENCE_ABSENT"
-    if observed != "reference":
-        return "REFERENCE_UNVERIFIED"
-    if report["failedIds"]:
-        return "REFERENCE_FAILED"
-    return "RUN_REMAINING" if original_outcome == "success" else "REFERENCE_INCOMPLETE"
-
-
 def list_entries(suite, parents=()):
     for spec in suite.get("specs", []):
         verify(len(spec["tests"]) == 1, "more than one project selected")
@@ -191,83 +181,139 @@ def list_entries(suite, parents=()):
         yield from list_entries(child, (*parents, child["title"]))
 
 
-def assert_selection(report):
-    collected = list(list_entries(report))
-    verify(not report["errors"] and len(collected) == len(REMAINING) and
-           dict(collected) == {key: label[1] for key, label in REMAINING.items()},
-           "discovery does not match the frozen 15-case roster")
-
-
-def store(path, value):
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def finish(head, target, original_path, extra_path, original_outcome, exit_code):
-    data = {"head": head, "scope": "strict-clock-reference-only",
-            "hardwareClass": HARDWARE, "referenceRequired": len(WALL_CASES),
-            "githubRunId": os.environ.get("GITHUB_RUN_ID"),
-            "githubRunAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
-            "runner": os.environ.get("RUNNER_NAME"),
-            "originalGateOutcome": original_outcome or None,
-            "observedIds": []}
-    try:
-        original = load_report(original_path, head, ORIGINAL)
-        data.update(status=pending(original, original_outcome), original=original)
-        if data["status"] == "REFERENCE_INCOMPLETE":
-            data["reason"] = "the original browser gate did not complete successfully"
-        if hardware_class(original["before"]) == "reference":
-            data["observedIds"].extend(original["ids"])
-        if data["status"] == "RUN_REMAINING" and exit_code is not None:
-            data["remainingGateExitCode"] = exit_code
-            selected_before = json.loads((extra_path.parent / "reference-before.json").read_text())
-            verify(hardware_class(selected_before) == "reference", "second process preflight hardware did not match")
-            extra = load_report(extra_path, head, REMAINING)
-            data["remaining"] = extra
-            verify(hardware_class(extra["before"]) == "reference", "second browser before hardware did not match")
-            data["observedIds"].extend(extra["ids"])
-            if extra["failedIds"]:
-                data["status"] = "REFERENCE_FAILED"
-            else:
-                verify(exit_code == 0, "the real Playwright command failed outside a case")
-                data["status"] = "REFERENCE_PASSED"
-    except (OSError, TypeError, ValueError, KeyError) as error:
-        data.update(status="REFERENCE_INCOMPLETE", reason=str(error))
-    decision = data["status"]
-    if decision == "RUN_REMAINING":
-        data.update(status="REFERENCE_INCOMPLETE", reason="remaining browser checks have not finished")
-    store(target, data)
-    return decision
-
-
 def selector(titles):
     # Playwright uses an ECMAScript RegExp with no slash delimiters.
     escapes = str.maketrans({char: "\\" + char for char in r"\.^$|?*+()[]{}"})
     return "(?:^| )(?:" + "|".join(title.translate(escapes) for title in titles) + ")$"
 
 
-def run(work_dir):
-    check = subprocess.check_output(["python3", "tools/electronics-runner-timing.py", "test-runner", "before"])
-    before = json.loads(check)
-    store(work_dir / "reference-before.json", before)
-    verify(hardware_class(before) == "reference", "the routed container does not match the reference")
-    command = [*GATE, "--grep", selector(label[1][-1] for label in REMAINING.values())]
-    listed = subprocess.check_output([*command, "--list", "--reporter=json"], text=True, encoding="utf-8")
+def store(path, value):
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def read(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def collect(arguments):
+    listed = subprocess.check_output([*GATE, *arguments, "--list", "--reporter=json"],
+                                     text=True, encoding="utf-8")
     report = json.loads(listed[listed.index("\n{") + 1:] if not listed.startswith("{") else listed)
-    assert_selection(report)
-    store(work_dir / "reference-discovery.json", {"ids": sorted(REMAINING)})
-    report_environment = {**os.environ, "ASA_ELECTRONICS_FAILURE_REPORT": "true"}
-    return subprocess.run(command, env=report_environment, check=False).returncode
+    entries = list(list_entries(report))
+    verify(not report["errors"] and len(entries) == len(dict(entries)), "incorrect Playwright roster")
+    return dict(entries)
+
+
+def clock_selector():
+    return selector(label[1][-1] for label in WALL_CASES.values())
+
+
+def roster(shard, output):
+    cases = collect(["--grep-invert", clock_selector(), "--shard", shard])
+    verify(not (cases.keys() & WALL_CASES.keys()), "universal roster contains reference cases")
+    store(output, cases)
+
+
+def run_reference():
+    before = json.loads(subprocess.check_output(
+        ["python3", "tools/electronics-runner-timing.py", "test-runner", "before"],
+    ))
+    store(Path("reports/reference-before.json"), before)
+    verify(hardware_class(before) == "reference", "reference container no longer eligible")
+    arguments = ["--grep", clock_selector()]
+    verify(collect(arguments) == {key: label[1] for key, label in WALL_CASES.items()},
+           "discovery does not match all 25 frozen strict cases")
+    environment = {**os.environ, "ASA_ELECTRONICS_FAILURE_REPORT": "true"}
+    return subprocess.run([*GATE, *arguments], env=environment, check=False).returncode
+
+
+def qualification(head, inputs, browser_result, run, attempt):
+    data = {"head": head, "run": run, "attempt": attempt, "slots": {},
+            "errors": [], "universalIds": [], "referenceIds": []}
+    universals = set()
+    references = 0
+    for slot in SLOTS:
+        path = inputs / slot
+        result = data["slots"][slot] = {}
+        try:
+            verify(read(path / "identity.json") == [head, slot, run, attempt], "wrong cohort run or SHA")
+            first = read(path / "assignment.json")
+            kind = hardware_class(first)
+            result["hardware"] = kind
+            if slot in UNIVERSAL_COUNTS:
+                roster_rows = read(path / "universal-roster.json")
+                verify(len(roster_rows) == UNIVERSAL_COUNTS[slot]
+                       and not (roster_rows.keys() & (universals | WALL_CASES.keys())),
+                       "incorrect or overlapping universal roster")
+                outcome = read(path / "universal-exit.json")
+                if roster_rows:
+                    expected = {key: (slot, tuple(titles)) for key, titles in roster_rows.items()}
+                    universal = result["universal"] = load_report(path / "universal.ndjson", head, expected)
+                    universals.update(universal["ids"])
+                    if universal["failedIds"] or outcome != "success":
+                        data["errors"].append(f"{slot}: universal qualification failed")
+                else:
+                    verify(outcome == "skipped" and not (path / "universal.ndjson").exists(),
+                           "unexpected execution for the empty discovery shard")
+            if kind == "reference":
+                observed_before = read(path / "reference-before.json")
+                physical = result["reference"] = load_report(path / "reference.ndjson", head, WALL_CASES)
+                verify(hardware_class(observed_before) == hardware_class(physical["before"]) == "reference",
+                       "reference assignment and browser hardware differ")
+                code = read(path / "reference-exit.json")
+                if not physical["failedIds"] and code == 0:
+                    references += 1
+                else:
+                    data["errors"].append(f"{slot}: strict reference qualification failed")
+            else:
+                verify(not any((path / name).exists() for name in ("reference.ndjson", "reference-exit.json")),
+                       "reference attempt without prequalification")
+        except (OSError, TypeError, ValueError, KeyError, IndexError) as error:
+            data["errors"].append(f"{slot}: {error}")
+    data["universalIds"] = sorted(universals)
+    data["referenceIds"] = sorted(WALL_CASES) if references else []
+    if len(universals) != 252:
+        data["errors"].append(f"Expected 252 distinct universal cases, observed {len(universals)}")
+    elif hashlib.sha256(("\n".join(data["universalIds"]) + "\n").encode()).hexdigest() != UNIVERSAL_ROSTER_SHA256:
+        data["errors"].append("Universal test identities differ from the frozen complete roster")
+    data["paceProofs"] = {}
+    for mode in ("overload", "slow-cpu"):
+        try:
+            path = inputs / "s4" / f"{mode}-receipt.json"
+            verify(bool(read(path)), f"Empty {mode} proof")
+            data["paceProofs"][mode] = hashlib.sha256(path.read_bytes()).hexdigest()
+        except (OSError, TypeError, ValueError) as error:
+            data["errors"].append(f"{mode}: {error}")
+    if not references:
+        data["errors"].append("No successful prequalified reference measurement")
+    if browser_result != "success":
+        data["errors"].append("A cohort job or generic pace proof did not complete successfully")
+    data["status"] = "failed" if data["errors"] else "passed"
+    return data
 
 
 if __name__ == "__main__":
     mode, *args = sys.argv[1:]
-    verify(len(ORIGINAL) == 10 and len(REMAINING) == 15, "clock case roster changed")
-    if mode == "run" and not args:
-        sys.exit(run(Path("/workspace/reports")))
-    head, target, original, extra, original_outcome, *result = args
-    verify(re.fullmatch(r"[a-f0-9]{40}", head), "exact source SHA required")
-    verify((mode, len(result)) in {("plan", 0), ("finish", 1)}, "unrecognized command")
-    status = finish(head, Path(target), Path(original), Path(extra),
-                    original_outcome, int(result[0]) if result else None)
-    print(status)
-    sys.exit(1 if mode == "finish" and status not in {"REFERENCE_ABSENT", "REFERENCE_PASSED"} else 0)
+    verify(len(WALL_CASES) == 25, "clock case roster changed")
+    if mode == "pattern" and not args:
+        print(clock_selector())
+    elif mode == "roster":
+        shard, output = args
+        roster(shard, Path(output))
+    elif mode == "classify":
+        (sample,) = args
+        print(hardware_class(read(Path(sample))))
+    elif mode == "reference" and not args:
+        sys.exit(run_reference())
+    elif mode == "aggregate":
+        head, inputs, output, browser_result, run, attempt = args
+        verify(re.fullmatch(r"[a-f0-9]{40}", head), "exact source SHA required")
+        data = qualification(head, Path(inputs), browser_result, run, attempt)
+        store(Path(output), data)
+        print(f"{data['status']}: {len(data['universalIds'])}/252 universal, "
+              f"{len(data['referenceIds'])}/25 strict reference")
+        for error in data["errors"]:
+            print(error)
+        sys.exit(int(data["status"] != "passed"))
+    else:
+        raise ValueError("unrecognized clock qualification command")
