@@ -1,5 +1,6 @@
 import {
   lazy,
+  useCallback,
   Suspense,
   useEffect,
   useMemo,
@@ -43,7 +44,13 @@ import {
 } from './world';
 import { RobotField } from './RobotField';
 import { useFieldCamera } from './use-field-camera';
-import { FIELD_CAMERA_MIN_SCALE, FIELD_CAMERA_MAX_SCALE, fitFieldCamera } from './field-camera';
+import {
+  FIELD_CAMERA_MIN_SCALE,
+  FIELD_CAMERA_MAX_SCALE,
+  FIELD_CAMERA_NORMAL_MAGNIFICATION,
+  fitFieldCamera,
+} from './field-camera';
+import type { FieldViewportControls } from './RobotFieldSpatialView';
 import { RobotFieldSettings } from './RobotFieldSettings';
 import {
   createImageVisual,
@@ -120,7 +127,7 @@ const STAMPS: readonly { id: RoboticsTileStampKind; label: string }[] = [
   { id: 't-junction', label: 'Т-развилка' },
   { id: 'cross', label: 'Перекрёсток' },
 ];
-const ZOOM_LEVELS = [1, 1.25, 1.5, 2, 3] as const;
+const ZOOM_LEVELS = [0.25, 0.3125, 0.375, 0.5, 0.625, 0.75, 1, 1.25, 1.5, 2, 3] as const;
 const rounded = (value: number) => Math.round(value * 10000) / 10000;
 
 function sceneAt(
@@ -477,7 +484,12 @@ export function RobotFieldEditor({
     next: RoboticsWorldDocument;
   } | null>(null);
   const [fieldView, setFieldView] = useState<FieldView>('top');
-  const [spatialView, setSpatialView] = useState<Exclude<FieldView, 'top'> | null>(null);
+  const spatialControls = useRef<FieldViewportControls | null>(null);
+  const registerSpatialControls = useCallback((value: FieldViewportControls | null) => {
+    spatialControls.current = value;
+  }, []);
+  const [spatialReady, setSpatialReady] = useState(false);
+  const [spatialZoom, setSpatialZoom] = useState(1);
   const canvasRef = useRef<HTMLDivElement>(null);
   const suppressNextCanvasClick = useRef(false);
   // Upload decoding is async; reject stale completions rather than replacing
@@ -532,17 +544,20 @@ export function RobotFieldEditor({
       suppressNextCanvasClick.current = true;
     },
     isEditing: () => Boolean(drag.current || resizeDrag.current),
+    initialFocus: state.pose,
+    initialMagnification: FIELD_CAMERA_NORMAL_MAGNIFICATION,
   });
   const projection = cameraControl.camera
     ? { camera: cameraControl.camera, viewport: cameraControl.viewport }
     : undefined;
   const fitScale = fitFieldCamera(fieldBounds, cameraControl.viewport).pixelsPerMeter;
-  const zoom = (cameraControl.camera?.pixelsPerMeter ?? fitScale) / fitScale;
+  const zoom =
+    fieldView === 'top'
+      ? (cameraControl.camera?.pixelsPerMeter ?? fitScale * FIELD_CAMERA_NORMAL_MAGNIFICATION) /
+        fitScale /
+        FIELD_CAMERA_NORMAL_MAGNIFICATION
+      : spatialZoom;
   const topView = fieldView === 'top';
-  const pixelsPerMeter = cameraControl.camera?.pixelsPerMeter ?? fitScale;
-  const scaleMeters =
-    [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02].find((meters) => meters * pixelsPerMeter <= 84) ??
-    0.01;
   function stepZoom(direction: 1 | -1) {
     const level =
       direction === 1
@@ -551,7 +566,8 @@ export function RobotFieldEditor({
     // Wheel/pinch can leave the legacy button levels. Keep moving in the
     // requested direction there; the shared transform still clamps the scale.
     const next = level ?? zoom * (direction === 1 ? 1.25 : 1 / 1.25);
-    cameraControl.zoom(next / zoom);
+    if (topView) cameraControl.zoom(next / zoom);
+    else spatialControls.current?.zoom(next / zoom);
   }
   function pointAt(clientX: number, clientY: number): RoboticsPoint | null {
     const point = cameraControl.point(clientX, clientY);
@@ -589,7 +605,6 @@ export function RobotFieldEditor({
     dragFeedback.current = null;
     draggedTool.current = null;
     setFieldView(next);
-    if (next !== 'top') setSpatialView(next);
   }
   useEffect(() => {
     releaseDrag();
@@ -1155,9 +1170,17 @@ export function RobotFieldEditor({
     fail(lastError);
   }
   function fit() {
+    if (!topView) {
+      spatialControls.current?.fit();
+      return;
+    }
     cameraControl.fit(fieldBounds);
   }
   function focusRobot() {
+    if (!topView) {
+      spatialControls.current?.focus('robot');
+      return;
+    }
     const pose = state.pose;
     const radius = Math.max(
       world.robot.bodyLengthMeters,
@@ -1174,6 +1197,10 @@ export function RobotFieldEditor({
   }
   function focusSelection() {
     if (!selection) return;
+    if (!topView) {
+      spatialControls.current?.focus(selection);
+      return;
+    }
     if (selection === 'robot') return focusRobot();
     const nodes = canvasRef.current?.querySelectorAll<SVGGraphicsElement>(
       '[data-scene-key]:not([data-vector-handle])',
@@ -1216,6 +1243,11 @@ export function RobotFieldEditor({
       return null;
     }
   }, [placement, running, snap, stamp, topView, turns, world]);
+  const topSvg = topView && (!spatialReady || Boolean(draft || ghost || tracePoints.length));
+  const pixelsPerMeter = cameraControl.camera?.pixelsPerMeter ?? fitScale;
+  const scaleMeters = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001].find(
+    (value) => value * pixelsPerMeter <= Math.min(84, cameraControl.viewport.width - 32),
+  );
   const scene = draft ?? ghost?.world ?? world;
   const previewState = draft ? createRoboticsWorldState(draft) : state;
   const previewDistance = draft
@@ -1285,6 +1317,18 @@ export function RobotFieldEditor({
             <span aria-hidden="true">▦</span>
             Элементы поля
           </button>
+          <div className="robotics-field-view-switch" role="group" aria-label="Камера поля">
+            {FIELD_VIEWS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={fieldView === id}
+                onClick={() => changeFieldView(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="robotics-field-view-tools" aria-label="Вид и привязка поля">
             <label className="robotics-grid-toggle">
               <input
@@ -1350,7 +1394,9 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="Отдалить поле"
                 disabled={
-                  !topView || (cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE
+                  topView
+                    ? (cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE
+                    : !spatialReady
                 }
                 onClick={() => stepZoom(-1)}
               >
@@ -1361,7 +1407,9 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="Приблизить поле"
                 disabled={
-                  !topView || (cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE
+                  topView
+                    ? (cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE
+                    : !spatialReady
                 }
                 onClick={() => stepZoom(1)}
               >
@@ -1371,16 +1419,16 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="Показать поле целиком"
                 title="Показать всё (Home)"
-                disabled={!topView}
+                disabled={!topView && !spatialReady}
                 onClick={fit}
               >
-                Всё
+                Всё поле
               </button>
               <button
                 type="button"
                 aria-label="К роботу"
                 title="К роботу"
-                disabled={!topView}
+                disabled={!topView && !spatialReady}
                 onClick={focusRobot}
               >
                 Робот
@@ -1389,7 +1437,7 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="К выделенному"
                 title="К выделенному"
-                disabled={!topView || !selection}
+                disabled={!selection || (!topView && !spatialReady)}
                 onClick={focusSelection}
               >
                 Выбор
@@ -1406,24 +1454,7 @@ export function RobotFieldEditor({
       ) : null}
       <div className="robotics-field-editor-body" data-properties-open={propertiesOpen}>
         <div className="robotics-field-stage" data-view={fieldView}>
-          <div className="robotics-field-stage-toolbar">
-            <div className="robotics-field-view-switch" role="group" aria-label="Камера поля">
-              {FIELD_VIEWS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={fieldView === id}
-                  onClick={() => changeFieldView(id)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <span className="robotics-field-view-purpose">
-              {topView ? 'Редактор поля' : '3D-вид · движение 2D'}
-            </span>
-          </div>
-          <div className="robotics-field-viewport">
+          <div className="robotics-field-viewport" data-top-artwork={topSvg ? 'svg' : 'webgl'}>
             <div
               ref={canvasRef}
               className="robotics-field-canvas robotics-field-scroll"
@@ -1504,6 +1535,9 @@ export function RobotFieldEditor({
               <div className="robotics-field-camera-surface">
                 <RobotField
                   world={scene}
+                  renderLayer={
+                    spatialReady && !draft && !ghost && !tracePoints.length ? 'interaction' : 'full'
+                  }
                   projection={projection}
                   state={previewState}
                   distance={previewDistance}
@@ -1544,8 +1578,8 @@ export function RobotFieldEditor({
                 />
               </div>
             </div>
-            {spatialView ? (
-              <div className="robotics-field-spatial-viewport" hidden={topView}>
+            {cameraControl.camera ? (
+              <div className="robotics-field-spatial-viewport">
                 <Suspense
                   fallback={
                     <p className="robotics-spatial-notice" role="status">
@@ -1559,8 +1593,12 @@ export function RobotFieldEditor({
                     distance={distance}
                     showGrid={showGrid}
                     selection={selection}
-                    view={spatialView}
-                    active={!topView}
+                    view={fieldView}
+                    active={!(topView && Boolean(draft || ghost || tracePoints.length))}
+                    topProjection={projection}
+                    onReady={setSpatialReady}
+                    onControls={registerSpatialControls}
+                    onZoom={setSpatialZoom}
                     edit={
                       !running && fieldView === 'orbit'
                         ? {
@@ -1602,29 +1640,48 @@ export function RobotFieldEditor({
                 </Suspense>
               </div>
             ) : null}
-          </div>
-          <div className="robotics-field-stage-status">
-            <span>
-              {fieldLengthFormat.format(world.field.widthMeters)} ×{' '}
-              {fieldLengthFormat.format(world.field.heightMeters)} м
-            </span>
-            {topView ? (
-              <span className="robotics-field-stage-instruction">
-                {ghost?.valid === false
-                  ? 'Здесь нельзя разместить предмет'
-                  : tool !== 'select'
-                    ? selectedTool.label
-                    : 'Колесо — масштаб · пробел — панорама'}
-              </span>
+            {topSvg && scaleMeters ? (
+              <div
+                className="robotics-side-scale robotics-svg-scale"
+                data-testid="robotics-top-fallback-scale"
+                role="img"
+                aria-label="Масштаб вида сверху"
+              >
+                <span
+                  className="robotics-side-scale-bar"
+                  style={{ inlineSize: scaleMeters * pixelsPerMeter }}
+                  aria-hidden="true"
+                />
+                <span>
+                  {fieldLengthFormat.format(
+                    scaleMeters < 0.01
+                      ? scaleMeters * 1000
+                      : scaleMeters < 1
+                        ? scaleMeters * 100
+                        : scaleMeters,
+                  )}{' '}
+                  {scaleMeters < 0.01 ? 'мм' : scaleMeters < 1 ? 'см' : 'м'}
+                </span>
+              </div>
             ) : null}
-            {topView && cameraControl.camera ? (
-              <span className="robotics-field-scale">
-                <span style={{ inlineSize: scaleMeters * pixelsPerMeter }} aria-hidden="true" />
-                {scaleMeters < 1
-                  ? fieldLengthFormat.format(scaleMeters * 100) + ' см'
-                  : fieldLengthFormat.format(scaleMeters) + ' м'}
+            <div className="robotics-field-stage-status">
+              {topView && !spatialReady ? (
+                <span data-testid="robotics-field-fallback">Вид сверху · SVG</span>
+              ) : null}
+              <span>
+                {fieldLengthFormat.format(world.field.widthMeters)} ×{' '}
+                {fieldLengthFormat.format(world.field.heightMeters)} м
               </span>
-            ) : null}
+              {topView ? (
+                <span className="robotics-field-stage-instruction">
+                  {ghost?.valid === false
+                    ? 'Здесь нельзя разместить предмет'
+                    : tool !== 'select'
+                      ? selectedTool.label
+                      : 'Колесо — масштаб · пробел — панорама'}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <aside

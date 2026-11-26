@@ -601,9 +601,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     const canvas = page.getByTestId('robotics-field-spatial').locator('canvas');
     await expect(canvas).toBeVisible();
     await expect(page.locator('.robotics-spatial-notice')).toHaveCount(0);
-    await page
-      .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
     await expect(canvas).toHaveAttribute('data-camera', /./);
     await rendered(canvas);
     const camera = await canvas.getAttribute('data-camera');
@@ -666,9 +664,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     await expect(canvas).toHaveAttribute('data-edit-preview', 'null');
     expect((await readProject(page, projectId)).draft.document).toEqual(committed.draft.document);
     // An actual captured drag cancelled with Escape must not create a history entry.
-    await page
-      .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x + 44, y - 13, { steps: 8 });
@@ -678,9 +674,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     await expect(canvas).toHaveAttribute('data-edit-preview', 'null');
     expect((await saved(page, projectId)).draft.document).toEqual(committed.draft.document);
     // Captured pointer outside the actual viewport is rejected, not clamped into a commit.
-    await page
-      .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(rect.x - 10, rect.y + rect.height / 2, { steps: 8 });
@@ -723,9 +717,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   await page.getByRole('button', { name: 'Перспектива', exact: true }).click();
   const paused = await page.getByTestId('robotics-time').getAttribute('data-microseconds');
   const canvas = page.getByTestId('robotics-field-spatial').locator('canvas');
-  await page
-    .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
   const lockedRect = await canvas.boundingBox();
   if (!lockedRect) throw new Error('Paused actual canvas missing');
   await page.mouse.move(lockedRect.x + lockedRect.width / 2, lockedRect.y + lockedRect.height / 2);
@@ -781,6 +773,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
   const baseURL = origin(page);
   const storageState = await page.context().storageState();
   const measurements: unknown[] = [];
+  const topMeasurements: unknown[] = [];
 
   for (const dpr of [1, 2]) {
     const context = await browser.newContext({
@@ -798,6 +791,15 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
       await target.goto(url, { waitUntil: 'domcontentloaded' });
       await expect(target.getByTestId('robotics-account-editor')).toBeVisible();
       await target.getByRole('tab', { name: 'Поле', exact: true }).click();
+      await expect(target.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
+      await expect(target.getByTestId('robotics-field-spatial').locator('canvas')).toHaveAttribute(
+        'data-rendered',
+        'true',
+      );
+      await expect(target.getByTestId('robotics-field')).toHaveAttribute(
+        'data-render-layer',
+        'interaction',
+      );
       await target.getByRole('button', { name: 'Запустить', exact: true }).click();
       await expect
         .poll(
@@ -829,9 +831,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         await target.setViewportSize({ width, height: 900 });
         const closeDock = target.getByRole('button', { name: 'Закрыть панель поля', exact: true });
         if (await closeDock.isVisible()) await closeDock.click();
-        await target
-          .getByRole('button', { name: 'Показать всё поле в объёмном виде', exact: true })
-          .click();
+        await target.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
         await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1);
         const fitted = await sideRuler(target);
         expect(fitted.zoom).toBe(1);
@@ -843,7 +843,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
               (fitted.viewport.width / fitted.viewport.height),
           ) * 1.22;
         expect(fitted.pixelsPerMeter).toBeCloseTo(fitted.viewport.height / verticalSpan, 8);
-        await target.getByRole('button', { name: 'Приблизить объёмный вид', exact: true }).click();
+        await target.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
         await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1.25);
         const zoomed = await sideRuler(target);
         expect(zoomed.pixelsPerMeter / fitted.pixelsPerMeter).toBeCloseTo(1.25, 8);
@@ -856,7 +856,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         expect((await sideRuler(target)).pixelsPerMeter).toBeCloseTo(zoomed.pixelsPerMeter, 8);
         await canvas.press('Home');
         await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1);
-        await target.getByRole('button', { name: 'К роботу в объёмном виде', exact: true }).click();
+        await target.getByRole('button', { name: 'К роботу', exact: true }).click();
         await expect.poll(async () => (await sideRuler(target)).zoom).toBeGreaterThan(1);
         const focused = await sideRuler(target);
         expect(focused.zoom).toBeGreaterThan(1);
@@ -866,6 +866,105 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         );
         await spatial.screenshot({ path: `${EVIDENCE}/side-scale-${width}-dpr${dpr}.png` });
         measurements.push({ width, dpr, fitted, zoomed, focused, paused });
+        // Same actual WebGL scene above its authoritative SVG ground transform.
+        await target.getByRole('button', { name: 'Сверху', exact: true }).click();
+        await expect(spatial).toHaveAttribute('data-field-view', 'top');
+        await expect(target.getByTestId('robotics-field')).toHaveAttribute(
+          'data-render-layer',
+          'interaction',
+        );
+        await expect(target.getByTestId('robotics-field-fallback')).toHaveCount(0);
+        await expect(target.locator('.robotics-field-toolbar')).toHaveCount(1);
+        await expect(
+          target.locator('.robotics-spatial-controls, .robotics-field-stage-toolbar'),
+        ).toHaveCount(0);
+        const topCanvas = spatial.locator('canvas');
+        await expect(topCanvas).toHaveAttribute('data-rendered', 'true');
+        await expect(target.getByTestId('robotics-top-scale')).toBeVisible();
+        // Let both layout ResizeObserver and the actual on-demand renderer commit.
+        await topCanvas.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+        );
+        const top = await target.getByTestId('robotics-field').evaluate((svg, fieldHeight) => {
+          if (!(svg instanceof SVGSVGElement)) throw new Error('Missing real edit overlay');
+          const matrix = svg.getScreenCTM();
+          const canvas = document.querySelector<HTMLCanvasElement>(
+            '#robotics-panel-field .robotics-field-spatial canvas',
+          );
+          const ruler = document.querySelector<HTMLElement>('[data-testid="robotics-top-scale"]');
+          if (!matrix || !canvas || !ruler) throw new Error('Missing real camera/ruler');
+          const projection: number[] = JSON.parse(canvas.dataset.projection!);
+          const [position, quaternion]: number[][] = JSON.parse(canvas.dataset.camera!);
+          if (!projection || projection.length !== 16 || !position || !quaternion)
+            throw new Error('Missing rendered camera readback');
+          const area = canvas.getBoundingClientRect();
+          const errors = [
+            [0, 0],
+            [0.8, 1.2],
+            [2.5, fieldHeight],
+          ].map(([x, y]) => {
+            const expected = new DOMPoint(x! * 1000, (fieldHeight - y!) * 1000).matrixTransform(
+              matrix,
+            );
+            const nx = projection[0]! * (x! - position[0]!) + projection[12]!;
+            const ny = projection[5]! * (y! - position[1]!) + projection[13]!;
+            return Math.hypot(
+              expected.x - (area.x + ((1 + nx) * area.width) / 2),
+              expected.y - (area.y + ((1 - ny) * area.height) / 2),
+            );
+          });
+          const meters = Number(ruler.dataset.meters);
+          const bar = ruler
+            .querySelector<HTMLElement>('.robotics-side-scale-bar')!
+            .getBoundingClientRect();
+          return {
+            errors,
+            quaternion,
+            meters,
+            cssPixels: bar.width,
+            expectedPixels: meters * matrix.a * 1000,
+            canvasCount: document.querySelectorAll(
+              '#robotics-panel-field .robotics-field-spatial canvas',
+            ).length,
+          };
+        }, before.draft.document.world.field.heightMeters);
+        expect(top.canvasCount).toBe(1);
+        expect(Math.max(...top.errors)).toBeLessThan(0.05);
+        expect(top.quaternion).toEqual([0, 0, 0, 1]);
+        expect(Math.abs(top.cssPixels - top.expectedPixels)).toBeLessThan(0.05);
+        const grid = target.getByRole('checkbox', { name: 'Сетка', exact: true });
+        await grid.uncheck();
+        await expect(topCanvas).toHaveAttribute('data-grid-rendered', 'false');
+        await grid.check();
+        await expect(topCanvas).toHaveAttribute('data-grid-rendered', 'true');
+        const topZoom = Number(
+          (await target.getByLabel('Масштаб поля', { exact: true }).textContent())!.replace(
+            '%',
+            '',
+          ),
+        );
+        await target.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+        await expect
+          .poll(async () =>
+            Number(
+              (await target.getByLabel('Масштаб поля', { exact: true }).textContent())!.replace(
+                '%',
+                '',
+              ),
+            ),
+          )
+          .toBeGreaterThan(topZoom);
+        await target.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
+        await expect(target.getByLabel('Масштаб поля', { exact: true })).toHaveText('50%');
+        expect(await snapshot()).toEqual(paused);
+        topMeasurements.push({ width, dpr, top, paused });
+        await target.screenshot({
+          path: `${EVIDENCE}/field-visual-top-${width}-dpr${dpr}.png`,
+          fullPage: true,
+        });
         await target.getByRole('button', { name: 'Перспектива', exact: true }).click();
         await expect(target.getByTestId('robotics-side-scale')).toHaveCount(0);
         await target.getByRole('button', { name: 'Сверху', exact: true }).click();
@@ -892,7 +991,11 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
   }
   writeFileSync(
     `${EVIDENCE}/side-scale.json`,
-    JSON.stringify({ profile: 'UI_ONLY', projectId, sourceDigest, measurements }, null, 2),
+    JSON.stringify(
+      { profile: 'UI_ONLY', projectId, sourceDigest, measurements, topMeasurements },
+      null,
+      2,
+    ),
   );
 });
 
@@ -1656,6 +1759,10 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
           .getByTestId('robotics-field-palette')
           .getByRole('button', { name: label, exact: true }),
       );
+    await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
+    for (let step = 0; step < 3; step++)
+      await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+    await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
     await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
     await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('125%');
     await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
