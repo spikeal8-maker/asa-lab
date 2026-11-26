@@ -352,7 +352,7 @@ describe('one early elapsed optical phase', () => {
     return presenter;
   }
 
-  it('does not compress a long confirmed LED/L phase after a late native commit', () => {
+  it('defers an early LED/L offer after a late native commit until the next paint', () => {
     const presenter = withDarkFrame();
     const observation = accepted(0, 85_000, [
       point(0, 0),
@@ -365,15 +365,67 @@ describe('one early elapsed optical phase', () => {
     expect(high.brightness.get('led')).toBe(80);
     expect(presenter.acknowledgeFrame(high, 55_000, true)).toBe(true);
     expect(presenter.prepareElapsedFrame(60_000)).toBeNull();
-    expect(presenter.prepareFrame(70_000)).toBeNull();
     expect(presenter.presentedMicroseconds).toBe(45_000);
     expect(presenter.arduinoLStates().get('uno')).toBe(true);
-    const low = presenter.prepareFrame(91_000)!;
-    expect(low.atMicroseconds).toBe(85_000);
+    const low = presenter.prepareFrame(70_000)!;
+    expect(low.atMicroseconds).toBe(70_000);
     expect(low.brightness.get('led')).toBe(0);
     expect(low.arduinoLStates.get('uno')).toBe(false);
-    expect(presenter.acknowledgeFrame(low, 91_000)).toBe(true);
+    expect(presenter.acknowledgeFrame(low, 70_000)).toBe(true);
+    expect(presenter.prepareFrame(91_000)?.atMicroseconds).toBe(85_000);
     expect(presenter.reanchorCount).toBe(0);
+  });
+
+  it.each([false, true])(
+    'shows a short successor at both paints after a late ACK (streamed %s)',
+    (streamed) => {
+      const presenter = withDarkFrame();
+      const start = [point(0, 0), point(10_000, 80)];
+      const end = [point(100_000, 0), point(132_000, 80), point(145_000, 80)];
+      const first = streamed
+        ? accepted(0, 99_000, [...start, point(99_000, 80)])
+        : accepted(0, 145_000, [...start, ...end]);
+      presenter.accept(solved(first), first, 0);
+      const high = presenter.prepareFrame(90_000)!;
+      expect(presenter.acknowledgeFrame(high, 95_000, true)).toBe(true);
+      if (streamed) {
+        const next = accepted(99_000, 108_000, [point(99_000, 80), end[0]!, point(108_000, 0)]);
+        presenter.accept(solved(next), next, 107_000);
+      }
+      expect(presenter.prepareElapsedFrame(107_000)).toBeNull();
+      for (const [wall, level] of [
+        [108_000, 0],
+        [124_000, 0],
+        [140_000, 80],
+      ] as const) {
+        if (streamed && wall === 124_000) {
+          const last = accepted(108_000, 145_000, [point(108_000, 0), ...end.slice(1)]);
+          presenter.accept(solved(last), last, wall);
+        }
+        const frame = presenter.prepareFrame(wall)!;
+        expect(frame.brightness.get('led')).toBe(level);
+        expect(frame.arduinoLStates.get('uno')).toBe(level > 0);
+        expect(presenter.acknowledgeFrame(frame, wall)).toBe(true);
+      }
+    },
+  );
+
+  it('uses an early offer when the confirmed successor ends before the next paint', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 145_000, [
+      point(0, 0),
+      point(10_000, 80),
+      point(100_000, 0),
+      point(132_000, 80),
+      point(145_000, 80),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    expect(presenter.acknowledgeFrame(presenter.prepareFrame(90_000)!, 95_000, true)).toBe(true);
+    const low = presenter.prepareElapsedFrame(120_000)!;
+    expect(low.brightness.get('led')).toBe(0);
+    expect(presenter.acknowledgeFrame(low, 120_000)).toBe(true);
+    expect(presenter.prepareFrame(135_000)).toBeNull();
+    expect(presenter.prepareFrame(150_000)?.brightness.get('led')).toBe(80);
   });
 
   it('does not extend a short pulse or queue missed opportunities after a stall', () => {

@@ -701,12 +701,7 @@ export class LedTemporalPresentation {
       ...values,
       token: `${this.g}:${++this.f}`,
     };
-    if (
-      this.j &&
-      !sameOpticalFrame(this.j, frame) &&
-      (!this.canPublishDistinctFrame || this.keepVisiblePhase(target, wallMicroseconds))
-    )
-      return null;
+    if (this.j && !sameOpticalFrame(this.j, frame) && !this.canPublishDistinctFrame) return null;
     this.k = frame;
     return frame;
   }
@@ -758,7 +753,7 @@ export class LedTemporalPresentation {
       }
       previous = candidate;
     }
-    if (!changed || this.keepVisiblePhase(target, wallMicroseconds)) return null;
+    if (!changed || this.waitForPaint(target, wallMicroseconds)) return null;
     const lastUnaveraged = this.o(this.d, false);
     if (!lastUnaveraged || !sameOpticalFrame(this.j, { ...lastUnaveraged, token: '' })) return null;
     const frame = { ...previous, token: `${this.g}:${++this.f}` };
@@ -773,8 +768,8 @@ export class LedTemporalPresentation {
     this.elapsedFrame = null;
   }
 
-  /** A late native mount must not turn a phase long enough to see into a flash. */
-  private keepVisiblePhase(target: number, wall: number): boolean {
+  /** Defer only an early, between-paints offer. Always sample the normal RAF. */
+  private waitForPaint(target: number, wall: number): boolean {
     const shown = this.j;
     if (
       !shown ||
@@ -803,10 +798,12 @@ export class LedTemporalPresentation {
       while (first > 0 && sameState(samples[first - 1]!, held)) first--;
       from = Math.max(from, history.completeSince, samples[first]!.atMicroseconds);
       for (let next = index + 1; next < samples.length; next++) {
-        if (!sameState(samples[next]!, held)) {
-          to = Math.min(to, samples[next]!.atMicroseconds);
-          break;
-        }
+        const sample = samples[next]!;
+        if (sample.atMicroseconds > target + FAST_PHASE_MICROSECONDS) break;
+        if (sameState(samples[next - 1]!, sample)) continue;
+        // The successor may end before the next paint. Offer it now if so.
+        if (sample.atMicroseconds > target) return false;
+        to = Math.min(to, sample.atMicroseconds);
       }
       if (to - from < 2 * FAST_PHASE_MICROSECONDS || elapsed >= to - from) return false;
     }
