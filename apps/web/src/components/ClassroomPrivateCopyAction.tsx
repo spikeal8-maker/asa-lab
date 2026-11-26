@@ -77,6 +77,7 @@ export function ClassroomPrivateCopyAction({
       <button
         type="button"
         className="btn-secondary"
+        style={{ justifySelf: 'start' }}
         aria-disabled={busy}
         onClick={() => void activate()}
       >

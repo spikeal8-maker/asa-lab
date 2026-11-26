@@ -567,7 +567,7 @@ const upgradeArtifacts = [
   [
     '0338',
     '0338_classroom_teacher_private_copy.sql',
-    '23380191500abec4b882f8c571ea6ef9afa5aca61392aa49d9f1c08bd1bddd4d',
+    'ecaa310963a4c176a54a183cd5db0beb0b291ca814019c67e6fdc0b0a51bdb52',
   ],
 ] as const;
 

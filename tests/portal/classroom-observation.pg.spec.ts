@@ -1024,6 +1024,23 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       projectVersionId: latest.project_version_id,
     });
     await allowPrivateCopies(f.actor.account_id, f.classId, learner!.id);
+    const journal = () => lookup(`/api/classrooms/${f.classId}/gradebook`);
+    const exact = (attemptId = started.attemptId, classroomId = f.classId) =>
+      lookup(`/api/classrooms/${classroomId}/attempts/${attemptId}/submission`);
+    const sourceDraft = async () =>
+      (await admin.query('SELECT * FROM project_drafts WHERE project_id=$1', [started.projectId]))
+        .rows[0];
+    const journalBefore = await journal();
+    expect(journalBefore.statusCode, journalBefore.body).toBe(200);
+    const draftBefore = await sourceDraft();
+    const exactBefore = await exact();
+    expect(exactBefore.statusCode, exactBefore.body).toBe(200);
+    expect(exactBefore.json()).toMatchObject({
+      projectId: started.projectId,
+      submissionId: first.submission_id,
+      projectVersionId: first.project_version_id,
+    });
+    expect((await exact(started.attemptId, otherClass)).statusCode).toBe(404);
     const copyPinned = (projectVersionId = first.project_version_id) =>
       inject(api, {
         method: 'POST',
@@ -1051,6 +1068,9 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       )
     ).rows[0];
     expect(comparison).toEqual({ exact: true, different_from_latest: true });
+    expect(await sourceDraft()).toEqual(draftBefore);
+    expect((await journal()).json()).toEqual(journalBefore.json());
+    expect((await exact()).json()).toEqual(exactBefore.json());
     await expect(
       admin.query("UPDATE projects SET status='archived' WHERE id=$1", [started.projectId]),
     ).rejects.toThrow('learning_work_protected');
@@ -1060,6 +1080,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     const archived = await lookup();
     expect(archived.statusCode, archived.body).toBe(200);
     expect(archived.json()).toMatchObject({ canReview: false, attemptId: next.attemptId });
+    expect((await exact()).json()).toEqual(exactBefore.json());
     expect((await copyPinned()).statusCode).toBe(404);
     expect(await setClassStatus('active')).toBe(true);
 
@@ -1074,6 +1095,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     });
     expect(history.statusCode, history.body).toBe(200);
     expect(history.json()).toMatchObject({ submissionId: latest.submission_id });
+    expect((await copyPinned()).statusCode).toBe(404);
   });
 
   it('rejects out-of-audience modern work; preserves whole-class legacy work and stable submission counts after corrections/withdrawal', async () => {

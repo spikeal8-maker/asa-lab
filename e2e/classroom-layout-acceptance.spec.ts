@@ -1124,6 +1124,17 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
   const nextAttempt = 'attempt-exact-next';
   const nextSubmission = '123e4567-e89b-42d3-a456-426614174003';
   const nextVersion = '123e4567-e89b-42d3-a456-426614174004';
+  const projectId = '123e4567-e89b-42d3-a456-426614174007';
+  const copyId = '123e4567-e89b-42d3-a456-426614174008';
+  const privateCopyPath = `/api/classrooms/${classId}/observation/learners/${pupil.id}/projects/${projectId}/private-copy`;
+  const exactCopy = {
+    kind: 'submission',
+    attemptId: attempt,
+    submissionId: submission,
+    projectVersionId: version,
+  };
+  let allowJournalCopy = false;
+  const copyRequests: unknown[] = [];
   const submittedAt = '2026-10-12T12:00:00Z';
   const document = {
     ...createEmptyThreeDDocument(),
@@ -1132,9 +1143,43 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
   let moduleKey = 'three-d';
   let payload: unknown = document;
   let electronicsSimulation: ClassroomElectronicsSimulation | null = null;
+  await page.route('**/projects/*/electronics/edit?*', (route) =>
+    route.fulfill({ path: 'apps/web/dist/index.html' }),
+  );
   await page.route('**/api/**', async (route) => {
-    const path = new URL(route.request().url()).pathname;
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
     const root = '/api/classrooms/' + classId;
+    if (path === privateCopyPath) {
+      if (request.method() === 'GET') {
+        const ref = Object.fromEntries(url.searchParams);
+        return route.fulfill({ json: { canCopy: allowJournalCopy && ref.attemptId === attempt } });
+      }
+      expect(request.method()).toBe('POST');
+      expect(request.headers()['idempotency-key']).toBeTruthy();
+      copyRequests.push(request.postDataJSON());
+      return route.fulfill({ status: 201, json: { projectId: copyId, moduleKey, created: true } });
+    }
+    if (path === `/api/projects/${copyId}`)
+      return route.fulfill({
+        json: {
+          project: {
+            id: copyId,
+            moduleKey,
+            title: 'Личная копия сдачи',
+            scope: 'personal',
+            status: 'active',
+            privateClassroomCopy: true,
+            classroomId: null,
+            createdAt: submittedAt,
+            updatedAt: submittedAt,
+          },
+          draft: { projectId: copyId, document: payload, revision: 1, updatedAt: submittedAt },
+          versions: [],
+          result: null,
+        },
+      });
     if (path === root + '/gradebook')
       return route.fulfill({
         json: {
@@ -1201,6 +1246,7 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
       return route.fulfill({
         json: {
           kind: 'project',
+          projectId,
           submissionId: path.includes(nextAttempt) ? nextSubmission : submission,
           projectVersionId: path.includes(nextAttempt) ? nextVersion : version,
           ...(electronicsSimulation ? { electronicsSimulation } : {}),
@@ -1653,6 +1699,52 @@ test('exact submitted project review keeps 3D, Arduino and Electronics playback 
   await expect(showBlocks).toBeFocused();
   await expect(stage).toBeVisible();
   expect(playbackRequests).toEqual([]);
+
+  const copyAction = detail.getByRole('button', { name: 'Копировать в «Мои проекты»' });
+  await expect(copyAction).toHaveCount(0);
+  await detail.getByRole('button', { name: 'Закрыть проверку' }).click();
+  allowJournalCopy = true;
+  const capabilityFor = (id: string) =>
+    page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === privateCopyPath &&
+        response.request().method() === 'GET' &&
+        url.searchParams.get('attemptId') === id
+      );
+    });
+  const firstCapability = capabilityFor(attempt);
+  await cell.click();
+  const checked = new URL((await firstCapability).url());
+  expect(Object.fromEntries(checked.searchParams)).toEqual(exactCopy);
+  await expect(copyAction).toBeVisible();
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const button = (await copyAction.boundingBox())!;
+    expect(button.x).toBeGreaterThanOrEqual(0);
+    expect(button.x + button.width).toBeLessThanOrEqual(width);
+    await detail.screenshot({ path: out + '/exact-journal-copy-' + width + '.png' });
+  }
+  const allowed = detail.getByRole('button', { name: 'Открыть копию' });
+  const denied = capabilityFor(nextAttempt);
+  await detail.getByLabel('Попытка', { exact: true }).selectOption(nextAttempt);
+  await expect(fixed).toHaveText(nextVersion);
+  expect(await (await denied).json()).toEqual({ canCopy: false });
+  await expect(copyAction).toHaveCount(0);
+  await expect(allowed).toHaveCount(0);
+  await detail.getByLabel('Попытка', { exact: true }).selectOption(attempt);
+  await expect(copyAction).toBeVisible();
+  await copyAction.click();
+  await expect(allowed).toBeFocused();
+  expect(copyRequests).toEqual([exactCopy]);
+  expect(playbackRequests).toEqual(['POST ' + privateCopyPath]);
+  await expect(fixed).toHaveText(version);
+  await expect(cell).toContainText('Ждёт проверки');
+  await allowed.click();
+  await expect(page).toHaveURL(new RegExp(copyId));
+  await expect(page.getByRole('textbox', { name: 'Название проекта' })).toHaveValue(
+    'Личная копия сдачи',
+  );
   expect(state.errors).toEqual([]);
 });
 

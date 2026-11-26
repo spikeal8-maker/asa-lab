@@ -1,4 +1,20 @@
 -- Teacher-owned working copies never widen access to a pupil's source or create learning evidence.
+-- Carry the exact source identity only on the existing authorized teacher read.
+CREATE FUNCTION public.learning_teacher_exact_submission_with_project(
+    p_account uuid, p_class uuid, p_attempt uuid
+) RETURNS TABLE(
+    submission_id uuid, project_id uuid, project_version_id uuid, payload_digest varchar,
+    source_revision integer, module_key varchar, document_json jsonb
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT exact.submission_id, submission.project_id, exact.project_version_id,
+           exact.payload_digest, exact.source_revision, exact.module_key, exact.document_json
+      FROM public.learning_teacher_exact_submission(p_account, p_class, p_attempt) exact
+      JOIN public.learning_submissions submission ON submission.id = exact.submission_id;
+$$;
+REVOKE ALL ON FUNCTION public.learning_teacher_exact_submission_with_project(uuid, uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_teacher_exact_submission_with_project(uuid, uuid, uuid) TO asalab_app;
+
 -- Extend the private writer evidence companion without changing Project tenancy or RLS policies.
 ALTER TABLE public.project_writer_evidence
     ADD COLUMN classroom_copy_source jsonb,

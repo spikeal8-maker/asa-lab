@@ -136,6 +136,7 @@ export type ExactLearningSubmission =
       /** Missing only on historical Project responses. */
       kind?: 'project';
       submissionId: string;
+      projectId?: string;
       projectVersionId: string;
       sourceRevision: number | null;
       digest: string;
