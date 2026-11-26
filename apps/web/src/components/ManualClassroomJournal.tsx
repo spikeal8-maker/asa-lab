@@ -24,6 +24,8 @@ import {
 } from '../classroom-journal-api';
 import './manual-classroom-journal.css';
 import { JournalMonthNavigation } from './JournalMonthNavigation';
+import { useJournalMatrix } from './use-journal-matrix';
+import './classroom-journal-matrix.css';
 import { useJournalDestination } from '../learning/journal-destination';
 import { portalSessionBinding, subscribePortalSession } from '../portal-requests';
 import { onSessionLoggedOut } from '../session-fetch';
@@ -695,6 +697,7 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
     origin = useRef<HTMLElement | null>(null);
   const headerButtons = useRef(new Map<string, HTMLButtonElement>());
   const journalRoot = useRef<HTMLElement>(null);
+  const matrixRef = useJournalMatrix();
   const searchInput = useRef<HTMLInputElement>(null);
   const columnPickerSummary = useRef<HTMLElement>(null);
   const headerEditorKey = useRef('');
@@ -1107,7 +1110,8 @@ function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJou
             </details>
           ) : null}
           <div
-            className="manual-journal-scroll"
+            ref={matrixRef}
+            className="manual-journal-scroll journal-matrix-scroll"
             tabIndex={0}
             role="region"
             aria-label="Таблица оценок по датам"

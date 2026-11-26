@@ -1,0 +1,23 @@
+/* The class workspace limits the width of the matrix, while the page owns vertical scrolling. */
+.teacher-open-compact.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .journal-matrix-scroll {
+  width: fit-content;
+  max-height: none;
+}
+
+.journal-matrix-scroll thead {
+  position: relative;
+  z-index: 2;
+  transform: translateY(var(--journal-head-offset, 0px));
+}
+
+.journal-matrix-scroll tbody button {
+  scroll-margin-top: calc(var(--portal-header-height, 0px) + var(--journal-head-height, 0px));
+}
+
+@container classroom (max-width: 350px) {
+  .manual-journal-scroll.journal-matrix-scroll {
+    --journal-name-width: clamp(124px, 46cqi, 136px);
+  }
+}

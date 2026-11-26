@@ -71,7 +71,6 @@
 }
 .manual-journal-scroll {
   width: 100%;
-  max-height: 65vh;
   overflow: auto;
   border: 1px solid var(--border, #d6dce5);
   border-radius: 8px;
@@ -91,7 +90,6 @@
 }
 .manual-journal thead th {
   position: sticky;
-  top: 0;
   z-index: 2;
   background: var(--surface, #fff);
   width: 78px;
@@ -585,9 +583,6 @@
     min-width: 0;
   }
 }
-.manual-journal table {
-  min-width: 100%;
-}
 .manual-journal .manual-journal-column > span {
   white-space: normal;
   overflow: visible;
@@ -605,7 +600,7 @@
   hyphens: auto;
 }
 
-/* Keep full words and dates readable; scroll only the matrix, never the page. */
+/* Keep words and dates readable when the matrix scrolls horizontally. */
 .classroom-owner-workspace .manual-journal thead th:not(:first-child),
 .classroom-owner-workspace .manual-journal tbody td {
   width: 132px;
