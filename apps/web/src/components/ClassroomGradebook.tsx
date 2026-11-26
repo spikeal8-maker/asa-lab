@@ -15,7 +15,9 @@ import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import './classroom-gradebook.css';
 import { ManualClassroomJournal } from './ManualClassroomJournal';
+import { useJournalMatrix } from './use-journal-matrix';
 import './classroom-assignments.css';
+import './classroom-journal-matrix.css';
 
 const LABELS: Record<string, string> = {
   not_applicable: 'Не назначено',
@@ -533,7 +535,21 @@ function AssignedClassroomGradebook({
   } | null>(null);
   const hiddenColumns = columnsPreference?.hidden ?? [];
   const openedFrom = useRef<HTMLButtonElement | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const matrixRef = useJournalMatrix();
   const loadRevision = useRef(0);
+  useEffect(() => {
+    const detail = detailRef.current;
+    if (!detail) return;
+    detail.focus({ preventScroll: true });
+    const portalBottom =
+      detail.closest('.portal-shell')?.querySelector('.portal-header')?.getBoundingClientRect()
+        .bottom ?? 0;
+    const top = detail.getBoundingClientRect().top;
+    if (top < portalBottom || top > window.innerHeight - 80) {
+      detail.scrollIntoView({ block: 'start' });
+    }
+  }, [detailEpoch]);
   useEffect(() => {
     const controller = new AbortController();
     const unsubscribe = onSessionLoggedOut(() => {
@@ -810,19 +826,33 @@ function AssignedClassroomGradebook({
         <p>Здесь появятся работы и оценки.</p>
       ) : (
         <div
-          className="gradebook-matrix-scroll"
+          ref={matrixRef}
+          className="gradebook-matrix-scroll journal-matrix-scroll"
           tabIndex={0}
           role="region"
           aria-label="Прокрутка журнала"
         >
-          <table className="gradebook-matrix">
+          <table
+            className="gradebook-matrix"
+            style={{
+              width: `calc(var(--gradebook-name-width) + ${visibleColumns.length} * var(--gradebook-work-width))`,
+            }}
+          >
             <caption>Журнал работ класса</caption>
+            <colgroup>
+              <col className="gradebook-name-column" />
+              {visibleColumns.map(([id]) => (
+                <col key={id} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Ученик</th>
                 {visibleColumns.map(([id, title]) => (
                   <th scope="col" key={id}>
-                    {title}
+                    <span className="gradebook-column-title" title={title}>
+                      {title}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -881,25 +911,27 @@ function AssignedClassroomGradebook({
         </div>
       )}
       {opened ? (
-        opened.canonicalState?.activityRunId ? (
-          <ReviewDetail
-            key={`${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
-            classroomId={classroomId}
-            item={opened}
-            readOnly={opened.removedFromClass === true}
-            onChanged={reload}
-            onClose={closeWork}
-          />
-        ) : (
-          <LegacyLearningReview
-            key={`${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
-            classroomId={classroomId}
-            item={opened}
-            readOnly={opened.removedFromClass === true}
-            onChanged={reload}
-            onClose={closeWork}
-          />
-        )
+        <div ref={detailRef} className="gradebook-detail-target" tabIndex={-1}>
+          {opened.canonicalState?.activityRunId ? (
+            <ReviewDetail
+              key={`${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
+              classroomId={classroomId}
+              item={opened}
+              readOnly={opened.removedFromClass === true}
+              onChanged={reload}
+              onClose={closeWork}
+            />
+          ) : (
+            <LegacyLearningReview
+              key={`${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
+              classroomId={classroomId}
+              item={opened}
+              readOnly={opened.removedFromClass === true}
+              onChanged={reload}
+              onClose={closeWork}
+            />
+          )}
+        </div>
       ) : null}
     </section>
   );

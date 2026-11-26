@@ -6,18 +6,25 @@
 }
 
 .gradebook-matrix-scroll {
+  --gradebook-name-width: 145px;
+  --gradebook-work-width: 112px;
   overflow: auto;
   min-width: 0;
   max-width: 100%;
-  max-height: 65vh;
   border: 1px solid var(--border);
   border-radius: 8px;
 }
 .gradebook-matrix {
   border-collapse: separate;
   border-spacing: 0;
-  width: 100%;
+  table-layout: fixed;
   font-size: 13px;
+}
+.gradebook-matrix col {
+  width: var(--gradebook-work-width);
+}
+.gradebook-matrix .gradebook-name-column {
+  width: var(--gradebook-name-width);
 }
 .gradebook-matrix caption {
   text-align: left;
@@ -29,13 +36,11 @@
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   padding: 6px;
-  min-width: 126px;
-  max-width: 180px;
+  overflow-wrap: anywhere;
   vertical-align: top;
 }
 .gradebook-matrix thead th {
   position: sticky;
-  top: 0;
   background: var(--surface);
   z-index: 2;
 }
@@ -44,16 +49,22 @@
   left: 0;
   background: var(--surface);
   z-index: 1;
-  min-width: 145px;
 }
 .gradebook-matrix thead th:first-child {
   z-index: 3;
+}
+.gradebook-column-title {
+  display: block;
+  font-size: 12px;
+  line-height: 1.15;
+  hyphens: auto;
 }
 .gradebook-cell {
   display: grid;
   gap: 3px;
   text-align: left;
   width: 100%;
+  min-height: 44px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -106,6 +117,10 @@
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+.gradebook-detail-target {
+  min-width: 0;
+  scroll-margin-top: var(--portal-header-height, 0px);
 }
 .gradebook-detail header {
   display: flex;
@@ -186,15 +201,19 @@
   .gradebook-detail header {
     flex-direction: column;
   }
-  .gradebook-matrix th,
-  .gradebook-matrix td {
-    min-width: 110px;
-  }
-  .gradebook-matrix tr > th:first-child {
-    min-width: 115px;
-  }
   .gradebook-heading {
     flex-wrap: wrap;
+  }
+}
+@container classroom (max-width: 550px) {
+  .gradebook-matrix-scroll {
+    --gradebook-name-width: 115px;
+    --gradebook-work-width: 92px;
+  }
+}
+@container classroom (max-width: 350px) {
+  .gradebook-matrix-scroll {
+    --gradebook-work-width: 84px;
   }
 }
 
