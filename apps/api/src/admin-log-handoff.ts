@@ -1,6 +1,8 @@
 import { createHmac, randomBytes } from 'node:crypto';
 import type { LogEntry } from './admin-logs.worker.js';
 import { isHostLogSource, LOG_MODULES, LOG_SUBSYSTEMS } from './log-subsystems.js';
+import { SCRATCH_SAVE_FAILURE_CODES } from './scratch-save-diagnostics.js';
+import { safeValidationReason } from './server-diagnostics.js';
 
 const SOURCES = new Set([
   ...LOG_MODULES,
@@ -58,14 +60,18 @@ const LABELS: Readonly<Record<string, readonly string[]>> = {
     'unavailable',
     'response_timeout',
   ],
-  errorCode: ['too_many_attempts', 'too_many_requests', 'unavailable', 'response_timeout'],
+  errorCode: [
+    'too_many_attempts',
+    'too_many_requests',
+    'unavailable',
+    'response_timeout',
+    'validation_error',
+  ],
   reasonCode: ['too_many_attempts', 'too_many_requests', 'unavailable', 'response_timeout'],
   phase: ['startup', 'runtime', 'request', 'refresh', 'save', 'simulation'],
   category: ['unsupported', 'nonconvergent', 'electrical', 'physical', 'runtime', 'technical'],
   failureCode: [
-    'scratch-save-asset',
-    'scratch-save-draft',
-    'scratch-save-prepare',
+    ...SCRATCH_SAVE_FAILURE_CODES,
     'worker-start',
     'worker-runtime',
     'worker-message',
@@ -166,6 +172,10 @@ export function createHandoffProjector() {
     for (const [field, values] of Object.entries(LABELS)) {
       const value = structured[field];
       if (typeof value === 'string' && values.includes(value)) detail[field] = value;
+    }
+    const validationReason = safeValidationReason(structured.reasonCode);
+    if (detail.errorCode === 'validation_error' && validationReason) {
+      detail.reasonCode = validationReason;
     }
     for (const field of NUMBERS) {
       const value = structured[field];
