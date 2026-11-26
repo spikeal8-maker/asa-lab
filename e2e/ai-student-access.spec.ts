@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { isScratchSaveFailureCode } from '../apps/web/src/blocks/scratch-save-diagnostics';
 import {
   ASSET_SCRIPT,
   DIAGNOSTIC_CODES,
   FAILURE_CATEGORIES,
-  FAILURE_CODES,
+  SIMULATION_FAILURE_CODES,
 } from '../apps/web/src/client-diagnostic-outbox';
 import { exceptionMatchesCode, validClientException } from '../apps/web/src/client-error-details';
 import { validRequestDetails } from '../apps/web/src/request-diagnostic-details';
@@ -222,13 +223,13 @@ function validDiagnosticPayload(body: unknown, now = Date.now()): boolean {
     (report.category === undefined ||
       FAILURE_CATEGORIES.includes(report.category as (typeof FAILURE_CATEGORIES)[number])) &&
     (report.failureCode === undefined ||
-      FAILURE_CODES.includes(report.failureCode as (typeof FAILURE_CODES)[number])) &&
-    (!['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
-      report.failureCode as string,
-    ) ||
-      (report.code === 'autosave_failed' &&
-        report.module === 'scratch' &&
-        report.phase === 'save')) &&
+      (isScratchSaveFailureCode(report.failureCode)
+        ? report.code === 'autosave_failed' &&
+          report.module === 'scratch' &&
+          report.phase === 'save'
+        : SIMULATION_FAILURE_CODES.includes(
+            report.failureCode as (typeof SIMULATION_FAILURE_CODES)[number],
+          ))) &&
     (report.script === undefined ||
       (typeof report.script === 'string' && ASSET_SCRIPT.test(report.script))) &&
     (report.exception === undefined ||
@@ -272,6 +273,25 @@ test('AI fixture rejects untrusted diagnostics rather than hiding product mutati
     httpStatus: 500,
   };
   expect(validDiagnosticPayload(base)).toBe(true);
+  expect(validDiagnosticPayload({ ...base, failureCode: 'worker-timeout' })).toBe(true);
+
+  const scratch = {
+    ...base,
+    code: 'autosave_failed',
+    module: 'scratch',
+    phase: 'save',
+    failureCode: 'scratch-save-asset-missing',
+  };
+  expect(validDiagnosticPayload(scratch)).toBe(true);
+  for (const invalidScope of [
+    { code: 'request_failed' },
+    { module: 'portal' },
+    { phase: 'request' },
+  ]) {
+    expect(validDiagnosticPayload({ ...scratch, ...invalidScope })).toBe(false);
+  }
+  expect(validDiagnosticPayload({ ...scratch, failureCode: 'scratch-save-unknown' })).toBe(false);
+
   for (const invalid of [
     { exception: { message: 'private student data' } },
     { script: 'https://example.invalid/private-student-data.js' },
