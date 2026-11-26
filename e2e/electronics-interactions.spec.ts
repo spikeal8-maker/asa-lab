@@ -509,7 +509,7 @@ async function realtime682Journal(
     const host = window as unknown as Window & {
       __realtime682Batch: (rows: Row[]) => Promise<number>;
       __realtime682StopRecording: () => void;
-      __realtime682ShortCapture: () => void;
+      __realtime682ShortCapture: (sampleInFrame: boolean) => void;
       __realtime682Flush: () => Promise<{
         sent: number;
         acknowledged: number;
@@ -746,13 +746,17 @@ async function realtime682Journal(
       return true;
     };
     let capturingShortCycles = false;
-    host.__realtime682ShortCapture = () => {
-      capturingShortCycles = true;
-    };
+    let sampleInFrame = false;
     let previous: { at: number; leds: unknown[] } | null = null;
+    host.__realtime682ShortCapture = (short) => {
+      capturingShortCycles = true;
+      if (short !== sampleInFrame) previous = null;
+      sampleInFrame = short;
+    };
     let monitorSignature = '';
     let renderTaskPending = false;
     let renderTaskEpoch = 0;
+    let shortFrame: { epoch: number; sample: { at: number; leds: unknown[] } } | null = null;
     const sampleRenderedOpportunity = () => {
       invalidate(mutations.takeRecords());
       const monitor = document.querySelector('.arduino-serial-output');
@@ -799,23 +803,34 @@ async function realtime682Journal(
       if (previous)
         push('paint', {
           witnessAt: previous.at,
-          witnessKind: 'render-opportunity-task',
+          witnessKind: sampleInFrame ? 'native-raf' : 'render-opportunity-task',
           leds: previous.leds,
         });
       previous = null;
       const epoch = ++renderTaskEpoch;
       renderTaskPending = true;
-      // Read the actual vector in a task after this RAF callback batch, never
-      // backdate a pre-product-RAF value and call it a visible frame. This is a
-      // render-opportunity DOM witness, not proof of physical display pixels.
+      // Keep the post-render sample in the journal even when the short-cycle
+      // witness comes from the rendering callback itself.
       setTimeout(() => {
         if (epoch !== renderTaskEpoch) {
           if (capturingShortCycles) push('render-opportunity-late', { epoch });
           return;
         }
         renderTaskPending = false;
-        previous = sampleRenderedOpportunity();
-        push('render-task-snapshot', previous);
+        const taskSample = sampleRenderedOpportunity();
+        push('render-task-snapshot', taskSample);
+        if (sampleInFrame) {
+          if (shortFrame?.epoch === epoch) previous = shortFrame.sample;
+          else push('render-opportunity-missed', { epoch });
+          shortFrame = null;
+          // The product schedules its next RAF during this frame. Register our
+          // read afterwards and sample inside that same next callback batch.
+          // A Worker delivery between paint and this timer belongs to a later frame.
+          requestAnimationFrame(() => {
+            if (renderTaskEpoch === epoch + 1)
+              shortFrame = { epoch: epoch + 1, sample: sampleRenderedOpportunity() };
+          });
+        } else previous = taskSample;
       }, 0);
       requestAnimationFrame(paint);
     };
@@ -1104,10 +1119,12 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
         }
         await journal.barrier();
         if (phaseMs !== null)
-          await page.evaluate(() =>
-            (
-              window as unknown as { __realtime682ShortCapture: () => void }
-            ).__realtime682ShortCapture(),
+          await page.evaluate(
+            (short) =>
+              (
+                window as unknown as { __realtime682ShortCapture: (short: boolean) => void }
+              ).__realtime682ShortCapture(short),
+            shortMs !== null,
           );
         const startAt = await page.evaluate(() => performance.now());
         journal.retain('start-action', { source, at: startAt });

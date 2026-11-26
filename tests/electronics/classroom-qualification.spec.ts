@@ -3723,6 +3723,88 @@ describe('Issue 682 durable batch and active long interval', () => {
       at: index / 2,
       value: `original-${index}`,
     }));
+  it('samples short phases in the product RAF and excludes a later task from that paint', async () => {
+    const journalSource = actualFunction('realtime682Journal');
+    const init = journalSource.slice(
+      journalSource.indexOf('page.addInitScript(') + 'page.addInitScript('.length,
+      journalSource.indexOf('}, recordLimit);') + 1,
+    );
+    const received: Row[] = [];
+    const frames: (() => void)[] = [];
+    const tasks: (() => void)[] = [];
+    let now = 0;
+    let level = 0;
+    const host = {
+      Worker: class {},
+      __realtime682Batch: async (batch: Row[]) => received.push(...batch),
+    } as unknown as Window & {
+      __realtime682ShortCapture: (short: boolean) => void;
+      __realtime682Flush: () => Promise<unknown>;
+    };
+    const visual = { getAttribute: () => String(level) };
+    const root = {
+      querySelector: (selector: string) => (selector.startsWith('[data-led-') ? visual : null),
+    };
+    const install = runInNewContext(compile(`(${init})`), {
+      window: host,
+      document: {
+        addEventListener() {},
+        querySelector: (selector: string) =>
+          selector.startsWith('[data-component-id=') ? root : null,
+      },
+      performance: { now: () => now },
+      MutationObserver: class {
+        observe() {}
+        takeRecords() {
+          return [];
+        }
+      },
+      requestAnimationFrame: (fn: () => void) => frames.push(fn),
+      setTimeout: (fn: () => void) => tasks.push(fn),
+      queueMicrotask,
+      structuredClone,
+    });
+    install(200);
+    host.__realtime682ShortCapture(true);
+    const render = () => frames.splice(0).forEach((run) => run());
+    const deliver = () => tasks.splice(0).forEach((run) => run());
+    const product = () => {
+      level = 70;
+      frames.push(product);
+    };
+    frames.push(product);
+    render();
+    deliver();
+    now = 16;
+    render();
+    now = 18;
+    level = 0; // A Worker delivery after rendering, before the observer timer.
+    deliver();
+    now = 32;
+    render();
+    await host.__realtime682Flush();
+    const atLevel = (kind: string, at: number) =>
+      (
+        received.find((row) => row.kind === kind && (row.witnessAt ?? row.at) === at)?.leds as
+          { brightness: number }[] | undefined
+      )?.[0]?.brightness;
+    expect(atLevel('paint', 16)).toBe(70);
+    expect(atLevel('render-task-snapshot', 18)).toBe(0);
+    expect(received.filter((row) => row.kind === 'paint')).toHaveLength(1);
+    deliver();
+    // Lose the last (native read) callback but keep the heartbeat, product and timer.
+    frames.pop();
+    now = 48;
+    render();
+    deliver();
+    now = 64;
+    render();
+    await host.__realtime682Flush();
+    expect(atLevel('paint', 48)).toBeUndefined();
+    expect(received.some((row) => row.kind === 'render-opportunity-missed' && row.at === 48)).toBe(
+      true,
+    );
+  });
   it('writes identical per-row envelopes in one flushed append before every observer and ACK', async () => {
     const run = await journal();
     const batch = rows();
