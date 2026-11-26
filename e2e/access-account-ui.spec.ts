@@ -29,6 +29,47 @@ async function serveBuiltApp(page: Page) {
 }
 test.beforeEach(async ({ page }) => serveBuiltApp(page));
 
+for (const width of [1440, 320]) {
+  test(`account learner sees the refreshed effective protection for each class at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await fixture(page);
+    let firstClassProtected = false;
+    await page.route('**/api/class-join/account/classes', (route) =>
+      route.fulfill({
+        json: {
+          items: [firstClassProtected, true].map((safeMode, index) => ({
+            seatId: `protection-seat-${index}`,
+            classroomId: `protection-class-${index}`,
+            classroomTitle: index === 0 ? 'Класс Алгебра' : 'Класс Черчение',
+            teacherDisplayName: 'Преподаватель',
+            safeMode,
+            openCount: 0,
+            unfinishedCount: 0,
+          })),
+        },
+      }),
+    );
+
+    await page.goto('/#/learning?view=classes');
+    const classes = page.locator('.attended-list');
+    const first = classes.getByRole('listitem').filter({ hasText: 'Класс Алгебра' });
+    const second = classes.getByRole('listitem').filter({ hasText: 'Класс Черчение' });
+    await expect(first).toContainText('Безопасный режим выключен');
+    await expect(second).toContainText('Безопасный режим включён');
+    firstClassProtected = true;
+    await page.reload();
+    await expect(first).toContainText('Безопасный режим включён');
+    await expect(second).toContainText('Безопасный режим включён');
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await expect(classes).toBeVisible();
+    await classes.screenshot({ path: test.info().outputPath(`account-protection-${width}.png`) });
+  });
+}
+
 for (const [width, path] of [
   [1440, '/#/attending'],
   [320, '/#/learning?view=classes'],

@@ -62,6 +62,7 @@ const schoolPendingFiles = [
   '0334_ai_llamacpp_local.sql',
   '0335_classroom_project_review_target.sql',
   '0336_classroom_free_project_preview.sql',
+  '0337_classroom_account_protection_status.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -103,6 +104,7 @@ const canonicalSqlDigests = {
   '0334': '25b478efea2a05a0fb682dc05605a4863f066ad6412b6b1af333690dfac4ffb7',
   '0335': '5d5a87000fce9a0dd440193d22814b420b070f3f52f771074ae2ddd0067ac57f',
   '0336': 'bfc1b047e9f89bb129b59c06897c44b9a5f3212bf7d737c17636367ceb3f85d7',
+  '0337': '04bac6e1df19121b8045c423e338a600b08dd73f47ff900f3b95deb5963990e3',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
