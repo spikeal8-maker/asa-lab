@@ -9,8 +9,15 @@ import { chromium } from '@playwright/test';
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
 const overload = process.argv.includes('--overload');
+const slowCpu = process.argv.includes('--slow-cpu');
+assert.ok(!(overload && slowCpu), 'Select one browser scenario');
+const focused = overload || slowCpu;
 const output = resolve(
-  overload ? 'reports/electronics-overload' : 'test-results/simulation-speed-861/native',
+  slowCpu
+    ? 'reports/electronics-slow-cpu'
+    : overload
+      ? 'reports/electronics-overload'
+      : 'test-results/simulation-speed-861/native',
 );
 await mkdir(output, { recursive: true });
 const opts = {
@@ -67,10 +74,9 @@ window.Worker=class extends NativeWorker {
     super.postMessage(message);
   }
 };
-window.fixture.replay=async presented=>{
-  const {requests,responses,live}=window.fixture;
+window.fixture.replay=async (presented,committed=window.fixture.live.committedHorizonMicroseconds)=>{
+  const {requests,responses}=window.fixture;
   const outcomes=new Map(responses.map(reply=>[reply.requestId, reply]));
-  const committed=live.committedHorizonMicroseconds;
   const control=new NativeWorker(workerURL);
   const inputs=[];
   const horizons=[];
@@ -188,7 +194,7 @@ try {
     [1440, 'servo'],
     [390, 'display'],
     [390, 'servo'],
-  ].slice(0, overload ? 1 : undefined)) {
+  ].slice(0, focused ? 1 : undefined)) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: true });
     const page = await context.newPage();
     const errors = [];
@@ -215,8 +221,8 @@ try {
     try {
       await page.goto('https://speed-fixture.invalid/?fixture=' + fixture);
       await page.waitForFunction(() => window.fixture.wb?.status === 'ready');
-      if (overload) {
-        receipts.push(await verifyOverload(page));
+      if (focused) {
+        receipts.push(slowCpu ? await verifySlowCpu(page) : await verifyOverload(page));
         assert.deepEqual(errors, []);
         continue;
       }
@@ -356,7 +362,7 @@ try {
       });
     } catch (error) {
       await writeFile(
-        resolve(output, overload ? 'failure.json' : `failure-${fixture}-${width}.json`),
+        resolve(output, focused ? 'failure.json' : `failure-${fixture}-${width}.json`),
         JSON.stringify(
           {
             error: String(error),
@@ -379,15 +385,17 @@ try {
   }
   await writeFile(resolve(output, 'receipt.json'), JSON.stringify(receipts, null, 2));
   console.log(
-    overload
-      ? 'PASS native overload: committed result, LED edges, heat, numerical quality and timestamped input match the control Worker.'
-      : 'PASS real speed/pause/queued GPIO and Serial/default generation/native LED Servo seven-segment 1440/390; pacing demand is not throughput acceptance.',
+    slowCpu
+      ? 'PASS Chromium CPU throttling: measured slowdown, equal physical results and responsive Stop.'
+      : overload
+        ? 'PASS native overload: committed result, LED edges, heat, numerical quality and timestamped input match the control Worker.'
+        : 'PASS real speed/pause/queued GPIO and Serial/default generation/native LED Servo seven-segment 1440/390; pacing demand is not throughput acceptance.',
   );
 } finally {
   await browser.close();
 }
 
-async function verifyOverload(page) {
+async function startMeasuredRun(page) {
   await page.evaluate(() => {
     window.fixture.wb.setLibraryOpen(false);
     window.fixture.wb.fitScene();
@@ -404,23 +412,32 @@ async function verifyOverload(page) {
   await slider.press('ArrowRight');
   assert.equal(await slider.getAttribute('aria-valuetext'), '×2');
 
-  const readRate = () =>
-    page.evaluate(() => {
-      const raw = document
-        .querySelector('.workbench-simulation-rate')
-        ?.getAttribute('data-actual-rate');
-      return raw == null ? null : Number(raw);
-    });
-  const waitForProgress = () =>
-    page.waitForFunction((readRateInBrowser) => {
-      const field = document.querySelector(readRateInBrowser)?.getAttribute('data-actual-rate');
-      return Number(field) > 0;
-    }, '.workbench-simulation-rate');
-  await waitForProgress();
+  await waitForActualProgress(page);
+  return { panel, slider };
+}
+
+function waitForActualProgress(page) {
+  return page.waitForFunction(() => {
+    const badge = document.querySelector('.workbench-simulation-rate');
+    return Number(badge?.getAttribute('data-actual-rate')) > 0;
+  });
+}
+
+function readRate(page) {
+  return page.evaluate(() => {
+    const raw = document
+      .querySelector('.workbench-simulation-rate')
+      ?.getAttribute('data-actual-rate');
+    return raw == null ? null : Number(raw);
+  });
+}
+
+async function verifyOverload(page) {
+  const { panel, slider } = await startMeasuredRun(page);
   const before = await page.evaluate(() => window.fixture.snapshot());
   assert.equal(before.pace.rate, 2);
   assert.ok(before.P > 0 && before.result.quality.passed);
-  const beforeRate = await readRate();
+  const beforeRate = await readRate(page);
 
   await page.evaluate(() => {
     window.fixture.holdNext = true;
@@ -441,7 +458,7 @@ async function verifyOverload(page) {
       document.querySelector('.workbench-simulation-rate')?.getAttribute('data-actual-rate') ===
       '0',
   );
-  assert.equal(await readRate(), 0);
+  assert.equal(await readRate(page), 0);
   assert.match(await panel.textContent(), /Фактически: ×0 · Медленнее выбранной/);
   assert.equal(await slider.getAttribute('aria-valuetext'), '×2');
   const stall = await page.evaluate(() => window.fixture.snapshot());
@@ -454,13 +471,13 @@ async function verifyOverload(page) {
     worker.dispatchEvent(new MessageEvent('message', { data: held }));
     return window.performance.now();
   });
-  await waitForProgress();
+  await waitForActualProgress(page);
   await page.waitForFunction(() =>
     Object.values(window.fixture.wb.arduinoSerialByBoard).some((s) =>
       s.tx.some((t) => t.text.includes('90')),
     ),
   );
-  const recoveredRate = await readRate();
+  const recoveredRate = await readRate(page);
   const { recovered, replay, rendered } = await page.evaluate(async () => {
     const { snapshot } = window.fixture;
     const recovered = snapshot();
@@ -513,4 +530,174 @@ async function verifyOverload(page) {
     renderedLedBrightness: Number(rendered),
     ...replay,
   };
+}
+
+async function cpuCalibration(page) {
+  return page.evaluate(() => {
+    const samples = [];
+    for (let run = 0; run < 5; run++) {
+      let value = 0x1b0601;
+      const start = window.performance.now();
+      for (let index = 0; index < 4_000_000; index++)
+        value = (Math.imul(value ^ index, 1664525) + 1013904223) | 0;
+      samples.push({ ms: window.performance.now() - start, value });
+    }
+    return samples.slice(2).sort((a, b) => a.ms - b.ms)[1];
+  });
+}
+
+async function sampleCommittedPace(page) {
+  return page.evaluate(async () => {
+    const read = () => ({
+      wall: window.performance.now(),
+      committed: window.fixture.wb.nativeOpticalPresentation.readClock(),
+    });
+    const first = read();
+    await new Promise((resolve) => window.setTimeout(resolve, 1900));
+    const last = read();
+    const wallMs = last.wall - first.wall;
+    const modelMicroseconds = last.committed - first.committed;
+    return { wallMs, modelMicroseconds, rate: modelMicroseconds / 1000 / wallMs };
+  });
+}
+
+async function verifySlowCpu(page) {
+  const rate = 8;
+  const client = await page.context().newCDPSession(page);
+  const selectedRate = 2;
+  try {
+    const calibration = await cpuCalibration(page);
+    await client.send('Emulation.setCPUThrottlingRate', { rate });
+    const throttledCalibration = await cpuCalibration(page);
+    assert.equal(throttledCalibration.value, calibration.value);
+    assert.ok(
+      calibration.ms > 0 && throttledCalibration.ms >= calibration.ms * 2,
+      JSON.stringify({ calibration, throttledCalibration }),
+    );
+    // Calibrate before the real run. During live measurement CDP alone slows
+    // the renderer; app requests and trusted Worker responses are undisturbed.
+    await client.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    const { panel, slider } = await startMeasuredRun(page);
+    const normal = await sampleCommittedPace(page);
+    const normalUiRate = await readRate(page);
+    assert.ok(normalUiRate > 0 && normal.rate > 0);
+
+    await client.send('Emulation.setCPUThrottlingRate', { rate });
+    await page.evaluate(() => {
+      window.fixture.wb.sendArduinoSerialRx('uno', 'Z');
+      window.fixture.wb.toggleComponentState('button');
+    });
+    const slower = await sampleCommittedPace(page);
+    const slowerUiRate = await readRate(page);
+    assert.ok(
+      slower.rate > 0 && slower.rate < normal.rate * 0.85,
+      JSON.stringify({ normal, slower }),
+    );
+    assert.ok(
+      slowerUiRate > 0 && slowerUiRate < selectedRate * 0.9,
+      JSON.stringify({ selectedRate, slowerUiRate }),
+    );
+    assert.equal(await slider.getAttribute('aria-valuetext'), '×2');
+    assert.match(await panel.textContent(), /Медленнее выбранной/);
+    await page.waitForFunction(() =>
+      Object.values(window.fixture.wb.arduinoSerialByBoard).some((s) =>
+        s.tx.some((t) => t.text.includes('90')),
+      ),
+    );
+    const terminal = await page.evaluate(() => {
+      const { C, P, result, frame, pace } = window.fixture.snapshot();
+      const led = document.querySelector('[data-component-id="led"] [data-led-brightness]');
+      return {
+        C,
+        P,
+        quality: result?.quality.passed,
+        visibleLed: led?.getAttribute('data-led-brightness'),
+        frameLed: frame?.led.led,
+        selected: pace.rate,
+        held: Boolean(window.fixture.held),
+      };
+    });
+    assert.ok(terminal.quality && terminal.P > 0 && terminal.P <= terminal.C);
+    assert.equal(terminal.selected, selectedRate);
+    assert.equal(terminal.held, false);
+    assert.ok(terminal.visibleLed != null);
+
+    await page.evaluate(() => {
+      const clicked = (event) => {
+        if (
+          !event.isTrusted ||
+          !(event.target instanceof window.Element) ||
+          !event.target.closest('.workbench-pill.simulate')
+        )
+          return;
+        document.removeEventListener('click', clicked, true);
+        const start = window.performance.now();
+        const observer = new window.MutationObserver(() => {
+          const button = document.querySelector('.workbench-pill.simulate');
+          if (button?.getAttribute('aria-label') !== 'Начать моделирование') return;
+          window.fixture.stopObserved = window.performance.now() - start;
+          observer.disconnect();
+        });
+        observer.observe(document, {
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['aria-label'],
+        });
+      };
+      document.addEventListener('click', clicked, true);
+    });
+    await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click({
+      timeout: 3000,
+    });
+    await page.waitForFunction(() => window.fixture.stopObserved !== undefined, undefined, {
+      timeout: 2000,
+    });
+    const stopped = await page.evaluate(() => ({
+      wallMs: window.fixture.stopObserved,
+      committed: window.fixture.wb.nativeOpticalPresentation.readClock(),
+      running: window.fixture.wb.simulationRunning,
+      ratePresent: Boolean(document.querySelector('.workbench-simulation-rate')),
+    }));
+    assert.ok(stopped.wallMs >= 0 && stopped.wallMs <= 1000, JSON.stringify(stopped));
+    assert.equal(stopped.committed, 0);
+    assert.equal(stopped.running, false);
+    assert.equal(stopped.ratePresent, false);
+
+    await client.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    const replay = await page.evaluate(({ P, C }) => window.fixture.replay(P, C), terminal);
+    assert.equal(replay.horizons[0], 0);
+    assert.equal(replay.reachedMicroseconds, terminal.C);
+    assert.ok(replay.preflight === 1 && replay.positiveWindows >= 2 && replay.thermalEntries > 0);
+    assert.ok(replay.ledEdges >= 2);
+    assert.deepEqual(
+      replay.inputs.map(({ targetId, operation, payload }) => [targetId, operation, payload]),
+      [
+        ['uno', 'serialRx', 'Z'],
+        ['button', 'state', true],
+      ],
+    );
+    assert.ok(replay.inputs[0].atMicroseconds < replay.inputs[1].atMicroseconds);
+    assert.equal(Number(terminal.visibleLed) > 0, terminal.frameLed > 0);
+    assert.equal(Number(terminal.visibleLed) > 0, replay.visiblePhase);
+    assert.equal(
+      await page.evaluate(() => window.fixture.wb.nativeOpticalPresentation.readClock()),
+      0,
+    );
+    return {
+      selectedRate,
+      cdpPageThrottle: rate,
+      calibration,
+      throttledCalibration,
+      normal,
+      normalUiRate,
+      slower,
+      slowerUiRate,
+      terminal,
+      stopped,
+      replay,
+    };
+  } finally {
+    await client.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    await client.detach();
+  }
 }
