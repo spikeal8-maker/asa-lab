@@ -410,6 +410,16 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     input: CreateProjectInput,
     inheritedProjectId: string | null,
   ): Promise<CreateProjectResult> {
+    const privateClassroomCopy = input.privateClassroomCopyOrigin;
+    if (
+      privateClassroomCopy &&
+      (input.scope !== 'personal' ||
+        input.classroomId !== null ||
+        inheritedProjectId !== null ||
+        input.publicationCopyOrigin)
+    ) {
+      throw new Error('invalid private classroom copy destination');
+    }
     if (inheritedProjectId !== null && input.publicationCopyOrigin) {
       throw new Error('ordinary duplicate cannot create a new public acquisition');
     }
@@ -545,10 +555,12 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           : input.publicationCopyOrigin
             ? 'public_acquisition'
             : 'native';
-      await client.query(
-        'SELECT public.record_project_writer_evidence($1::uuid,$2::uuid,$3::varchar,$4::uuid)',
-        [principalId, project.id, writerOperation, inheritedProjectId],
-      );
+      if (!privateClassroomCopy) {
+        await client.query(
+          'SELECT public.record_project_writer_evidence($1::uuid,$2::uuid,$3::varchar,$4::uuid)',
+          [principalId, project.id, writerOperation, inheritedProjectId],
+        );
+      }
       await client.query(
         `INSERT INTO project_drafts
            (project_id, tenant_id, document_json, updated_by, updated_by_principal_id,
@@ -564,6 +576,23 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           input.initialPreview?.digest ?? null,
         ],
       );
+      if (privateClassroomCopy) {
+        const { source } = privateClassroomCopy;
+        await client.query(
+          'SELECT public.record_classroom_private_project_copy($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+          [
+            principalId,
+            project.id,
+            privateClassroomCopy.classroomId,
+            privateClassroomCopy.seatId,
+            privateClassroomCopy.projectId,
+            source.kind === 'free' ? source.revision : null,
+            source.kind === 'submission' ? source.attemptId : null,
+            source.kind === 'submission' ? source.submissionId : null,
+            source.kind === 'submission' ? source.projectVersionId : null,
+          ],
+        );
+      }
       // Only this newly created public acquisition issues a durable receipt.
       // Inherited ordinary duplicates and idempotent replays never reach it.
       if (input.publicationCopyOrigin) {

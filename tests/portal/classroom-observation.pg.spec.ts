@@ -3,6 +3,10 @@ import { createInitialRoboticsProject } from '@asa-lab/robotics/document';
 import { hashSessionToken } from '../../contexts/identity/domain/session-token';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  createEmptyThreeDDocument,
+  createThreeDNode,
+} from '../../contexts/three-d/domain/document';
 import { testAdminPool, testAppPool, seedTeacher } from './helpers';
 import { buildTestApp, inject, type NestApp } from './app';
 import {
@@ -43,6 +47,31 @@ async function read<T>(fn: string, args: unknown[]): Promise<T> {
     args,
   );
   return result.rows[0]?.data as T;
+}
+async function allowPrivateCopies(accountId: string, classId: string, seatId: string) {
+  const tenant = (
+    await admin.query('INSERT INTO tenants(title,workspace_slug) VALUES($1,$2) RETURNING id', [
+      'Личные проекты педагога',
+      `teacher-copy-${randomUUID()}`,
+    ])
+  ).rows[0].id as string;
+  const workspace = (
+    await admin.query(
+      "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'personal','Мои проекты') RETURNING id",
+      [tenant],
+    )
+  ).rows[0].id;
+  await admin.query(
+    "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'owner')",
+    [accountId, workspace],
+  );
+  await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [classId]);
+  await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [seatId]);
+  return tenant;
+}
+
+function privateCopyUrl(classId: string, seatId: string, projectId: string) {
+  return `/api/classrooms/${classId}/observation/learners/${seatId}/projects/${projectId}/private-copy`;
 }
 async function fixture(count = 2) {
   const teacher = await seedTeacher(admin, `observation-${randomUUID().slice(0, 8)}`);
@@ -705,6 +734,125 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     expect((await lookup()).statusCode).toBe(404);
   });
 
+  it('creates one private teacher copy from the pinned free revision and protects it from redistribution', async () => {
+    const f = await fixture(2);
+    const [learner, other] = f.seats;
+    const projectId = await f.project(learner!.principal, 'three-d', 'active', f.classId);
+    const document = createEmptyThreeDDocument();
+    await admin.query('UPDATE project_drafts SET document_json=$2::jsonb WHERE project_id=$1', [
+      projectId,
+      JSON.stringify(document),
+    ]);
+    const url = privateCopyUrl(f.classId, learner!.id, projectId);
+    const teacherCookie = `asa_session=${f.teacherToken}`;
+    const key = randomUUID();
+    const copy = (
+      revision: number,
+      options: { url?: string; key?: string; cookie?: string } = {},
+    ) =>
+      inject(api, {
+        method: 'POST',
+        url: options.url ?? url,
+        headers: { cookie: options.cookie ?? teacherCookie, 'idempotency-key': options.key ?? key },
+        payload: { kind: 'free', revision },
+      });
+    const personalTenantId = await allowPrivateCopies(f.actor.account_id, f.classId, learner!.id);
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=true WHERE id=$1', [
+      learner!.id,
+    ]);
+    expect((await copy(1)).statusCode).toBe(404);
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [
+      learner!.id,
+    ]);
+    expect(
+      (await copy(1, { cookie: `${teacherCookie}; asa_student_session=${learner!.token}` }))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await copy(1, { url: privateCopyUrl(f.classId, other!.id, projectId) })).statusCode,
+    ).toBe(404);
+    const unsupportedRobot = await f.project(learner!.principal, 'robotics', 'active', f.classId);
+    expect(
+      (await copy(1, { url: privateCopyUrl(f.classId, learner!.id, unsupportedRobot) })).statusCode,
+    ).toBe(404);
+    const responses = await Promise.all([copy(1), copy(1)]);
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 201]);
+    const receipt = responses.find((response) => response.statusCode === 201)!.json();
+    const copyId = receipt.projectId as string;
+    expect(receipt).toEqual({ projectId: copyId, moduleKey: 'three-d', created: true });
+    expect(responses.find((response) => response.statusCode === 200)!.json()).toEqual({
+      ...receipt,
+      created: false,
+    });
+    expect(copyId).not.toBe(projectId);
+    const { rows } = await admin.query(
+      `SELECT project.tenant_id,project.project_scope,project.classroom_id,project.owner_principal_id,
+              draft.document_json,evidence.writer_operation,evidence.classroom_copy_source,
+              project.copied_from_publication_id
+         FROM projects project JOIN project_drafts draft ON draft.project_id=project.id
+         JOIN project_writer_evidence evidence ON evidence.project_id=project.id WHERE project.id=$1`,
+      [copyId],
+    );
+    expect(rows).toEqual([
+      {
+        tenant_id: personalTenantId,
+        project_scope: 'personal',
+        classroom_id: null,
+        owner_principal_id: f.actor.principal_id,
+        document_json: document,
+        writer_operation: 'classroom_private',
+        classroom_copy_source: {
+          classroomId: f.classId,
+          seatId: learner!.id,
+          projectId,
+          revision: 1,
+        },
+        copied_from_publication_id: null,
+      },
+    ]);
+    const open = await inject(api, {
+      method: 'GET',
+      url: `/api/projects/${copyId}`,
+      headers: { cookie: teacherCookie },
+    });
+    expect(open.statusCode, open.body).toBe(200);
+    expect(open.json().project.copiedFrom).toBeNull();
+    expect(open.body).not.toContain(learner!.id);
+    expect(open.body).not.toContain(projectId);
+    expect(
+      (
+        await inject(api, {
+          method: 'POST',
+          url: `/api/projects/${copyId}/duplicate`,
+          headers: { cookie: teacherCookie, 'idempotency-key': randomUUID() },
+          payload: { title: 'Публичная копия' },
+        })
+      ).statusCode,
+    ).toBe(403);
+    await expect(
+      runtime.query("SELECT project_visibility_set($1,$2,'link')", [f.actor.principal_id, copyId]),
+    ).rejects.toThrow('publication_forbidden');
+    const policy = (
+      await admin.query(
+        `SELECT project_distribution_allowed($1,'download') downloadable,
+                learning_original_project_action_allowed($1,'attach_learning') attachable`,
+        [copyId],
+      )
+    ).rows[0];
+    expect(policy).toEqual({ downloadable: false, attachable: false });
+    await admin.query('UPDATE project_drafts SET revision=2 WHERE project_id=$1', [projectId]);
+    expect((await copy(1, { key: randomUUID() })).json().error.code).toBe('copy_revision_changed');
+    expect((await copy(2)).json().error.code).toBe('idempotency_conflict');
+    expect(
+      await read('classroom_management_remove_seat', [f.actor.account_id, f.classId, learner!.id]),
+    ).toBe(true);
+    expect((await copy(2, { key: randomUUID() })).statusCode).toBe(404);
+    expect(
+      (await admin.query('SELECT document_json FROM project_drafts WHERE project_id=$1', [copyId]))
+        .rows,
+    ).toEqual([{ document_json: document }]);
+  }, 60_000);
+
   it('resolves the latest saved submission of the visible project and keeps removed seats read-only', async () => {
     const f = await fixture(2);
     const [learner, peer] = f.seats;
@@ -761,6 +909,13 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     expect(next.attemptId).not.toEqual(started.attemptId);
     expect((await lookup()).json()).toEqual(opened.json());
 
+    await admin.query('UPDATE project_drafts SET document_json=$2::jsonb WHERE project_id=$1', [
+      started.projectId,
+      JSON.stringify({
+        ...createEmptyThreeDDocument(),
+        nodes: [createThreeDNode('box', 'next-model')],
+      }),
+    ]);
     const latest = await submit();
     expect((await lookup()).json()).toMatchObject({
       assignmentId: issued.assignment,
@@ -769,6 +924,34 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       submissionId: latest.submission_id,
       projectVersionId: latest.project_version_id,
     });
+    await allowPrivateCopies(f.actor.account_id, f.classId, learner!.id);
+    const copyPinned = (projectVersionId = first.project_version_id) =>
+      inject(api, {
+        method: 'POST',
+        url: privateCopyUrl(f.classId, learner!.id, started.projectId),
+        headers: { cookie: teacherCookie, 'idempotency-key': randomUUID() },
+        payload: {
+          kind: 'submission',
+          attemptId: started.attemptId,
+          submissionId: first.submission_id,
+          projectVersionId,
+        },
+      });
+    expect((await copyPinned(latest.project_version_id)).statusCode).toBe(404);
+    const pinnedCopy = await copyPinned();
+    expect(pinnedCopy.statusCode, pinnedCopy.body).toBe(201);
+    const comparison = (
+      await admin.query(
+        `SELECT draft.document_json=shown.document_json AS exact,
+              draft.document_json<>latest.document_json AS different_from_latest
+         FROM project_drafts draft
+         JOIN project_versions shown ON shown.id=$2
+         JOIN project_versions latest ON latest.id=$3
+        WHERE draft.project_id=$1`,
+        [pinnedCopy.json().projectId, first.project_version_id, latest.project_version_id],
+      )
+    ).rows[0];
+    expect(comparison).toEqual({ exact: true, different_from_latest: true });
     await expect(
       admin.query("UPDATE projects SET status='archived' WHERE id=$1", [started.projectId]),
     ).rejects.toThrow('learning_work_protected');
@@ -778,6 +961,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     const archived = await lookup();
     expect(archived.statusCode, archived.body).toBe(200);
     expect(archived.json()).toMatchObject({ canReview: false, attemptId: next.attemptId });
+    expect((await copyPinned()).statusCode).toBe(404);
     expect(await setClassStatus('active')).toBe(true);
 
     expect(

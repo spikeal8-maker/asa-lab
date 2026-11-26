@@ -3,21 +3,29 @@ import {
   Controller,
   Get,
   Header,
+  Headers,
   HttpException,
   Inject,
   Param,
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type pg from 'pg';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { createClassroomFreeElectronicsSimulation } from './public-project-artifact.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
-import { checkBodyShape } from './validation.js';
+import { checkBodyShape, checkIdempotencyKey } from './validation.js';
 import { ClassroomObservationService } from './classroom-observation.service.js';
+import {
+  copyClassroomProject,
+  type ClassroomCopySource,
+} from './classroom-private-project-copy.js';
+import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
+import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function fail(code: string, message: string, status: number): never {
@@ -26,6 +34,42 @@ function fail(code: string, message: string, status: number): never {
 function uuid(value: string): string {
   if (!UUID.test(value)) fail('validation_error', 'Некорректный идентификатор.', 400);
   return value;
+}
+function copySource(body: unknown): ClassroomCopySource {
+  const accepted = checkBodyShape(body, [
+    'kind',
+    'revision',
+    'attemptId',
+    'submissionId',
+    'projectVersionId',
+  ]);
+  if (!accepted.ok) fail('validation_error', 'Укажите сохранённую версию работы.', 400);
+  const { kind, revision, attemptId, submissionId, projectVersionId } = accepted.body;
+  if (
+    kind === 'free' &&
+    Object.keys(accepted.body).length === 2 &&
+    typeof revision === 'number' &&
+    Number.isInteger(revision) &&
+    revision > 0 &&
+    revision <= 2_147_483_647
+  ) {
+    return { kind, revision };
+  }
+  if (
+    kind === 'submission' &&
+    Object.keys(accepted.body).length === 4 &&
+    typeof attemptId === 'string' &&
+    typeof submissionId === 'string' &&
+    typeof projectVersionId === 'string'
+  ) {
+    return {
+      kind,
+      attemptId: uuid(attemptId),
+      submissionId: uuid(submissionId),
+      projectVersionId: uuid(projectVersionId),
+    };
+  }
+  fail('validation_error', 'Укажите сохранённую версию работы.', 400);
 }
 function timestamp(value: string | undefined): string | null {
   if (value === undefined) return null;
@@ -168,6 +212,42 @@ export class ClassroomObservationController {
       preview: validated?.ok ? (provider?.createPreview(validated.payload) ?? null) : null,
       ...(electronicsSimulation ? { electronicsSimulation } : {}),
     };
+  }
+  @Post(':classroomId/observation/learners/:seatId/projects/:projectId/private-copy')
+  @Header('Cache-Control', 'private, no-store')
+  async privateCopy(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+    @Param('classroomId') classId: string,
+    @Param('seatId') seatId: string,
+    @Param('projectId') projectId: string,
+    @Headers('idempotency-key') rawKey: string | undefined,
+    @Body() body: unknown,
+  ) {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      fail('account_required', 'Копирование доступно в аккаунте преподавателя.', 403);
+    }
+    const principalId = await this.actor(request);
+    noteAuthoritativeMutationSession(request, 'account', request.cookies[SESSION_COOKIE]);
+    const key = checkIdempotencyKey(rawKey);
+    if (!key.ok || key.key.startsWith('learning:')) {
+      fail('invalid_idempotency_key', 'Укажите допустимый Idempotency-Key.', 400);
+    }
+    if (!this.pool) fail('database_unavailable', 'Сервер данных недоступен.', 503);
+    const copied = await copyClassroomProject({
+      pool: this.pool,
+      registry: this.modules,
+      principalId,
+      idempotencyKey: key.key,
+      origin: {
+        classroomId: uuid(classId),
+        seatId: uuid(seatId),
+        projectId: uuid(projectId),
+        source: copySource(body),
+      },
+    });
+    reply.code(copied.created ? 201 : 200);
+    return copied;
   }
   @Get(':classroomId/observation/history')
   async history(
