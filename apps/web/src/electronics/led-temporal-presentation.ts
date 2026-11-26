@@ -265,6 +265,7 @@ export class LedTemporalPresentation {
     null;
   private elapsedAckSlot = -1;
   private distinctCommitWallMicroseconds: number | null = null;
+  private firstRafAfterCommit: number | null = null;
   private opticalTransitions: 0 | 1 | 2 = 0;
 
   /** Reanchor only this host adapter; pending frames retain their original ACK. */
@@ -365,6 +366,7 @@ export class LedTemporalPresentation {
     this.h = 0;
     this.i = -3;
     this.distinctCommitWallMicroseconds = null;
+    this.firstRafAfterCommit = null;
     this.opticalTransitions = 0;
     this.g++;
   }
@@ -676,6 +678,7 @@ export class LedTemporalPresentation {
    */
   prepareFrame(wallMicroseconds: number): LedPresentationFrame | null {
     this.h++;
+    if (this.j && this.firstRafAfterCommit === null) this.firstRafAfterCommit = wallMicroseconds;
     if (this.h === this.elapsedAckSlot) return null;
     const elapsed = this.e === null ? 0 : Math.max(0, wallMicroseconds - this.e.w);
     if (this.k) return this.k;
@@ -784,7 +787,15 @@ export class LedTemporalPresentation {
       this.b.size !== shown.brightness.size
     )
       return false;
-    const elapsed = wall - this.distinctCommitWallMicroseconds;
+    const sinceCommit = wall - this.distinctCommitWallMicroseconds;
+    // A commit just after a refresh can spend almost one refresh interval in
+    // the DOM before its first display opportunity. For long phases the first
+    // actual RAF provides a lower bound on how long the phase has been visible.
+    const established = sinceCommit >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS;
+    const elapsed =
+      established && this.firstRafAfterCommit !== null
+        ? wall - this.firstRafAfterCommit
+        : sinceCommit;
     const cursor = shown.atMicroseconds;
     let from = 0;
     let to = target;
@@ -809,20 +820,21 @@ export class LedTemporalPresentation {
       }
       if (to - from < 2 * FAST_PHASE_MICROSECONDS || elapsed >= to - from) return false;
     }
-    if (elapsed >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS) {
-      // Startup may consume part of the first active phase before its native
-      // asset mounts. A fresh successor can wait for the next real RAF even if
-      // the already mounted phase has been visible for more than 50 ms.
+    const withinOneRefresh = elapsed + FAST_PHASE_MICROSECONDS >= to - from;
+    if (established) {
+      // Keep the cold-start allowance. Later phases may defer a between-frame
+      // offer only when their actual paint opportunity was materially shorter.
       const transitionWall = this.e.w + (to - this.e.m);
       if (
-        this.opticalTransitions !== 1 ||
+        (this.opticalTransitions !== 1 &&
+          (this.firstRafAfterCommit === null || withinOneRefresh)) ||
         wall - transitionWall >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS
       )
         return false;
     }
     // Allow one refresh interval of quantisation once the screen has had two
     // opportunities to paint. The next call samples the current confirmed history.
-    if (this.h > this.i + 1 && elapsed + FAST_PHASE_MICROSECONDS >= to - from) return false;
+    if (this.h > this.i + 1 && withinOneRefresh) return false;
     const unaveraged = this.o(cursor, false);
     return unaveraged !== null && sameOpticalFrame(shown, { ...unaveraged, token: shown.token });
   }
@@ -852,6 +864,7 @@ export class LedTemporalPresentation {
     }
     if (changed) {
       this.distinctCommitWallMicroseconds = wallMicroseconds;
+      this.firstRafAfterCommit = null;
       const reserved = this.elapsedFrame?.proposal === frame ? this.elapsedFrame.slot : this.h;
       this.i = Math.max(this.h, reserved);
       if (reserved > this.h) this.elapsedAckSlot = reserved;

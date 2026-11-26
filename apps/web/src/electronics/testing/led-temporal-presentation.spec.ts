@@ -486,6 +486,43 @@ describe('one early elapsed optical phase', () => {
     expect(presenter.prepareElapsedFrame(306_700)?.brightness.get('led')).toBe(0);
   });
 
+  it.each([
+    { firstPaint: 208_000, expectsEarly: true },
+    { firstPaint: 221_000, expectsEarly: false },
+  ])(
+    'respects a steady phase first sampled at $firstPaint after the same commit',
+    ({ firstPaint, expectsEarly }) => {
+      const presenter = withDarkFrame();
+      const observation = accepted(0, 305_000, [
+        point(0, 0),
+        point(21, 80),
+        point(100_023, 0),
+        point(200_026, 80),
+        point(300_028, 0),
+        point(305_000, 0),
+      ]);
+      presenter.accept(solved(observation), observation, 0);
+      for (const [wall, ack] of [
+        [35_000, 38_000],
+        [120_000, 120_000],
+        [205_000, 207_000],
+      ] as const) {
+        expect(presenter.acknowledgeFrame(presenter.prepareFrame(wall)!, ack)).toBe(true);
+      }
+      for (const wall of [firstPaint, 240_000, 260_000, 280_000]) {
+        const high = presenter.prepareFrame(wall)!;
+        expect(high.brightness.get('led')).toBe(80);
+        expect(presenter.acknowledgeFrame(high, wall)).toBe(true);
+      }
+      const early = presenter.prepareElapsedFrame(301_500);
+      expect(early !== null).toBe(expectsEarly);
+      const low = early ?? presenter.prepareFrame(305_000)!;
+      expect(low.brightness.get('led')).toBe(0);
+      expect(low.arduinoLStates.get('uno')).toBe(false);
+      expect(presenter.acknowledgeFrame(low, early ? 301_500 : 305_000)).toBe(true);
+    },
+  );
+
   it('does not extend a short pulse or queue missed opportunities after a stall', () => {
     for (const [off, secondRaf] of [
       [22_000, 23_000],
