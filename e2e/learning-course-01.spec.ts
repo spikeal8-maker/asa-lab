@@ -7,8 +7,9 @@ import {
   closeCourseLessonSettings,
   openCourseStructure,
 } from './learning-authoring-navigation';
-import { expect, test, type Browser, type Page, type Route } from '@playwright/test';
+import { expect, test, type Browser, type Page, type Request, type Route } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
+import type { SchematicDocument } from '@asa-lab/electronics';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
@@ -133,6 +134,53 @@ async function switchAccountWorkspace(page: Page, workspaceId: string): Promise<
   expect((await session.json()).activeWorkspace.workspaceId).toBe(workspaceId);
   await page.goto('/#/home');
   await page.reload();
+}
+
+async function saveArduinoReviewSketch(page: Page, source: string) {
+  const projectId = courseActivityProjectId(page, 'electronics');
+  const path = '/api/projects/' + projectId;
+  const loaded = await page.request.get(path);
+  expect(loaded.ok()).toBe(true);
+  const { draft } = (await loaded.json()) as {
+    draft: { document: SchematicDocument; revision: number };
+  };
+  const board: SchematicDocument['components'][number] = {
+    id: 'review-arduino',
+    kind: 'visual',
+    componentTypeId: 'arduino-uno',
+    name: 'Arduino Uno',
+    value: 5,
+    position: { x: 0, y: 0 },
+    stateProperties: { arduinoSource: source },
+  };
+  const saved = await page.request.put(path + '/draft', {
+    headers: { origin: new URL(page.url()).origin },
+    data: {
+      document: {
+        ...draft.document,
+        components: [...draft.document.components.filter((row) => row.id !== board.id), board],
+      },
+      baseRevision: draft.revision,
+      mutationId: crypto.randomUUID(),
+    },
+  });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await page.reload();
+
+  // The workbench fills in catalog defaults missing from this fixture. Commit the
+  // normalized draft through the editor before the assignment can submit that revision.
+  await page
+    .locator('.workbench-toolbar')
+    .getByRole('button', { name: 'Сохранить проект', exact: true })
+    .click();
+  await expect(
+    page.getByTestId('assignment-brief').getByText('Сохранено', { exact: true }),
+  ).toBeVisible({ timeout: 15_000 });
+  const confirmed = await page.request.get(path);
+  expect(confirmed.ok()).toBe(true);
+  const body = (await confirmed.json()) as { draft: { document: SchematicDocument } };
+  const savedBoard = body.draft.document.components.find((row) => row.id === board.id);
+  expect(savedBoard?.stateProperties?.['arduinoSource']).toBe(source);
 }
 
 async function editRealProject(page: Page, module: string) {
@@ -800,6 +848,7 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
   });
   const code = await createClassWithStudents(page, 'Класс Главной', [
     { label: 'Лена Главная', handle: 'home-lena' },
+    { label: 'Илья История', handle: 'home-ilya' },
   ]);
   const classId = page.url().split('/classrooms/')[1]!.split('?')[0]!;
   await openAssignments(page);
@@ -922,6 +971,95 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
     document: document.documentElement.scrollWidth,
   }));
   expect(width.document).toBeLessThanOrEqual(width.viewport);
+  const departing = await learnerAssignments(browser, code, 'home-ilya');
+  const rosterTab = await page.context().newPage();
+  try {
+    await departing.page
+      .getByTestId('seat-assignments')
+      .locator('li')
+      .filter({ hasText: title })
+      .getByRole('button', { name: 'Открыть', exact: true })
+      .click();
+    await editRealProject(departing.page, 'three-d');
+    await departing.page
+      .getByRole('button', { name: 'Отправить на проверку', exact: true })
+      .click();
+    await waitReviews(1);
+    const third = (await attention()).reviews[0]!;
+    expect(third.learnerName).toBe('Илья История');
+
+    const classUrl = '/#/classrooms/' + classId;
+    await page.goto(classUrl);
+    await page.getByRole('combobox', { name: 'Раздел класса', exact: true }).selectOption({
+      label: 'Журнал',
+    });
+    const dated = page.getByRole('region', { name: 'Ручной журнал', exact: true });
+    await expect(dated.getByRole('rowheader', { name: /Илья История/ })).toBeVisible();
+    await page
+      .getByRole('navigation', { name: 'Режим журнала' })
+      .getByRole('button', { name: 'Задания', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Ждут проверки: 1', exact: true }).click();
+    const queue = page.getByRole('region', { name: 'Работы на проверку' });
+    await queue.getByRole('button', { name: 'Проверить: ' + title + ' · Илья История' }).click();
+    const frozenVersion = detail.getByTestId('submission-version-id');
+    await expect(frozenVersion).toBeVisible();
+    const versionId = await frozenVersion.innerText();
+    await expect(
+      detail.getByRole('button', { name: 'Принять выполнение', exact: true }),
+    ).toBeEnabled();
+
+    await rosterTab.setViewportSize({ width: 1440, height: 900 });
+    await rosterTab.goto(classUrl);
+    const departingRow = rosterTab.getByRole('row').filter({ hasText: 'Илья История' });
+    await departingRow.getByRole('button', { name: 'Действия: Илья История', exact: true }).click();
+    const removal = rosterTab.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        new URL(response.url()).pathname ===
+          '/api/classrooms/' + classId + '/seats/' + third.seatId,
+    );
+    rosterTab.once('dialog', (dialog) => void dialog.accept());
+    await departingRow.getByRole('button', { name: 'Удалить из класса', exact: true }).click();
+    expect((await removal).ok()).toBe(true);
+    await expect(departingRow).toHaveCount(0);
+    await expect(rosterTab.getByRole('row').filter({ hasText: 'Лена Главная' })).toBeVisible();
+
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(detail).toBeHidden();
+    await expect(queue.getByText('Работ на проверку нет.')).toBeVisible();
+    await page.getByRole('button', { name: 'К таблице оценок', exact: true }).click();
+    await expect(page.getByRole('rowheader', { name: /Илья История/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Лена Главная · Практика/ })).toBeVisible();
+    await page.getByRole('button', { name: 'По датам', exact: true }).click();
+    await expect(dated.getByRole('rowheader', { name: /Лена Главная/ })).toBeVisible();
+    await expect(dated.getByRole('rowheader', { name: /Илья История/ })).toHaveCount(0);
+
+    // A saved history link and its exact frozen version are still available.
+    await page.goto(destination(third));
+    await expect(frozenVersion).toHaveText(versionId);
+    await expect(
+      detail.getByText('Ученик удалён из класса. Сдача доступна для просмотра.'),
+    ).toBeVisible();
+    await expect(
+      detail.getByRole('button', { name: 'Принять выполнение', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }),
+    ).toHaveCount(0);
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(frozenVersion).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      if (width === 1440 || width === 390)
+        await detail.screenshot({ path: evidenceDir + '/removed-seat-history-' + width + '.png' });
+    }
+  } finally {
+    await departing.context.close();
+    await rosterTab.close();
+  }
   failures.assertEmpty();
   await learner.context.close();
   await applicant.close();
@@ -1382,9 +1520,12 @@ for (const module of ['three-d', 'electronics'])
       .filter({ hasText: title });
     await row.getByRole('button', { name: 'Открыть', exact: true }).click();
     await editRealProject(learner.page, module);
+    const originalSketch = '// original\nvoid setup() {}\nvoid loop() {}\n';
+    const revisedSketch = '// revision\nvoid setup() {}\nvoid loop() {}\n';
     const brief = learner.page.getByTestId('assignment-brief');
     await expect(brief.getByText('В работе', { exact: true })).toBeVisible();
     await expect(brief.getByText('Сохранено', { exact: true })).toBeVisible();
+    if (module === 'electronics') await saveArduinoReviewSketch(learner.page, originalSketch);
     await expect(
       brief.getByRole('button', { name: 'Отправить на проверку', exact: true }),
     ).toBeEnabled();
@@ -1409,12 +1550,24 @@ for (const module of ['three-d', 'electronics'])
       .click();
     await page.getByRole('button', { name: 'Задания', exact: true }).click();
     const cell = page.getByRole('button', { name: new RegExp('Ирина · ' + title) });
+    const exactRead =
+      module === 'electronics'
+        ? page.waitForResponse((response) =>
+            /\/api\/classrooms\/[^/]+\/attempts\/[^/]+\/submission$/.test(
+              new URL(response.url()).pathname,
+            ),
+          )
+        : null;
     await cell.click();
     const detail = page.getByRole('region', { name: 'Проверка сдачи' });
     await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
+    const originalExactRead = await exactRead;
     const firstVersion = await detail.getByTestId('submission-version-id').innerText();
-    await detail.getByText('Содержимое и контрольная сумма сдачи', { exact: true }).click();
-    const submittedDocument = await detail.locator('pre').innerText();
+    const evidence = detail
+      .locator('details')
+      .filter({ hasText: 'Содержимое и контрольная сумма сдачи' });
+    await evidence.locator('summary').click();
+    const submittedDocument = await evidence.locator('pre').innerText();
     const submittedProjectId = courseActivityProjectId(learner.page, module);
     const readableOriginal = await learner.page.request.get(`/api/projects/${submittedProjectId}`);
     expect(readableOriginal.status()).toBe(200);
@@ -1434,9 +1587,9 @@ for (const module of ['three-d', 'electronics'])
     await learner.page.reload();
     await page.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();
     await cell.click();
-    await detail.getByText('Содержимое и контрольная сумма сдачи', { exact: true }).click();
+    await evidence.locator('summary').click();
     await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
-    await expect(detail.locator('pre')).toHaveText(submittedDocument);
+    await expect(evidence.locator('pre')).toHaveText(submittedDocument);
     await detail.getByLabel('Причина возврата или исправления').fill('Добавьте вторую фигуру.');
     await detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
     await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
@@ -1502,6 +1655,99 @@ for (const module of ['three-d', 'electronics'])
     expect(resumedAssignment?.canonicalState?.flags).toContain('revision_in_progress');
 
     await editRealProject(learner.page, module);
+    if (module === 'three-d') {
+      const currentProjectId = courseActivityProjectId(learner.page, module);
+      const laterDraft = await learner.page.request.get('/api/projects/' + currentProjectId);
+      expect(laterDraft.ok()).toBe(true);
+      expect((await laterDraft.json()).draft.document).not.toEqual(JSON.parse(submittedDocument));
+      await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
+      const viewerRequests: string[] = [];
+      const recordViewerRequest = (request: Request) => {
+        const path = new URL(request.url()).pathname;
+        if (
+          path.startsWith('/api/projects/') ||
+          (path.startsWith('/api/classrooms/') && !['GET', 'HEAD'].includes(request.method()))
+        )
+          viewerRequests.push(request.method() + ' ' + path);
+      };
+      page.on('request', recordViewerRequest);
+      const showModel = detail.getByRole('button', { name: 'Показать 3D-модель', exact: true });
+      await expect(detail.getByTestId('three-d-presentation')).toHaveCount(0);
+      await showModel.press('Enter');
+      await expect(detail.getByRole('region', { name: 'Сданная 3D-модель' })).toHaveAttribute(
+        'data-ready',
+        'true',
+        { timeout: 15_000 },
+      );
+      const canvas = detail.getByTestId('three-d-presentation').locator('canvas');
+      await canvas.press('ArrowRight');
+      await canvas.press('Escape');
+      await expect(showModel).toBeFocused();
+      await expect(canvas).toHaveCount(0);
+      page.off('request', recordViewerRequest);
+      expect(viewerRequests).toEqual([]);
+      await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
+      if ((await evidence.getAttribute('open')) === null) await evidence.locator('summary').click();
+      await expect(evidence.locator('pre')).toHaveText(submittedDocument);
+    } else {
+      await saveArduinoReviewSketch(learner.page, revisedSketch);
+      await expect(detail.getByTestId('submission-version-id')).toHaveText(firstVersion);
+      await detail.getByRole('button', { name: 'Код', exact: true }).click();
+      const source = detail.getByRole('region', { name: 'Arduino Uno', exact: true });
+      await expect(source).toBeVisible();
+      expect(await source.textContent()).toBe(originalSketch);
+
+      expect(originalExactRead?.ok()).toBe(true);
+      const originalExact = await originalExactRead!.json();
+      const savedPlayback = originalExact.electronicsSimulation;
+      expect(savedPlayback).toMatchObject({
+        submissionId: originalExact.submissionId,
+        projectVersionId: firstVersion,
+        simulation: {
+          schemaVersion: 3,
+          components: expect.arrayContaining([
+            expect.objectContaining({ stateProperties: { arduinoSource: originalSketch } }),
+          ]),
+        },
+      });
+      const repeatedExact = await page.request.get(originalExactRead!.url());
+      expect(repeatedExact.ok()).toBe(true);
+      expect((await repeatedExact.json()).electronicsSimulation).toEqual(savedPlayback);
+      const learnerRead = await learner.page.request.get(originalExactRead!.url());
+      expect([401, 403]).toContain(learnerRead.status());
+
+      const playbackRequests: string[] = [];
+      const recordPlayback = (request: Request) => {
+        const path = new URL(request.url()).pathname;
+        if (
+          path.startsWith('/api/projects/') ||
+          path.startsWith('/api/public-projects') ||
+          (path.startsWith('/api/classrooms/') && !['GET', 'HEAD'].includes(request.method()))
+        )
+          playbackRequests.push(request.method() + ' ' + path);
+      };
+      page.on('request', recordPlayback);
+      const toggle = detail.getByRole('button', { name: /^(Открыть|Скрыть) симуляцию$/ });
+      const playback = detail.getByRole('region', { name: 'Сданная электрическая схема' });
+      await expect(playback).toHaveCount(0);
+      await toggle.click();
+      await expect(playback).toBeVisible({ timeout: 15_000 });
+      const pendingWorker = page.waitForEvent('worker', {
+        predicate: (worker) => worker.url().includes('simulation.worker'),
+      });
+      await playback.getByTestId('classroom-electronics-start').click();
+      const worker = await pendingWorker;
+      const workerClosed = new Promise<void>((resolve) => worker.once('close', resolve));
+      await toggle.press('Escape');
+      await workerClosed;
+      await expect(toggle).toBeFocused();
+      await expect(playback).toHaveCount(0);
+      await expect(source).toHaveCount(0);
+      await detail.getByRole('button', { name: 'Код', exact: true }).click();
+      await expect(source).toHaveText(originalSketch);
+      page.off('request', recordPlayback);
+      expect(playbackRequests).toEqual([]);
+    }
     await expect(
       brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
     ).toBeEnabled();
@@ -1534,6 +1780,12 @@ for (const module of ['three-d', 'electronics'])
     await page.getByRole('button', { name: 'Задания', exact: true }).click();
     await cell.click();
     await expect(detail.getByTestId('submission-version-id')).not.toHaveText(firstVersion);
+    if (module === 'electronics') {
+      await detail.getByRole('button', { name: 'Код', exact: true }).click();
+      const source = detail.getByRole('region', { name: 'Arduino Uno', exact: true });
+      await expect(source).toBeVisible();
+      expect(await source.textContent()).toBe(revisedSketch);
+    }
     await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
     await expect(cell).toContainText('Выполнено');
     await page.screenshot({
@@ -4124,7 +4376,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     );
   }
   const navigationWrites: string[] = [];
-  const captureNavigationWrites = (request: import('@playwright/test').Request) => {
+  const captureNavigationWrites = (request: Request) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) return;
     const path = new URL(request.url()).pathname;
     if (
@@ -4398,7 +4650,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   const atomicStarts: string[] = [];
   const legacyStarts: string[] = [];
-  const observeStart = (request: import('@playwright/test').Request) => {
+  const observeStart = (request: Request) => {
     if (request.method() !== 'POST') return;
     const path = new URL(request.url()).pathname;
     const match = /^\/api\/learning\/work\/runs\/([^/]+)\/start$/.exec(path);
@@ -5806,7 +6058,7 @@ test('Course media errors survive saved author preview and learner delivery with
   const beforeInlineAcademic = await academicRows();
   expect(Object.values(beforeInlineAcademic)).toEqual(Array(7).fill([]));
   const inlineAcademicWrites: string[] = [];
-  const observeInlineWrite = (request: import('@playwright/test').Request) => {
+  const observeInlineWrite = (request: Request) => {
     const pathname = new URL(request.url()).pathname;
     if (
       !['GET', 'HEAD', 'OPTIONS'].includes(request.method()) &&

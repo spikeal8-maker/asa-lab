@@ -132,6 +132,7 @@ export type WorkbenchInspectorController = CommittedPresentationController &
     | 'setRegulatedPowerSupplyControls'
     | 'setSelectedMotorShaftLocked'
     | 'setSelectedProperties'
+    | 'setSelectedL298nJumper'
     | 'setSelectedState'
     | 'setSelectedVariant'
     | 'setSelectedWiper'

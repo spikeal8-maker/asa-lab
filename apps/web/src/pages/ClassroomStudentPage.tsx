@@ -1,19 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import {
-  api,
-  type ClassroomStudentSeat,
-  type ClassroomStudentWork,
-  type ModuleSummary,
-  type Project,
-  type ProjectFeedback,
-} from '../api';
+import { api, type ClassroomStudentSeat, type ModuleSummary, type ProjectFeedback } from '../api';
 import {
   participantsApi,
   type ParticipantProfile,
   type ParticipantWorks,
 } from '../classroom-participants-api';
-import { ProjectCard } from '../modules/ProjectCard';
-import { WorkPreview } from '../components/WorkPreview';
+import { ClassroomWorkCard } from '../components/ClassroomWorkCard';
+import { isDrawableFigure, ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
+import { classroomWorkScope, WorkPreview } from '../components/WorkPreview';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { SystemTabs } from '../components/SystemTabs';
 import { useSchoolTime } from '../components/school-time';
@@ -29,6 +23,7 @@ import { onSessionLoggedOut } from '../session-fetch';
 import { ParticipantAssignmentsList } from '../components/ParticipantAssignmentsList';
 import type { ClassroomStudentNavigation } from '../components/classroom-student-navigation';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import '../modules/project-card.css';
 import './classroom-student.css';
 import { ClassroomProjectSettings } from '../components/ClassroomProjectSettings';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
@@ -51,21 +46,13 @@ function markTone(
     return badge;
   return edited ? 'teacher' : undefined;
 }
-function asProject(work: ClassroomStudentWork): Project {
-  return {
-    id: work.id,
-    scope: 'personal',
-    classroomId: null,
-    moduleKey: work.moduleKey,
-    title: work.title,
-    status: work.status,
-    createdAt: work.createdAt,
-    updatedAt: work.updatedAt,
-    preview: work.preview,
-    copiedFrom: null,
-    snapshotRevision: work.snapshotRevision,
-  };
+const WORKS_PAGE_SIZE = 30;
+
+function workAwaitsReview(work: ParticipantWorks['items'][number]): boolean {
+  if (!work.canonicalState) return work.awaitingReview === true;
+  return ['submitted', 'waiting_review'].includes(work.canonicalState.workflowState);
 }
+
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
   { key: 'grades', label: 'Оценки', module: null },
@@ -84,6 +71,7 @@ type SettingsCategory = 'identity' | 'access' | 'safety' | 'games' | 'projects';
 export function ClassroomStudentPage({
   classroomId,
   classroomTitle,
+  classSafeMode,
   seatId,
   navigation,
   onNavigateStudent,
@@ -94,6 +82,7 @@ export function ClassroomStudentPage({
 }: {
   readonly classroomId: string;
   readonly classroomTitle: string;
+  readonly classSafeMode?: boolean;
   readonly seatId: string;
   readonly navigation: ClassroomStudentNavigation | null;
   readonly onNavigateStudent: (seatId: string) => void;
@@ -126,7 +115,9 @@ export function ClassroomStudentPage({
   const [workLoading, setWorkLoading] = useState(false);
   const workRequest = useRef(0);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
-  const [responding, setResponding] = useState<ClassroomStudentWork | null>(null);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const respondingIndex = works?.items.findIndex((work) => work.id === respondingId) ?? -1;
+  const responding = works?.items[respondingIndex];
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
   const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
   const [roleBusy, setRoleBusy] = useState(false);
@@ -151,6 +142,7 @@ export function ClassroomStudentPage({
   const learnerSearchInput = useRef<HTMLInputElement>(null);
   const focusAfterNavigation = useRef<string | null>(null);
   const learnerPickerId = useId();
+  const protectionDescriptionId = useId();
   const generation = useRef(0);
   const profileGeneration = useRef(0);
   const sessionEnded = useRef(false);
@@ -309,7 +301,7 @@ export function ClassroomStudentPage({
       setArchive(false);
       setOnlyAwaiting(false);
     }
-    setResponding(null);
+    setRespondingId(null);
     setAwardKeys([]);
     setRoleBusy(false);
     void load();
@@ -324,7 +316,7 @@ export function ClassroomStudentPage({
       generation.current++;
       setProfile(null);
       setWorks(null);
-      setResponding(null);
+      setRespondingId(null);
       setAwardKeys([]);
       setLearnerPickerOpen(false);
       setLearnerRoster(null);
@@ -348,16 +340,36 @@ export function ClassroomStudentPage({
     };
   }, []);
   const loadWorks = useCallback(
-    async (offset = 0) => {
+    async (offset = 0, previewProjectId?: string) => {
       if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
       const token = ++generation.current;
-      setWorkLoading(true);
-      workRequest.current = offset;
+      if (!previewProjectId) {
+        setWorkLoading(true);
+        workRequest.current = offset;
+      }
       setWorksError(null);
       const result = await participantsApi.works(classroomId, seatId, module, archive, offset);
       if (generation.current !== token || scope.current !== `${classroomId}:${seatId}`) return;
       setWorkLoading(false);
-      if (result.ok)
+      if (result.ok) {
+        if (previewProjectId) {
+          const refreshed = result.data.items.find((work) => work.id === previewProjectId);
+          if (refreshed)
+            setWorks((old) =>
+              old
+                ? {
+                    ...old,
+                    items: old.items.map((work) =>
+                      work.id === previewProjectId ? refreshed : work,
+                    ),
+                  }
+                : old,
+            );
+          else setRespondingId((id) => (id === previewProjectId ? null : id));
+          return;
+        }
+        if (offset === 0)
+          setRespondingId((id) => (result.data.items.some((work) => work.id === id) ? id : null));
         setWorks((old) =>
           offset && old
             ? {
@@ -368,9 +380,10 @@ export function ClassroomStudentPage({
               }
             : result.data,
         );
-      else {
+      } else {
         if ([401, 403, 404].includes(result.status)) {
           setWorks(null);
+          setRespondingId(null);
           workRequest.current = 0;
         }
         setWorksError(result.error.message);
@@ -385,11 +398,25 @@ export function ClassroomStudentPage({
       generation.current++;
     };
   }, [loadWorks, showsWorks]);
+  useEffect(() => {
+    if (!respondingId || respondingIndex < 0) return;
+    const offset = Math.floor(respondingIndex / WORKS_PAGE_SIZE) * WORKS_PAGE_SIZE;
+    const refresh = () => void loadWorks(offset, respondingId);
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [loadWorks, respondingId, respondingIndex]);
 
   const activeStudent =
     profile?.student.id === seatId && loadedScope === `${classroomId}:${seatId}`
       ? profile.student
       : null;
+  const protectionEnabled = classSafeMode || activeStudent?.safeMode;
+  const accessSuspended = activeStudent?.status === 'suspended';
+  const protectionStatus = accessSuspended
+    ? 'Доступ приостановлен'
+    : protectionEnabled
+      ? 'Защита включена'
+      : 'Защита выключена';
   const matchingLearners = (
     learnerRoster?.classroomId === classroomId ? learnerRoster.items : []
   ).filter((entry) =>
@@ -402,18 +429,34 @@ export function ClassroomStudentPage({
       role="group"
       aria-label="Ученик и навигация"
     >
-      <button
-        type="button"
-        className="classroom-student-back"
-        aria-label="← К классу"
-        title={classroomTitle}
-        onClick={() => {
-          if (confirmDiscard()) onBack();
-        }}
-      >
-        <span aria-hidden="true">←</span>
-        <span className="classroom-student-back-label">К классу</span>
-      </button>
+      <div className="classroom-student-class-context">
+        <button
+          type="button"
+          className="classroom-student-back"
+          aria-label="← К классу"
+          title={classroomTitle}
+          onClick={() => {
+            if (confirmDiscard()) onBack();
+          }}
+        >
+          <span aria-hidden="true">←</span>
+          <span className="classroom-student-back-label">К классу</span>
+        </button>
+        <div className="classroom-student-class-title">
+          <span className="classroom-student-class-name" title={classroomTitle}>
+            {classroomTitle}
+          </span>
+          {activeStudent ? (
+            <span
+              className="classroom-student-mobile-protection"
+              aria-hidden="true"
+              title={protectionStatus}
+            >
+              {accessSuspended ? 'Нет доступа' : protectionEnabled ? 'Защита вкл.' : 'Защита выкл.'}
+            </span>
+          ) : null}
+        </div>
+      </div>
       <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
         <button
           type="button"
@@ -457,6 +500,7 @@ export function ClassroomStudentPage({
                     }
                   }}
                   aria-label={`Выбрать ученика: ${activeStudent.displayLabel}`}
+                  aria-describedby={protectionDescriptionId}
                   aria-haspopup="dialog"
                   aria-expanded={learnerPickerOpen}
                   aria-controls={learnerPickerId}
@@ -499,17 +543,11 @@ export function ClassroomStudentPage({
                         </span>
                       ) : null}
                       <span
-                        className={
-                          activeStudent.status === 'suspended'
-                            ? 'classroom-student-suspended'
-                            : undefined
-                        }
+                        id={protectionDescriptionId}
+                        title={protectionStatus}
+                        className={`classroom-student-rail-protection${accessSuspended ? ' classroom-student-suspended' : ''}`}
                       >
-                        {activeStudent.status === 'suspended'
-                          ? 'Доступ приостановлен'
-                          : activeStudent.safeMode
-                            ? 'Защита включена'
-                            : 'Защита выключена'}
+                        {protectionStatus}
                       </span>
                     </span>
                   </span>
@@ -706,6 +744,7 @@ export function ClassroomStudentPage({
     );
   const { student, metrics, settings } = profile;
   const readOnly = profile.status !== 'active' || Boolean(seatActions?.readOnly);
+  const previewReadOnly = readOnly || responding?.status === 'archived';
   const settingsLocked = readOnly || student.status === 'suspended';
   const controlsBusy = roleBusy || safeBusy || Boolean(seatActions?.busy);
   const updateRole = (role: string): void => {
@@ -758,12 +797,7 @@ export function ClassroomStudentPage({
       }
     })();
   };
-  const visible = (works?.items ?? []).filter(
-    (work) =>
-      !onlyAwaiting ||
-      work.canonicalState?.workflowState === 'waiting_review' ||
-      (!work.canonicalState && work.awaitingReview),
-  );
+  const visible = (works?.items ?? []).filter((work) => !onlyAwaiting || workAwaitsReview(work));
   return (
     <main
       className="portal-content classroom-student"
@@ -773,6 +807,27 @@ export function ClassroomStudentPage({
       data-settings-category={settingsCategory ?? 'none'}
     >
       {navigationRow}
+      <div
+        className="classroom-student-work-summary"
+        role="group"
+        aria-label="Сводка ученика"
+        tabIndex={0}
+      >
+        <span>{metrics.role === 'helper' ? 'Помощник' : 'Учащийся'}</span>
+        <span title={metrics.score === null ? 'Рейтинг выключен' : undefined}>
+          Рейтинг <strong>{metrics.score ?? '—'}</strong>
+          {metrics.rank !== null ? ` №${metrics.rank}` : null}
+        </span>
+        <span>
+          Работ <strong>{metrics.totalWorks}</strong>
+        </span>
+        <span>
+          Сдано <strong>{profile.submittedCount}</strong>
+        </span>
+        <span>
+          Ждут <strong>{profile.awaitingReview}</strong>
+        </span>
+      </div>
       {sectionRail}
       <SystemTabs
         items={TABS.map((item) => ({ id: item.key, label: item.label }))}
@@ -1001,51 +1056,40 @@ export function ClassroomStudentPage({
             <div
               className="classroom-student-works-toolbar"
               role="group"
-              aria-label="Показатели и фильтры работ"
+              aria-label="Фильтры работ"
             >
-              <div className="classroom-student-work-summary" aria-label="Показатели работ ученика">
-                <span>
-                  Работ <strong>{metrics.totalWorks}</strong>
-                </span>
-                <span>
-                  Сдано <strong>{profile.submittedCount}</strong>
-                </span>
-                <span>
-                  Ждут <strong>{profile.awaitingReview}</strong>
-                </span>
-                <details className="classroom-student-visibility-details">
-                  <summary
-                    aria-label="Информация о доступных преподавателю работах"
-                    title="Что видит преподаватель"
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') {
-                        event.currentTarget.parentElement?.removeAttribute('open');
-                        event.stopPropagation();
-                      }
-                    }}
-                  >
-                    <span className="classroom-student-visibility-icon" aria-hidden="true">
-                      i
-                    </span>
-                  </summary>
-                  <div className="classroom-student-visibility-popover" role="note">
-                    <strong>Что видит преподаватель</strong>
-                    {works ? (
-                      <p>
-                        {works.visibleWorks < works.totalWorks
-                          ? `Доступно ${works.visibleWorks} из ${works.totalWorks} работ. Остальные личные работы закрыты для преподавателя.`
-                          : `Доступны все ${works.totalWorks} работ ученика.`}
-                      </p>
-                    ) : (
-                      <p>Сведения о доступных работах загружаются.</p>
-                    )}
+              <details className="classroom-student-visibility-details">
+                <summary
+                  aria-label="Информация о доступных преподавателю работах"
+                  title="Что видит преподаватель"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.currentTarget.parentElement?.removeAttribute('open');
+                      event.stopPropagation();
+                    }
+                  }}
+                >
+                  <span className="classroom-student-visibility-icon" aria-hidden="true">
+                    i
+                  </span>
+                </summary>
+                <div className="classroom-student-visibility-popover" role="note">
+                  <strong>Что видит преподаватель</strong>
+                  {works ? (
                     <p>
-                      На странице показаны только загруженные работы, которые разрешено
-                      просматривать. Фильтр «Ждут» не проверяет ещё не загруженные страницы.
+                      {works.visibleWorks < works.totalWorks
+                        ? `Доступно ${works.visibleWorks} из ${works.totalWorks} работ. Остальные личные работы закрыты для преподавателя.`
+                        : `Доступны все ${works.totalWorks} работ ученика.`}
                     </p>
-                  </div>
-                </details>
-              </div>
+                  ) : (
+                    <p>Сведения о доступных работах загружаются.</p>
+                  )}
+                  <p>
+                    На странице показаны только загруженные работы, которые разрешено просматривать.
+                    Фильтр «Ждут» не проверяет ещё не загруженные страницы.
+                  </p>
+                </div>
+              </details>
               <label className="classroom-student-archive-filter">
                 <input
                   type="checkbox"
@@ -1096,53 +1140,61 @@ export function ClassroomStudentPage({
                 : 'Нет доступных работ по этому фильтру.'}
             </p>
           ) : null}
-          <ul className="project-card-grid">
-            {visible.map((work) => (
-              <ProjectCard
-                key={work.id}
-                project={asProject(work)}
-                module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
-                timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
-                footerLabel={
-                  canonicalLearningLabel(work.canonicalState) ??
-                  (work.awaitingReview
-                    ? 'Ждёт ответа'
-                    : work.feedback?.badge
-                      ? (BADGE_LABELS[work.feedback.badge] ?? 'Отклик есть')
-                      : work.lastEditedByTeacher
-                        ? 'Правил педагог'
-                        : 'Работа')
-                }
-                footerTone={
-                  work.canonicalState?.workflowState === 'waiting_review' ||
-                  (!work.canonicalState && work.awaitingReview)
-                    ? 'redo'
-                    : markTone(work.feedback, work.lastEditedByTeacher)
-                }
-                primaryLabel="Открыть"
-                open={{
-                  href: `#/projects/${work.id}`,
-                  onNavigate: () => onOpenProject(work.id, work.moduleKey),
-                }}
-                menuItems={
-                  readOnly || work.status === 'archived'
-                    ? []
-                    : [
-                        {
-                          label: work.feedback ? 'Изменить отклик' : 'Оценить работу',
-                          onSelect: () => setResponding(work),
-                        },
-                      ]
-                }
-              />
-            ))}
+          <ul className="classroom-work-card-list">
+            {visible.map((work) => {
+              const awaiting = workAwaitsReview(work);
+              const label =
+                (awaiting && work.canonicalState
+                  ? 'Ждёт проверки'
+                  : canonicalLearningLabel(work.canonicalState)) ??
+                (awaiting
+                  ? 'Ждёт ответа'
+                  : work.feedback?.badge
+                    ? (BADGE_LABELS[work.feedback.badge] ?? 'Отклик есть')
+                    : work.lastEditedByTeacher
+                      ? 'Правил педагог'
+                      : 'Работа');
+              const tone = awaiting ? 'redo' : markTone(work.feedback, work.lastEditedByTeacher);
+              const figure = work.preview?.descriptor.figure;
+              return (
+                <ClassroomWorkCard
+                  key={work.id}
+                  projectId={work.id}
+                  title={work.title}
+                  learner={student.displayLabel}
+                  moduleLabel={
+                    modules.find((entry) => entry.moduleKey === work.moduleKey)?.displayName ??
+                    work.moduleKey
+                  }
+                  status={
+                    <span className={tone ? `project-card-mark tone-${tone}` : undefined}>
+                      {label}
+                    </span>
+                  }
+                  archived={work.status === 'archived'}
+                  updatedAt={work.updatedAt}
+                  dateLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
+                  revision={work.snapshotRevision}
+                  fallback={
+                    figure && isDrawableFigure(figure) ? (
+                      <ProjectPreviewFigure figure={figure} label={work.title} />
+                    ) : null
+                  }
+                  onPreview={() => setRespondingId(work.id)}
+                  editor={{
+                    href: `#/projects/${work.id}`,
+                    onOpen: () => onOpenProject(work.id, work.moduleKey),
+                  }}
+                />
+              );
+            })}
           </ul>
           {works?.hasMore ? (
             <button
               type="button"
               className="classroom-student-more"
               disabled={workLoading}
-              onClick={() => void loadWorks(works.offset + 30)}
+              onClick={() => void loadWorks(works.offset + WORKS_PAGE_SIZE)}
             >
               Ещё работы
             </button>
@@ -1198,6 +1250,7 @@ export function ClassroomStudentPage({
           classroomId={classroomId}
           seatId={seatId}
           variant="teacherProfile"
+          compact
         />
       ) : null}
       {tab === 'activity' ? (
@@ -1213,6 +1266,27 @@ export function ClassroomStudentPage({
       ) : null}
       {responding ? (
         <WorkPreview
+          key={`${classroomId}:${seatId}:${responding.id}:${previewReadOnly}`}
+          previewScope={classroomWorkScope(
+            responding.moduleKey,
+            classroomId,
+            seatId,
+            Boolean(
+              responding.originActivityRunId || responding.canonicalState || responding.assignment,
+            ),
+            !previewReadOnly,
+          )}
+          allowGallerySharing={
+            !previewReadOnly &&
+            classSafeMode === false &&
+            student.safeMode === false &&
+            responding.status === 'active' &&
+            responding.assignment === null &&
+            !responding.originActivityRunId &&
+            !responding.canonicalState &&
+            !responding.submittedAt &&
+            !responding.awaitingReview
+          }
           projectId={responding.id}
           snapshotRevision={responding.snapshotRevision}
           moduleKey={responding.moduleKey}
@@ -1220,17 +1294,24 @@ export function ClassroomStudentPage({
           workTitle={responding.title}
           submittedAt={responding.submittedAt ?? null}
           assignment={responding.assignment}
-          onClose={() => setResponding(null)}
+          onReviewed={async () => {
+            await Promise.all([loadWorks(), load()]);
+          }}
+          onClose={() => setRespondingId(null)}
           onOpenEditor={() => {
             const work = responding;
-            setResponding(null);
+            setRespondingId(null);
             onOpenProject(work.id, work.moduleKey);
           }}
-          onGraded={() => {
-            setResponding(null);
-            void loadWorks();
-            void load();
-          }}
+          {...(previewReadOnly
+            ? { readOnly: true as const }
+            : {
+                onGraded: () => {
+                  setRespondingId(null);
+                  void loadWorks();
+                  void load();
+                },
+              })}
         />
       ) : null}
     </main>

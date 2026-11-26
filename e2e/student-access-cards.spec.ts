@@ -1209,6 +1209,13 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     await expect(
       accountPage.getByRole('heading', { name: 'Заявка отправлена', exact: true }),
     ).toBeVisible();
+    const accountClassesPath = '/api/class-join/account/classes';
+    const readLearnerClasses = async () => {
+      const response = await accountPage.request.get(accountClassesPath);
+      expect(response.status(), await response.text()).toBe(200);
+      return (await response.json()).items as Array<{ classroomId: string; safeMode: boolean }>;
+    };
+    expect(await readLearnerClasses()).toEqual([]);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Заявки', exact: true })
@@ -1232,13 +1239,20 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     const finalAccount = await (await accountPage.request.get('/api/auth/me')).json();
     expect(finalAccount.authenticated).toBe(true);
     expect(finalAccount.account.id).toBe(initialAccount.account.id);
-    const attended = await accountPage.request.get('/api/class-join/account/classes');
-    expect(attended.status(), await attended.text()).toBe(200);
-    expect(
-      (await attended.json()).items.some(
-        (item: { classroomId: string }) => item.classroomId === classroom.id,
-      ),
-    ).toBe(true);
+    const readLearnerClass = async () =>
+      (await readLearnerClasses()).find((item) => item.classroomId === classroom.id);
+    expect(await readLearnerClass()).toEqual({
+      classroomId: classroom.id,
+      seatId: expect.any(String),
+      classroomTitle: 'Класс для проверки списка и заявок',
+      teacherDisplayName: expect.any(String),
+      safeMode: true,
+      openCount: 0,
+      unfinishedCount: 0,
+    });
+    const teacherClasses = await page.request.get(accountClassesPath);
+    expect(teacherClasses.status()).toBe(200);
+    expect((await teacherClasses.json()).items).toEqual([]);
 
     // Real Account-only admission and real StudentSeat codes in the same class.
     // Account settings use the stored DB identity without transporting its handle.
@@ -1267,6 +1281,47 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
       loginHandle: null,
       displayLabel: longAccountName,
     });
+    const setClassProtection = async (safeModeDefault: boolean) => {
+      const response = await page.request.patch(`/api/classrooms/${classroom.id}/policies`, {
+        headers: { origin },
+        data: { safeModeDefault },
+      });
+      expect(response.status(), await response.text()).toBe(200);
+    };
+    const setLearnerProtection = async (safeMode: boolean) => {
+      const response = await page.request.patch(
+        `/api/classrooms/${classroom.id}/seats/${accountSeat.id}`,
+        {
+          headers: { origin },
+          data: { displayLabel: longAccountName, safeMode, status: 'active', avatarKey: null },
+        },
+      );
+      expect(response.status(), await response.text()).toBe(200);
+    };
+    await accountPage.setViewportSize({ width: 1440, height: 900 });
+    await accountPage.goto('/#/learning?view=classes');
+    const ownClass = accountPage
+      .locator('.attended-list > li')
+      .filter({ hasText: 'Класс для проверки списка и заявок' });
+    await expect(ownClass).toContainText('Безопасный режим включён');
+
+    await setClassProtection(false);
+    expect(await readLearnerClass()).toMatchObject({ safeMode: false });
+    await accountPage.reload();
+    await expect(ownClass).toContainText('Безопасный режим выключен');
+
+    await accountPage.setViewportSize({ width: 320, height: 800 });
+    await setLearnerProtection(true);
+    expect(await readLearnerClass()).toMatchObject({ safeMode: true });
+    await accountPage.reload();
+    await expect(ownClass).toContainText('Безопасный режим включён');
+
+    await setLearnerProtection(false);
+    expect(await readLearnerClass()).toMatchObject({ safeMode: false });
+    await accountPage.reload();
+    await expect(ownClass).toContainText('Безопасный режим выключен');
+    await setClassProtection(true);
+
     const mixed = await (await page.request.get(`/api/classrooms/${classroom.id}/roster`)).json();
     expect(mixed.items).toHaveLength(31);
     expect(

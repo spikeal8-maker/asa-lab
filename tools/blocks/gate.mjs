@@ -101,6 +101,8 @@ const focused = [
   ['pnpm', 'nx', 'build', 'identity'],
   // ProjectsController now imports the Learning projection during API test collection.
   ['pnpm', 'nx', 'build', 'learning'],
+  // The saved project preview imports the robotics document type.
+  ['pnpm', 'nx', 'build', 'robotics'],
   ['pnpm', 'nx', 'run', 'blocks:typecheck'],
   ['pnpm', 'exec', 'tsc', '-p', 'apps/web/src/blocks/tsconfig.json'],
   ['pnpm', 'exec', 'eslint', 'contexts/blocks', 'apps/web/src/blocks'],
@@ -292,6 +294,7 @@ const focused = [
     '--emitDecoratorMetadata',
     '--skipLibCheck',
     'apps/web/src/build-metadata.d.ts',
+    'apps/web/src/vite-env.d.ts',
     'tests/blocks/save-diagnostics.spec.ts',
     'apps/web/src/client-diagnostics.ts',
     'apps/web/src/client-diagnostics.spec.ts',

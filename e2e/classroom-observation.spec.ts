@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Request } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
 import type {
+  ObservationFreeProjectPreview,
   ObservationSummary,
   ObservationHistoryPage,
 } from '../apps/web/src/classroom-observation-api';
@@ -24,7 +25,7 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
   page,
   browser,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(210_000);
   await loginWithOrganization(page, teacher);
   await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать класс' }).first().click();
@@ -101,17 +102,63 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     );
     await titleInput.press('Enter');
     expect((await renamed).ok()).toBe(true);
-    // A real successful explicit logout; closing the page is never evidence.
-    const logout = await student.request.post('/api/class-join/logout', {
-      headers: { origin: new URL(student.url()).origin },
+    const draftSave = student.waitForResponse(
+      (r) =>
+        r.request().method() === 'PUT' &&
+        new URL(r.url()).pathname === `/api/projects/${project.id}/draft`,
+    );
+    await student.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+    const savedDraft = await draftSave;
+    expect(savedDraft.ok(), await savedDraft.text()).toBe(true);
+    const revision = (await savedDraft.json()).draft.revision as number;
+    await expect(student.locator('.asa3d-save-state')).toHaveClass(/save-saved/);
+    const snapshotPath = `/api/projects/${project.id}/snapshot`;
+    // Ask the real editor to capture the saved scene, as on switching tabs.
+    await student.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
     });
-    expect(logout.ok()).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (await student.request.get(`${snapshotPath}?rev=${revision}`)).headers()['cache-control'],
+        { timeout: 20_000 },
+      )
+      .toContain('immutable');
+    const blankTitle = 'Эскиз без снимка';
+    const headers = { origin: new URL(student.url()).origin };
+    const blankProject = await student.request.post('/api/projects', {
+      headers: { ...headers, 'idempotency-key': randomUUID() },
+      data: { scope: 'personal', module: 'three-d', title: blankTitle },
+    });
+    expect(blankProject.status(), await blankProject.text()).toBe(201);
+    const blankId = (await blankProject.json()).project.id as string;
+    const archived = await student.request.post(`/api/projects/${blankId}/status`, {
+      headers,
+      data: { status: 'archived' },
+    });
+    expect(archived.ok(), await archived.text()).toBe(true);
     await page.reload();
     await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
     const works = page.getByRole('region', { name: 'Работы учеников' });
     const workRow = works.locator('li').filter({ hasText: projectTitle });
     await expect(workRow).toContainText('Анна Наблюдаемая');
     await expect(workRow).toContainText('Без задания');
+    const blankCard = works.locator('li').filter({ hasText: blankTitle });
+    await expect(blankCard).toHaveCount(0);
+    const showArchive = works.getByLabel('Включить архив');
+    await showArchive.check();
+    await expect(blankCard).toContainText('Архив');
+    await expect(blankCard.getByText('Без снимка', { exact: true })).toBeVisible();
+    await blankCard.getByRole('button', { name: /^Предпросмотр работы / }).click();
+    const blankPreview = page.getByRole('dialog', { name: `Работа: ${blankTitle}` });
+    await expect(blankPreview.getByText('Сохранённая версия', { exact: true })).toBeVisible();
+    await expect(
+      blankPreview.getByRole('region', { name: 'Сохранённая 3D-модель' }),
+    ).toHaveAttribute('data-ready', 'true');
+    await blankPreview.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await showArchive.uncheck();
+    await expect(blankCard).toHaveCount(0);
     await works.getByLabel('Редактор', { exact: true }).selectOption('three-d');
     await works.getByLabel('Название', { exact: true }).fill(projectTitle);
     await expect(workRow).toBeVisible();
@@ -119,6 +166,12 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     await expect(works.getByText('По этим фильтрам доступных работ нет.')).toBeVisible();
     await works.getByLabel('Задание', { exact: true }).selectOption('unassigned');
     await expect(workRow).toBeVisible();
+    const cardPicture = workRow.locator('img');
+    await expect(cardPicture).toHaveAttribute(
+      'src',
+      new RegExp(`^${snapshotPath}\\?refresh=\\d+$`),
+    );
+    await expect(cardPicture).toHaveAttribute('loading', 'lazy');
 
     // A real authenticated teacher, server API and isolated PostgreSQL. At a
     // narrow CSS viewport the title must not be crushed by the Open action.
@@ -127,8 +180,8 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       await page.setViewportSize({ width, height: 900 });
       await expect(workRow).toBeVisible();
       const geometry = await workRow.evaluate((row) => {
-        const title = row.querySelector<HTMLElement>('.observation-project-title strong')!;
-        const action = row.querySelector<HTMLButtonElement>('button')!;
+        const title = row.querySelector<HTMLElement>('.classroom-work-card-title strong')!;
+        const action = row.querySelector<HTMLButtonElement>('.classroom-work-card-editor')!;
         const textNode = title.firstChild as Text;
         const brokenWords: string[] = [];
         const value = textNode.textContent ?? '';
@@ -161,15 +214,173 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
         fullPage: true,
       });
     }
-    await workRow
-      .getByRole('button', { name: `Открыть работу ${projectTitle}`, exact: true })
+    const previewTrigger = workRow.getByRole('button', { name: /^Предпросмотр работы / });
+    const cardSize = await workRow.evaluate((element) => [
+      element.clientWidth,
+      element.clientHeight,
+    ]);
+    await previewTrigger.hover();
+    expect(
+      await workRow.evaluate((element) => [element.clientWidth, element.clientHeight]),
+    ).toEqual(cardSize);
+    const unauthorized = await browser.newContext();
+    try {
+      expect((await unauthorized.request.get(snapshotPath)).status()).toBe(401);
+    } finally {
+      await unauthorized.close();
+    }
+
+    const unexpectedPreviewRequests: string[] = [];
+    const collectRequest = (request: Request) => {
+      const path = new URL(request.url()).pathname;
+      if (
+        path.startsWith('/api/gallery') ||
+        (path.startsWith('/api/projects/') && (path !== snapshotPath || request.method() !== 'GET'))
+      ) {
+        unexpectedPreviewRequests.push(path);
+      }
+    };
+    page.on('request', collectRequest);
+    const savedReads: string[] = [];
+    const trackSavedRevision = (request: Request) => {
+      const path = new URL(request.url()).pathname;
+      if (path.endsWith(`/projects/${project.id}/free-preview`)) savedReads.push(path);
+    };
+    page.on('request', trackSavedRevision);
+    const fetched = page.waitForResponse((result) =>
+      new URL(result.url()).pathname.endsWith(`/projects/${project.id}/free-preview`),
+    );
+    await previewTrigger.focus();
+    await page.keyboard.press('Enter');
+    const saved = await fetched;
+    expect(saved.ok(), await saved.text()).toBe(true);
+    expect((await saved.json()) as ObservationFreeProjectPreview).toMatchObject({
+      projectId: project.id,
+      revision,
+    });
+    const preview = page.getByRole('dialog', { name: `Работа: ${projectTitle}` });
+    await expect(preview.getByRole('button', { name: 'Закрыть', exact: true })).toBeFocused();
+    const model = preview.getByRole('region', { name: 'Сохранённая 3D-модель' });
+    await expect(model).toHaveAttribute('data-ready', 'true');
+    const presentation = model.getByTestId('three-d-presentation');
+    const canvas = presentation.locator('canvas');
+    const camera = await presentation.getAttribute('data-camera-state');
+    await canvas.scrollIntoViewIfNeeded();
+    const bounds = (await canvas.boundingBox())!;
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 35, y - 15, { steps: 4 });
+    await page.mouse.up();
+    await expect(presentation).not.toHaveAttribute('data-camera-state', camera!);
+    await expect(page.getByTestId('asa3d-viewport')).toHaveCount(0);
+    await expect(preview.getByText('Отклик на проект', { exact: true })).toHaveCount(0);
+    await expect(preview.getByRole('button', { name: 'Оценить сдачу' })).toHaveCount(0);
+
+    // A new card thumbnail refreshes without reloading the opened saved document.
+    const firstSnapshotSrc = (await cardPicture.getAttribute('src'))!;
+    await expect
+      .poll(() => cardPicture.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
+    const originalWidth = await cardPicture.evaluate(
+      (image: HTMLImageElement) => image.naturalWidth,
+    );
+    const replacementWidth = originalWidth === 192 ? 168 : 192;
+    const replacement = await student.evaluate(
+      async ({ path, width }) => {
+        const image = new Image();
+        image.src = path;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = Math.max(
+          16,
+          Math.round((image.naturalHeight * width) / image.naturalWidth),
+        );
+        canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/png');
+      },
+      { path: snapshotPath, width: replacementWidth },
+    );
+    const savedSnapshot = await student.request.put(snapshotPath, {
+      headers,
+      data: { sourceRevision: revision, imageDataUrl: replacement },
+    });
+    expect(savedSnapshot.ok(), await savedSnapshot.text()).toBe(true);
+    const refreshedProjects = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/classrooms/${classId}/observation/projects`,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    expect((await refreshedProjects).ok()).toBe(true);
+    await expect(works).toHaveAttribute('aria-busy', 'false');
+    await expect(preview).toBeVisible();
+    await expect
+      .poll(() => cardPicture.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(replacementWidth);
+    await expect(cardPicture).not.toHaveAttribute('src', firstSnapshotSrc);
+    await expect(model).toHaveAttribute('data-ready', 'true');
+    expect(savedReads).toHaveLength(1);
+    page.off('request', trackSavedRevision);
+    await preview.getByRole('button', { name: 'Закрыть', exact: true }).focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(preview.getByRole('button', { name: 'Открыть в редакторе' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(preview).toHaveCount(0);
+    await expect(previewTrigger).toBeFocused();
+    page.off('request', collectRequest);
+    expect(unexpectedPreviewRequests).toEqual([]);
+    // A real successful explicit logout; closing the page is never evidence.
+    const logout = await student.request.post('/api/class-join/logout', { headers });
+    expect(logout.ok()).toBe(true);
+    await previewTrigger.click();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await expect(preview).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: 'e2e/artifacts/owner-preview/classroom-observation/preview-390.png',
+      fullPage: true,
+    });
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Ученики', exact: true })
       .click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'Анна Наблюдаемая' })
+      .locator('.classroom-student-name')
+      .click();
+    await expect(page.locator('.classroom-student-picker-name')).toHaveText('Анна Наблюдаемая');
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Все работы', exact: true })
+      .click();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page
+      .getByRole('button', { name: new RegExp(`Предпросмотр работы ${projectTitle}`) })
+      .click();
+    const profilePreview = page.getByRole('dialog', { name: `Работа: ${projectTitle}` });
+    await expect(
+      profilePreview.getByRole('region', { name: 'Сохранённая 3D-модель' }),
+    ).toHaveAttribute('data-ready', 'true');
+    await expect(profilePreview.getByText('Отклик на проект', { exact: true })).toBeVisible();
+    await profilePreview.screenshot({
+      path: 'e2e/artifacts/owner-preview/classroom-observation/free-profile-390.png',
+    });
+    await profilePreview.getByRole('button', { name: 'Открыть в редакторе', exact: true }).click();
     await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
       timeout: 30_000,
     });
     await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(projectTitle);
     await page.goto(classUrl);
-    await page.getByRole('button', { name: 'История', exact: true }).click();
+    await page
+      .getByRole('combobox', { name: 'Раздел класса', exact: true })
+      .selectOption({ label: 'История' });
     const history = page.getByRole('region', { name: 'История класса' });
     await expect(history).toContainText(projectTitle);
     await expect
@@ -205,7 +416,7 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       waiting: 0,
       notSubmitted: 0,
     });
-    expect(actual).toBe(1);
+    expect(actual).toBe(2);
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(history).toBeVisible();
@@ -217,6 +428,47 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
         fullPage: true,
       });
     }
+    // Reopen a real session so removal must revoke it while the project stays in storage.
+    const login = await student.request.post('/api/class-join/studentseat', {
+      headers: { origin: new URL(classUrl).origin },
+      data: { code: classCode, studentCode },
+    });
+    expect(login.ok(), await login.text()).toBe(true);
+    const { items: activeSeats } = await (
+      await page.request.get(`/api/classrooms/${classId}/roster`)
+    ).json();
+    const removedSeatId: string = activeSeats.find(
+      (seat: { displayLabel: string }) => seat.displayLabel === 'Анна Наблюдаемая',
+    ).id;
+    const storedProject = async () =>
+      (await admin.query('SELECT id, title, status FROM projects WHERE id=$1', [project.id])).rows;
+    const savedProject = await storedProject();
+    expect(savedProject).toEqual([{ id: project.id, title: projectTitle, status: 'active' }]);
+
+    await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
+    const filter = works.getByLabel('Ученик', { exact: true });
+    await filter.selectOption(removedSeatId);
+    await expect(workRow).toBeVisible();
+    await previewTrigger.click();
+    await expect(preview).toBeVisible();
+    const removal = await page.request.delete(`/api/classrooms/${classId}/seats/${removedSeatId}`, {
+      headers: { origin: new URL(classUrl).origin },
+    });
+    expect(removal.ok(), await removal.text()).toBe(true);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(preview).toHaveCount(0);
+    await expect(filter).toHaveValue('');
+    await expect(filter.getByRole('option', { name: 'Анна Наблюдаемая' })).toHaveCount(0);
+    await expect(workRow).toHaveCount(0);
+    await expect(works.getByText('По этим фильтрам доступных работ нет.')).toBeVisible();
+    expect(await storedProject()).toEqual(savedProject);
+    const lostSession = await student.request.get('/api/class-join/me');
+    expect(await lostSession.json()).toEqual({ authenticated: false });
+    const rejectedLogin = await student.request.post('/api/class-join/studentseat', {
+      headers: { origin: new URL(classUrl).origin },
+      data: { code: classCode, studentCode },
+    });
+    expect(rejectedLogin.status()).toBe(401);
   } finally {
     await studentContext.close();
   }

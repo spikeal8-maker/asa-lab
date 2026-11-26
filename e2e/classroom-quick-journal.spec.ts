@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
@@ -29,6 +29,32 @@ async function counts(classId: string) {
     )
   ).rows[0];
 }
+async function expectDialogByCell(page: Page, dialog: Locator, cell: Locator) {
+  await expect(dialog).toBeVisible();
+  await expect(cell).toHaveAttribute('aria-expanded', 'true');
+  await expect
+    .poll(async () => {
+      const bounds = await dialog.boundingBox();
+      const anchor = await cell.boundingBox();
+      const viewport = page.viewportSize();
+      if (!bounds || !anchor || !viewport) return null;
+      return {
+        inViewport:
+          bounds.x >= 0 &&
+          bounds.y >= 0 &&
+          bounds.x + bounds.width <= viewport.width &&
+          bounds.y + bounds.height <= viewport.height,
+        sharesColumn: bounds.x < anchor.x + anchor.width && bounds.x + bounds.width > anchor.x,
+        nextToCell:
+          Math.min(
+            Math.abs(bounds.y - (anchor.y + anchor.height)),
+            Math.abs(bounds.y + bounds.height - anchor.y),
+          ) <= 10,
+      };
+    })
+    .toEqual({ inViewport: true, sharesColumn: true, nextToCell: true });
+}
+
 test('30 students, ten free slots, atomic retry, keyboard, header edit and relogin', async ({
   page,
   browser,
@@ -69,6 +95,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   const journal = page.getByRole('region', { name: 'Ручной журнал', exact: true });
   await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
   await expect(journal.getByRole('columnheader')).toHaveCount(11);
+  await expect(journal.getByText('Столбцы журнала', { exact: true })).toHaveCount(0);
   await expect(journal.getByRole('rowheader')).toHaveCount(30);
   await expect(journal.getByRole('rowheader').nth(0)).toContainText('1Иван');
   await expect(journal.getByRole('rowheader').nth(9)).toContainText('10Артем');
@@ -102,6 +129,54 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
   await expect(cell(names[0], 2)).toBeFocused();
+
+  const movedCell = cell(names[4], 4);
+  const desktopDialog = journal.getByRole('dialog', { name: `Быстрая оценка: ${names[4]}` });
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width === 1024) {
+      // Leave room between the anchor and the pinned pupil name so both scroll steps stay anchored.
+      await movedCell.evaluate((button) => {
+        const matrix = button.closest('.manual-journal-scroll')!;
+        const pupil = button.closest('tr')!.cells[0]!;
+        matrix.scrollLeft +=
+          button.getBoundingClientRect().left - pupil.getBoundingClientRect().right - 64;
+      });
+    }
+    await movedCell.click();
+    await expectDialogByCell(page, desktopDialog, movedCell);
+    await expect(desktopDialog).toContainText('Работа 4');
+    if (width === 1440) {
+      await page.screenshot({
+        path: 'e2e/artifacts/owner-preview/classroom-quick-journal/grade-dialog-1440.png',
+      });
+    } else {
+      const beforeVertical = (await desktopDialog.boundingBox())!.y;
+      const pageY = await page.evaluate(() => scrollY);
+      await page.evaluate(() => scrollBy({ top: 40, behavior: 'instant' }));
+      await expect.poll(() => page.evaluate(() => scrollY)).toBe(pageY + 40);
+      expect(await matrix.evaluate((el) => el.scrollTop)).toBe(0);
+      await expectDialogByCell(page, desktopDialog, movedCell);
+      await expect
+        .poll(async () => Math.abs((await desktopDialog.boundingBox())!.y - beforeVertical))
+        .toBeGreaterThan(15);
+
+      const beforeHorizontal = (await desktopDialog.boundingBox())!.x;
+      const matrixX = await matrix.evaluate((el) => el.scrollLeft);
+      await matrix.evaluate((el) => {
+        el.scrollLeft += 40;
+      });
+      await expect.poll(() => matrix.evaluate((el) => el.scrollLeft)).toBe(matrixX + 40);
+      await expectDialogByCell(page, desktopDialog, movedCell);
+      await expect
+        .poll(async () => Math.abs((await desktopDialog.boundingBox())!.x - beforeHorizontal))
+        .toBeGreaterThan(15);
+    }
+    await page.keyboard.press('Escape');
+    await expect(desktopDialog).toBeHidden();
+    await expect(movedCell).toBeFocused();
+  }
+  await page.setViewportSize({ width: 1366, height: 900 });
   let loseOnce = true;
   const firstPayloads: unknown[] = [];
   await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
@@ -228,22 +303,82 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await expect(header.getByLabel('Категория занятия')).toHaveValue('Самостоятельная');
   await expect(header.getByLabel('Дата занятия')).toHaveValue('2026-10-09');
   await header.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
-  await expect(
-    journal.getByRole('button', {
-      name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
-    }),
-  ).toBeVisible();
+  const renamedGrade = journal.getByRole('button', {
+    name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
+  });
+  await expect(renamedGrade).toBeVisible();
+  const chooser = journal.locator('.manual-journal-column-picker');
+  const summary = chooser.locator('summary');
+  const toggle = chooser.getByRole('checkbox', {
+    name: 'Показывать столбец: Самостоятельная, 2026-10-09',
+  });
+  const restore = chooser.getByRole('button', { name: 'Показать все столбцы в этом списке' });
+  const stableCounts = await counts(classId);
+  const { account } = (await page.request.get('/api/auth/me').then((r) => r.json())) as {
+    account: { id: string };
+  };
+  const manual = `asa-manual-journal-columns:v1:${account.id}:${classId}`;
+  const otherScopes = [
+    `asa-manual-journal-columns:v1:${randomUUID()}:${classId}`,
+    `asa-manual-journal-columns:v1:${account.id}:${randomUUID()}`,
+    `asa-journal-columns:v1:${account.id}:${classId}`,
+  ];
+  const stored = JSON.stringify([workOne.id]);
+  await page.evaluate(
+    ({ otherScopes, stored }) => {
+      for (const key of otherScopes) localStorage.setItem(key, stored);
+    },
+    { otherScopes, stored },
+  );
+  await summary.click();
+  await expect(chooser.getByRole('checkbox')).toHaveCount(3);
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await expect(summary).toHaveText('Столбцы журнала · скрыто: 1');
+  await expect(renamedGrade).toHaveCount(0);
+  await expect(journal.getByRole('columnheader')).toHaveCount(10);
+  await expect(cell(names[0], 10)).toHaveText('—');
+  await expect(cell(names[1], 2)).toHaveText('4');
+  await journal.getByLabel('Категория', { exact: true }).selectOption('Работа 2');
+  await expect(summary).toHaveText('Столбцы журнала');
+  await expect(restore).toHaveCount(0);
+  await journal.getByLabel('Категория', { exact: true }).selectOption('');
+  await expect(summary).toHaveText('Столбцы журнала · скрыто: 1');
+  await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-11');
+  await expect(journal.getByRole('columnheader')).toHaveCount(11);
+  await expect(chooser).toHaveCount(0);
   await page.reload();
   await page.getByRole('button', { name: 'Журнал', exact: true }).click();
   await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
-  await expect(
-    journal.getByRole('button', {
-      name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
-    }),
-  ).toBeVisible();
+  await expect(summary).toHaveText('Столбцы журнала · скрыто: 1');
+  await expect(renamedGrade).toHaveCount(0);
+  expect(await page.evaluate((key) => localStorage.getItem(key), manual)).toBe(stored);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await summary.click();
+  await expect(toggle).not.toBeChecked();
+  const option = toggle.locator('..');
+  const label = option.locator('span');
+  await expect(label).toBeVisible();
+  await expect(label.locator('time')).toHaveText('09.10');
+  const rowBounds = (await option.boundingBox())!;
+  const checkboxBounds = (await toggle.boundingBox())!;
+  const labelBounds = (await label.boundingBox())!;
+  expect(checkboxBounds.width).toBeLessThanOrEqual(24);
+  expect(labelBounds.width).toBeGreaterThan(checkboxBounds.width);
+  expect(labelBounds.x).toBeGreaterThan(checkboxBounds.x + checkboxBounds.width);
+  expect(labelBounds.x + labelBounds.width).toBeLessThanOrEqual(rowBounds.x + rowBounds.width + 1);
+  await restore.click();
+  await expect(summary).toBeFocused();
+  await expect(toggle).toBeChecked();
+  await expect(renamedGrade).toHaveText('0');
+  const keys = [manual, ...otherScopes];
+  expect(await page.evaluate((keys) => keys.map((key) => localStorage.getItem(key)), keys)).toEqual(
+    [null, stored, stored, stored],
+  );
+  expect(await counts(classId)).toEqual(stableCounts);
+  await summary.click();
   await expect(cell(names[1], 2)).toHaveText('4');
   await expect(cell(names[2], 3)).toHaveText('5');
-  await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
@@ -268,7 +403,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
       fullPage: true,
     });
   }
-  const context = await browser.newContext(),
+  const context = await browser.newContext({ hasTouch: true }),
     again = await context.newPage();
   try {
     await loginWithOrganization(again, owner);
@@ -285,6 +420,26 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
         name: new RegExp(`^${names[0]}, 2026-10-09, Самостоятельная: 0$`),
       }),
     ).toBeVisible();
+    const touchJournal = again.getByRole('region', { name: 'Ручной журнал', exact: true });
+    const touchCell = touchJournal.getByRole('button', {
+      name: new RegExp(`^${names[0]}, .*?, Работа 10:`),
+    });
+    const touchDialog = touchJournal.getByRole('dialog', { name: `Быстрая оценка: ${names[0]}` });
+    for (const width of [390, 320]) {
+      await again.setViewportSize({ width, height: 844 });
+      await touchCell.tap();
+      await expectDialogByCell(again, touchDialog, touchCell);
+      await expect(touchDialog.locator('time')).toHaveAttribute('datetime', /^2026-10-/);
+      await expect(touchDialog).toContainText('Работа 10');
+      if (width === 390) {
+        await again.screenshot({
+          path: 'e2e/artifacts/owner-preview/classroom-quick-journal/grade-dialog-390.png',
+        });
+      }
+      await touchDialog.getByRole('button', { name: 'Закрыть оценку' }).tap();
+      await expect(touchDialog).toBeHidden();
+      await expect(touchCell).toBeFocused();
+    }
     expect(await counts(classId)).toEqual({
       columns: 3,
       grades: 3,
@@ -304,7 +459,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   const correctionPayloads: {
     requestId: string;
     columnId: string;
-    reason: string;
+    reason: string | null;
     expectedRevision: number;
   }[] = [];
   await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
@@ -317,9 +472,38 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
     expect((await route.fetch()).ok()).toBe(true);
     await route.abort('failed');
   });
-  await cell(names[2], 3).click();
+  const correctionCell = cell(names[2], 3);
+  await correctionCell.focus();
+  await page.keyboard.press('Enter');
   const correctionEditor = journal.getByRole('region', { name: `Оценка: ${names[2]}` });
-  await correctionEditor.getByLabel('Причина изменения').fill('Точная причина исправления');
+  const correctionReason = correctionEditor.getByLabel('Причина изменения');
+  const clearGrade = correctionEditor.getByRole('button', { name: 'Очистить оценку', exact: true });
+  const firstGrade = correctionEditor.getByRole('button', { name: '0', exact: true });
+  const gradeHistory = correctionEditor.locator('summary');
+  await expect(clearGrade).toBeDisabled();
+  await expect(correctionReason).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(firstGrade).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(correctionReason).toBeFocused();
+  await page.keyboard.type('Проверка доступности');
+  await page.keyboard.press('Tab');
+  await expect(firstGrade).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(correctionEditor.getByRole('button', { name: '5', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(clearGrade).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(gradeHistory).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(correctionEditor.getByRole('listitem')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(correctionEditor).toHaveCount(0);
+  await expect(correctionCell).toBeFocused();
+  await expect(correctionCell).toHaveText('5');
+  expect(correctionPayloads).toEqual([]);
+
+  await correctionCell.click();
   await correctionEditor
     .getByRole('group', { name: 'Оценка' })
     .getByRole('button', { name: '4', exact: true })
@@ -336,7 +520,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   expect(correctionPayloads).toHaveLength(2);
   expect(correctionPayloads[1]).toEqual(correctionPayloads[0]);
   expect(correctionPayloads[0]).toMatchObject({
-    reason: 'Точная причина исправления',
+    reason: null,
     expectedRevision: 1,
   });
   const correctionSnapshot = await page.request
@@ -354,7 +538,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   expect(correctionHistory.items[0]).toMatchObject({
     value: 4,
     revision: 2,
-    reason: 'Точная причина исправления',
+    reason: null,
   });
   expect(await counts(classId)).toEqual({
     columns: 3,

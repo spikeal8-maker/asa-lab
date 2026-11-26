@@ -11,7 +11,7 @@ import { seatAvatar } from '../creator-portal/default-avatars';
 import { AssignmentView } from './AssignmentView';
 import { LessonBlocks } from './LessonBlocks';
 import { LearningAudience } from './LearningAudience';
-import { WorkPreview } from './WorkPreview';
+import { classroomWorkScope, WorkPreview } from './WorkPreview';
 import { useSchoolTime } from './school-time';
 import { assignmentDateTime } from '../learning/assignment-date-time';
 import { useLearningDestination } from '../learning/use-learning-destination';
@@ -235,6 +235,14 @@ export function ClassroomCourses({
         )}
         {previewing?.projectId ? (
           <WorkPreview
+            previewScope={classroomWorkScope(
+              assignment.moduleKey,
+              classroomId,
+              previewing.seatId,
+              true,
+              !archived,
+            )}
+            expectedAssignmentId={assignment.id}
             projectId={previewing.projectId}
             snapshotRevision={previewing.snapshotRevision}
             moduleKey={assignment.moduleKey}
@@ -248,14 +256,18 @@ export function ClassroomCourses({
               setPreviewing(null);
               onOpenProject(projectId, assignment.moduleKey);
             }}
-            onGraded={() => {
-              if (!review.classroomAssignmentId) return;
-              void api
-                .classroomAssignmentProgress(classroomId, review.classroomAssignmentId)
-                .then((result) => {
-                  if (result.ok) setProgress(result.data.items);
-                });
-            }}
+            {...(archived
+              ? { readOnly: true as const }
+              : {
+                  onGraded: () => {
+                    if (!review.classroomAssignmentId) return;
+                    void api
+                      .classroomAssignmentProgress(classroomId, review.classroomAssignmentId)
+                      .then((result) => {
+                        if (result.ok) setProgress(result.data.items);
+                      });
+                  },
+                })}
           />
         ) : null}
       </section>

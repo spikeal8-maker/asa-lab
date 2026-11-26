@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { validatePublicProjectDisplayArtifact, validatePublicArtifact } from '@asa-lab/contracts';
+import {
+  validateClassroomElectronicsSimulation,
+  validateClassroomFreeElectronicsSimulation,
+  validatePublicProjectDisplayArtifact,
+  validatePublicArtifact,
+} from '@asa-lab/contracts';
 function fixture() {
   return {
     schemaVersion: 2,
@@ -127,6 +132,73 @@ describe('public V3 execution projection', () => {
       ],
     };
   }
+  it('keeps strict publication and private submission envelopes distinct', () => {
+    const { provenance, ...payload } = simulation();
+    const input = {
+      submissionId: '123e4567-e89b-42d3-a456-426614174002',
+      projectVersionId: '123e4567-e89b-42d3-a456-426614174003',
+      simulation: payload,
+    };
+    const frozen = validateClassroomElectronicsSimulation(input);
+    expect(frozen).toEqual(input);
+    expect(frozen).not.toBe(input);
+    expect(Object.isFrozen(frozen?.simulation.components[0]?.stateProperties)).toBe(true);
+    expect(validatePublicProjectDisplayArtifact(input)).toEqual({
+      ok: false,
+      reason: 'invalid-public-artifact',
+    });
+    expect(validatePublicProjectDisplayArtifact(payload).ok).toBe(false);
+    expect(validatePublicProjectDisplayArtifact({ ...payload, provenance }).ok).toBe(true);
+    expect(
+      validatePublicProjectDisplayArtifact({
+        ...payload,
+        provenance,
+        submissionId: input.submissionId,
+      }).ok,
+    ).toBe(false);
+    expect(validateClassroomElectronicsSimulation({ ...input, provenance })).toBeNull();
+    expect(
+      validateClassroomElectronicsSimulation({ ...input, simulation: { ...payload, provenance } }),
+    ).toBeNull();
+    expect(
+      validateClassroomElectronicsSimulation({ ...input, projectVersionId: 'latest' }),
+    ).toBeNull();
+    Object.assign(payload.components[0]?.stateProperties ?? {}, { runtime: 'not allowlisted' });
+    expect(validateClassroomElectronicsSimulation(input)).toBeNull();
+  });
+
+  it('validates a pinned free project without accepting publication or submission provenance', () => {
+    const { provenance, ...payload } = simulation();
+    const free = {
+      projectId: '123e4567-e89b-42d3-a456-426614174004',
+      revision: 7,
+      simulation: payload,
+    };
+    const frozen = validateClassroomFreeElectronicsSimulation(free);
+    expect(frozen).toEqual(free);
+    expect(frozen).not.toBe(free);
+    expect(Object.isFrozen(frozen?.simulation.components[0]?.stateProperties)).toBe(true);
+    expect(validateClassroomElectronicsSimulation(free)).toBeNull();
+    expect(validatePublicProjectDisplayArtifact(free).ok).toBe(false);
+    expect(validateClassroomFreeElectronicsSimulation({ ...free, provenance })).toBeNull();
+    expect(
+      validateClassroomFreeElectronicsSimulation({ ...free, submissionId: free.projectId }),
+    ).toBeNull();
+    expect(validateClassroomFreeElectronicsSimulation({ ...free, revision: 'latest' })).toBeNull();
+    expect(validateClassroomFreeElectronicsSimulation({ ...free, revision: 0 })).toBeNull();
+    expect(
+      validateClassroomFreeElectronicsSimulation({ ...free, projectId: 'invalid' }),
+    ).toBeNull();
+    expect(
+      validateClassroomFreeElectronicsSimulation({
+        ...free,
+        simulation: { ...payload, provenance },
+      }),
+    ).toBeNull();
+    Object.assign(payload.components[0]?.stateProperties ?? {}, { runtime: 'not allowlisted' });
+    expect(validateClassroomFreeElectronicsSimulation(free)).toBeNull();
+    expect(frozen?.simulation.components[0]?.stateProperties).not.toHaveProperty('runtime');
+  });
   it('accepts only saved public program as escaped text, detached and frozen', () => {
     const input = simulation();
     const result = validatePublicProjectDisplayArtifact(input);

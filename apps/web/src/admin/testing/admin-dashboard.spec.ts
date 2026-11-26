@@ -2,13 +2,9 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import { adminDashboardApi } from '../admin-dashboard-api';
 import { AdminDashboard, chartLabelIndexes, chartCountAxis } from '../AdminDashboard';
-import {
-  adminApi,
-  type AdminScope,
-  type AdminApiResult,
-  type AdminProductDashboard,
-} from '../admin-api';
+import { type AdminScope, type AdminApiResult, type AdminProductDashboard } from '../admin-api';
 import { adminSessionIdentity, adminProfileMatchesSession } from '../admin-session-access';
 import type { SessionPayload } from '../../api';
 import { adminDashboardFixture } from './admin-dashboard.fixture';
@@ -43,7 +39,7 @@ const deferred = () => {
 const success = (marker = 8) => ({
   ok: true as const,
   status: 200,
-  data: adminDashboardFixture('24h', marker),
+  data: adminDashboardFixture('today', marker),
 });
 async function show(selected = scope, denied = vi.fn()) {
   await act(async () =>
@@ -77,7 +73,7 @@ describe('admin overview lifecycle', () => {
   });
   it('retains mounted charts on matching refresh, reports refreshing/error, and splits learning tools from games with all colors', async () => {
     const pending = deferred();
-    vi.spyOn(adminApi, 'dashboard')
+    vi.spyOn(adminDashboardApi, 'dashboard')
       .mockResolvedValueOnce(success())
       .mockReturnValueOnce(pending.promise);
     await show();
@@ -107,10 +103,99 @@ describe('admin overview lifecycle', () => {
       ),
     ).toBe(true);
   });
+  it('renders new accounts, AI outcomes and both error colors in the partly collected first hour', async () => {
+    const sample = adminDashboardFixture('today');
+    const at = sample.timeline[0]!.at;
+    vi.spyOn(adminDashboardApi, 'dashboard').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        ...sample,
+        accountRegistrations: [{ at, count: 3 }],
+        aiUsage: {
+          journalFrom: at,
+          requests: 4,
+          completed: 3,
+          people: 2,
+          points: [{ at, requests: 4, completed: 3, people: 2 }],
+        },
+      },
+    });
+    vi.spyOn(adminDashboardApi, 'errorTrend').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        coverage: 'partial',
+        from: '2026-10-25T00:10:00Z',
+        to: sample.to,
+        points: [{ at, counts: { database: 3, web: 7 } }],
+      },
+    });
+    await show({
+      ...scope,
+      permissions: ['administration.open', 'administration.operations.read'],
+    });
+    const charts = [...host.querySelectorAll('.admin-chart-card')];
+    const chart = (name: string) =>
+      charts.find((item) => item.querySelector('h3')?.textContent === name)!;
+    expect(chart('Активные пользователи').textContent).toContain('Новые аккаунты');
+    expect(chart('Новые пользователи и места').textContent).toContain(
+      'Созданные ученические места',
+    );
+    const totals = chart('Использование ИИ').querySelector(
+      '[aria-label="Использование ИИ за период"]',
+    );
+    expect([...(totals?.children ?? [])].map((cell) => cell.textContent)).toEqual([
+      'Запросы 4',
+      'Ответы 3',
+      'Пользователи 2',
+    ]);
+    const errors = chart('Ошибки по системам');
+    const errorTotals = errors.querySelector('[aria-label="Ошибки за период"]');
+    expect(errorTotals?.textContent).toContain('Найдено за период 10');
+    expect(
+      [...errors.querySelectorAll('rect[fill]')].map((bar) => bar.getAttribute('fill')),
+    ).toEqual(['#a12239', '#3469ad']);
+    await click('База данных');
+    expect([...(errorTotals?.children ?? [])].map((item) => item.textContent)).toEqual([
+      'Найдено за период 10',
+      'База данных 3',
+    ]);
+    expect(
+      [...errors.querySelectorAll('rect[fill]')].map((bar) => bar.getAttribute('fill')),
+    ).toEqual(['#a12239']);
+    expect(errors.parentElement?.textContent).toContain(
+      'Журнал за этот период может быть неполным',
+    );
+  });
+  it.each([
+    ['available', 'Всего за период 0'],
+    ['partial', 'Итог за период неизвестен'],
+  ] as const)(
+    'distinguishes an empty %s error journal from an unknown total',
+    async (coverage, label) => {
+      const sample = adminDashboardFixture('today');
+      vi.spyOn(adminDashboardApi, 'dashboard').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: sample,
+      });
+      vi.spyOn(adminDashboardApi, 'errorTrend').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { coverage, from: sample.from, to: sample.to, points: [] },
+      });
+      await show({
+        ...scope,
+        permissions: ['administration.open', 'administration.operations.read'],
+      });
+      expect(host.querySelector('[aria-label="Ошибки за период"]')?.textContent).toBe(label);
+    },
+  );
   it('immediately removes stale scope and range data and rejects their late response', async () => {
     const old = deferred(),
       fresh = deferred();
-    vi.spyOn(adminApi, 'dashboard')
+    vi.spyOn(adminDashboardApi, 'dashboard')
       .mockResolvedValueOnce(success())
       .mockReturnValueOnce(old.promise)
       .mockReturnValueOnce(fresh.promise);
@@ -122,7 +207,7 @@ describe('admin overview lifecycle', () => {
     expect(host.querySelector('.admin-chart-card')).toBeNull();
     await act(async () => fresh.resolve(success(42)));
     expect(host.querySelector('.admin-chart-card')).not.toBeNull();
-    vi.mocked(adminApi.dashboard).mockReturnValueOnce(new Promise(() => undefined));
+    vi.mocked(adminDashboardApi.dashboard).mockReturnValueOnce(new Promise(() => undefined));
     await act(async () => {
       const select = host.querySelector<HTMLSelectElement>('[aria-label="Период дашборда"]')!;
       select.value = '7d';
@@ -131,9 +216,54 @@ describe('admin overview lifecycle', () => {
     expect(host.querySelector('.admin-chart-card')).toBeNull();
     expect(host.textContent).toContain('Собираем реальные показатели');
   });
+  it('shows measured site time separately from module time and leaves earlier intervals unknown', async () => {
+    const sample = adminDashboardFixture('today');
+    vi.spyOn(adminDashboardApi, 'dashboard').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        ...sample,
+        siteActivity: {
+          measuredFrom: '2026-10-25T01:15:00Z',
+          points: [{ at: sample.timeline[1]!.at, accountSeconds: 240, studentSeconds: null }],
+        },
+      },
+    });
+    await show();
+    const select = host.querySelector<HTMLSelectElement>(
+      '[aria-label="Показатель пользователей"]',
+    )!;
+    const chart = [...host.querySelectorAll('.admin-chart-card')].find(
+      (item) => item.querySelector('h3')?.textContent === 'Активные пользователи',
+    )!;
+    const canvas = chart.querySelector('.admin-chart-canvas')!;
+    const readout = () => chart.querySelector('.admin-chart-readout')?.textContent;
+    const choose = async (option: string) =>
+      act(async () => {
+        select.value = option;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    const next = async () =>
+      act(async () => {
+        canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+    await choose('site-time');
+    expect(chart.querySelector('[aria-label="Начало измерений по сайту"]')?.textContent).toContain(
+      '04:15 МСК',
+    );
+    await next();
+    expect(readout()).toContain('Аккаунты —');
+    await next();
+    expect(readout()).toContain('Аккаунты 4');
+    expect(readout()).toContain('Ученики —');
+    await choose('time');
+    expect(chart.querySelector('[aria-label="Начало измерений по сайту"]')).toBeNull();
+    expect(readout()).toContain('Аккаунты 2');
+    expect(readout()).toContain('Ученики 2,5');
+  });
   it.each([401, 403])('clears chart data on %s even during refresh', async (status) => {
     const denied = vi.fn();
-    vi.spyOn(adminApi, 'dashboard')
+    vi.spyOn(adminDashboardApi, 'dashboard')
       .mockResolvedValueOnce(success())
       .mockResolvedValueOnce({ ok: false, status, error: { code: 'denied', message: 'denied' } });
     await show(scope, denied);

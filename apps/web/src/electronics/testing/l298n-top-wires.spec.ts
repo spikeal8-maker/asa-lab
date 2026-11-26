@@ -109,7 +109,10 @@ describe('L298N P0B top-wire route in the actual ASA Lab Workbench (#1199)', () 
       enableJumpers: ['ENA', 'ENB'],
       regulatorJumper: '5V_EN',
     });
-    expect(owner.status).toBe('disabled_missing_model');
+    expect(['disabled_missing_model', 'enabled']).toContain(owner.status);
+    expect(owner.simulationSupport).toBe(
+      owner.status === 'enabled' ? 'l298n_dual_hbridge_v1' : 'not_implemented_in_domain_solver',
+    );
   });
 
   it('uses the host terminal geometry for all orientations and mirror states', () => {

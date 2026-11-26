@@ -3,6 +3,7 @@ import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/co
 import type { FastifyRequest } from 'fastify';
 import { clientAddress } from './client-address.js';
 import { validClientException } from './client-error-details.js';
+import { CLIENT_DIAGNOSTIC_MODULES } from './log-subsystems.js';
 import {
   SCRATCH_SAVE_FAILURE_CODES,
   isScratchSaveFailureCode,
@@ -26,7 +27,6 @@ const CODES = new Set([
   'editor_unresponsive',
   'editor_recovered',
 ]);
-const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth', 'chess', 'checkers']);
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const CATEGORIES = [
   'unsupported',
@@ -176,7 +176,7 @@ export class ClientDiagnosticsController {
       typeof value['code'] !== 'string' ||
       !CODES.has(value['code']) ||
       typeof value['module'] !== 'string' ||
-      !MODULES.has(value['module']) ||
+      !CLIENT_DIAGNOSTIC_MODULES.has(value['module']) ||
       typeof value['revision'] !== 'string' ||
       !/^(?:[a-f0-9]{7,64}|unknown|development)$/.test(value['revision'])
     ) {

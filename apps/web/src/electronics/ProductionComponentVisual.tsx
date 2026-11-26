@@ -12,6 +12,7 @@ import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset, SPST_COMPONENT_TYPE } from './component-catalog';
 import { OwnerServoVisual } from './OwnerServoVisual';
+import { L298nLedOverlay } from './L298nLedOverlay';
 import {
   subscribeSharedQuietAssetRecovery,
   dcMotorRuntimeMarkup,
@@ -1937,6 +1938,7 @@ export function ProductionComponentVisual({
           }
         : component;
   const asset = visualAsset(entry, visualComponent, visualState);
+  const ultrasonicImageKey = entry.familyId === 'ultrasonic-sensor' ? asset : undefined;
   const offAsset =
     entry.key === 'led-5mm'
       ? visualAsset(
@@ -2092,6 +2094,7 @@ export function ProductionComponentVisual({
             </g>
           ) : (
             <image
+              key={ultrasonicImageKey}
               ref={ownerImage.mountHref}
               onError={ownerImage.onError}
               onLoad={ownerImage.onLoad}
@@ -2402,6 +2405,7 @@ export function ProductionComponentVisual({
           ) : (
             <>
               <image
+                key={ultrasonicImageKey}
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
                 ref={ownerImage.mountHref}
                 onError={ownerImage.onError}
@@ -2435,6 +2439,13 @@ export function ProductionComponentVisual({
           ) : null}
         </>
       )}
+
+      {entry.key === 'l298n-motor-driver' ? (
+        <L298nLedOverlay
+          componentId={component.id}
+          powered={simulationRunning && result?.lit === true}
+        />
+      ) : null}
 
       {entry.key === 'piezo-passive-buzzer' ? (
         <g

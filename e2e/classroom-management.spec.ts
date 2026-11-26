@@ -243,23 +243,38 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
    * and the register alone cannot answer it.
    */
   await page.getByRole('button', { name: 'Алина К.' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Алина К.', level: 1 })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Работы · 1' })).toBeVisible();
-  await expect(page.getByTestId('project-card').filter({ hasText: 'Моя модель' })).toBeVisible();
+  const learnerHeading = page.getByRole('heading', {
+    name: 'Выбрать ученика: Алина К.',
+    level: 1,
+    exact: true,
+  });
+  await expect(learnerHeading).toBeVisible();
+  const works = page.getByRole('region', { name: 'Все работы', exact: true });
+  await expect(
+    page
+      .getByRole('group', { name: 'Сводка ученика', exact: true })
+      .getByText('Работ 1', { exact: true }),
+  ).toBeVisible();
+  const previewOpener = page.getByRole('button', {
+    name: 'Предпросмотр работы Моя модель, Алина К.',
+    exact: true,
+  });
+  const work = works.locator('.classroom-work-card').filter({ has: previewOpener });
+  await expect(work).toBeVisible();
+  await page.getByRole('button', { name: 'Активность', exact: true }).click();
   await expect(page.getByTestId('classroom-activity')).toContainText('вошёл в класс');
   await expect(page.getByTestId('classroom-activity')).toContainText('создал «Моя модель»');
+  await page.getByRole('button', { name: 'Все работы', exact: true }).click();
   /**
    * A response to the work: a badge for the verdict, a comment for the why.
    * The badge lands on the card, where the learner and the teacher both see it
    * without opening anything.
    */
-  const work = page.getByTestId('project-card').filter({ hasText: 'Моя модель' });
-  await work.hover();
-  await work.locator('summary').click();
-  await work.getByRole('button', { name: 'Оценить работу' }).click();
+  await previewOpener.click();
   // Работа проверяется одним окном на весь продукт: картинка, что было задано
   // и отклик рядом — оценивать модель, не видя условия, невозможно.
-  const feedbackDialog = page.getByRole('dialog', { name: 'Работа: Алина К.' });
+  const feedbackDialog = page.getByRole('dialog', { name: 'Работа: Моя модель' });
+  await feedbackDialog.getByRole('button', { name: 'Отклик на проект', exact: true }).click();
   await feedbackDialog.getByRole('button', { name: 'Хорошо' }).click();
   await feedbackDialog.getByLabel('Комментарий').fill('Добавь отверстие под винт.');
   await feedbackDialog.getByRole('button', { name: 'Сохранить отклик' }).click();
@@ -272,8 +287,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
    * teacher's reach to the seats of their own classes and no further. This is
    * the part that had never been walked end to end.
    */
-  await work.hover();
-  await work.getByRole('link', { name: 'Открыть' }).click();
+  await work.getByRole('link', { name: 'Открыть в редакторе: Моя модель', exact: true }).click();
   await expect(page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
     timeout: 30_000,
@@ -282,7 +296,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   // Leaving the work returns to the learner it belongs to, not to the teacher's
   // own project list — which is where this used to land.
   await page.getByRole('button', { name: 'ASA Lab' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Алина К.', level: 1 })).toBeVisible();
+  await expect(learnerHeading).toBeVisible();
 
   /**
    * And the learner reads it. A verdict that only ever appeared on the
@@ -303,6 +317,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
    * A badge. Not a mark on one model — a fact about the person, with the reason
    * their teacher wrote, which is the half a child remembers.
    */
+  await page.getByRole('button', { name: 'Заслуги', exact: true }).click();
   await page
     .getByTestId('seat-award-grid')
     .getByRole('button', { name: /Помощник/ })
@@ -322,14 +337,18 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   );
   await studentPage.screenshot({ path: `${evidenceDir}/student-awards.png`, fullPage: true });
 
-  await page.getByRole('button', { name: '5Б Makers' }).first().click();
+  await page.getByRole('button', { name: '← К классу', exact: true }).click();
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
 
   // The same record, for the whole class, with the learner named.
-  await page.getByRole('button', { name: 'Модерация' }).click();
-  await expect(page.getByTestId('classroom-activity')).toContainText('Алина К.');
-  await page.getByRole('button', { name: 'Проекты', exact: true }).last().click();
-  await expect(page.getByTestId('classroom-activity')).toContainText('Моя модель');
+  const classTabs = page.getByRole('navigation', { name: 'Разделы класса' });
+  await classTabs.getByRole('button', { name: 'История', exact: true }).click();
+  const history = page.getByRole('region', { name: 'История класса' });
+  await expect(history.getByRole('listitem').filter({ hasText: 'Алина К.' }).first()).toBeVisible();
+  await classTabs.getByRole('button', { name: 'Проекты', exact: true }).click();
+  const classWorks = page.getByRole('region', { name: 'Работы учеников' });
+  const classWork = classWorks.locator('.classroom-work-card').filter({ hasText: 'Моя модель' });
+  await expect(classWork.getByText('Моя модель', { exact: true })).toBeVisible();
   await page.screenshot({ path: `${evidenceDir}/class-activity.png`, fullPage: true });
 
   /**
@@ -438,9 +457,10 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
     .click();
   const preview = page.getByRole('dialog', { name: 'Работа: Алина К.' });
   await expect(preview.getByTestId('work-preview-image')).toBeVisible();
+  await preview.getByRole('button', { name: 'Отклик на проект', exact: true }).click();
   await preview.getByRole('button', { name: 'Хорошо' }).click();
   await preview.getByLabel('Комментарий').fill('Ровные углы, молодец.');
-  await preview.getByRole('button', { name: /отклик/i }).click();
+  await preview.getByRole('button', { name: 'Сохранить отклик', exact: true }).click();
   await expect(preview.getByText('Отклик сохранён — ученик увидит его у себя.')).toBeVisible();
   await page.screenshot({ path: `${evidenceDir}/work-preview.png` });
   await preview.getByRole('button', { name: 'Закрыть' }).click();

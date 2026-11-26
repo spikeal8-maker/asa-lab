@@ -3,12 +3,19 @@ import { TouchNavigation } from '../viewport/TouchNavigation';
 
 function setup(model = false) {
   const view = new EventTarget();
+  const ownerDocument = Object.assign(new EventTarget(), { defaultView: view });
   const container = Object.assign(new EventTarget(), {
-    ownerDocument: { defaultView: view },
+    ownerDocument,
   });
   const captured = new Set<number>();
+  const captureErrors = new Map<number, string>();
   const canvas = {
-    setPointerCapture: (id: number) => captured.add(id),
+    setPointerCapture: (id: number) => {
+      const error = captureErrors.get(id);
+      if (error === 'ignored') return;
+      if (error) throw new DOMException('Pointer capture failed', error);
+      captured.add(id);
+    },
     hasPointerCapture: (id: number) => captured.has(id),
     releasePointerCapture: (id: number) => captured.delete(id),
   };
@@ -31,6 +38,7 @@ function setup(model = false) {
     y = 0,
     target: unknown = canvas,
     pointerType = 'touch',
+    dispatchOn: EventTarget = container,
   ) => {
     const event = Object.assign(new Event(type, { cancelable: true }), {
       pointerId: id,
@@ -39,10 +47,10 @@ function setup(model = false) {
       pointerType,
     });
     Object.defineProperty(event, 'target', { value: target });
-    container.dispatchEvent(event);
+    dispatchOn.dispatchEvent(event);
     return event.defaultPrevented;
   };
-  return { send, navigation, callbacks, captured, view };
+  return { send, navigation, callbacks, captured, captureErrors, ownerDocument, view };
 }
 
 describe('phone gesture ownership', () => {
@@ -110,6 +118,56 @@ describe('phone gesture ownership', () => {
     send('pointerdown', 2);
     send('pointermove', 2, 0, 1);
     expect(callbacks.panZoom).toHaveBeenCalledWith(0, 0.5, 1);
+  });
+
+  it.each(['NotFoundError', 'ignored'])(
+    'discards an inactive pointer before deciding how the next touch navigates (%s)',
+    (error) => {
+      const { send, callbacks, captured, captureErrors, navigation } = setup();
+      send('pointerdown', 1);
+      captured.delete(1);
+      captureErrors.set(1, error);
+
+      expect(send('pointerdown', 2, 20, 20)).toBe(true);
+      expect([...captured]).toEqual([2]);
+      expect(send('pointermove', 2, 40, 30)).toBe(true);
+      expect(callbacks.orbit).toHaveBeenCalledWith(20, 10);
+      expect(callbacks.panZoom).not.toHaveBeenCalled();
+      expect(send('pointerup', 2)).toBe(true);
+      expect(navigation.isActive()).toBe(false);
+    },
+  );
+
+  it('leaves no active gesture when a new pointer cannot be captured', () => {
+    const { send, navigation, captureErrors } = setup();
+    captureErrors.set(1, 'InvalidStateError');
+    expect(send('pointerdown')).toBe(false);
+    expect(navigation.isActive()).toBe(false);
+    expect(send('pointerdown', 2)).toBe(true);
+  });
+
+  it('cancels the model preview only when pointer capture is actually lost', () => {
+    const { send, navigation, callbacks, captured } = setup(true);
+    expect(send('pointerdown')).toBe(false);
+    captured.add(1);
+    send('lostpointercapture');
+    expect(navigation.isActive()).toBe(true);
+    expect(callbacks.cancelModelGesture).not.toHaveBeenCalled();
+
+    captured.delete(1);
+    send('lostpointercapture');
+    expect(navigation.isActive()).toBe(false);
+    expect(callbacks.cancelModelGesture).toHaveBeenCalledOnce();
+    expect(send('pointerdown', 2)).toBe(false);
+  });
+
+  it('ends an uncaptured model touch outside the viewport without consuming the event', () => {
+    const { send, navigation, callbacks, ownerDocument } = setup(true);
+    expect(send('pointerdown')).toBe(false);
+    expect(send('pointerup', 1, 0, 0, {}, 'touch', ownerDocument)).toBe(false);
+    expect(navigation.isActive()).toBe(false);
+    expect(callbacks.cancelModelGesture).toHaveBeenCalledOnce();
+    expect(send('pointerdown', 2)).toBe(false);
   });
 
   it('cancels model gestures on pointer cancellation and loss of window focus', () => {

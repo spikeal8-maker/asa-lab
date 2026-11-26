@@ -78,12 +78,34 @@ const TIME = new Intl.DateTimeFormat('ru-RU', {
   dateStyle: 'short',
   timeStyle: 'medium',
 });
-const DAY = new Intl.DateTimeFormat('sv-SE', {
+const MOSCOW_INPUT_TIME = new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'Europe/Moscow',
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
 });
+const DAY_MS = 86_400_000;
+
+function recentRange(days: number) {
+  const now = Date.now();
+  return {
+    from: MOSCOW_INPUT_TIME.format(now - days * DAY_MS).replace(' ', 'T'),
+    to: MOSCOW_INPUT_TIME.format(now).replace(' ', 'T'),
+  };
+}
+
+function moscowRange({ from, to }: { from: string; to: string }) {
+  const range = { from: `${from}+03:00`, to: `${to}+03:00` };
+  const start = Date.parse(range.from);
+  const end = Date.parse(range.to);
+  return Number.isFinite(start) && end >= start && end - start <= 31 * DAY_MS ? range : null;
+}
+
+const RANGE_ERROR = 'Укажите начало и конец периода по МСК. Максимум 31 день.';
 const SOURCE: Record<string, string> = {
   api: 'API',
   web: 'Сайт',
@@ -169,8 +191,7 @@ export function AdminLogsPage({
 }: {
   readonly onAccessDenied: () => void;
 }): JSX.Element {
-  const [from, setFrom] = useState(() => DAY.format(new Date(Date.now() - 6 * 86400_000)));
-  const [to, setTo] = useState(() => DAY.format(new Date()));
+  const [{ from, to }, setRange] = useState(() => recentRange(7));
   const [source, setSource] = useState('');
   const [module, setModule] = useState('');
   const [subsystem, setSubsystem] = useState('');
@@ -198,12 +219,14 @@ export function AdminLogsPage({
       setScanned(0);
       const current = filters.current;
       const fingerprint = JSON.stringify(current);
+      const range = moscowRange(current);
+      if (!range) {
+        setLoading(false);
+        setError(RANGE_ERROR);
+        return;
+      }
       if (append && appliedFilter.current !== fingerprint) append = false;
-      const params = new URLSearchParams({
-        ...current,
-        from: `${current.from}T00:00:00+03:00`,
-        to: `${current.to}T23:59:59.999+03:00`,
-      });
+      const params = new URLSearchParams({ ...current, ...range });
       if (append && page?.next) {
         params.set('beforeTime', page.next.time);
         params.set('beforeId', page.next.id);
@@ -277,19 +300,47 @@ export function AdminLogsPage({
     };
   }, [job, onAccessDenied]);
 
-  const exportArchive = async (errorsOnly: boolean, applicationOnly = false): Promise<void> => {
+  const selectRecentRange = (days: number) => {
+    const range = recentRange(days);
+    setRange(range);
+    filters.current = { ...filters.current, ...range };
+    void load();
+  };
+
+  const filtersChanged = !!page && appliedFilter.current !== JSON.stringify(filters.current);
+  const exportArchive = async (
+    mode: 'filtered' | 'application' | 'all' | 'errors' | 'handoff',
+  ): Promise<void> => {
+    const current = filters.current;
+    const range = moscowRange(current);
+    if (!range) {
+      setExportError(RANGE_ERROR);
+      return;
+    }
+    if (mode === 'filtered' && (!page || filtersChanged || loading)) return;
+    if (
+      mode === 'handoff' &&
+      (!current.module || Date.parse(range.from) === Date.parse(range.to))
+    ) {
+      setExportError('Выберите модуль и укажите начало и конец периода по МСК.');
+      return;
+    }
     setExporting(true);
     setExportError(null);
     setJob(null);
-    const current = filters.current;
     const result = await call<ExportJob>('/api/admin/v1/logs/exports', {
       method: 'POST',
-      body: JSON.stringify({
-        from: `${current.from}T00:00:00+03:00`,
-        to: `${current.to}T23:59:59.999+03:00`,
-        level: errorsOnly ? 'error' : '',
-        scope: applicationOnly ? 'application' : 'all',
-      }),
+      body: JSON.stringify(
+        mode === 'filtered'
+          ? { ...current, ...range }
+          : mode === 'handoff'
+            ? { ...range, mode, scope: 'all', handoffModule: current.module }
+            : {
+                ...range,
+                level: mode === 'errors' ? 'error' : '',
+                scope: mode === 'application' ? 'application' : 'all',
+              },
+      ),
     });
     setExporting(false);
     if (!result.ok) {
@@ -310,155 +361,182 @@ export function AdminLogsPage({
 
   return (
     <section className="admin-logs" aria-label="Журналы системы">
-      <div className="admin-logs-intro">
-        <p>Ошибки и события сайта, редакторов и сервера. Время — московское.</p>
-        <div className="admin-logs-actions">
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={disabled}
-            onClick={() => void exportArchive(false, true)}
-          >
-            Скачать журналы приложения
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={disabled}
-            onClick={() => void exportArchive(false)}
-          >
-            Скачать все журналы
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={disabled}
-            onClick={() => void exportArchive(true)}
-          >
-            Скачать ошибки
-          </button>
-        </div>
-      </div>
       <form
         className="admin-logs-filters"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void load();
         }}
       >
-        <label>
-          С даты
-          <input
-            type="date"
-            required
-            value={from}
-            max={to}
-            onChange={(event) => setFrom(event.target.value)}
-          />
-        </label>
-        <label>
-          По дату
-          <input
-            type="date"
-            required
-            value={to}
-            min={from}
-            onChange={(event) => setTo(event.target.value)}
-          />
-        </label>
-        <label>
-          Источник
-          <select
-            value={source}
-            onChange={(event) => {
-              setSource(event.target.value);
-              setScope('all');
-            }}
-          >
-            <option value="">Все источники</option>
-            {(status?.eventSources ?? []).map((value) => (
-              <option key={value} value={value}>
-                {sourceLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Показывать
-          <select
-            value={scope}
-            onChange={(event) => {
-              setScope(event.target.value);
-              setSource('');
-            }}
-          >
-            <option value="application">Приложение</option>
-            <option value="host">Windows, Docker и нагрузку</option>
-            <option value="all">Все журналы</option>
-          </select>
-        </label>
-        <label>
-          Модуль
-          <select value={module} onChange={(event) => setModule(event.target.value)}>
-            <option value="">Все модули</option>
-            {Object.entries(MODULE).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Подсистема
-          <select value={subsystem} onChange={(event) => setSubsystem(event.target.value)}>
-            <option value="">Все подсистемы</option>
-            {Object.entries(SUBSYSTEM).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Уровень
-          <select value={level} onChange={(event) => setLevel(event.target.value)}>
-            <option value="">Все события</option>
-            {Object.entries(LEVEL).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-logs-search">
-          Поиск
-          <input
-            type="search"
-            value={search}
-            maxLength={120}
-            placeholder="Сообщение или номер запроса"
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-        <div className="admin-logs-filter-actions">
-          <button type="submit" className="btn-secondary" disabled={loading}>
-            Показать
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => {
-              const start = DAY.format(new Date(Date.now() - 6 * 86400_000));
-              const end = DAY.format(new Date());
-              setFrom(start);
-              setTo(end);
-              filters.current = { ...filters.current, from: start, to: end };
-              void load();
-            }}
-          >
-            Последние 7 дней
-          </button>
+        <div className="admin-logs-primary-filters">
+          <label>
+            С (МСК)
+            <input
+              type="datetime-local"
+              step={1}
+              required
+              value={from}
+              max={to}
+              onChange={(event) => setRange((range) => ({ ...range, from: event.target.value }))}
+            />
+          </label>
+          <label>
+            По (МСК)
+            <input
+              type="datetime-local"
+              step={1}
+              required
+              value={to}
+              min={from}
+              onChange={(event) => setRange((range) => ({ ...range, to: event.target.value }))}
+            />
+          </label>
+          <label>
+            Модуль
+            <select value={module} onChange={(event) => setModule(event.target.value)}>
+              <option value="">Все модули</option>
+              {Object.entries(MODULE).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Уровень
+            <select value={level} onChange={(event) => setLevel(event.target.value)}>
+              <option value="">Все события</option>
+              {Object.entries(LEVEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-logs-search">
+            Поиск
+            <input
+              type="search"
+              value={search}
+              maxLength={120}
+              placeholder="Сообщение или номер запроса"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
         </div>
+        <div className="admin-logs-controls">
+          <details>
+            <summary>
+              Дополнительные фильтры
+              {source || subsystem || scope !== 'application' ? ' · выбраны' : ''}
+            </summary>
+            <div className="admin-logs-advanced-fields">
+              <label>
+                Показывать
+                <select
+                  value={scope}
+                  onChange={(event) => {
+                    setScope(event.target.value);
+                    setSource('');
+                  }}
+                >
+                  <option value="application">Приложение</option>
+                  <option value="host">Операционная система, Docker и нагрузка</option>
+                  <option value="all">Все журналы</option>
+                </select>
+              </label>
+              <label>
+                Источник
+                <select
+                  value={source}
+                  onChange={(event) => {
+                    setSource(event.target.value);
+                    setScope('all');
+                  }}
+                >
+                  <option value="">Все источники</option>
+                  {(status?.eventSources ?? []).map((value) => (
+                    <option key={value} value={value}>
+                      {sourceLabel(value)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Подсистема
+                <select value={subsystem} onChange={(event) => setSubsystem(event.target.value)}>
+                  <option value="">Все подсистемы</option>
+                  {Object.entries(SUBSYSTEM).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </details>
+          <div className="admin-logs-filter-actions admin-logs-control-pair">
+            <button type="submit" className="btn-primary" disabled={loading}>
+              Показать
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={disabled || !page || filtersChanged || loading}
+              onClick={() => void exportArchive('filtered')}
+            >
+              Скачать по фильтрам
+            </button>
+          </div>
+          <div className="admin-logs-filter-actions admin-logs-control-pair">
+            <button type="button" className="btn-secondary" onClick={() => selectRecentRange(1)}>
+              Последние 24 часа
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => selectRecentRange(7)}>
+              Последние 7 дней
+            </button>
+          </div>
+          <details>
+            <summary>Другие выгрузки за период</summary>
+            <p className="admin-logs-filter-note">
+              Архив для разбора включает ошибки всех систем и события выбранного модуля без данных
+              пользователей.{module ? '' : ' Выберите модуль выше.'}
+            </p>
+            <div className="admin-logs-filter-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={disabled || !module}
+                onClick={() => void exportArchive('handoff')}
+              >
+                Скачать архив для разбора
+              </button>
+              {(
+                [
+                  ['application', 'Скачать журналы приложения'],
+                  ['all', 'Скачать все журналы'],
+                  ['errors', 'Скачать ошибки'],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className="btn-secondary"
+                  disabled={disabled}
+                  onClick={() => void exportArchive(mode)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </details>
+        </div>
+        {filtersChanged && !loading ? (
+          <p className="admin-logs-filter-note" role="status">
+            Фильтры изменились. Нажмите «Показать», чтобы обновить список и скачать записи.
+          </p>
+        ) : null}
       </form>
       {status ? (
         <div className="admin-logs-coverage">
@@ -683,7 +761,7 @@ export function AdminLogsPage({
         <button
           type="button"
           className="btn-secondary"
-          disabled={loading}
+          disabled={loading || filtersChanged}
           onClick={() => void load(true)}
         >
           Показать ещё

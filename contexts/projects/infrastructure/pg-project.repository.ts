@@ -142,6 +142,22 @@ const ACCESS_SQL = `(
   OR (p.project_scope = 'classroom' AND learning_legacy_classroom_work_access($3, p.id))
 )`;
 
+// The teacher's authority to open a pupil's personal draft belongs to the
+// classroom flow. A personal card may only read its owner's work (including
+// linked accounts), or a class project managed by the caller.
+const OWN_PREVIEW_FILTER = `AND p.status <> 'trashed'
+  AND p.module_key IN ('electronics','three-d','robotics')
+  AND (
+    p.owner_principal_id = $3
+    OR (p.owner_principal_id IS NULL AND p.created_by = $4)
+    OR learning_linked_project_access($3, p.id)
+    OR learning_legacy_classroom_work_access($3, p.id)
+    OR (p.project_scope = 'classroom' AND NOT learning_seat_owned_classroom_assignment_work_project(p.id) AND EXISTS (
+      SELECT 1 FROM classroom_memberships m
+       WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
+         AND m.user_id = $4 AND m.member_role IN ('owner', 'co_teacher')))
+  )`;
+
 const EDIT_ACCESS_SQL = `(
   (p.project_scope = 'personal'
      AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $3)
@@ -857,7 +873,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     tenantId: string,
     projectId: string,
     actor: ProjectActor,
-    options?: { readonly includeVersions: false },
+    options?: { readonly includeVersions: false; readonly ownPreview?: true },
   ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
@@ -873,7 +889,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                 d.document_json,d.revision,d.updated_at,d.preview_json,d.preview_digest
            FROM projects p
            JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
-          WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL}`,
+          WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL} ${options?.ownPreview ? OWN_PREVIEW_FILTER : ''}`,
         [access.tenantId, projectId, actor.principalId, access.userId],
       );
       const row = found.rows[0];

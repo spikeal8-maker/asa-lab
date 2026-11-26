@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { AdminLogsController, logFilter, logTrendWindow } from './admin-logs.controller.js';
+import {
+  AdminLogsController,
+  logExportFilter,
+  logFilter,
+  logTrendWindow,
+} from './admin-logs.controller.js';
 import type { AdminControlPlaneService } from './admin-control-plane.service.js';
 import type { AdminLogsService } from './admin-logs.service.js';
 const request = { cookies: {}, id: 'request' } as FastifyRequest;
@@ -13,6 +18,12 @@ const logs = {
   createExport: vi.fn(),
   exportStatus: vi.fn(),
   download: vi.fn(),
+};
+const handoffRequest = {
+  mode: 'handoff',
+  handoffModule: 'blocks',
+  from: '2026-10-07T12:52:07.123+03:00',
+  to: '2026-10-07T14:15:22.456+03:00',
 };
 
 describe('technical log authorization', () => {
@@ -34,6 +45,7 @@ describe('technical log authorization', () => {
         () => controller.query(request, {}, reply),
         () => controller.trend(request, {}, reply),
         () => controller.create(request, {}, reply),
+        () => controller.create(request, handoffRequest, reply),
         () => controller.progress(request, 'id', reply),
         () => controller.download(request, 'id', reply),
       ]) {
@@ -76,6 +88,29 @@ describe('technical log authorization', () => {
   });
   it('accepts bounded subsystem filters', () => {
     expect(logFilter({ subsystem: 'projects' })).toMatchObject({ subsystem: 'projects' });
+  });
+  it('accepts only an explicit, unambiguous handoff export', () => {
+    expect(logExportFilter(handoffRequest)).toMatchObject({
+      from: '2026-10-07T09:52:07.123Z',
+      to: '2026-10-07T11:15:22.456Z',
+      scope: 'all',
+      handoffModule: 'scratch',
+    });
+    for (const invalid of [
+      { handoffModule: 'secret' },
+      { handoffModule: undefined },
+      { mode: undefined },
+      { mode: 'unknown' },
+      { from: undefined },
+      { to: handoffRequest.from },
+      { level: 'error' },
+      { module: 'scratch' },
+      { search: 'private' },
+      { source: 'api' },
+      { subsystem: 'scratch' },
+      { scope: 'application' },
+    ])
+      expect(() => logExportFilter({ ...handoffRequest, ...invalid })).toThrow();
   });
   it('bounds the number of error intervals while allowing an aligned yearly overview', () => {
     const range = { from: '2025-11-11T16:32:00Z', to: '2026-11-11T16:32:00Z' };

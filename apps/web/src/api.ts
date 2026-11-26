@@ -142,6 +142,7 @@ export type ExactLearningSubmission =
       moduleKey: string;
       document: unknown;
       preview: import('@asa-lab/module-sdk').ModulePreviewDescriptor | null;
+      electronicsSimulation?: import('@asa-lab/contracts').ClassroomElectronicsSimulation;
     };
 
 export interface AuthoredActivityLearnerPreview {
@@ -859,6 +860,7 @@ export interface AttendedClass {
   classroomId: string;
   classroomTitle: string;
   teacherDisplayName: string;
+  safeMode?: boolean;
   openCount: number;
   unfinishedCount: number;
 }
@@ -1006,6 +1008,7 @@ export interface GradebookEntry {
   courseRunId?: string | null;
   courseTitle?: string | null;
   seatId: string;
+  removedFromClass?: boolean;
   displayLabel: string;
   assignmentId: string;
   assignmentTitle: string;
@@ -2663,9 +2666,10 @@ export const api = {
     call<LearningReviewContext>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context${activityRunId === undefined ? '' : `?activityRunId=${encodeURIComponent(activityRunId)}`}`,
     ),
-  exactLearningSubmission: (classroomId: string, attemptId: string) =>
+  exactLearningSubmission: (classroomId: string, attemptId: string, signal?: AbortSignal) =>
     call<ExactLearningSubmission>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/attempts/${encodeURIComponent(attemptId)}/submission`,
+      { ...(signal ? { signal } : {}) },
     ),
   selectLearningAttempt: (
     classroomId: string,

@@ -225,11 +225,18 @@ async function assertLayout(page: Page, width: number, file: string) {
     ),
   ).toHaveCount(0);
   const mobileSectionRail = page.getByRole('group', { name: 'Разделы ученика' });
+  const summary = page.getByRole('group', { name: 'Сводка ученика', exact: true });
+  await expect(summary).toBeVisible();
+  const summaryBox = (await summary.boundingBox())!;
+  expect(summaryBox.height, 'one compact summary row').toBeLessThanOrEqual(20);
+  expect(summaryBox.y - navBox.y - navBox.height).toBeGreaterThanOrEqual(0);
+  expect(summaryBox.y - navBox.y - navBox.height).toBeLessThanOrEqual(4);
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
   if (await mobileSectionRail.isVisible()) {
     const railBox = (await mobileSectionRail.boundingBox())!;
     expect(railBox.height, 'one 44px section row').toBe(44);
-    expect(railBox.y - navBox.y - navBox.height).toBeLessThanOrEqual(6);
+    expect(railBox.y - summaryBox.y - summaryBox.height).toBeGreaterThanOrEqual(0);
+    expect(railBox.y - summaryBox.y - summaryBox.height).toBeLessThanOrEqual(6);
   } else {
     await expect(tabs).toBeVisible();
   }
@@ -732,18 +739,78 @@ test('assigned without a project stays one row through start, submission and rev
     await page.getByRole('button', { name: 'Обновить задания' }).click();
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('Ждёт проверки');
-    const review = await post(
-      page,
-      `/api/classrooms/${classroom.id}/attempts/${submitted.attemptId}/review`,
-      {
-        decision: 'changes_requested',
-        points: null,
-        feedback: 'Добавь деталь',
-        reason: 'Нужна деталь',
-        requestId: randomUUID(),
-        expectedResultId: null,
-      },
+    // A project card in each teacher surface resolves the same immutable attempt.
+    const exactPath = `/api/classrooms/${classroom.id}/attempts/${submitted.attemptId}/submission`;
+    const exactSubmission = await get<{ projectVersionId: string }>(page, exactPath);
+    const projectCard = page.locator(`li[data-project-id="${started.projectId}"]`);
+    async function openSavedModel() {
+      const reads = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' && new URL(response.url()).pathname === exactPath,
+      );
+      await projectCard.getByRole('button', { name: /^Предпросмотр работы/ }).click();
+      expect((await reads).ok()).toBe(true);
+      const modal = page.getByRole('dialog', { name: /^Работа:/ });
+      await expect(modal.getByRole('region', { name: 'Сданная 3D-модель' })).toHaveAttribute(
+        'data-ready',
+        'true',
+        { timeout: 15_000 },
+      );
+      const model = modal.getByTestId('three-d-presentation');
+      const camera = await model.getAttribute('data-camera-state');
+      expect(camera).toBeTruthy();
+      const canvas = model.locator('canvas');
+      await canvas.scrollIntoViewIfNeeded();
+      const box = (await canvas.boundingBox())!;
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 36, y - 18, { steps: 5 });
+      await page.mouse.up();
+      await expect(model).not.toHaveAttribute('data-camera-state', camera!);
+      await expect(modal.getByRole('button', { name: 'Открыть в редакторе' })).toBeVisible();
+      expect(
+        await modal.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+      ).toBe(true);
+      return modal;
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: '← К классу', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Проекты', exact: true })
+      .click();
+    const classroomPreview = await openSavedModel();
+    await classroomPreview.screenshot({ path: `${screenshots}/exact-work-classroom-1440.png` });
+    await classroomPreview.getByRole('button', { name: 'Закрыть', exact: true }).click();
+
+    await openProfile(page, classroom.id, a.name);
+    await selectTeacherProfileTab(page, 'all');
+    await page.setViewportSize({ width: 390, height: 900 });
+    const profilePreview = await openSavedModel();
+    await profilePreview.screenshot({ path: `${screenshots}/exact-work-profile-390.png` });
+    await profilePreview.getByRole('button', { name: 'Оценить сдачу', exact: true }).click();
+    const pinnedReview = profilePreview.getByRole('region', { name: 'Проверка сдачи' });
+    await expect(pinnedReview.getByTestId('submission-version-id')).toHaveText(
+      exactSubmission.projectVersionId,
     );
+    await expect(pinnedReview.getByTestId('submission-version-id')).toBeHidden();
+    await expect(pinnedReview.getByLabel('Попытка')).toHaveCount(0);
+    await pinnedReview.getByLabel('Отзыв', { exact: true }).fill('Добавь деталь');
+    await pinnedReview.getByLabel('Причина возврата или исправления').fill('Нужна деталь');
+    const returned = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname ===
+          `/api/classrooms/${classroom.id}/attempts/${submitted.attemptId}/review`,
+    );
+    await pinnedReview.getByRole('button', { name: 'Вернуть на доработку' }).click();
+    const reviewResponse = await returned;
+    expect(reviewResponse.ok(), await reviewResponse.text()).toBe(true);
+    const review = await reviewResponse.json();
+    await profilePreview.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await selectTeacherProfileTab(page, 'assignments');
     await page.getByRole('button', { name: 'Обновить задания' }).click();
     await expect(row).toContainText('На доработке');
     await post(page, `/api/classrooms/${classroom.id}/attempts/${submitted.attemptId}/review`, {
@@ -1078,6 +1145,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     ).toEqual([expect.objectContaining({ revision: 2, value: null })]);
     // The full teacher grade panel preserves server revisions after focus refresh.
     const gradesRegion = page.getByRole('region', { name: 'Оценки', exact: true });
+    await gradesRegion.getByRole('button', { name: 'Подробнее', exact: true }).click();
     const manualGrades = gradesRegion.getByRole('list', { name: 'Ручные оценки', exact: true });
     await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
     await expect(

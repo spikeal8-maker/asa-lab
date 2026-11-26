@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ElectronicsSimulationArtifact } from '@asa-lab/contracts';
+import type {
+  ClassroomElectronicsSimulation,
+  ClassroomFreeElectronicsSimulation,
+  ElectronicsSimulationArtifact,
+  ElectronicsSimulationPayload,
+} from '@asa-lab/contracts';
 import {
   ElectronicsLiveSimulationWorkerController,
   type LiveSimulationWorkerCallbacks,
@@ -9,18 +14,19 @@ import {
   ElectronicsSimulationWorkerClient,
   type ElectronicsSimulationWorkerLike,
 } from '../electronics/simulation-worker-client';
+import { evaluateSimulationWorkerRequest } from '../electronics/simulation-worker-evaluator';
+import type { ElectronicsSimulationWorkerResponse } from '../electronics/simulation-worker-protocol';
 import {
   PUBLIC_SIMULATION_BUDGET,
   PublicElectronicsRuntime,
   publicSimulationDocument,
 } from './electronics-public-runtime';
 
-const artifact = (): ElectronicsSimulationArtifact => ({
+const simulation = (): ElectronicsSimulationPayload => ({
   schemaVersion: 3,
   status: 'simulation',
   viewerFamily: 'electronics',
   solverIterations: 24,
-  provenance: { publicationId: '123e4567-e89b-42d3-a456-426614174001', revisionNumber: 1 },
   capabilities: { readOnly: true, interactive: true, download: false },
   components: [
     { id: 'button', kind: 'button', position: { x: 0, y: 0 }, value: 0, state: false },
@@ -38,7 +44,11 @@ const artifact = (): ElectronicsSimulationArtifact => ({
   ],
   connections: [],
 });
-function setup() {
+const artifact = (): ElectronicsSimulationArtifact => ({
+  ...simulation(),
+  provenance: { publicationId: '123e4567-e89b-42d3-a456-426614174001', revisionNumber: 1 },
+});
+function setup(submission?: ClassroomElectronicsSimulation | ClassroomFreeElectronicsSimulation) {
   vi.stubGlobal(
     'requestAnimationFrame',
     vi.fn(() => 1),
@@ -55,7 +65,7 @@ function setup() {
   const stop = vi.fn();
   const source = artifact();
   const host = new PublicElectronicsRuntime(
-    source,
+    submission ?? source,
     stop,
     controller as unknown as ElectronicsLiveSimulationWorkerController,
   );
@@ -68,6 +78,144 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
+describe('bounded classroom electronics host', () => {
+  const submission = (): ClassroomElectronicsSimulation => ({
+    submissionId: '123e4567-e89b-42d3-a456-426614174002',
+    projectVersionId: '123e4567-e89b-42d3-a456-426614174003',
+    simulation: simulation(),
+  });
+
+  it('starts from the saved work under a version-specific namespace and disposes on close', () => {
+    const exact = submission();
+    const { host, controller, callbacks } = setup(exact);
+    const frozen = JSON.stringify(exact);
+    expect(controller.start).toHaveBeenCalledWith(
+      'classroom-submission:' + exact.submissionId + ':' + exact.projectVersionId,
+      expect.objectContaining({
+        components: expect.arrayContaining([
+          expect.objectContaining({
+            stateProperties: expect.objectContaining({
+              arduinoSource: exact.simulation.components[1]?.stateProperties?.arduinoSource,
+            }),
+          }),
+        ]),
+      }),
+      expect.anything(),
+    );
+    host.input('button', { state: true });
+    host.dispose();
+    expect(JSON.stringify(exact)).toBe(frozen);
+    expect(controller.dispose).toHaveBeenCalled();
+    expect(callbacks.readHostHorizonMicroseconds?.()).toBeNull();
+    expect(host.input('button', { state: false })).toBeNull();
+  });
+
+  it('starts each free project revision in its own private namespace', () => {
+    const free = {
+      projectId: '123e4567-e89b-42d3-a456-426614174004',
+      revision: 7,
+      simulation: simulation(),
+    };
+    const serialized = JSON.stringify(free);
+    const { host, controller } = setup(free);
+    expect(controller.start).toHaveBeenCalledExactlyOnceWith(
+      'classroom-project:' + free.projectId + ':7',
+      expect.anything(),
+      expect.anything(),
+    );
+    host.input('button', { state: true });
+    host.stop();
+    expect(JSON.stringify(free)).toBe(serialized);
+    expect(controller.dispose).toHaveBeenCalledTimes(1);
+    const reopened = setup({ ...free, revision: 8 });
+    expect(reopened.controller.start).toHaveBeenCalledWith(
+      'classroom-project:' + free.projectId + ':8',
+      expect.anything(),
+      expect.anything(),
+    );
+    reopened.host.dispose();
+  });
+  it('keeps a passive no-source circuit open after the Worker supplies a ready frame', async () => {
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const responses: ElectronicsSimulationWorkerResponse[] = [];
+    const worker: ElectronicsSimulationWorkerLike = {
+      onmessage: null,
+      onerror: null,
+      onmessageerror: null,
+      postMessage: (request) => {
+        if (request.kind === 'cancel-generation') return;
+        const response = evaluateSimulationWorkerRequest(request);
+        responses.push(response);
+        worker.onmessage?.(new MessageEvent('message', { data: response }));
+      },
+      terminate: vi.fn(),
+    };
+    const exact = submission();
+    const passive: ClassroomElectronicsSimulation = {
+      ...exact,
+      simulation: {
+        ...exact.simulation,
+        components: [{ id: 'load', kind: 'resistor', position: { x: 0, y: 0 }, value: 1_000 }],
+      },
+    };
+    const stop = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(
+      new ElectronicsSimulationWorkerClient(() => worker, PUBLIC_SIMULATION_BUDGET.requestMs),
+    );
+    const host = new PublicElectronicsRuntime(passive, stop, controller);
+    host.start();
+    try {
+      await vi.waitFor(() => {
+        expect(responses).toContainEqual(
+          expect.objectContaining({
+            kind: 'advance',
+            advance: expect.objectContaining({
+              executionStatus: 'ready',
+              result: expect.objectContaining({
+                status: 'invalid',
+                diagnostics: expect.arrayContaining([
+                  expect.objectContaining({ code: 'no_source' }),
+                ]),
+              }),
+            }),
+          }),
+        );
+      });
+      expect(stop).not.toHaveBeenCalled();
+      expect(worker.terminate).not.toHaveBeenCalled();
+    } finally {
+      host.dispose();
+    }
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['unsupported', 'nonconvergent'] as const)(
+    'stops simulations with status %s and requests the saved fallback',
+    (status) => {
+      const { host, controller, callbacks, stop } = setup(submission());
+      callbacks.onResult({
+        solved: false,
+        status,
+        current: 0,
+        components: [],
+        nodes: [],
+        diagnostics: [],
+        iterations: 0,
+        numericalResidual: 0,
+        numericalTolerance: 0,
+      });
+      expect(controller.dispose).toHaveBeenCalled();
+      expect(stop).toHaveBeenCalledWith('Эту схему не удалось смоделировать.', true);
+      expect(host.port.getSnapshot().committed).toBeNull();
+      expect(host.input('button', { state: true })).toBeNull();
+    },
+  );
+});
+
 describe('bounded public electronics host', () => {
   it('terminates an unresponsive Worker at the public request deadline', async () => {
     vi.useFakeTimers();
@@ -108,6 +256,11 @@ describe('bounded public electronics host', () => {
   it('uses exactly published saved source and keeps transient inputs out of immutable artifact', () => {
     const { host, source, controller } = setup();
     const frozen = JSON.stringify(source);
+    expect(controller.start).toHaveBeenCalledWith(
+      'publication:' + source.provenance.publicationId + ':1',
+      expect.anything(),
+      expect.anything(),
+    );
     host.input('button', { state: true });
     host.input('button', { state: false });
     expect(controller.update).toHaveBeenCalledTimes(2);

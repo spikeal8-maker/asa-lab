@@ -1289,7 +1289,7 @@ export class ClassroomJoinController {
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     const result = await this.requirePool().query(
       `SELECT seat_id, classroom_id, classroom_title, teacher_display_name,
-              open_count, unfinished_count
+              open_count, unfinished_count, safe_mode
          FROM classroom_account_seats($1)`,
       [context.accountId],
     );
@@ -1302,12 +1302,14 @@ export class ClassroomJoinController {
           teacher_display_name: string;
           open_count: number | string;
           unfinished_count: number | string;
+          safe_mode: boolean;
         }>
       ).map((row) => ({
         seatId: row.seat_id,
         classroomId: row.classroom_id,
         classroomTitle: row.classroom_title,
         teacherDisplayName: row.teacher_display_name,
+        safeMode: row.safe_mode,
         openCount: Number(row.open_count ?? 0),
         unfinishedCount: Number(row.unfinished_count ?? 0),
       })),

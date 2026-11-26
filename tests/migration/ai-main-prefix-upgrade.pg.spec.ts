@@ -107,6 +107,15 @@ const expectedPending = [
   '0326', // Allow large PDF task attachments.
   '0327', // Expand supported task attachment formats.
   '0328', // Safe Mode blocks new publications and retroactive public reads.
+  '0329', // Dated journal corrections can omit a reason.
+  '0330', // Aggregate AI usage and new registrations over the dashboard window.
+  '0331', // Limit session revocation to the removed classroom seat.
+  '0332', // Additive dashboard site activity and scoped aggregate.
+  '0333', // Freeze new grading for removed classroom seats.
+  '0334', // Independent local llama.cpp settings, admission and bounded history.
+  '0335', // Resolve a visible classroom project to its exact submission.
+  '0336', // Open one saved revision of a visible free project.
+  '0337', // Effective Safe Mode in the learner's class list.
 ];
 
 interface Identity {

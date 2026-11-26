@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
 import { LearningAssessmentsController } from './learning-assessments.controller.js';
 
@@ -13,7 +14,7 @@ function request(): FastifyRequest {
   return { cookies: { asa_session: 'session' } } as unknown as FastifyRequest;
 }
 
-function controller(rows: unknown[]) {
+function controller(rows: unknown[], educator = true) {
   const query = vi.fn(async (sql: string) => ({
     rows:
       sql.includes('grading_scheme_for_classroom') || sql.includes('learning_canonical_evidence')
@@ -28,17 +29,97 @@ function controller(rows: unknown[]) {
     })),
   } as unknown as ActiveContextUseCase;
   const accounts = {
-    capabilities: vi.fn(async () => [{ capability: 'educator', state: 'verified' }]),
+    capabilities: vi.fn(async () =>
+      educator ? [{ capability: 'educator', state: 'verified' }] : [],
+    ),
   } as unknown as AccountDirectoryPort;
+  const provider = {
+    validate: vi.fn((payload: unknown) => ({ ok: true, payload })),
+    createPreview: () => null,
+  };
+  const modules = { get: vi.fn(() => ({ provider })) } as unknown as ModuleRegistry;
   return {
-    value: new LearningAssessmentsController(activeContext, accounts, {
-      query,
-    } as unknown as pg.Pool),
+    value: new LearningAssessmentsController(
+      activeContext,
+      accounts,
+      {
+        query,
+      } as unknown as pg.Pool,
+      modules,
+    ),
     query,
+    provider,
   };
 }
 
 describe('learning assessments API', () => {
+  it('projects only the authorized, frozen Electronics version into playback', async () => {
+    const original = 'void setup() {} void loop() {}';
+    const document = {
+      components: [
+        {
+          id: 'board',
+          kind: 'visual',
+          componentTypeId: 'arduino-uno',
+          position: { x: 0, y: 0 },
+          value: 5,
+          stateProperties: { arduinoSource: original, arduinoSerialOpen: true },
+        },
+      ],
+      connections: [],
+      simulation: { maxIterations: 24 },
+    };
+    const row = {
+      module_key: 'electronics',
+      submission_id: RUN_A,
+      project_version_id: RUN_B,
+      source_revision: 7,
+      document_json: structuredClone(document),
+      payload_digest: 'frozen',
+    };
+    const target = controller([row]);
+    document.components[0]!.stateProperties.arduinoSource = 'later learner draft';
+    const result = await target.value.exactSubmission(request(), CLASSROOM_ID, ATTEMPT_ID);
+    expect(result.electronicsSimulation).toMatchObject({
+      submissionId: RUN_A,
+      projectVersionId: RUN_B,
+      simulation: {
+        schemaVersion: 3,
+        components: [{ stateProperties: { arduinoSource: original } }],
+      },
+    });
+    expect(JSON.stringify(result.electronicsSimulation)).not.toMatch(
+      /learner draft|provenance|arduinoSerialOpen/,
+    );
+    expect(target.query.mock.calls).toEqual([
+      [
+        'SELECT * FROM learning_teacher_exact_submission($1,$2,$3)',
+        ['123e4567-e89b-42d3-a456-426614174011', CLASSROOM_ID, ATTEMPT_ID],
+      ],
+    ]);
+
+    Object.assign(row.document_json.components[0]!.stateProperties, { unknownPhysicalModel: 42 });
+    await expect(
+      target.value.exactSubmission(request(), CLASSROOM_ID, ATTEMPT_ID),
+    ).resolves.not.toHaveProperty('electronicsSimulation');
+  });
+
+  it('never projects playback for a learner or for an exact read outside educator scope', async () => {
+    const learner = controller([], false);
+    await expect(
+      learner.value.exactSubmission(request(), CLASSROOM_ID, ATTEMPT_ID),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(learner.query).not.toHaveBeenCalled();
+    expect(learner.provider.validate).not.toHaveBeenCalled();
+
+    const denied = controller([]);
+    await expect(
+      denied.value.exactSubmission(request(), CLASSROOM_ID, ATTEMPT_ID),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(denied.provider.validate).not.toHaveBeenCalled();
+    expect(denied.query.mock.calls.every(([sql]) => sql.startsWith('SELECT '))).toBe(true);
+  });
+
   it('reads an essay only through its scoped frozen text reader without inventing a Project', async () => {
     const target = controller([]);
     target.query.mockImplementation(async (sql: string) => ({
@@ -203,8 +284,8 @@ describe('learning assessments API', () => {
     });
   });
 
-  it('returns one canonical gradebook row', async () => {
-    const target = controller([
+  it('marks removed legacy gradebook rows without changing stored results', async () => {
+    const rows = [
       {
         seat_id: 'seat-id',
         display_label: 'Анна',
@@ -221,7 +302,14 @@ describe('learning assessments API', () => {
         feedback: 'Хорошая работа',
         published_at: '2026-08-22T11:00:00.000Z',
       },
-    ]);
+    ];
+    const target = controller(rows);
+    target.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('classroom_management_roster')) return { rows: [{ id: 'seat-id' }] };
+      if (sql.includes('classroom_gradebook_list'))
+        return { rows: [...rows, { ...rows[0], seat_id: 'old-seat', display_label: 'Борис' }] };
+      return { rows: [] };
+    });
 
     await expect(target.value.gradebook(request(), CLASSROOM_ID)).resolves.toEqual({
       scheme: null,
@@ -235,6 +323,14 @@ describe('learning assessments API', () => {
           percentage: 84,
           outcome: 'passed',
           displayGrade: null,
+          removedFromClass: false,
+        }),
+        expect.objectContaining({
+          seatId: 'old-seat',
+          displayLabel: 'Борис',
+          attemptId: ATTEMPT_ID,
+          points: 84,
+          removedFromClass: true,
         }),
       ],
     });
@@ -283,5 +379,35 @@ describe('learning assessments API', () => {
       }),
     ).rejects.toMatchObject({ status: 400 });
     expect(target.query).not.toHaveBeenCalled();
+  });
+
+  it('reports removed-learner conflicts for legacy review, exact review and official selection', async () => {
+    const target = controller([]);
+    target.query.mockRejectedValue({ code: 'P5L03' });
+    const conflict = { status: 409, response: { error: { code: 'learner_removed' } } };
+
+    await expect(
+      target.value.review(request(), CLASSROOM_ID, ATTEMPT_ID, { decision: 'accepted', points: 5 }),
+    ).rejects.toMatchObject(conflict);
+    await expect(
+      target.value.review(request(), CLASSROOM_ID, ATTEMPT_ID, {
+        decision: 'accepted',
+        points: 5,
+        requestId: 'review:exact',
+      }),
+    ).rejects.toMatchObject(conflict);
+    await expect(
+      target.value.selectAttempt(request(), CLASSROOM_ID, RUN_A, {
+        attemptId: ATTEMPT_ID,
+        reason: 'Официальный результат',
+        requestId: 'selection:exact',
+      }),
+    ).rejects.toMatchObject(conflict);
+
+    const unexpected = new Error('database unavailable');
+    target.query.mockRejectedValue(unexpected);
+    await expect(
+      target.value.review(request(), CLASSROOM_ID, ATTEMPT_ID, { decision: 'accepted', points: 5 }),
+    ).rejects.toBe(unexpected);
   });
 });

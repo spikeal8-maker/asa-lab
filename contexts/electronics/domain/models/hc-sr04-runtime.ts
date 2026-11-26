@@ -11,8 +11,9 @@ export const HC_SR04_PROFILE = Object.freeze({
   minimumSupplyVolt: 4.5,
   maximumSupplyVolt: 5.5,
   digitalHighThresholdVolt: 2.5,
-  echoHighVolt: 5,
   echoOutputResistanceOhm: 10,
+  // Functional profile: only the output load draws current from VCC.
+  quiescentCurrentAmp: 0,
 });
 
 type HcSr04Phase = 'idle' | 'trigger-high' | 'echo-delay' | 'echo-high';
@@ -21,7 +22,7 @@ export type HcSr04EnvironmentSample =
   { readonly kind: 'echo'; readonly distanceMeters: number } | { readonly kind: 'no-echo' };
 
 export interface HcSr04RuntimeState {
-  readonly version: 1;
+  readonly version: 2;
   readonly phase: HcSr04Phase;
   readonly powered: boolean;
   readonly triggerHighSinceMicroseconds?: number | undefined;
@@ -38,8 +39,7 @@ interface HcSr04RuntimeStep {
 interface HcSr04ElectricalBranch {
   readonly id: 'echo';
   readonly terminal: 'echo';
-  readonly ground: 'gnd';
-  readonly targetVoltage: number;
+  readonly rail: 'vcc' | 'gnd';
   readonly resistanceOhm: number;
 }
 
@@ -82,14 +82,14 @@ export function hcSr04EchoWidthMicroseconds(distanceMeters: number): number {
   return Math.round(distanceMeters * 100 * HC_SR04_PROFILE.microsecondsPerCentimeter);
 }
 export function initialHcSr04RuntimeState(): HcSr04RuntimeState {
-  return { version: 1, phase: 'idle', powered: false };
+  return { version: 2, phase: 'idle', powered: false };
 }
 
 export function isHcSr04RuntimeState(value: unknown): value is HcSr04RuntimeState {
   if (!value || typeof value !== 'object') return false;
   const state = value as Partial<HcSr04RuntimeState>;
   if (
-    state.version !== 1 ||
+    state.version !== 2 ||
     !['idle', 'trigger-high', 'echo-delay', 'echo-high'].includes(state.phase ?? '') ||
     typeof state.powered !== 'boolean'
   )
@@ -121,13 +121,17 @@ export function hcSr04EchoHigh(state: HcSr04RuntimeState): boolean {
   return state.powered && state.phase === 'echo-high';
 }
 
+function hcSr04Drive(state: HcSr04RuntimeState): 'vcc' | 'gnd' | null {
+  return state.powered ? (hcSr04EchoHigh(state) ? 'vcc' : 'gnd') : null;
+}
+
 export function hcSr04ElectricalBranch(state: HcSr04RuntimeState): HcSr04ElectricalBranch | null {
-  if (!state.powered) return null;
+  const rail = hcSr04Drive(state);
+  if (rail === null) return null;
   return {
     id: 'echo',
     terminal: 'echo',
-    ground: 'gnd',
-    targetVoltage: hcSr04EchoHigh(state) ? HC_SR04_PROFILE.echoHighVolt : 0,
+    rail,
     resistanceOhm: HC_SR04_PROFILE.echoOutputResistanceOhm,
   };
 }
@@ -151,7 +155,7 @@ export function advanceHcSr04Due(
 ): HcSr04RuntimeStep {
   if (!isHcSr04RuntimeState(state) || !canonicalTime(nowMicroseconds))
     throw new TypeError('Invalid HC-SR04 runtime continuation.');
-  const before = hcSr04EchoHigh(state);
+  const before = hcSr04Drive(state);
   let next = state;
   if (
     next.phase === 'echo-delay' &&
@@ -168,14 +172,14 @@ export function advanceHcSr04Due(
     nowMicroseconds >= (next.echoEndMicroseconds ?? Number.POSITIVE_INFINITY)
   ) {
     next = {
-      version: 1,
+      version: 2,
       phase: 'idle',
       powered: next.powered,
       lastEchoStartMicroseconds: next.lastEchoStartMicroseconds,
       lastEchoEndMicroseconds: next.echoEndMicroseconds,
     };
   }
-  return { state: next, echoChanged: before !== hcSr04EchoHigh(next) };
+  return { state: next, echoChanged: before !== hcSr04Drive(next) };
 }
 
 /** The same accepted, powered falling edge is used for measurement and query admission. */
@@ -207,16 +211,16 @@ export function observeHcSr04Inputs(
     throw new TypeError('Invalid HC-SR04 runtime continuation.');
   if (typeof echoAvailable !== 'boolean')
     throw new TypeError('HC-SR04 echoAvailable must be boolean.');
-  const echoBefore = hcSr04EchoHigh(state);
+  const echoBefore = hcSr04Drive(state);
   if (!powered) {
     const next: HcSr04RuntimeState = {
-      version: 1,
+      version: 2,
       phase: 'idle',
       powered: false,
       lastEchoStartMicroseconds: state.lastEchoStartMicroseconds,
       lastEchoEndMicroseconds: state.lastEchoEndMicroseconds,
     };
-    return { state: next, echoChanged: echoBefore };
+    return { state: next, echoChanged: echoBefore !== null };
   }
 
   let next: HcSr04RuntimeState = state.powered ? state : { ...state, powered: true };
@@ -232,7 +236,7 @@ export function observeHcSr04Inputs(
       const echoEndMicroseconds =
         echoStartMicroseconds + hcSr04EchoWidthMicroseconds(distanceMeters);
       next = {
-        version: 1,
+        version: 2,
         phase: 'echo-delay',
         powered: true,
         echoStartMicroseconds,
@@ -242,7 +246,7 @@ export function observeHcSr04Inputs(
       };
     } else {
       next = {
-        version: 1,
+        version: 2,
         phase: 'idle',
         powered: true,
         lastEchoStartMicroseconds: next.lastEchoStartMicroseconds,
@@ -250,5 +254,5 @@ export function observeHcSr04Inputs(
       };
     }
   }
-  return { state: next, echoChanged: echoBefore !== hcSr04EchoHigh(next) };
+  return { state: next, echoChanged: echoBefore !== hcSr04Drive(next) };
 }

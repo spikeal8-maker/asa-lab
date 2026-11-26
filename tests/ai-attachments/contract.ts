@@ -198,6 +198,7 @@ export function aiAttachmentsContract(database: () => { admin: pg.Pool; runtime:
         'ai_attachment_source_deleted',
         'ai_attachment_claim_row',
         'ai_attachment_bound_items',
+        'ai_attachment_begin_message_llamacpp',
       ];
       for (const fn of functions) {
         expect(fn.public_execute, fn.proname).toBe(false);

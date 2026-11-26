@@ -150,8 +150,15 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     ).toBeVisible();
     // The redundant "1 of 1 accessible" sentence is intentionally hidden.
     // The one accessible project and the cross-module filters remain asserted.
-    await expect(page.getByTestId('project-card')).toHaveCount(1);
-    await expect(page.getByText('Модель участницы', { exact: true })).toBeVisible();
+    const works = page.getByRole('region', { name: 'Все работы', exact: true });
+    await expect(works.locator('.classroom-work-card')).toHaveCount(1);
+    await expect(works.getByText('Модель участницы', { exact: true })).toBeVisible();
+    await expect(
+      works.getByRole('button', {
+        name: 'Предпросмотр работы Модель участницы, Анна Участница',
+        exact: true,
+      }),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'Электроника', exact: true }).click();
     await expect(page.getByText('Нет доступных работ по этому фильтру.')).toBeVisible();
     await page.getByRole('button', { name: '3D', exact: true }).click();

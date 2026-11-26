@@ -2,6 +2,7 @@
 
 import datetime as dt
 import json
+import os
 from pathlib import Path
 import re
 import unicodedata
@@ -16,6 +17,7 @@ _PHASES = {
     "preflight": "проверка установки",
     "release": "поиск выпуска",
     "requirements": "проверка требований к обновлению",
+    "offsite": "проверка облачной резервной копии",
     "images": "загрузка компонентов",
     "prepare": "подготовка установки",
     "migration": "проверка плана изменений базы",
@@ -26,6 +28,10 @@ _PHASES = {
     "logs": "проверка сбора журналов",
 }
 _PROGRESS = {
+    "preflight": "Проверяю состояние ASA Lab.",
+    "release": "Выбираю опубликованный выпуск.",
+    "requirements": "Проверяю допуск выпуска и совместимость базы.",
+    "offsite": "Проверяю полную копию на Яндекс Диске.",
     "images": "Загружаю компоненты выпуска.",
     "prepare": "Проверяю совместимость конфигурации.",
     "migration": "Проверяю план изменений базы.",
@@ -37,6 +43,7 @@ _PROGRESS = {
 }
 _FAILURES = {
     "OFFSITE_BACKUP": "Нужна подтверждённая полная облачная копия текущей версии за последние 36 часов.",
+    "OFFSITE_BACKUP_CREATE": "Не удалось создать или подтвердить полную копию на Яндекс Диске. Проверьте sudo asa-school-gfs errors --hours 1.",
     "LOCKED": "Уже выполняется другая операция обслуживания.",
     "MAINTENANCE": "Предыдущая операция требует проверки.",
     "FAILED_SWITCH": "Предыдущее переключение завершилось с ошибкой.",
@@ -57,6 +64,7 @@ _FAILURES = {
 # Operator wording for older releases whose public PR titles were technical.
 _NOTES = {
     "1103": "Полное резервное копирование работает без остановки сайта. Штатные остановки исключены из графика ошибок.",
+    "1342": "Исправлены касания в 3D. Ошибки 3D и робототехники учитываются отдельно.",
     "1197": "Исправлена проверка крупных файлов MinIO при создании резервной копии.",
 }
 
@@ -127,11 +135,26 @@ class OperatorOutput:
         self.shown = set()
         self.install = self.previous = self.selected = None
         self.switch_started = self.backup_done = False
-        self.emit("Проверяю обновления ASA Lab." if action == "check" else "Проверяю, можно ли обновить ASA Lab.")
+        self.color = (
+            stream is not None and stream.isatty()
+            and os.environ.get("TERM") not in (None, "", "dumb")
+            and "NO_COLOR" not in os.environ
+        )
+        self.step = 0
+        title = {
+            "check": "Проверка обновлений",
+            "update": "Установка обновления",
+            "install": "Первая установка",
+        }[action]
+        self.emit(f"━━ ASA Lab · {title} ━━", "1;36")
+        if action == "check":
+            self.emit("Проверяю обновления ASA Lab.")
 
-    def emit(self, message):
+    def emit(self, message, style=None):
         if self.stream is not None:
             try:
+                if self.color and style:
+                    message = f"\x1b[{style}m{message}\x1b[0m"
                 print(message, file=self.stream, flush=True)
             except (OSError, ValueError):
                 # Losing the terminal must not interrupt a database migration.
@@ -139,17 +162,23 @@ class OperatorOutput:
 
     def stage(self, phase):
         self.phase = phase
-        if self.action == "update" and phase in _PROGRESS and phase not in self.shown:
-            self.emit(_PROGRESS[phase])
+        if self.action != "check" and phase in _PROGRESS and phase not in self.shown:
+            self.step += 1
+            self.emit(f"[{self.step:02d}] {_PROGRESS[phase]}", "1;36")
             self.shown.add(phase)
 
     def installed(self, install, running, release):
         self.install, self.previous, self.selected = install, running, release
         if "installed" in self.shown:
             return
+        if running is None:
+            self.emit("Будет создана новая установка ASA Lab.")
+            self.shown.add("installed")
+            return
         date = installation_time(install, running)
         when = f"Установлено {date}" if date else "Дата установки неизвестна"
         self.emit(f"{when}. Версия базы {running['schema']}.")
+        self.emit(f"  Текущая сборка · {running['revision'][:8]}")
         self.shown.add("installed")
 
     def continuing(self):
@@ -161,38 +190,62 @@ class OperatorOutput:
         date = moscow_time(published_at)
         when = f"от {date}" if date else "с неподтверждённой датой публикации"
         self.emit(f"Выпуск {when}. Версия базы {self.selected['schema']}.")
-        previous, selected = self.previous["revision"], self.selected["revision"]
+        selected = self.selected["revision"]
+        self.emit(f"  Сборка выпуска · {selected[:8]}")
+        if self.previous is None:
+            self.shown.add("available")
+            return
+        previous = self.previous["revision"]
         notes = release_changes(self.install, previous, selected)
         if notes:
-            self.emit("Изменения в этом обновлении")
+            self.emit("Изменения в этом обновлении", "1")
             for note in notes:
                 self.emit(f"  • {note}")
         elif _SHA.fullmatch(previous) and _SHA.fullmatch(selected):
             self.emit(f"Полный список изменений на GitHub\nhttps://github.com/{REPOSITORY}/compare/{previous[:12]}...{selected[:12]}")
         self.shown.add("available")
 
-    def checked(self):
-        self.emit("Можно устанавливать. Запустите sudo asa update.")
-        self.emit("Установка проверит план изменений базы и сделает резервную копию.")
+    def cloud_started(self):
+        self.emit("Требуется свежая полная копия текущей версии.", "1;33")
+        self.emit("Создаю копию на Яндекс Диске и жду подтверждения целостности.")
+        self.emit("Во время создания копии запись может быть ненадолго приостановлена.", "1;33")
+
+    def cloud_verified(self):
+        if "cloud_verified" not in self.shown:
+            self.emit("Готово · Полная облачная копия текущей версии подтверждена.", "1;32")
+            self.shown.add("cloud_verified")
+
+    def checked(self, *, needs_cloud=False):
+        if needs_cloud:
+            self.emit("Можно начать установку. Запустите sudo asa update.", "1;33")
+            self.emit("Сначала обновлятор создаст и проверит полную копию на Яндекс Диске.")
+            self.emit("Переключение начнётся после успешной проверки копии.")
+        else:
+            self.emit("Можно устанавливать. Запустите sudo asa update.", "1;32")
+            self.emit("Установка проверит план изменений базы и сделает резервную копию.")
 
     def current(self):
-        self.emit("Установлен актуальный выпуск. Сайт отвечает. Обновление не требуется.")
+        self.emit("Установлен актуальный выпуск. Сайт отвечает. Обновление не требуется.", "1;32")
 
     def saved(self):
         if not self.backup_done:
-            self.emit("Резервная копия создана и проверена.")
+            self.emit("Готово · Локальная резервная копия создана и проверена.", "1;32")
         self.backup_done = True
 
     def completed(self, collection):
-        self.emit(f"ASA Lab обновлён. Сайт отвечает. Версия базы {self.selected['schema']}.")
-        if not isinstance(collection, dict) or collection.get("state") != "running":
-            self.emit("Работу сборщика журналов подтвердить не удалось. Проверьте sudo asa report.")
+        result = "ASA Lab установлен" if self.action == "install" else "ASA Lab обновлён"
+        self.emit(f"{result}. Сайт отвечает. Версия базы {self.selected['schema']}.", "1;32")
+        if isinstance(collection, dict) and collection.get("state") == "running":
+            self.emit("Готово · Сборщик журналов запущен.", "1;32")
+        else:
+            self.emit("Работу сборщика журналов подтвердить не удалось. Проверьте sudo asa report.", "1;33")
 
     def failed(self, code, detail=''):
         if self.action == "check":
-            self.emit("Устанавливать пока нельзя.")
+            self.emit("Устанавливать пока нельзя.", "1;31")
         else:
-            self.emit(f"Обновление остановлено. Этап — {_PHASES[self.phase]}.")
+            outcome = "Установка остановлена" if self.action == "install" else "Обновление остановлено"
+            self.emit(f"{outcome}. Этап — {_PHASES[self.phase]}.", "1;31")
         reason = _FAILURES.get(code)
         if code == "EDITOR_ENTRY_HTTP":
             status = re.match(r"^HTTP ([1-5][0-9]{2}) at ", detail)
@@ -213,7 +266,7 @@ class OperatorOutput:
         self.emit(reason)
         if re.fullmatch(r"[A-Z][A-Z0-9_]{0,47}", code):
             self.emit(f"Код для диагностики — {code}.")
-        if self.action == "update":
+        if self.action != "check":
             if self.backup_done:
                 self.emit("Проверенная резервная копия создана.")
             previous_interruption = code in ("LOCKED", "MAINTENANCE", "FAILED_SWITCH", "ROLLBACK_PENDING")
@@ -225,7 +278,7 @@ class OperatorOutput:
                 except (Blocked, OSError, KeyError, TypeError, ValueError):
                     self.emit("Локальная проверка сервисов сейчас не прошла.")
                 else:
-                    if all(observed.get(k) == self.previous[k] for k in ("revision", "schema")):
+                    if self.previous and all(observed.get(k) == self.previous[k] for k in ("revision", "schema")):
                         self.emit("Локальная проверка подтвердила прежнюю версию.")
                     elif all(observed.get(k) == self.selected[k] for k in ("revision", "schema")):
                         self.emit("Локальная проверка подтвердила новую версию.")

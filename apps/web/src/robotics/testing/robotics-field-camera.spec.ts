@@ -499,4 +499,49 @@ describe('FIELD-CAMERA-001 actual field editor integration', () => {
     expect(canvas().dataset.pan).toBe('false');
     expect(commit).not.toHaveBeenCalled();
   });
+  it('suppresses the native palette card image and uses only one real geometry candidate until drop/cancel', async () => {
+    const values = new Map<string, string>();
+    const transfer = {
+      types: ['application/x-asa-robotics-field-tool'],
+      setData: (key: string, value: string) => values.set(key, value),
+      getData: (key: string) => values.get(key) ?? '',
+      setDragImage: vi.fn(),
+      effectAllowed: '',
+      dropEffect: '',
+    };
+    async function dragEvent(target: Element, type: string, x = 0, y = 0) {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.assign(event, { dataTransfer: transfer, clientX: x, clientY: y, relatedTarget: null });
+      await act(async () => {
+        target.dispatchEvent(event);
+      });
+    }
+    const ballTool = button('Мяч');
+    const original = JSON.stringify(world);
+    await dragEvent(ballTool, 'dragstart');
+    expect(transfer.setDragImage).toHaveBeenCalledTimes(1);
+    const feedback = transfer.setDragImage.mock.calls[0]![0] as HTMLCanvasElement;
+    expect(feedback).toBeInstanceOf(HTMLCanvasElement);
+    expect([feedback.width, feedback.height]).toEqual([1, 1]);
+    expect(feedback.isConnected).toBe(true);
+    const first = atWorld(2, 2);
+    await dragEvent(canvas(), 'dragover', first.x, first.y);
+    expect(field().querySelectorAll('[data-field-ghost]')).toHaveLength(1);
+    const next = atWorld(2, 3);
+    await dragEvent(canvas(), 'dragover', next.x, next.y);
+    expect(field().querySelectorAll('[data-field-ghost]')).toHaveLength(1);
+    expect(commit).not.toHaveBeenCalled();
+    await dragEvent(canvas(), 'dragleave');
+    expect(field().querySelectorAll('[data-field-ghost]')).toHaveLength(0);
+    await dragEvent(ballTool, 'dragend');
+    expect(feedback.isConnected).toBe(false);
+    expect(JSON.stringify(world)).toBe(original);
+    await dragEvent(ballTool, 'dragstart');
+    await dragEvent(canvas(), 'dragover', next.x, next.y);
+    await dragEvent(canvas(), 'drop', next.x, next.y);
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(commit.mock.calls[0]![0].field.balls).toHaveLength(world.field.balls.length + 1);
+    expect(field().querySelectorAll('[data-field-ghost]')).toHaveLength(0);
+    expect((transfer.setDragImage.mock.calls[1]![0] as HTMLCanvasElement).isConnected).toBe(false);
+  });
 });

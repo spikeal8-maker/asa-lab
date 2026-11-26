@@ -29,7 +29,9 @@ export type {
   AiGenerationPolicy,
   AiGenerationPolicyUpdate,
 } from './ai-generation-policy.js';
-export type { AiUsageOverview, AiUsageTokenTotal } from './ai-usage-overview.js';
+export { adminDashboardDateBounds, moscowDateKey } from './admin-dashboard-period.js';
+export type { AdminDashboardPeriod, AdminDashboardRange } from './admin-dashboard-period.js';
+export type { AiDashboardUsage, AiUsageOverview, AiUsageTokenTotal } from './ai-usage-overview.js';
 export type {
   AiWebSearchMode,
   AiWebSource,
@@ -55,10 +57,15 @@ export {
   PUBLIC_ELECTRONICS_PROPERTIES,
   PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   validatePublicProjectDisplayArtifact,
+  validateClassroomElectronicsSimulation,
+  validateClassroomFreeElectronicsSimulation,
 } from './public-project-display-artifact.js';
 export type {
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
+  ElectronicsSimulationPayload,
+  ClassroomElectronicsSimulation,
+  ClassroomFreeElectronicsSimulation,
   PublicSimulationComponent,
   PublicProjectDisplayArtifact,
   PublicDisplayComponent,
@@ -140,7 +147,7 @@ export {
 } from './ai-chat-feedback.js';
 export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
 
-export { publicArduinoBlocks } from './public-arduino-blocks.js';
+export { publicArduinoBlocks, classroomArduinoBlocks } from './public-arduino-blocks.js';
 
 export type {
   ChessNetworkScope,

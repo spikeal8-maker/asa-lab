@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   HttpException,
   Inject,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
@@ -49,6 +51,7 @@ import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation
 import { safeValidationReason } from './server-diagnostics.js';
 import { throwPublicationError } from './public-projects.errors.js';
 import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
+import { createClassroomFreeElectronicsSimulation } from './public-project-artifact.js';
 
 interface ProjectRequestContext {
   readonly tenantId: string;
@@ -459,6 +462,40 @@ export class ProjectsController {
       draft: result.value.draft,
       versions: result.value.versions,
       result: this.analyse(result.value.project.moduleKey, result.value.draft.document),
+    };
+  }
+
+  @Get(':projectId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  async savedPreview(
+    @Req() request: FastifyRequest,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+  ) {
+    const context = await this.requireContext(request);
+    const result = await this.openUseCase.execute(
+      context.tenantId,
+      projectId,
+      ProjectsController.actorOf(context),
+      'own-preview',
+    );
+    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    const { project, draft } = result.value;
+    const simulation =
+      project.moduleKey === 'electronics'
+        ? createClassroomFreeElectronicsSimulation(
+            this.moduleRegistry,
+            draft.document,
+            project.id,
+            draft.revision,
+          )
+        : null;
+    return {
+      projectId: project.id,
+      moduleKey: project.moduleKey,
+      document: draft.document,
+      revision: draft.revision,
+      preview: draft.preview?.descriptor ?? null,
+      ...(simulation ? { electronicsSimulation: simulation } : {}),
     };
   }
 

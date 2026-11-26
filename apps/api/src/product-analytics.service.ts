@@ -335,6 +335,22 @@ export class ProductAnalyticsService {
       return confirmedReceipt(result.rows[0]?.receipt, eventId, 'acquisition.observed');
     });
   }
+  persistSiteActivity(
+    eventId: string,
+    actor: AnalyticsActor,
+    intervals: readonly { readonly from: string; readonly to: string }[],
+    receivedAt: string,
+  ): Promise<AnalyticsReceipt> {
+    const binding = actorValues(actor);
+    const serialized = JSON.stringify(intervals);
+    return this.submit(async () => {
+      const result = await this.pool!.query(
+        'SELECT analytics_ingest_site_activity($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::timestamptz) AS receipt',
+        [eventId, ...binding, serialized, receivedAt],
+      );
+      return confirmedReceipt(result.rows[0]?.receipt, eventId, 'site.activity');
+    });
+  }
   enqueueEvent(event: ProductAnalyticsEvent): { state: 'queued' | 'unavailable' } {
     const eventId = randomUUID();
     const receivedAt = event.receivedAt ?? new Date().toISOString();

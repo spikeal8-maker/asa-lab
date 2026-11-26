@@ -140,13 +140,21 @@ describe('quick journal UI slots', () => {
     expect(slots[0].slotKey).toBe('2026-10:2');
     expect(slots.at(-1)?.slotKey).toBe('2026-10:11');
   });
-  it('orders stored numeric prefixes predictably without editing student names', () => {
+  it('orders current journal rows and keeps removed students available in the archive', () => {
     const students = [
       { id: 'ten', name: '10Артем', status: 'active' },
-      { id: 'one', name: '1Иван', status: 'active' },
-      { id: 'two', name: '2Анна', status: 'active' },
+      { id: 'one', name: '1Иван', status: 'issued' },
+      { id: 'two', name: '2Анна', status: 'suspended' },
+      { id: 'three', name: '3Пётр', status: 'removed' },
     ];
     expect(journalRoster(students).map((s) => s.name)).toEqual(['1Иван', '2Анна', '10Артем']);
+    expect(journalRoster(students, true).map((s) => s.name)).toEqual([
+      '1Иван',
+      '2Анна',
+      '3Пётр',
+      '10Артем',
+    ]);
     expect(students[0].name).toBe('10Артем');
+    expect(students[3].status).toBe('removed');
   });
 });

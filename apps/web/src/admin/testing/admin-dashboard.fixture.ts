@@ -1,7 +1,7 @@
-import type { AdminDashboardRange, AdminProductDashboard } from '../admin-api';
+import type { AdminProductDashboard } from '../admin-api';
 
 export function adminDashboardFixture(
-  range: AdminDashboardRange = '24h',
+  range: AdminProductDashboard['range'] = '24h',
   marker = 8,
   empty = false,
 ): AdminProductDashboard {
