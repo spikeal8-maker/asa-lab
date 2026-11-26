@@ -6,6 +6,7 @@ on:
       - '.github/workflows/classroom-journal-capacity.yml'
       - 'playwright.classroom-journal-capacity.config.ts'
       - 'e2e/classroom-journal-capacity.spec.ts'
+      - 'e2e/classroom-journal-capacity-timings.mjs'
       - 'apps/api/src/classroom-journal.controller.ts'
       - 'apps/web/src/components/ManualClassroomJournal.tsx'
       - 'apps/web/src/components/quick-journal-model.ts'

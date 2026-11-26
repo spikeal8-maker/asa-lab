@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 const origin = 'http://127.0.0.1:4612';
 const enabled = process.env.ASA_JOURNAL_CAPACITY === '1';
+export const journalTimingFile = 'reports/capacity/classroom-journal-timings.ndjson';
 
 export function assertJournalCapacityEnvironment(): void {
   if (
@@ -42,7 +43,7 @@ export default defineConfig({
   ...(enabled
     ? {
         webServer: {
-          command: 'node e2e/server.mjs',
+          command: 'node --import ./e2e/classroom-journal-capacity-timings.mjs e2e/server.mjs',
           url: origin + '/health/ready',
           reuseExistingServer: false,
           timeout: 30_000,
@@ -52,6 +53,7 @@ export default defineConfig({
             ASA_WEB_PORT: '4612',
             ASA_WEB_ORIGIN: origin,
             ASA_SEED_DEMO: 'false',
+            ASA_JOURNAL_TIMING_FILE: journalTimingFile,
           },
         },
       }

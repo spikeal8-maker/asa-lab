@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { availableParallelism, totalmem } from 'node:os';
 import { setTimeout as pause } from 'node:timers/promises';
 import { isDeepStrictEqual } from 'node:util';
@@ -12,7 +13,10 @@ import {
   type Request,
 } from '@playwright/test';
 import pg from 'pg';
-import { assertJournalCapacityEnvironment } from '../playwright.classroom-journal-capacity.config';
+import {
+  assertJournalCapacityEnvironment,
+  journalTimingFile,
+} from '../playwright.classroom-journal-capacity.config';
 import { edit } from '../tests/capacity/documents';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
@@ -24,6 +28,8 @@ const pupilCount = 30;
 const dates = 'from=2026-10-01&to=2026-10-31';
 const lessonDate = '2026-10-09';
 const waveOffsetsMs = [0, 120, 240] as const;
+const maxAttempts = 3;
+const maxPupilLeadMs = 60;
 const repetitions = 4;
 const widths = [1440, 390] as const;
 const phases = ['idle', 'loaded', 'electronics-saves'] as const;
@@ -34,6 +40,14 @@ function timingSummary(values: number[]) {
   const percentile = (rank: number) =>
     sorted.length ? sorted[Math.ceil(sorted.length * rank) - 1] : null;
   return { count: sorted.length, p50: percentile(0.5), p95: percentile(0.95), max: percentile(1) };
+}
+
+function adjustedLead(previousLead: number, teacher: ServiceInterval, pupils: ServiceInterval[]) {
+  // Align the center of the longest pupil request with the midpoint of the
+  // independently observed teacher interval on the next real mutation.
+  const longest = pupils.reduce((a, b) => (a.endMs - a.startMs >= b.endMs - b.startMs ? a : b));
+  const offset = (longest.startMs + longest.endMs - teacher.startMs - teacher.endMs) / 2;
+  return Math.max(-maxPupilLeadMs, Math.min(maxPupilLeadMs, Math.round(previousLead + offset)));
 }
 
 interface PupilProject {
@@ -52,14 +66,24 @@ interface ProjectSave {
 interface PupilWave {
   plannedOffsetMs: number;
   startedOffsetMs: number;
-  startedBeforeAck: boolean;
   peakPupilsInFlight: number;
   successes: number;
   statuses: Record<string, number>;
   projectSaves: ProjectSave[];
+  service: ServiceInterval[];
+  peakInService: number;
+  overlappingTeacher: number;
+  activeAtTeacherStart: number;
+}
+
+interface ServiceInterval {
+  startMs: number;
+  endMs: number;
 }
 
 interface Sample {
+  id: number;
+  requestedPupilLeadMs: number;
   width: number;
   phase: (typeof phases)[number];
   operation: (typeof operations)[number];
@@ -67,10 +91,12 @@ interface Sample {
   visibleMs: number | null;
   status: number | null;
   durable: boolean;
+  confirmed: boolean;
+  teacherService: ServiceInterval | null;
   waves: PupilWave[];
 }
 
-async function savePupilProject(project: PupilProject): Promise<ProjectSave> {
+async function savePupilProject(project: PupilProject, key: string): Promise<ProjectSave> {
   // One write for this pupil in the wave. A subsequent action begins only
   // after all durable readbacks finish and carry forward the verified revision.
   const revision = project.revision;
@@ -79,6 +105,7 @@ async function savePupilProject(project: PupilProject): Promise<ProjectSave> {
   const sample: ProjectSave = { status: null, apiMs: 0, readbackStatus: null, verified: false };
   try {
     const response = await project.request.put(project.path + '/draft', {
+      headers: { 'x-asa-journal-timing': key },
       data: { document, baseRevision: revision, mutationId: randomUUID() },
     });
     sample.status = response.status();
@@ -97,6 +124,51 @@ async function savePupilProject(project: PupilProject): Promise<ProjectSave> {
     sample.apiMs ||= performance.now() - started;
   }
   return sample;
+}
+
+async function collectServiceTimings(sample: Sample) {
+  const prefix = sample.id + ':';
+  const intervals = new Map<string, ServiceInterval>();
+  const expected = 1 + sample.waves.length * pupilCount;
+  await expect
+    .poll(
+      async () => {
+        const lines = (await readFile(journalTimingFile, 'utf8')).split('\n');
+        lines.pop(); // The stream can be writing its last line.
+        intervals.clear();
+        for (const line of lines) {
+          const entry = JSON.parse(line) as ServiceInterval & { key: string };
+          if (!entry.key.startsWith(prefix)) continue;
+          expect(intervals.has(entry.key), 'One server interval per request').toBe(false);
+          const { startMs, endMs } = entry;
+          expect(Number.isFinite(startMs)).toBe(true);
+          expect(endMs).toBeGreaterThan(startMs);
+          intervals.set(entry.key, { startMs, endMs });
+        }
+        return intervals.size;
+      },
+      { timeout: 2_000, intervals: [20, 40, 80], message: 'Complete HTTP server timing intervals' },
+    )
+    .toBe(expected);
+  const teacher = intervals.get(prefix + 'teacher')!;
+  sample.teacherService = teacher;
+  for (const [waveIndex, wave] of sample.waves.entries()) {
+    wave.service = Array.from({ length: pupilCount }, (_, pupilIndex) => {
+      const interval = intervals.get(prefix + waveIndex + ':' + pupilIndex)!;
+      if (Math.max(interval.startMs, teacher.startMs) < Math.min(interval.endMs, teacher.endMs))
+        wave.overlappingTeacher++;
+      if (interval.startMs <= teacher.startMs && teacher.startMs < interval.endMs)
+        wave.activeAtTeacherStart++;
+      return interval;
+    });
+    wave.peakInService = Math.max(
+      ...wave.service.map(
+        ({ startMs }) =>
+          wave.service.filter((interval) => interval.startMs <= startMs && startMs < interval.endMs)
+            .length,
+      ),
+    );
+  }
 }
 
 async function browserSave(
@@ -143,8 +215,14 @@ async function browserSave(
 
   const journalRequest = (request: Request) =>
     request.method() === 'POST' && new URL(request.url()).pathname === quickPath;
-  let acknowledgedAt = Infinity;
-  const background = page.waitForRequest(journalRequest, { timeout: 10_000 }).then(async () => {
+  await page.setExtraHTTPHeaders({ 'x-asa-journal-timing': sample.id + ':teacher' });
+  await button.click({ trial: true });
+  const box = await button.boundingBox();
+  if (!box) throw new Error('The journal action must have a visible hit target');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+
+  const runPupilWaves = async () => {
     if (sample.phase === 'idle') return;
     const started = performance.now();
     await Promise.all(
@@ -155,11 +233,14 @@ async function browserSave(
         const wave: PupilWave = {
           plannedOffsetMs: offset,
           startedOffsetMs: startedAt - started,
-          startedBeforeAck: startedAt < acknowledgedAt,
           peakPupilsInFlight: 0,
           successes: 0,
           statuses: {},
           projectSaves: [],
+          service: [],
+          peakInService: 0,
+          overlappingTeacher: 0,
+          activeAtTeacherStart: 0,
         };
         sample.waves.push(wave);
         let inFlight = 0;
@@ -172,16 +253,19 @@ async function browserSave(
                 : '/api/class-join/journal/results?' + dates;
             inFlight++;
             wave.peakPupilsInFlight = Math.max(wave.peakPupilsInFlight, inFlight);
+            const key = sample.id + ':' + waveIndex + ':' + index;
             try {
               if (saveProjects) {
-                const saved = await savePupilProject(pupil);
+                const saved = await savePupilProject(pupil, key);
                 wave.projectSaves.push(saved);
                 if (saved.verified) wave.successes++;
                 const status = String(saved.status ?? 'transport_or_body_error');
                 wave.statuses[status] = (wave.statuses[status] ?? 0) + 1;
                 return;
               }
-              const response = await pupil.request.get(path);
+              const response = await pupil.request.get(path, {
+                headers: { 'x-asa-journal-timing': key },
+              });
               const body = (await response.json()) as { items?: unknown[] };
               if (response.ok() && Array.isArray(body.items)) wave.successes++;
               const status = String(response.status());
@@ -196,16 +280,17 @@ async function browserSave(
         );
       }),
     );
-  });
+  };
   const reply = page.waitForResponse((response) => journalRequest(response.request()), {
     timeout: 10_000,
   });
-  const backgroundSettled = Promise.allSettled([background]);
+  const lead = sample.requestedPupilLeadMs;
+  const background = lead < 0 ? pause(-lead).then(runPupilWaves) : runPupilWaves();
+  const release = lead > 0 ? pause(lead).then(() => page.mouse.up()) : page.mouse.up();
   try {
-    const [, response] = await Promise.all([button.click(), reply]);
+    const [, response] = await Promise.all([release, reply]);
     sample.status = response.status();
     const responseError = await response.finished();
-    acknowledgedAt = performance.now();
     expect(responseError).toBeNull();
     const timing = response.request().timing();
     expect(timing.responseEnd).toBeGreaterThanOrEqual(0);
@@ -216,9 +301,12 @@ async function browserSave(
     const value = Number(await marker.getAttribute('data-capacity-visible-ms'));
     expect(Number.isFinite(value)).toBe(true);
     sample.visibleMs = value;
+    await background;
+    await collectServiceTimings(sample);
     return { input: response.request().postDataJSON(), receipt: await response.json() };
   } finally {
-    await backgroundSettled;
+    await Promise.allSettled([background]);
+    await page.setExtraHTTPHeaders({});
   }
 }
 
@@ -372,91 +460,109 @@ test('30 independent learners stay active while the teacher saves grades and col
       for (const phase of phases) {
         for (let repetition = 0; repetition < repetitions; repetition++) {
           for (const operation of operations) {
-            let button: Locator;
-            let visible: Parameters<typeof browserSave>[5];
-            if (operation === 'grade') {
-              await cell().click();
-              grade = grade === 3 ? 4 : 3;
-              button = journal
-                .getByRole('region', { name: 'Оценка: ' + firstSeat.displayLabel })
-                .getByRole('group', { name: 'Оценка' })
-                .getByRole('button', { name: String(grade), exact: true });
-              visible = {
-                notice: 'Оценка сохранена.',
-                cellPrefix: firstSeat.displayLabel + ', ',
-                cellValue: String(grade),
+            let lead = 0;
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+              let button: Locator;
+              let visible: Parameters<typeof browserSave>[5];
+              if (operation === 'grade') {
+                await cell().click();
+                grade = grade === 3 ? 4 : 3;
+                button = journal
+                  .getByRole('region', { name: 'Оценка: ' + firstSeat.displayLabel })
+                  .getByRole('group', { name: 'Оценка' })
+                  .getByRole('button', { name: String(grade), exact: true });
+                visible = {
+                  notice: 'Оценка сохранена.',
+                  cellPrefix: firstSeat.displayLabel + ', ',
+                  cellValue: String(grade),
+                };
+              } else {
+                await header().click();
+                const editor = journal.getByRole('dialog', { name: 'Столбец журнала' });
+                category = 'Практическая работа ' + (samples.length + 1);
+                await editor.getByLabel('Категория занятия').fill(category);
+                button = editor.getByRole('button', { name: 'Сохранить столбец', exact: true });
+                visible = {
+                  notice: 'Столбец сохранён.',
+                  cellPrefix: 'Изменить столбец: ' + category + ',',
+                };
+              }
+              const sample: Sample = {
+                id: samples.length + 1,
+                requestedPupilLeadMs: lead,
+                width,
+                phase,
+                operation,
+                apiMs: null,
+                visibleMs: null,
+                status: null,
+                durable: false,
+                confirmed: false,
+                teacherService: null,
+                waves: [],
               };
-            } else {
-              await header().click();
-              const editor = journal.getByRole('dialog', { name: 'Столбец журнала' });
-              category = 'Практическая работа ' + (samples.length + 1);
-              await editor.getByLabel('Категория занятия').fill(category);
-              button = editor.getByRole('button', { name: 'Сохранить столбец', exact: true });
-              visible = {
-                notice: 'Столбец сохранён.',
-                cellPrefix: 'Изменить столбец: ' + category + ',',
-              };
-            }
-            const sample: Sample = {
-              width,
-              phase,
-              operation,
-              apiMs: null,
-              visibleMs: null,
-              status: null,
-              durable: false,
-              waves: [],
-            };
-            samples.push(sample);
-            const { input, receipt } = await browserSave(
-              page,
-              button,
-              quickPath,
-              pupils,
-              sample,
-              visible,
-            );
-            const persisted = await readJournal(columnId);
-            expect(persisted.columns).toContainEqual(
-              expect.objectContaining({
-                id: columnId,
-                category,
-                headerRevision: receipt.column.headerRevision,
-              }),
-            );
-            if (operation === 'grade')
-              expect(persisted.grades).toContainEqual(
+              samples.push(sample);
+              const { input, receipt } = await browserSave(
+                page,
+                button,
+                quickPath,
+                pupils,
+                sample,
+                visible,
+              );
+              const persisted = await readJournal(columnId);
+              expect(persisted.columns).toContainEqual(
                 expect.objectContaining({
-                  columnId,
-                  seatId: firstSeat.seatId,
-                  value: grade,
-                  revision: receipt.grade.revision,
+                  id: columnId,
+                  category,
+                  headerRevision: receipt.column.headerRevision,
                 }),
               );
-            if (repetition === 0) {
-              const reply = await post(quickPath, input);
-              expect(reply.ok(), 'Replay the same mutation receipt').toBe(true);
-              expect(await reply.json()).toEqual(receipt);
-              replayCount[operation]++;
-            }
-            sample.durable = true;
-            if (phase !== 'idle') {
+              if (operation === 'grade')
+                expect(persisted.grades).toContainEqual(
+                  expect.objectContaining({
+                    columnId,
+                    seatId: firstSeat.seatId,
+                    value: grade,
+                    revision: receipt.grade.revision,
+                  }),
+                );
+              if (repetition === 0 && attempt === 0) {
+                const reply = await post(quickPath, input);
+                expect(reply.ok(), 'Replay the same mutation receipt').toBe(true);
+                expect(await reply.json()).toEqual(receipt);
+                replayCount[operation]++;
+              }
+              sample.durable = true;
+              if (phase === 'idle') {
+                expect(sample.waves).toEqual([]);
+                sample.confirmed = true;
+                break;
+              }
               expect(sample.waves).toHaveLength(waveOffsetsMs.length);
               for (const wave of sample.waves) {
                 expect(wave.successes).toBe(pupilCount);
                 expect(wave.peakPupilsInFlight).toBe(pupilCount);
               }
-              const saveWave = sample.waves.find((wave) => wave.plannedOffsetMs === 0);
-              expect(saveWave?.startedBeforeAck).toBe(true);
-              expect(saveWave?.projectSaves).toHaveLength(
+              const firstWave = sample.waves[0]!;
+              expect(firstWave.plannedOffsetMs).toBe(0);
+              expect(firstWave.projectSaves).toHaveLength(
                 phase === 'electronics-saves' ? pupilCount : 0,
               );
-            } else expect(sample.waves).toEqual([]);
+              sample.confirmed = firstWave.overlappingTeacher > 0;
+              if (sample.confirmed) break;
+              expect(attempt + 1, 'Require actual teacher and pupil service overlap').toBeLessThan(
+                maxAttempts,
+              );
+              lead = adjustedLead(lead, sample.teacherService!, firstWave.service);
+            }
           }
         }
       }
     }
-    expect(samples).toHaveLength(repetitions * widths.length * phases.length * operations.length);
+    expect(samples.filter((sample) => sample.confirmed)).toHaveLength(
+      repetitions * widths.length * phases.length * operations.length,
+    );
     expect(database.samples).toBeGreaterThan(0);
     expect(database.errors).toBe(0);
     outcome = 'PASS';
@@ -469,6 +575,12 @@ test('30 independent learners stay active while the teacher saves grades and col
           const selected = samples.filter(
             (s) => s.width === width && s.phase === phase && s.operation === operation,
           );
+          const confirmed = selected.filter((sample) => sample.confirmed);
+          const overlap = selected.flatMap((sample) =>
+            sample.waves
+              .filter((wave) => wave.plannedOffsetMs === 0 && wave.service.length === pupilCount)
+              .map((wave) => wave.overlappingTeacher),
+          );
           const projectSaves = selected.flatMap((sample) =>
             sample.waves.flatMap((wave) => wave.projectSaves),
           );
@@ -478,9 +590,15 @@ test('30 independent learners stay active while the teacher saves grades and col
             operation,
             attempted: selected.length,
             durable: selected.filter((s) => s.durable).length,
-            api: timingSummary(selected.flatMap((s) => (s.apiMs === null ? [] : [s.apiMs]))),
+            confirmed: confirmed.length,
+            overlapMisses: selected.filter((s) => s.durable && !s.confirmed).length,
+            firstWaveOverlap: {
+              min: overlap.length ? Math.min(...overlap) : null,
+              ...timingSummary(overlap),
+            },
+            api: timingSummary(confirmed.flatMap((s) => (s.apiMs === null ? [] : [s.apiMs]))),
             clickToVisible: timingSummary(
-              selected.flatMap((s) => (s.visibleMs === null ? [] : [s.visibleMs])),
+              confirmed.flatMap((s) => (s.visibleMs === null ? [] : [s.visibleMs])),
             ),
             projectSaves: {
               api: timingSummary(projectSaves.map((save) => save.apiMs)),
@@ -495,10 +613,10 @@ test('30 independent learners stay active while the teacher saves grades and col
       'reports/capacity/classroom-journal.json',
       JSON.stringify(
         {
-          schemaVersion: 2,
+          schemaVersion: 3,
           sourceSha: process.env.ASA_BUILD_REVISION,
           outcome,
-          profile: 'JOURNAL-ACTIVE-30-V2',
+          profile: 'JOURNAL-ACTIVE-30-V3',
           environment: {
             cpus: availableParallelism(),
             memoryBytes: totalmem(),
