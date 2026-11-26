@@ -428,6 +428,64 @@ describe('one early elapsed optical phase', () => {
     expect(presenter.prepareFrame(150_000)?.brightness.get('led')).toBe(80);
   });
 
+  it('times a fresh transition from its due edge after a late first HIGH', () => {
+    const presenter = withDarkFrame();
+    const sameDark = presenter.prepareFrame(0)!;
+    expect(presenter.acknowledgeFrame(sameDark, 0, true)).toBe(true);
+    const observation = accepted(0, 105_000, [
+      point(0, 0),
+      point(21, 80),
+      point(100_023, 0),
+      point(105_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    const high = presenter.prepareFrame(35_000)!;
+    expect(high.brightness.get('led')).toBe(80);
+    expect(presenter.acknowledgeFrame(high, 38_000)).toBe(true);
+    expect(presenter.acknowledgeFrame(presenter.prepareFrame(66_000)!, 66_000)).toBe(true);
+    expect(presenter.prepareElapsedFrame(106_700)).toBeNull();
+    const low = presenter.prepareFrame(110_600)!;
+    expect(low.brightness.get('led')).toBe(0);
+    expect(low.arduinoLStates.get('uno')).toBe(false);
+    expect(low.atMicroseconds).toBe(105_000);
+  });
+
+  it('offers an already overdue startup edge immediately', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 105_000, [
+      point(0, 0),
+      point(21, 80),
+      point(100_023, 0),
+      point(105_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    const high = presenter.prepareFrame(35_000)!;
+    expect(presenter.acknowledgeFrame(high, 90_000)).toBe(true);
+    expect(presenter.prepareElapsedFrame(166_700)?.brightness.get('led')).toBe(0);
+  });
+
+  it('keeps the usual early offer once steady cycling has begun', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 310_000, [
+      point(0, 0),
+      point(21, 80),
+      point(100_023, 0),
+      point(200_026, 80),
+      point(300_028, 0),
+      point(310_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    for (const [wall, ack] of [
+      [35_000, 38_000],
+      [120_000, 120_000],
+      [235_000, 238_000],
+    ] as const) {
+      const phase = presenter.prepareFrame(wall)!;
+      expect(presenter.acknowledgeFrame(phase, ack)).toBe(true);
+    }
+    expect(presenter.prepareElapsedFrame(306_700)?.brightness.get('led')).toBe(0);
+  });
+
   it('does not extend a short pulse or queue missed opportunities after a stall', () => {
     for (const [off, secondRaf] of [
       [22_000, 23_000],

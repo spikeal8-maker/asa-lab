@@ -265,6 +265,7 @@ export class LedTemporalPresentation {
     null;
   private elapsedAckSlot = -1;
   private distinctCommitWallMicroseconds: number | null = null;
+  private opticalTransitions: 0 | 1 | 2 = 0;
 
   /** Reanchor only this host adapter; pending frames retain their original ACK. */
   setPlaybackRate(rate: number, wallMicroseconds: number): void {
@@ -364,6 +365,7 @@ export class LedTemporalPresentation {
     this.h = 0;
     this.i = -3;
     this.distinctCommitWallMicroseconds = null;
+    this.opticalTransitions = 0;
     this.g++;
   }
 
@@ -773,6 +775,7 @@ export class LedTemporalPresentation {
     const shown = this.j;
     if (
       !shown ||
+      !this.e ||
       this.distinctCommitWallMicroseconds === null ||
       this.pacingChanged ||
       this.l ||
@@ -782,7 +785,6 @@ export class LedTemporalPresentation {
     )
       return false;
     const elapsed = wall - this.distinctCommitWallMicroseconds;
-    if (elapsed >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS) return false;
     const cursor = shown.atMicroseconds;
     let from = 0;
     let to = target;
@@ -807,6 +809,17 @@ export class LedTemporalPresentation {
       }
       if (to - from < 2 * FAST_PHASE_MICROSECONDS || elapsed >= to - from) return false;
     }
+    if (elapsed >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS) {
+      // Startup may consume part of the first active phase before its native
+      // asset mounts. A fresh successor can wait for the next real RAF even if
+      // the already mounted phase has been visible for more than 50 ms.
+      const transitionWall = this.e.w + (to - this.e.m);
+      if (
+        this.opticalTransitions !== 1 ||
+        wall - transitionWall >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS
+      )
+        return false;
+    }
     // Allow one refresh interval of quantisation once the screen has had two
     // opportunities to paint. The next call samples the current confirmed history.
     if (this.h > this.i + 1 && elapsed + FAST_PHASE_MICROSECONDS >= to - from) return false;
@@ -822,6 +835,13 @@ export class LedTemporalPresentation {
   ): boolean {
     if (this.k !== frame) return false;
     const changed = distinctOpticalCommit || this.j === null || !sameOpticalFrame(this.j, frame);
+    if (
+      this.j &&
+      this.opticalTransitions < 2 &&
+      changed &&
+      (!distinctOpticalCommit || !sameOpticalFrame(this.j, frame))
+    )
+      this.opticalTransitions = this.opticalTransitions === 0 ? 1 : 2;
     this.d = frame.atMicroseconds;
     this.j = frame;
     this.k = null;
