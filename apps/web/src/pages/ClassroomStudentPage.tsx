@@ -142,6 +142,7 @@ export function ClassroomStudentPage({
   const learnerSearchInput = useRef<HTMLInputElement>(null);
   const focusAfterNavigation = useRef<string | null>(null);
   const learnerPickerId = useId();
+  const protectionDescriptionId = useId();
   const generation = useRef(0);
   const profileGeneration = useRef(0);
   const sessionEnded = useRef(false);
@@ -409,6 +410,13 @@ export function ClassroomStudentPage({
     profile?.student.id === seatId && loadedScope === `${classroomId}:${seatId}`
       ? profile.student
       : null;
+  const protectionEnabled = classSafeMode || activeStudent?.safeMode;
+  const accessSuspended = activeStudent?.status === 'suspended';
+  const protectionStatus = accessSuspended
+    ? 'Доступ приостановлен'
+    : protectionEnabled
+      ? 'Защита включена'
+      : 'Защита выключена';
   const matchingLearners = (
     learnerRoster?.classroomId === classroomId ? learnerRoster.items : []
   ).filter((entry) =>
@@ -421,18 +429,34 @@ export function ClassroomStudentPage({
       role="group"
       aria-label="Ученик и навигация"
     >
-      <button
-        type="button"
-        className="classroom-student-back"
-        aria-label="← К классу"
-        title={classroomTitle}
-        onClick={() => {
-          if (confirmDiscard()) onBack();
-        }}
-      >
-        <span aria-hidden="true">←</span>
-        <span className="classroom-student-back-label">К классу</span>
-      </button>
+      <div className="classroom-student-class-context">
+        <button
+          type="button"
+          className="classroom-student-back"
+          aria-label="← К классу"
+          title={classroomTitle}
+          onClick={() => {
+            if (confirmDiscard()) onBack();
+          }}
+        >
+          <span aria-hidden="true">←</span>
+          <span className="classroom-student-back-label">К классу</span>
+        </button>
+        <div className="classroom-student-class-title">
+          <span className="classroom-student-class-name" title={classroomTitle}>
+            {classroomTitle}
+          </span>
+          {activeStudent ? (
+            <span
+              className="classroom-student-mobile-protection"
+              aria-hidden="true"
+              title={protectionStatus}
+            >
+              {accessSuspended ? 'Нет доступа' : protectionEnabled ? 'Защита вкл.' : 'Защита выкл.'}
+            </span>
+          ) : null}
+        </div>
+      </div>
       <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
         <button
           type="button"
@@ -476,6 +500,7 @@ export function ClassroomStudentPage({
                     }
                   }}
                   aria-label={`Выбрать ученика: ${activeStudent.displayLabel}`}
+                  aria-describedby={protectionDescriptionId}
                   aria-haspopup="dialog"
                   aria-expanded={learnerPickerOpen}
                   aria-controls={learnerPickerId}
@@ -518,17 +543,11 @@ export function ClassroomStudentPage({
                         </span>
                       ) : null}
                       <span
-                        className={
-                          activeStudent.status === 'suspended'
-                            ? 'classroom-student-suspended'
-                            : undefined
-                        }
+                        id={protectionDescriptionId}
+                        title={protectionStatus}
+                        className={`classroom-student-rail-protection${accessSuspended ? ' classroom-student-suspended' : ''}`}
                       >
-                        {activeStudent.status === 'suspended'
-                          ? 'Доступ приостановлен'
-                          : activeStudent.safeMode
-                            ? 'Защита включена'
-                            : 'Защита выключена'}
+                        {protectionStatus}
                       </span>
                     </span>
                   </span>
@@ -788,6 +807,27 @@ export function ClassroomStudentPage({
       data-settings-category={settingsCategory ?? 'none'}
     >
       {navigationRow}
+      <div
+        className="classroom-student-work-summary"
+        role="group"
+        aria-label="Сводка ученика"
+        tabIndex={0}
+      >
+        <span>{metrics.role === 'helper' ? 'Помощник' : 'Учащийся'}</span>
+        <span title={metrics.score === null ? 'Рейтинг выключен' : undefined}>
+          Рейтинг <strong>{metrics.score ?? '—'}</strong>
+          {metrics.rank !== null ? ` №${metrics.rank}` : null}
+        </span>
+        <span>
+          Работ <strong>{metrics.totalWorks}</strong>
+        </span>
+        <span>
+          Сдано <strong>{profile.submittedCount}</strong>
+        </span>
+        <span>
+          Ждут <strong>{profile.awaitingReview}</strong>
+        </span>
+      </div>
       {sectionRail}
       <SystemTabs
         items={TABS.map((item) => ({ id: item.key, label: item.label }))}
@@ -1016,51 +1056,40 @@ export function ClassroomStudentPage({
             <div
               className="classroom-student-works-toolbar"
               role="group"
-              aria-label="Показатели и фильтры работ"
+              aria-label="Фильтры работ"
             >
-              <div className="classroom-student-work-summary" aria-label="Показатели работ ученика">
-                <span>
-                  Работ <strong>{metrics.totalWorks}</strong>
-                </span>
-                <span>
-                  Сдано <strong>{profile.submittedCount}</strong>
-                </span>
-                <span>
-                  Ждут <strong>{profile.awaitingReview}</strong>
-                </span>
-                <details className="classroom-student-visibility-details">
-                  <summary
-                    aria-label="Информация о доступных преподавателю работах"
-                    title="Что видит преподаватель"
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') {
-                        event.currentTarget.parentElement?.removeAttribute('open');
-                        event.stopPropagation();
-                      }
-                    }}
-                  >
-                    <span className="classroom-student-visibility-icon" aria-hidden="true">
-                      i
-                    </span>
-                  </summary>
-                  <div className="classroom-student-visibility-popover" role="note">
-                    <strong>Что видит преподаватель</strong>
-                    {works ? (
-                      <p>
-                        {works.visibleWorks < works.totalWorks
-                          ? `Доступно ${works.visibleWorks} из ${works.totalWorks} работ. Остальные личные работы закрыты для преподавателя.`
-                          : `Доступны все ${works.totalWorks} работ ученика.`}
-                      </p>
-                    ) : (
-                      <p>Сведения о доступных работах загружаются.</p>
-                    )}
+              <details className="classroom-student-visibility-details">
+                <summary
+                  aria-label="Информация о доступных преподавателю работах"
+                  title="Что видит преподаватель"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.currentTarget.parentElement?.removeAttribute('open');
+                      event.stopPropagation();
+                    }
+                  }}
+                >
+                  <span className="classroom-student-visibility-icon" aria-hidden="true">
+                    i
+                  </span>
+                </summary>
+                <div className="classroom-student-visibility-popover" role="note">
+                  <strong>Что видит преподаватель</strong>
+                  {works ? (
                     <p>
-                      На странице показаны только загруженные работы, которые разрешено
-                      просматривать. Фильтр «Ждут» не проверяет ещё не загруженные страницы.
+                      {works.visibleWorks < works.totalWorks
+                        ? `Доступно ${works.visibleWorks} из ${works.totalWorks} работ. Остальные личные работы закрыты для преподавателя.`
+                        : `Доступны все ${works.totalWorks} работ ученика.`}
                     </p>
-                  </div>
-                </details>
-              </div>
+                  ) : (
+                    <p>Сведения о доступных работах загружаются.</p>
+                  )}
+                  <p>
+                    На странице показаны только загруженные работы, которые разрешено просматривать.
+                    Фильтр «Ждут» не проверяет ещё не загруженные страницы.
+                  </p>
+                </div>
+              </details>
               <label className="classroom-student-archive-filter">
                 <input
                   type="checkbox"
@@ -1221,6 +1250,7 @@ export function ClassroomStudentPage({
           classroomId={classroomId}
           seatId={seatId}
           variant="teacherProfile"
+          compact
         />
       ) : null}
       {tab === 'activity' ? (

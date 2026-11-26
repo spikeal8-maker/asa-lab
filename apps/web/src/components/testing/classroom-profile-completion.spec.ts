@@ -991,7 +991,7 @@ describe('participant completion DOM behavior', () => {
     expect(host.querySelector('.classroom-student-settings-helper-classes')).not.toBeNull();
     await click('Оценки');
     expect(host.querySelector('.participant-grades')).not.toBeNull();
-    expect(host.querySelector('.teacher-profile-grades')).toBeNull();
+    expect(host.querySelector('.teacher-profile-grade-strip')).not.toBeNull();
     expect(gradeRead).toHaveBeenCalledTimes(1);
   });
   it('switches pupils from a searchable class picker, reuses one roster read and restores keyboard focus', async () => {

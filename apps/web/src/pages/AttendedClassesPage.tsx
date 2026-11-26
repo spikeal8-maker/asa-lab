@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type AttendedClass, type SeatAssignment } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 import { SeatCourses } from '../components/SeatCourses';
+import { ClassCodeField } from '../components/ClassCodeField';
 import { ClassroomJoinRequests } from '../components/ClassroomJoinRequests';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { StudentJournalResults } from '../components/StudentJournalResults';
@@ -47,6 +48,7 @@ export function AttendedClassesPage({
     readonly (SeatAssignment & { classroomTitle: string })[]
   >([]);
   const [code, setCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
   const [busy, setBusy] = useState(false);
   const starter = useRef(new AtomicLearningStarter());
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +102,7 @@ export function AttendedClassesPage({
       return;
     }
     setCode('');
+    setShowCode(false);
     setNotice(
       result.data.alreadyMember
         ? `Вы уже учитесь в классе «${result.data.classroom.title}».`
@@ -170,13 +173,14 @@ export function AttendedClassesPage({
               <form className="attended-join" onSubmit={(event) => void join(event)}>
                 <label htmlFor="attend-code">Код класса</label>
                 <div>
-                  <input
+                  <ClassCodeField
                     id="attend-code"
                     value={code}
+                    visible={showCode}
                     maxLength={11}
                     disabled={busy}
-                    placeholder="ABC DEF 234"
-                    onChange={(event) => setCode(event.target.value.toUpperCase())}
+                    onChange={setCode}
+                    onVisibilityChange={setShowCode}
                   />
                   <button
                     type="submit"
@@ -220,6 +224,15 @@ export function AttendedClassesPage({
                   <div>
                     <strong>{entry.classroomTitle}</strong>
                     <span>Преподаватель: {entry.teacherDisplayName}</span>
+                    {typeof entry.safeMode === 'boolean' ? (
+                      <div>
+                        <small>
+                          {entry.safeMode
+                            ? 'Безопасный режим включён'
+                            : 'Безопасный режим выключен'}
+                        </small>
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       className="btn-secondary"

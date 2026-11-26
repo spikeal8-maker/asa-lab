@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
+import { ClassCodeField } from '../components/ClassCodeField';
+import './join-class.css';
 
 type JoinState =
   | { kind: 'code' }
@@ -35,6 +37,7 @@ export function JoinClassPage({
     initialClassCode ? { kind: 'resolving' } : { kind: 'code' },
   );
   const [code, setCode] = useState(initialClassCode);
+  const [showCode, setShowCode] = useState(false);
   const [studentCode, setStudentCode] = useState('');
   const [busy, setBusy] = useState(initialClassCode.length > 0);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +69,7 @@ export function JoinClassPage({
     const result = await api.resolveClassroomCode(code);
     setBusy(false);
     if (result.ok) {
+      setShowCode(false);
       setState({ kind: 'student-code', classroom: result.data.classroom });
       return;
     }
@@ -148,14 +152,14 @@ export function JoinClassPage({
             <h2>Введите код класса</h2>
             <p className="subtitle">Код класса написан на карточке, которую выдал преподаватель.</p>
             <label htmlFor="class-code">Код класса</label>
-            <input
+            <ClassCodeField
               id="class-code"
-              autoFocus
-              autoComplete="one-time-code"
               value={code}
+              visible={showCode}
               disabled={busy}
-              placeholder="ABC DEF 234"
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
+              autoFocus
+              onChange={setCode}
+              onVisibilityChange={setShowCode}
             />
             {error ? (
               <p className="form-error" role="alert">
