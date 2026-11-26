@@ -264,6 +264,7 @@ export class LedTemporalPresentation {
   private elapsedFrame: { readonly proposal: LedPresentationFrame; readonly slot: number } | null =
     null;
   private elapsedAckSlot = -1;
+  private distinctCommitWallMicroseconds: number | null = null;
 
   /** Reanchor only this host adapter; pending frames retain their original ACK. */
   setPlaybackRate(rate: number, wallMicroseconds: number): void {
@@ -362,6 +363,7 @@ export class LedTemporalPresentation {
     this.l = null;
     this.h = 0;
     this.i = -3;
+    this.distinctCommitWallMicroseconds = null;
     this.g++;
   }
 
@@ -699,7 +701,12 @@ export class LedTemporalPresentation {
       ...values,
       token: `${this.g}:${++this.f}`,
     };
-    if (this.j && !sameOpticalFrame(this.j, frame) && !this.canPublishDistinctFrame) return null;
+    if (
+      this.j &&
+      !sameOpticalFrame(this.j, frame) &&
+      (!this.canPublishDistinctFrame || this.keepVisiblePhase(target, wallMicroseconds))
+    )
+      return null;
     this.k = frame;
     return frame;
   }
@@ -751,7 +758,7 @@ export class LedTemporalPresentation {
       }
       previous = candidate;
     }
-    if (!changed) return null;
+    if (!changed || this.keepVisiblePhase(target, wallMicroseconds)) return null;
     const lastUnaveraged = this.o(this.d, false);
     if (!lastUnaveraged || !sameOpticalFrame(this.j, { ...lastUnaveraged, token: '' })) return null;
     const frame = { ...previous, token: `${this.g}:${++this.f}` };
@@ -764,6 +771,50 @@ export class LedTemporalPresentation {
     if (this.elapsedFrame?.proposal !== frame) return;
     if (this.k === frame) this.k = null;
     this.elapsedFrame = null;
+  }
+
+  /** A late native mount must not turn a phase long enough to see into a flash. */
+  private keepVisiblePhase(target: number, wall: number): boolean {
+    const shown = this.j;
+    if (
+      !shown ||
+      this.distinctCommitWallMicroseconds === null ||
+      this.pacingChanged ||
+      this.l ||
+      this.displays.size ||
+      !this.b.size ||
+      this.b.size !== shown.brightness.size
+    )
+      return false;
+    const elapsed = wall - this.distinctCommitWallMicroseconds;
+    if (elapsed >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS) return false;
+    const cursor = shown.atMicroseconds;
+    let from = 0;
+    let to = target;
+    // Intersect the actual held intervals for the complete LED and Uno vector.
+    // A truncated interval or rapid change cannot qualify a short pulse for a hold.
+    for (const history of [...this.b.values(), ...this.c.values()]) {
+      const { samples } = history;
+      let index = samples.length - 1;
+      while (index >= 0 && samples[index]!.atMicroseconds > cursor) index--;
+      if (index < 0) return false;
+      const held = samples[index]!;
+      let first = index;
+      while (first > 0 && sameState(samples[first - 1]!, held)) first--;
+      from = Math.max(from, history.completeSince, samples[first]!.atMicroseconds);
+      for (let next = index + 1; next < samples.length; next++) {
+        if (!sameState(samples[next]!, held)) {
+          to = Math.min(to, samples[next]!.atMicroseconds);
+          break;
+        }
+      }
+      if (to - from < 2 * FAST_PHASE_MICROSECONDS || elapsed >= to - from) return false;
+    }
+    // Allow one refresh interval of quantisation once the screen has had two
+    // opportunities to paint. The next call samples the current confirmed history.
+    if (this.h > this.i + 1 && elapsed + FAST_PHASE_MICROSECONDS >= to - from) return false;
+    const unaveraged = this.o(cursor, false);
+    return unaveraged !== null && sameOpticalFrame(shown, { ...unaveraged, token: shown.token });
   }
 
   /** The only cursor commit. A native load callback alone must never call this. */
@@ -783,6 +834,7 @@ export class LedTemporalPresentation {
       this.paceFrame = null;
     }
     if (changed) {
+      this.distinctCommitWallMicroseconds = wallMicroseconds;
       const reserved = this.elapsedFrame?.proposal === frame ? this.elapsedFrame.slot : this.h;
       this.i = Math.max(this.h, reserved);
       if (reserved > this.h) this.elapsedAckSlot = reserved;

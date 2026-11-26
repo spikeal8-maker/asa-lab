@@ -352,6 +352,51 @@ describe('one early elapsed optical phase', () => {
     return presenter;
   }
 
+  it('does not compress a long confirmed LED/L phase after a late native commit', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 85_000, [
+      point(0, 0),
+      point(10_000, 80),
+      point(60_000, 0),
+      point(85_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    const high = presenter.prepareFrame(45_000)!;
+    expect(high.brightness.get('led')).toBe(80);
+    expect(presenter.acknowledgeFrame(high, 55_000, true)).toBe(true);
+    expect(presenter.prepareElapsedFrame(60_000)).toBeNull();
+    expect(presenter.prepareFrame(70_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(45_000);
+    expect(presenter.arduinoLStates().get('uno')).toBe(true);
+    const low = presenter.prepareFrame(91_000)!;
+    expect(low.atMicroseconds).toBe(85_000);
+    expect(low.brightness.get('led')).toBe(0);
+    expect(low.arduinoLStates.get('uno')).toBe(false);
+    expect(presenter.acknowledgeFrame(low, 91_000)).toBe(true);
+    expect(presenter.reanchorCount).toBe(0);
+  });
+
+  it('does not extend a short pulse or queue missed opportunities after a stall', () => {
+    for (const [off, secondRaf] of [
+      [22_000, 23_000],
+      [60_000, 1_000_000],
+    ] as const) {
+      const presenter = withDarkFrame();
+      const observation = accepted(0, 80_000, [
+        point(0, 0),
+        point(10_000, 80),
+        point(off, 0),
+        point(80_000, 0),
+      ]);
+      presenter.accept(solved(observation), observation, 0);
+      const high = presenter.prepareFrame(15_000)!;
+      expect(presenter.acknowledgeFrame(high, 15_000, true)).toBe(true);
+      const low = presenter.prepareFrame(secondRaf)!;
+      expect(low.brightness.get('led')).toBe(0);
+      expect(low.atMicroseconds).toBe(Math.min(secondRaf, 80_000));
+    }
+  });
+
   it('samples only elapsed accepted time and reserves the following actual RAF for exactly one ACK', () => {
     const presenter = withDarkFrame();
     const high = accepted(0, 23_000, [point(0, 0), point(20_000, 80), point(23_000, 80)]);
