@@ -159,6 +159,42 @@ $$;
 REVOKE ALL ON FUNCTION public.record_classroom_private_project_copy(uuid,uuid,uuid,uuid,uuid,integer,uuid,uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.record_classroom_private_project_copy(uuid,uuid,uuid,uuid,uuid,integer,uuid,uuid,uuid) TO asalab_app;
 
+-- Editors need only a distribution flag. The source proof never leaves this ledger.
+CREATE FUNCTION public.project_private_classroom_copies(p_actor uuid, p_projects uuid[])
+RETURNS TABLE(project_id uuid)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT project.id FROM public.projects project
+      JOIN public.project_writer_evidence evidence ON evidence.project_id = project.id
+     WHERE project.owner_principal_id = p_actor
+       AND (p_projects IS NULL OR project.id = ANY(p_projects))
+       AND evidence.writer_operation = 'classroom_private';
+$$;
+REVOKE ALL ON FUNCTION public.project_private_classroom_copies(uuid,uuid[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.project_private_classroom_copies(uuid,uuid[]) TO asalab_app;
+
+-- An organization-session teacher still sees their teaching copies in My Projects.
+CREATE FUNCTION public.project_private_classroom_copy_tenant(p_actor uuid, p_active_tenant uuid)
+RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT workspace.tenant_id
+      FROM public.principals actor
+      JOIN public.accounts account ON account.id = actor.account_id AND account.status = 'active'
+      JOIN public.workspace_memberships member ON member.account_id = account.id
+       AND member.state = 'active' AND member.role = 'owner'
+      JOIN public.workspaces workspace ON workspace.id = member.workspace_id
+       AND workspace.kind = 'personal' AND workspace.status = 'active'
+     WHERE actor.id = p_actor AND actor.kind = 'account' AND workspace.tenant_id <> p_active_tenant
+       AND EXISTS (
+         SELECT 1 FROM public.projects project
+           JOIN public.project_writer_evidence evidence ON evidence.project_id = project.id
+          WHERE project.tenant_id = workspace.tenant_id AND project.owner_principal_id = p_actor
+            AND evidence.writer_operation = 'classroom_private'
+       )
+     ORDER BY workspace.id LIMIT 1;
+$$;
+REVOKE ALL ON FUNCTION public.project_private_classroom_copy_tenant(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.project_private_classroom_copy_tenant(uuid,uuid) TO asalab_app;
+
 -- The canonical publication gate covers Gallery, public/link visibility and distribution.
 CREATE OR REPLACE FUNCTION public.project_publication_policy_reason(p_project_id uuid)
 RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$

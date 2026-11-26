@@ -16,6 +16,48 @@ interface SourceRow {
   readonly document_json: unknown;
 }
 
+async function readCopySource(
+  reader: Pick<pg.PoolClient, 'query'>,
+  principalId: string,
+  { classroomId, projectId, seatId, source }: CopyOrigin,
+) {
+  const result = await reader.query<SourceRow>(
+    'SELECT * FROM public.classroom_teacher_copy_source($1,$2,$3,$4,$5,$6,$7,$8)',
+    [
+      principalId,
+      classroomId,
+      seatId,
+      projectId,
+      source.kind === 'free' ? source.revision : null,
+      source.kind === 'submission' ? source.attemptId : null,
+      source.kind === 'submission' ? source.submissionId : null,
+      source.kind === 'submission' ? source.projectVersionId : null,
+    ],
+  );
+  return result.rows[0];
+}
+
+function revisionChanged(cause: unknown): boolean {
+  return typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === 'P5C02';
+}
+
+export async function canCopyClassroomProject(input: {
+  readonly pool: pg.Pool;
+  readonly registry: ModuleRegistry;
+  readonly principalId: string;
+  readonly origin: CopyOrigin;
+}): Promise<boolean> {
+  try {
+    const row = await readCopySource(input.pool, input.principalId, input.origin);
+    return Boolean(
+      row && validatePortableProjectCopyDocument(input.registry, row.module_key, row.document_json),
+    );
+  } catch (cause) {
+    if (revisionChanged(cause)) return false;
+    throw cause;
+  }
+}
+
 function copyError(code: string, message: string, status: number): HttpException {
   return new HttpException({ error: { code, message } }, status);
 }
@@ -28,25 +70,11 @@ export async function copyClassroomProject(input: {
   readonly idempotencyKey: string;
 }): Promise<{ readonly projectId: string; readonly moduleKey: string; readonly created: boolean }> {
   const { principalId, origin } = input;
-  const { source } = origin;
   const client = await input.pool.connect();
   try {
     await client.query('BEGIN');
     // Check current authorization on every request, including retries.
-    const resolved = await client.query<SourceRow>(
-      'SELECT * FROM public.classroom_teacher_copy_source($1,$2,$3,$4,$5,$6,$7,$8)',
-      [
-        principalId,
-        origin.classroomId,
-        origin.seatId,
-        origin.projectId,
-        source.kind === 'free' ? source.revision : null,
-        source.kind === 'submission' ? source.attemptId : null,
-        source.kind === 'submission' ? source.submissionId : null,
-        source.kind === 'submission' ? source.projectVersionId : null,
-      ],
-    );
-    const row = resolved.rows[0];
+    const row = await readCopySource(client, principalId, origin);
     if (!row) throw copyError('copy_unavailable', 'Работа недоступна для копирования.', 404);
     const portable = validatePortableProjectCopyDocument(
       input.registry,
@@ -95,7 +123,7 @@ export async function copyClassroomProject(input: {
     };
   } catch (cause) {
     await client.query('ROLLBACK');
-    if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === 'P5C02') {
+    if (revisionChanged(cause)) {
       throw copyError(
         'copy_revision_changed',
         'Работа изменилась. Откройте сохранённую версию заново.',

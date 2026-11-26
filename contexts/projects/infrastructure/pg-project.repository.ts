@@ -775,6 +775,52 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         (filter.sort === 'title' ? filter.after?.title : filter.after?.updatedAt) ?? null,
       ];
     };
+    const finishPersonalPage = async (own: Project[]) => {
+      let personalProjects = own;
+      if (
+        filter.scope === 'personal' &&
+        kind !== 'learning' &&
+        (filter.collection === undefined || filter.collection === 'active')
+      ) {
+        const other = await this.pool.query<{ tenant_id: string | null }>(
+          'SELECT public.project_private_classroom_copy_tenant($1,$2) AS tenant_id',
+          [actor.principalId, tenantId],
+        );
+        const personalTenant = other.rows[0]?.tenant_id;
+        if (personalTenant) {
+          const copies = await withTenantContext(this.pool, personalTenant, async (client) => {
+            const result = await client.query<ProjectRow>(
+              `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
+                      p.description,p.tags,p.license,d.updated_at,d.preview_json,d.preview_digest,
+                      s.source_revision AS snapshot_revision
+                 FROM projects p
+                 JOIN public.project_private_classroom_copies($2,NULL) copy ON copy.project_id=p.id
+                 JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+                 LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
+                WHERE p.tenant_id=$1 AND p.owner_principal_id=$2
+                  AND p.project_scope='personal' AND p.status=$3
+                ${tail(4)}`,
+              [
+                personalTenant,
+                actor.principalId,
+                status,
+                ...(await pageValuesFor(client, personalTenant)),
+              ],
+            );
+            return result.rows.map((row) => toProject(row));
+          });
+          personalProjects = [...own, ...copies]
+            .sort((left, right) => compareProjectPageRows(left, right, filter.sort))
+            .slice(0, filter.limit);
+        }
+      }
+      return this.mergeLinkedPersonalProjects(
+        actor,
+        status,
+        { ...filter, excludeGames },
+        personalProjects,
+      );
+    };
     if (filter.scope === 'classroom' && filter.classroomId) {
       const access = await this.pool.query(
         `SELECT tenant_id, user_id
@@ -829,7 +875,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           result.rows as ProjectRow[],
         );
       });
-      return this.mergeLinkedPersonalProjects(actor, status, { ...filter, excludeGames }, own);
+      return finishPersonalPage(own);
     }
     if (filter.scope === 'personal') {
       const own = await withTenantContext(this.pool, tenantId, async (client) => {
@@ -869,7 +915,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           result.rows as ProjectRow[],
         );
       });
-      return this.mergeLinkedPersonalProjects(actor, status, { ...filter, excludeGames }, own);
+      return finishPersonalPage(own);
     }
     return withTenantContext(this.pool, tenantId, async (client) => {
       const pageValues = await pageValuesFor(client, tenantId);

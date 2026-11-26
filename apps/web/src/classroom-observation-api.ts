@@ -49,6 +49,19 @@ export interface ObservationFreeProjectPreview {
   preview: ModulePreviewDescriptor | null;
   electronicsSimulation?: ClassroomFreeElectronicsSimulation;
 }
+export type ClassroomCopySource =
+  | { readonly kind: 'free'; readonly revision: number }
+  | {
+      readonly kind: 'submission';
+      readonly attemptId: string;
+      readonly submissionId: string;
+      readonly projectVersionId: string;
+    };
+export interface ClassroomCopyReceipt {
+  projectId: string;
+  moduleKey: string;
+  created: boolean;
+}
 export interface ObservationEvent {
   id: string;
   action: string;
@@ -78,6 +91,9 @@ function query(filters: Record<string, string | number | undefined>) {
     if (value !== undefined && value !== '') params.set(key, String(value));
   }
   return params.toString();
+}
+function privateCopyPath(classroomId: string, seatId: string, projectId: string) {
+  return `/api/classrooms/${encodeURIComponent(classroomId)}/observation/learners/${encodeURIComponent(seatId)}/projects/${encodeURIComponent(projectId)}/private-copy`;
 }
 export const observationApi = {
   prepare: (classroomIds: string[]) =>
@@ -112,6 +128,33 @@ export const observationApi = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/observation/learners/${encodeURIComponent(seatId)}/projects/${encodeURIComponent(projectId)}/free-preview`,
       { signal },
     ),
+  privateCopyCapability: (
+    classroomId: string,
+    seatId: string,
+    projectId: string,
+    source: ClassroomCopySource,
+    signal: AbortSignal,
+  ) =>
+    call<{ canCopy: boolean }>(
+      `${privateCopyPath(classroomId, seatId, projectId)}?${query(source)}`,
+      {
+        signal,
+      },
+    ),
+  copyPrivateProject: (
+    classroomId: string,
+    seatId: string,
+    projectId: string,
+    source: ClassroomCopySource,
+    idempotencyKey: string,
+    signal: AbortSignal,
+  ) =>
+    call<ClassroomCopyReceipt>(privateCopyPath(classroomId, seatId, projectId), {
+      method: 'POST',
+      body: JSON.stringify(source),
+      headers: { 'idempotency-key': idempotencyKey },
+      signal,
+    }),
   history: (classroomId: string, filters: Record<string, string | number | undefined> = {}) =>
     call<ObservationHistoryPage>(
       `/api/classrooms/${classroomId}/observation/history?${query(filters)}`,

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { ClassroomElectronicsSimulation } from '@asa-lab/contracts';
 import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
+import { EMPTY_DOCUMENT } from '../contexts/electronics/domain/document';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fixture, classId } from './fixtures/classroom-owner';
 import { classroomTextDefects } from './classroom-readable-text';
@@ -450,6 +451,234 @@ test('classroom name search filters cards without changing the teacher totals', 
   await expect(classes).toHaveCount(23);
   await expect(totalClasses).toHaveText('23');
 });
+
+for (const width of [320, 1440]) {
+  test(`teacher copies the authorized exact version and opens it privately at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixture(page, 1);
+    const pupil = state.students()[0]!;
+    const assigned = width === 1440;
+    const moduleKey = assigned ? 'three-d' : 'electronics';
+    const projectId = '10000000-0000-4000-8000-000000000081';
+    const copyId = '10000000-0000-4000-8000-000000000082';
+    const title = 'Работа для частной копии';
+    const copyTitle = `${title} — копия`;
+    const attemptId = '10000000-0000-4000-8000-000000000083';
+    const submissionId = '10000000-0000-4000-8000-000000000084';
+    const projectVersionId = '10000000-0000-4000-8000-000000000085';
+    const source = assigned
+      ? { kind: 'submission', attemptId, submissionId, projectVersionId }
+      : { kind: 'free', revision: 6 };
+    const document = assigned
+      ? { ...createEmptyThreeDDocument(), nodes: [createThreeDNode('box', 'copy-box')] }
+      : {
+          ...EMPTY_DOCUMENT,
+          components: [
+            {
+              id: 'copy-board',
+              kind: 'visual',
+              componentTypeId: 'arduino-uno',
+              variantId: 'arduino-uno',
+              position: { x: 80, y: 80 },
+              value: 0,
+            },
+          ],
+        };
+    const root = `/api/classrooms/${classId}`;
+    const projectPath = `${root}/observation/learners/${pupil.id}/projects/${projectId}`;
+    const copyPath = `${projectPath}/private-copy`;
+    const commands: Array<{ key: string | undefined; body: unknown }> = [];
+    let allowed = false;
+    let releaseFirst = () => {};
+    const firstResponse = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const copy = {
+      id: copyId,
+      moduleKey,
+      title: copyTitle,
+      scope: 'personal',
+      classroomId: null,
+      status: 'active',
+      privateClassroomCopy: true,
+      updatedAt: '2026-10-12T12:00:00Z',
+      createdAt: '2026-10-12T12:00:00Z',
+      preview: null,
+      snapshotRevision: null,
+      copiedFrom: null,
+    };
+    const sourceMutations: string[] = [];
+    await page.route('**/projects/*/electronics/edit?*', (route) =>
+      route.fulfill({ path: 'apps/web/dist/index.html' }),
+    );
+    await page.route('**/api/**', async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname === root + '/observation/projects')
+        return route.fulfill({
+          json: {
+            items: [
+              {
+                id: projectId,
+                seatId: pupil.id,
+                student: pupil.displayLabel,
+                avatarKey: null,
+                title,
+                moduleKey,
+                assigned,
+                status: 'active',
+                updatedAt: copy.updatedAt,
+              },
+            ],
+            total: 1,
+            hidden: 0,
+            nextOffset: null,
+            learners: [],
+          },
+        });
+      if (url.pathname === projectPath + '/free-preview')
+        return route.fulfill({
+          json: { projectId, revision: 6, moduleKey, document, preview: null },
+        });
+      if (url.pathname === projectPath + '/review')
+        return route.fulfill({
+          json: {
+            assignmentId: 'copy-assignment',
+            activityRunId: 'copy-run',
+            attemptId,
+            submissionId,
+            projectVersionId,
+            canReview: true,
+          },
+        });
+      if (url.pathname === root + '/attempts/' + attemptId + '/submission')
+        return route.fulfill({
+          json: {
+            kind: 'project',
+            submissionId,
+            projectVersionId,
+            sourceRevision: 6,
+            digest: 'copy-digest',
+            moduleKey,
+            document,
+            preview: null,
+          },
+        });
+      if (url.pathname === copyPath && request.method() === 'GET') {
+        expect(Object.fromEntries(url.searchParams)).toEqual(
+          Object.fromEntries(Object.entries(source).map(([key, value]) => [key, String(value)])),
+        );
+        return route.fulfill({ json: { canCopy: allowed } });
+      }
+      if (url.pathname === copyPath && request.method() === 'POST') {
+        commands.push({ key: request.headers()['idempotency-key'], body: request.postDataJSON() });
+        if (commands.length === 1) {
+          await firstResponse;
+          return route.fulfill({
+            status: 503,
+            json: { error: { code: 'network_error', message: 'Ответ недоступен.' } },
+          });
+        }
+        return route.fulfill({
+          status: 201,
+          json: { projectId: copyId, moduleKey, created: true },
+        });
+      }
+      if (url.pathname === '/api/projects/' + copyId && request.method() === 'GET')
+        return route.fulfill({
+          json: {
+            project: copy,
+            draft: { projectId: copyId, document, revision: 1, updatedAt: copy.updatedAt },
+            versions: [],
+            result: null,
+          },
+        });
+      if (url.pathname === '/api/projects') return route.fulfill({ json: { items: [copy] } });
+      if (url.pathname.includes(projectId) && request.method() !== 'GET')
+        sourceMutations.push(request.method() + ' ' + url.pathname);
+      return route.fallback();
+    });
+    await page.goto('/#/classrooms/' + classId);
+    await section(page, 'Проекты');
+    const card = page.getByRole('button', { name: 'Предпросмотр работы ' + title });
+    const dialog = page.getByRole('dialog', { name: 'Работа: ' + title });
+    const copyAction = dialog.getByRole('button', { name: 'Копировать в «Мои проекты»' });
+    const denied = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === copyPath,
+    );
+    await card.click();
+    await denied;
+    await expect(copyAction).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(card).toBeFocused();
+    allowed = true;
+    await card.press('Enter');
+    await expect(copyAction).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Открыть в редакторе' })).toBeVisible();
+    if (assigned) await expect(dialog.getByRole('button', { name: 'Оценить сдачу' })).toBeVisible();
+    try {
+      await copyAction.press('Enter');
+      await expect(dialog.getByRole('button', { name: 'Копируем…' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
+      releaseFirst();
+      await expect(dialog.getByRole('alert')).toHaveText('Ответ недоступен.');
+      await dialog.getByRole('button', { name: 'Повторить копирование' }).press('Enter');
+      const open = dialog.getByRole('button', { name: 'Открыть копию', exact: true });
+      await expect(open).toBeFocused();
+      expect(commands).toEqual([{ key: expect.any(String), body: source }, commands[0]]);
+      expect(
+        await page.evaluate(() => window.document.documentElement.scrollWidth <= innerWidth),
+      ).toBe(true);
+      mkdirSync(out, { recursive: true });
+      await page.screenshot({ path: `${out}/${width}-teacher-private-copy.png` });
+      await open.press('Enter');
+      await expect(page).toHaveURL(new RegExp(copyId));
+      if (moduleKey === 'three-d') {
+        await expect(page.locator('.asa3d-workspace')).toBeVisible();
+        await expect(
+          page
+            .locator('.asa3d-actions')
+            .getByRole('button', { name: 'История', exact: true, includeHidden: true }),
+        ).toHaveCount(1);
+        await expect(page.locator('.asa3d-export-wrap')).toHaveCount(0);
+        await expect(
+          page
+            .locator('.asa3d-actions')
+            .getByRole('button', { name: 'Публикация', includeHidden: true }),
+        ).toHaveCount(0);
+      } else {
+        await expect(page.locator('.workbench-shell')).toBeVisible();
+        await expect(
+          page.getByRole('button', { name: 'Отправить — пока недоступно', includeHidden: true }),
+        ).toHaveCount(0);
+        await page.getByRole('button', { name: 'Схемы', exact: true }).click();
+        await expect(
+          page.getByRole('button', { name: 'Скачать PDF', includeHidden: true }),
+        ).toHaveCount(0);
+        await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+        await expect(page.locator('.arduino-code-panel.open .arduino-code-toolbar')).toBeVisible();
+        await expect(page.getByTitle('Скачать .ino')).toHaveCount(0);
+      }
+      await page.goto('/#/projects');
+      const copyCard = page.getByTestId('project-card').filter({ hasText: copyTitle });
+      await expect(copyCard.getByText('Свойства', { exact: true })).toHaveCount(1);
+      if (width === 1440) {
+        await copyCard.getByLabel('Действия с проектом ' + copyTitle).click();
+        await expect(copyCard.getByText('Свойства', { exact: true })).toBeVisible();
+      }
+      await expect(copyCard.getByText('Публикация', { exact: true })).toHaveCount(0);
+      await expect(copyCard.getByText('Дублировать', { exact: true })).toHaveCount(0);
+      expect(sourceMutations).toEqual([]);
+      expect(state.errors).toEqual([]);
+    } finally {
+      releaseFirst();
+    }
+  });
+}
 
 for (const width of [320, 390, 1024, 1440]) {
   for (const populated of [false, true]) {

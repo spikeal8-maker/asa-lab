@@ -757,13 +757,21 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
         payload: { kind: 'free', revision },
       });
     const personalTenantId = await allowPrivateCopies(f.actor.account_id, f.classId, learner!.id);
+    const capability = () =>
+      inject(api, {
+        method: 'GET',
+        url: `${url}?kind=free&revision=1`,
+        headers: { cookie: teacherCookie },
+      });
     await admin.query('UPDATE classroom_student_seats SET safe_mode=true WHERE id=$1', [
       learner!.id,
     ]);
     expect((await copy(1)).statusCode).toBe(404);
+    expect((await capability()).json()).toEqual({ canCopy: false });
     await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [
       learner!.id,
     ]);
+    expect((await capability()).json()).toEqual({ canCopy: true });
     expect(
       (await copy(1, { cookie: `${teacherCookie}; asa_student_session=${learner!.token}` }))
         .statusCode,
@@ -816,9 +824,31 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       headers: { cookie: teacherCookie },
     });
     expect(open.statusCode, open.body).toBe(200);
+    expect(open.json().project.privateClassroomCopy).toBe(true);
     expect(open.json().project.copiedFrom).toBeNull();
     expect(open.body).not.toContain(learner!.id);
     expect(open.body).not.toContain(projectId);
+    const renamed = await inject(api, {
+      method: 'PATCH',
+      url: `/api/projects/${copyId}`,
+      headers: { cookie: teacherCookie },
+      payload: { title: 'Педагогическая копия' },
+    });
+    expect(renamed.statusCode, renamed.body).toBe(200);
+    expect(renamed.json().project.privateClassroomCopy).toBe(true);
+    const listed = await inject(api, {
+      method: 'GET',
+      url: `/api/projects?scope=personal&kind=personal&limit=1&sort=title&search=${encodeURIComponent('Педагогическая копия')}`,
+      headers: { cookie: teacherCookie },
+    });
+    expect(listed.statusCode, listed.body).toBe(200);
+    expect(listed.json().items).toEqual([
+      expect.objectContaining({
+        id: copyId,
+        title: 'Педагогическая копия',
+        privateClassroomCopy: true,
+      }),
+    ]);
     expect(
       (
         await inject(api, {

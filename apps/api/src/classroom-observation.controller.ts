@@ -21,6 +21,7 @@ import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape, checkIdempotencyKey } from './validation.js';
 import { ClassroomObservationService } from './classroom-observation.service.js';
 import {
+  canCopyClassroomProject,
   copyClassroomProject,
   type ClassroomCopySource,
 } from './classroom-private-project-copy.js';
@@ -213,6 +214,38 @@ export class ClassroomObservationController {
       ...(electronicsSimulation ? { electronicsSimulation } : {}),
     };
   }
+  @Get(':classroomId/observation/learners/:seatId/projects/:projectId/private-copy')
+  @Header('Cache-Control', 'private, no-store')
+  async privateCopyCapability(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classId: string,
+    @Param('seatId') seatId: string,
+    @Param('projectId') projectId: string,
+    @Query() query: Record<string, unknown>,
+  ) {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      return { canCopy: false };
+    }
+    if (!this.pool) fail('database_unavailable', 'Сервер данных недоступен.', 503);
+    const source = copySource(
+      typeof query.revision === 'string' && /^[1-9][0-9]{0,9}$/.test(query.revision)
+        ? { ...query, revision: Number(query.revision) }
+        : query,
+    );
+    const canCopy = await canCopyClassroomProject({
+      pool: this.pool,
+      registry: this.modules,
+      principalId: await this.actor(request),
+      origin: {
+        classroomId: uuid(classId),
+        seatId: uuid(seatId),
+        projectId: uuid(projectId),
+        source,
+      },
+    });
+    return { canCopy };
+  }
+
   @Post(':classroomId/observation/learners/:seatId/projects/:projectId/private-copy')
   @Header('Cache-Control', 'private, no-store')
   async privateCopy(
