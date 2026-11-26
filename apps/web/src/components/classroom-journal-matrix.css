@@ -16,7 +16,7 @@
   scroll-margin-top: calc(var(--portal-header-height, 0px) + var(--journal-head-height, 0px));
 }
 
-@container classroom (max-width: 350px) {
+@container classroom (max-width: 315px) {
   .manual-journal-scroll.journal-matrix-scroll {
     --journal-name-width: clamp(124px, 46cqi, 136px);
   }

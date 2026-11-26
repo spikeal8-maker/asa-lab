@@ -134,6 +134,15 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   const desktopDialog = journal.getByRole('dialog', { name: `Быстрая оценка: ${names[4]}` });
   for (const width of [1440, 1024]) {
     await page.setViewportSize({ width, height: 900 });
+    if (width === 1024) {
+      // Leave room between the anchor and the pinned pupil name so both scroll steps stay anchored.
+      await movedCell.evaluate((button) => {
+        const matrix = button.closest('.manual-journal-scroll')!;
+        const pupil = button.closest('tr')!.cells[0]!;
+        matrix.scrollLeft +=
+          button.getBoundingClientRect().left - pupil.getBoundingClientRect().right - 64;
+      });
+    }
     await movedCell.click();
     await expectDialogByCell(page, desktopDialog, movedCell);
     await expect(desktopDialog).toContainText('Работа 4');
@@ -142,13 +151,25 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
         path: 'e2e/artifacts/owner-preview/classroom-quick-journal/grade-dialog-1440.png',
       });
     } else {
-      const beforeScroll = (await desktopDialog.boundingBox())!.y;
-      await matrix.evaluate((el) => {
-        el.scrollTop += 40;
-      });
+      const beforeVertical = (await desktopDialog.boundingBox())!.y;
+      const pageY = await page.evaluate(() => scrollY);
+      await page.evaluate(() => scrollBy({ top: 40, behavior: 'instant' }));
+      await expect.poll(() => page.evaluate(() => scrollY)).toBe(pageY + 40);
+      expect(await matrix.evaluate((el) => el.scrollTop)).toBe(0);
       await expectDialogByCell(page, desktopDialog, movedCell);
       await expect
-        .poll(async () => Math.abs((await desktopDialog.boundingBox())!.y - beforeScroll))
+        .poll(async () => Math.abs((await desktopDialog.boundingBox())!.y - beforeVertical))
+        .toBeGreaterThan(15);
+
+      const beforeHorizontal = (await desktopDialog.boundingBox())!.x;
+      const matrixX = await matrix.evaluate((el) => el.scrollLeft);
+      await matrix.evaluate((el) => {
+        el.scrollLeft += 40;
+      });
+      await expect.poll(() => matrix.evaluate((el) => el.scrollLeft)).toBe(matrixX + 40);
+      await expectDialogByCell(page, desktopDialog, movedCell);
+      await expect
+        .poll(async () => Math.abs((await desktopDialog.boundingBox())!.x - beforeHorizontal))
         .toBeGreaterThan(15);
     }
     await page.keyboard.press('Escape');

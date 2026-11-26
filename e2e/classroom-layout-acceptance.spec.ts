@@ -652,6 +652,8 @@ for (const width of [320, 390, 1440]) {
           mode === 'По датам' ? 128 : width === 1440 ? 112 : width === 320 ? 84 : 92;
         expect(Math.abs(dimensions.width - expectedWidth)).toBeLessThanOrEqual(1);
         if (mode === 'По датам' && width === 1440) expect(dimensions.name).toBeCloseTo(200, 0);
+        if (mode === 'По датам' && width === 390)
+          expect(dimensions.name).toBeGreaterThanOrEqual(140);
 
         await matrix.evaluate((element) => {
           element.focus({ preventScroll: true });
