@@ -549,6 +549,211 @@ for (const width of [360, 430, 768]) {
   });
 }
 
+for (const width of [320, 390, 1440]) {
+  test(`journal has one vertical scroll for 30 pupils at ${width}px`, async ({ page }) => {
+    mkdirSync(out, { recursive: true });
+    await page.setViewportSize({ width, height: 900 });
+    const state = await fixture(page, 30, { sidebar: 'expanded' });
+    let assignmentCount = 2;
+    await page.route('**/api/**', async (route) => {
+      const { pathname } = new URL(route.request().url());
+      const root = `/api/classrooms/${classId}`;
+      if (pathname === root + '/journal' && route.request().method() === 'GET') {
+        return route.fulfill({
+          json: {
+            status: 'active',
+            timeZone: 'Europe/Moscow',
+            scale: { preset: 'five', version: 1 },
+            students: state.students().map((s) => ({
+              id: s.id,
+              name: s.displayLabel,
+              status: s.status,
+            })),
+            columns: Array.from({ length: 10 }, (_, i) => ({
+              id: `grade-column-${i}`,
+              slotKey: `2026-10:${i + 1}`,
+              date: `2026-10-${i + 10}`,
+              category: i < 2 ? 'Контрольная' : 'Практика',
+              preset: 'five',
+              scaleVersion: 1,
+              headerRevision: 0,
+            })),
+            grades: [],
+            offset: 0,
+            nextOffset: null,
+            range: {
+              from: '2026-10-01',
+              to: '2026-10-31',
+              today: '2026-10-12',
+              timeZone: 'Europe/Moscow',
+            },
+          },
+        });
+      }
+      if (pathname === root + '/gradebook') {
+        return route.fulfill({
+          json: {
+            scheme: null,
+            items: state.students().flatMap((s) =>
+              Array.from({ length: assignmentCount }, (_, i) => ({
+                seatId: s.id,
+                displayLabel: s.displayLabel,
+                assignmentId: `work-${i}`,
+                assignmentTitle: `Модель опоры для лабораторной установки ${i + 1}`,
+                attemptId: null,
+                attemptNumber: null,
+                state: 'not_started',
+                submittedAt: null,
+                points: null,
+                maxPoints: 100,
+                displayGrade: null,
+                canonicalState: null,
+              })),
+            ),
+          },
+        });
+      }
+      return route.fallback();
+    });
+    await page.goto(`/#/classrooms/${classId}`);
+    await section(page, 'Журнал');
+    const modes = page.getByRole('navigation', { name: 'Режим журнала' });
+    for (const mode of ['По датам', 'Задания']) {
+      for (const count of [2, 10]) {
+        if (mode === 'По датам') {
+          await page
+            .getByLabel('Категория', { exact: true })
+            .selectOption(count === 2 ? 'Контрольная' : '');
+        } else {
+          if (count === 10) await modes.getByRole('button', { name: 'По датам' }).click();
+          assignmentCount = count;
+          await modes.getByRole('button', { name: 'Задания', exact: true }).click();
+        }
+        const matrix = page.locator('.journal-matrix-scroll');
+        const heading = matrix.locator('thead');
+        const rows = matrix.locator('tbody tr');
+        await expect(rows).toHaveCount(30);
+        await expect(heading.getByRole('columnheader')).toHaveCount(count + 1);
+        const dimensions = await matrix.evaluate((element) => {
+          const table = element.querySelector('table')!;
+          const [name, work] = table.tHead!.rows[0]!.cells;
+          return {
+            localY: element.scrollHeight - element.clientHeight,
+            pageY: document.documentElement.scrollHeight - innerHeight,
+            pageX: document.documentElement.scrollWidth - innerWidth,
+            width: work!.getBoundingClientRect().width,
+            name: name!.getBoundingClientRect().width,
+          };
+        });
+        expect(dimensions.localY).toBeLessThanOrEqual(1);
+        expect(dimensions.pageY).toBeGreaterThan(0);
+        expect(dimensions.pageX).toBeLessThanOrEqual(1);
+        const expectedWidth =
+          mode === 'По датам' ? 128 : width === 1440 ? 112 : width === 320 ? 84 : 92;
+        expect(Math.abs(dimensions.width - expectedWidth)).toBeLessThanOrEqual(1);
+        if (mode === 'По датам' && width === 1440) expect(dimensions.name).toBeCloseTo(200, 0);
+        if (mode === 'По датам' && width === 390)
+          expect(dimensions.name).toBeGreaterThanOrEqual(140);
+
+        await matrix.evaluate((element) => {
+          element.focus({ preventScroll: true });
+          scrollTo(0, 0);
+        });
+        await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+        await page.keyboard.press('PageDown');
+        await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+        await matrix.evaluate((element) =>
+          scrollTo(0, scrollY + element.getBoundingClientRect().top + 180),
+        );
+        await expect
+          .poll(() =>
+            heading.evaluate((element) =>
+              Math.abs(
+                element.getBoundingClientRect().top -
+                  document.querySelector('.portal-header')!.getBoundingClientRect().bottom,
+              ),
+            ),
+          )
+          .toBeLessThanOrEqual(1);
+
+        const nameCell = rows.nth(7).getByRole('rowheader');
+        const initialNameX = await nameCell.evaluate(
+          (element) => element.getBoundingClientRect().left,
+        );
+        await matrix.evaluate((element) => {
+          element.scrollLeft = element.scrollWidth;
+        });
+        await expect
+          .poll(() => nameCell.evaluate((element) => element.getBoundingClientRect().left))
+          .toBeCloseTo(initialNameX, 0);
+        await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+        await expect(rows.last()).toBeInViewport();
+        await page.screenshot({
+          path: `${out}/${width}-journal-${mode === 'По датам' ? 'manual' : 'assignments'}-${count}.png`,
+        });
+        if (count === 10) {
+          const row = rows.last();
+          const gradeCells = row.locator('td button');
+          await gradeCells.last().focus();
+          for (const [key, index] of [
+            ['Shift+Tab', 8],
+            ['Tab', 9],
+          ] as const) {
+            await page.keyboard.press(key);
+            const focused = gradeCells.nth(index);
+            await expect(focused).toBeFocused();
+            await expect
+              .poll(() =>
+                focused.evaluate((element) => {
+                  const name = element.closest('tr')!.querySelector('th')!;
+                  return element.getBoundingClientRect().left - name.getBoundingClientRect().right;
+                }),
+              )
+              .toBeGreaterThanOrEqual(-1);
+          }
+        }
+        if (mode === 'По датам' && count === 10) {
+          const cell = rows.last().locator('.manual-journal-cell').last();
+          await cell.click();
+          const editor = page.locator('.manual-journal-cell-dialog');
+          await expect(editor).toBeInViewport({ ratio: 0.9 });
+          await page.keyboard.press('Escape');
+          await expect(editor).toHaveCount(0);
+          await expect(cell).toBeFocused();
+        }
+        if (mode === 'Задания' && count === 10) {
+          await matrix.evaluate((element) => {
+            element.scrollLeft = 0;
+            scrollTo(0, scrollY + element.getBoundingClientRect().top + 180);
+          });
+          const cell = rows.nth(8).locator('.gradebook-cell').first();
+          await cell.click();
+          const review = page.getByRole('region', { name: 'Историческая проверка' });
+          await expect(review.getByRole('heading')).toBeInViewport();
+          await expect(page.locator('.gradebook-detail-target')).toBeFocused();
+          await review.getByRole('button', { name: 'Закрыть' }).click();
+          await expect(cell).toBeFocused();
+        }
+      }
+    }
+    if (width === 1440) {
+      const columns = page.locator('.gradebook-column-picker');
+      const heading = page.locator('.gradebook-matrix thead');
+      await columns.locator('summary').click();
+      await columns.getByRole('checkbox').first().uncheck();
+      await expect(heading.getByRole('columnheader')).toHaveCount(10);
+      await modes.getByRole('button', { name: 'По датам' }).click();
+      await modes.getByRole('button', { name: 'Задания', exact: true }).click();
+      await expect(heading.getByRole('columnheader')).toHaveCount(10);
+      await columns.locator('summary').click();
+      await columns.getByRole('button', { name: 'Показать все столбцы' }).click();
+      await expect(heading.getByRole('columnheader')).toHaveCount(11);
+    }
+    expect(state.errors).toEqual([]);
+    expect(state.mutations).toEqual([]);
+  });
+}
+
 test('teacher compact class list remains readable with sidebar and on phones', async ({ page }) => {
   const state = await seedPresentation(page, true);
   for (const width of [320, 390, 768, 1024, 1440]) {
