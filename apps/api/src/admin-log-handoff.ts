@@ -2,7 +2,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 import type { LogEntry } from './admin-logs.worker.js';
 import { isHostLogSource, LOG_MODULES, LOG_SUBSYSTEMS } from './log-subsystems.js';
 import { SCRATCH_SAVE_FAILURE_CODES } from './scratch-save-diagnostics.js';
-import { safeValidationReason } from './server-diagnostics.js';
+import { safeValidationReason } from './validation-reasons.js';
 
 const SOURCES = new Set([
   ...LOG_MODULES,
