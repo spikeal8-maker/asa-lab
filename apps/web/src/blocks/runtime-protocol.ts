@@ -1,4 +1,5 @@
 import { newClientId } from '../client-id';
+import { isScratchSaveFailureCode } from './scratch-save-diagnostics';
 
 export const BLOCKS_PROTOCOL_VERSION = 1 as const;
 
@@ -67,6 +68,8 @@ type BlocksRuntimeNonSecretOptions = Omit<BlocksRuntimeInitOptions, 'runtimeToke
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SNAPSHOT_DATA_URL_RE = /^data:image\/(?:png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 const SNAPSHOT_MAX_DATA_URL_LENGTH = 349_590;
+// The iframe has its own, shorter deadline. This also covers a stalled iframe.
+const SAVE_EXIT_TIMEOUT_MS = 35_000;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -119,6 +122,7 @@ export class BlocksRuntimeBridge {
     {
       resolve: (result: BlocksSaveBeforeExitResult) => void;
       reject: (error: Error) => void;
+      timer: ReturnType<typeof setTimeout>;
     }
   >();
 
@@ -185,13 +189,18 @@ export class BlocksRuntimeBridge {
   }
 
   requestSaveBeforeExit(): Promise<BlocksSaveBeforeExitResult> {
-    this.assertActive();
     const requestId = newClientId();
     return new Promise((resolve, reject) => {
-      this.pendingSaveBeforeExit.set(requestId, { resolve, reject });
+      this.assertActive();
+      const timer = setTimeout(() => {
+        this.pendingSaveBeforeExit.delete(requestId);
+        resolve({ ok: false, reason: 'save_exit_timeout' });
+      }, SAVE_EXIT_TIMEOUT_MS);
+      this.pendingSaveBeforeExit.set(requestId, { resolve, reject, timer });
       try {
         this.post('ASA_BLOCKS_SAVE_BEFORE_EXIT_REQUEST', { requestId });
       } catch (error) {
+        clearTimeout(timer);
         this.pendingSaveBeforeExit.delete(requestId);
         reject(
           error instanceof Error ? error : new Error('Blocks save-before-exit request failed'),
@@ -207,6 +216,7 @@ export class BlocksRuntimeBridge {
     } finally {
       this.runtimeToken = null;
       for (const pending of this.pendingSaveBeforeExit.values()) {
+        clearTimeout(pending.timer);
         pending.reject(new Error('Blocks runtime bridge is stopped'));
       }
       this.pendingSaveBeforeExit.clear();
@@ -254,9 +264,7 @@ export class BlocksRuntimeBridge {
         ]);
         if (
           Object.keys(message).some((key) => !keys.has(key)) ||
-          !['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
-            message['failureCode'] as string,
-          ) ||
+          !isScratchSaveFailureCode(message['failureCode']) ||
           !isNonNegativeSafeInteger(message['durationMs']) ||
           (message['durationMs'] as number) > 600_000 ||
           (message['httpStatus'] !== undefined &&
@@ -321,6 +329,7 @@ export class BlocksRuntimeBridge {
       } else {
         return false;
       }
+      clearTimeout(pending.timer);
       this.pendingSaveBeforeExit.delete(requestId);
       pending.resolve(result);
     }

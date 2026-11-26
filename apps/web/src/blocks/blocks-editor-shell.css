@@ -73,6 +73,24 @@
   background: #fff;
 }
 
+.blocks-editor-exit-warning {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 11;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100% - 2rem);
+  padding: 0.75rem;
+  border: 1px solid #795600;
+  border-radius: 0.5rem;
+  background: #fff8e3;
+  color: #352600;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+}
+
 .blocks-editor-fullscreen > .blocks-editor-shell {
   flex: 1;
   height: auto;
