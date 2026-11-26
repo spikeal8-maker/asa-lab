@@ -1547,8 +1547,15 @@
     font-weight: 600;
   }
   .classroom-student .classroom-student-work-summary {
-    gap: 2px 4px;
+    flex-wrap: nowrap;
+    gap: 3px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
     font-size: 11px;
+  }
+  .classroom-student .classroom-student-work-summary > span {
+    flex: none;
   }
   .classroom-student .classroom-student-archive-filter {
     padding: 0 5px;

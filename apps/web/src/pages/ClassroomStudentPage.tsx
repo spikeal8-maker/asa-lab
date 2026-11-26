@@ -807,11 +807,16 @@ export function ClassroomStudentPage({
       data-settings-category={settingsCategory ?? 'none'}
     >
       {navigationRow}
-      <div className="classroom-student-work-summary" role="group" aria-label="Сводка ученика">
+      <div
+        className="classroom-student-work-summary"
+        role="group"
+        aria-label="Сводка ученика"
+        tabIndex={0}
+      >
         <span>{metrics.role === 'helper' ? 'Помощник' : 'Учащийся'}</span>
         <span title={metrics.score === null ? 'Рейтинг выключен' : undefined}>
           Рейтинг <strong>{metrics.score ?? '—'}</strong>
-          {metrics.rank !== null ? ` · №${metrics.rank}` : null}
+          {metrics.rank !== null ? ` №${metrics.rank}` : null}
         </span>
         <span>
           Работ <strong>{metrics.totalWorks}</strong>

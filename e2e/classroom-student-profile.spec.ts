@@ -1048,7 +1048,7 @@ test('teacher profile summary stays by the selected name and reports effective p
   const identity = page.getByRole('group', { name: 'Ученик и навигация' });
   const summary = page.getByRole('group', { name: 'Сводка ученика' });
   await expect(summary.getByText('Помощник', { exact: true })).toBeVisible();
-  await expect(summary).toContainText('Рейтинг 39.05 · №1');
+  await expect(summary).toContainText('Рейтинг 39.05 №1');
   await expect(summary).toContainText('Работ 10');
   await expect(summary).toContainText('Сдано 0');
   await expect(summary).toContainText('Ждут 0');
@@ -1083,6 +1083,13 @@ test('teacher profile summary stays by the selected name and reports effective p
   ).not.toBeChecked();
   await expect(identity.getByText('Защита вкл.', { exact: true })).toBeVisible();
   await expect(summary).toBeVisible();
+  // Wider platform fonts or larger counters must stay in one accessible strip.
+  await page.addStyleTag({ content: '.classroom-student-work-summary { letter-spacing: 0.8px; }' });
+  expect((await summary.boundingBox())!.height).toBeLessThanOrEqual(20);
+  expect(await summary.evaluate((strip) => strip.scrollWidth > strip.clientWidth)).toBe(true);
+  await summary.press('ArrowRight');
+  await expect.poll(() => summary.evaluate((strip) => strip.scrollLeft)).toBeGreaterThan(0);
+  await noOverflow(page);
   expect(state.mutations).toEqual([]);
 });
 
