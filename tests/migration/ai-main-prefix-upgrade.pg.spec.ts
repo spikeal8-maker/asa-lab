@@ -115,6 +115,7 @@ const expectedPending = [
   '0334', // Independent local llama.cpp settings, admission and bounded history.
   '0335', // Resolve a visible classroom project to its exact submission.
   '0336', // Open one saved revision of a visible free project.
+  '0337', // Effective Safe Mode in the learner's class list.
 ];
 
 interface Identity {

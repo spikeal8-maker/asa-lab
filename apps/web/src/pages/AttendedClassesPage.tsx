@@ -224,6 +224,15 @@ export function AttendedClassesPage({
                   <div>
                     <strong>{entry.classroomTitle}</strong>
                     <span>Преподаватель: {entry.teacherDisplayName}</span>
+                    {typeof entry.safeMode === 'boolean' ? (
+                      <div>
+                        <small>
+                          {entry.safeMode
+                            ? 'Безопасный режим включён'
+                            : 'Безопасный режим выключен'}
+                        </small>
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       className="btn-secondary"
