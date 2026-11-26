@@ -336,10 +336,12 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
 export function RoboticsWorkspace({
   project: local,
   projectId = 'asa-robotics-local-v1',
+  allowDistribution = true,
   header,
 }: {
   readonly project: RoboticsProjectController;
   readonly projectId?: string;
+  readonly allowDistribution?: boolean;
   readonly header?: (tabs: ReactNode, notices: readonly string[]) => ReactNode;
 }) {
   const [section, setSection] = useState<Section>('field');
@@ -984,6 +986,7 @@ export function RoboticsWorkspace({
           hidden={section !== 'field'}
         >
           <RobotFieldEditor
+            allowExport={allowDistribution}
             sourceSchemaVersion={local.robotProject.schemaVersion}
             onUpgradeField={local.enableExtendedField}
             world={sourceWorld}
@@ -1060,6 +1063,7 @@ export function RoboticsWorkspace({
               <ArduinoCodePanel
                 key={`${local.openRevision}:${local.programRevision}`}
                 controller={programController}
+                allowDownload={allowDistribution}
                 open={codeOpen}
                 drawerWidth={codeWidth}
                 onDrawerWidthChange={setCodeWidth}

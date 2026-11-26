@@ -7,6 +7,7 @@ import {
   createEmptyThreeDDocument,
   createThreeDNode,
 } from '../../contexts/three-d/domain/document';
+import { createApiModuleRegistry } from '../../apps/api/src/module-registry';
 import { testAdminPool, testAppPool, seedTeacher } from './helpers';
 import { buildTestApp, inject, type NestApp } from './app';
 import {
@@ -780,9 +781,11 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       (await copy(1, { url: privateCopyUrl(f.classId, other!.id, projectId) })).statusCode,
     ).toBe(404);
     const unsupportedRobot = await f.project(learner!.principal, 'robotics', 'active', f.classId);
-    expect(
-      (await copy(1, { url: privateCopyUrl(f.classId, learner!.id, unsupportedRobot) })).statusCode,
-    ).toBe(404);
+    const unsupported = await copy(1, {
+      url: privateCopyUrl(f.classId, learner!.id, unsupportedRobot),
+    });
+    expect(unsupported.statusCode).toBe(403);
+    expect(unsupported.json().error.code).toBe('copy_unsupported');
     const responses = await Promise.all([copy(1), copy(1)]);
     expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 201]);
     const receipt = responses.find((response) => response.statusCode === 201)!.json();
@@ -882,6 +885,72 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
         .rows,
     ).toEqual([{ document_json: document }]);
   }, 60_000);
+
+  it.each(['electronics', 'robotics'])(
+    'copies the exact free %s document with its inline program',
+    async (moduleKey) => {
+      const f = await fixture(1);
+      const [learner] = f.seats;
+      await allowPrivateCopies(f.actor.account_id, f.classId, learner!.id);
+      const projectId = await f.project(learner!.principal, moduleKey, 'active', f.classId);
+      const provider = createApiModuleRegistry().get(moduleKey)!.provider!;
+      const initial = provider.createEmptyProject();
+      const document = provider.validate(
+        moduleKey === 'electronics'
+          ? {
+              ...(initial as object),
+              components: [
+                {
+                  id: 'program-board',
+                  kind: 'visual',
+                  componentTypeId: 'arduino-uno',
+                  variantId: 'arduino-uno',
+                  position: { x: 100, y: 100 },
+                  value: 0,
+                  stateProperties: {
+                    arduinoCodeMode: 'text',
+                    arduinoSource: 'void setup() {}\nvoid loop() {}\n',
+                  },
+                },
+              ],
+            }
+          : initial,
+      );
+      if (!document.ok) throw new Error('portable project fixture must validate');
+      await admin.query('UPDATE project_drafts SET document_json=$2::jsonb WHERE project_id=$1', [
+        projectId,
+        JSON.stringify(document.payload),
+      ]);
+      const url = privateCopyUrl(f.classId, learner!.id, projectId);
+      const cookie = `asa_session=${f.teacherToken}`;
+      const capability = await inject(api, {
+        method: 'GET',
+        url: `${url}?kind=free&revision=1`,
+        headers: { cookie },
+      });
+      expect(capability.json()).toEqual({ canCopy: true });
+      const copied = await inject(api, {
+        method: 'POST',
+        url,
+        headers: { cookie, 'idempotency-key': randomUUID() },
+        payload: { kind: 'free', revision: 1 },
+      });
+      expect(copied.statusCode, copied.body).toBe(201);
+      const copyId = copied.json().projectId as string;
+      expect(copyId).not.toEqual(projectId);
+      const reloaded = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${copyId}`,
+        headers: { cookie },
+      });
+      expect(reloaded.statusCode, reloaded.body).toBe(200);
+      expect(reloaded.json()).toMatchObject({
+        project: { id: copyId, privateClassroomCopy: true, moduleKey },
+        draft: { document: document.payload },
+      });
+    },
+    60_000,
+  );
 
   it('resolves the latest saved submission of the visible project and keeps removed seats read-only', async () => {
     const f = await fixture(2);

@@ -68,6 +68,7 @@ function OpenedRoboticsEditor({
   const projectId = opened.project.id;
   const controller = useRoboticsProject(opened, user.id, seatLearner);
   const host = controller.host;
+  const allowDistribution = opened.project.privateClassroomCopy !== true;
   const avatar = useEditorAvatar(user);
   const [publicationProject, setPublicationProject] = useState<Project | null>(null);
   const [actionPending, setActionPending] = useState(false);
@@ -85,7 +86,7 @@ function OpenedRoboticsEditor({
   useReportProjectSaveEvidence(host.serverRevision, controller.getSavedRevision() !== null);
 
   async function finish(destination?: () => void, publishing = false): Promise<void> {
-    if (action.current) return;
+    if (action.current || (publishing && !allowDistribution)) return;
     action.current = true;
     setActionPending(true);
     try {
@@ -122,7 +123,9 @@ function OpenedRoboticsEditor({
   };
   const busy = actionPending || host.busy;
   const canPublish =
-    !seatLearner && (host.project?.learningWork?.allowedActions.publishOriginal ?? true);
+    allowDistribution &&
+    !seatLearner &&
+    (host.project?.learningWork?.allowedActions.publishOriginal ?? true);
   const saveLabel =
     host.saveStatus === 'saved'
       ? 'Сохранено в аккаунте'
@@ -140,6 +143,7 @@ function OpenedRoboticsEditor({
       <RoboticsWorkspace
         project={controller}
         projectId={projectId}
+        allowDistribution={allowDistribution}
         header={(tabs, notices) => (
           <RoboticsHeader
             tabs={tabs}
@@ -182,7 +186,7 @@ function OpenedRoboticsEditor({
         getCurrentProject={controller.getCurrentProject}
         getSavedRevision={controller.getSavedRevision}
       />
-      {publicationProject ? (
+      {publicationProject && allowDistribution ? (
         <ProjectProperties
           project={publicationProject}
           initialSection="publication"

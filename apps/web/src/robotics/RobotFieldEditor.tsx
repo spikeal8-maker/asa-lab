@@ -420,6 +420,7 @@ export function moveFieldObject(
 
 export function RobotFieldEditor({
   world,
+  allowExport = true,
   state,
   distance,
   running,
@@ -435,6 +436,7 @@ export function RobotFieldEditor({
   simulationControls,
 }: {
   world: RoboticsWorldDocument;
+  allowExport?: boolean;
   state: RoboticsWorldState;
   distance: RoboticsDistanceMeasurement;
   running: boolean;
@@ -886,6 +888,7 @@ export function RobotFieldEditor({
     }
   }
   function exportFieldFile() {
+    if (!allowExport) return;
     const blob = new Blob([exportRoboticsField(world)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -1864,15 +1867,17 @@ export function RobotFieldEditor({
                   <span aria-hidden="true">{'{ }'}</span>
                   <span>Импорт JSON</span>
                 </button>
-                <button
-                  type="button"
-                  title="Скачать поле и предметы в JSON"
-                  aria-label="Экспортировать поле JSON"
-                  onClick={exportFieldFile}
-                >
-                  <span aria-hidden="true">⇩</span>
-                  <span>Сохранить JSON</span>
-                </button>
+                {allowExport ? (
+                  <button
+                    type="button"
+                    title="Скачать поле и предметы в JSON"
+                    aria-label="Экспортировать поле JSON"
+                    onClick={exportFieldFile}
+                  >
+                    <span aria-hidden="true">⇩</span>
+                    <span>Сохранить JSON</span>
+                  </button>
+                ) : null}
               </div>
               <input
                 ref={imageInputRef}

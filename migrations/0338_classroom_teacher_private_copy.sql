@@ -71,7 +71,8 @@ BEGIN
     SELECT project.* INTO v_project FROM public.projects project
      WHERE project.id = p_project AND project.status = 'active'
        AND (project.classroom_id IS NULL OR project.classroom_id = p_class)
-       AND project.module_key IN ('three-d', 'electronics')
+       AND (project.module_key IN ('three-d', 'electronics')
+            OR (p_revision IS NOT NULL AND project.module_key = 'robotics'))
      FOR SHARE;
     IF NOT FOUND
        OR NOT public.classroom_journal_teacher(p_actor, p_class)

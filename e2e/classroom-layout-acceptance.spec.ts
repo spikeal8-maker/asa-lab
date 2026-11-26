@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import type { ClassroomElectronicsSimulation } from '@asa-lab/contracts';
 import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
 import { EMPTY_DOCUMENT } from '../contexts/electronics/domain/document';
+import { createInitialRoboticsProject } from '../contexts/robotics/domain/document';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fixture, classId } from './fixtures/classroom-owner';
 import { classroomTextDefects } from './classroom-readable-text';
@@ -452,7 +453,7 @@ test('classroom name search filters cards without changing the teacher totals', 
   await expect(totalClasses).toHaveText('23');
 });
 
-for (const width of [320, 1440]) {
+for (const width of [320, 390, 1440]) {
   test(`teacher copies the authorized exact version and opens it privately at ${width}px`, async ({
     page,
   }) => {
@@ -460,7 +461,8 @@ for (const width of [320, 1440]) {
     const state = await fixture(page, 1);
     const pupil = state.students()[0]!;
     const assigned = width === 1440;
-    const moduleKey = assigned ? 'three-d' : 'electronics';
+    const robotics = width === 320;
+    const moduleKey = assigned ? 'three-d' : robotics ? 'robotics' : 'electronics';
     const projectId = '10000000-0000-4000-8000-000000000081';
     const copyId = '10000000-0000-4000-8000-000000000082';
     const title = 'Работа для частной копии';
@@ -473,19 +475,21 @@ for (const width of [320, 1440]) {
       : { kind: 'free', revision: 6 };
     const document = assigned
       ? { ...createEmptyThreeDDocument(), nodes: [createThreeDNode('box', 'copy-box')] }
-      : {
-          ...EMPTY_DOCUMENT,
-          components: [
-            {
-              id: 'copy-board',
-              kind: 'visual',
-              componentTypeId: 'arduino-uno',
-              variantId: 'arduino-uno',
-              position: { x: 80, y: 80 },
-              value: 0,
-            },
-          ],
-        };
+      : robotics
+        ? createInitialRoboticsProject()
+        : {
+            ...EMPTY_DOCUMENT,
+            components: [
+              {
+                id: 'copy-board',
+                kind: 'visual',
+                componentTypeId: 'arduino-uno',
+                variantId: 'arduino-uno',
+                position: { x: 80, y: 80 },
+                value: 0,
+              },
+            ],
+          };
     const root = `/api/classrooms/${classId}`;
     const projectPath = `${root}/observation/learners/${pupil.id}/projects/${projectId}`;
     const copyPath = `${projectPath}/private-copy`;
@@ -595,6 +599,13 @@ for (const width of [320, 1440]) {
             result: null,
           },
         });
+      if (url.pathname === '/api/projects/' + copyId && request.method() === 'PATCH') {
+        const body = request.postDataJSON() as { title: string };
+        copy.title = body.title;
+        return route.fulfill({ json: { project: copy } });
+      }
+      if (url.pathname === `/api/learning/projects/${copyId}/context`)
+        return route.fulfill({ json: { state: 'not_learning', projectId: copyId } });
       if (url.pathname === '/api/projects') return route.fulfill({ json: { items: [copy] } });
       if (url.pathname.includes(projectId) && request.method() !== 'GET')
         sourceMutations.push(request.method() + ' ' + url.pathname);
@@ -650,8 +661,41 @@ for (const width of [320, 1440]) {
             .locator('.asa3d-actions')
             .getByRole('button', { name: 'Публикация', includeHidden: true }),
         ).toHaveCount(0);
+      } else if (moduleKey === 'robotics') {
+        const editor = page.getByTestId('robotics-account-editor');
+        await expect(editor).toBeVisible();
+        await editor.getByRole('button', { name: 'Элементы поля', exact: true }).click();
+        await expect(editor.getByRole('button', { name: 'Импортировать поле JSON' })).toBeVisible();
+        await expect(
+          editor.getByRole('button', { name: 'Экспортировать поле JSON', includeHidden: true }),
+        ).toHaveCount(0);
+        await expect(
+          editor.getByRole('button', { name: 'Публикация', includeHidden: true }),
+        ).toHaveCount(0);
+        await editor.getByRole('tab', { name: 'Код', exact: true }).click();
+        await expect(
+          editor.locator('.arduino-code-panel.open .arduino-code-toolbar'),
+        ).toBeVisible();
+        await expect(editor.getByTitle('Скачать .ino')).toHaveCount(0);
+        await expect(editor.getByTestId('learning-work-context-state')).toHaveCount(0);
       } else {
         await expect(page.locator('.workbench-shell')).toBeVisible();
+        const titleField = page.getByRole('textbox', { name: 'Название проекта', exact: true });
+        const renamedTitle = `${copyTitle} — переименована`;
+        const renamed = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === `/api/projects/${copyId}` &&
+            response.request().method() === 'PATCH',
+        );
+        await titleField.fill(renamedTitle);
+        await titleField.press('Enter');
+        await renamed;
+        await expect(titleField).toHaveValue(renamedTitle);
+        await expect(
+          page.getByRole('button', { name: 'Отправить — пока недоступно', includeHidden: true }),
+        ).toHaveCount(0);
+        await page.reload();
+        await expect(titleField).toHaveValue(renamedTitle);
         await expect(
           page.getByRole('button', { name: 'Отправить — пока недоступно', includeHidden: true }),
         ).toHaveCount(0);
@@ -663,11 +707,12 @@ for (const width of [320, 1440]) {
         await expect(page.locator('.arduino-code-panel.open .arduino-code-toolbar')).toBeVisible();
         await expect(page.getByTitle('Скачать .ino')).toHaveCount(0);
       }
+      await page.screenshot({ path: `${out}/${width}-teacher-private-copy-editor.png` });
       await page.goto('/#/projects');
-      const copyCard = page.getByTestId('project-card').filter({ hasText: copyTitle });
+      const copyCard = page.getByTestId('project-card').filter({ hasText: copy.title });
       await expect(copyCard.getByText('Свойства', { exact: true })).toHaveCount(1);
       if (width === 1440) {
-        await copyCard.getByLabel('Действия с проектом ' + copyTitle).click();
+        await copyCard.getByLabel('Действия с проектом ' + copy.title).click();
         await expect(copyCard.getByText('Свойства', { exact: true })).toBeVisible();
       }
       await expect(copyCard.getByText('Публикация', { exact: true })).toHaveCount(0);
