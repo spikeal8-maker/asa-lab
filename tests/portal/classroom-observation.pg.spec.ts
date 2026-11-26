@@ -773,10 +773,25 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       learner!.id,
     ]);
     expect((await capability()).json()).toEqual({ canCopy: true });
-    expect(
-      (await copy(1, { cookie: `${teacherCookie}; asa_student_session=${learner!.token}` }))
-        .statusCode,
-    ).toBe(403);
+    for (const [token, identity] of [
+      [learner!.token, { authenticated: true, student: { seatId: learner!.id } }],
+      [randomUUID(), { authenticated: false }],
+    ] as const) {
+      const seatCookie = `asa_student_session=${token}`;
+      const seat = await inject(api, {
+        method: 'GET',
+        url: '/api/class-join/me',
+        headers: { cookie: seatCookie },
+      });
+      expect(seat.statusCode, seat.body).toBe(200);
+      expect(seat.json()).toMatchObject(identity);
+      const mixed = await copy(1, { cookie: `${teacherCookie}; ${seatCookie}` });
+      expect(mixed.statusCode, mixed.body).toBe(409);
+      expect(mixed.json()).toMatchObject({ error: { code: 'session_conflict' } });
+    }
+    const seatOnly = await copy(1, { cookie: `asa_student_session=${learner!.token}` });
+    expect(seatOnly.statusCode, seatOnly.body).toBe(403);
+    expect(seatOnly.json()).toMatchObject({ error: { code: 'account_required' } });
     expect(
       (await copy(1, { url: privateCopyUrl(f.classId, other!.id, projectId) })).statusCode,
     ).toBe(404);
