@@ -4,6 +4,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
 import type { PublicRoboticsArtifactV6 } from '../packages/contracts/src/public-robotics-artifact-v6';
 import type { Project, ProjectDraft } from '../contexts/projects/domain/project';
 import type { RoboticsProject } from '../contexts/robotics/domain/document';
+import { createRoboticsBall } from '../contexts/robotics/domain/world-document';
 import { collectBrowserFailures } from './browser-failures';
 import { accountMenu, openAccountMenu, openPortalSection, portalTopBar } from './portal-navigation';
 
@@ -27,7 +28,16 @@ async function sideRuler(page: Page) {
     ruler.evaluate((element) => {
       const bar = element.querySelector<HTMLElement>('.robotics-side-scale-bar');
       const canvas = element.parentElement?.querySelector('canvas');
-      if (!bar || !canvas) throw new Error('Side ruler lost its real canvas/bar');
+      const toolbar = document.querySelector<HTMLElement>(
+        '#robotics-panel-field .robotics-field-toolbar',
+      );
+      if (!bar || !canvas || !toolbar)
+        throw new Error('Side ruler lost its real canvas/bar/toolbar');
+      if (
+        canvas.dataset.rendered !== 'true' ||
+        element.parentElement?.getAttribute('data-renderer') !== 'webgl'
+      )
+        throw new Error('Side ruler has no actual WebGL render');
       const projection: number[] = JSON.parse(element.getAttribute('data-projection') ?? 'null');
       if (projection?.length !== 7 || !projection.every(Number.isFinite))
         throw new Error('Missing actual orthographic render inputs');
@@ -65,10 +75,9 @@ async function sideRuler(page: Page) {
         pixelsPerMeter: (zoom * width) / (right - left),
         viewport: viewport.toJSON(),
         bounds: element.getBoundingClientRect().toJSON(),
-        controls: element
-          .parentElement!.querySelector('.robotics-spatial-controls')!
-          .getBoundingClientRect()
-          .toJSON(),
+        toolbar: toolbar.getBoundingClientRect().toJSON(),
+        toolbarCount: document.querySelectorAll('#robotics-panel-field .robotics-field-toolbar')
+          .length,
       };
     });
   await expect.poll(async () => (await read()).error).toBeLessThanOrEqual(1);
@@ -79,7 +88,10 @@ async function sideRuler(page: Page) {
   expect(measurement.bounds.right).toBeLessThanOrEqual(measurement.viewport.right);
   expect(measurement.bounds.top).toBeGreaterThanOrEqual(measurement.viewport.top);
   expect(measurement.bounds.bottom).toBeLessThanOrEqual(measurement.viewport.bottom);
-  expect(measurement.bounds.bottom).toBeLessThanOrEqual(measurement.controls.top);
+  expect(measurement.toolbarCount).toBe(1);
+  expect(measurement.toolbar.width).toBeGreaterThan(0);
+  expect(measurement.toolbar.height).toBeGreaterThan(0);
+  expect(measurement.toolbar.bottom).toBeLessThanOrEqual(measurement.viewport.top + 1);
   await expect(ruler).toHaveAccessibleName('Масштаб бокового вида: ' + measurement.label);
   await expect(ruler).toHaveCSS('pointer-events', 'none');
   return measurement;
@@ -539,14 +551,124 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     .getByRole('button', { name: 'Мяч', exact: true });
   const card = await paletteBall.boundingBox();
   const svg = page.getByTestId('robotics-field');
-  const drop = await svg.evaluate((element) => {
-    if (!(element instanceof SVGSVGElement)) throw new Error('Actual Top SVG missing');
-    const matrix = element.getScreenCTM();
-    if (!matrix) throw new Error('Actual Top projection missing');
-    // A clear point away from the starter robot and barrier, in SVG millimetres.
-    const point = new DOMPoint(800, 3800).matrixTransform(matrix);
-    return { x: point.x, y: point.y };
-  });
+  await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
+  await expect(svg).toHaveAttribute('data-render-layer', 'interaction');
+  await expect(page.getByTestId('robotics-field-spatial').locator('canvas')).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await expect(page.getByRole('checkbox', { name: 'Привязка', exact: true })).not.toBeChecked();
+  await page.screenshot({ path: `${EVIDENCE}/field-visual-default100-1440.png`, fullPage: true });
+  const radiusMeters = createRoboticsBall('drop-probe', { xMeters: 0, yMeters: 0 }).radiusMeters;
+  const drop = await svg.evaluate(
+    (element, { world, radiusMeters }) => {
+      if (!(element instanceof SVGSVGElement)) throw new Error('Actual Top SVG missing');
+      const matrix = element.getScreenCTM();
+      if (
+        !matrix ||
+        !matrix.is2D ||
+        ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite) ||
+        matrix.a <= 0 ||
+        matrix.d <= 0
+      )
+        throw new Error('Actual affine Top projection missing');
+      const area = element.getBoundingClientRect();
+      if (!(area.width > 0 && area.height > 0)) throw new Error('Actual Top viewport missing');
+      const inverse = matrix.inverse();
+      const clearance = radiusMeters + 0.03;
+      const free = (xMeters: number, yMeters: number) => {
+        if (![xMeters, yMeters].every(Number.isFinite)) return false;
+        if (
+          xMeters <= clearance ||
+          yMeters <= clearance ||
+          xMeters >= world.field.widthMeters - clearance ||
+          yMeters >= world.field.heightMeters - clearance
+        )
+          return false;
+        const robotRadius = Math.max(
+          Math.hypot(world.robot.bodyLengthMeters, world.robot.bodyWidthMeters) / 2,
+          world.robot.wheelTrackMeters / 2 + world.robot.wheelWidthMeters,
+          Math.abs(world.robot.sensorForwardMeters) + 0.05,
+        );
+        if (
+          Math.hypot(xMeters - world.initialPose.xMeters, yMeters - world.initialPose.yMeters) <=
+          robotRadius + clearance
+        )
+          return false;
+        if (
+          world.field.balls.some(
+            (ball) =>
+              Math.hypot(xMeters - ball.xMeters, yMeters - ball.yMeters) <=
+              ball.radiusMeters + clearance,
+          )
+        )
+          return false;
+        if (
+          (world.field.bodies ?? []).some(
+            (body) =>
+              Math.hypot(xMeters - body.xMeters, yMeters - body.yMeters) <=
+              (body.kind === 'can'
+                ? body.radiusMeters
+                : Math.hypot(body.widthMeters, body.depthMeters) / 2) +
+                clearance,
+          )
+        )
+          return false;
+        return !world.field.obstacles.some(
+          (wall) =>
+            Math.hypot(
+              xMeters - wall.xMeters - wall.widthMeters / 2,
+              yMeters - wall.yMeters - wall.heightMeters / 2,
+            ) <=
+            Math.hypot(wall.widthMeters, wall.heightMeters) / 2 + clearance,
+        );
+      };
+      for (const fy of [0.3, 0.45, 0.6, 0.75])
+        for (const fx of [0.3, 0.45, 0.6, 0.75]) {
+          const x = Math.round(area.left + area.width * fx),
+            y = Math.round(area.top + area.height * fy);
+          // Native HTML DnD uses integer CSS coordinates. Include the final +1 move
+          // and enough screen-space room for the complete real candidate footprint.
+          const inset = radiusMeters * matrix.a * 1000 + 12;
+          if (
+            x - inset <= area.left ||
+            x + inset + 1 >= area.right ||
+            y - inset <= area.top ||
+            y + inset + 1 >= area.bottom
+          )
+            continue;
+          let final: { xMeters: number; yMeters: number } | null = null;
+          let accessible = true;
+          for (const delta of [0, 1]) {
+            const hit = document.elementFromPoint(x + delta, y + delta);
+            if (!hit || !element.contains(hit) || hit.closest('[data-scene-key]')) {
+              accessible = false;
+              break;
+            }
+            const ground = new DOMPoint(x + delta, y + delta).matrixTransform(inverse);
+            const point = {
+              xMeters: Math.round(ground.x * 10) / 10000,
+              yMeters: Math.round((world.field.heightMeters * 1000 - ground.y) * 10) / 10000,
+            };
+            if (!free(point.xMeters, point.yMeters)) {
+              accessible = false;
+              break;
+            }
+            final = point;
+          }
+          if (accessible && final)
+            return {
+              x,
+              y,
+              final,
+              viewport: area.toJSON(),
+              matrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+            };
+        }
+      throw new Error('No accessible free ground point in the actual default100% viewport');
+    },
+    { world: initial.draft.document.world, radiusMeters },
+  );
   if (!card) throw new Error('Palette card is not visible');
   await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
   await page.mouse.down();
@@ -557,6 +679,9 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   await expect(ghost).toHaveCount(1);
   const ghostKey = await ghost.getAttribute('data-scene-key');
   expect(ghostKey).toMatch(/^ball:/);
+  await expect(ghost).toHaveAttribute('data-field-ghost', 'valid');
+  expect(Number(await ghost.getAttribute('data-x-meters'))).toBeCloseTo(drop.final.xMeters, 8);
+  expect(Number(await ghost.getAttribute('data-y-meters'))).toBeCloseTo(drop.final.yMeters, 8);
   expect((await readProject(page, projectId)).draft.document).toEqual(initial.draft.document);
   await page.screenshot({ path: `${EVIDENCE}/field-edit-top-candidate-1440.png`, fullPage: true });
   await page.mouse.up();
@@ -566,7 +691,11 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     initial.draft.document.world.field.balls.length + 1,
   );
   const id = ghostKey!.slice('ball:'.length);
-  expect(committed.draft.document.world.field.balls.find((ball) => ball.id === id)).toBeDefined();
+  const placed = committed.draft.document.world.field.balls.find((ball) => ball.id === id);
+  expect(placed).toBeDefined();
+  expect(placed!.xMeters).toBeCloseTo(drop.final.xMeters, 8);
+  expect(placed!.yMeters).toBeCloseTo(drop.final.yMeters, 8);
+  expect(placed!.radiusMeters).toBe(radiusMeters);
   // Observe after the actual renderer RAF, including the final coalesced pointer event.
   const rendered = (canvas: Locator) =>
     canvas.evaluate(
@@ -601,6 +730,14 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     const canvas = page.getByTestId('robotics-field-spatial').locator('canvas');
     await expect(canvas).toBeVisible();
     await expect(page.locator('.robotics-spatial-notice')).toHaveCount(0);
+    if (width === 1440) {
+      await rendered(canvas);
+      await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
+      await page.screenshot({
+        path: `${EVIDENCE}/field-visual-perspective-default100-1440.png`,
+        fullPage: true,
+      });
+    }
     await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
     await expect(canvas).toHaveAttribute('data-camera', /./);
     await rendered(canvas);
@@ -738,7 +875,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   writeFileSync(
     `${EVIDENCE}/field-edit-gestures.json`,
     JSON.stringify(
-      { projectId, observations, paused, source: digest(committed.draft.document) },
+      { projectId, drop, placed, observations, paused, source: digest(committed.draft.document) },
       null,
       2,
     ),

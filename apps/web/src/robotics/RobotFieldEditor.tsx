@@ -1672,13 +1672,9 @@ export function RobotFieldEditor({
                 {fieldLengthFormat.format(world.field.widthMeters)} ×{' '}
                 {fieldLengthFormat.format(world.field.heightMeters)} м
               </span>
-              {topView ? (
-                <span className="robotics-field-stage-instruction">
-                  {ghost?.valid === false
-                    ? 'Здесь нельзя разместить предмет'
-                    : tool !== 'select'
-                      ? selectedTool.label
-                      : 'Колесо — масштаб · пробел — панорама'}
+              {topView && (ghost?.valid === false || tool !== 'select') ? (
+                <span className="robotics-field-stage-instruction" role="status">
+                  {ghost?.valid === false ? 'Здесь нельзя разместить предмет' : selectedTool.label}
                 </span>
               ) : null}
             </div>
