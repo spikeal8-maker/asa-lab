@@ -1,0 +1,73 @@
+name: Classroom Journal Capacity
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/classroom-journal-capacity.yml'
+      - 'playwright.classroom-journal-capacity.config.ts'
+      - 'e2e/classroom-journal-capacity.spec.ts'
+      - 'apps/api/src/classroom-journal.controller.ts'
+      - 'apps/web/src/components/ManualClassroomJournal.tsx'
+      - 'apps/web/src/components/quick-journal-model.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  journal30:
+    name: Journal saves under concurrent classroom activity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    services:
+      postgres:
+        image: postgres:17.7
+        env:
+          POSTGRES_DB: asa_journal_capacity_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: journal-capacity-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_journal_capacity_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      ASA_JOURNAL_CAPACITY: '1'
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      TEST_DATABASE_URL: postgresql://postgres:journal-capacity-ci-only@127.0.0.1:5432/asa_journal_capacity_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:journal-capacity-ci-only@127.0.0.1:5432/asa_journal_capacity_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:journal-capacity-ci-only@127.0.0.1:5432/asa_journal_capacity_test
+      MIGRATION_EXPECT_DATABASE: asa_journal_capacity_test
+      MIGRATION_CONFIRM: APPLY:asa_journal_capacity_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx run-many -t build -p web,api --skip-nx-cache
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Migrate the disposable fixture database and verify runtime role
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'journal-capacity-ci-only'"
+          role=$(psql "$APP_TEST_DATABASE_URL" -Atqc "SELECT current_user || ':' || rolsuper || ':' || rolbypassrls FROM pg_roles WHERE rolname=current_user")
+          test "$role" = "asalab_app:false:false"
+      - name: Measure real journal writes and readback under classroom activity
+        run: pnpm exec playwright test --config playwright.classroom-journal-capacity.config.ts
+      - name: Preserve aggregate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-journal-capacity-${{ env.ASA_BUILD_REVISION }}
+          path: reports/capacity/classroom-journal.json
+          if-no-files-found: error
+          retention-days: 14
