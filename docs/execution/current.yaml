@@ -18992,6 +18992,135 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-FIELD-VISUAL-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3-FIELD-VISUAL
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_normal_field_visual_selected
+      owner_acceptance: pending
+      owner_authorization: The owner's explicit 2026-11-27 correction makes ordinary Field visual quality the first
+        priority ahead of the experimental physical-ramp programme. Select one bounded existing-editor visual slice;
+        source implementation starts only after protected canonical selection and fresh scoped preflight. This is
+        neither acceptance of old experiments nor authorization to start, rebuild, mount or deploy a stand.
+      registration_baseline:
+        main: ed3ff23c7e44df7b4feb2f0e489c0cf2379942b5
+        preserved_task: parallel_lanes.robotics.historical_editable_ramp_live_task
+        prior_e3: parallel_lanes.robotics.historical_field_edit_gestures_task
+        prior_side_scale: parallel_lanes.robotics.historical_side_scale_task
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-DEL-02
+        - REQ-DEL-05
+        - REQ-VIEW-03
+        - REQ-UI-01
+        - REQ-UI-04
+        - REQ-LAYOUT-01
+      scope: Improve the normal saved-project Field editor with coherent existing object geometry/materials across
+        Top orthographic, oblique/Perspective and Side views, an understandable initial visual scale, calibrated
+        rulers and one compact control row. Reuse the same committed document/world snapshot; preserve the existing
+        Top SVG hit/render fallback and all supported editing. Only presentational robot geometry changes; no physical
+        drive, caster contact or spatial terrain is introduced.
+      planned_paths:
+      - apps/web/src/robotics/RobotField.tsx
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/RobotFieldSpatialView.tsx
+      - apps/web/src/robotics/field-spatial-scene.ts
+      - apps/web/src/robotics/field-camera.ts
+      - apps/web/src/robotics/use-field-camera.ts
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/testing/robotics-field-camera.spec.ts
+      - apps/web/src/robotics/testing/robotics-field-spatial.spec.ts
+      - apps/web/src/robotics/testing/robotics.browser.mjs
+      - e2e/robotics-projects.spec.ts
+      ux_acceptance:
+      - Use coherent existing-dimension object geometry/materials in the normal Field views, including current cans/balls/obstacles
+        and robot. Keep the working Top SVG renderer/hit fallback, selection labels, accessible names, keyboard focus
+        and picking; fallback must remain identifiable and must not count as real WebGL evidence. Keep world axes,
+        object identity and current dimensional bounds authoritative across views.
+      - Make normal displayed100% approximately the previous200% initial visual size without changing metres, schema,
+        body dimensions, initial poses or runtime state. Unify +/- and percentage display with the same camera state;
+        provide a separate explicit whole-field Fit action. Preserve pan, wheel/pinch zoom, focus/fit, resize and
+        supported touch/keyboard controls, clamp valid camera state, and do not reset the document or model time
+        when changing view/zoom.
+      - Provide real metric measurement directly adjacent to the field in Top and Side using actual projection/frustum/zoom
+        and CSS viewport size, with neutral field-size information. Retain calibrated existing Side ruler behavior
+        through zoom/pan/resize/fit/focus/mode/inactive changes. A Perspective display must not invent a constant
+        pixel-to-metre scale; any world-referenced measure must come from its real projection. Avoid decorative oversized
+        numbers, a separate stage plinth/footer or ornamental framing that displaces the useful field.
+      - Render only visually low perimeter rims without adding colliders, walls or new semantic objects. Keep functional
+        grid available in all supported views, with coherent scale and visibility. Merge duplicated camera/view/grid/edit/zoom
+        controls into one understandable Field toolbar while retaining actual capabilities, keyboard access, mobile
+        reachability and labels. Existing simulationControls already passed into RobotFieldEditor may be relocated
+        within this one toolbar; no new run controller, no duplicate launch actions and no header-wide workspace
+        redesign in this slice.
+      - 'Show the same existing-dimension chassis with a recognizable box/Uno shell and visible rear caster in the
+        Field scene. Reuse approved existing assets unchanged where appropriate; no generated runtime artwork, new
+        SVG, traced owner assets, new image/model dependencies or substituted owner artwork. Rear caster/shell changes
+        are visual only: no collider, inertia, motor binding, wheel track, robot origin, sensor mount or physical
+        motion change. Do not present this appearance as calibrated hardware or a newly working drive.'
+      - 'Preserve the accepted E3 placement and object drag behavior: one real ghost, ray-to-existing-XY coordinates
+        and grabbed offset, camera/edit gesture separation, finite invalid/outside rejection and cancellation. Preserve
+        undo/redo, validation/snapping, running locks, save/reopen, project identity and paused clock/pose; no hidden
+        pose writes or renderer-only fake motion. Existing document geometry and simulation semantics remain unchanged.'
+      constraints:
+      - 'Only the listed existing files may change after this selection. testing/robotics.browser.mjs is conditional:
+        adapt its expectations only if the selected control relocation changes the existing harness. e2e/robotics-projects.spec.ts
+        is primary actual publication/Field journey coverage, including existing FIELD-EDIT-GESTURES and SIDE-SCALE
+        regressions; do not weaken them to match a broken renderer.'
+      - No contexts/robotics world/schema/runtime, Worker, solver, electronics, Arduino program, API, database, dependency/lockfile,
+        asset, Docker/service/route or new-source-file changes. No native acquisition, old consumed opt-in, source-artifact
+        rebuild or physical-ramp integration is authorized by this UI_ONLY task.
+      - ROBOTICS-FIELD-CORE-D01-D02 retains its exact original binding and blocks. No spatial_product_integration,
+        full_physics_acceptance, owner acceptance, release_claim, deployment or working-DB operation follows from
+        visual delivery. Prior physical FAIL/GAP, raw/source hashes, E3 histories and all blockers remain unchanged.
+      - The ordinary product still has no physical adjustable-ramp terrain type. The existing editable-ramp helper,
+        acquired fixtures and separate live prototype remain TEST_ONLY. Do not add a flat picture/box labelled as
+        a physical ramp/platform/bridge. True adjustable terrain, finite platform joins and volumetric bridge/underpass
+        remain downstream requirements.
+      - Other robotics camera/dock READY records are not authority to start additional work or overwrite unfinished
+        changes. Coordinate exact overlapping CSS/camera/field tests during fresh preflight. The experimental-ramp
+        selection is preserved as history, not restarted or declared merged/accepted by this priority change.
+      dependent_intent:
+        not_selected_now:
+        - Share the accepted robot appearance with the ordinary Robot assembly tab after this Field slice; no new
+          mechanical kit contract is implied.
+        - Relocate common run/pause/reset/time into the main header in a separately selected workspace slice without
+          duplicating controller/time ownership.
+        - Provide resizable left Arduino/electronics/code editing beside the shared field using the same existing
+          documents and editor instances, with separate responsive/lifecycle verification. This owner direction changes
+          presentation, not motor/drive behavior.
+      verification:
+        pure: 'Extend the listed camera/spatial specs using real Three camera/projection and existing document helpers:
+          initial100% calibration, unified zoom/explicit Fit, metric ruler CSS/DPR correctness, view switching and
+          geometry/material parity, grid/rim dimensions, pick/ghost/offset/cancel and lifecycle disposal. Preserve
+          current invariants and existing tests; no mocked physics PASS.'
+        browser: Use normal saved project -> Field in the existing built Web/API/isolated PostgreSQL projects-publication
+          journey. Verify real WebGL Top/oblique/Side, coherent robot/can objects, low rims, working grid, one toolbar,
+          all zoom/Fit and measurement updates, original E3 drag/keyboard/undo/running locks and unchanged paused
+          time/pose/document; save/reopen identity. Capture actual1440px and320px visual evidence, including existing
+          DPR1/2 ruler/gesture cases. Retain screenshots and objective measurement/state receipts at the exact source
+          SHA; fallback or test-only synthetic DOM/poses are not browser PASS.
+        gates: 'Docs: sole-path PLAN/control-plane, YAML and full byte/semantic history inverse, actual pnpm validate:electronics-agent-docs
+          and full pnpm gate:governance. Source after protected selection: pnpm test:robotics, changed-file format/lint/strict
+          typing, independent exact-source review and ordinary required General. Actual built browser evidence uses
+          the existing pnpm gate:projects-publication:browser and .github/workflows/projects-publication.yml; adapt
+          legacy pnpm test:robotics:browser only when selected control moves require it. No new local service, stand
+          startup/address, deployment or working database.'
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    historical_editable_ramp_live_task:
       id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-LIVE-001
       issue: 1071
       branch: main
@@ -19255,6 +19384,35 @@ parallel_lanes:
       - docs/product/robotics/FIELD_CORE_START.md
       - docs/agent/contracts/deployment.yaml
       - docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md
+    editable_ramp_live_priority_checkpoint:
+      observed_on: '2026-11-27'
+      priority: Owner selects ordinary visual editor first; experimental-ramp work is paused in this execution projection,
+        not abandoned or accepted.
+      pr:
+        number: 1340
+        url: https://github.com/spikeal8-maker/asa-lab/pull/1340
+        state: OPEN
+        published_head: 31d9be088fdd4751f0e752ae5f1ad665345cc3da
+        required: SUCCESS
+        required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/45575736704/job/139088664160
+        merge: null
+      local_recovery_source:
+        sha: 1bc8d27869fbada6a1740dc9e4e5996e68c8d322
+        tree: 243cbd9fd6c2dbdd3d75002696da8f0006e20005
+        independent_source_review: HIGH_GO
+        publication: local_only
+        runtime: NOT_RUN; source review is not artifact/native evidence
+      actual_prior_attempt:
+        source: 1d5795f5d1de9cedae640b3abd1d40d03e16e383
+        runtime: ERROR
+        acquisition: PRE_DISPATCH
+        first_error: REAL_SIDEBAR_PLACEMENT
+        native_step2: 0
+        attempts: 0
+        summary_bytes: 884
+        summary_sha256: 1b3aacbcd8e0505cbcf984d80aa0ab5838795969facbe804147312f972b90db1
+      limit: This is a factual dated pause snapshot, not permission to retry, restart qualification, build/mount
+        a bundle or claim the protected PR merged. Later evidence, if any, needs its own exact receipt binding.
     field_edit_gestures_result:
       scope: UI_ONLY_source_preservation_not_owner_acceptance
       source: 99c71bd3cc51da4464595a2cfbdee0049a587e85
