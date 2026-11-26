@@ -739,6 +739,8 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     const f = await fixture(2);
     const [learner, other] = f.seats;
     const projectId = await f.project(learner!.principal, 'three-d', 'active', f.classId);
+    const sourceTitle = 'Подставка для датчика';
+    await admin.query('UPDATE projects SET title=$2 WHERE id=$1', [projectId, sourceTitle]);
     const document = createEmptyThreeDDocument();
     await admin.query('UPDATE project_drafts SET document_json=$2::jsonb WHERE project_id=$1', [
       projectId,
@@ -842,10 +844,18 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       headers: { cookie: teacherCookie },
     });
     expect(open.statusCode, open.body).toBe(200);
-    expect(open.json().project.privateClassroomCopy).toBe(true);
-    expect(open.json().project.copiedFrom).toBeNull();
+    expect(open.json().project).toMatchObject({
+      id: copyId,
+      title: `${sourceTitle} — копия`,
+      privateClassroomCopy: true,
+      copiedFrom: null,
+    });
+    expect(open.body).not.toContain(f.classId);
     expect(open.body).not.toContain(learner!.id);
     expect(open.body).not.toContain(projectId);
+    expect(open.body).not.toMatch(
+      /"(?:classroomCopySource|classroom_copy_source|sourceProjectId)":/,
+    );
     const renamed = await inject(api, {
       method: 'PATCH',
       url: `/api/projects/${copyId}`,
