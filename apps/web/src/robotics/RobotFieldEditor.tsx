@@ -818,6 +818,10 @@ export function RobotFieldEditor({
     if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
       return;
     }
+    if (fieldView === 'orbit') {
+      clearPaletteDrag();
+      return;
+    }
     setDropHover(false);
     setPlacement(null);
   }

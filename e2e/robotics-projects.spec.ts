@@ -3568,6 +3568,12 @@ test('PERSPECTIVE-PLACE UI_ONLY places four real palette objects by native drag 
       if (mode === 'escape') await page.keyboard.press('Escape');
       else await page.mouse.move(target.hover.x, Math.round(target.viewport.top) - 8, { steps: 5 });
       await expect(canvas).toHaveAttribute('data-placement-preview', 'null');
+      if (mode === 'outside-viewport') {
+        const reentered = native.length;
+        await page.mouse.move(target.hover.x, target.hover.y, { steps: 5 });
+        await nativeAt(reentered, 'dragover', target.hover);
+        await expect(canvas).toHaveAttribute('data-placement-preview', 'null');
+      }
     } else if (mode === 'invalid-wall-footprint') {
       await expect.poll(readPreview).toMatchObject({ kind: 'wall', valid: false, meshCount: 2 });
     } else {
