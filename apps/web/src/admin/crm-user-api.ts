@@ -1,3 +1,4 @@
+import type { ProjectCardUsage } from '../api';
 import { call } from './admin-api';
 export interface CrmSubject {
   kind: 'account' | 'student';
@@ -66,6 +67,9 @@ export interface CrmContentItem {
   module?: string;
   status?: string;
   classId?: string;
+  updatedAt?: string;
+  snapshotRevision?: number | null;
+  usage?: ProjectCardUsage;
   threadId?: string;
   requestId?: string;
   role?: string;
@@ -95,6 +99,11 @@ export interface CrmDocument {
 }
 export function crmSubjectPath(subject: CrmSubject) {
   return `/api/crm/v1/users/${encodeURIComponent(subject.kind)}/${encodeURIComponent(subject.targetId)}`;
+}
+export function crmProjectSnapshotUrl(subject: CrmSubject, projectId: string, revision: number) {
+  const params = query(subject);
+  params.set('revision', String(revision));
+  return `${crmSubjectPath(subject)}/projects/${encodeURIComponent(projectId)}/snapshot?${params}`;
 }
 function query(subject: CrmSubject) {
   const value = new URLSearchParams();

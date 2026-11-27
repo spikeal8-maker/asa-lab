@@ -8,9 +8,10 @@ import {
   Put,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { parseCatalogQuery } from './admin-user-catalog.js';
@@ -261,6 +262,39 @@ export class CrmUserController {
       next:
         value.next === null ? null : Buffer.from(JSON.stringify(value.next)).toString('base64url'),
     };
+  }
+  @Get('users/:kind/:target/projects/:project/snapshot')
+  async projectSnapshot(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+    @Param('kind') kind: string,
+    @Param('target') target: string,
+    @Param('project') project: string,
+    @Query('classroomId') classroom: unknown,
+    @Query('revision') rawRevision: unknown,
+  ) {
+    const actor = await this.actor(request);
+    const subject = crmIdentity(kind, target, classroom);
+    if (typeof rawRevision !== 'string' || !/^[1-9][0-9]{0,9}$/.test(rawRevision)) invalid();
+    const revision = Number(rawRevision);
+    if (revision > 2_147_483_647) invalid();
+    const result = await this.query<{ contentType?: string; image?: string }>(
+      'SELECT crm_project_card_snapshot($1,$2,$3,$4,$5,$6,$7) AS value',
+      [actor, subject.kind, subject.target, subject.classroom, id(project), revision, request.id],
+    );
+    if (
+      !result.image ||
+      (result.contentType !== 'image/png' && result.contentType !== 'image/webp')
+    ) {
+      throw new HttpException({ error: { code: 'not_found', message: 'Снимок недоступен.' } }, 404);
+    }
+    reply
+      .header('Cache-Control', 'private, no-store')
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Content-Security-Policy', "default-src 'none'; sandbox")
+      .header('Cross-Origin-Resource-Policy', 'same-origin')
+      .type(result.contentType);
+    return Buffer.from(result.image, 'base64');
   }
   @Get('users/:kind/:target/projects/:project')
   async project(

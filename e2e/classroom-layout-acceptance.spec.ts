@@ -614,6 +614,18 @@ for (const width of [320, 390, 1440]) {
     await page.goto('/#/classrooms/' + classId);
     await section(page, 'Проекты');
     const card = page.getByRole('button', { name: 'Предпросмотр работы ' + title });
+    const tile = card.locator('..');
+    const openEditor = tile.locator('.classroom-work-card-editor');
+    await card.focus();
+    await expect(openEditor).toHaveCSS('opacity', '1');
+    const picture = await tile.locator('.classroom-work-card-picture').boundingBox();
+    const action = await openEditor.boundingBox();
+    expect(action?.y).toBeGreaterThanOrEqual(picture!.y);
+    expect(action!.y + action!.height).toBeLessThanOrEqual(picture!.y + picture!.height);
+    await expect(tile.getByRole('img')).toHaveCount(1);
+    await expect(tile.getByText('Открытий —')).toBeVisible();
+    mkdirSync(out, { recursive: true });
+    await tile.screenshot({ path: `${out}/${width}-teacher-work-card.png` });
     const dialog = page.getByRole('dialog', { name: 'Работа: ' + title });
     const copyAction = dialog.getByRole('button', { name: 'Копировать в «Мои проекты»' });
     const denied = page.waitForResponse(
