@@ -379,7 +379,7 @@ export async function createApiApp(
     fastify.addHook('onClose', cleanup);
     fastify.addHook('onRoute', (route) => {
       if (route.method === 'PUT' && route.url === '/api/projects/:projectId/draft') {
-        // 3D work may contain imported geometry. Only draft writes use this budget.
+        // Detailed 3D sketches can exceed the default limit. Only draft writes use this budget.
         route.bodyLimit = 4 * 1024 * 1024;
       }
     });

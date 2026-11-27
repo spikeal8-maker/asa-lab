@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
@@ -393,6 +394,47 @@ test('portrait snapshots cannot stretch existing project cards on desktop or pho
       width,
     );
   }
+});
+
+test('an authenticated draft over 1 MiB persists and opens at its confirmed revision', async ({
+  page,
+}) => {
+  await loginWithOrganization(page, teacher);
+  await createThreeDProject(page, 'Большой 3D-черновик');
+  const route = new URL(page.url()).hash;
+  const projectId = /^#\/3d\/([^/?#]+)/.exec(route)?.[1];
+  if (!projectId) throw new Error('3D project route is missing');
+  const endpoint = '/api/projects/' + encodeURIComponent(projectId);
+  const original = await page.request.get(endpoint);
+  expect(original.ok()).toBe(true);
+  const loaded = (await original.json()) as { draft: { revision: number } };
+
+  const document = {
+    ...createEmptyThreeDDocument(),
+    nodes: Array.from({ length: 1600 }, (_, index) => createThreeDNode('box', 'part-' + index)),
+  };
+  const payload = JSON.stringify({
+    document,
+    baseRevision: loaded.draft.revision,
+    mutationId: randomUUID(),
+  });
+  expect(Buffer.byteLength(payload)).toBeGreaterThan(1024 * 1024);
+  expect(Buffer.byteLength(payload)).toBeLessThan(4 * 1024 * 1024);
+
+  const saved = await page.request.put(endpoint + '/draft', {
+    headers: { origin: new URL(page.url()).origin, 'content-type': 'application/json' },
+    data: payload,
+  });
+  expect(saved.status()).toBe(200);
+  const confirmed = (await saved.json()) as { draft: { revision: number } };
+  expect(confirmed.draft.revision).toBeGreaterThan(loaded.draft.revision);
+
+  const reopened = await page.request.get(endpoint);
+  expect(reopened.ok()).toBe(true);
+  expect((await reopened.json()).draft).toMatchObject({
+    revision: confirmed.draft.revision,
+    document,
+  });
 });
 
 test('teacher models, autosaves, reloads and versions an ASA 3D scene', async ({ page }) => {
