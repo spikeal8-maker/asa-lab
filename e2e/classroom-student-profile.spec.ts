@@ -1881,7 +1881,14 @@ test('mobile work filters share a row and one card fills the grid while multiple
 test('class projects and learner profile show full-width project covers in a wrapping grid', async ({
   page,
 }) => {
-  const state = await setup(page, { manual: 0, results: 0, long: false, firstWorkSnapshot: 7 });
+  const longTitle = 'Исследование электрической цепи abcdef12';
+  const state = await setup(page, {
+    manual: 0,
+    results: 0,
+    long: false,
+    firstWorkSnapshot: 7,
+    firstWorkTitle: longTitle,
+  });
   for (const [id, file] of [
     ['work-0-0', 'three-d-house.png'],
     ['project-1', 'electronics-simulation.png'],
@@ -1914,12 +1921,31 @@ test('class projects and learner profile show full-width project covers in a wra
       const coverBox = (await picture.boundingBox())!;
       const otherBox = (await cards.nth(1).boundingBox())!;
       const titleBox = (await card.locator('.classroom-work-card-title').boundingBox())!;
+      await picture.hover();
+      await expect(editor).toHaveCSS('opacity', '1');
       const editorBox = (await editor.boundingBox())!;
       expect(coverBox.width).toBeGreaterThanOrEqual(cardBox.width - 2);
       expect(coverBox.height).toBeGreaterThan(cardBox.height / 2);
       expect(coverBox.y + coverBox.height).toBeLessThanOrEqual(titleBox.y);
-      expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(editorBox.y);
+      expect(editorBox.y).toBeGreaterThanOrEqual(coverBox.y);
+      expect(editorBox.y + editorBox.height).toBeLessThanOrEqual(coverBox.y + coverBox.height);
+      expect(editorBox.x).toBeGreaterThanOrEqual(coverBox.x);
+      expect(editorBox.x + editorBox.width).toBeLessThanOrEqual(coverBox.x + coverBox.width);
       expect(editorBox.height).toBeGreaterThanOrEqual(44);
+      const brokenWords = await card
+        .locator('strong')
+        .first()
+        .evaluate((title) => {
+          const text = title.firstChild as Text;
+          const value = text.textContent ?? '';
+          return [...value.matchAll(/\S+/gu)].flatMap((word) => {
+            const range = document.createRange();
+            range.setStart(text, word.index);
+            range.setEnd(text, word.index + word[0].length);
+            return range.getClientRects().length > 1 ? [word[0]] : [];
+          });
+        });
+      expect(brokenWords).toEqual([]);
       if (width === 1440) expect(otherBox.y).toBeCloseTo(cardBox.y, 0);
       else expect(otherBox.y).toBeGreaterThanOrEqual(cardBox.y + cardBox.height);
       expect(await grid.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
@@ -1945,11 +1971,7 @@ test('class projects and learner profile show full-width project covers in a wra
 
   await state.open();
   await page.getByRole('button', { name: 'Ещё работы', exact: true }).click();
-  await verifyCover(
-    page.locator('.classroom-work-card-list'),
-    'Работа: Открытая модель',
-    'profile',
-  );
+  await verifyCover(page.locator('.classroom-work-card-list'), 'Работа: ' + longTitle, 'profile');
 
   await page.getByRole('button', { name: '← К классу', exact: true }).click();
   const section = page.getByRole('combobox', { name: 'Раздел класса' });

@@ -1,7 +1,7 @@
 import { it, expect, vi } from 'vitest';
 import type pg from 'pg';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CrmUserController, crmIdentity, crmProfileInput } from './crm-user.controller';
 import { projectDatabaseEntry } from './database-diagnostics';
 const ID = '20000000-0000-4000-8000-000000000001';
@@ -158,4 +158,41 @@ it('validates exact Seat detail category/class and serializes note continuation 
     reason: 'Classroom note',
   });
   expect(query.mock.calls.some(([sql]) => sql.startsWith('SELECT crm_seat_note_add'))).toBe(true);
+});
+
+it('returns only a scoped CRM thumbnail with browser isolation headers', async () => {
+  const image = Buffer.from('test thumbnail');
+  const query = vi.fn(async (sql: string) => ({
+    rows: sql.startsWith('SELECT crm_project_card_snapshot')
+      ? [{ value: { contentType: 'image/png', image: image.toString('base64') } }]
+      : [],
+  }));
+  const header = vi.fn().mockReturnThis();
+  const type = vi.fn().mockReturnThis();
+  const reply = { header, type } as unknown as FastifyReply;
+  const controller = new CrmUserController(
+    { resolve: vi.fn(async () => ({ principalId: ID })) } as unknown as ActiveContextUseCase,
+    { connect: vi.fn(async () => ({ query, release: vi.fn() })) } as unknown as pg.Pool,
+  );
+  const request = {
+    cookies: { asa_session: 'test' },
+    id: 'preview-request',
+  } as unknown as FastifyRequest;
+  await expect(
+    controller.projectSnapshot(request, reply, 'student', ID, ID, ID, '3'),
+  ).resolves.toEqual(image);
+  expect(query).toHaveBeenCalledWith(
+    'SELECT crm_project_card_snapshot($1,$2,$3,$4,$5,$6,$7) AS value',
+    [ID, 'student', ID, ID, ID, 3, 'preview-request'],
+  );
+  expect(header.mock.calls).toEqual([
+    ['Cache-Control', 'private, no-store'],
+    ['X-Content-Type-Options', 'nosniff'],
+    ['Content-Security-Policy', "default-src 'none'; sandbox"],
+    ['Cross-Origin-Resource-Policy', 'same-origin'],
+  ]);
+  expect(type).toHaveBeenCalledWith('image/png');
+  await expect(
+    controller.projectSnapshot(request, reply, 'student', ID, ID, ID, ['3']),
+  ).rejects.toMatchObject({ status: 400 });
 });

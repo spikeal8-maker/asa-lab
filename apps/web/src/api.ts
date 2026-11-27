@@ -1459,7 +1459,13 @@ export interface ProjectFeedback {
   author: string;
 }
 
+export interface ProjectCardUsage {
+  openCount: number | null;
+  activeSeconds: number | null;
+}
+
 export interface ClassroomStudentWork {
+  usage?: ProjectCardUsage;
   /** Когда работа сдана и ждёт ли она ещё ответа преподавателя. */
   submittedAt?: string | null;
   awaitingReview?: boolean;

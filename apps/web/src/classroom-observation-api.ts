@@ -1,3 +1,4 @@
+import type { ProjectCardUsage } from './api';
 import type { ClassroomFreeElectronicsSimulation } from '@asa-lab/contracts';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import { call, type ApiResult } from './api-call';
@@ -29,6 +30,8 @@ export interface ObservationProject {
   seatId: string;
   student: string;
   avatarKey: string | null;
+  createdAt?: string;
+  usage?: ProjectCardUsage;
   updatedAt: string;
   status: string;
   assigned: boolean;

@@ -1166,6 +1166,7 @@ export function ClassroomStudentPage({
                   projectId={work.id}
                   title={work.title}
                   learner={student.displayLabel}
+                  moduleKey={work.moduleKey}
                   moduleLabel={
                     modules.find((entry) => entry.moduleKey === work.moduleKey)?.displayName ??
                     work.moduleKey
@@ -1177,7 +1178,8 @@ export function ClassroomStudentPage({
                   }
                   archived={work.status === 'archived'}
                   updatedAt={work.updatedAt}
-                  dateLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
+                  createdAt={work.createdAt}
+                  usage={work.usage}
                   revision={work.snapshotRevision}
                   fallback={
                     figure && isDrawableFigure(figure) ? (
