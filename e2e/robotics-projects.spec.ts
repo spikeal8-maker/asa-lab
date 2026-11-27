@@ -3035,6 +3035,13 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   if (!firstBlocks) throw new Error('Electronics must show the real shared Blockly instance');
   await electronics.getByRole('button', { name: 'Закрыть код', exact: true }).click();
   await expect(programPanel).toBeHidden();
+  await codeTab.click();
+  await expect(blocks).toBeVisible();
+  await expectSame(blocks, firstBlocks);
+  await electronicsTab.click();
+  await expect(stage).toBeVisible();
+  await expectSame(stage, stageIdentity);
+  await expectSame(fieldCanvas, fieldIdentity);
 
   const bounds = async (editor: Locator) => {
     const [left, right, divider, area] = await Promise.all([
@@ -3161,11 +3168,21 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   const fitCircuit = circuit.getByRole('button', { name: 'Подогнать проект', exact: true });
   await fitCircuit.focus();
   await fitCircuit.press('Control+z');
-  expect((await saved(page, projectId)).draft.document).toEqual(withBall.draft.document);
+  const restoredCircuit = (await saved(page, projectId)).draft.document;
+  expect(restoredCircuit).toEqual(withBall.draft.document);
 
+  // Restoring a deleted board reloads its saved Blockly program. Check the
+  // actual rendered blocks here, after testing unmodified workspace identity.
+  const restoredUno = restoredCircuit.circuit.components.find((item) => item.id === 'uno');
+  const workspaceJson = restoredUno?.stateProperties?.['arduinoWorkspace'];
+  if (typeof workspaceJson !== 'string') throw new Error('Restored Arduino block program missing');
+  const restoredProgram = JSON.parse(workspaceJson) as { blocks: { blocks: { id: string }[] } };
+  expect(restoredProgram.blocks.blocks.length).toBeGreaterThan(0);
   await codeTab.click();
   await expect(blocks).toBeVisible();
-  await expectSame(blocks, firstBlocks);
+  for (const { id } of restoredProgram.blocks.blocks) {
+    await expect(blocks.locator(`.blocklyDraggable[data-id=${JSON.stringify(id)}]`)).toBeAttached();
+  }
   const codeBounds = await bounds(programPanel);
   expect(codeBounds.width).toBe(480);
   const codeZoomBeforeResize = await page.getByLabel('Масштаб поля', { exact: true }).textContent();
