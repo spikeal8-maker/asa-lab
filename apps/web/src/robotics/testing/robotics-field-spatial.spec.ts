@@ -8,6 +8,7 @@ import {
   MeshStandardMaterial,
   OrthographicCamera,
   PerspectiveCamera,
+  ShaderMaterial,
   Vector2,
   Vector3,
 } from 'three';
@@ -16,6 +17,7 @@ import {
   createRoboticsBall,
   createRoboticsBody,
   createRoboticsFloorMark,
+  createRoboticsWall,
   createRoboticsWorldV3Document,
 } from '@asa-lab/robotics/world-document';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -25,6 +27,7 @@ import {
   createFieldSpatialScene,
   createRobotSpatialScene,
   readRobotVisualGeometry,
+  type SpatialPlacement,
 } from '../field-spatial-scene';
 import RobotFieldSpatialView, {
   bindSpatialFieldGestures,
@@ -206,6 +209,94 @@ it('projects a rotated perspective ray onto the grabbed surface plane and reject
   camera.position.set(0, -1, 1);
   camera.lookAt(0, 0, 1);
   expect(spatialEditPoint(camera, area, 420, 330, 0)).toBeNull();
+});
+
+it('draws one unpickable palette candidate with canonical geometry and disposes it on clear', () => {
+  const original = createRoboticsWorldV3Document('practice');
+  const point = { xMeters: 0.8, yMeters: 0.9 };
+  const wall = createRoboticsWall('new-wall', point),
+    ball = createRoboticsBall('new-ball', point);
+  const can = createRoboticsBody('can', 'new-can', point),
+    box = createRoboticsBody('box', 'new-box', point);
+  if (can.kind !== 'can' || box.kind !== 'box') throw new Error('Wrong source fixture');
+  const candidates: SpatialPlacement[] = [
+    { kind: 'wall', key: 'wall:new-wall', object: wall, valid: true },
+    { kind: 'ball', key: 'ball:new-ball', object: ball, valid: true },
+    { kind: 'can', key: 'body:new-can', object: can, valid: true },
+    { kind: 'box', key: 'body:new-box', object: box, valid: true },
+  ];
+  const world = {
+    ...original,
+    field: { ...original.field, obstacles: [], balls: [], bodies: [], floorMarks: [] },
+  };
+  const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const drawing = createFieldSpatialScene(world, () => {});
+  const canonical = createFieldSpatialScene(
+    { ...world, field: { ...world.field, obstacles: [wall], balls: [ball], bodies: [can, box] } },
+    () => {},
+  );
+  const camera = new OrthographicCamera(-0.9, 0.9, 0.9, -0.9, 0.01, 15);
+  camera.position.set(point.xMeters, point.yMeters, 5);
+  camera.lookAt(point.xMeters, point.yMeters, 0);
+  camera.updateMatrixWorld(true);
+  const canonicalMeshes = (root: import('three').Object3D) => {
+    const meshes: import('three').Mesh[] = [];
+    root.traverse((item) => {
+      if (item instanceof Mesh && !(item.material instanceof ShaderMaterial)) meshes.push(item);
+    });
+    return meshes;
+  };
+  const before = JSON.stringify(world);
+  try {
+    canonical.applySnapshot(undefined, undefined, true, null);
+    const basePick = drawing.pick(new Vector2(0, 0), camera);
+    for (const placement of candidates) {
+      drawing.setPlacementPreview(placement);
+      const root = drawing.scene.getObjectByName('field-placement-preview')!;
+      const authored = canonical.scene.getObjectByName(placement.key)!;
+      const meshes = canonicalMeshes(root);
+      expect(meshes.map((mesh) => mesh.geometry.toJSON())).toEqual(
+        canonicalMeshes(authored)
+          .map((mesh) => mesh.geometry.toJSON())
+          .map((json, index) => ({
+            ...json,
+            uuid: meshes[index]!.geometry.uuid,
+          })),
+      );
+      expect(root.position.toArray()).toEqual(authored.position.toArray());
+      expect(drawing.pick(new Vector2(0, 0), camera)).toBe(basePick);
+      expect(drawing.readPlacementPreview()).toMatchObject({
+        kind: placement.kind,
+        key: placement.key,
+        valid: true,
+        meshCount: meshes.length,
+      });
+      expect(drawing.readPlacementPreview()?.xMeters).toBeCloseTo(point.xMeters, 12);
+      expect(drawing.readPlacementPreview()?.yMeters).toBeCloseTo(point.yMeters, 12);
+      const geometry = meshes[0]!.geometry;
+      const released = vi.fn();
+      geometry.addEventListener('dispose', released);
+      const moved = {
+        ...placement,
+        object: { ...placement.object, xMeters: 1.1 },
+        valid: false,
+      } as SpatialPlacement;
+      drawing.setPlacementPreview(moved);
+      expect(drawing.scene.getObjectByName('field-placement-preview')).toBe(root);
+      expect(drawing.readPlacementPreview()).toMatchObject({ valid: false });
+      expect(drawing.readPlacementPreview()?.xMeters).toBeCloseTo(1.1, 12);
+      expect(released).not.toHaveBeenCalled();
+      drawing.setPlacementPreview(null);
+      expect(drawing.scene.getObjectByName('field-placement-preview')).toBeUndefined();
+      expect(drawing.readPlacementPreview()).toBeNull();
+      expect(released).toHaveBeenCalledTimes(1);
+    }
+    expect(JSON.stringify(world)).toBe(before);
+  } finally {
+    canonical.dispose();
+    drawing.dispose();
+    spy.mockRestore();
+  }
 });
 
 it('previews all scene roots from exact base transforms without rebuilding or mutating source/state', () => {
@@ -647,7 +738,10 @@ it('retains one scene and canvas through real Top/orbit/Side lifecycle, with act
   };
   try {
     await mount('top');
-    const canvas = holder.querySelector('canvas');
+    const canvas = holder.querySelector('canvas')!;
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 30, 800, 600));
+    const project = (x: number, y: number) =>
+      (commands as FieldViewportControls | null)?.projectGround(x, y);
     const scene = rendererFailure.render.mock.calls.at(-1)![0];
     const camera = rendererFailure.render.mock.calls.at(-1)![1] as OrthographicCamera;
     expect(camera.position.x).toBe(0.5);
@@ -659,7 +753,27 @@ it('retains one scene and canvas through real Top/orbit/Side lifecycle, with act
       expect(holder.querySelector('canvas')).toBe(canvas);
       expect(rendererFailure.render.mock.calls.at(-1)![0]).toBe(scene);
       expect(rendererFailure.dispose).not.toHaveBeenCalled();
+      if (mode === 'orbit') {
+        const actual = rendererFailure.render.mock.calls.at(-1)![1] as PerspectiveCamera;
+        actual.updateMatrixWorld(true);
+        const pixel = new Vector3(0.8, 0.9, 0).project(actual);
+        const ground = project(20 + (pixel.x + 1) * 400, 30 + (1 - pixel.y) * 300);
+        expect(ground?.xMeters).toBeCloseTo(0.8, 12);
+        expect(ground?.yMeters).toBeCloseTo(0.9, 12);
+        expect(project(19, 330)).toBeNull();
+      } else {
+        expect(project(420, 330)).toBeNull();
+      }
     }
+    await mount('orbit');
+    await act(async () =>
+      canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })),
+    );
+    expect(project(420, 330)).toBeNull();
+    expect(canvas.dataset.placementPreview).toBe('null');
+    await act(async () => canvas.dispatchEvent(new Event('webglcontextrestored')));
+    await mount('orbit', false);
+    expect(project(420, 330)).toBeNull();
     await mount('side');
     const side = rendererFailure.render.mock.calls.at(-1)![1] as OrthographicCamera;
     expect(side.zoom).toBe(2);

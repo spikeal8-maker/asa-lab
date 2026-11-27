@@ -3169,3 +3169,466 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   );
   failures.assertEmpty();
 });
+
+test('PERSPECTIVE-PLACE UI_ONLY places four real palette objects by native drag and preserves the saved world', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  mkdirSync(EVIDENCE, { recursive: true });
+  const failures = collectBrowserFailures(page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await register(page, 'Автор проверки размещения в перспективе');
+  await page.locator('.portal-header .portal-quick-create > summary').click();
+  const response = page.waitForResponse(
+    (event) =>
+      new URL(event.url()).pathname === '/api/projects' && event.request().method() === 'POST',
+  );
+  await page
+    .locator('.portal-header .portal-create-options')
+    .getByRole('button', { name: /^Робототехника/ })
+    .click();
+  const created = await response;
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json()).project.id as string;
+  await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+  await page.getByRole('tab', { name: 'Поле', exact: true }).click();
+  const spatial = page.getByTestId('robotics-field-spatial');
+  const canvas = spatial.locator('canvas');
+  const orbit = page.getByRole('button', { name: 'Перспектива', exact: true });
+  const top = page.getByRole('button', { name: 'Сверху', exact: true });
+  const snap = page.getByRole('checkbox', { name: 'Привязка', exact: true });
+  await expect(snap).not.toBeChecked();
+  await orbit.click();
+  await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
+  await expect(spatial).toHaveAttribute('data-field-view', 'orbit');
+  await expect(canvas).toHaveAttribute('data-rendered', 'true');
+
+  type NativeDrag = { type: 'dragover' | 'drop'; x: number; y: number; paletteKind: string | null };
+  const originalCanvas = await canvas.elementHandle();
+  if (!originalCanvas) throw new Error('Original Perspective canvas missing');
+  const native: NativeDrag[] = [];
+  await page.exposeFunction('recordPerspectivePaletteDrag', (event: NativeDrag) =>
+    native.push(event),
+  );
+  await canvas.evaluate((element) => {
+    if (!(element instanceof HTMLCanvasElement)) throw new Error('Native field canvas missing');
+    const capture = (
+      window as Window & {
+        recordPerspectivePaletteDrag?: (entry: NativeDrag) => Promise<unknown>;
+      }
+    ).recordPerspectivePaletteDrag;
+    if (!capture) throw new Error('Native drag evidence binding missing');
+    for (const type of ['dragover', 'drop'] as const) {
+      element.addEventListener(
+        type,
+        (event) => {
+          const format = 'application/x-asa-robotics-field-tool';
+          if (!event.isTrusted || !event.dataTransfer?.types.includes(format)) return;
+          void capture({
+            type,
+            x: event.clientX,
+            y: event.clientY,
+            paletteKind: type === 'drop' ? event.dataTransfer.getData(format) : null,
+          });
+        },
+        { capture: true },
+      );
+    }
+  });
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      (path === `/api/projects/${projectId}` || path.startsWith(`/api/projects/${projectId}/`)) &&
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())
+    ) {
+      writes.push(`${request.method()} ${path}`);
+    }
+  });
+  type ScreenPoint = { x: number; y: number };
+  type PlacementKind = 'wall' | 'ball' | 'can' | 'box';
+  type Candidate = {
+    kind: PlacementKind;
+    key: string;
+    xMeters: number;
+    yMeters: number;
+    valid: boolean;
+    meshCount: number;
+  };
+  type PointMode = 'free' | 'outside-field' | 'invalid-wall-footprint';
+  const renderSettled = () =>
+    canvas.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+  const rayTarget = async (project: RoboticsProject, mode: PointMode, snapped: boolean) => {
+    await renderSettled();
+    return canvas.evaluate(
+      (element, { world, mode, snapped }) => {
+        if (!(element instanceof HTMLCanvasElement) || element.dataset.rendered !== 'true')
+          throw new Error('A rendered Perspective canvas is required');
+        const rect = element.getBoundingClientRect();
+        const projection = JSON.parse(element.dataset.projection ?? 'null') as number[];
+        const camera = JSON.parse(element.dataset.camera ?? 'null') as number[][];
+        const position = camera?.[0],
+          quaternion = camera?.[1];
+        if (
+          rect.width <= 0 ||
+          rect.height <= 0 ||
+          projection?.length !== 16 ||
+          position?.length !== 3 ||
+          quaternion?.length !== 4 ||
+          ![...projection, ...position, ...quaternion].every(Number.isFinite)
+        )
+          throw new Error('Live Perspective camera readback is incomplete');
+
+        // Independently unproject the actual CSS event point through the rendered matrix.
+        // Use the public DOMMatrix and quaternion vector formula, not the application raycaster.
+        const inverse = new DOMMatrix(projection).inverse();
+        const [ox, oy, oz] = position as [number, number, number];
+        const [qx, qy, qz, qw] = quaternion as [number, number, number, number];
+        const groundAt = (x: number, y: number) => {
+          const local = new DOMPoint(
+            ((x - rect.left) / rect.width) * 2 - 1,
+            1 - ((y - rect.top) / rect.height) * 2,
+            0,
+            1,
+          ).matrixTransform(inverse);
+          if (!local.w) return null;
+          const vx = local.x / local.w,
+            vy = local.y / local.w,
+            vz = local.z / local.w;
+          const tx = 2 * (qy * vz - qz * vy);
+          const ty = 2 * (qz * vx - qx * vz);
+          const tz = 2 * (qx * vy - qy * vx);
+          const dx = vx + qw * tx + qy * tz - qz * ty;
+          const dy = vy + qw * ty + qz * tx - qx * tz;
+          const dz = vz + qw * tz + qx * ty - qy * tx;
+          const t = -oz / dz;
+          return Number.isFinite(t) && t >= 0
+            ? { xMeters: ox + dx * t, yMeters: oy + dy * t }
+            : null;
+        };
+        const field = world.field;
+        const occupied = [
+          {
+            x: world.initialPose.xMeters,
+            y: world.initialPose.yMeters,
+            r: Math.hypot(world.robot.bodyLengthMeters, world.robot.bodyWidthMeters) / 2 + 0.09,
+          },
+          ...field.obstacles.map((wall) => ({
+            x: wall.xMeters + wall.widthMeters / 2,
+            y: wall.yMeters + wall.heightMeters / 2,
+            r: Math.hypot(wall.widthMeters, wall.heightMeters) / 2,
+          })),
+          ...field.balls.map((ball) => ({
+            x: ball.xMeters,
+            y: ball.yMeters,
+            r: ball.radiusMeters,
+          })),
+          ...(field.bodies ?? []).map((body) => ({
+            x: body.xMeters,
+            y: body.yMeters,
+            r:
+              body.kind === 'can'
+                ? body.radiusMeters
+                : Math.hypot(body.widthMeters, body.depthMeters) / 2,
+          })),
+        ];
+        const round = (n: number) => Math.round(n * 10000) / 10000;
+        const anchorAt = (ground: NonNullable<ReturnType<typeof groundAt>>) => {
+          const grid = field.gridMeters;
+          const coordinate = (n: number) =>
+            snapped ? round(Math.round(round(n) / grid) * grid) : round(n);
+          return { xMeters: coordinate(ground.xMeters), yMeters: coordinate(ground.yMeters) };
+        };
+        const admits = (ground: ReturnType<typeof groundAt>) => {
+          if (mode === 'outside-field')
+            return (
+              !ground ||
+              ground.xMeters < -0.04 ||
+              ground.yMeters < -0.04 ||
+              ground.xMeters > field.widthMeters + 0.04 ||
+              ground.yMeters > field.heightMeters + 0.04
+            );
+          if (!ground) return false;
+          const { xMeters: x, yMeters: y } = anchorAt(ground);
+          if (mode === 'invalid-wall-footprint')
+            return (
+              x > field.widthMeters - 0.22 &&
+              x < field.widthMeters - 0.035 &&
+              y > 0.2 &&
+              y < field.heightMeters - 0.2
+            );
+          // Leave clearance for the largest palette footprint and one pixel of native drag sampling.
+          return (
+            x >= 0.22 &&
+            y >= 0.22 &&
+            x <= field.widthMeters - 0.38 &&
+            y <= field.heightMeters - 0.22 &&
+            occupied.every((item) => Math.hypot(x - item.x, y - item.y) > item.r + 0.22)
+          );
+        };
+        for (let y = Math.ceil(rect.top + 25); y < rect.bottom - 25; y += 9) {
+          for (let x = Math.ceil(rect.left + 25); x < rect.right - 25; x += 9) {
+            const hover = { x: x + 1, y: y + 1 };
+            const ground = groundAt(hover.x, hover.y);
+            if (!admits(groundAt(x, y)) || !admits(ground)) continue;
+            if (
+              document.elementFromPoint(x, y) !== element ||
+              document.elementFromPoint(hover.x, hover.y) !== element
+            )
+              continue;
+            return {
+              approach: { x, y },
+              hover,
+              ground,
+              anchor: ground ? anchorAt(ground) : null,
+              viewport: rect.toJSON(),
+              projection,
+              camera,
+            };
+          }
+        }
+        throw new Error('No native Perspective target found for ' + mode);
+      },
+      { world: project.world, mode, snapped },
+    );
+  };
+  const palette = page.getByTestId('robotics-field-palette');
+  const readPreview = async () =>
+    JSON.parse((await canvas.getAttribute('data-placement-preview')) ?? 'null') as Candidate | null;
+  const nativeAt = async (
+    start: number,
+    type: NativeDrag['type'],
+    point: ScreenPoint,
+    paletteKind: PlacementKind | null = null,
+  ) => {
+    await expect
+      .poll(() =>
+        native
+          .slice(start)
+          .filter((event) => event.type === type)
+          .at(-1),
+      )
+      .toEqual({
+        type,
+        x: point.x,
+        y: point.y,
+        paletteKind,
+      });
+  };
+  const dragCardTo = async (card: Locator, target: Awaited<ReturnType<typeof rayTarget>>) => {
+    await card.scrollIntoViewIfNeeded();
+    const rect = await card.boundingBox();
+    if (!rect) throw new Error('Visible native drag source is missing');
+    const x = Math.round(rect.x + rect.width / 2),
+      y = Math.round(rect.y + rect.height / 2);
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(Math.round(rect.x) - 12, y, { steps: 4 });
+    await page.mouse.move(target.approach.x, target.approach.y, { steps: 12 });
+    await page.mouse.move(target.hover.x, target.hover.y);
+  };
+  const beginDrag = async (label: string, target: Awaited<ReturnType<typeof rayTarget>>) => {
+    const card = palette.getByRole('button', { name: label, exact: true });
+    await expect(card).toHaveAttribute('draggable', 'true');
+    const start = native.length;
+    await dragCardTo(card, target);
+    await nativeAt(start, 'dragover', target.hover);
+    return start;
+  };
+  const unchangedBeforeDrop = async (
+    draft: Awaited<ReturnType<typeof readProject>>['draft'],
+    writeCount: number,
+  ) => {
+    const row = (await readProject(page, projectId)).draft;
+    expect(row.document).toEqual(draft.document);
+    expect(row.revision).toBe(draft.revision);
+    expect(writes).toHaveLength(writeCount);
+  };
+
+  const cases = [
+    {
+      kind: 'wall',
+      label: 'Стена',
+      list: 'obstacles',
+      meshCount: 2,
+      dimensions: { widthMeters: 0.3, heightMeters: 0.05 },
+    },
+    { kind: 'ball', label: 'Мяч', list: 'balls', meshCount: 3, dimensions: { radiusMeters: 0.06 } },
+    {
+      kind: 'can',
+      label: 'Банка',
+      list: 'bodies',
+      meshCount: 6,
+      dimensions: { kind: 'can', radiusMeters: 0.033, heightMeters: 0.115 },
+    },
+    {
+      kind: 'box',
+      label: 'Брусок',
+      list: 'bodies',
+      meshCount: 1,
+      dimensions: { kind: 'box', widthMeters: 0.03, depthMeters: 0.03, heightMeters: 0.03 },
+    },
+  ] as const;
+  const initial = (await saved(page, projectId)).draft;
+  let current = initial;
+  let previous = initial;
+  const observations: unknown[] = [];
+  for (const item of cases) {
+    const snapped = item.kind === 'box';
+    if (snapped) {
+      await top.click();
+      await snap.check();
+      await orbit.click();
+      await expect(spatial).toHaveAttribute('data-field-view', 'orbit');
+    }
+    await showObjectCatalog(page);
+    const target = await rayTarget(current.document, 'free', snapped);
+    if (!target.anchor) throw new Error('Expected a feasible ground-plane anchor');
+    const camera = await canvas.getAttribute('data-camera');
+    const clock = await page.getByTestId('robotics-time').getAttribute('data-microseconds');
+    const writeCount = writes.length;
+    const start = await beginDrag(item.label, target);
+    await expect.poll(readPreview).toMatchObject({ kind: item.kind, valid: true });
+    const ghost = (await readPreview())!;
+    expect(ghost.meshCount).toBe(item.meshCount);
+    expect(ghost.xMeters).toBeCloseTo(target.anchor.xMeters, 8);
+    expect(ghost.yMeters).toBeCloseTo(target.anchor.yMeters, 8);
+    expect(await canvas.evaluate((node, original) => node === original, originalCanvas)).toBe(true);
+    expect(await canvas.getAttribute('data-camera')).toBe(camera);
+    await expect(spatial).toHaveAttribute('data-field-view', 'orbit');
+    await unchangedBeforeDrop(current, writeCount);
+    await page.screenshot({ path: `${EVIDENCE}/perspective-place-ghost-${item.kind}.png` });
+    await page.mouse.up();
+    await nativeAt(start, 'drop', target.hover, item.kind);
+    await expect(canvas).toHaveAttribute('data-placement-preview', 'null');
+    previous = current;
+    current = (await saved(page, projectId)).draft;
+    const keyKind = item.list === 'bodies' ? 'body' : item.kind;
+    expect(ghost.key).toMatch(new RegExp('^' + keyKind + ':.'));
+    const id = ghost.key.slice(keyKind.length + 1);
+    const beforeList = previous.document.world.field[item.list] ?? [];
+    const afterList = current.document.world.field[item.list] ?? [];
+    expect(afterList).toHaveLength(beforeList.length + 1);
+    const object = afterList.find((candidate) => candidate.id === id);
+    if (!object) throw new Error('Committed native candidate key absent: ' + ghost.key);
+    expect(object).toMatchObject({ id, ...item.dimensions });
+    expect(object.xMeters).toBeCloseTo(target.anchor.xMeters, 8);
+    expect(object.yMeters).toBeCloseTo(target.anchor.yMeters, 8);
+    expect(current.document).toEqual({
+      ...previous.document,
+      world: {
+        ...previous.document.world,
+        field: { ...previous.document.world.field, [item.list]: [...beforeList, object] },
+      },
+    });
+    expect(current.revision).toBe(previous.revision + 1);
+    expect(await canvas.getAttribute('data-camera')).toBe(camera);
+    expect(await page.getByTestId('robotics-time').getAttribute('data-microseconds')).toBe(clock);
+    await expect(spatial).toHaveAttribute('data-field-view', 'orbit');
+    observations.push({
+      kind: item.kind,
+      snapped,
+      target,
+      ghost,
+      object,
+      revision: current.revision,
+    });
+  }
+
+  await top.click();
+  await snap.uncheck();
+  await orbit.click();
+  await expect(spatial).toHaveAttribute('data-field-view', 'orbit');
+  const negativeChecks: unknown[] = [];
+  for (const mode of [
+    'escape',
+    'outside-viewport',
+    'outside-field',
+    'invalid-wall-footprint',
+  ] as const) {
+    await showObjectCatalog(page);
+    const target = await rayTarget(
+      current.document,
+      mode === 'escape' || mode === 'outside-viewport' ? 'free' : mode,
+      false,
+    );
+    const writesBefore = writes.length;
+    const camera = await canvas.getAttribute('data-camera');
+    const start = await beginDrag('Стена', target);
+    if (mode === 'escape' || mode === 'outside-viewport') {
+      await expect.poll(readPreview).toMatchObject({ valid: true });
+      if (mode === 'escape') await page.keyboard.press('Escape');
+      else await page.mouse.move(target.hover.x, Math.round(target.viewport.top) - 8, { steps: 5 });
+      await expect(canvas).toHaveAttribute('data-placement-preview', 'null');
+    } else if (mode === 'invalid-wall-footprint') {
+      await expect.poll(readPreview).toMatchObject({ kind: 'wall', valid: false, meshCount: 2 });
+    } else {
+      await expect(canvas).toHaveAttribute('data-placement-preview', 'null');
+    }
+    await unchangedBeforeDrop(current, writesBefore);
+    await page.mouse.up();
+    await expect(canvas).toHaveAttribute('data-placement-preview', 'null');
+    await unchangedBeforeDrop(current, writesBefore);
+    expect(await canvas.getAttribute('data-camera')).toBe(camera);
+    negativeChecks.push({ mode, target, native: native.slice(start) });
+  }
+  await page.getByRole('button', { name: 'Отменить', exact: true }).click();
+  expect((await saved(page, projectId)).draft.document).toEqual(previous.document);
+  await page.getByRole('button', { name: 'Повторить', exact: true }).click();
+  const redone = (await saved(page, projectId)).draft;
+  expect(redone.document).toEqual(current.document);
+  await page.screenshot({ path: `${EVIDENCE}/perspective-place-final-1440.png` });
+
+  await showObjectCatalog(page);
+  const blockedCard = palette.getByRole('button', { name: 'Стена', exact: true });
+  await page.getByRole('button', { name: 'Запустить', exact: true }).click();
+  await expect(blockedCard).toBeDisabled();
+  await expect
+    .poll(async () =>
+      Number(await page.getByTestId('robotics-time').getAttribute('data-microseconds')),
+    )
+    .toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Пауза', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+  const paused = await page.getByTestId('robotics-time').getAttribute('data-microseconds');
+  const pausedWrites = writes.length;
+  await expect(blockedCard).toBeDisabled();
+  await expect(blockedCard).toHaveAttribute('draggable', 'false');
+  await dragCardTo(blockedCard, await rayTarget(redone.document, 'free', false));
+  await page.mouse.up();
+  await expect(canvas).toHaveAttribute('data-placement-preview', 'null');
+  await unchangedBeforeDrop(redone, pausedWrites);
+  expect(await page.getByTestId('robotics-time').getAttribute('data-microseconds')).toBe(paused);
+  await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+
+  const url = page.url();
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+  const reopened = (await readProject(page, projectId)).draft;
+  expect(reopened.document).toEqual(redone.document);
+  expect(reopened.revision).toBe(redone.revision);
+  writeFileSync(
+    `${EVIDENCE}/perspective-place.json`,
+    JSON.stringify(
+      {
+        profile: 'UI_ONLY',
+        projectId,
+        source: digest(reopened.document),
+        observations,
+        negativeChecks,
+        paused,
+      },
+      null,
+      2,
+    ),
+  );
+  failures.assertEmpty();
+});
