@@ -20,6 +20,8 @@ export interface FieldBounds {
   readonly maxY: number;
 }
 
+/** Display100% is twice the former whole-field fit; metres remain unchanged. */
+export const FIELD_CAMERA_NORMAL_MAGNIFICATION = 2;
 export const FIELD_CAMERA_MIN_SCALE = 1;
 export const FIELD_CAMERA_MAX_SCALE = 10_000;
 

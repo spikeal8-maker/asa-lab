@@ -51,8 +51,10 @@ export function RobotField({
   onContextMenu,
   draftStroke,
   projection,
+  renderLayer = 'full',
 }: {
   world: RoboticsFieldGeometry;
+  renderLayer?: 'full' | 'interaction';
   projection?: { camera: FieldCamera; viewport: FieldViewport } | undefined;
   state?: RoboticsWorldState;
   distance?: RoboticsDistanceMeasurement;
@@ -168,6 +170,7 @@ export function RobotField({
       className="robotics-field"
       data-testid={`${testIdPrefix}-field`}
       data-editable={editable}
+      data-render-layer={renderLayer}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

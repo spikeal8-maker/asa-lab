@@ -144,9 +144,10 @@ function OpenedRoboticsEditor({
         project={controller}
         projectId={projectId}
         allowDistribution={allowDistribution}
-        header={(tabs, notices) => (
+        header={(tabs, notices, simulationControls) => (
           <RoboticsHeader
             tabs={tabs}
+            simulationControls={simulationControls}
             notices={notices}
             title={host.projectTitle}
             onTitleChange={host.setProjectTitle}

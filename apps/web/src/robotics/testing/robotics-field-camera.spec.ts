@@ -145,6 +145,13 @@ describe('FIELD-CAMERA-001 actual field editor integration', () => {
   beforeEach(async () => {
     dimensions = viewport;
     commit.mockClear();
+    // This integration suite deliberately exercises the SVG fallback in jsdom.
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const reportError = console.error;
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      if (String(args[0]).startsWith('THREE.WebGLRenderer:')) return;
+      reportError(...args);
+    });
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -270,9 +277,29 @@ describe('FIELD-CAMERA-001 actual field editor integration', () => {
     };
   };
 
-  it('restores legacy zoom levels for buttons and keyboard without committing the project', async () => {
+  it('identifies the no-GPU SVG fallback without losing its real edit surface or calibrated ruler', () => {
+    expect(field().getAttribute('data-render-layer')).toBe('full');
+    expect(
+      container.querySelector('[data-testid="robotics-field-fallback"]')?.textContent,
+    ).toContain('SVG');
+    expect(container.querySelector('[data-testid="robotics-top-fallback-scale"]')).not.toBeNull();
+    expect(field().querySelector('[data-scene-key="ball:camera-test"]')).not.toBeNull();
+    expect(container.querySelectorAll('.robotics-field-toolbar')).toHaveLength(1);
+  });
+
+  it('calibrates normal100% at twice old fit and preserves button/keyboard levels without a commit', async () => {
     const original = cameraMetrics();
     expect(zoomLabel()).toBe('100%');
+    const fit = fitFieldCamera(
+      { minX: 0, minY: 0, maxX: world.field.widthMeters, maxY: world.field.heightMeters },
+      dimensions,
+    );
+    expect(original.pixelsPerMeter).toBeCloseTo(fit.pixelsPerMeter * 2, 10);
+    expect(original.centerX / 1000).toBeCloseTo(world.initialPose.xMeters, 10);
+    expect(original.centerY / 1000).toBeCloseTo(
+      world.field.heightMeters - world.initialPose.yMeters,
+      10,
+    );
     for (const label of ['125%', '150%', '200%', '300%']) {
       await act(async () => button('Приблизить поле').click());
       expect(zoomLabel()).toBe(label);
@@ -312,16 +339,16 @@ describe('FIELD-CAMERA-001 actual field editor integration', () => {
     expect(commit).not.toHaveBeenCalled();
   });
 
-  it('keeps fit at 100% through the responsive resize and zoom sequence', async () => {
+  it('keeps explicit whole-field fit at50% through responsive resize and zoom', async () => {
     await act(async () => button('Показать поле целиком').click());
     for (const width of [390, 320, 700, 900]) {
       dimensions = { width, height: 600 };
       await act(async () => window.dispatchEvent(new Event('resize')));
-      expect(zoomLabel()).toBe('100%');
+      expect(zoomLabel()).toBe('50%');
       await act(async () => button('Приблизить поле').click());
-      expect(zoomLabel()).toBe('125%');
+      expect(zoomLabel()).toBe('63%');
       await act(async () => button('Показать поле целиком').click());
-      expect(zoomLabel()).toBe('100%');
+      expect(zoomLabel()).toBe('50%');
     }
     expect(commit).not.toHaveBeenCalled();
   });
@@ -341,6 +368,7 @@ describe('FIELD-CAMERA-001 actual field editor integration', () => {
   });
 
   it('pans blank space and navigates/zooms without any project commit or field DOM enlargement', async () => {
+    await act(async () => button('Показать поле целиком').click());
     const original = box();
     await pointer(field(), 'pointerdown', 270, 220);
     await pointer(field(), 'pointermove', 350, 240);

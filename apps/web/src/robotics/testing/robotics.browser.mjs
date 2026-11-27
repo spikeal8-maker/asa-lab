@@ -413,6 +413,9 @@ async function viewport(width, height, section) {
     const save = header?.querySelector('.robotics-header-save');
     const saveBounds = save?.getBoundingClientRect();
     const tabBounds = tabs.map((tab) => tab.getBoundingClientRect());
+    const run = header?.querySelector('.robotics-run-bar');
+    const runBounds = run?.getBoundingClientRect();
+    const runButtons = [...(run?.querySelectorAll('button') ?? [])];
     return {
       width: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -428,8 +431,10 @@ async function viewport(width, height, section) {
         sameRow: tabBounds.every(
           (box) => box.top >= headerBounds.top && box.bottom <= headerBounds.bottom,
         ),
-        tabSeparatedFromSave: tabBounds.every((box) => box.right <= saveBounds.left + 1),
-        saveLast: save === header?.querySelector('.robotics-header-controls')?.lastElementChild,
+        tabSeparatedFromSave: tabBounds.every(
+          (box) => box.right <= saveBounds.left + 1 || box.left >= saveBounds.right - 1,
+        ),
+        saveInHeader: save?.parentElement === header,
         saveVisible: Boolean(
           saveBounds &&
           saveBounds.width > 0 &&
@@ -439,6 +444,14 @@ async function viewport(width, height, section) {
         saveLabel: save?.getAttribute('aria-label'),
         saveTop: saveBounds?.top,
         saveBottom: saveBounds?.bottom,
+        run: runBounds?.toJSON(),
+        oneRun: document.querySelectorAll('.robotics-run-bar').length === 1,
+        oneClock: document.querySelectorAll('[data-testid="robotics-time"]').length === 1,
+        runReachable: runButtons.every((button) => {
+          const rect = button.getBoundingClientRect();
+          const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+          return hit !== null && button.contains(hit);
+        }),
       },
       oneStage: document.querySelectorAll('.workbench-canvas').length === 1,
       sameStage: window.roboticsMountedStage === document.querySelector('.workbench-canvas'),
@@ -451,16 +464,28 @@ async function viewport(width, height, section) {
     layout.header.top >= -1 && layout.header.top <= 1,
     'header touches the application top',
   );
-  assert.equal(layout.header.height, 48, 'same 48px as Electronics');
+  assert.ok(layout.header.height >= 48, 'header retains its complete responsive rows');
   assert.equal(layout.header.background, 'rgb(255, 255, 255)', 'Electronics white surface');
   assert.equal(layout.header.tabCount, 4, 'all four tabs inside the only header');
   assert.equal(layout.header.allIconTabs, true, 'every tab has an icon');
   assert.equal(layout.header.sameRow, true, 'four tabs remain in the header row');
   assert.equal(layout.header.tabSeparatedFromSave, true, 'Save cannot overlap any tab');
-  assert.equal(layout.header.saveLast, true, 'Save is the final header action');
+  assert.equal(layout.header.saveInHeader, true, 'Save stays in the real header');
   assert.equal(layout.header.saveVisible, true, 'Save remains visible at every width');
   assert.equal(layout.header.saveLabel, 'Сохранить');
-  assert.ok(layout.header.saveTop >= -1 && layout.header.saveBottom <= 49);
+  assert.ok(layout.header.saveTop >= -1 && layout.header.saveBottom <= layout.header.height + 1);
+  assert.ok(
+    layout.header.oneRun && layout.header.oneClock,
+    'one shared header clock/control group',
+  );
+  assert.ok(layout.header.runReachable, 'actual header controls accept pointer input');
+  assert.ok(
+    layout.header.run.left >= -1 &&
+      layout.header.run.right <= width + 1 &&
+      layout.header.run.top >= layout.header.top &&
+      layout.header.run.bottom <= layout.header.top + layout.header.height + 1,
+    'run controls fit inside the actual header, not an editor toolbar',
+  );
   assert.ok(layout.oneStage && layout.sameStage, 'one mounted stage through all sections');
   assert.ok(layout.stage.width > 90 && layout.stage.height > 65, 'real stage has a visible size');
   assert.ok(layout.active.width > 250);
