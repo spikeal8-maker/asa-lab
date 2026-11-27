@@ -136,6 +136,7 @@ export type ExactLearningSubmission =
       /** Missing only on historical Project responses. */
       kind?: 'project';
       submissionId: string;
+      projectId?: string;
       projectVersionId: string;
       sourceRevision: number | null;
       digest: string;
@@ -1517,6 +1518,8 @@ export interface Project {
   moduleKey: string;
   title: string;
   status: ProjectStatus;
+  /** A personal teaching copy with platform distribution disabled. */
+  privateClassroomCopy?: true;
   /** Present on personal list rows; derived from protected Learning provenance. */
   isLearningWork?: boolean;
   learningWork?: {

@@ -45,6 +45,7 @@ export type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 
 export interface ThreeDProjectController {
   readonly loading: boolean;
+  readonly privateClassroomCopy: boolean;
   readonly error: string | null;
   readonly title: string;
   readonly history: HistoryState | null;
@@ -149,6 +150,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   const historyRef = useRef<HistoryState | null>(null);
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [privateClassroomCopy, setPrivateClassroomCopy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState('Новый 3D-проект');
   const [saveState, setSaveState] = useState<SaveState>('saved');
@@ -209,6 +211,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       setClipboard([]);
       lastSavedRef.current = serverSignature;
       setTitle(response.data.project.title);
+      setPrivateClassroomCopy(response.data.project.privateClassroomCopy === true);
       savedTitleRef.current = response.data.project.title;
       setVersions(response.data.versions);
       setSaveState(restored ? 'dirty' : 'saved');
@@ -918,6 +921,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   useReportProjectSaveEvidence(serverRevisionRef.current, saveState === 'saved' && !loading);
   return {
     loading,
+    privateClassroomCopy,
     error,
     title,
     history,

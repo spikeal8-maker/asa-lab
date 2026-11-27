@@ -842,7 +842,7 @@ export class LearningAssessmentsController {
     this.requireUuid(classroomId, 'classroom');
     this.requireUuid(attemptId, 'attempt');
     const result = await this.requirePool().query(
-      'SELECT * FROM learning_teacher_exact_submission($1,$2,$3)',
+      'SELECT * FROM learning_teacher_exact_submission_with_project($1,$2,$3)',
       [context.accountId, classroomId, attemptId],
     );
     const row = result.rows[0];
@@ -896,6 +896,7 @@ export class LearningAssessmentsController {
     return {
       kind: 'project' as const,
       submissionId: row['submission_id'],
+      projectId: row['project_id'],
       projectVersionId: row['project_version_id'],
       digest: row['payload_digest'],
       sourceRevision: row['source_revision'],

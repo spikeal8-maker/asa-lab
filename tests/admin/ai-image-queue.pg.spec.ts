@@ -63,6 +63,7 @@ const schoolPendingFiles = [
   '0335_classroom_project_review_target.sql',
   '0336_classroom_free_project_preview.sql',
   '0337_classroom_account_protection_status.sql',
+  '0338_classroom_teacher_private_copy.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.

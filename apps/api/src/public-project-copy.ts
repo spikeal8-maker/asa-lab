@@ -1,87 +1,12 @@
 import { createHash } from 'node:crypto';
-import { isDeepStrictEqual } from 'node:util';
 import type pg from 'pg';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
-import { previewDigest } from '@asa-lab/module-sdk';
 import { PgProjectRepository, type ProjectPreview } from '@asa-lab/projects';
 import { publicationError } from './public-projects.errors.js';
-import { validationMessage } from './validation.js';
+import { validatePortableProjectCopyDocument } from './private-project-copy-document.js';
 
 export function publicProjectCopySupported(moduleKey: string, license: string): boolean {
   return license === 'public-domain' && (moduleKey === 'three-d' || moduleKey === 'electronics');
-}
-
-// 3D's parser preserves extension fields. Do not transport unknown extensions:
-// future assets/imports need their own copy policy before crossing tenant RLS.
-const THREE_D_KEYS = new Set([
-  'schemaVersion',
-  'units',
-  'nodes',
-  'grid',
-  'camera',
-  'ruler',
-  'id',
-  'kind',
-  'primitive',
-  'name',
-  'operation',
-  'color',
-  'opacity',
-  'transform',
-  'dimensions',
-  'sides',
-  'bevel',
-  'parameters',
-  'visible',
-  'locked',
-  'bundleId',
-  'groupId',
-  'groupOperation',
-  'position',
-  'rotation',
-  'scale',
-  'x',
-  'y',
-  'z',
-  'width',
-  'depth',
-  'height',
-  'snap',
-  'target',
-  'projection',
-  'origin',
-  'precision',
-  'topRadius',
-  'baseRadius',
-  'innerRadius',
-  'text',
-  'font',
-  'curveAngle',
-  'bevelSegments',
-  'radius',
-  'tubeRadius',
-  'wallThickness',
-  'steps',
-  'points',
-  'innerRatio',
-  'fontSize',
-  'segments',
-  'topScale',
-  'baseScale',
-  'twist',
-  'twistSteps',
-  'smoothTwist',
-  'sketchPoints',
-  'sketchAccepted',
-]);
-function hasOnlyPortableThreeDFields(value: unknown): boolean {
-  if (Array.isArray(value)) return value.every(hasOnlyPortableThreeDFields);
-  if (value !== null && typeof value === 'object') {
-    return Object.entries(value).every(
-      ([key, nested]) => THREE_D_KEYS.has(key) && hasOnlyPortableThreeDFields(nested),
-    );
-  }
-  return true;
 }
 
 export function validatePublicCopyDocument(
@@ -89,30 +14,21 @@ export function validatePublicCopyDocument(
   moduleKey: string,
   document: unknown,
 ): { readonly document: unknown; readonly preview: ProjectPreview | null } {
-  const entry = registry.get(moduleKey);
-  if (!entry?.provider || !publicProjectCopySupported(moduleKey, 'public-domain')) {
+  if (
+    !registry.get(moduleKey)?.provider ||
+    !publicProjectCopySupported(moduleKey, 'public-domain')
+  ) {
     throw publicationError('copy_forbidden', 'Этот тип проекта пока нельзя копировать.', 403);
   }
-  const parsed = validationMessage(entry, document);
-  // Preserve exact immutable JSON, never a lossy migration or source exporter.
-  // Electronics' canonical parser reconstructs every supported inline field;
-  // equality therefore also rejects unknown asset/tenant extensions.
-  if (
-    !parsed.ok ||
-    !isDeepStrictEqual(parsed.document, document) ||
-    (moduleKey === 'three-d' && !hasOnlyPortableThreeDFields(document))
-  ) {
+  const parsed = validatePortableProjectCopyDocument(registry, moduleKey, document);
+  if (!parsed) {
     throw publicationError(
       'copy_unsupported',
       'Содержимое этой версии пока нельзя перенести целиком.',
       403,
     );
   }
-  const descriptor = entry.provider.createPreview(parsed.document);
-  return {
-    document,
-    preview: descriptor ? { descriptor, digest: previewDigest(descriptor) } : null,
-  };
+  return parsed;
 }
 
 interface PublicCopyReference {
