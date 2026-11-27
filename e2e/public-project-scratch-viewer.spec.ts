@@ -475,3 +475,183 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
     await admin.end();
   }
 });
+
+test('private Scratch review boots the same readonly host with sealed assets and loses access after the author saves', async ({
+  browser,
+}) => {
+  test.setTimeout(120000);
+  const admin = e2eAdminPool();
+  const teacherContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const learnerContext = await browser.newContext();
+  try {
+    await nativeHost(teacherContext);
+    const teacher = await seedTeacher(admin, 'scratch-review-player');
+    const page = await teacherContext.newPage();
+    const learner = await learnerContext.newPage();
+    await Promise.all([page.goto('/#/explore'), learner.goto('/#/explore')]);
+    const origin = new URL(page.url()).origin;
+    const headers = { origin };
+    expect(
+      (
+        await page.request.post('/api/auth/login', {
+          headers,
+          data: { workspace: teacher.workspace, email: teacher.email, password: teacher.password },
+        })
+      ).status(),
+    ).toBe(200);
+    const classResponse = await page.request.post('/api/classrooms', {
+      headers: { ...headers, 'idempotency-key': randomUUID() },
+      data: {
+        title: 'Scratch review fixture',
+        ageBand: 'mixed',
+        topicKeys: [],
+        safeModeDefault: false,
+      },
+    });
+    expect(classResponse.status()).toBe(201);
+    const classroomId = (await classResponse.json()).classroom.id;
+    const classroom = await page.request
+      .get('/api/classrooms/' + classroomId)
+      .then((r) => r.json());
+    const seatResponse = await page.request.post('/api/classrooms/' + classroomId + '/seats', {
+      headers,
+      data: { displayLabel: 'Автор Scratch', safeMode: false },
+    });
+    expect(seatResponse.status()).toBe(201);
+    const seatId = (await seatResponse.json()).student.id;
+    const code = await page.request.post(
+      '/api/classrooms/' + classroomId + '/seats/' + seatId + '/code',
+      {
+        headers,
+        data: { requestId: randomUUID() },
+      },
+    );
+    expect(code.status()).toBe(201);
+    expect(
+      (
+        await learner.request.post('/api/class-join/studentseat', {
+          headers,
+          data: {
+            code: classroom.classroom.joinCode,
+            studentCode: (await code.json()).studentCode,
+          },
+        })
+      ).status(),
+    ).toBe(200);
+    const policy = '/api/project-distribution/classrooms/' + classroomId;
+    expect(
+      (
+        await page.request.put(policy + '/policy', {
+          headers,
+          data: { publish: true, download: false, expectedVersion: 0 },
+        })
+      ).status(),
+    ).toBe(200);
+    const created = await learner.request.post('/api/projects', {
+      headers: { ...headers, 'idempotency-key': randomUUID() },
+      data: { scope: 'personal', module: 'blocks', title: 'Сохранённый счётчик в Scratch' },
+    });
+    expect(created.status()).toBe(201);
+    const project = (await created.json()).project;
+    const tenant = (await admin.query('SELECT tenant_id FROM projects WHERE id=$1', [project.id]))
+      .rows[0].tenant_id;
+    const source = await persistPublicScratchFixture(tenant, admin);
+    const save = (document: unknown, baseRevision: number) =>
+      learner.request.put('/api/projects/' + project.id + '/draft', {
+        headers,
+        data: { document, baseRevision, mutationId: randomUUID() },
+      });
+    const saved = await save(source.document, 1);
+    expect(saved.status()).toBe(200);
+    const revision = (await saved.json()).draft.revision;
+    const image = new PNG({ width: 16, height: 16 });
+    image.data.fill(255);
+    expect(
+      (
+        await learner.request.put('/api/projects/' + project.id + '/snapshot', {
+          headers,
+          data: {
+            sourceRevision: revision,
+            imageDataUrl: 'data:image/png;base64,' + PNG.sync.write(image).toString('base64'),
+          },
+        })
+      ).status(),
+    ).toBe(200);
+    const createdReview = await learner.request.post(
+      '/api/projects/' + project.id + '/publication/approval',
+      {
+        headers: { ...headers, 'idempotency-key': randomUUID() },
+        data: { sourceRevision: revision },
+      },
+    );
+    expect(createdReview.status(), await createdReview.text()).toBe(200);
+    const id: string = (await createdReview.json()).requestId;
+    const playerRoute = policy + '/publication-requests/' + id + '/scratch-player';
+    expect((await learner.request.get(playerRoute)).status()).toBe(403);
+    const granted = await page.request.get(playerRoute);
+    expect(granted.status(), await granted.text()).toBe(200);
+    expect(granted.headers()['cache-control']).toBe('private, no-store');
+    const boot = await granted.json();
+    expect(boot).toMatchObject({ reviewRequestId: id, sourceRevision: revision });
+    expect(boot.runtimeToken.split('.')).toHaveLength(3);
+    await page.goto('/#/classrooms/' + classroomId);
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Проекты', exact: true })
+      .click();
+    const queue = page.getByRole('region', { name: 'Заявки на публикацию' });
+    await queue.locator('summary').click();
+    await queue
+      .getByRole('listitem')
+      .filter({ hasText: 'Сохранённый счётчик в Scratch' })
+      .getByRole('button', { name: 'Проверить' })
+      .click();
+    const review = page.getByRole('dialog', { name: 'Проверка публикации' });
+    const player = review.frameLocator('[data-testid="public-scratch-frame"]');
+    await expect(player.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+    await expect(review.getByRole('button', { name: 'Одобрить', exact: true })).toBeEnabled();
+    await expect(player.getByRole('tab', { name: 'Code', exact: true })).toHaveCount(0);
+    await player.getByRole('button', { name: 'Start project', exact: true }).click();
+    await expect
+      .poll(async () =>
+        Number(await player.locator('[class*="monitor_value"]').first().innerText()),
+      )
+      .toBeGreaterThan(1);
+    await player.getByRole('button', { name: 'Stop project', exact: true }).click();
+    const asset =
+      '/api/blocks/runtime/publications/' +
+      id +
+      '/revisions/' +
+      id +
+      '/assets/' +
+      source.ref.assetId +
+      '.svg';
+    const bearer = { ...headers, authorization: 'Bearer ' + boot.runtimeToken };
+    expect(await (await page.request.get(asset, { headers: bearer })).body()).toEqual(source.bytes);
+    const deniedEdit = await page.request.put(
+      '/api/blocks/runtime/projects/' + project.id + '/draft',
+      {
+        headers: { ...bearer, 'content-type': 'application/vnd.asa.blocks-draft+json' },
+        data: { document: source.document, baseRevision: revision, mutationId: randomUUID() },
+      },
+    );
+    expect(deniedEdit.status()).toBe(401);
+    expect((await deniedEdit.json()).error.code).toBe('invalid_token');
+    expect(
+      (
+        await page.request.get('/api/public-projects/' + id + '/scratch-player?revisionId=' + id)
+      ).status(),
+    ).toBe(404);
+    const changed = structuredClone(source.document);
+    changed.projectJson.targets[0]!.variables.counter[1] = 3;
+    expect((await save(changed, revision)).status()).toBe(200);
+    expect((await page.request.get(playerRoute)).status()).toBe(404);
+    expect((await page.request.get(asset, { headers: bearer })).status()).toBe(404);
+  } finally {
+    await Promise.all([teacherContext.close(), learnerContext.close(), admin.end()]);
+  }
+});

@@ -24,6 +24,15 @@ import type { AdminControlPlaneService } from './admin-control-plane.service.js'
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape } from './validation.js';
+import { PublicScratchPlayerService } from './public-scratch-player.js';
+import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
+import {
+  decideStudentPublicationReview,
+  readStudentPublicationReviewArtifact,
+  readStudentPublicationReviewQueue,
+  readStudentPublicationReviewRaster,
+  sendStudentPublicationReviewRaster,
+} from './student-publication-review.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -41,11 +50,15 @@ function integer(value: unknown, fallback: number, min: number, max: number) {
 
 @Controller('api/admin/v1/publications')
 export class AdminPublicProjectsController {
+  private readonly scratchReview: PublicScratchPlayerService;
+
   constructor(
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.adminControlPlane) private readonly adminControlPlane: AdminControlPlaneService,
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
-  ) {}
+  ) {
+    this.scratchReview = new PublicScratchPlayerService(pool);
+  }
 
   private async actor(request: FastifyRequest) {
     if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
@@ -76,6 +89,63 @@ export class AdminPublicProjectsController {
       if (code === 'P5M09') throw new ConflictException();
       throw failure;
     }
+  }
+
+  private async publicationReviewer(request: FastifyRequest) {
+    const actor = await this.actor(request);
+    if (!this.pool) throw new ServiceUnavailableException();
+    noteAuthoritativeMutationSession(request, 'account', request.cookies[SESSION_COOKIE]);
+    return { pool: this.pool, review: { role: 'platform' as const, actor, classroomId: null } };
+  }
+
+  @Get('student-requests')
+  @Header('Cache-Control', 'private, no-store')
+  async studentRequests(@Req() request: FastifyRequest, @Query('offset') offset?: string) {
+    const { pool, review } = await this.publicationReviewer(request);
+    return readStudentPublicationReviewQueue(pool, review, 50, integer(offset, 0, 0, 10000));
+  }
+
+  @Get('student-requests/:requestId/artifact')
+  @Header('Cache-Control', 'private, no-store')
+  async studentRequestArtifact(
+    @Req() request: FastifyRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    const { pool, review } = await this.publicationReviewer(request);
+    return readStudentPublicationReviewArtifact(pool, review, requestId);
+  }
+
+  @Get('student-requests/:requestId/cover')
+  async studentRequestCover(
+    @Req() request: FastifyRequest,
+    @Param('requestId') requestId: string,
+    @Res() reply: FastifyReply,
+  ) {
+    const { pool, review } = await this.publicationReviewer(request);
+    const raster = await readStudentPublicationReviewRaster(pool, review, requestId);
+    return sendStudentPublicationReviewRaster(reply, raster);
+  }
+
+  @Get('student-requests/:requestId/scratch-player')
+  @Header('Cache-Control', 'private, no-store')
+  async studentRequestScratchPlayer(
+    @Req() request: FastifyRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    const { review } = await this.publicationReviewer(request);
+    return this.scratchReview.issueStudentReview(review, requestId);
+  }
+
+  @Post('student-requests/:requestId/decision')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async studentRequestDecision(
+    @Req() request: FastifyRequest,
+    @Param('requestId') requestId: string,
+    @Body() raw: unknown,
+  ) {
+    const { pool, review } = await this.publicationReviewer(request);
+    return decideStudentPublicationReview(pool, review, requestId, raw);
   }
 
   @Get('acquisition')

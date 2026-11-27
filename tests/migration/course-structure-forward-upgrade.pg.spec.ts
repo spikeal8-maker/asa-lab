@@ -208,6 +208,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0336', // Open one saved revision of a visible free project.
         '0337', // Effective Safe Mode in the learner's class list.
         '0338', // Exact private classroom copy provenance and distribution guards.
+        '0339', // Private, exact StudentSeat publication review.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -575,6 +576,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0336', // Open one saved revision of a visible free project.
           '0337', // Effective Safe Mode in the learner's class list.
           '0338', // Exact private classroom copy provenance and distribution guards.
+          '0339', // Private, exact StudentSeat publication review.
         ]);
         expect(
           await applyIsolatedTestPlan(

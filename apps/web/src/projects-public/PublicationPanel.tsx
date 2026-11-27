@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
 import {
@@ -11,15 +11,23 @@ import { publicationHref } from './presentation';
 import { SharePublicationLink } from './SharePublicationLink';
 import './public-projects.css';
 
+const StudentPublicationAuthor = lazy(() =>
+  import('./StudentPublicationAuthor').then((module) => ({
+    default: module.StudentPublicationAuthor,
+  })),
+);
+
 export function PublicationPanel({
   projectId,
   moduleKey,
+  sourceRevision = null,
   metadata,
   disabled,
   onBusyChange,
 }: {
   readonly projectId: string;
   readonly moduleKey?: string;
+  readonly sourceRevision?: number | null;
   readonly metadata: PublicationMetadata;
   readonly disabled: boolean;
   readonly onBusyChange: (busy: boolean) => void;
@@ -61,8 +69,22 @@ export function PublicationPanel({
     };
   }, [reload]);
 
+  function applyMutationStatus(next: ProjectPublicationStatus) {
+    setStatus((current) =>
+      current?.requiresApproval && !next.requiresApproval
+        ? { ...next, requiresApproval: true }
+        : next,
+    );
+  }
+
   async function change(operation: 'publish' | 'revoke'): Promise<void> {
-    if (inFlight.current || disabled || loading) return;
+    if (
+      inFlight.current ||
+      disabled ||
+      loading ||
+      (operation === 'publish' && status?.requiresApproval)
+    )
+      return;
     if (operation === 'publish' && !metadata.title.trim()) {
       setError('Введите название проекта перед публикацией.');
       return;
@@ -105,7 +127,7 @@ export function PublicationPanel({
           setError('Сервер не подтвердил закрытие получения. Проверьте состояние публикации.');
           return;
         }
-        setStatus(consent.data);
+        applyMutationStatus(consent.data);
       }
       const result =
         operation === 'publish'
@@ -127,7 +149,7 @@ export function PublicationPanel({
         setError('Ответ сервера не удалось прочитать. Проверьте состояние публикации.');
         return;
       }
-      setStatus(result.data);
+      applyMutationStatus(result.data);
       setConfirmRevoke(false);
       setNotice(
         operation === 'publish'
@@ -178,7 +200,7 @@ export function PublicationPanel({
         );
         return;
       }
-      setStatus(result.data);
+      applyMutationStatus(result.data);
       setNotice(
         allowed
           ? 'Получение разрешено автором. Общие ограничения платформы и класса продолжают действовать.'
@@ -200,14 +222,17 @@ export function PublicationPanel({
   const live = publication?.state === 'public';
   const publicAccess = live && Boolean(publication.publicPath);
   const blocked = disabled || busy !== null || loading;
+  const requiresApproval = status?.requiresApproval === true;
   const reason =
     status?.reasonCode === 'preview_required'
       ? 'Для публикации нужно актуальное изображение. Откройте проект в редакторе, дождитесь сохранения и проверьте состояние снова.'
       : status?.reasonCode === 'learning_work_protected'
         ? 'Оригинальную учебную работу нельзя публиковать.'
-        : status && !status.canPublish
-          ? 'Публикация этой работы ограничена настройками доступа.'
-          : null;
+        : status?.reasonCode === 'classroom_safe_mode'
+          ? 'Безопасный режим запрещает публикацию этой работы.'
+          : status && !status.canPublish
+            ? 'Публикация этой работы ограничена настройками доступа.'
+            : null;
 
   return (
     <section
@@ -263,6 +288,26 @@ export function PublicationPanel({
               {reason}
             </p>
           ) : null}
+          {requiresApproval && status.canPublish ? (
+            <Suspense fallback={<p role="status">Загружаем заявку…</p>}>
+              <StudentPublicationAuthor
+                key={projectId}
+                projectId={projectId}
+                metadata={metadata}
+                sourceRevision={sourceRevision}
+                publicationIsPublic={publicAccess}
+                eligible={
+                  moduleKey === 'three-d' ||
+                  moduleKey === 'electronics' ||
+                  moduleKey === 'robotics' ||
+                  moduleKey === 'blocks'
+                }
+                disabled={blocked}
+                onPublished={reload}
+                onBusyChange={onBusyChange}
+              />
+            </Suspense>
+          ) : null}
           {moduleKey !== 'robotics' && publication && status.acquisition ? (
             <label className="publication-permission">
               <input
@@ -281,15 +326,17 @@ export function PublicationPanel({
             </label>
           ) : null}
           <div className="publication-panel-actions">
-            <button
-              type="button"
-              className="btn-primary"
-              data-testid="publication-publish"
-              disabled={blocked || !status.canPublish || !metadata.title.trim()}
-              onClick={() => void change('publish')}
-            >
-              {busy === 'publish' ? 'Публикуем…' : live ? 'Обновить публикацию' : 'Опубликовать'}
-            </button>
+            {!requiresApproval && (
+              <button
+                type="button"
+                className="btn-primary"
+                data-testid="publication-publish"
+                disabled={blocked || !status.canPublish || !metadata.title.trim()}
+                onClick={() => void change('publish')}
+              >
+                {busy === 'publish' ? 'Публикуем…' : live ? 'Обновить публикацию' : 'Опубликовать'}
+              </button>
+            )}
             {publicAccess && publication ? (
               <PortalLink
                 className="btn-secondary"

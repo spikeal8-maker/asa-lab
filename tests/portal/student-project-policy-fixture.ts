@@ -4,6 +4,9 @@ import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { expect } from 'vitest';
 import { seedTeacher } from './helpers';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
+import { EMPTY_DOCUMENT } from '../../contexts/electronics/domain/document';
+import { createApiModuleRegistry } from '../../apps/api/src/module-registry';
+import { createStudentPublicationReview } from '../../apps/api/src/student-publication-review';
 export async function studentProjectPolicyFixture(
   admin: pg.Pool,
   runtime: pg.Pool,
@@ -95,7 +98,7 @@ export async function studentProjectPolicyFixture(
     title: 'Seat frozen project',
     idempotencyKey: randomUUID(),
     requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
-    initialDocument: { schemaVersion: 1, components: [], connections: [] },
+    initialDocument: EMPTY_DOCUMENT,
     initialPreview: null,
   });
   if (created.kind !== 'created')
@@ -154,7 +157,7 @@ export async function studentProjectPolicyFixture(
         randomUUID(),
       ])
     ).rows[0].data;
-  const publish = async () =>
+  const rawPublish = async () =>
     (
       await runtime.query('SELECT project_publication_publish_seat($1,$2,$3::jsonb,$4) data', [
         principal,
@@ -163,6 +166,75 @@ export async function studentProjectPolicyFixture(
         hash,
       ])
     ).rows[0].data;
+  let reviewer:
+    | Promise<{ principalId: string; credentials: Awaited<ReturnType<typeof seedTeacher>> }>
+    | undefined;
+  const platformAccount = () =>
+    (reviewer ??= (async () => {
+      const moderator = await seedTeacher(admin, `publication-admin-${randomUUID().slice(0, 8)}`);
+      const link = (
+        await admin.query(
+          'SELECT account_id,principal_id FROM legacy_user_account_links WHERE user_id=$1',
+          [moderator.teacherId],
+        )
+      ).rows[0]!;
+      await admin.query(
+        "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'platform_admin','verified','asa-lab-2026-07','migration')",
+        [link.account_id],
+      );
+      return { principalId: link.principal_id as string, credentials: moderator };
+    })());
+  const platformReviewer = async () => (await platformAccount()).principalId;
+  const publicationRequest = (revision: number, metadata = {}, key = randomUUID()) =>
+    createStudentPublicationReview(
+      runtime,
+      createApiModuleRegistry(),
+      principal,
+      projectId,
+      hash,
+      revision,
+      metadata,
+      key,
+    ) as Promise<Record<string, unknown>>;
+  const reviewPublication = async (
+    requestId: string,
+    role: 'teacher' | 'platform',
+    approve = true,
+    reviewerId?: string,
+  ) =>
+    (
+      await runtime.query('SELECT classroom_publication_request_review($1,$2,$3,$4,$5) data', [
+        reviewerId ?? (role === 'teacher' ? actor : await platformReviewer()),
+        role,
+        role === 'teacher' ? classroomId : null,
+        requestId,
+        approve,
+      ])
+    ).rows[0].data;
+  const publishApproved = async (
+    requestId: string,
+    connection: pg.Pool | pg.PoolClient = runtime,
+  ) =>
+    (
+      await connection.query('SELECT classroom_publication_request_publish($1,$2,$3,$4) data', [
+        principal,
+        projectId,
+        hash,
+        requestId,
+      ])
+    ).rows[0].data;
+  const approvedRequest = async (revision = 1) => {
+    const { requestId } = await publicationRequest(revision);
+    await reviewPublication(requestId, 'teacher');
+    await reviewPublication(requestId, 'platform');
+    return requestId as string;
+  };
+  const publish = async () => {
+    await publishApproved(await approvedRequest());
+    return (
+      await runtime.query('SELECT project_publication_status($1,$2) data', [principal, projectId])
+    ).rows[0].data;
+  };
   return {
     teacher,
     actor,
@@ -175,6 +247,13 @@ export async function studentProjectPolicyFixture(
     projectId,
     read,
     write,
+    rawPublish,
+    platformReviewer,
+    platformAccount,
+    publicationRequest,
+    reviewPublication,
+    approvedRequest,
+    publishApproved,
     publish,
   };
 }
