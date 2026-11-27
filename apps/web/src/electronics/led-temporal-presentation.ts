@@ -261,6 +261,12 @@ export class LedTemporalPresentation {
   private playbackRate = 1;
   private pacingChanged = false;
   private paceFrame: LedPresentationFrame | null = null;
+  private elapsedFrame: { readonly proposal: LedPresentationFrame; readonly slot: number } | null =
+    null;
+  private elapsedAckSlot = -1;
+  private distinctCommitWallMicroseconds: number | null = null;
+  private firstRafAfterCommit: number | null = null;
+  private opticalTransitions: 0 | 1 | 2 = 0;
 
   /** Reanchor only this host adapter; pending frames retain their original ACK. */
   setPlaybackRate(rate: number, wallMicroseconds: number): void {
@@ -336,7 +342,11 @@ export class LedTemporalPresentation {
   }
 
   get canPublishDistinctFrame(): boolean {
-    return this.j === null || this.h - this.i > 0;
+    return (
+      this.j === null ||
+      this.h > this.i ||
+      (this.elapsedFrame !== null && this.elapsedFrame.proposal === this.k)
+    );
   }
 
   reset(): void {
@@ -348,11 +358,16 @@ export class LedTemporalPresentation {
     this.d = null;
     this.e = null;
     this.paceFrame = null;
+    this.elapsedFrame = null;
+    this.elapsedAckSlot = -1;
     this.k = null;
     this.j = null;
     this.l = null;
     this.h = 0;
     this.i = -3;
+    this.distinctCommitWallMicroseconds = null;
+    this.firstRafAfterCommit = null;
+    this.opticalTransitions = 0;
     this.g++;
   }
 
@@ -663,6 +678,8 @@ export class LedTemporalPresentation {
    */
   prepareFrame(wallMicroseconds: number): LedPresentationFrame | null {
     this.h++;
+    if (this.j && this.firstRafAfterCommit === null) this.firstRafAfterCommit = wallMicroseconds;
+    if (this.h === this.elapsedAckSlot) return null;
     const elapsed = this.e === null ? 0 : Math.max(0, wallMicroseconds - this.e.w);
     if (this.k) return this.k;
     if (this.playbackRate === 0 && this.j !== null) return null;
@@ -694,6 +711,134 @@ export class LedTemporalPresentation {
     return frame;
   }
 
+  /**
+   * Offer one distinct phase after the host has witnessed the prior mounted vector.
+   * This does not count an RAF. A successful ACK reserves the next actual one.
+   */
+  prepareElapsedFrame(wallMicroseconds: number): LedPresentationFrame | null {
+    if (
+      this.k ||
+      !this.j ||
+      this.h < this.i ||
+      this.d === null ||
+      this.a === null ||
+      !this.e ||
+      this.l ||
+      this.displays.size ||
+      !this.b.size ||
+      this.c.size !== 1 ||
+      this.playbackRate !== 1 ||
+      this.pacingChanged
+    )
+      return null;
+    const target = Math.min(this.a, this.e.m + Math.max(0, wallMicroseconds - this.e.w));
+    if (target <= this.d) return null;
+    const points = new Set([target]);
+    for (const { samples, completeSince } of this.b.values()) {
+      if (completeSince > this.d) return null;
+      for (const sample of samples)
+        for (const time of [sample.atMicroseconds, sample.atMicroseconds + FAST_PHASE_MICROSECONDS])
+          if (time > this.d && time < target) points.add(time);
+    }
+    for (const { samples, completeSince } of this.c.values()) {
+      if (completeSince > this.d) return null;
+      for (const sample of samples)
+        if (sample.atMicroseconds > this.d && sample.atMicroseconds < target)
+          points.add(sample.atMicroseconds);
+    }
+    let changed = false;
+    let previous = this.j;
+    for (const time of [...points].sort((left, right) => left - right)) {
+      const values = this.o(time, false);
+      if (!values) return null;
+      const candidate = { ...values, token: '' };
+      if (!sameOpticalFrame(previous, candidate)) {
+        if (changed) return null;
+        changed = true;
+      }
+      previous = candidate;
+    }
+    if (!changed || this.waitForPaint(target, wallMicroseconds)) return null;
+    const lastUnaveraged = this.o(this.d, false);
+    if (!lastUnaveraged || !sameOpticalFrame(this.j, { ...lastUnaveraged, token: '' })) return null;
+    const frame = { ...previous, token: `${this.g}:${++this.f}` };
+    this.k = frame;
+    this.elapsedFrame = { proposal: frame, slot: this.h + 1 };
+    return frame;
+  }
+
+  cancelElapsedFrame(frame: LedPresentationFrame): void {
+    if (this.elapsedFrame?.proposal !== frame) return;
+    if (this.k === frame) this.k = null;
+    this.elapsedFrame = null;
+  }
+
+  /** Defer only an early, between-paints offer. Always sample the normal RAF. */
+  private waitForPaint(target: number, wall: number): boolean {
+    const shown = this.j;
+    if (
+      !shown ||
+      !this.e ||
+      this.distinctCommitWallMicroseconds === null ||
+      this.pacingChanged ||
+      this.l ||
+      this.displays.size ||
+      !this.b.size ||
+      this.b.size !== shown.brightness.size
+    )
+      return false;
+    const sinceCommit = wall - this.distinctCommitWallMicroseconds;
+    // A commit just after a refresh can spend almost one refresh interval in
+    // the DOM before its first display opportunity. For long phases the first
+    // actual RAF provides a lower bound on how long the phase has been visible.
+    const established = sinceCommit >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS;
+    const elapsed =
+      established && this.firstRafAfterCommit !== null
+        ? wall - this.firstRafAfterCommit
+        : sinceCommit;
+    const cursor = shown.atMicroseconds;
+    let from = 0;
+    let to = target;
+    // Intersect the actual held intervals for the complete LED and Uno vector.
+    // A truncated interval or rapid change cannot qualify a short pulse for a hold.
+    for (const history of [...this.b.values(), ...this.c.values()]) {
+      const { samples } = history;
+      let index = samples.length - 1;
+      while (index >= 0 && samples[index]!.atMicroseconds > cursor) index--;
+      if (index < 0) return false;
+      const held = samples[index]!;
+      let first = index;
+      while (first > 0 && sameState(samples[first - 1]!, held)) first--;
+      from = Math.max(from, history.completeSince, samples[first]!.atMicroseconds);
+      for (let next = index + 1; next < samples.length; next++) {
+        const sample = samples[next]!;
+        if (sample.atMicroseconds > target + FAST_PHASE_MICROSECONDS) break;
+        if (sameState(samples[next - 1]!, sample)) continue;
+        // The successor may end before the next paint. Offer it now if so.
+        if (sample.atMicroseconds > target) return false;
+        to = Math.min(to, sample.atMicroseconds);
+      }
+      if (to - from < 2 * FAST_PHASE_MICROSECONDS || elapsed >= to - from) return false;
+    }
+    const withinOneRefresh = elapsed + FAST_PHASE_MICROSECONDS >= to - from;
+    if (established) {
+      // Keep the cold-start allowance. Later phases may defer a between-frame
+      // offer only when their actual paint opportunity was materially shorter.
+      const transitionWall = this.e.w + (to - this.e.m);
+      if (
+        (this.opticalTransitions !== 1 &&
+          (this.firstRafAfterCommit === null || withinOneRefresh)) ||
+        wall - transitionWall >= ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS
+      )
+        return false;
+    }
+    // Allow one refresh interval of quantisation once the screen has had two
+    // opportunities to paint. The next call samples the current confirmed history.
+    if (this.h > this.i + 1 && withinOneRefresh) return false;
+    const unaveraged = this.o(cursor, false);
+    return unaveraged !== null && sameOpticalFrame(shown, { ...unaveraged, token: shown.token });
+  }
+
   /** The only cursor commit. A native load callback alone must never call this. */
   acknowledgeFrame(
     frame: LedPresentationFrame,
@@ -702,6 +847,13 @@ export class LedTemporalPresentation {
   ): boolean {
     if (this.k !== frame) return false;
     const changed = distinctOpticalCommit || this.j === null || !sameOpticalFrame(this.j, frame);
+    if (
+      this.j &&
+      this.opticalTransitions < 2 &&
+      changed &&
+      (!distinctOpticalCommit || !sameOpticalFrame(this.j, frame))
+    )
+      this.opticalTransitions = this.opticalTransitions === 0 ? 1 : 2;
     this.d = frame.atMicroseconds;
     this.j = frame;
     this.k = null;
@@ -710,7 +862,14 @@ export class LedTemporalPresentation {
       this.e = { w: wallMicroseconds, m: frame.atMicroseconds };
       this.paceFrame = null;
     }
-    if (changed) this.i = this.h;
+    if (changed) {
+      this.distinctCommitWallMicroseconds = wallMicroseconds;
+      this.firstRafAfterCommit = null;
+      const reserved = this.elapsedFrame?.proposal === frame ? this.elapsedFrame.slot : this.h;
+      this.i = Math.max(this.h, reserved);
+      if (reserved > this.h) this.elapsedAckSlot = reserved;
+    }
+    this.elapsedFrame = null;
     return true;
   }
 
@@ -735,9 +894,13 @@ export class LedTemporalPresentation {
   }
 
   /** Both preparation paths sample the same complete LED/L vector. */
-  private o(atMicroseconds: number): Omit<LedPresentationFrame, 'token'> | null {
+  private o(
+    atMicroseconds: number,
+    allowAveraging = true,
+  ): Omit<LedPresentationFrame, 'token'> | null {
     if (this.l) return this.l;
-    const brightness = this.q(atMicroseconds);
+    const brightness = this.q(atMicroseconds, allowAveraging);
+    if (!brightness) return null;
     const voltages = this.p(atMicroseconds);
     const sevenSegmentBrightness = new Map<string, Readonly<Record<string, number>>>();
     for (const [id, branches] of this.displays) {
@@ -773,14 +936,16 @@ export class LedTemporalPresentation {
     return voltages;
   }
 
-  private q(time: number): ReadonlyMap<string, number> {
+  private q(time: number, allowAveraging: boolean): ReadonlyMap<string, number> | null {
     const brightness = new Map<string, number>();
     for (const [id, { samples, completeSince }] of this.b) {
       if (completeSince > time) continue;
       const prefix = this.n(samples, time);
       const last = prefix.at(-1);
       if (!last) continue;
-      brightness.set(id, fastCycleBrightness(prefix, time) ?? last.brightness);
+      const average = fastCycleBrightness(prefix, time);
+      if (average !== undefined && !allowAveraging) return null;
+      brightness.set(id, average ?? last.brightness);
     }
     return brightness;
   }

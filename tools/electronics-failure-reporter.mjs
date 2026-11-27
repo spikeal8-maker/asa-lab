@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { spawnSync } from 'node:child_process';
 import {
   closeSync,
   constants,
@@ -39,6 +40,36 @@ function boundedText(value, maximumBytes, label, truncated) {
 
 const finite = (value) => (Number.isFinite(value) && value >= 0 ? value : null);
 const status = (value) => (statuses.includes(value) ? value : 'unknown');
+
+function captureRunnerTiming(root, mode, phase) {
+  if (
+    mode !== 'test' ||
+    process.env.GITHUB_ACTIONS !== 'true' ||
+    process.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE !== 'strict-real-time'
+  )
+    return {};
+
+  const unavailable = { runnerTiming: { status: 'unavailable', scope: 'test-runner', phase } };
+  try {
+    // The child inherits the actual Playwright runner's cgroup and CPU affinity.
+    const sample = spawnSync(
+      'python3',
+      ['tools/electronics-runner-timing.py', 'test-runner', phase],
+      {
+        cwd: root,
+        encoding: 'utf8',
+        timeout: 3000,
+        maxBuffer: 3100,
+      },
+    );
+    if (sample.status !== 0) return unavailable;
+    const timing = JSON.parse(sample.stdout);
+    if (timing.scope !== 'test-runner' || timing.phase !== phase) return unavailable;
+    return { runnerTiming: timing };
+  } catch {
+    return unavailable;
+  }
+}
 
 /**
  * An opt-in diagnostic journal, not a replacement for Playwright's list reporter.
@@ -303,7 +334,14 @@ export default class ElectronicsFailureReporter {
   onBegin(_config, suite) {
     this.#guard(() => {
       this.#open();
-      this.#write({ event: 'begin', expectedTestCount: suite.allTests().length }, true);
+      this.#write(
+        {
+          event: 'begin',
+          expectedTestCount: suite.allTests().length,
+          ...captureRunnerTiming(this.#root, this.#mode, 'before'),
+        },
+        true,
+      );
     });
   }
 
@@ -394,6 +432,7 @@ export default class ElectronicsFailureReporter {
         runnerErrorCount: this.#runnerErrors,
         dataEventsOmitted: this.#omitted,
         evidenceLimited: this.#saturated,
+        ...captureRunnerTiming(this.#root, this.#mode, 'after'),
       });
       this.#close();
     });

@@ -20,8 +20,13 @@ import {
   ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS,
   LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
   classroomRequestedHorizon,
-  sameOpticalFrame,
 } from '../led-temporal-presentation';
+import {
+  matchingOpticalValues,
+  opticalAssetLeasesReady,
+  recordOpticalAssetReadiness,
+  restorableOpticalObservation,
+} from '../native-optical-presentation';
 
 function channel(
   componentId: string,
@@ -310,6 +315,295 @@ describe('actual browser joint provenance oracle counterexamples', () => {
   });
 });
 
+describe('one early elapsed optical phase', () => {
+  function accepted(from: number, to: number, samples: ElectronicsLedTemporalSample[]) {
+    return {
+      ...window(from, to, [channel('led', samples)]),
+      arduinoIndicators: [
+        {
+          componentId: 'uno',
+          truncated: false,
+          samples: samples.map(({ atMicroseconds, brightness }) => ({
+            atMicroseconds,
+            voltage: brightness ? 5 : 0,
+          })),
+        },
+      ],
+    };
+  }
+
+  function solved(observation: ReturnType<typeof accepted>) {
+    const result = electrical(observation);
+    result.components.push({
+      componentId: 'uno',
+      current: 0,
+      voltageDrop: 5,
+      terminalVoltages: { d13: observation.arduinoIndicators[0]!.samples.at(-1)!.voltage },
+    });
+    return result;
+  }
+
+  function withDarkFrame() {
+    const presenter = new LedTemporalPresentation();
+    const initial = accepted(0, 0, [point(0, 0)]);
+    presenter.accept(solved(initial), initial, 0);
+    const dark = presenter.prepareFrame(0)!;
+    expect(presenter.acknowledgeFrame(dark, 0, true)).toBe(true);
+    return presenter;
+  }
+
+  it('defers an early LED/L offer after a late native commit until the next paint', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 85_000, [
+      point(0, 0),
+      point(10_000, 80),
+      point(60_000, 0),
+      point(85_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    const high = presenter.prepareFrame(45_000)!;
+    expect(high.brightness.get('led')).toBe(80);
+    expect(presenter.acknowledgeFrame(high, 55_000, true)).toBe(true);
+    expect(presenter.prepareElapsedFrame(60_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(45_000);
+    expect(presenter.arduinoLStates().get('uno')).toBe(true);
+    const low = presenter.prepareFrame(70_000)!;
+    expect(low.atMicroseconds).toBe(70_000);
+    expect(low.brightness.get('led')).toBe(0);
+    expect(low.arduinoLStates.get('uno')).toBe(false);
+    expect(presenter.acknowledgeFrame(low, 70_000)).toBe(true);
+    expect(presenter.prepareFrame(91_000)?.atMicroseconds).toBe(85_000);
+    expect(presenter.reanchorCount).toBe(0);
+  });
+
+  it.each([false, true])(
+    'shows a short successor at both paints after a late ACK (streamed %s)',
+    (streamed) => {
+      const presenter = withDarkFrame();
+      const start = [point(0, 0), point(10_000, 80)];
+      const end = [point(100_000, 0), point(132_000, 80), point(145_000, 80)];
+      const first = streamed
+        ? accepted(0, 99_000, [...start, point(99_000, 80)])
+        : accepted(0, 145_000, [...start, ...end]);
+      presenter.accept(solved(first), first, 0);
+      const high = presenter.prepareFrame(90_000)!;
+      expect(presenter.acknowledgeFrame(high, 95_000, true)).toBe(true);
+      if (streamed) {
+        const next = accepted(99_000, 108_000, [point(99_000, 80), end[0]!, point(108_000, 0)]);
+        presenter.accept(solved(next), next, 107_000);
+      }
+      expect(presenter.prepareElapsedFrame(107_000)).toBeNull();
+      for (const [wall, level] of [
+        [108_000, 0],
+        [124_000, 0],
+        [140_000, 80],
+      ] as const) {
+        if (streamed && wall === 124_000) {
+          const last = accepted(108_000, 145_000, [point(108_000, 0), ...end.slice(1)]);
+          presenter.accept(solved(last), last, wall);
+        }
+        const frame = presenter.prepareFrame(wall)!;
+        expect(frame.brightness.get('led')).toBe(level);
+        expect(frame.arduinoLStates.get('uno')).toBe(level > 0);
+        expect(presenter.acknowledgeFrame(frame, wall)).toBe(true);
+      }
+    },
+  );
+
+  it('uses an early offer when the confirmed successor ends before the next paint', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 145_000, [
+      point(0, 0),
+      point(10_000, 80),
+      point(100_000, 0),
+      point(132_000, 80),
+      point(145_000, 80),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    expect(presenter.acknowledgeFrame(presenter.prepareFrame(90_000)!, 95_000, true)).toBe(true);
+    const low = presenter.prepareElapsedFrame(120_000)!;
+    expect(low.brightness.get('led')).toBe(0);
+    expect(presenter.acknowledgeFrame(low, 120_000)).toBe(true);
+    expect(presenter.prepareFrame(135_000)).toBeNull();
+    expect(presenter.prepareFrame(150_000)?.brightness.get('led')).toBe(80);
+  });
+
+  it('times a fresh transition from its due edge after a late first HIGH', () => {
+    const presenter = withDarkFrame();
+    const sameDark = presenter.prepareFrame(0)!;
+    expect(presenter.acknowledgeFrame(sameDark, 0, true)).toBe(true);
+    const observation = accepted(0, 105_000, [
+      point(0, 0),
+      point(21, 80),
+      point(100_023, 0),
+      point(105_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    const high = presenter.prepareFrame(35_000)!;
+    expect(high.brightness.get('led')).toBe(80);
+    expect(presenter.acknowledgeFrame(high, 38_000)).toBe(true);
+    expect(presenter.acknowledgeFrame(presenter.prepareFrame(66_000)!, 66_000)).toBe(true);
+    expect(presenter.prepareElapsedFrame(106_700)).toBeNull();
+    const low = presenter.prepareFrame(110_600)!;
+    expect(low.brightness.get('led')).toBe(0);
+    expect(low.arduinoLStates.get('uno')).toBe(false);
+    expect(low.atMicroseconds).toBe(105_000);
+  });
+
+  it('offers an already overdue startup edge immediately', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 105_000, [
+      point(0, 0),
+      point(21, 80),
+      point(100_023, 0),
+      point(105_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    const high = presenter.prepareFrame(35_000)!;
+    expect(presenter.acknowledgeFrame(high, 90_000)).toBe(true);
+    expect(presenter.prepareElapsedFrame(166_700)?.brightness.get('led')).toBe(0);
+  });
+
+  it('keeps the usual early offer once steady cycling has begun', () => {
+    const presenter = withDarkFrame();
+    const observation = accepted(0, 310_000, [
+      point(0, 0),
+      point(21, 80),
+      point(100_023, 0),
+      point(200_026, 80),
+      point(300_028, 0),
+      point(310_000, 0),
+    ]);
+    presenter.accept(solved(observation), observation, 0);
+    for (const [wall, ack] of [
+      [35_000, 38_000],
+      [120_000, 120_000],
+      [235_000, 238_000],
+    ] as const) {
+      const phase = presenter.prepareFrame(wall)!;
+      expect(presenter.acknowledgeFrame(phase, ack)).toBe(true);
+    }
+    expect(presenter.prepareElapsedFrame(306_700)?.brightness.get('led')).toBe(0);
+  });
+
+  it.each([
+    { firstPaint: 208_000, expectsEarly: true },
+    { firstPaint: 221_000, expectsEarly: false },
+  ])(
+    'respects a steady phase first sampled at $firstPaint after the same commit',
+    ({ firstPaint, expectsEarly }) => {
+      const presenter = withDarkFrame();
+      const observation = accepted(0, 305_000, [
+        point(0, 0),
+        point(21, 80),
+        point(100_023, 0),
+        point(200_026, 80),
+        point(300_028, 0),
+        point(305_000, 0),
+      ]);
+      presenter.accept(solved(observation), observation, 0);
+      for (const [wall, ack] of [
+        [35_000, 38_000],
+        [120_000, 120_000],
+        [205_000, 207_000],
+      ] as const) {
+        expect(presenter.acknowledgeFrame(presenter.prepareFrame(wall)!, ack)).toBe(true);
+      }
+      for (const wall of [firstPaint, 240_000, 260_000, 280_000]) {
+        const high = presenter.prepareFrame(wall)!;
+        expect(high.brightness.get('led')).toBe(80);
+        expect(presenter.acknowledgeFrame(high, wall)).toBe(true);
+      }
+      const early = presenter.prepareElapsedFrame(301_500);
+      expect(early !== null).toBe(expectsEarly);
+      const low = early ?? presenter.prepareFrame(305_000)!;
+      expect(low.brightness.get('led')).toBe(0);
+      expect(low.arduinoLStates.get('uno')).toBe(false);
+      expect(presenter.acknowledgeFrame(low, early ? 301_500 : 305_000)).toBe(true);
+    },
+  );
+
+  it('does not extend a short pulse or queue missed opportunities after a stall', () => {
+    for (const [off, secondRaf] of [
+      [22_000, 23_000],
+      [60_000, 1_000_000],
+    ] as const) {
+      const presenter = withDarkFrame();
+      const observation = accepted(0, 80_000, [
+        point(0, 0),
+        point(10_000, 80),
+        point(off, 0),
+        point(80_000, 0),
+      ]);
+      presenter.accept(solved(observation), observation, 0);
+      const high = presenter.prepareFrame(15_000)!;
+      expect(presenter.acknowledgeFrame(high, 15_000, true)).toBe(true);
+      const low = presenter.prepareFrame(secondRaf)!;
+      expect(low.brightness.get('led')).toBe(0);
+      expect(low.atMicroseconds).toBe(Math.min(secondRaf, 80_000));
+    }
+  });
+
+  it('samples only elapsed accepted time and reserves the following actual RAF for exactly one ACK', () => {
+    const presenter = withDarkFrame();
+    const high = accepted(0, 23_000, [point(0, 0), point(20_000, 80), point(23_000, 80)]);
+    presenter.accept(solved(high), high, 18_000);
+    expect(presenter.prepareElapsedFrame(19_999)).toBeNull();
+    const candidate = presenter.prepareElapsedFrame(21_000)!;
+    expect(candidate.atMicroseconds).toBe(21_000);
+    expect(candidate.brightness.get('led')).toBe(80);
+    expect(candidate.arduinoLStates.get('uno')).toBe(true);
+    expect(presenter.presentedMicroseconds).toBe(0);
+    expect(presenter.acknowledgeFrame(candidate, 21_000, true)).toBe(true);
+    expect(presenter.acknowledgeFrame(candidate, 21_000, true)).toBe(false);
+    expect(presenter.prepareFrame(22_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(21_000);
+    const next = presenter.prepareFrame(30_000)!;
+    expect(next.atMicroseconds).toBe(23_000);
+  });
+
+  it('releases a declined native proposal for the ordinary RAF and clears its ownership on reset', () => {
+    const presenter = withDarkFrame();
+    const high = accepted(0, 23_000, [point(0, 0), point(20_000, 80), point(23_000, 80)]);
+    presenter.accept(solved(high), high, 18_000);
+    const candidate = presenter.prepareElapsedFrame(21_000)!;
+    presenter.cancelElapsedFrame(candidate);
+    expect(presenter.acknowledgeFrame(candidate, 21_000, true)).toBe(false);
+    const normal = presenter.prepareFrame(22_000)!;
+    expect(normal.atMicroseconds).toBe(22_000);
+    expect(normal.brightness.get('led')).toBe(80);
+    presenter.reset();
+    expect(presenter.acknowledgeFrame(normal, 23_000, true)).toBe(false);
+    expect(presenter.prepareElapsedFrame(23_000)).toBeNull();
+  });
+
+  it('leaves multiple due optical transitions to the ordinary RAF path without ACK', () => {
+    const presenter = withDarkFrame();
+    const pulse = accepted(0, 25_000, [
+      point(0, 0),
+      point(2_000, 80),
+      point(20_000, 0),
+      point(25_000, 0),
+    ]);
+    presenter.accept(solved(pulse), pulse, 25_000);
+    expect(presenter.prepareElapsedFrame(25_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(0);
+    expect(presenter.prepareFrame(10_000)?.brightness.get('led')).toBe(80);
+  });
+
+  it('leaves fast-cycle integration with the ordinary RAF path', () => {
+    const presenter = withDarkFrame();
+    const samples = [point(0, 0)];
+    for (let index = 0; index < 16; index++)
+      samples.push(point(index * 1_000 + 100, index % 2 === 0 ? 80 : 0));
+    samples.push(point(16_000, 0));
+    const pulse = accepted(0, 16_000, samples);
+    presenter.accept(solved(pulse), pulse, 16_000);
+    expect(presenter.prepareElapsedFrame(16_000)).toBeNull();
+    expect(presenter.presentedMicroseconds).toBe(0);
+    expect(presenter.prepareFrame(16_000)?.brightness.get('led')).toBeCloseTo(40);
+  });
+});
 describe('accepted per-LED temporal presentation', () => {
   it.each([0.1, 0.5, 1, 2, 10])('presents actual accepted history at requested rate %s', (rate) => {
     const presentation = new LedTemporalPresentation();
@@ -1635,27 +1929,12 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     ts.ScriptTarget.Latest,
     true,
   );
-  const names = new Set([
-    'recordOpticalAssetReadiness',
-    'opticalAssetLeasesReady',
-    'matchingOpticalValues',
-    'matchingNativeAssets',
-    'restorableOpticalObservation',
-  ]);
-  const functions = host.statements.filter(
-    (statement) =>
-      ts.isFunctionDeclaration(statement) && statement.name && names.has(statement.name.text),
-  );
-  if (functions.length !== names.size)
-    throw new Error('actual host optical barrier declarations not found');
-  const barrier = runInNewContext(
-    ts.transpileModule(
-      functions.map((fn) => fn.getText(host)).join('\n') +
-        '\n({ record: recordOpticalAssetReadiness, ready: opticalAssetLeasesReady, same: matchingOpticalValues, rollback: restorableOpticalObservation });',
-      { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
-    ).outputText,
-    { sameOpticalFrame },
-  ) as {
+  const barrier = {
+    record: recordOpticalAssetReadiness,
+    ready: opticalAssetLeasesReady,
+    same: matchingOpticalValues,
+    rollback: restorableOpticalObservation,
+  } as unknown as {
     record: (pending: unknown, event: unknown) => boolean;
     ready: (pending: unknown, active?: boolean) => boolean;
     same: (previous: unknown, frame: unknown, assets: unknown) => boolean;
@@ -1811,7 +2090,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
-    state.nativeOpticalPresentation = { commit: () => {} };
+    state.nativeOpticalPresentation = { commit: () => {}, witnessAfterAnimationFrame: () => {} };
     state.settleSimulationPauseRef = { current: null };
     if (name === 'raf') {
       // Bind the real RAF's new display-only metric dependencies. The actual
@@ -1822,6 +2101,8 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       state.nativePreparationSourceRef = { current: source };
       state.latestCommittedHorizon = 0;
       state.setCommittedHorizonMicroseconds = () => {};
+      state.publishElapsedFrame = () => {};
+      state.elapsedWaitingForWitness = false;
     }
     const text = `${hostClosures.get('clearDisplay')!}\nconst presentLeds = ${hostClosures.get(name)!}; presentLeds();`;
     runInNewContext(
@@ -2083,12 +2364,22 @@ describe('native repeated-phase oracle with prospective instruction timing', () 
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText;
   type Edge = { at: number; high: boolean };
+  type Raf = { at: number; epoch: number };
   const audit = runInNewContext(`${javascript}; realtime682ShortCycleAudit`) as (
     ms: number,
     h0: number,
     electrical: Edge[],
     native: Edge[],
+    cycles: number,
+    render: { opportunities: Raf[]; samples: Raf[] },
   ) => { errors: string[]; phaseErrors: number[] };
+  const h0 = 1000;
+  const frameMs = 1000 / 60;
+  const frames = Array.from({ length: 140 }, (_, index) => {
+    const epoch = Math.ceil(h0 / frameMs) + index;
+    return { at: epoch * frameMs, epoch };
+  });
+  const render = { opportunities: frames, samples: frames };
   const physical = (ms: number) =>
     Array.from({ length: 21 }, (_, index) => ({
       at: 2 + Math.floor(index / 2) * (2 * ms * 1000 + 5) + (index % 2) * (ms * 1000 + 2),
@@ -2097,43 +2388,51 @@ describe('native repeated-phase oracle with prospective instruction timing', () 
   const native = (ms: number) =>
     physical(ms).map((edge) => ({
       ...edge,
-      at: Math.ceil((1000 + edge.at / 1000) / (1000 / 60)) * (1000 / 60),
+      at: Math.ceil((h0 + edge.at / 1000) / frameMs) * frameMs,
     }));
 
   it.each([20, 30, 50, 100])(
     'accepts exactly ten actual %i ms cycles quantized to 60 Hz, with no widened tolerance',
     (ms) => {
-      expect(audit(ms, 1000, physical(ms), native(ms)).errors).toEqual([]);
+      expect(audit(ms, h0, physical(ms), native(ms), 10, render).errors).toEqual([]);
     },
   );
 
   it.each([
-    'cold65ms',
-    'lost-front',
-    'extra-front',
-    'late-worker',
-    'drift',
-    'wrong-duty',
-    'wrong-electrical-time',
-  ] as const)('rejects %s rather than reanchoring or hiding first phases', (fault) => {
-    const electrical = physical(30),
-      shown = native(30);
-    if (fault === 'cold65ms') shown[1]!.at = shown[0]!.at + 65.3;
-    if (fault === 'lost-front') shown.splice(1, 2);
-    if (fault === 'extra-front')
-      shown.splice(
-        1,
-        0,
-        { at: shown[0]!.at + 5, high: false },
-        { at: shown[0]!.at + 10, high: true },
-      );
-    if (fault === 'late-worker') for (const edge of shown) edge.at += 100;
-    if (fault === 'drift') for (const [index, edge] of shown.entries()) edge.at += index * 3;
-    if (fault === 'wrong-duty')
-      for (const [index, edge] of shown.entries()) if (index % 2) edge.at += 18;
-    if (fault === 'wrong-electrical-time') electrical[1]!.at++;
-    expect(audit(30, 1000, electrical, shown).errors.length).toBeGreaterThan(0);
-  });
+    ['cold65ms', 'phase-duration-1'],
+    ['lost-front', 'missing-front'],
+    ['extra-front', 'phase-duration-1'],
+    ['late-worker', 'edge-lateness-0'],
+    ['drift', 'cumulative-drift'],
+    ['wrong-duty', 'integrated-duty'],
+    ['wrong-electrical-time', 'electrical-front-1'],
+  ] as const)(
+    'rejects %s rather than reanchoring or hiding first phases',
+    (fault, expectedError) => {
+      const electrical = physical(30),
+        shown = native(30);
+      if (fault === 'cold65ms') shown[1]!.at = shown[0]!.at + 65.3;
+      if (fault === 'lost-front') shown.splice(1, 2);
+      if (fault === 'extra-front')
+        shown.splice(
+          1,
+          0,
+          { at: shown[0]!.at + 5, high: false },
+          { at: shown[0]!.at + 10, high: true },
+        );
+      if (fault === 'late-worker') for (const edge of shown) edge.at += 100;
+      if (fault === 'drift') for (const [index, edge] of shown.entries()) edge.at += index * 3;
+      if (fault === 'wrong-duty') {
+        for (let index = 1; index < shown.length - 1; index += 2) {
+          const low = shown[index]!;
+          const laterFrame = frames.find((frame) => frame.at > low.at);
+          if (laterFrame && laterFrame.at < shown[index + 1]!.at) low.at = laterFrame.at;
+        }
+      }
+      if (fault === 'wrong-electrical-time') electrical[1]!.at++;
+      expect(audit(30, h0, electrical, shown, 10, render).errors).toContain(expectedError);
+    },
+  );
 });
 
 describe('dark H0 bootstrap remains an unacknowledged native candidate', () => {

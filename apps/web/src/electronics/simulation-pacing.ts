@@ -1,7 +1,24 @@
+import { ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS } from './led-temporal-presentation';
+
 export const SIMULATION_RATES = [
   0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
 ] as const;
 export type SimulationPacePhase = 'running' | 'pausing' | 'paused';
+
+/** Arms an elapsed-time callback only for a wake reachable by the default classroom clock. */
+export function armHostWake(
+  startedAt: number | null,
+  due: number,
+  presented: number,
+  dispatch: () => void,
+): (() => void) | null {
+  if (startedAt === null || due > presented + ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS)
+    return null;
+  const delay = startedAt + due / 1000 - window.performance.now();
+  if (delay <= 0) return null;
+  const timeout = window.setTimeout(dispatch, Math.ceil(delay));
+  return () => window.clearTimeout(timeout);
+}
 
 /** Session-only host adapter. It never changes a document or canonical continuation. */
 export class SimulationPacing {

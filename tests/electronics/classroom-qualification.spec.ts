@@ -60,6 +60,11 @@ type MountedWitness = {
   nativeError: (element: object, trusted: boolean) => void;
   changed: (element: object, previousHref: string, href: string) => void;
   current: (element: object, href: string, connected: boolean) => number | null;
+  currentLoad: (
+    element: object,
+    href: string,
+    connected: boolean,
+  ) => { id: number; at: number } | null;
 };
 
 // Execute the real pure qualification and native-element witness functions.
@@ -101,6 +106,9 @@ const functionNames = new Set([
   'observation',
   'temporalObservation',
   'validTemporalPaint',
+  'individualMillisPaintEdges',
+  'validTemporalYield',
+  'd2NativeWorkerWindowValid',
   'temporalPhysicalBrightness',
   'temporalJointWitness',
   'temporalStartupBoundary',
@@ -147,7 +155,7 @@ const oracleJavaScript = ts.transpileModule(
   `${declarations.join('\n')}
 ({ profile: ownerQualificationProfile, qualify: recordOwnerQualifiedWallClock,
    required: ownerQualificationRequiredSites, complete: requireOwnerQualificationComplete,
-   millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness,
+   millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness, individualMillisPaintEdges, d2NativeWorkerWindowValid, validTemporalYield,
    clock: assertTemporalWallClock,
    v3: { sites: OWNER_V3_TIMING_SITES, acquisitions: OWNER_V3_ACQUISITION_SITES,
      cases: OWNER_V3_CASES, caseBudgets: OWNER_V3_CASE_BUDGETS, pace: OWNER_V3_PACE, registry: OWNER_V3_REGISTRY_REVISION,
@@ -198,6 +206,17 @@ function oracle(
     test: { info: () => ({ title: v3Value?.title ?? value?.title ?? '' }) },
   }) as {
     v3: V3Oracle;
+    validTemporalYield: (advance: Record<string, unknown>) => boolean;
+    d2NativeWorkerWindowValid: (
+      frames: Array<Record<string, unknown>>,
+      errors: Array<{ at: number; requestId: string; code: string }>,
+      generation: number,
+    ) => boolean;
+    individualMillisPaintEdges: (
+      rows: readonly unknown[],
+      index: number,
+      from: number,
+    ) => Array<{ at: number; level: number; confirming: { at: number; brightness: number[] } }>;
     profile: (value?: string, entrypoint?: string) => string;
     qualify: (
       ledger: Ledger | null,
@@ -508,6 +527,25 @@ describe('actual mounted SVG load witness', () => {
     actual.nativeError(element, true);
     expect(actual.current(element, 'high.webp', true)).toBeNull();
   });
+  it('distinguishes trusted loads of the same href at the same clock tick', () => {
+    const actual = oracle().mounted();
+    const first = {},
+      replacement = {};
+    const href = 'high.svg';
+    actual.nativeLoad(first, href, 10, true, true);
+    const original = actual.currentLoad(first, href, true)!;
+    actual.nativeLoad(replacement, href, 10, true, true);
+    const second = actual.currentLoad(replacement, href, true)!;
+    expect(second.at).toBe(original.at);
+    expect(second.id).toBeGreaterThan(original.id);
+    expect(actual.currentLoad(first, href, true)).toEqual(original);
+    actual.nativeLoad(first, href, 10, false, true);
+    expect(actual.currentLoad(first, href, true)).toEqual(original);
+    actual.nativeLoad(first, href, 10, true, true);
+    const reload = actual.currentLoad(first, href, true)!;
+    expect(reload.at).toBe(original.at);
+    expect(reload.id).toBeGreaterThan(second.id);
+  });
   it('keeps diagnostic decode outside painted signatures and retains actual load/error/href wiring', () => {
     expect(readyText).toContain("attributeFilter: ['href', 'xlink:href']");
     expect(readyText).toContain('attributeOldValue: true');
@@ -782,6 +820,7 @@ type V3Oracle = {
     generation: number,
     from: number,
     to?: number,
+    individualFrames?: Array<{ at: number; brightness: number[] }>,
   ) => {
     witnesses: unknown[];
     violations: Array<{ at: number; reason: string }>;
@@ -2185,6 +2224,165 @@ describe('v3 preserves real functional publication and native observations', () 
     }
   });
 
+  it('witnesses a single millis output across adjacent native frames when its neighbour changes', () => {
+    const edges = oracle().individualMillisPaintEdges;
+    const receipt = (seq: number, levels: number[]) => ({
+      at: seq * 10,
+      previousFrameAt: (seq - 1) * 10,
+      rafSequence: seq,
+      brightness: levels,
+      images: levels.map((value, i) => ({
+        href: value ? 'on.svg' : 'off.svg',
+        lit: value > 0,
+        decoded: true,
+        visible: true,
+        unoccluded: true,
+        opacity: 1,
+        rect: { x: i, y: 2, width: 10, height: 20 },
+        hitTargets: ['led' + i],
+      })),
+      imageDiagnostics: levels.map((value, index) => ({
+        href: value ? 'on.svg' : 'off.svg',
+        resourceDecoded: true,
+        mountedLoadAt: 5,
+        mountedLoadId: index + 1,
+      })),
+    });
+    const first = receipt(1, [0, 70, 0]);
+    const next = receipt(2, [0, 70, 70]);
+    expect(edges([first, next], 1, 10)).toMatchObject([
+      { at: 10, level: 1, confirming: { at: 20, brightness: [0, 70, 70] } },
+    ]);
+    expect(edges([first, next], 2, 10)).toEqual([]);
+    expect(edges([first, next], 1, 11)).toEqual([]);
+    const invalid: Array<(row: typeof next) => void> = [
+      (row) => {
+        row.rafSequence++;
+      },
+      (row) => {
+        row.previousFrameAt--;
+      },
+      (row) => {
+        row.brightness[1] = 65;
+      },
+      (row) => {
+        row.images[1]!.href = row.imageDiagnostics[1]!.href = 'another.svg';
+      },
+      (row) => {
+        row.images[1]!.unoccluded = false;
+      },
+      (row) => {
+        row.images[1]!.decoded = false;
+      },
+      (row) => {
+        row.images[1]!.rect.x++;
+      },
+      (row) => {
+        row.imageDiagnostics[1]!.mountedLoadAt++;
+      },
+      (row) => {
+        row.imageDiagnostics[1]!.mountedLoadId++;
+      },
+      (row) => {
+        row.imageDiagnostics[1]!.mountedLoadAt = row.at + 1;
+      },
+    ];
+    for (const change of invalid) {
+      const altered = structuredClone(next);
+      change(altered);
+      expect(edges([first, altered], 1, 10)).toEqual([]);
+    }
+    const hidden = structuredClone(next);
+    hidden.images[1]!.unoccluded = false;
+    expect(edges([first, hidden, receipt(3, [0, 70, 0])], 1, 10)).toEqual([]);
+    const unidentified = [first, next].map((row) => {
+      const copy = structuredClone(row);
+      copy.imageDiagnostics[1]!.mountedLoadId = 0;
+      return copy;
+    });
+    expect(edges(unidentified, 1, 10)).toEqual([]);
+    const detachedDecoderPending = structuredClone(next);
+    detachedDecoderPending.imageDiagnostics[1]!.resourceDecoded = false;
+    expect(edges([first, detachedDecoderPending], 1, 10)).toHaveLength(1);
+  });
+
+  it('allows an owned unpublished D2 checkpoint between ready receipts without using it to witness a PNG', () => {
+    const { d2NativeWorkerWindowValid, validTemporalYield, v3 } = oracle();
+    const advance = {
+      executionStatus: 'yielded',
+      result: null,
+      diagnostics: [],
+      committedHorizonMicroseconds: 500,
+      requestedHorizonMicroseconds: 1000,
+      state: { continuation: { committedHorizonMicroseconds: 500 } },
+    };
+    const raw = startupFixture();
+    const before = { ...raw.frames[0]!, sourceMatches: true };
+    const after = { ...raw.frames[1]!, sourceMatches: true };
+    const yielded = {
+      ...before,
+      requestId: 'yield',
+      at: 110,
+      requestAt: 105,
+      executionStatus: 'yielded',
+      solved: false,
+      qualityPassed: false,
+      components: [],
+      validYield: validTemporalYield(advance),
+      committedHorizonMicroseconds: advance.committedHorizonMicroseconds,
+      requestedHorizonMicroseconds: advance.requestedHorizonMicroseconds,
+      continuationHorizonMicroseconds: advance.committedHorizonMicroseconds,
+    };
+    const frames = [before, yielded, after];
+    const dark = raw.paintRuns[0]!;
+    const paintRuns = [
+      {
+        ...dark,
+        first: { ...dark.first, at: 115, previousFrameAt: 100 },
+        lastAt: 115,
+        witnessAt: [115],
+      },
+    ];
+    expect(d2NativeWorkerWindowValid(frames, [], 7)).toBe(true);
+    const physical = v3.causality({ frames, paintRuns }, 'source', 7, 100, 120);
+    expect(physical.violations).toEqual([]);
+    expect(physical.witnesses).toEqual([
+      expect.objectContaining({ requestId: '100', readyAt: 100 }),
+    ]);
+    const onlyYield = v3.causality({ frames: [yielded], paintRuns }, 'source', 7, 100, 120);
+    expect(onlyYield.witnesses).toEqual([]);
+    expect(onlyYield.violations).toContainEqual(
+      expect.objectContaining({ reason: 'no causally preceding electrical state' }),
+    );
+
+    for (const invalid of [
+      { sourceMatches: false },
+      { generationId: 8 },
+      { responseGenerationId: 8 },
+      { executionStatus: 'fault' },
+      { executionStatus: 'unknown' },
+      { validYield: false },
+    ])
+      expect(
+        d2NativeWorkerWindowValid([frames[0]!, { ...yielded, ...invalid }, frames[2]!], [], 7),
+      ).toBe(false);
+    for (const invalid of [
+      { result: {} },
+      { result: undefined },
+      { ledTemporal: {} },
+      { diagnostics: [{ code: 'fault' }] },
+      { state: {} },
+      { state: { continuation: { committedHorizonMicroseconds: 499 } } },
+      { requestedHorizonMicroseconds: 499 },
+      { committedHorizonMicroseconds: NaN },
+    ])
+      expect(validTemporalYield({ ...advance, ...invalid })).toBe(false);
+    for (const code of ['cancelled', 'internal', 'invalid_advance'])
+      expect(d2NativeWorkerWindowValid(frames, [{ at: 110, requestId: 'failed', code }], 7)).toBe(
+        false,
+      );
+  });
+
   it('keeps the actual supersession allowance at 50 raw wall milliseconds', () => {
     const actual = oracle().v3;
     const frame = (at: number, brightness: number) => ({
@@ -2227,6 +2425,10 @@ describe('v3 preserves real functional publication and native observations', () 
     expect(actual.causality(raw(250.001), 'source', 7, 0).violations).toEqual([
       expect.objectContaining({ reason: 'electrical state superseded more than 50 ms ago' }),
     ]);
+    const individual = [{ at: 250.001, brightness: [80, 80, 80] }];
+    expect(actual.causality(raw(250), 'source', 7, 0, Infinity, individual).violations).toEqual([
+      expect.objectContaining({ reason: 'electrical state superseded more than 50 ms ago' }),
+    ]);
     expect(readyCompact).toContain('const OWNER_TEMPORAL_PUBLICATION_LAG_MS = 50;');
     expect(readyCompact).toContain(
       'const setupFrom = firstSetup.at + OWNER_TEMPORAL_PUBLICATION_LAG_MS;',
@@ -2236,9 +2438,46 @@ describe('v3 preserves real functional publication and native observations', () 
   it('retains the exact primary observer, original model guards and every acquisition outside the allowlist', () => {
     const originalObserver = readFileSync(
       new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
+      'utf8',
     );
-    expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
+    const nativeAcquireStart = '      const { beforeShot, frameOffset } = await page.evaluate(\n';
+    const nativeAcquireEnd =
+      "      const name = label + (active ? '-high-' : '-low-') + attempt;\n";
+    const start = originalObserver.indexOf(nativeAcquireStart);
+    const end = originalObserver.indexOf(nativeAcquireEnd);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    expect(originalObserver.lastIndexOf(nativeAcquireStart)).toBe(start);
+    expect(originalObserver.lastIndexOf(nativeAcquireEnd)).toBe(end);
+    // Reconstruct the frozen observer with just the previous D13 pre-screenshot
+    // handoff. All the observer, screenshots, classifier and v3 checks outside
+    // that one acquisition remain covered by the original digest.
+    const previousNativeAcquire = `      await page.waitForFunction(
+        (active) => {
+          const paint = (window as ProbeWindow).__classroomD13?.paints.at(-1);
+          return (
+            paint?.stable &&
+            paint.assetsReady &&
+            paint.ledLit === active &&
+            paint.lActive === active
+          );
+        },
+        active,
+        { timeout: 5_000 },
+      );
+      const { beforeShot, frameOffset } = await page.evaluate(() => {
+        const probe = (window as ProbeWindow).__classroomD13!;
+        return { beforeShot: probe.paints.at(-1)!, frameOffset: probe.frames.length };
+      });
+`;
+    const frozenObserver =
+      originalObserver.slice(0, start) + previousNativeAcquire + originalObserver.slice(end);
+    expect(createHash('sha256').update(frozenObserver).digest('hex')).toBe(
       'd93b7d2fa15f6c458d291b6534841a1d1d3e9701c75623370a9a0a6e2697d5b8',
+    );
+    // Freeze the complete updated observer, including the revised acquisition.
+    expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
+      '17bbb85eab857bca7673dda0b596c493730b7a8a0e551ba71eb35e36d5c5018c',
     );
     expect(readyCompact).toContain(
       "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
@@ -3484,6 +3723,89 @@ describe('Issue 682 durable batch and active long interval', () => {
       at: index / 2,
       value: `original-${index}`,
     }));
+  it('samples short phases in the product RAF and excludes a later task from that paint', async () => {
+    const journalSource = actualFunction('realtime682Journal');
+    const init = journalSource.slice(
+      journalSource.indexOf('page.addInitScript(') + 'page.addInitScript('.length,
+      journalSource.indexOf('}, recordLimit);') + 1,
+    );
+    const received: Row[] = [];
+    const frames: (() => void)[] = [];
+    const tasks: (() => void)[] = [];
+    let now = 0;
+    let level = 0;
+    const host = {
+      Worker: class {},
+      __realtime682Batch: async (batch: Row[]) => received.push(...batch),
+    } as unknown as Window & {
+      __realtime682ShortCapture: (short: boolean) => void;
+      __realtime682Flush: () => Promise<unknown>;
+    };
+    const visual = { getAttribute: () => String(level) };
+    const root = {
+      querySelector: (selector: string) => (selector.startsWith('[data-led-') ? visual : null),
+    };
+    const install = runInNewContext(compile(`(${init})`), {
+      window: host,
+      document: {
+        addEventListener() {},
+        querySelector: (selector: string) =>
+          selector.startsWith('[data-component-id=') ? root : null,
+      },
+      performance: { now: () => now },
+      MutationObserver: class {
+        observe() {}
+        takeRecords() {
+          return [];
+        }
+      },
+      requestAnimationFrame: (fn: () => void) => frames.push(fn),
+      setTimeout: (fn: () => void) => tasks.push(fn),
+      queueMicrotask,
+      structuredClone,
+    });
+    install(200);
+    host.__realtime682ShortCapture(true);
+    const render = () => frames.splice(0).forEach((run) => run());
+    const deliver = () => tasks.splice(0).forEach((run) => run());
+    const product = () => {
+      level = 70;
+      frames.push(product);
+    };
+    frames.push(product);
+    render();
+    deliver();
+    now = 16;
+    render();
+    now = 18;
+    level = 0; // A Worker delivery after rendering, before the observer timer.
+    deliver();
+    now = 32;
+    render();
+    await host.__realtime682Flush();
+    const atLevel = (kind: string, at: number) =>
+      (
+        received.find((row) => row.kind === kind && (row.witnessAt ?? row.at) === at)?.leds as
+          { brightness: number }[] | undefined
+      )?.[0]?.brightness;
+    expect(atLevel('paint', 16)).toBe(70);
+    expect(atLevel('render-task-snapshot', 18)).toBe(0);
+    expect(received.filter((row) => row.kind === 'paint')).toHaveLength(1);
+    expect(received.find((row) => row.kind === 'paint')?.witnessEpoch).toBe(2);
+    deliver();
+    // Lose the last (native read) callback but keep the heartbeat, product and timer.
+    frames.pop();
+    now = 48;
+    render();
+    deliver();
+    now = 64;
+    render();
+    await host.__realtime682Flush();
+    expect(atLevel('paint', 48)).toBeUndefined();
+    expect(received.some((row) => row.kind === 'render-opportunity-missed' && row.at === 48)).toBe(
+      true,
+    );
+  });
   it('writes identical per-row envelopes in one flushed append before every observer and ACK', async () => {
     const run = await journal();
     const batch = rows();
@@ -3536,6 +3858,62 @@ describe('Issue 682 durable batch and active long interval', () => {
     expect(() => run.send(batch)).toThrow('no ACK');
     expect(run.bytes()).toBe(originals);
     expect(run.events).toEqual(['append', 'durable', 'observe']);
+  });
+  it('compares short30 with a complete native frame trace while preserving exact electrical duty', () => {
+    const check = runInNewContext(
+      compile(actualFunction('realtime682ShortCycleAudit') + '\nrealtime682ShortCycleAudit;'),
+    );
+    const electrical = Array.from({ length: 21 }, (_, index) => ({
+      at: 2 + Math.floor(index / 2) * 60_005 + (index % 2) * 30_002,
+      high: index % 2 === 0,
+    }));
+    const refresh = 1000 / 60;
+    // Two 0.1 ms changes to when the screen refreshes can move a correct
+    // transition by a full frame while the cadence still satisfies the gate.
+    const samples = Array.from({ length: 38 }, (_, index) => ({
+      at: 0.003 + index * refresh + (index === 18 || index === 36 ? 0.1 : 0),
+      epoch: index + 1,
+    }));
+    const opportunities = samples.map(({ at, epoch }) => ({ at: at - 0.001, epoch }));
+    const native = electrical.map(({ at, high }) => ({
+      at: samples.find((sample) => sample.at >= at / 1000)!.at,
+      high,
+    }));
+    const complete = { samples, opportunities };
+    const correct = check(30, 0, electrical, native, 10, complete);
+    expect(correct.errors).toEqual([]);
+    expect(correct.physicalDuty).toBe(correct.expectedDuty);
+    expect(correct.duty).toBeCloseTo(0.555296, 5);
+    expect(correct.sampledExpectedDuty).toBe(correct.duty);
+    expect(Math.abs(correct.duty - correct.expectedDuty)).toBeGreaterThan(correct.dutyBound);
+    expect(correct.dutyBound).toBeCloseTo(0.04777546);
+
+    const missing = samples.filter(({ epoch }) => epoch !== 7);
+    expect(
+      check(30, 0, electrical, native, 10, { ...complete, samples: missing }).errors,
+    ).toContain('incomplete-native-raf');
+    expect(
+      check(30, 0, electrical, native, 10, { ...complete, opportunities: opportunities.slice(1) })
+        .errors,
+    ).toContain('incomplete-native-raf');
+    expect(
+      check(30, 0, electrical, native, 10, { ...complete, samples: samples.slice(0, -2) }).errors,
+    ).toContain('incomplete-native-raf');
+    const unattested = native.map((edge, index) =>
+      index === 1 ? { ...edge, at: edge.at + 0.1 } : edge,
+    );
+    expect(check(30, 0, electrical, unattested, 10, complete).errors).toContain(
+      'incomplete-native-raf',
+    );
+    const incorrect = electrical.map((edge, index) =>
+      index === 1 ? { ...edge, at: edge.at + 1 } : edge,
+    );
+    expect(check(30, 0, incorrect, native, 10, complete).errors).toEqual(
+      expect.arrayContaining(['electrical-front-1', 'electrical-duty']),
+    );
+    expect(check(30, 0, electrical, native.slice(0, -1), 10, complete).errors).toContain(
+      'missing-front',
+    );
   });
   const long = runInNewContext(
     compile(
@@ -3729,6 +4107,7 @@ function nativeFixture() {
     previousAt: 90,
     stable: true,
     assetsReady: true,
+    running: 'running',
     ledLit: true,
     lActive: true,
     led: { rect },
@@ -3833,14 +4212,32 @@ describe('native photographed phase qualification', () => {
     const f = nativeFixture();
     const reports: Array<Record<string, unknown>> = [];
     let shots = 0;
+    let now = 0;
+    let nextId = 0;
+    let expireWithoutPhase = false;
+    const frames = new Map<number, () => void>();
+    const timers = new Map<number, () => void>();
     const browserProbe = {
       ...f.capture,
       paints: [f.paint],
       frames: f.capture.frames.map((frame) => JSON.stringify(frame)),
     };
     const oracle = nativeQualificationOracle({
-      window: { __classroomD13: browserProbe },
-      performance: { now: () => 400 },
+      window: {
+        __classroomD13: browserProbe,
+        setTimeout: (callback: () => void, delay: number) => {
+          expect(delay).toBe(5_000);
+          timers.set(++nextId, callback);
+          return nextId;
+        },
+      },
+      clearTimeout: (id: number) => timers.delete(id),
+      requestAnimationFrame: (callback: () => void) => {
+        frames.set(++nextId, callback);
+        return nextId;
+      },
+      cancelAnimationFrame: (id: number) => frames.delete(id),
+      performance: { now: () => now },
       nativeAssetBasis: () => ({}),
       nativeReferences: async () => f.references,
       PNG: { sync: { read: (png: unknown) => png } },
@@ -3850,11 +4247,58 @@ describe('native photographed phase qualification', () => {
       test: { info: () => ({ attach: async () => {} }) },
     });
     const page = {
-      waitForFunction: async () => {
-        browserProbe.paints = [f.paint];
+      evaluate: async (
+        read: (argument?: unknown) => unknown,
+        argument?: { active?: boolean; phaseMs?: number; epoch?: number; source?: string },
+      ) => {
+        const active = argument?.active;
+        if (active === undefined) {
+          now = f.capture.capturedAt;
+          return read(argument);
+        }
         browserProbe.frames = [];
+        const opposite = { ...f.paint, at: 68, previousAt: 52, ledLit: !active, lActive: !active };
+        const onset = {
+          ...f.paint,
+          at: 84,
+          previousAt: 68,
+          stable: false,
+          ledLit: active,
+          lActive: active,
+        };
+        const latest = { ...f.paint, previousAt: 84, ledLit: active, lActive: active };
+        const nextFrame = (paints: typeof browserProbe.paints, at: number) => {
+          expect(frames.size).toBe(1);
+          const [id, run] = frames.entries().next().value!;
+          frames.delete(id);
+          browserProbe.paints = paints;
+          now = at;
+          run();
+        };
+        const pending = read(argument);
+        // Archived LOW capture attempts had already changed to HIGH. Also reject a
+        // stale same-phase plateau, foreign evidence and a too-late leading pair.
+        nextFrame([opposite, onset, { ...latest, ledLit: !active, lActive: !active }], 101);
+        nextFrame([{ ...opposite, ledLit: active, lActive: active }, onset, latest], 101);
+        browserProbe.source = 'superseded sketch';
+        nextFrame([opposite, onset, latest], 101);
+        browserProbe.source = f.expected.source;
+        browserProbe.epoch = f.expected.epoch + 1;
+        nextFrame([opposite, onset, latest], 101);
+        browserProbe.epoch = f.expected.epoch;
+        nextFrame([opposite, onset, latest], 336);
+        if (expireWithoutPhase) {
+          expect(timers.size).toBe(1);
+          const [id, expire] = timers.entries().next().value!;
+          timers.delete(id);
+          expire();
+        } else {
+          nextFrame([opposite, onset, latest], 101);
+        }
+        expect(frames.size).toBe(0);
+        expect(timers.size).toBe(0);
+        return pending;
       },
-      evaluate: async (read: (argument?: unknown) => unknown, argument?: unknown) => read(argument),
       screenshot: async () => {
         browserProbe.paints = f.capture.paints;
         browserProbe.frames = f.capture.frames.map((frame) => JSON.stringify(frame));
@@ -3886,6 +4330,13 @@ describe('native photographed phase qualification', () => {
     expect(
       await oracle.samples(page, 'runtime-only-high', { ...f.capture, frames: f.capture.frames }),
     ).toEqual(['native image never captured an unambiguous LOW phase']);
+
+    expireWithoutPhase = true;
+    const shotsBeforeTimeout = shots;
+    await expect(
+      oracle.samples(page, 'no-fresh-phase', { ...f.capture, frames: f.capture.frames }),
+    ).rejects.toThrow('No fresh live phase for native D13 capture');
+    expect(shots).toBe(shotsBeforeTimeout);
   });
   it.each(['UNKNOWN', 'MISMATCH'])('rejects %s regardless of stable DOM witnesses', (phase) => {
     const f = nativeFixture();

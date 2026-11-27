@@ -149,15 +149,13 @@ function formatSimulationTime(totalSeconds: number): string {
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
-function SimulationClock({
+function SimulationTime({
   port,
-  controller,
 }: {
   readonly port: ElectronicsWorkbenchController['nativeOpticalPresentation'];
-  readonly controller: ElectronicsWorkbenchController;
 }) {
   const microseconds = useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock);
-  const clock = (
+  return (
     <span
       className="workbench-simulation-time"
       aria-label="Время моделирования"
@@ -167,9 +165,20 @@ function SimulationClock({
       {formatSimulationTime(microseconds / 1_000_000)}
     </span>
   );
+}
+
+function SimulationClock({
+  port,
+  controller,
+}: {
+  readonly port: ElectronicsWorkbenchController['nativeOpticalPresentation'];
+  readonly controller: ElectronicsWorkbenchController;
+}) {
+  const clock = <SimulationTime port={port} />;
   return controller.simulationPacing ? (
     <SimulationSpeedControl
       pacing={controller.simulationPacing}
+      committedClock={controller.simulationStatus === 'running' ? port : null}
       onChange={controller.setSimulationRate}
     >
       {clock}

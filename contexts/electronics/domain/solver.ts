@@ -109,6 +109,8 @@ import {
   isOscilloscopeDevice,
   isRegulatedPowerSupplyDevice,
   isResistorDevice,
+  RESISTOR_DEVICE_MODEL,
+  resistorDeviceModelHasOriginalDefinition,
   nextRegulatedPowerSupplyMode,
   observeRegulatedPowerSupply,
   regulatedPowerSupplyStampForMode,
@@ -523,23 +525,101 @@ const sevenSegmentDefinitionIsOriginal = captureDeviceModelDefinition([
   electricalModelFor(sevenSegmentReference).requiredTerminals,
 ]);
 
-/** Pure electrical work only. Owned by one advance, never persisted or shared. */
-export function createArduinoOperatingPointReuse() {
+interface ArduinoOperatingPointSlot {
+  readonly key: readonly unknown[];
+  point?: ArduinoAlgebraicPoint;
+}
+
+/** Both graphs are private structured clones of already admitted circuit documents. */
+function sameOrderedElectricalDocument(left: ElectronicsDocument, right: ElectronicsDocument) {
+  const leftToRight = new Map<object, object>();
+  const seenRight = new Set<object>();
+  const matches = (a: unknown, b: unknown): boolean => {
+    if (Object.is(a, b)) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+    if (leftToRight.has(a)) return leftToRight.get(a) === b;
+    if (seenRight.has(b)) return false;
+    leftToRight.set(a, b);
+    seenRight.add(b);
+    const keys = Reflect.ownKeys(a);
+    const otherKeys = Reflect.ownKeys(b);
+    if (keys.length !== otherKeys.length) return false;
+    const aRecord = a as Readonly<Record<PropertyKey, unknown>>;
+    const bRecord = b as Readonly<Record<PropertyKey, unknown>>;
+    return keys.every(
+      (key, index) => key === otherKeys[index] && matches(aRecord[key], bRecord[key]),
+    );
+  };
+  return matches(left, right);
+}
+
+interface ArduinoElectricalTemplateRetention {
+  load(document: ElectronicsDocument): readonly ArduinoOperatingPointSlot[];
+  save(document: ElectronicsDocument, slots: readonly ArduinoOperatingPointSlot[]): void;
+  clear(): void;
+}
+
+const electricalTemplateOwnerBrand = Symbol('electrical-template-owner');
+export interface ArduinoElectricalTemplateOwner {
+  readonly [electricalTemplateOwnerBrand]: true;
+  dispose(): void;
+}
+const electricalTemplateOwners = new WeakMap<
+  ArduinoElectricalTemplateOwner,
+  ArduinoElectricalTemplateRetention
+>();
+
+/** The owner exposes revocation only. Solves and retained slots remain private to this module. */
+export function createArduinoElectricalTemplateOwner(): ArduinoElectricalTemplateOwner {
+  let previous:
+    { document: ElectronicsDocument; slots: readonly ArduinoOperatingPointSlot[] } | undefined;
+  let disposed = false;
+  const owner: ArduinoElectricalTemplateOwner = Object.freeze({
+    [electricalTemplateOwnerBrand]: true as const,
+    dispose() {
+      previous = undefined;
+      disposed = true;
+      electricalTemplateOwners.delete(owner);
+    },
+  });
+  electricalTemplateOwners.set(owner, {
+    load(document) {
+      if (previous && sameOrderedElectricalDocument(previous.document, document))
+        return previous.slots;
+      previous = undefined;
+      return [];
+    },
+    save(document, slots) {
+      if (!disposed) previous = slots.length > 0 ? { document, slots } : undefined;
+    },
+    clear() {
+      previous = undefined;
+    },
+  });
+  return owner;
+}
+
+/** Only a completed electrical template can leave a request's local algebra slots. */
+export function createArduinoOperatingPointReuse(owner?: ArduinoElectricalTemplateOwner) {
+  let retention = owner && electricalTemplateOwners.get(owner);
   let previousDocument: ElectronicsDocument | undefined;
   let eligible = false;
   let hasSevenSegment = false;
-  const slots: { readonly key: readonly unknown[]; point?: ArduinoAlgebraicPoint }[] = [];
-  return (
+  const slots: ArduinoOperatingPointSlot[] = [];
+  const lookup = (
     document: ElectronicsDocument,
     branches: readonly (ReturnType<typeof arduinoOutputBranchesFromSnapshot>[number] & {
       readonly component: SchematicComponent;
     })[],
     snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
     failedIds: ReadonlySet<string>,
-  ): { point?: ArduinoAlgebraicPoint } | undefined => {
+  ): ArduinoOperatingPointSlot | undefined => {
     if (previousDocument !== document) {
       previousDocument = document;
       slots.length = 0;
+      // Slot wrappers and quality owners are per request.
+      if (retention) slots.push(...retention.load(document).map((slot) => ({ ...slot })));
       hasSevenSegment = document.components.some((component) => component.kind === 'seven-segment');
       eligible = document.components.every((component) => {
         const model = electricalModelFor(component);
@@ -603,6 +683,22 @@ export function createArduinoOperatingPointReuse() {
     if (slots.length > 32) slots.pop();
     return slot;
   };
+  return Object.assign(lookup, {
+    retainTemplates() {
+      if (previousDocument)
+        retention?.save(
+          previousDocument,
+          slots.filter((slot) => slot.point?.template),
+        );
+    },
+    revokeTemplates() {
+      if (!retention) return;
+      retention.clear();
+      retention = undefined;
+      slots.length = 0;
+      previousDocument = undefined;
+    },
+  });
 }
 
 type ArduinoOperatingPointReuse = ReturnType<typeof createArduinoOperatingPointReuse>;
@@ -645,9 +741,13 @@ function clearArduinoQualityCapture(state: ArduinoQualityLayoutState): void {
 }
 
 /** Package internal. The owned scheduler alone enables this after AST admission. */
-export function createArduinoQualityLayoutOwner(operatingPoint: ArduinoOperatingPointReuse) {
+export function createArduinoQualityLayoutOwner(
+  operatingPoint: ArduinoOperatingPointReuse,
+  checkpoint?: { readonly document: ElectronicsDocument; readonly compiled: object },
+) {
   const owner = {};
   arduinoQualityOwners.set(operatingPoint, owner);
+  if (checkpoint) checkpointBindings.set(owner, checkpoint);
   arduinoQualityLayouts.set(owner, { layouts: new WeakMap(), components: [], records: [] });
   return {
     owner,
@@ -656,6 +756,7 @@ export function createArduinoQualityLayoutOwner(operatingPoint: ArduinoOperating
       if (state?.receipt) arduinoQualityReceipts.delete(state.receipt);
       if (state) clearArduinoQualityCapture(state);
       arduinoQualityLayouts.delete(owner);
+      checkpointBindings.delete(owner);
       if (arduinoQualityOwners.get(operatingPoint) === owner)
         arduinoQualityOwners.delete(operatingPoint);
     },
@@ -2405,15 +2506,7 @@ function solveCircuitBase(
                 : stepMs / 1_000,
             );
       const failureMode = observation.failed ? ('open' as const) : ('none' as const);
-      thermalById.set(component.id, {
-        ...previous,
-        temperatureCelsius: observation.temperatureCelsius,
-        loadRatio: observation.loadRatio,
-        accumulatedDamage: observation.failed
-          ? Math.max(1, observation.accumulatedDamage)
-          : observation.accumulatedDamage,
-        failureMode,
-      });
+      thermalById.set(component.id, nextThermalEntry(previous, observation));
       if (failureMode === 'open') {
         failedComponentIds.add(component.id);
         failureOccurred = true;
@@ -5631,5 +5724,261 @@ function solveCircuitStep(
     numericalResidual,
     numericalTolerance,
     ...(controllerState ? { controllerState } : {}),
+  };
+}
+
+function nextThermalEntry(
+  previous: ThermalTransientStateEntry,
+  observation: Pick<
+    ReturnType<typeof advanceThermalState>,
+    'temperatureCelsius' | 'loadRatio' | 'accumulatedDamage' | 'failed'
+  >,
+): ThermalTransientStateEntry {
+  return {
+    ...previous,
+    temperatureCelsius: observation.temperatureCelsius,
+    loadRatio: observation.loadRatio,
+    accumulatedDamage: observation.failed
+      ? Math.max(1, observation.accumulatedDamage)
+      : observation.accumulatedDamage,
+    failureMode: observation.failed ? 'open' : 'none',
+  };
+}
+
+/** A synchronous, request-local observation for the clock and its independent quality check. */
+export interface ArduinoElectricalCheckpoint {
+  readonly components: readonly ComponentResult[];
+  readonly nodes: readonly NodeResult[];
+  readonly current: number;
+  readonly iterations: number;
+  readonly numericalResidual: number;
+  readonly numericalTolerance: number;
+  readonly transientState: CapacitorTransientState;
+  readonly transientAnalysis: NonNullable<SolveResult['transientAnalysis']>;
+  readonly controllerState: ArduinoControllerState;
+}
+
+const checkpointHandleBrand = Symbol('private electrical checkpoint');
+export interface ArduinoElectricalCheckpointHandle {
+  readonly [checkpointHandleBrand]: true;
+}
+const checkpointFrames = new WeakMap<
+  ArduinoElectricalCheckpointHandle,
+  {
+    readonly owner: object;
+    readonly document: ElectronicsDocument;
+    readonly compiled: object;
+    readonly frame: ArduinoElectricalCheckpoint;
+  }
+>();
+const checkpointBindings = new WeakMap<
+  object,
+  { readonly document: ElectronicsDocument; readonly compiled: object }
+>();
+/** Read only the private slot after matching all identities. Never inspect properties of a caller's handle. */
+export function takeArduinoElectricalCheckpoint(
+  handle: ArduinoElectricalCheckpointHandle,
+  owner: object,
+  document: ElectronicsDocument,
+  compiled: object,
+): ArduinoElectricalCheckpoint | undefined {
+  const entry = checkpointFrames.get(handle);
+  if (
+    !entry ||
+    entry.owner !== owner ||
+    entry.document !== document ||
+    entry.compiled !== compiled ||
+    !arduinoQualityLayouts.has(owner)
+  )
+    return undefined;
+  checkpointFrames.delete(handle);
+  return entry.frame;
+}
+interface ArduinoThermalColumn {
+  readonly componentId: string;
+  readonly profile: NonNullable<ReturnType<typeof thermalProfileFor>>;
+  readonly profileKey: string;
+  readonly observation: ComponentResult;
+}
+
+interface ArduinoElectricalColumns {
+  readonly components: readonly ComponentResult[];
+  readonly thermal: readonly ArduinoThermalColumn[];
+}
+
+function compileArduinoElectricalColumns(
+  template: ArduinoElectricalTemplate,
+  preparation: NonNullable<ReturnType<CircuitSolvePreparation>>,
+): ArduinoElectricalColumns | undefined {
+  if (!resistorDeviceModelHasOriginalDefinition()) return undefined;
+  const components = Object.freeze(
+    template.components.map(({ fields, indicators }) =>
+      Object.freeze({ ...fields, ...indicators }),
+    ),
+  );
+  const byId = new Map(components.map((component) => [component.componentId, component]));
+  const thermal: ArduinoThermalColumn[] = [];
+  for (const component of preparation.orderedThermalComponents) {
+    const profile = thermalProfileFor(component);
+    const observation = byId.get(component.id);
+    if (!profile || !observation) return undefined;
+    thermal.push({
+      componentId: component.id,
+      profile,
+      profileKey: thermalProfileKey(component, profile),
+      observation,
+    });
+  }
+  return { components, thermal };
+}
+
+// Only this canonical pure observer may run speculatively. A changed model, accessor, or
+// new device takes the existing solve before calling its observer.
+const originalCheckpointResistorObservation = RESISTOR_DEVICE_MODEL.observe;
+function checkpointHasOrdinaryStress(template: ArduinoElectricalTemplate): boolean {
+  for (const { input } of template.components) {
+    const { device, branches, voltageDrop } = input;
+    if (
+      device &&
+      (!isResistorDevice(device) ||
+        device.model !== RESISTOR_DEVICE_MODEL ||
+        !originalCheckpointResistorObservation ||
+        Object.getOwnPropertyDescriptor(device.model, 'observe')?.value !==
+          originalCheckpointResistorObservation)
+    )
+      return false;
+    const observation =
+      device &&
+      originalCheckpointResistorObservation?.(device.instance, { voltageDrop, current: 0 });
+    if (observation?.diagnostics.length) return false;
+    const reverseBreakdown = branches.some(
+      (entry) => entry.voltageDrop < -entry.branch.repetitivePeakReverseVoltage,
+    );
+    const stress = observation?.stressState ?? nonlinearBranchStress(branches, reverseBreakdown);
+    if (reverseBreakdown || (stress !== undefined && stress !== 'normal')) return false;
+  }
+  return true;
+}
+
+/** The generic solver owns topology changes, rejected steps and all public frames. */
+export function createArduinoElectricalCheckpointSolver(
+  document: ElectronicsDocument,
+  reuse: ArduinoOperatingPointReuse,
+) {
+  const columnsByTemplate = new WeakMap<ArduinoElectricalTemplate, ArduinoElectricalColumns>();
+  return (
+    preparation: CircuitSolvePreparation,
+    held: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+    timeMs: number,
+    previous: CapacitorTransientState,
+    epochs: ReadonlyMap<string, ArduinoThermalEpoch>,
+  ): ArduinoElectricalCheckpointHandle | undefined => {
+    const owner = arduinoQualityOwners.get(reuse);
+    const binding = owner && checkpointBindings.get(owner);
+    if (!owner || !binding || binding.document !== document) return undefined;
+    const prepared = preparation(document);
+    if (
+      !prepared ||
+      !Number.isFinite(timeMs) ||
+      !capacitorTransientStateIsCompatible(previous, [], [], [], timeMs, true)
+    )
+      return undefined;
+    const stepMs = timeMs - previous.simulationTimeMs;
+    if (
+      stepMs < 0 ||
+      stepMs > TRANSIENT_TARGET_STEP_MS ||
+      previous.capacitors.length ||
+      previous.bjtRegions?.length ||
+      previous.motors?.length ||
+      previous.multimeterFuses?.length ||
+      previous.thermal.some((entry) => entry.failureMode !== 'none') ||
+      previous.thermal.length !== prepared.orderedThermalComponents.length
+    )
+      return undefined;
+    const branches = document.components.flatMap((component) => {
+      const snapshot = held.get(component.id);
+      return snapshot
+        ? arduinoOutputBranchesFromSnapshot(component, snapshot, timeMs).map((branch) => ({
+            component,
+            ...branch,
+          }))
+        : [];
+    });
+    const point = reuse(document, branches, held, new Set())?.point;
+    const template = point?.template;
+    if (!point || !template || template.rawSevenSegmentDiagnostics || point.iterations <= 0)
+      return undefined;
+    const numerical = electricalNumericalQuality(point.solution, point.matrix, point.rhs);
+    if (
+      !Number.isFinite(numerical.numericalResidual) ||
+      !Number.isFinite(numerical.numericalTolerance) ||
+      numerical.numericalResidual > numerical.numericalTolerance ||
+      template.sourceCurrents.some(
+        (i) => !Number.isFinite(i) || Math.abs(i) > SHORT_CIRCUIT_CURRENT_A,
+      )
+    )
+      return undefined;
+    let columns = columnsByTemplate.get(template);
+    if (!columns) {
+      columns = compileArduinoElectricalColumns(template, prepared);
+      if (!columns) return undefined;
+      columnsByTemplate.set(template, columns);
+    }
+    if (!checkpointHasOrdinaryStress(template)) return undefined;
+    const thermal: ThermalTransientStateEntry[] = [];
+    for (const [index, column] of columns.thermal.entries()) {
+      const prior = previous.thermal[index];
+      if (
+        !prior ||
+        prior.componentId !== column.componentId ||
+        prior.profileKey !== column.profileKey ||
+        prior.failureMode !== 'none' ||
+        prior.temperatureCelsius >= column.profile.warningTemperatureCelsius ||
+        prior.accumulatedDamage >= 0.35
+      )
+        return undefined;
+      if (stepMs === 0) {
+        thermal.push(prior);
+        continue;
+      }
+      const epoch = epochs.get(column.componentId);
+      const observation = advanceThermalState(
+        column.profile,
+        column.observation,
+        epoch?.temperatureCelsius ?? prior.temperatureCelsius,
+        epoch?.accumulatedDamage ?? prior.accumulatedDamage,
+        epoch ? (Math.round(timeMs * 1000) - epoch.atMicroseconds) / 1_000_000 : stepMs / 1000,
+      );
+      if (observation.state !== 'normal' || observation.failed) return undefined;
+      thermal.push(nextThermalEntry(prior, observation));
+    }
+    const controllerState = controllerObservation(held, timeMs);
+    if (!controllerState) return undefined;
+    const result: ArduinoElectricalCheckpoint = {
+      components: columns.components,
+      nodes: template.nodes,
+      current: roundCurrent(Math.max(0, ...template.sourceCurrents.map(Math.abs))),
+      iterations: point.iterations,
+      ...numerical,
+      controllerState,
+      transientAnalysis: {
+        acceptedSteps: stepMs ? 1 : 0,
+        rejectedSteps: 0,
+        minStepMs: stepMs,
+        maxStepMs: stepMs,
+      },
+      transientState: {
+        version: 2,
+        simulationTimeMs: timeMs,
+        capacitors: [],
+        thermal,
+        bjtRegions: [],
+        motors: [],
+        multimeterFuses: [],
+      },
+    };
+    const handle = Object.freeze({ [checkpointHandleBrand]: true as const });
+    checkpointFrames.set(handle, { owner, document, compiled: binding.compiled, frame: result });
+    return handle;
   };
 }
