@@ -201,6 +201,7 @@ export function WorkbenchHeader({
   onToggleLibrary,
   onOpenShare,
   onExportView,
+  allowDistribution = true,
 }: {
   controller: ElectronicsWorkbenchController;
   onBack: () => void;
@@ -214,6 +215,7 @@ export function WorkbenchHeader({
   onToggleLibrary: () => void;
   onOpenShare: () => void;
   onExportView: (view: Exclude<WorkbenchView, 'breadboard'>) => void;
+  allowDistribution?: boolean;
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -318,13 +320,15 @@ export function WorkbenchHeader({
                 </ToolButton>
               </>
             ) : null}
-            <button
-              type="button"
-              className="workbench-export-button"
-              onClick={() => onExportView(view)}
-            >
-              {view === 'schematic' ? 'Скачать PDF' : 'Скачать CSV'}
-            </button>
+            {allowDistribution ? (
+              <button
+                type="button"
+                className="workbench-export-button"
+                onClick={() => onExportView(view)}
+              >
+                {view === 'schematic' ? 'Скачать PDF' : 'Скачать CSV'}
+              </button>
+            ) : null}
           </div>
         )}
         {c.simulationRunning ? (
@@ -332,7 +336,8 @@ export function WorkbenchHeader({
         ) : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
-          {c.saveStatus === 'error' || (c.saveStatus !== 'saved' && !c.localCopySaved) ? (
+          {allowDistribution &&
+          (c.saveStatus === 'error' || (c.saveStatus !== 'saved' && !c.localCopySaved)) ? (
             <button
               type="button"
               className="workbench-pill emergency-copy"
@@ -389,17 +394,19 @@ export function WorkbenchHeader({
           >
             <SaveIcon /> Сохранить
           </ToolButton>
-          <button
-            type="button"
-            className="workbench-pill"
-            data-workbench-tooltip="Общий доступ пока недоступен"
-            aria-label="Отправить — пока недоступно"
-            aria-disabled="true"
-            disabled
-            onClick={onOpenShare}
-          >
-            Отправить
-          </button>
+          {allowDistribution ? (
+            <button
+              type="button"
+              className="workbench-pill"
+              data-workbench-tooltip="Общий доступ пока недоступен"
+              aria-label="Отправить — пока недоступно"
+              aria-disabled="true"
+              disabled
+              onClick={onOpenShare}
+            >
+              Отправить
+            </button>
+          ) : null}
         </div>
       </div>
       <WorkbenchTooltip root={toolbarRef} />

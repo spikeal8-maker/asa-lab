@@ -781,6 +781,11 @@ for (const width of [1440, 390, 320]) {
     const protection = region.getByRole('checkbox', {
       name: 'Защита ученика в настройках: Ученик 01',
     });
+    await expect(protection).toHaveAccessibleDescription(
+      'Защита действует, если включена здесь или для всего класса. ' +
+        'Защита блокирует публикацию и закрывает общий доступ к уже опубликованным работам. ' +
+        'После выключения доступ к этим публикациям не восстанавливается.',
+    );
     let releaseSave!: () => void;
     const held = new Promise<void>((resolve) => {
       releaseSave = resolve;

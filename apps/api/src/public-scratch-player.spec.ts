@@ -3,7 +3,11 @@ import { Readable } from 'node:stream';
 import type { BlocksBlobStorePort, BlocksBlobReadable } from './blocks-asset-storage.js';
 import { describe, it, expect, vi } from 'vitest';
 import type pg from 'pg';
-import { PublicScratchPlayerService, publicScratchDocument } from './public-scratch-player.js';
+import {
+  PublicScratchPlayerService,
+  publicScratchDocument,
+  studentScratchDocument,
+} from './public-scratch-player.js';
 import { BlocksRuntimeCapabilityService } from './blocks-runtime-capability.js';
 import { publicScratchFixture } from './testing/fixtures/public-scratch';
 const ORIGIN = 'http://127.0.0.1:4612';
@@ -399,6 +403,109 @@ describe('public Scratch player authority', () => {
         await editor.verify({ token: b.runtimeToken, origin: ORIGIN, binding, permission }),
       ).toMatchObject({ ok: false });
   });
+  it('binds private review JWS to its pending role, exact source and asset without any public/editor authority', async () => {
+    const f = fixture();
+    const requestId = randomUUID();
+    const reviewer = { role: 'teacher' as const, actor: randomUUID(), classroomId: randomUUID() };
+    const roleArgs = [reviewer.actor, reviewer.role, reviewer.classroomId, requestId];
+    const binding = { publicationId: requestId, revisionId: requestId };
+    let pending = true;
+    const query = vi.fn(async (sql: string, values: unknown[]) => {
+      if (!pending) return { rows: [] };
+      if (
+        sql.includes('student_scratch_source') &&
+        JSON.stringify(values) === JSON.stringify(roleArgs)
+      )
+        return { rows: [{ document_json: f.input.document, source_revision: 7 }] };
+      if (
+        sql.includes('student_scratch_asset') &&
+        JSON.stringify(values) === JSON.stringify([...roleArgs, 7, f.input.ref.assetId, 'svg'])
+      )
+        return {
+          rows: [
+            {
+              tenant_id: randomUUID(),
+              asset_id: f.input.ref.assetId,
+              data_format: 'svg',
+              sha256: f.input.ref.sha256,
+              size_bytes: String(f.input.bytes.length),
+            },
+          ],
+        };
+      return { rows: [] };
+    });
+    const service = new PublicScratchPlayerService({ query } as unknown as pg.Pool, env, {
+      blobs: { open: f.open },
+      now: () => 1000000,
+    });
+    const bootstrap = await service.issueStudentReview(reviewer, requestId);
+    expect(bootstrap).toMatchObject({ reviewRequestId: requestId, sourceRevision: 7 });
+    expect(bootstrap.runtimeToken.split('.')).toHaveLength(3);
+    const { decodeJwt, decodeProtectedHeader } = await import('jose');
+    expect(decodeProtectedHeader(bootstrap.runtimeToken).typ).toBe(
+      'asa-student-scratch-review+jwt',
+    );
+    expect(decodeJwt(bootstrap.runtimeToken)).toMatchObject({
+      mode: 'student-review-player',
+      aud: 'asa-student-scratch-review',
+      reviewer: reviewer.actor,
+      role: reviewer.role,
+      requestId,
+      sourceRevision: 7,
+    });
+    await expect(service.verify(binding, bootstrap.runtimeToken, ORIGIN)).rejects.toMatchObject({
+      status: 404,
+    });
+    const editor = new BlocksRuntimeCapabilityService({
+      key: Buffer.from(env.ASA_BLOCKS_RUNTIME_SIGNING_KEY, 'hex'),
+      runtimeOrigin: ORIGIN,
+      authority: { allows: async () => true },
+    });
+    expect(
+      await editor.verify({
+        token: bootstrap.runtimeToken,
+        origin: ORIGIN,
+        binding: {
+          tenantId: randomUUID(),
+          principalId: reviewer.actor,
+          projectId: requestId,
+          versionId: null,
+          mode: 'editor',
+        },
+        permission: 'draft:write',
+      }),
+    ).toMatchObject({ ok: false });
+    await expect(
+      service.asset(
+        { ...binding, revisionId: randomUUID() },
+        bootstrap.runtimeToken,
+        ORIGIN,
+        f.input.ref.assetId,
+        'svg',
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.asset(binding, bootstrap.runtimeToken, ORIGIN, 'f'.repeat(32), 'svg'),
+    ).rejects.toMatchObject({ status: 404 });
+    const asset = await service.asset(
+      binding,
+      bootstrap.runtimeToken,
+      ORIGIN,
+      f.input.ref.assetId,
+      'svg',
+    );
+    try {
+      for await (const bytes of asset.body) expect(bytes).toEqual(f.input.bytes);
+    } finally {
+      asset.release();
+    }
+    pending = false;
+    await expect(
+      service.asset(binding, bootstrap.runtimeToken, ORIGIN, f.input.ref.assetId, 'svg'),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(f.open).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves official builtins and rejects custom URL extensions, extension metadata and oversize JSON', async () => {
     const f = publicScratchFixture();
     for (const extension of ['https://evil.test/extension.js', 'custom-extension']) {
@@ -427,5 +534,188 @@ describe('public Scratch player authority', () => {
       publicScratchDocument({ ...f.document, unknown: 'x'.repeat(5 * 1024 * 1024) }),
     ).rejects.toBeTruthy();
     await expect(publicScratchDocument({ ...f.document, assets: [] })).rejects.toBeTruthy();
+  });
+
+  it('removes private Scratch metadata but retains native program, sprites, monitors and sound inputs', async () => {
+    const fixture = publicScratchFixture();
+    const privateLink = 'https://classroom.test/private/source-note';
+    const original = fixture.document.projectJson;
+    const stage = original.targets[0]!;
+    const audio = {
+      assetId: '1'.repeat(32),
+      dataFormat: 'wav',
+      sha256: '2'.repeat(64),
+      sizeBytes: 48,
+    };
+    const sound = {
+      name: 'Play tone',
+      assetId: audio.assetId,
+      dataFormat: 'wav',
+      md5ext: audio.assetId + '.wav',
+      format: '',
+      rate: 8000,
+      sampleCount: 2,
+    };
+    const sprite = {
+      ...stage,
+      isStage: false,
+      name: 'Native sprite',
+      layerOrder: 1,
+      visible: true,
+      x: 12,
+      y: -24,
+      direction: 90,
+      size: 100,
+      draggable: false,
+      rotationStyle: 'all around',
+      tempo: { href: privateLink },
+      blocks: {},
+      sounds: [{ ...sound, privateOwnerNote: privateLink }],
+      costumes: stage.costumes.map((costume) => ({ ...costume, asset: { url: privateLink } })),
+      privateShare: privateLink,
+    };
+    const dirty = {
+      ...fixture.document,
+      assets: [fixture.ref, audio],
+      projectJson: {
+        ...original,
+        meta: { ...original.meta, origin: privateLink, agent: privateLink },
+        targets: [{ ...stage, privateTeacherHint: privateLink }, sprite],
+        monitors: original.monitors.map((monitor) => ({
+          ...monitor,
+          privateMonitorSource: privateLink,
+        })),
+        ignoredSourceLink: privateLink,
+      },
+    };
+    expect(JSON.stringify(await publicScratchDocument(dirty))).toContain(privateLink);
+    const projected = await studentScratchDocument(dirty);
+    expect(JSON.stringify(projected)).not.toContain(privateLink);
+    expect(projected.projectJson?.['meta']).toEqual({ semver: '3.0.0' });
+    expect(projected.projectJson?.['targets']).toMatchObject([
+      { blocks: stage.blocks, variables: stage.variables },
+      { name: 'Native sprite', x: 12, y: -24, costumes: stage.costumes, sounds: [sound] },
+    ]);
+    expect(projected.projectJson?.['monitors']).toEqual(original.monitors);
+    expect(projected.assets).toEqual(expect.arrayContaining([fixture.ref, audio]));
+    expect(await studentScratchDocument(projected)).toEqual(projected);
+    expect(dirty.projectJson.meta.origin).toBe(privateLink);
+  });
+
+  it('retains native procedure arguments and scalar values while dropping nested metadata', async () => {
+    const { document } = publicScratchFixture();
+    const stage = document.projectJson.targets[0]!;
+    const privateLink = 'https://classroom.test/private/nested-metadata';
+    const privateData = { provenance: [privateLink] };
+    const argument = 'author-visible built-in argument';
+    const procedure = {
+      tagName: 'mutation',
+      children: [],
+      proccode: 'update %s',
+      argumentids: '["word"]',
+      argumentnames: '["word"]',
+      argumentdefaults: JSON.stringify([argument]),
+      warp: 'true',
+      hasnext: 'false',
+    };
+    const call = {
+      tagName: 'mutation',
+      children: [],
+      proccode: procedure.proccode,
+      argumentids: procedure.argumentids,
+      warp: 'true',
+    };
+    const counter = document.projectJson.monitors[0]!;
+    const listMonitor = {
+      id: 'notes',
+      mode: 'list',
+      opcode: 'data_listcontents',
+      params: { LIST: 'Notes' },
+      value: [argument, false, 12],
+    };
+    stage.blocks.start.next = 'call';
+    const dirty = {
+      ...document,
+      projectJson: {
+        ...document.projectJson,
+        targets: [
+          {
+            ...stage,
+            textToSpeechLanguage: privateData,
+            rotationStyle: privateData,
+            lists: { notes: ['Notes', listMonitor.value] },
+            blocks: {
+              ...stage.blocks,
+              definition: {
+                opcode: 'procedures_definition',
+                next: 'change',
+                parent: null,
+                inputs: { custom_block: [1, 'prototype'] },
+                fields: {},
+                topLevel: true,
+              },
+              prototype: {
+                opcode: 'procedures_prototype',
+                parent: 'definition',
+                inputs: { word: [1, 'word'] },
+                mutation: { ...procedure, children: [privateData], extensionState: privateData },
+              },
+              word: {
+                opcode: 'argument_reporter_string_number',
+                parent: 'prototype',
+                fields: { VALUE: ['word', privateData] },
+              },
+              call: {
+                opcode: 'procedures_call',
+                parent: 'start',
+                inputs: { word: [3, 'reporter', [10, argument], privateLink] },
+                mutation: { ...call, privateState: privateData },
+              },
+              reporter: {
+                opcode: 'data_variable',
+                parent: 'call',
+                fields: { VARIABLE: ['counter', 'counter', privateData] },
+                mutation: { tagName: 'mutation', proccode: privateLink },
+              },
+              topLevelReporter: [12, 'counter', 'counter', 16, 20],
+            },
+          },
+        ],
+        monitors: [
+          counter,
+          {
+            ...listMonitor,
+            params: { ...listMonitor.params, raw: privateData },
+            value: [...listMonitor.value, privateData, [privateLink]],
+            x: privateData,
+          },
+        ],
+      },
+    };
+    expect(JSON.stringify(await publicScratchDocument(dirty))).toContain(privateLink);
+    const projected = await studentScratchDocument(dirty);
+    expect(JSON.stringify(projected)).not.toContain(privateLink);
+    expect(projected.projectJson?.['targets']).toMatchObject([
+      {
+        variables: stage.variables,
+        lists: { notes: ['Notes', listMonitor.value] },
+        blocks: {
+          definition: { inputs: { custom_block: [1, 'prototype'] } },
+          prototype: { mutation: procedure },
+          word: { fields: { VALUE: ['word'] } },
+          call: { mutation: call, inputs: { word: [3, 'reporter', [10, argument]] } },
+          reporter: { fields: { VARIABLE: ['counter', 'counter'] } },
+          topLevelReporter: [12, 'counter', 'counter', 16, 20],
+        },
+      },
+    ]);
+    expect(projected.projectJson?.['monitors']).toEqual([counter, listMonitor]);
+    expect(await studentScratchDocument(projected)).toEqual(projected);
+
+    // The VM parses this attribute as an array. An object in an active slot cannot be retained.
+    dirty.projectJson.targets[0]!.blocks.prototype.mutation.argumentdefaults = JSON.stringify([
+      privateData,
+    ]);
+    await expect(studentScratchDocument(dirty)).rejects.toMatchObject({ status: 422 });
   });
 });

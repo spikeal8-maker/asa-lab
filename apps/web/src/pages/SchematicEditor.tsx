@@ -162,6 +162,7 @@ export function SchematicEditor({
   seatLearner?: boolean;
 }): JSX.Element {
   const controller = useElectronicsWorkbench(projectId, user.id, seatLearner);
+  const allowDistribution = controller.project?.privateClassroomCopy !== true;
   const [view, setView] = useState<WorkbenchView>('breadboard');
   const [showGrid] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -271,6 +272,7 @@ export function SchematicEditor({
     }
   }
   function exportCurrentView(target: Exclude<WorkbenchView, 'breadboard'>): void {
+    if (!allowDistribution) return;
     if (target === 'schematic') {
       window.print();
       return;
@@ -343,6 +345,7 @@ export function SchematicEditor({
         }}
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}
+        allowDistribution={allowDistribution}
       />
       <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
         <div className="workbench-main" data-project-save-status={controller.saveStatus}>
@@ -389,12 +392,13 @@ export function SchematicEditor({
                 mobileHeightPercent={codeHeightPercent}
                 onMobileHeightChange={setCodeHeightPercent}
                 onClose={() => setCodeOpen(false)}
+                allowDownload={allowDistribution}
               />
             </Suspense>
           ) : null}
         </div>
       </NativeOpticalProvider>
-      {shareOpen ? (
+      {shareOpen && allowDistribution ? (
         <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />
       ) : null}
     </div>

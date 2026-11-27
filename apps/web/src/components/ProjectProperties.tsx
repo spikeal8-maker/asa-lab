@@ -205,20 +205,23 @@ export function ProjectProperties({
           </select>
           <p className="account-hint">{licenceHint}</p>
 
-          <div ref={publicationSection} tabIndex={-1}>
-            <PublicationPanel
-              projectId={project.id}
-              moduleKey={project.moduleKey}
-              metadata={{
-                title: title.trim(),
-                description: description.trim() || null,
-                tags,
-                license,
-              }}
-              disabled={saving}
-              onBusyChange={setPublicationBusy}
-            />
-          </div>
+          {!project.privateClassroomCopy ? (
+            <div ref={publicationSection} tabIndex={-1}>
+              <PublicationPanel
+                projectId={project.id}
+                moduleKey={project.moduleKey}
+                sourceRevision={project.snapshotRevision ?? null}
+                metadata={{
+                  title: title.trim(),
+                  description: description.trim() || null,
+                  tags,
+                  license,
+                }}
+                disabled={saving}
+                onBusyChange={setPublicationBusy}
+              />
+            </div>
+          ) : null}
 
           {error ? (
             <p className="form-error" role="alert">

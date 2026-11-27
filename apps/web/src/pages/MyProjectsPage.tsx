@@ -252,6 +252,7 @@ export function MyProjectsPage({
   }
 
   async function duplicate(project: Project): Promise<void> {
+    if (project.privateClassroomCopy) return;
     setActionBusy(project.id);
     setActionError(null);
     const key = duplicateKeys.current.get(project.id) ?? newClientId();
@@ -626,7 +627,7 @@ export function MyProjectsPage({
                               },
                             ]
                           : []),
-                        ...(!learning
+                        ...(!learning && !project.privateClassroomCopy
                           ? [
                               {
                                 label: 'Публикация',
@@ -637,7 +638,8 @@ export function MyProjectsPage({
                               },
                             ]
                           : []),
-                        ...(!learning || actions?.duplicate === true
+                        ...(!project.privateClassroomCopy &&
+                        (!learning || actions?.duplicate === true)
                           ? [
                               {
                                 label: 'Дублировать',
@@ -650,7 +652,7 @@ export function MyProjectsPage({
                           label: 'Журнал версий',
                           onSelect: () => setHistory(project),
                         },
-                        ...(!learning
+                        ...(!learning && !project.privateClassroomCopy
                           ? [
                               {
                                 label: 'Добавить в коллекцию',

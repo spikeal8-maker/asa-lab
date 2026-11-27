@@ -24,6 +24,7 @@ export function useHomeProjectActions(onChanged: () => void) {
     };
   }, []);
   async function mutate(project: Project, action: 'duplicate' | 'archived' | 'trashed') {
+    if (action === 'duplicate' && project.privateClassroomCopy) return;
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(project.id);
@@ -66,7 +67,7 @@ export function useHomeProjectActions(onChanged: () => void) {
             },
           ]
         : []),
-      ...(!learning
+      ...(!learning && !project.privateClassroomCopy
         ? [
             {
               label: 'Публикация',
@@ -78,11 +79,11 @@ export function useHomeProjectActions(onChanged: () => void) {
             },
           ]
         : []),
-      ...(!learning || allowed?.duplicate
+      ...(!project.privateClassroomCopy && (!learning || allowed?.duplicate)
         ? [{ label: 'Дублировать', disabled, onSelect: () => void mutate(project, 'duplicate') }]
         : []),
       { label: 'Журнал версий', onSelect: () => setHistory(project) },
-      ...(!learning
+      ...(!learning && !project.privateClassroomCopy
         ? [{ label: 'Добавить в коллекцию', onSelect: () => setCollecting(project) }]
         : []),
       ...(!learning || allowed?.changeGenericProjectStatus

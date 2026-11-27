@@ -116,6 +116,8 @@ const expectedPending = [
   '0335', // Resolve a visible classroom project to its exact submission.
   '0336', // Open one saved revision of a visible free project.
   '0337', // Effective Safe Mode in the learner's class list.
+  '0338', // Exact private classroom copy provenance and distribution guards.
+  '0339', // Private, exact StudentSeat publication review.
 ];
 
 interface Identity {

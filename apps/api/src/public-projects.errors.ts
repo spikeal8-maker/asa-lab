@@ -54,6 +54,18 @@ export function throwPublicationError(cause: unknown): never {
         'Откройте и сохраните проект, чтобы обновить превью перед публикацией.',
         409,
       );
+    case 'P5A09':
+      throw publicationError(
+        'publication_review_conflict',
+        'Заявка или сохранённая версия изменилась. Обновите сведения о публикации.',
+        409,
+      );
+    case 'P5A10':
+      throw publicationError(
+        'publication_review_unavailable',
+        'Для сохранённой работы пока нет точного просмотра для проверки.',
+        409,
+      );
     case 'P5P03':
       throw publicationError('validation_error', 'Проверьте данные публикации.', 400);
     case 'P5P04':

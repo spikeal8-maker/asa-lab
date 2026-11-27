@@ -43,6 +43,19 @@ export interface PublicationCopyOrigin {
 
 export interface CreateProjectInput {
   readonly publicationCopyOrigin?: PublicationCopyOrigin;
+  readonly privateClassroomCopyOrigin?: {
+    readonly classroomId: string;
+    readonly seatId: string;
+    readonly projectId: string;
+    readonly source:
+      | { readonly kind: 'free'; readonly revision: number }
+      | {
+          readonly kind: 'submission';
+          readonly attemptId: string;
+          readonly submissionId: string;
+          readonly projectVersionId: string;
+        };
+  };
   readonly tenantId: string;
   readonly scope: ProjectScope;
   readonly classroomId: string | null;
