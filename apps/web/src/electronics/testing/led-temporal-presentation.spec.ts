@@ -376,6 +376,58 @@ describe('one early elapsed optical phase', () => {
     expect(presenter.reanchorCount).toBe(0);
   });
 
+  it.each([119000, 124000])(
+    'keeps one render opportunity for LOW when its unknown successor arrives at %i µs',
+    (successor) => {
+      const p = withDarkFrame();
+      const edges = [10000, 40000, 69000, 104000, successor, 138000];
+      const packets = [
+        [11000, 10000],
+        [55000, 45000],
+        [90000, 80000],
+        [114000, 110000],
+        [125000, successor],
+        [145000, 140000],
+      ] as const;
+      const draw = Array.from({ length: 11 }, (_, index) =>
+        Math.round(((index + 1) * 1000000) / 60),
+      );
+      let from = 0;
+      let witnessed = false;
+      const levelAt = (at: number) => (edges.filter((t) => t <= at).length % 2 ? 80 : 0);
+      const shown: number[] = [];
+      for (const wall of [...packets.map((packet) => packet[0]), ...draw].sort((a, b) => a - b)) {
+        const packet = packets.find((entry) => entry[0] === wall);
+        if (packet) {
+          const to = packet[1];
+          const times = [...new Set([from, ...edges.filter((t) => t > from && t <= to), to])];
+          const data = accepted(
+            from,
+            to,
+            times.map((time) => point(time, levelAt(time))),
+          );
+          p.accept(solved(data), data, wall);
+          const offer = witnessed && p.prepareElapsedFrame(wall);
+          if (offer) {
+            expect(p.acknowledgeFrame(offer, wall)).toBe(true);
+            witnessed = false;
+          }
+          from = to;
+          continue;
+        }
+        const frame = p.prepareFrame(wall);
+        if (frame) expect(p.acknowledgeFrame(frame, wall)).toBe(true);
+        p.recordRenderedFrame(wall, p.displayedFrame);
+        witnessed = true;
+        const level = p.sample().get('led')!;
+        if (shown.at(-1) !== level) shown.push(level);
+      }
+      // HIGH at 69 ms, LOW at 104, the new HIGH, and then LOW at 138 each
+      // received distinct refresh opportunities. New history never erases one.
+      expect(shown).toEqual([80, 0, 80, 0, 80, 0]);
+    },
+  );
+
   it('offers an already confirmed short pulse after two long mounted phases', () => {
     const presenter = withDarkFrame();
     let from = 0;

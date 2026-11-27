@@ -276,6 +276,8 @@ export class LedTemporalPresentation {
   private firstRafAfterCommit: number | null = null;
   private opticalTransitions: 0 | 1 | 2 = 0;
 
+  private deferredPaint: { readonly frame: LedPresentationFrame; readonly wall: number } | null =
+    null;
   private opticalEdges: number[] = [];
   private paintLags: number[] = [];
   private lastPaintedEdge: number | undefined;
@@ -295,6 +297,7 @@ export class LedTemporalPresentation {
   }
 
   private clearPaintSampling(): void {
+    this.deferredPaint = null;
     this.opticalEdges = [];
     this.clearPaintedIntervals();
   }
@@ -495,6 +498,8 @@ export class LedTemporalPresentation {
   /** Resource demand can follow wall time without preparing or acknowledging a frame. */
   nextNativeAssetFrameAt(wallMicroseconds?: number): LedNativeAssetFrame | null {
     if (this.d === null || this.a === null) return null;
+    const deferred = this.deferredPaint && this.o(this.deferredPaint.frame.atMicroseconds);
+    if (deferred) return { ...deferred, generation: this.g };
     const target =
       wallMicroseconds === undefined || this.e === null
         ? this.d
@@ -897,12 +902,34 @@ export class LedTemporalPresentation {
       ...values,
       token: `${this.g}:${++this.f}`,
     };
+    const deferred = this.deferredPaint;
+    this.deferredPaint = null;
     if (
-      this.j &&
-      !sameOpticalFrame(this.j, frame) &&
-      (!this.canPublishDistinctFrame || this.deferOpticalTransition(frame, wallMicroseconds))
-    )
-      return null;
+      deferred &&
+      wallMicroseconds - deferred.wall <= HISTORY_MICROSECONDS &&
+      this.a - deferred.frame.atMicroseconds <= HISTORY_MICROSECONDS
+    ) {
+      const retained = this.o(deferred.frame.atMicroseconds);
+      if (
+        retained &&
+        sameOpticalFrame(deferred.frame, { ...retained, token: deferred.frame.token })
+      ) {
+        // The previous opportunity already chose this confirmed phase. A newer
+        // READY can return to the displayed level before this actual refresh.
+        // Carry at most the current opportunity's distinct sample into the next.
+        if (!sameOpticalFrame(deferred.frame, frame))
+          this.deferredPaint = { frame, wall: wallMicroseconds };
+        this.k = deferred.frame;
+        return this.k;
+      }
+    }
+    if (this.j && !sameOpticalFrame(this.j, frame)) {
+      if (!this.canPublishDistinctFrame) return null;
+      if (this.deferOpticalTransition(frame, wallMicroseconds)) {
+        this.deferredPaint = { frame, wall: wallMicroseconds };
+        return null;
+      }
+    }
     this.k = frame;
     return frame;
   }
@@ -914,6 +941,7 @@ export class LedTemporalPresentation {
   prepareElapsedFrame(wallMicroseconds: number): LedPresentationFrame | null {
     if (
       this.k ||
+      this.deferredPaint ||
       !this.j ||
       this.h < this.i ||
       this.d === null ||
