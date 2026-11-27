@@ -18992,6 +18992,85 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-COMPACT-FIELD-ZOOM-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3-COMPACT-FIELD-ZOOM
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_compact_field_zoom_selected
+      owner_acceptance: pending
+      owner_authorization: The owner requested rechecking the still-incomplete ordinary Robotics interface and continuing
+        the visual programme. This selects the compact Field camera controls and the Side ruler appearance after the
+        protected split workspace delivery. Implementation begins after protected canonical integration and fresh exact
+        source preflight.
+      registration_baseline:
+        main: 5fcfe2ed373141e715f3eeccb0bf543f8b5e07d2
+        split_source: c7b72092bc85c4decd1de11cee49cf00e1af847a
+        split_pr: https://github.com/spikeal8-maker/asa-lab/pull/1366
+        preserved_task: parallel_lanes.robotics.historical_split_workspace_task
+        split_result: parallel_lanes.robotics.split_workspace_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-UI-04
+        - REQ-CAM-05
+        - REQ-LAYOUT-01
+        - REQ-DEL-02
+      scope: Keep the existing Field camera choices, zoom decrease/increase and current scale in the same toolbar
+        and immediately reachable on narrow screens in the actual Field editor. Restyle only the Side ruler to show
+        its calibrated line and value without the filled frame. This is a presentation slice.
+      planned_paths:
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/testing/robotics-field-dock.spec.ts
+      - e2e/robotics-projects.spec.ts
+      conditional_paths:
+        apps/web/src/robotics/testing/robotics-field-dock.spec.ts: Only focused control, reachability and ruler
+          presentation regressions.
+      ux_acceptance:
+      - At320px the user can choose Top, Perspective or Side and immediately reach the existing zoom decrease/increase
+        controls and current zoom value without horizontal scrolling. Use one existing Field toolbar with one set of
+        camera and zoom actions. A responsive arrangement may wrap inside that toolbar and keep secondary actions
+        in its existing scrolling area. Keep focus order meaningful and actions reachable by pointer and keyboard.
+      - Apply to the actual full Field editor for standalone and normal account, and the same Field in the open
+        compact split pane. Wide split keeps independent editor and field zoom. Resize and layout changes retain the
+        same viewport and chosen camera, zoom, selection, focused project and live paused pose/time; do not reinitialize
+        the controller or renderer.
+      - Place the Side ruler along the bottom with its existing calibrated line and value, readable without its filled
+        pill or frame. Preserve metric geometry, grid, hit regions, standalone and split Serial clearance and the
+        existing Top ruler, field dimensions and camera keyboard navigation. Preserve Fit and other secondary actions.
+      constraints:
+      - Only the listed existing paths may change. Keep the current camera and field math, grid behavior, palette and
+        object gestures, common header, Robot construction, Circuit and Arduino editors, engine, world and document
+        schema, route, API, storage protocol, and saved project format.
+      - All earlier tasks, results and native/physical evidence remain immutable history. ROBOTICS-FIELD-CORE-D01-D02
+        keeps its original E1 binding and blocks. No adjustable terrain, native acquisition, full physics acceptance,
+        owner acceptance, release claim, stand startup, deployment or working DB operation is selected.
+      verification:
+        pure: Run the existing focused robotics checks and preserve camera/gesture/dock/layout regressions.
+        browser: Extend the existing built ordinary publication and saved account proof. At320px and1440px measure
+          initial reachability in the real viewport with client rects and hit-testing before any test-driven scrolling.
+          Exercise actual camera choices and zoom decrease/increase across Top, Perspective and Side, and verify the
+          unclipped Side ruler remains calibrated. Prove usability in Field-only and compact split plus independent
+          editor zoom at wide split. Verify the same paused pose/time/source, persistent Field, focus and camera state
+          through resize. Preserve other journeys and record browser screenshots and measurements.
+        gates: 'Registration: sole-path PLAN/control, YAML formatting and full byte/semantic inverse, actual pnpm
+          validate:electronics-agent-docs and pnpm gate:governance. Candidate: fresh focused types/build and pnpm
+          test:robotics, changed-file lint/format, independent review and existing protected General and
+          pnpm gate:projects-publication:browser proofs at exact source SHA. No new service, port or database.'
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    historical_split_workspace_task:
       id: TASK-ELECTRONICS-ROBOTICS-SPLIT-WORKSPACE-001
       issue: 1071
       branch: main
@@ -19124,6 +19203,45 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    split_workspace_result:
+      observed_on: '2026-11-27'
+      status: PROTECTED_SOURCE_AND_BUILT_BROWSER_VERIFIED_UI_ONLY
+      source: c7b72092bc85c4decd1de11cee49cf00e1af847a
+      source_tree: 7c61ffb67b9689fab03c1d4a3843b48dbe01bd56
+      merge: 5fcfe2ed373141e715f3eeccb0bf543f8b5e07d2
+      merge_tree: 7c61ffb67b9689fab03c1d4a3843b48dbe01bd56
+      pr:
+        number: 1366
+        url: https://github.com/spikeal8-maker/asa-lab/pull/1366
+        state: MERGED
+      required:
+        head: c7b72092bc85c4decd1de11cee49cf00e1af847a
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45956435994/job/140376698733
+      browser:
+        head: c7b72092bc85c4decd1de11cee49cf00e1af847a
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45956435892/job/140363983501
+        journeys_passed: 5
+        artifact_id: 15179826855
+        artifact_name: public-projects-c7b72092bc85c4decd1de11cee49cf00e1af847a
+        artifact_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45956435892/artifacts/15179826855
+        artifact_bytes: 44420952
+        artifact_sha256: 481ea13b492ed1f6f1978834563343c0651781394a2d8fed98710d60ae6fd13d
+      post_merge:
+        head: 5fcfe2ed373141e715f3eeccb0bf543f8b5e07d2
+        general:
+          conclusion: SUCCESS
+          url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45960529607
+        publication:
+          conclusion: SUCCESS
+          url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45960529482
+      delivered: Actual editable Circuit or Arduino text/Blockly on the left and the same persistent interactive Field
+        on the right at desktop width. A compact pane choice, retained desktop width and independent zoom, one shared
+        paused pose/time/source, save and reopen, and unobstructed Field scale/dimensions with Serial open were verified.
+      owner_acceptance: pending
+      deployment: not_authorized
+      physical_qualification: NOT_CLAIMED
     historical_header_controls_task:
       id: TASK-ELECTRONICS-ROBOTICS-HEADER-CONTROLS-001
       issue: 1071
