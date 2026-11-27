@@ -118,6 +118,9 @@
   background: var(--surface, #fff);
   box-shadow: 0 1px 4px #12243526;
 }
+:is(.classroom-owner-workspace.classroom-workspace .classroom-observation, .classroom-student)
+  .classroom-work-card
+  > .classroom-work-card-editor,
 li.classroom-work-card > .classroom-work-card-editor {
   position: absolute;
   inset-block-start: 6px;

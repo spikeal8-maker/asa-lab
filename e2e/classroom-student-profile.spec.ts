@@ -1914,11 +1914,16 @@ test('class projects and learner profile show full-width project covers in a wra
       const coverBox = (await picture.boundingBox())!;
       const otherBox = (await cards.nth(1).boundingBox())!;
       const titleBox = (await card.locator('.classroom-work-card-title').boundingBox())!;
+      await picture.hover();
+      await expect(editor).toHaveCSS('opacity', '1');
       const editorBox = (await editor.boundingBox())!;
       expect(coverBox.width).toBeGreaterThanOrEqual(cardBox.width - 2);
       expect(coverBox.height).toBeGreaterThan(cardBox.height / 2);
       expect(coverBox.y + coverBox.height).toBeLessThanOrEqual(titleBox.y);
-      expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(editorBox.y);
+      expect(editorBox.y).toBeGreaterThanOrEqual(coverBox.y);
+      expect(editorBox.y + editorBox.height).toBeLessThanOrEqual(coverBox.y + coverBox.height);
+      expect(editorBox.x).toBeGreaterThanOrEqual(coverBox.x);
+      expect(editorBox.x + editorBox.width).toBeLessThanOrEqual(coverBox.x + coverBox.width);
       expect(editorBox.height).toBeGreaterThanOrEqual(44);
       if (width === 1440) expect(otherBox.y).toBeCloseTo(cardBox.y, 0);
       else expect(otherBox.y).toBeGreaterThanOrEqual(cardBox.y + cardBox.height);
