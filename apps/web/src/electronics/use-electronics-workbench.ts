@@ -64,6 +64,7 @@ import {
   type WireVertexAssistTarget,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
+import { createArduinoAcknowledgedWake } from './arduino-acknowledged-wake';
 import {
   LedTemporalPresentation,
   classroomRequestedHorizon,
@@ -808,6 +809,33 @@ export function useElectronicsWorkbenchHost(
     let displayed: LiveOpticalObservation | null = null;
     let publishing = false;
     let animationFrame: number | null = null;
+    const arduinoWake = createArduinoAcknowledgedWake(
+      {
+        now: () => window.performance.now(),
+        setTimeout: (callback, delay) => window.setTimeout(callback, delay),
+        clearTimeout: (timeout) => window.clearTimeout(timeout),
+      },
+      () => ({
+        source: nativePreparationSourceRef.current,
+        startedAtMs: simulationStartedAtRef.current,
+        hostOffsetMicroseconds: simulationHostOffsetMicrosecondsRef.current,
+        active:
+          currentSession() &&
+          session?.active === true &&
+          !normalHostClockRef.current &&
+          !simulationPacing.explicit,
+      }),
+      () => {
+        const document = runtimeDocumentRef.current;
+        const horizon = readHostHorizonMicroseconds();
+        if (document && horizon !== null) {
+          requestedHorizonMicrosecondsRef.current = horizon;
+          controller?.update(document, horizon);
+        }
+      },
+    );
+    const cancelArduinoWake = arduinoWake.cancel;
+    const scheduleArduinoWake = arduinoWake.schedule;
     let recordedReanchors = ledPresentation.reanchorCount;
     let queuedNativePreparation: { document: SchematicDocument } | null = null;
     let nativePreparation: { generation: number; assets: ReadonlyMap<string, string> } | null =
@@ -823,6 +851,7 @@ export function useElectronicsWorkbenchHost(
     settleSimulationPauseRef.current = settlePause;
     const changePace = (rate: number) => {
       if (!currentSession()) return;
+      cancelArduinoWake();
       const transition = ++paceTransition;
       const wall = Math.round(window.performance.now() * 1000);
       ledPresentation.setPlaybackRate(rate, wall);
@@ -1154,6 +1183,7 @@ export function useElectronicsWorkbenchHost(
     simulationCommandRef.current = dispatch;
     const fail = (failure: SimulationFailure) => {
       if (!currentSession()) return;
+      cancelArduinoWake();
       clearStartupDeadline();
       active = false;
       pendingCommands.length = 0;
@@ -1207,6 +1237,7 @@ export function useElectronicsWorkbenchHost(
         },
         onGenerationPending: () => {
           if (!currentSession()) return;
+          cancelArduinoWake();
           // A real Reset starts a new generation and receives a new budget.
           // The first generation keeps the deadline armed before module import.
           if (generationConfirmed) armStartupDeadline();
@@ -1303,6 +1334,7 @@ export function useElectronicsWorkbenchHost(
             simulationPacing.reanchor(horizon, Math.round(window.performance.now() * 1000));
           }
         },
+        onNextArduinoWake: scheduleArduinoWake,
         onSerialProjection: (serial: readonly WorkbenchSerialProjection[]) => {
           if (!currentSession() || (serial.length === 0 && previousSerial.length === 0)) return;
           const [entry] = serial;
@@ -1352,6 +1384,7 @@ export function useElectronicsWorkbenchHost(
     }
     return () => {
       active = false;
+      cancelArduinoWake();
       clearStartupDeadline();
       if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
       pendingCommands.length = 0;

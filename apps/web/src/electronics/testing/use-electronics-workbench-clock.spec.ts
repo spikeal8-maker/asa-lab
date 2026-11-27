@@ -2707,6 +2707,34 @@ describe('mounted workbench LED temporal display', () => {
     });
   }
 
+  it('dispatches a real sleeping Arduino wake without advancing model time or surviving Stop', async () => {
+    await startOptical(50_000);
+    worker().update.mockClear();
+    const wake = worker().callbacks!.onNextArduinoWake;
+    expect(wake).toBeTypeOf('function');
+    expect(workbench.simulationRunning).toBe(true);
+    const due = Math.round(window.performance.now() * 1000) + 25_005;
+    await act(async () => wake!(due));
+    await tick(10);
+    await tick(10);
+    await tick(2);
+    // A subsequent ACK inside the final 5ms must preserve the same due timer.
+    await act(async () => wake!(due));
+    await tick(3);
+    const beforeDeadline = worker().update.mock.calls.length;
+    await tick(1);
+    expect(worker().update.mock.calls.length).toBe(beforeDeadline + 1);
+    expect(worker().update.mock.calls.at(-1)![1]).toBeLessThanOrEqual(50_000);
+    expect(workbench.committedSimulationTimeMs).toBe(0);
+    expect(workbench.simulationTimeMs).toBe(0);
+
+    await act(async () => wake!(Math.round(window.performance.now() * 1000) + 29_005));
+    await act(async () => workbench.toggleSimulation());
+    worker().update.mockClear();
+    await tick(100);
+    expect(worker().update).not.toHaveBeenCalled();
+  });
+
   it('keeps temporal demand at 1 pace and within 50ms of the last actual native frame', async () => {
     const first = await startOptical(50_000);
     const before = renders;
