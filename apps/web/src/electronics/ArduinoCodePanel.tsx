@@ -1256,6 +1256,7 @@ export function ArduinoCodePanel({
   programHandleRef,
   toolbarActions,
   toolbarAccessory,
+  allowDownload = true,
 }: {
   controller: ElectronicsWorkbenchController;
   open: boolean;
@@ -1267,6 +1268,7 @@ export function ArduinoCodePanel({
   programHandleRef?: Ref<ArduinoCodePanelHandle>;
   toolbarActions?: ReactNode;
   toolbarAccessory?: ReactNode;
+  allowDownload?: boolean;
 }): JSX.Element {
   const boards = useMemo(
     () => c.document?.components.filter(isArduino) ?? [],
@@ -1491,6 +1493,7 @@ export function ArduinoCodePanel({
   }
 
   function downloadSource(): void {
+    if (!allowDownload) return;
     const url = URL.createObjectURL(new Blob([program.source], { type: 'text/x-c++src' }));
     const link = document.createElement('a');
     link.href = url;
@@ -1614,14 +1617,16 @@ export function ArduinoCodePanel({
               <span>Проверить код</span>
             </button>
           ) : null}
-          <button
-            type="button"
-            className="arduino-square-button arduino-download-button"
-            onClick={downloadSource}
-            title="Скачать .ino"
-          >
-            <DownloadIcon />
-          </button>
+          {allowDownload ? (
+            <button
+              type="button"
+              className="arduino-square-button arduino-download-button"
+              onClick={downloadSource}
+              title="Скачать .ino"
+            >
+              <DownloadIcon />
+            </button>
+          ) : null}
           {program.mode !== 'blocks' ? (
             <button
               type="button"

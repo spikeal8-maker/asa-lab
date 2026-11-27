@@ -72,6 +72,7 @@ describe('learning assessments API', () => {
     const row = {
       module_key: 'electronics',
       submission_id: RUN_A,
+      project_id: CLASSROOM_ID,
       project_version_id: RUN_B,
       source_revision: 7,
       document_json: structuredClone(document),
@@ -80,6 +81,7 @@ describe('learning assessments API', () => {
     const target = controller([row]);
     document.components[0]!.stateProperties.arduinoSource = 'later learner draft';
     const result = await target.value.exactSubmission(request(), CLASSROOM_ID, ATTEMPT_ID);
+    expect(result).toHaveProperty('projectId', CLASSROOM_ID);
     expect(result.electronicsSimulation).toMatchObject({
       submissionId: RUN_A,
       projectVersionId: RUN_B,
@@ -93,7 +95,7 @@ describe('learning assessments API', () => {
     );
     expect(target.query.mock.calls).toEqual([
       [
-        'SELECT * FROM learning_teacher_exact_submission($1,$2,$3)',
+        'SELECT * FROM learning_teacher_exact_submission_with_project($1,$2,$3)',
         ['123e4567-e89b-42d3-a456-426614174011', CLASSROOM_ID, ATTEMPT_ID],
       ],
     ]);

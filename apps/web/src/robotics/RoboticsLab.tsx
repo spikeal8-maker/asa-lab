@@ -342,10 +342,12 @@ export function RoboticsLab({ initialProject }: { initialProject?: RoboticsProje
 export function RoboticsWorkspace({
   project: local,
   projectId = 'asa-robotics-local-v1',
+  allowDistribution = true,
   header,
 }: {
   readonly project: RoboticsProjectController;
   readonly projectId?: string;
+  readonly allowDistribution?: boolean;
   readonly header?: (
     tabs: ReactNode,
     notices: readonly string[],
@@ -1201,6 +1203,7 @@ export function RoboticsWorkspace({
           hidden={!fieldVisible}
         >
           <RobotFieldEditor
+            allowExport={allowDistribution}
             active={fieldVisible}
             compactDock={split}
             interactionKey={`${section}:${pane}:${editorWidth}`}
@@ -1287,6 +1290,7 @@ export function RoboticsWorkspace({
               <ArduinoCodePanel
                 key={`${local.openRevision}:${local.programRevision}`}
                 controller={programController}
+                allowDownload={allowDistribution}
                 open={codeOpen}
                 drawerWidth={codeWidth}
                 onDrawerWidthChange={setCodeWidth}
