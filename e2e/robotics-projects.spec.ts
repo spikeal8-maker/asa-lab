@@ -2757,9 +2757,23 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   const blocks = page.getByTestId('arduino-block-workspace');
   await expect(blocks).toBeVisible();
   await page.locator('.robotics-code-extras > summary').click();
-  await page
-    .getByRole('combobox', { name: 'Пример программы', exact: true })
-    .selectOption('turn-left');
+  const presetBoard = (await readProject(page, projectId)).draft.document.circuit.components.find(
+    (item) => item.id === withBall.draft.document.world.bindings.boardId,
+  )!;
+  const confirmPreset = page.waitForEvent('dialog').then(async (dialog) => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toBe(
+      `Заменить программу платы робота «${presetBoard.name?.trim() || 'Arduino Uno R3'}» (${presetBoard.id}) примером «Поворот налево»? Редактор откроет эту плату. Программы других плат, схема и поле сохранятся. Изменение можно отменить.`,
+    );
+    await dialog.accept();
+  });
+  await Promise.all([
+    confirmPreset,
+    page.getByRole('combobox', { name: 'Пример программы', exact: true }).selectOption('turn-left'),
+  ]);
+  await expect(
+    blocks.locator('.blocklyDraggable[data-id^="robotics-turn-left-"]').first(),
+  ).toBeAttached();
   const preset = await saved(page, projectId);
   const program = preset.draft.document.circuit.components.find(
     (item) => item.id === 'uno',
@@ -2771,9 +2785,6 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   expect(blockSource).toContain('asa_loop');
   const blockIdentity = await blocks.elementHandle();
   if (!blockIdentity) throw new Error('Actual Blockly workspace missing');
-  await expect(
-    blocks.locator('.blocklyDraggable[data-id^="robotics-turn-left-"]').first(),
-  ).toBeAttached();
   if ((await page.locator('.robotics-code-extras').getAttribute('open')) !== null)
     await page.locator('.robotics-code-extras > summary').click();
   const blockCanvas = blocks.locator('svg.blocklySvg > .blocklyWorkspace > .blocklyBlockCanvas');
@@ -2863,11 +2874,11 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   );
   await page.mouse.down();
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.mouse.move(300, 400);
-  await page.mouse.up();
   const compact = page.getByRole('group', { name: 'Рабочая область', exact: true });
   await expect(compact).toBeVisible();
   await expect(separator).toBeHidden();
+  await page.mouse.move(300, 400);
+  await page.mouse.up();
   await compact.getByRole('button', { name: 'Редактор', exact: true }).click();
   await expect(code).toBeVisible();
   await expect(field).toBeHidden();
@@ -2884,11 +2895,13 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   await compact.getByRole('button', { name: 'Поле', exact: true }).click();
   await expect(fieldCanvas).toBeVisible();
   await expect(code).toBeHidden();
-  expect(
-    await page
-      .locator('#robotics-panel-field')
-      .evaluate((element) => element.contains(document.activeElement)),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .locator('#robotics-panel-field')
+        .evaluate((element) => element.contains(document.activeElement)),
+    )
+    .toBe(true);
   await expectSame(fieldCanvas, fieldIdentity);
   await expect(spatial).toHaveAttribute('data-field-view', currentView!);
   await closeFieldDrawer();
@@ -2900,11 +2913,13 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   expect((await readProject(page, projectId)).draft.document).toEqual(confirmed.draft.document);
   await page.screenshot({ path: `${EVIDENCE}/split-workspace-field-320.png`, fullPage: true });
   await compact.getByRole('button', { name: 'Редактор', exact: true }).click();
-  expect(
-    await page
-      .locator('#robotics-panel-program')
-      .evaluate((element) => element.contains(document.activeElement)),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .locator('#robotics-panel-program')
+        .evaluate((element) => element.contains(document.activeElement)),
+    )
+    .toBe(true);
   await expectSame(code, codeIdentity);
   expect(await selection()).toEqual(selectedText);
   expect({ time: await clock(), pose: await pose() }).toEqual(paused);
