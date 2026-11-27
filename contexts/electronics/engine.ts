@@ -11,6 +11,8 @@ import {
   createArduinoCircuitHcSr04TestClock,
   createArduinoCircuitShaftTestClock,
   createOwnedArduinoCircuitClockRequest,
+  type ArduinoSleepingPhysicsPrefix,
+  createArduinoSleepingPhysicsPrefix,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitHcSr04Barrier,
@@ -38,7 +40,13 @@ import {
   type HcSr04EnvironmentSample,
 } from './domain/models/hc-sr04-runtime.js';
 import type { BrushedMotorExternalShaftState } from './domain/models/brushed-motor-transient-model.js';
-import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
+import {
+  createArduinoElectricalTemplateOwner,
+  type ArduinoElectricalTemplateOwner,
+  type ComponentResult,
+  type Diagnostic,
+  type NodeResult,
+} from './domain/solver.js';
 import { type ElectronicsLedTemporalObservation } from './domain/led-temporal-observation.js';
 export type {
   ElectronicsLedTemporalObservation,
@@ -387,19 +395,31 @@ export function advanceElectronicsToHorizon(
   return advanceElectronicsRequest(document, request, false).next().value!;
 }
 
-/** Each next() performs at most maxEvents canonical MCU/barrier work; null means pending. */
-export function createElectronicsAdvanceSession(
+interface AdvanceSessionOptions {
+  readonly observeLedTemporal?: boolean;
+  readonly observeSevenSegmentTemporal?: boolean;
+  readonly electricalTemplateOwner?: ArduinoElectricalTemplateOwner;
+}
+
+type NativeWorkerSlice = { readonly canResume: () => boolean };
+
+function openElectronicsAdvanceSession(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
-  options: {
-    readonly observeLedTemporal?: boolean;
-    readonly observeSevenSegmentTemporal?: boolean;
-  } = {},
+  options: AdvanceSessionOptions,
+  prefix?: ArduinoSleepingPhysicsPrefix,
 ) {
   // The caller can change its document/state while the Worker yields; own this request snapshot.
   const ownedDocument = structuredClone(document);
-  const ownedRequest = structuredClone(request);
-  const ownership = createOwnedArduinoCircuitClockRequest(ownedDocument, ownedRequest);
+  const ownedRequest = structuredClone(request) as ElectronicsTimedAdvanceRequest & {
+    requestedHorizonMicroseconds: number;
+  };
+  const ownership = createOwnedArduinoCircuitClockRequest(
+    ownedDocument,
+    ownedRequest,
+    options.electricalTemplateOwner,
+    prefix,
+  );
   const iterator = advanceElectronicsRequest(
     ownedDocument,
     ownedRequest,
@@ -415,9 +435,162 @@ export function createElectronicsAdvanceSession(
     iterator.return(undefined as never);
   };
   return {
-    step: () => (disposed ? undefined : iterator.next().value!),
+    canPrepare: () => !disposed && ownership.check(),
+    setPrefixHorizon: (actual: number) => {
+      if (
+        !prefix ||
+        disposed ||
+        !ownership.check() ||
+        !Number.isSafeInteger(actual) ||
+        actual < ownedRequest.requestedHorizonMicroseconds ||
+        actual - (ownedRequest.state?.continuation?.committedHorizonMicroseconds ?? 0) > 25_000 ||
+        !prefix.grant(actual)
+      )
+        return false;
+      ownedRequest.requestedHorizonMicroseconds = actual;
+      return true;
+    },
+    step: (workerSlice?: NativeWorkerSlice) =>
+      disposed ? undefined : iterator.next(workerSlice).value!,
     dispose,
   };
+}
+
+/** Each next() performs at most maxEvents canonical MCU/barrier work; null means pending. */
+export function createElectronicsAdvanceSession(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  options: AdvanceSessionOptions = {},
+) {
+  const session = openElectronicsAdvanceSession(document, request, options);
+  return { step: () => session.step(), dispose: session.dispose };
+}
+
+function captureDedicatedWorkerClock() {
+  const workerGlobal = globalThis as typeof globalThis & {
+    DedicatedWorkerGlobalScope?: new () => object;
+    Performance?: { readonly prototype: object };
+  };
+  const scope = workerGlobal.DedicatedWorkerGlobalScope;
+  if (typeof scope !== 'function' || !(workerGlobal instanceof scope)) return null;
+  const performance = workerGlobal.performance;
+  const prototype = workerGlobal.Performance?.prototype;
+  if (!prototype) return null;
+  const method: unknown = Object.getOwnPropertyDescriptor(prototype, 'now')?.value;
+  if (
+    typeof method !== 'function' ||
+    Function.prototype.toString.call(method) !== 'function now() { [native code] }'
+  )
+    return null;
+  // The native Performance method requires its receiver, unlike another native clock such as Date.now.
+  try {
+    Reflect.apply(method, undefined, []);
+    return null;
+  } catch {
+    // The Web IDL receiver check must reject the detached call.
+  }
+  const now = Function.prototype.bind.call(method, performance) as () => number;
+  return {
+    now,
+    isCurrent: () =>
+      workerGlobal.performance === performance &&
+      workerGlobal.Performance?.prototype === prototype &&
+      Object.getPrototypeOf(performance) === prototype &&
+      Object.getOwnPropertyDescriptor(performance, 'now') === undefined &&
+      Object.getOwnPropertyDescriptor(prototype, 'now')?.value === method,
+  };
+}
+
+// Anchor the method once. A live comparison alone could admit a newly wrapped prototype.
+const dedicatedWorkerClock = captureDedicatedWorkerClock();
+
+/** Internal browser Worker entry. The clock and synchronous slice stay inside the Worker realm. */
+export function openDedicatedElectronicsAdvanceSession(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  options: AdvanceSessionOptions,
+) {
+  const clock = dedicatedWorkerClock;
+  if (!clock?.isCurrent()) return null;
+  const session = openElectronicsAdvanceSession(document, request, options);
+  return dedicatedSession(session, clock);
+}
+
+function dedicatedSession(
+  session: ReturnType<typeof openElectronicsAdvanceSession>,
+  clock: NonNullable<typeof dedicatedWorkerClock>,
+) {
+  return {
+    step: () => session.step(),
+    stepThroughOwnedPauses(deadline: number) {
+      // A stalled clock still yields after a finite number of the existing canonical batches.
+      let remaining = 256;
+      let sliceExhausted = false;
+      const timed = session.step(
+        Number.isFinite(deadline) && clock.isCurrent()
+          ? {
+              canResume: () => {
+                if (remaining === 0) {
+                  sliceExhausted = true;
+                  return false;
+                }
+                if (!(clock.now() < deadline)) return false;
+                remaining--;
+                return true;
+              },
+            }
+          : undefined,
+      );
+      return { timed, sliceExhausted };
+    },
+    dispose: session.dispose,
+  };
+}
+
+/** Advance only ordinary fixed thermal ticks before an acknowledged Arduino wake. The exact
+ * public horizon is supplied later, before any MCU instruction or endpoint observation. */
+export function prepareDedicatedElectronicsSleepingWake(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  options: AdvanceSessionOptions,
+) {
+  const clock = dedicatedWorkerClock;
+  const continuation = request.state?.continuation;
+  const lower = request.requestedHorizonMicroseconds;
+  if (
+    !clock?.isCurrent() ||
+    !continuation ||
+    continuation.clockProfileId !== 'electrothermal-events-v2' ||
+    request.state?.lifecycle !== 'running' ||
+    request.inputEvents?.length ||
+    !Number.isSafeInteger(lower) ||
+    lower <= continuation.committedHorizonMicroseconds ||
+    lower - continuation.committedHorizonMicroseconds > 25_000
+  )
+    return null;
+  const prefix = createArduinoSleepingPhysicsPrefix();
+  const session = openElectronicsAdvanceSession(document, request, options, prefix);
+  try {
+    if (session.canPrepare() && session.step() === null && prefix.waiting()) {
+      return {
+        claim(actual: number) {
+          return clock.isCurrent() && session.setPrefixHorizon(actual)
+            ? dedicatedSession(session, clock)
+            : null;
+        },
+        dispose: session.dispose,
+      };
+    }
+  } catch {
+    // Speculative failures have no external effect. The authoritative request takes the ordinary path.
+  }
+  session.dispose();
+  return null;
+}
+
+/** A Worker creates one electrical-template owner for each live project and generation. */
+export function createElectronicsWorkerElectricalTemplateOwner() {
+  return createArduinoElectricalTemplateOwner();
 }
 
 interface HcSr04TestIdentity {
@@ -909,7 +1082,7 @@ function* advanceElectronicsRequest(
   observeLedTemporal = false,
   ownership?: ReturnType<typeof createOwnedArduinoCircuitClockRequest>,
   observeSevenSegmentTemporal = false,
-): Generator<null, ElectronicsTimedAdvanceResult, void> {
+): Generator<null, ElectronicsTimedAdvanceResult, NativeWorkerSlice | undefined> {
   // Recheck before even the initial structural/model guards can call a producer.
   ownership?.check();
   const state = request.state ?? resetElectronicsTimedState();
@@ -993,10 +1166,15 @@ function* advanceElectronicsRequest(
       : null;
   let opticalObservation: ElectronicsLedTemporalObservation | null | undefined;
   let advanced: ArduinoCircuitClockAdvance;
+  let workerSlice: NativeWorkerSlice | undefined;
   try {
     do {
       if (driver) {
-        const next = driver.step()!;
+        const next = driver.step(workerSlice)!;
+        if (next.advanced === null) {
+          workerSlice = yield null;
+          continue;
+        }
         advanced = next.advanced;
         opticalObservation = next.ledTemporal;
       } else
@@ -1008,7 +1186,7 @@ function* advanceElectronicsRequest(
         );
       if (!internalBatches || advanced.executionStatus !== 'yielded') break;
       previous = advanced.state ?? undefined;
-      yield null;
+      workerSlice = yield null;
     } while (true);
   } finally {
     driver?.dispose();

@@ -24,6 +24,8 @@ import type { LiveSimulationWorkerCallbacks } from '../live-simulation-worker-co
 import { ElectronicsLiveSimulationWorkerController } from '../live-simulation-worker-controller';
 import { loadSimulationWorkerController } from '../load-simulation-worker-controller';
 import { SimulationFailure } from '../simulation-failure';
+import * as liveSimulation from '../live-simulation';
+import * as productionAssets from '../production-asset-contracts';
 import { catalogEntry } from '../component-catalog';
 import { configureProductionLibrary } from '../production-manifest-adapter';
 import { ProductionComponentVisual, NativeOpticalProvider } from '../NativeOpticalComponentVisual';
@@ -420,6 +422,80 @@ afterEach(async () => {
 });
 
 describe('shared workbench with a local project host', () => {
+  it('shares the stopped calculation and only warms the latest ready document', async () => {
+    const project = localProjectHost();
+    const makeDocument = (ledColour: 'red' | 'green'): SchematicDocument => ({
+      ...initial,
+      components: [
+        ...initial.components,
+        {
+          id: 'led',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          value: 2,
+          position: { x: 200, y: 0 },
+          pinIds: ['anode', 'cathode'],
+          stateProperties: { ledColour },
+        },
+      ],
+    });
+    const diagnostic = {
+      code: 'component_overload',
+      severity: 'warning' as const,
+      message: 'Проверьте нагрузку светодиода',
+      componentIds: ['led'],
+    };
+    const calculate = vi.spyOn(liveSimulation, 'calculateSimulationPreflight').mockReturnValue({
+      ...ready,
+      diagnostics: [diagnostic],
+      components: [
+        {
+          componentId: 'led',
+          brightness: 42,
+          lit: true,
+          current: 0.01,
+          voltageDrop: 2,
+          terminalVoltages: { anode: 2, cathode: 0 },
+        },
+      ],
+    });
+    const warm = vi.spyOn(productionAssets, 'warmProductionAsset').mockImplementation(() => {});
+    const render = async (document: SchematicDocument, running = false) =>
+      act(async () =>
+        root.render(
+          createElement(LocalHostProbe, {
+            projectState: {
+              ...project,
+              document,
+              getCurrentDocument: () => document,
+              simulationRunning: running,
+              simulationStatus: running ? 'running' : 'stopped',
+            },
+          }),
+        ),
+      );
+
+    await render(makeDocument('red'));
+    expect(calculate).toHaveBeenCalledTimes(1);
+    expect(workbench.diagnosticsByComponent.get('led')).toEqual([diagnostic]);
+    await tick(119);
+
+    const latest = makeDocument('green');
+    await render(latest);
+    await tick(119);
+    expect(calculate).toHaveBeenCalledTimes(2);
+    expect(warm).not.toHaveBeenCalled();
+    await tick(1);
+    expect(calculate).toHaveBeenCalledTimes(2);
+    expect(warm).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/led_green_i042\.svg$/));
+
+    await render(makeDocument('red'));
+    await render(latest, true);
+    await tick(120);
+    expect(calculate).toHaveBeenCalledTimes(3);
+    expect(warm).toHaveBeenCalledTimes(1);
+  });
+
   it('scopes shortcuts to the embedded editing page and restores the legacy default exactly once', async () => {
     const projectState = {
       ...localProjectHost(),
@@ -2610,7 +2686,7 @@ describe('mounted workbench LED temporal display', () => {
     expect(workbench.componentLedBrightness(led)).toBe(0);
   });
 
-  async function residentLowBoundary() {
+  async function prepareResidentLowBoundary() {
     await startOptical(100_000);
     const high = workbench.committedComponentLedAsset(led);
     if (!high) throw new Error('The first HIGH must own a native lease');
@@ -2620,14 +2696,234 @@ describe('mounted workbench LED temporal display', () => {
     if (!off) throw new Error('The already-loaded resident OFF image is missing');
     await receiveHeldPrefix(0, 93_750, 100_000);
     const low = opticalReady(100_000, 93_750, 100_000);
+    return { low, high, off };
+  }
+
+  async function residentLowBoundary() {
+    const { low, high, off } = await prepareResidentLowBoundary();
+    // The ordinary RAF path is mandatory when the prior mounted vector has
+    // not been observed in a render-opportunity task.
+    workbench.nativeOpticalPresentation.clearRenderWitness();
     await receive(low);
-    // The complete LOW has arrived at its real wall deadline. It must stay
-    // uncommitted until the next shared RAF verifies its resident native lease.
     assertCommitted(80, 'lit');
     expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
     return { low, high, off };
   }
 
+  it('presents one already elapsed resident phase and skips the reserved current-vector ACK', async () => {
+    const { low, off } = await prepareResidentLowBoundary();
+    await tick(10);
+    expect(workbench.nativeOpticalPresentation.hasRenderWitness()).toBe(true);
+    const queuedFrame = frameSequence;
+    await receive(low);
+    assertCommitted(0, 'off');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
+    expect(workbench.committedComponentLedAsset(led)?.element).toBe(off);
+    expect(frameSequence).toBe(queuedFrame);
+    expect(workbench.result).toBe(low.result);
+    expect(workbench.simulationTimeMs).toBe(100);
+
+    await requestedHorizon(106_250);
+    const same = opticalReady(106_250, 100_000, 100_000);
+    await receive(same);
+    await frame();
+    expect(workbench.simulationTimeMs).toBe(100);
+    expect(workbench.result).toBe(low.result);
+    await frame();
+    expect(workbench.result).toBe(same.result);
+    expect(workbench.simulationTimeMs).toBe(106.25);
+  });
+
+  it.each(['before its RAF', 'after its first render task'] as const)(
+    'retries ready data that arrived %s without overwriting the previous phase',
+    async (readyTiming) => {
+      const { low } = await prepareResidentLowBoundary();
+      await tick(10);
+      await receive(low);
+      assertCommitted(0, 'off');
+      const port = workbench.nativeOpticalPresentation;
+      expect(port.hasRenderWitness()).toBe(false);
+      await requestedHorizon(120_000);
+      const high = observed([
+        { atMicroseconds: 100_000, brightness: 0, current: 0 },
+        { atMicroseconds: 120_000, brightness: 80, current: 0.01 },
+      ]);
+      const before = frameSequence;
+      if (readyTiming === 'before its RAF') await receive(high);
+      await frame();
+      assertCommitted(0, 'off');
+      expect(port.hasRenderWitness()).toBe(false);
+      await tick(0);
+      // The real frame's render task observed the original mounted phase.
+      expect(port.hasRenderWitness()).toBe(true);
+      assertCommitted(0, 'off');
+      if (readyTiming === 'after its first render task') await receive(high);
+      else await tick(2);
+      assertCommitted(80, 'lit');
+      expect(workbench.result).toBe(high.result);
+      expect(frameSequence).toBe(before + 1);
+    },
+  );
+
+  it('returns an early proposal with an unready asset to the ordinary RAF', async () => {
+    const { high } = await prepareResidentLowBoundary();
+    await tick(10);
+    expect(workbench.nativeOpticalPresentation.hasRenderWitness()).toBe(true);
+    const next = observed([
+      { atMicroseconds: 93_750, brightness: 80, current: 0.01 },
+      { atMicroseconds: 100_000, brightness: 60, current: 0.008 },
+    ]);
+    await receive(next);
+    assertCommitted(80, 'lit');
+    expect(workbench.committedComponentLedAsset(led)).toBe(high);
+    expect(workbench.nativeOpticalPresentation.getSnapshot().rollback).toBeNull();
+
+    await frame(16);
+    await loadMountedImages();
+    await frame();
+    assertCommitted(60, 'lit');
+    expect(workbench.result).toBe(next.result);
+  });
+
+  it('restores the exact mounted vector if an early proposal gets no joint layout ACK', async () => {
+    const { low, high } = await prepareResidentLowBoundary();
+    await tick(10);
+    const port = workbench.nativeOpticalPresentation;
+    expect(port.hasRenderWitness()).toBe(true);
+    const layout = port.afterLayout.bind(port);
+    const missed = vi.fn();
+    const suspendedLayout = vi.spyOn(port, 'afterLayout').mockImplementation((snapshot) => {
+      if (snapshot.observation && snapshot.observation !== snapshot.committed) missed();
+      else layout(snapshot);
+    });
+    await receive(low);
+    suspendedLayout.mockRestore();
+    expect(missed).toHaveBeenCalled();
+    assertCommitted(80, 'lit');
+    expect(workbench.committedComponentLedAsset(led)).toBe(high);
+    expect(port.getSnapshot().observation).toBe(port.getSnapshot().committed);
+    expect(port.getSnapshot().rollback).toBeNull();
+
+    await frame(16);
+    assertCommitted(0, 'off');
+    expect(workbench.result).toBe(low.result);
+  });
+
+  it.each(['native preparation', 'joint layout'] as const)(
+    'settles Pause when %s discards an early publication',
+    async (during) => {
+      const { low, high } = await prepareResidentLowBoundary();
+      await tick(10);
+      const port = workbench.nativeOpticalPresentation;
+      expect(port.hasRenderWitness()).toBe(true);
+      const priorResult = workbench.result;
+      const priorTime = workbench.simulationTimeMs;
+      const priorPreparation = port.getSnapshot().preparation;
+      const pausedInLayout = vi.fn();
+      onLayoutCommit = () => {
+        const snapshot = port.getSnapshot();
+        if (
+          during === 'native preparation' &&
+          (!snapshot.preparation || snapshot.preparation === priorPreparation)
+        )
+          return;
+        if (during === 'joint layout' && snapshot.observation === snapshot.committed) return;
+        onLayoutCommit = null;
+        workbench.setSimulationRate(0);
+        expect(workbench.simulationPacing.read().phase).toBe('pausing');
+        pausedInLayout();
+      };
+
+      await receive(low);
+      expect(pausedInLayout).toHaveBeenCalledTimes(1);
+      expect(workbench.simulationPacing.read().phase).toBe('paused');
+      expect(workbench.result).toBe(priorResult);
+      expect(workbench.simulationTimeMs).toBe(priorTime);
+      expect(workbench.committedComponentLedAsset(led)).toBe(high);
+      expect(port.getSnapshot().rollback).toBeNull();
+      expect(port.getSnapshot().preparation).toBeNull();
+      assertCommitted(80, 'lit');
+      await frames(2);
+      expect(workbench.simulationPacing.read().phase).toBe('paused');
+      assertCommitted(80, 'lit');
+    },
+  );
+
+  it('waits for an ordinary pending native frame before settling Pause with a prior visible vector', async () => {
+    const { high } = await prepareResidentLowBoundary();
+    await tick(10);
+    workbench.nativeOpticalPresentation.clearRenderWitness();
+    const next = observed([
+      { atMicroseconds: 93_750, brightness: 80, current: 0.01 },
+      { atMicroseconds: 100_000, brightness: 60, current: 0.008 },
+    ]);
+    await receive(next);
+    await frame(16);
+    const pending = workbench.preparedComponentLedAsset(led);
+    expect(pending?.asset).toMatch(/_i060\.svg$/);
+    assertCommitted(80, 'lit');
+
+    await act(async () => workbench.setSimulationRate(0));
+    expect(workbench.simulationPacing.read().phase).toBe('pausing');
+    expect(workbench.preparedComponentLedAsset(led)).toEqual(pending);
+    expect(workbench.committedComponentLedAsset(led)).toBe(high);
+
+    await loadMountedImages();
+    await frame();
+    assertCommitted(60, 'lit');
+    expect(workbench.simulationPacing.read().phase).toBe('paused');
+  });
+
+  it('rechecks visibility before acknowledging a mounted early proposal', async () => {
+    const { low, high } = await prepareResidentLowBoundary();
+    await tick(10);
+    const port = workbench.nativeOpticalPresentation;
+    const layout = port.afterLayout.bind(port);
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const hiddenAfterProposal = vi.spyOn(port, 'afterLayout').mockImplementation((snapshot) => {
+      if (snapshot.observation && snapshot.observation !== snapshot.committed)
+        visibility.mockReturnValue('hidden');
+      layout(snapshot);
+    });
+    await receive(low);
+    expect(document.visibilityState).toBe('hidden');
+    hiddenAfterProposal.mockRestore();
+    visibility.mockRestore();
+    assertCommitted(80, 'lit');
+    expect(workbench.committedComponentLedAsset(led)).toBe(high);
+    expect(port.getSnapshot().rollback).toBeNull();
+
+    await frame(16);
+    assertCommitted(0, 'off');
+  });
+
+  it.each(['Stop', 'Reset', 'source'] as const)(
+    'rejects an already queued early publication across %s',
+    async (change) => {
+      const { low } = await prepareResidentLowBoundary();
+      await tick(10);
+      expect(workbench.nativeOpticalPresentation.hasRenderWitness()).toBe(true);
+      const stale = worker().callbacks!;
+      await act(async () => {
+        stale.onCommittedHorizon!(low.observation.toMicroseconds);
+        stale.onResult(low.result, low.observation, 'electrothermal-events-v2');
+        flushSync(() => {
+          if (change === 'Stop') workbench.toggleSimulation();
+          if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+          if (change === 'source')
+            workbench.updateArduinoProgram('uno', {
+              arduinoSource: 'void setup(){}void loop(){delay(77);}',
+            });
+        });
+      });
+      expect(workbench.result).not.toBe(low.result);
+      expect(workbench.nativeOpticalPresentation.getSnapshot().rollback).toBeNull();
+      if (change !== 'source')
+        expect(workbench.nativeOpticalPresentation.hasRenderWitness()).toBe(false);
+      await tick(0);
+      expect(workbench.result).not.toBe(low.result);
+    },
+  );
   it('publishes a loaded resident asset within its first eligible preparation RAF at the real phase deadline', async () => {
     const { off } = await residentLowBoundary();
     const before = frameSequence;
@@ -2729,13 +3025,14 @@ describe('mounted workbench LED temporal display', () => {
     expect(worker().update.mock.calls.at(-1)![1]).toBe(56_250);
   });
 
-  it('publishes explicit HIGH and LOW only after shared RAF, native readiness and layout ACK', async () => {
+  it('publishes explicit HIGH and LOW through RAF and layout when a previous frame is unwitnessed', async () => {
     await startOptical(50_000);
     const first = await receiveHeldPrefix(0, 25_000, 50_000);
     expect(workbench.result).toBe(first.result);
     const beforeLow = await receiveHeldPrefix(25_000, 43_750, 50_000);
     await requestedHorizon(50_000);
     const low = opticalReady(50_000, 43_750, 50_000);
+    workbench.nativeOpticalPresentation.clearRenderWitness();
     await receive(low);
     expect(low.result.components[0]!.brightness).toBe(0);
     expect(workbench.result).toBe(beforeLow.result);
@@ -2749,6 +3046,7 @@ describe('mounted workbench LED temporal display', () => {
     const beforeHigh = await receiveHeldPrefix(75_000, 93_750, 50_000);
     await requestedHorizon(100_000);
     const high = opticalReady(100_000, 93_750, 50_000);
+    workbench.nativeOpticalPresentation.clearRenderWitness();
     await receive(high);
     expect(high.result.components[0]!.brightness).toBe(80);
     expect(workbench.result).toBe(beforeHigh.result);
@@ -2765,9 +3063,6 @@ describe('mounted workbench LED temporal display', () => {
     await requestedHorizon(50_000);
     const low = opticalReady(50_000, 25_000, 30_000);
     await receive(low);
-    assertCommitted(80, 'lit');
-    await frame();
-    await frame();
     assertCommitted(0, 'off');
     expect(workbench.simulationTimeMs).toBe(50);
     await requestedHorizon(60_000);
@@ -2775,6 +3070,7 @@ describe('mounted workbench LED temporal display', () => {
     await receive(high);
     assertCommitted(0, 'off');
     await frame();
+    assertCommitted(0, 'off');
     await frame();
     assertCommitted(80, 'lit');
     expect(workbench.simulationTimeMs).toBe(60);

@@ -2109,23 +2109,51 @@ async function nativeSamples(page: Page, label: string, raw: Probe): Promise<str
   for (const active of [true, false]) {
     let requestedObserved = false;
     for (let attempt = 0; attempt < 3 && !requestedObserved; attempt++) {
-      await page.waitForFunction(
-        (active) => {
-          const paint = (window as ProbeWindow).__classroomD13?.paints.at(-1);
-          return (
-            paint?.stable &&
-            paint.assetsReady &&
-            paint.ledLit === active &&
-            paint.lActive === active
-          );
-        },
-        active,
-        { timeout: 5_000 },
+      const { beforeShot, frameOffset } = await page.evaluate(
+        ({ active, phaseMs, epoch, source }) =>
+          new Promise<{ beforeShot: Paint; frameOffset: number }>((resolve, reject) => {
+            let next = 0;
+            const timeout = window.setTimeout(() => {
+              cancelAnimationFrame(next);
+              reject(new Error('No fresh live phase for native D13 capture'));
+            }, 5_000);
+            const waitForPhase = () => {
+              const probe = (window as ProbeWindow).__classroomD13;
+              const beforeShot = probe?.paints.at(-1);
+              const onset = probe?.paints.at(-2);
+              const opposite = probe?.paints.at(-3);
+              if (
+                probe?.epoch === epoch &&
+                probe.source === source &&
+                beforeShot?.stable &&
+                onset &&
+                opposite?.stable &&
+                beforeShot.previousAt === onset.at &&
+                onset.previousAt === opposite.at &&
+                [beforeShot, onset, opposite].every(
+                  (paint) => paint.running === 'running' && paint.assetsReady,
+                ) &&
+                beforeShot.ledLit === active &&
+                beforeShot.lActive === active &&
+                onset.ledLit === active &&
+                onset.lActive === active &&
+                opposite.ledLit === !active &&
+                opposite.lActive === !active &&
+                // Start on the leading stable pair with time left for another pair at
+                // the observed cadence. The real PNG still decides what was displayed.
+                performance.now() + (beforeShot.at - opposite.at) < opposite.at + phaseMs
+              ) {
+                clearTimeout(timeout);
+                // Match and copy the witness/receipt offset in the same browser task.
+                resolve({ beforeShot, frameOffset: probe.frames.length });
+              } else {
+                next = requestAnimationFrame(waitForPhase);
+              }
+            };
+            next = requestAnimationFrame(waitForPhase);
+          }),
+        { active, phaseMs: 300, epoch: expected.epoch, source: expected.source },
       );
-      const { beforeShot, frameOffset } = await page.evaluate(() => {
-        const probe = (window as ProbeWindow).__classroomD13!;
-        return { beforeShot: probe.paints.at(-1)!, frameOffset: probe.frames.length };
-      });
       const name = label + (active ? '-high-' : '-low-') + attempt;
       const path = resolve(artifactRoot, name + '.png');
       const bytes = await page.screenshot({ path });
