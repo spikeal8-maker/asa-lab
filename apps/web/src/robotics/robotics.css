@@ -4944,17 +4944,21 @@
   .robotics-field-toolbar-primary {
     justify-content: space-between;
     flex-wrap: wrap;
-    padding-block: 2px;
+    gap: 2px;
+    padding: 2px 3px;
   }
   .robotics-field-toolbar-primary .robotics-field-view-switch {
-    gap: 2px;
-    padding: 0 2px;
+    gap: 1px;
+    padding: 0;
   }
   .robotics-field-toolbar-primary .robotics-field-view-switch button {
-    padding-inline: 4px;
+    padding-inline: 3px;
   }
   .robotics-field-toolbar-primary button {
     min-width: 44px;
     min-height: 44px;
+  }
+  .robotics-field-toolbar-primary .robotics-field-zoom output {
+    min-width: 32px;
   }
 }

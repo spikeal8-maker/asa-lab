@@ -449,6 +449,10 @@ async function measurePrimaryFieldControls(page: Page) {
   }
   await expect(fieldScale(page)).toHaveText(/^\d+%$/);
   const scale = await measurePrimaryControl(fieldScale(page), false, 1);
+  if (width === 320) {
+    const centersY = [...buttons.map(({ center }) => center.y), scale.center.y];
+    expect(Math.max(...centersY) - Math.min(...centersY)).toBeLessThanOrEqual(2);
+  }
   return { width, buttons, scale };
 }
 
