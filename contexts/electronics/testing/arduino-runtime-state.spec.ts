@@ -4,6 +4,7 @@ import {
   advanceClockedArduinoRuntime,
   arduinoRuntimeStateMatchesProgram,
   createOwnedClockedArduinoRuntime,
+  ownedArduinoRuntimeStateMatchesProgram,
   resetArduinoRuntime,
   type ArduinoRuntimeAdvance,
   type ArduinoRuntimeState,
@@ -386,6 +387,120 @@ describe('Arduino persistent runtime state', () => {
     expect(result.state.eventQueue).toHaveLength(256);
     expect(result.state.eventQueue.at(-1)?.sequence).toBe(result.state.nextEventSequence - 1);
     expect(result.state.eventQueue[0]?.sequence).toBe(result.state.nextEventSequence - 256);
+  });
+
+  const blinkingHistorySource =
+    'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);digitalWrite(13,LOW);delay(1);}';
+
+  it.each(['cold', 'continued'] as const)(
+    'preserves all retained GPIO events and detached state from a %s start',
+    (start) => {
+      const initial =
+        start === 'cold'
+          ? undefined
+          : advanceClockedArduinoRuntime(blinkingHistorySource, {}, 290).state;
+      const ordinary = createOwnedClockedArduinoRuntime(
+        blinkingHistorySource,
+        initial && structuredClone(initial),
+      )!;
+      const owned = createOwnedClockedArduinoRuntime(
+        blinkingHistorySource,
+        initial && structuredClone(initial),
+        { retainEventHistory: true },
+      )!;
+      const comparisons: [ArduinoRuntimeAdvance, ArduinoRuntimeAdvance][] = [];
+      try {
+        for (const horizon of [295, 315, 350]) {
+          const actual = owned.advance(horizon, 2048);
+          const expected = ordinary.advance(horizon, 2048);
+          const previous = comparisons.at(-1)?.[0].state;
+          for (const state of previous ? [previous, actual.state] : [actual.state]) {
+            expect(
+              ownedArduinoRuntimeStateMatchesProgram(owned, blinkingHistorySource, state),
+            ).toBe(true);
+            expect(Object.getOwnPropertyDescriptor(state, 'eventQueue')?.get).toBeTypeOf(
+              'function',
+            );
+          }
+          comparisons.push([actual, expected]);
+        }
+        for (const [actual, expected] of comparisons) {
+          expect(JSON.stringify(actual)).toBe(JSON.stringify(expected));
+        }
+        const states = comparisons.map(([actual]) => actual.state);
+        expect(states.at(-1)!.eventQueue).toHaveLength(256);
+        const lastState = states.at(-1)!;
+        expect(lastState.eventQueue.at(-1)?.sequence).toBe(lastState.nextEventSequence - 1);
+        const lastQueue = JSON.stringify(lastState.eventQueue);
+        Object.assign(states[0]!.eventQueue.at(-1)!, { voltage: 123 });
+        expect(JSON.stringify(lastState.eventQueue)).toBe(lastQueue);
+      } finally {
+        owned.dispose();
+        ordinary.dispose();
+      }
+    },
+  );
+
+  it('checks live bounds and falls back for a modified, foreign, or disposed history owner', () => {
+    const owner = createOwnedClockedArduinoRuntime(blinkingHistorySource, undefined, {
+      retainEventHistory: true,
+    })!;
+    const first = owner.advance(5, 256).state;
+    const previous = owner.advance(6, 256).state;
+    const current = owner.advance(7, 256).state;
+    const valid = (state: ArduinoRuntimeState, context: object = owner) =>
+      ownedArduinoRuntimeStateMatchesProgram(context, blinkingHistorySource, state);
+    const view = (state: ArduinoRuntimeState) =>
+      Object.getOwnPropertyDescriptor(state, 'eventQueue')?.get;
+
+    expect(view(first)).toBeTypeOf('function');
+    expect(valid(first, {})).toBe(true);
+    expect(view(first)).toBeUndefined();
+    Object.assign(first.eventQueue[0]!, { sequence: -1 });
+    expect(valid(first)).toBe(false);
+
+    const next = current.nextEventSequence;
+    const phase = current.phase;
+    Object.assign(current, { nextEventSequence: next - 1 });
+    expect(valid(current)).toBe(false);
+    expect(view(current)).toBeTypeOf('function');
+    Object.assign(current, { nextEventSequence: next, phase: 'invalid' });
+    expect(valid(current)).toBe(false);
+    Object.assign(current, { phase });
+
+    const history = previous.eventQueue;
+    Object.defineProperty(previous, 'eventQueue', {
+      get: () =>
+        history.map((event, index) => (index === 1 ? { ...event, atMicroseconds: -1 } : event)),
+    });
+    expect(valid(previous)).toBe(false);
+    expect(valid(current)).toBe(true);
+    expect(view(current)).toBeTypeOf('function');
+    expect(ownedArduinoRuntimeStateMatchesProgram(owner, 'void loop(){return;}', current)).toBe(
+      false,
+    );
+
+    owner.dispose();
+    expect(valid(current)).toBe(true);
+    expect(view(current)).toBeUndefined();
+  });
+
+  it('validates the full imported queue before adopting private history', () => {
+    const imported = advanceClockedArduinoRuntime(blinkingHistorySource, {}, 10).state;
+    Object.assign(imported.eventQueue[1]!, { atMicroseconds: -1 });
+    expect(arduinoRuntimeStateMatchesProgram(blinkingHistorySource, imported)).toBe(false);
+    const owned = createOwnedClockedArduinoRuntime(
+      blinkingHistorySource,
+      structuredClone(imported),
+      { retainEventHistory: true },
+    )!;
+    try {
+      const actual = owned.advance(15, 256);
+      const expected = advanceClockedArduinoRuntime(blinkingHistorySource, {}, 15, imported);
+      expect(JSON.stringify(actual)).toBe(JSON.stringify(expected));
+    } finally {
+      owned.dispose();
+    }
   });
 
   it('executes finite for and while loops with bounded C++ semantics', () => {

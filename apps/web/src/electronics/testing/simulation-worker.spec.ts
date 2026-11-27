@@ -2,6 +2,8 @@ import {
   advanceElectronicsToHorizon,
   analyseElectronicsSnapshot,
   createElectronicsAdvanceSession,
+  createElectronicsWorkerElectricalTemplateOwner,
+  openDedicatedElectronicsAdvanceSession,
   resetElectronicsTimedState,
   pauseElectronicsTimedState,
   resumeElectronicsTimedState,
@@ -22,8 +24,11 @@ import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
   type ElectronicsSimulationWorkerRequest,
+  type ElectronicsSimulationWorkerMessage,
   type ElectronicsSimulationWorkerResponse,
   type SimulationPreflightRequest,
+  type SimulationAdvanceRequest,
+  type SimulationTimedAdvancePayload,
 } from '../simulation-worker-protocol';
 
 const circuit: SchematicDocument = {
@@ -645,9 +650,76 @@ describe('ASA Electronics Worker module message loop', () => {
       generationId: 3,
     });
   });
+
+  it('isolates retained algebra by live generation and project and revokes it on a fault', async () => {
+    const open = vi.spyOn(electronicsEngine, 'createElectronicsAdvanceSession');
+    // Module resets isolate the Worker; its reimport must see the same real engine with this spy.
+    vi.doMock('@asa-lab/electronics/engine', () => electronicsEngine);
+    let receive: (response: ElectronicsSimulationWorkerResponse) => void;
+    const scope = {
+      onmessage: null as ((event: MessageEvent<ElectronicsSimulationWorkerRequest>) => void) | null,
+      postMessage: (message: ElectronicsSimulationWorkerResponse) => receive(message),
+    };
+    vi.stubGlobal('self', scope);
+    try {
+      await import('../simulation.worker');
+      const first = {
+        ...preflightRequest('first', 3),
+        kind: 'advance' as const,
+        document: arduinoCircuit,
+        state: resetElectronicsTimedState(),
+        requestedHorizonMicroseconds: 500,
+      };
+      const send = (request: typeof first) =>
+        new Promise<SimulationTimedAdvancePayload>((resolve, reject) => {
+          receive = (message) => {
+            if (message.ok && message.kind === 'advance') resolve(message.advance);
+            else reject(new Error('Expected an advance response'));
+          };
+          scope.onmessage?.({ data: request } as MessageEvent<ElectronicsSimulationWorkerRequest>);
+        });
+      const lastOwner = () => open.mock.lastCall?.[2]?.electricalTemplateOwner;
+      const cold = await send(first);
+      expect(cold.executionStatus).toBe('ready');
+      const originalOwner = lastOwner();
+      expect(originalOwner).toBeDefined();
+      const continued = { ...first, state: cold.state, requestedHorizonMicroseconds: 600 };
+      await send(continued);
+      expect(lastOwner()).toBe(originalOwner);
+
+      const newProject = { ...continued, projectSessionId: 'different-project' };
+      await send(newProject);
+      const projectOwner = lastOwner();
+      expect(projectOwner).not.toBe(originalOwner);
+      const rejected = await send({ ...newProject, requestedHorizonMicroseconds: 400 });
+      expect(rejected.executionStatus).toBe('fault');
+      await send(newProject);
+      const recoveredOwner = lastOwner();
+      expect(recoveredOwner).not.toBe(projectOwner);
+
+      scope.onmessage?.(
+        new MessageEvent<ElectronicsSimulationWorkerRequest>('message', {
+          data: { ...preflightRequest('cancel', 3), kind: 'cancel-generation' },
+        }),
+      );
+      await send({ ...newProject, generationId: 4 });
+      expect(lastOwner()).not.toBe(recoveredOwner);
+    } finally {
+      vi.doUnmock('@asa-lab/electronics/engine');
+      open.mockRestore();
+    }
+  });
 });
 
 describe('bounded private Worker execution', () => {
+  it('does not grant a native dedicated slice to an ordinary module session', () => {
+    const request = { requestedHorizonMicroseconds: 100, state: resetElectronicsTimedState() };
+    expect(openDedicatedElectronicsAdvanceSession(arduinoCircuit, request, {})).toBeNull();
+    expect(createElectronicsAdvanceSession(arduinoCircuit, request)).not.toHaveProperty(
+      'stepThroughOwnedPauses',
+    );
+  });
+
   const request = () => ({
     ...preflightRequest('batched'),
     kind: 'advance' as const,
@@ -818,6 +890,90 @@ describe('Worker owned-session disposal', () => {
 });
 
 describe('actual LED optical observation through the production Worker evaluator', () => {
+  it('ignores optional wake preparations outside a dedicated Worker and preserves canonical responses', async () => {
+    type AdvanceReply = Extract<ElectronicsSimulationWorkerResponse, { ok: true; kind: 'advance' }>;
+    const posted: ElectronicsSimulationWorkerResponse[] = [];
+    const scope = {
+      onmessage: null as ((event: MessageEvent<ElectronicsSimulationWorkerMessage>) => void) | null,
+      postMessage: (reply: ElectronicsSimulationWorkerResponse) => posted.push(reply),
+    };
+    vi.stubGlobal('self', scope);
+    try {
+      await import('../simulation.worker');
+      const send = (request: ElectronicsSimulationWorkerMessage) =>
+        scope.onmessage!({
+          data: structuredClone(request),
+        } as MessageEvent<ElectronicsSimulationWorkerMessage>);
+      const advance = async (request: SimulationAdvanceRequest): Promise<AdvanceReply> => {
+        send(request);
+        await vi.waitFor(() => expect(posted.at(-1)?.requestId).toBe(request.requestId));
+        const reply = posted.pop()!;
+        if (!reply.ok || reply.kind !== 'advance') throw Error('Expected a canonical advance');
+        return reply;
+      };
+      const first = {
+        ...ledRequest(
+          'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(30);}',
+        ),
+        requestedHorizonMicroseconds: 20_000,
+      };
+      const base = await advance(first);
+      expect(base.advance.state.continuation?.clockProfileId).toBe('electrothermal-events-v2');
+      const next = {
+        ...first,
+        state: base.advance.state,
+        requestedHorizonMicroseconds: 30_005,
+        requestId: 'canonical',
+      };
+      const direct = await advance(next);
+      const prepare = () => send({ ...next, kind: 'prepare-advance', requestId: 'expected-wake' });
+      const id = { preparedRequestId: 'expected-wake' };
+      prepare();
+      await Promise.resolve();
+      expect(posted).toEqual([]);
+      const granted = await advance({ ...next, ...id });
+      expect(granted.metrics.preparedComputeMs).toBeUndefined();
+      expect(granted.advance).toEqual(direct.advance);
+      for (const changed of [
+        { requestedHorizonMicroseconds: 30_004 },
+        { state: first.state },
+        { document: { ...next.document, annotations: [] } },
+        {
+          inputEvents: [
+            {
+              atMicroseconds: 20_001,
+              targetId: 'uno',
+              operation: 'serialRx' as const,
+              payload: 'A',
+            },
+          ],
+        },
+        { ...id, preparedRequestId: 'stale-grant' },
+      ]) {
+        prepare();
+        const request = { ...next, ...id, ...changed };
+        const fallback = await advance(request);
+        expect(fallback.metrics.preparedComputeMs).toBeUndefined();
+        const { preparedRequestId, ...ordinary } = request;
+        expect(preparedRequestId).toBeTruthy();
+        expect(fallback.advance).toEqual((await advance(ordinary)).advance);
+      }
+      prepare();
+      send({ ...next, kind: 'discard-preparation', ...id });
+      expect((await advance({ ...next, ...id })).metrics.preparedComputeMs).toBeUndefined();
+      prepare();
+      send({ ...next, kind: 'cancel-generation' });
+      expect(
+        (await advance({ ...next, ...id, generationId: next.generationId + 1 })).metrics
+          .preparedComputeMs,
+      ).toBeUndefined();
+      expect(posted).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+  });
+
   function ledRequest(source: string) {
     const document: SchematicDocument = {
       ...arduinoCircuit,
@@ -926,6 +1082,53 @@ describe('actual LED optical observation through the production Worker evaluator
     } finally {
       timer.mockRestore();
     }
+  });
+
+  it('matches an isolated run after a circuit keeps its IDs and changes the resistance', async () => {
+    const request = {
+      ...ledRequest(
+        'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1);}',
+      ),
+      requestedHorizonMicroseconds: 20_000,
+    };
+    const owner = createElectronicsWorkerElectricalTemplateOwner();
+    const electrical = async (input: typeof request, reusableOwner?: typeof owner) => {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        input,
+        () => true,
+        undefined,
+        reusableOwner,
+      );
+      if (!response?.ok || response.kind !== 'advance') throw new Error('Missing advance response');
+      expect(response.advance.executionStatus).toBe('ready');
+      return response.advance;
+    };
+    const original = await electrical(request, owner);
+    const continued = { ...request, state: original.state, requestedHorizonMicroseconds: 40_000 };
+    expect(await electrical(continued, owner)).toStrictEqual(await electrical(continued));
+    const openRequest = vi.fn(() => {
+      throw new Error('Untrusted slot provider');
+    });
+    const forgedOwner = { ...owner, openRequest };
+    expect(await electrical(continued, forgedOwner)).toStrictEqual(await electrical(continued));
+    expect(openRequest).not.toHaveBeenCalled();
+
+    const changed = {
+      ...request,
+      document: {
+        ...request.document,
+        components: request.document.components.map((component) =>
+          component.id === 'r' ? { ...component, value: 680 } : component,
+        ),
+      },
+    };
+    const updated = await electrical(changed, owner);
+    expect(updated).toStrictEqual(await electrical(changed));
+    expect(
+      updated.result?.components.find((component) => component.componentId === 'led')?.current,
+    ).toBeLessThan(
+      original.result!.components.find((component) => component.componentId === 'led')!.current,
+    );
   });
 });
 

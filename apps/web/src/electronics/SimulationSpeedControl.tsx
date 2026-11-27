@@ -1,20 +1,89 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { SIMULATION_RATES, type SimulationPacing } from './simulation-pacing';
+import type { NativeOpticalPresentation } from './native-optical-presentation';
+
+type CommittedClock = Pick<NativeOpticalPresentation, 'readClock' | 'subscribeClock'>;
+
+const SAMPLE_INTERVAL_MS = 1000;
+
+function formatRate(rate: number): string {
+  return `×${String(rate).replace('.', ',')}`;
+}
 
 function rateLabel(rate: number): string {
-  return rate === 0 ? 'Пауза' : `×${String(rate).replace('.', ',')}`;
+  return rate === 0 ? 'Пауза' : formatRate(rate);
+}
+
+function measuredRateLabel(rate: number | null): string {
+  if (rate === null) return '—';
+  if (rate > 0 && rate < 0.01) return '<×0,01';
+  return formatRate(Math.round(rate * 100) / 100);
 }
 
 export function SimulationSpeedControl({
   pacing,
+  committedClock = null,
   onChange,
   children,
 }: {
   readonly pacing: SimulationPacing;
+  readonly committedClock?: CommittedClock | null;
   readonly onChange: (rate: number) => void;
   readonly children: ReactNode;
 }) {
   const state = useSyncExternalStore(pacing.subscribe, pacing.read, pacing.read);
+  const [sample, setSample] = useState<{
+    clock: CommittedClock;
+    pace: typeof state;
+    rate: number;
+  } | null>(null);
+  useEffect(() => {
+    if (!committedClock || state.rate === 0) {
+      setSample(null);
+      return;
+    }
+
+    let timer: number | undefined;
+    let model = committedClock.readClock();
+    const resetSample = () => {
+      window.clearInterval(timer);
+      setSample(null);
+      if (document.hidden) return;
+
+      let wall = window.performance.now();
+      let previous = committedClock.readClock();
+      timer = window.setInterval(() => {
+        const now = window.performance.now();
+        const committed = committedClock.readClock();
+        const elapsed = now - wall;
+        if (elapsed <= 0) return;
+        const rate = (committed - previous) / 1000 / elapsed;
+        setSample((last) =>
+          last?.clock === committedClock && last.pace === state && last.rate === rate
+            ? last
+            : { clock: committedClock, pace: state, rate },
+        );
+        previous = committed;
+        wall = now;
+      }, SAMPLE_INTERVAL_MS);
+    };
+    const unsubscribe = committedClock.subscribeClock(() => {
+      const committed = committedClock.readClock();
+      if (committed < model) resetSample();
+      model = committed;
+    });
+    document.addEventListener('visibilitychange', resetSample);
+    resetSample();
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', resetSample);
+      unsubscribe();
+    };
+  }, [committedClock, state]);
+
+  const actual = sample?.clock === committedClock && sample.pace === state ? sample.rate : null;
+  const actualLabel = measuredRateLabel(actual);
+  const slower = actual !== null && actual < state.rate * 0.9;
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ left: 8, top: 64 });
   const host = useRef<HTMLDivElement>(null);
@@ -57,11 +126,16 @@ export function SimulationSpeedControl({
         aria-label="Изменить скорость моделирования"
         aria-expanded={open}
         aria-haspopup="dialog"
+        aria-description={
+          state.rate > 0
+            ? `Фактическая скорость ${actualLabel}. Выбрано ${rateLabel(state.rate)}.`
+            : undefined
+        }
         onClick={() => setOpen((value) => !value)}
       >
         {children}
-        <span className="workbench-simulation-rate">
-          {state.phase === 'pausing' ? 'Пауза…' : rateLabel(state.rate)}
+        <span className="workbench-simulation-rate" data-actual-rate={actual ?? undefined}>
+          {state.phase === 'pausing' ? 'Пауза…' : state.rate === 0 ? 'Пауза' : actualLabel}
         </span>
       </button>
       {open ? (
@@ -75,6 +149,12 @@ export function SimulationSpeedControl({
             Скорость моделирования:{' '}
             <strong>{state.phase === 'pausing' ? 'Приостановка…' : rateLabel(state.rate)}</strong>
           </label>
+          {state.rate > 0 && (
+            <div>
+              Фактически: {actualLabel}
+              {slower ? ' · Медленнее выбранной' : null}
+            </div>
+          )}
           <input
             id="electronics-simulation-rate"
             type="range"

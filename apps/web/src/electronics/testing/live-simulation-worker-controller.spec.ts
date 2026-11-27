@@ -11,6 +11,7 @@ import {
   ElectronicsLiveSimulationWorkerController,
   type ElectronicsSimulationWorkerExecutor,
   type LiveSimulationInputBudget,
+  type LiveSimulationWorkerCallbacks,
 } from '../live-simulation-worker-controller';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -22,7 +23,7 @@ import {
   evaluateSimulationWorkerRequestBatched,
 } from '../simulation-worker-evaluator';
 import { SimulationWorkerError } from '../simulation-failure';
-import { classroomRequestedHorizon } from '../led-temporal-presentation';
+import { LedTemporalPresentation, classroomRequestedHorizon } from '../led-temporal-presentation';
 
 const circuit: SchematicDocument = {
   schemaVersion: 4,
@@ -186,6 +187,7 @@ interface AdvanceCall {
   readonly state: ElectronicsTimedState;
   readonly requestedHorizonMicroseconds: number;
   readonly inputEvents: readonly ElectronicsTimedInputEvent[];
+  readonly preparedRequestId?: string;
   readonly deferred: Deferred<SimulationTimedAdvancePayload>;
 }
 class FakeExecutor implements ElectronicsSimulationWorkerExecutor {
@@ -212,6 +214,7 @@ class FakeExecutor implements ElectronicsSimulationWorkerExecutor {
     state: ElectronicsTimedState,
     requestedHorizonMicroseconds: number,
     inputEvents: readonly ElectronicsTimedInputEvent[] = [],
+    preparedRequestId?: string,
   ): Promise<SimulationTimedAdvancePayload> {
     const request = deferred<SimulationTimedAdvancePayload>();
     this.advances.push({
@@ -220,6 +223,7 @@ class FakeExecutor implements ElectronicsSimulationWorkerExecutor {
       state,
       requestedHorizonMicroseconds,
       inputEvents,
+      ...(preparedRequestId ? { preparedRequestId } : {}),
       deferred: request,
     });
     return request.promise;
@@ -538,6 +542,737 @@ async function completeCanonicalStart(
   initialAdvance.deferred.resolve(timedAdvance('ready', 0, 0, current));
   await flush();
 }
+
+describe('Arduino wake reservation', () => {
+  const document: SchematicDocument = {
+    ...serialCircuit,
+    components: [
+      {
+        ...serialCircuit.components.at(-1)!,
+        stateProperties: {
+          arduinoSource:
+            'void setup(){pinMode(13,OUTPUT);Serial.begin(9600);}void loop(){digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(30);}',
+        },
+      },
+      {
+        id: 'r',
+        kind: 'resistor',
+        value: 330,
+        position: { x: 20, y: 0 },
+        componentTypeId: 'resistor-axial',
+        pinIds: ['lead-1', 'lead-2'],
+      },
+      {
+        id: 'led',
+        kind: 'led',
+        value: 2,
+        position: { x: 40, y: 0 },
+        componentTypeId: 'led-5mm',
+        pinIds: ['anode', 'cathode'],
+        stateProperties: { ledColour: 'red' },
+      },
+    ],
+    connections: [
+      {
+        id: 'w1',
+        from: { componentId: 'uno', terminal: 'd13' },
+        to: { componentId: 'r', terminal: 'lead-1' },
+      },
+      {
+        id: 'w2',
+        from: { componentId: 'r', terminal: 'lead-2' },
+        to: { componentId: 'led', terminal: 'anode' },
+      },
+      {
+        id: 'w3',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    ],
+  };
+
+  const quietSource =
+    'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(60);digitalWrite(13,LOW);delay(60);}';
+  const shortSource = quietSource.replaceAll('delay(60)', 'delay(20)');
+
+  function withSketch(source: string, resistance = 330): SchematicDocument {
+    return {
+      ...document,
+      components: document.components.map((component) =>
+        component.id === 'uno'
+          ? { ...component, stateProperties: { arduinoSource: source } }
+          : component.id === 'r'
+            ? { ...component, value: resistance }
+            : component,
+      ),
+    };
+  }
+
+  async function start(
+    canSchedule = true,
+    runtimeDocument = document,
+    settleAtTwentyMilliseconds = true,
+    executor = new FakeExecutor(),
+  ) {
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let horizon = 0;
+    let opticsIdle = false;
+    const presentation = new LedTemporalPresentation();
+    const allowIdlePollCoalescing = vi.fn(() => opticsIdle && !!presentation.displayedFrame);
+    const onFailure = vi.fn();
+    const scheduleArduinoWake = vi.fn<
+      NonNullable<LiveSimulationWorkerCallbacks['scheduleArduinoWake']>
+    >(() => (canSchedule ? vi.fn() : null));
+    const callbacks = {
+      readHostHorizonMicroseconds: () => horizon,
+      scheduleArduinoWake,
+      allowIdlePollCoalescing,
+      onResult: (result, temporal) => {
+        opticsIdle = presentation.accept(result, temporal, horizon).size === 0;
+      },
+      onFailure,
+    } satisfies LiveSimulationWorkerCallbacks;
+    controller.start('sleeping-arduino', runtimeDocument, callbacks);
+    const complete = async (
+      changeAdvance?: (advance: SimulationTimedAdvancePayload) => SimulationTimedAdvancePayload,
+    ) => {
+      const call = executor.advances.at(-1)!;
+      const response = await evaluateSimulationWorkerRequestBatched(
+        {
+          protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+          engineRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
+          kind: 'advance',
+          requestId: `wake-${executor.advances.length}`,
+          generationId: call.generationId,
+          projectSessionId: 'sleeping-arduino',
+          document: call.document,
+          state: call.state,
+          requestedHorizonMicroseconds: call.requestedHorizonMicroseconds,
+          inputEvents: call.inputEvents,
+        },
+        () => true,
+      );
+      expect(response?.ok, JSON.stringify(response)).toBe(true);
+      if (!response?.ok || response.kind !== 'advance')
+        throw new Error('Expected ready engine payload');
+      expect(response.advance.executionStatus, JSON.stringify(response.advance.diagnostics)).toBe(
+        'ready',
+      );
+      const advance = changeAdvance?.(response.advance) ?? response.advance;
+      call.deferred.resolve(advance);
+      await flush();
+      expect(onFailure).not.toHaveBeenCalled();
+      return advance;
+    };
+    const tick = (nextHorizon: number) => {
+      horizon = nextHorizon;
+      controller.update(runtimeDocument, horizon);
+    };
+    executor.preflights[0]!.resolve(result(1));
+    await flush();
+    await complete();
+    const initialFrame = presentation.prepareFrame(0)!;
+    expect(presentation.acknowledgeFrame(initialFrame, 0)).toBe(true);
+    tick(1000);
+    const initial = await complete();
+    if (settleAtTwentyMilliseconds) tick(20_000);
+    const sleeping = settleAtTwentyMilliseconds ? await complete() : initial;
+    expect(sleeping.state.continuation?.clockProfileId).toBe('electrothermal-events-v2');
+    expect(sleeping.ledTemporal?.toMicroseconds).toBe(settleAtTwentyMilliseconds ? 20_000 : 1000);
+    return {
+      controller,
+      executor,
+      tick,
+      scheduleArduinoWake,
+      complete,
+      presentation,
+      allowIdlePollCoalescing,
+      setHorizon: (next: number) => {
+        horizon = next;
+      },
+    };
+  }
+
+  it.each(['stop', 'Serial input'] as const)(
+    'leaves the reentrant action in control if the host disallows coalescing after %s',
+    async (action) => {
+      const { controller, executor, tick, scheduleArduinoWake, allowIdlePollCoalescing } =
+        await start(true, withSketch(shortSource), false);
+      expect(scheduleArduinoWake).not.toHaveBeenCalled();
+      allowIdlePollCoalescing.mockImplementationOnce(() => {
+        if (action === 'stop') controller.stop();
+        else controller.sendSerialRx('uno', 'A', 10_000);
+        return false;
+      });
+      tick(10_000);
+
+      expect(scheduleArduinoWake).not.toHaveBeenCalled();
+      expect(executor.advances).toHaveLength(action === 'stop' ? 2 : 3);
+      if (action === 'Serial input')
+        expect(executor.advances[2]?.inputEvents).toEqual([
+          { atMicroseconds: 1001, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+        ]);
+      controller.dispose();
+    },
+  );
+
+  it('discards a wake registered while the host restarts the generation', async () => {
+    const quiet = withSketch(shortSource);
+    const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start(
+      true,
+      quiet,
+      false,
+    );
+    const cancel = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce(() => {
+      controller.restart(quiet);
+      return cancel;
+    });
+    tick(10_000);
+
+    expect(executor.preflights).toHaveLength(2);
+    expect(cancel).toHaveBeenCalledOnce();
+    setHorizon(20_004);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(executor.advances).toHaveLength(2);
+    controller.dispose();
+  });
+
+  it('leaves a nested reservation active and cancels only the abandoned host timer', async () => {
+    const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start(
+      true,
+      withSketch(shortSource),
+      false,
+    );
+    const abandoned = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce(() => {
+      tick(11_000);
+      return abandoned;
+    });
+    tick(10_000);
+
+    expect(scheduleArduinoWake).toHaveBeenCalledTimes(2);
+    expect(abandoned).toHaveBeenCalledOnce();
+    expect(scheduleArduinoWake.mock.results[1]?.value).not.toHaveBeenCalled();
+    setHorizon(20_004);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(executor.advances).toHaveLength(2);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(executor.advances[2]?.requestedHorizonMicroseconds).toBe(20_004);
+    controller.dispose();
+  });
+
+  it('abandons dispatch if cancelling the pending timer stops the simulation', async () => {
+    const { controller, executor, tick, scheduleArduinoWake } = await start(
+      true,
+      withSketch(shortSource),
+      false,
+    );
+    const cancel = vi.fn(() => controller.stop());
+    scheduleArduinoWake.mockReturnValueOnce(cancel);
+    tick(10_000);
+    tick(20_004);
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(executor.advances).toHaveLength(2);
+    controller.dispose();
+  });
+
+  it('falls back to the actual host demand if a scheduling callback fires synchronously', async () => {
+    const { controller, executor, tick, scheduleArduinoWake } = await start(
+      true,
+      withSketch(shortSource),
+      false,
+    );
+    const cancel = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce((_due, dispatch) => {
+      dispatch();
+      return cancel;
+    });
+    tick(10_000);
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(executor.advances[2]?.requestedHorizonMicroseconds).toBe(10_000);
+    controller.dispose();
+  });
+
+  it('authorizes a prepared wake against elapsed host time and revokes it on pause and input', async () => {
+    const quiet = withSketch(quietSource);
+    for (const action of ['wake', 'pause', 'input', 'stop', 'replace'] as const) {
+      const executor = Object.assign(new FakeExecutor(), {
+        prepareAdvance: vi.fn(() => 'prepared'),
+        discardPreparedAdvance: vi.fn(),
+      });
+
+      const { controller, complete, scheduleArduinoWake, setHorizon } = await start(
+        true,
+        quiet,
+        false,
+        executor,
+      );
+      for (const [index, target] of [20_668, 40_336].entries()) {
+        setHorizon(target);
+        scheduleArduinoWake.mock.calls[index]![1]();
+        await complete();
+      }
+      expect(executor.prepareAdvance).toHaveBeenCalledTimes(1);
+      const before = executor.advances.length;
+      const horizon = 60_005;
+      expect(controller.committedHorizonMicroseconds).toBe(40_336);
+      expect(executor.advances).toHaveLength(before);
+      const wake = scheduleArduinoWake.mock.calls[2]![1];
+      if (action === 'pause') controller.setPaused(true);
+      if (action === 'input') controller.sendSerialRx('uno', 'A', 41_000);
+      if (action === 'stop') controller.stop();
+      if (action === 'replace') controller.update(withSketch(shortSource), 41_000);
+      setHorizon(horizon + 10);
+      wake();
+      if (action === 'wake') {
+        expect(executor.advances.at(-1)).toMatchObject({
+          requestedHorizonMicroseconds: horizon + 10,
+          inputEvents: [],
+          preparedRequestId: 'prepared',
+        });
+        expect(controller.committedHorizonMicroseconds).toBe(40_336);
+        expect((await complete()).ledTemporal?.arduinoIndicators?.[0]?.samples).toContainEqual({
+          atMicroseconds: 60_004,
+          voltage: 0,
+        });
+      } else {
+        expect(executor.advances.every((call) => call.preparedRequestId === undefined)).toBe(true);
+        if (action === 'pause' || action === 'stop')
+          expect(executor.discardPreparedAdvance).toHaveBeenCalled();
+      }
+      controller.dispose();
+    }
+  });
+
+  it('timestamps Serial input after the full in-flight horizon of a late Arduino wake', async () => {
+    const executor = Object.assign(new FakeExecutor(), { prepareAdvance: () => 'sleep' });
+    const { controller, scheduleArduinoWake, complete, setHorizon } = await start(
+      true,
+      withSketch(quietSource),
+      false,
+      executor,
+    );
+    for (const [index, time] of [20_668, 40_336].entries()) {
+      setHorizon(time);
+      scheduleArduinoWake.mock.calls[index]![1]();
+      await complete();
+    }
+
+    const [deadline, wake] = scheduleArduinoWake.mock.calls[2]!;
+    expect(deadline).toBe(60_004);
+    setHorizon(61_400);
+    wake();
+    expect(executor.advances.at(-1)?.requestedHorizonMicroseconds).toBe(61_400);
+    controller.sendSerialRx('uno', 'X', 61_401);
+    expect((await complete()).committedHorizonMicroseconds).toBe(61_400);
+    expect(executor.advances.at(-1)?.inputEvents).toEqual([
+      { targetId: 'uno', operation: 'serialRx', atMicroseconds: 61_401, payload: 'X' },
+    ]);
+    controller.dispose();
+  });
+
+  it('balances a confirmed long sleep and schedules each next boundary without another poll', async () => {
+    const quiet = withSketch(quietSource);
+    const { controller, executor, tick, scheduleArduinoWake, complete, setHorizon } = await start(
+      true,
+      quiet,
+      false,
+    );
+    const horizons = () => executor.advances.map((call) => call.requestedHorizonMicroseconds);
+    const deadlines = () => scheduleArduinoWake.mock.calls.map(([due]) => due);
+    expect(deadlines()).toEqual([20_668]);
+    tick(10_000);
+    tick(20_000);
+    expect(horizons()).toEqual([0, 1000]);
+
+    setHorizon(20_668);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(horizons()).toEqual([0, 1000, 20_668]);
+    await complete();
+    expect(deadlines()).toEqual([20_668, 40_336]);
+
+    setHorizon(40_336);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(horizons()).toEqual([0, 1000, 20_668, 40_336]);
+    await complete();
+    expect(deadlines()).toEqual([20_668, 40_336, 60_004]);
+
+    setHorizon(60_013);
+    scheduleArduinoWake.mock.calls[2]![1]();
+    expect(horizons()).toEqual([0, 1000, 20_668, 40_336, 60_013]);
+    const edge = await complete();
+    expect(edge.ledTemporal?.arduinoIndicators?.[0]?.samples).toContainEqual({
+      atMicroseconds: 60_004,
+      voltage: 0,
+    });
+
+    const ordinary = await start(false, quiet, false);
+    for (const time of [10_000, 20_000, 26_000, 30_000, 40_000, 51_000, 55_000]) {
+      ordinary.tick(time);
+      await ordinary.complete();
+    }
+    ordinary.tick(60_013);
+    const partitioned = await ordinary.complete();
+    expect(edge.state).toEqual(partitioned.state);
+    expect(edge.result).toEqual(partitioned.result);
+    expect(edge.diagnostics).toEqual(partitioned.diagnostics);
+    ordinary.controller.dispose();
+    controller.dispose();
+  });
+
+  it('keeps the last short tail of the same balanced sleep available for its actual wake', async () => {
+    const quiet = withSketch(quietSource.replaceAll('delay(60)', 'delay(30)'));
+    const { controller, executor, scheduleArduinoWake, complete, setHorizon } = await start(
+      true,
+      quiet,
+      false,
+    );
+    const horizons = () => executor.advances.map((call) => call.requestedHorizonMicroseconds);
+    const deadlines = () => scheduleArduinoWake.mock.calls.map(([due]) => due);
+    expect(deadlines()).toEqual([15_502]);
+
+    // The host was busy when the earlier refresh was due. Its real elapsed
+    // demand leaves a tail shorter than the minimum for a new wake.
+    setHorizon(26_000);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    const hold = await complete();
+    expect(horizons()).toEqual([0, 1000, 26_000]);
+    expect(deadlines()).toEqual([15_502, 30_004]);
+
+    setHorizon(30_002);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(horizons()).toEqual([0, 1000, 26_000]);
+    expect(deadlines()).toEqual([15_502, 30_004, 30_004]);
+
+    setHorizon(30_008);
+    scheduleArduinoWake.mock.calls[2]![1]();
+    const edge = await complete();
+    expect(horizons()).toEqual([0, 1000, 26_000, 30_008]);
+    const samples = (advance: SimulationTimedAdvancePayload) =>
+      advance.ledTemporal?.arduinoIndicators?.[0]?.samples.map(({ atMicroseconds, voltage }) => [
+        atMicroseconds,
+        voltage > 0,
+      ]);
+    expect(samples(hold)).toEqual([
+      [1000, true],
+      [26_000, true],
+    ]);
+    expect(samples(edge)).toEqual([
+      [26_000, true],
+      [30_004, false],
+      [30_008, false],
+    ]);
+
+    const ordinary = await start(false, quiet, false);
+    ordinary.tick(26_000);
+    expect((await ordinary.complete()).ledTemporal).toEqual(hold.ledTemporal);
+    ordinary.tick(30_008);
+    const partitioned = await ordinary.complete();
+    expect(edge.ledTemporal).toEqual(partitioned.ledTemporal);
+    expect(edge.state).toEqual(partitioned.state);
+    expect(edge.result).toEqual(partitioned.result);
+    expect(edge.diagnostics).toEqual(partitioned.diagnostics);
+    ordinary.controller.dispose();
+    controller.dispose();
+  });
+
+  it('discards an idle tail registered while the host changes its clock origin', async () => {
+    const quiet = withSketch(quietSource.replaceAll('delay(60)', 'delay(30)'));
+    const { controller, executor, scheduleArduinoWake, setHorizon, complete } = await start(
+      true,
+      quiet,
+      false,
+    );
+    setHorizon(26_000);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    const cancel = vi.fn();
+    scheduleArduinoWake.mockImplementationOnce(() => {
+      controller.reanchorHostDemand();
+      return cancel;
+    });
+    await complete();
+
+    expect(scheduleArduinoWake.mock.calls.map(([due]) => due)).toEqual([15_502, 30_004]);
+    expect(cancel).toHaveBeenCalledOnce();
+    setHorizon(30_008);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(executor.advances.map((advance) => advance.requestedHorizonMicroseconds)).toEqual([
+      0, 1000, 26_000,
+    ]);
+    controller.dispose();
+  });
+
+  it.each(['ground', 'second output'] as const)(
+    'refreshes an active 1 ms optical mean before coalescing again after a burst with %s',
+    async (returnPin) => {
+      const otherOutput = returnPin === 'second output';
+      const setup = otherOutput
+        ? 'pinMode(13,OUTPUT);pinMode(12,OUTPUT);digitalWrite(13,HIGH);digitalWrite(12,HIGH);'
+        : 'pinMode(13,OUTPUT);';
+      const high = otherOutput ? 'digitalWrite(12,LOW);' : 'digitalWrite(13,HIGH);';
+      const low = otherOutput ? 'digitalWrite(12,HIGH);' : 'digitalWrite(13,LOW);';
+      const burst = withSketch(
+        `void setup(){${setup}}void loop(){for(int i=0;i<6;i++){${high}delay(1);${low}delay(1);}delay(60);}`,
+      );
+      const fixture = otherOutput
+        ? {
+            ...burst,
+            components: [
+              ...burst.components.map((component) =>
+                component.id === 'uno'
+                  ? { ...component, pinIds: [...(component.pinIds ?? []), 'd12'] }
+                  : component,
+              ),
+              {
+                ...burst.components.find((component) => component.id === 'r')!,
+                id: 'pull',
+                value: 10_000,
+              },
+            ],
+            connections: [
+              ...burst.connections.map((wire) =>
+                wire.id === 'w3' ? { ...wire, to: { componentId: 'uno', terminal: 'd12' } } : wire,
+              ),
+              {
+                id: 'w4',
+                from: { componentId: 'led', terminal: 'cathode' },
+                to: { componentId: 'pull', terminal: 'lead-1' },
+              },
+              {
+                id: 'w5',
+                from: { componentId: 'pull', terminal: 'lead-2' },
+                to: { componentId: 'uno', terminal: 'power-gnd-1' },
+              },
+            ],
+          }
+        : burst;
+      const { controller, executor, tick, scheduleArduinoWake, complete, presentation } =
+        await start(true, fixture, false);
+      tick(10_000);
+      await complete();
+      const fast = presentation.prepareFrame(16_700)!;
+      expect(fast.brightness.get('led')).toBeGreaterThan(0);
+      expect(presentation.acknowledgeFrame(fast, 16_700)).toBe(true);
+
+      tick(20_000);
+      await complete();
+      tick(30_000);
+      expect(executor.advances.at(-1)?.requestedHorizonMicroseconds).toBe(30_000);
+      expect(scheduleArduinoWake).not.toHaveBeenCalled();
+      await complete();
+      const quiet = presentation.prepareFrame(33_400)!;
+      expect(quiet.brightness.get('led')).toBe(0);
+      expect(presentation.acknowledgeFrame(quiet, 33_400)).toBe(true);
+      tick(40_000);
+      expect(scheduleArduinoWake).toHaveBeenCalledExactlyOnceWith(
+        returnPin === 'ground' ? 51_031 : 51_032,
+        expect.any(Function),
+      );
+      controller.dispose();
+    },
+  );
+
+  it.each(['invalid', 'truncated'] as const)(
+    'keeps ordinary polls after an %s optical observation',
+    async (kind) => {
+      const {
+        controller,
+        executor,
+        tick,
+        scheduleArduinoWake,
+        complete,
+        setHorizon,
+        presentation,
+      } = await start(true, withSketch(quietSource), false);
+      tick(10_000);
+      setHorizon(26_000);
+      scheduleArduinoWake.mock.calls[0]![1]();
+      await complete((advance) => {
+        const temporal = advance.ledTemporal!;
+        const [led, ...other] = temporal.components;
+        const channel =
+          kind === 'invalid' ? { ...led!, brightnessIntegral: -1 } : { ...led!, truncated: true };
+        return { ...advance, ledTemporal: { ...temporal, components: [channel, ...other] } };
+      });
+      if (kind === 'invalid') expect(presentation.displayedFrame).toBeNull();
+      tick(30_000);
+      expect(scheduleArduinoWake).toHaveBeenCalledTimes(1);
+      expect(executor.advances.at(-1)?.requestedHorizonMicroseconds).toBe(30_000);
+      controller.dispose();
+    },
+  );
+
+  it.each([
+    ['1 ms delay', quietSource.replaceAll('delay(60)', 'delay(1)'), 330],
+    ['PWM', 'void setup(){pinMode(9,OUTPUT);}void loop(){analogWrite(9,128);delay(60);}', 330],
+    ['overload', quietSource, 0.1],
+    [
+      'Serial',
+      quietSource.replace('pinMode(13,OUTPUT);', 'pinMode(13,OUTPUT);Serial.begin(9600);'),
+      330,
+    ],
+  ])('keeps ordinary polling for %s', async (_name, source, resistance) => {
+    const { controller, tick, scheduleArduinoWake, executor } = await start(
+      true,
+      withSketch(source, resistance),
+      false,
+    );
+    tick(10_000);
+    expect(scheduleArduinoWake).not.toHaveBeenCalled();
+    expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([
+      0, 1000, 10_000,
+    ]);
+    controller.dispose();
+  });
+
+  it.each(['input', 'source', 'pause', 'new clock origin', 'restart', 'stop'] as const)(
+    'cancels a coalesced refresh immediately on %s',
+    async (action) => {
+      const quiet = withSketch(quietSource);
+      const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start(
+        true,
+        quiet,
+        false,
+      );
+      tick(10_000);
+      expect(scheduleArduinoWake).toHaveBeenCalledExactlyOnceWith(20_668, expect.any(Function));
+      if (action === 'input') controller.sendSerialRx('uno', 'A', 10_000);
+      if (action === 'source')
+        controller.update(withSketch(quietSource.replace('60', '50')), 10_000);
+      if (action === 'pause') controller.setPaused(true);
+      if (action === 'new clock origin') controller.reanchorHostDemand();
+      if (action === 'restart') controller.restart(quiet);
+      if (action === 'stop') controller.stop();
+      expect(scheduleArduinoWake.mock.results[0]?.value).toHaveBeenCalledOnce();
+      const dispatched = action === 'input' || action === 'source';
+      expect(executor.advances).toHaveLength(dispatched ? 3 : 2);
+      if (action === 'input')
+        expect(executor.advances[2]?.inputEvents).toEqual([
+          { atMicroseconds: 1001, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+        ]);
+      if (action === 'source')
+        expect(executor.advances[2]?.document.components).toEqual(
+          withSketch(quietSource.replace('60', '50')).components,
+        );
+      setHorizon(20_668);
+      scheduleArduinoWake.mock.calls[0]![1]();
+      expect(executor.advances).toHaveLength(dispatched ? 3 : 2);
+      controller.dispose();
+    },
+  );
+
+  it('leaves the Worker slot available for a real elapsed wake instead of dispatching the pre-wake poll', async () => {
+    const { controller, executor, tick, scheduleArduinoWake, complete, setHorizon } = await start();
+    tick(27_000);
+    tick(29_000);
+    expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([
+      0, 1000, 20_000,
+    ]);
+    expect(scheduleArduinoWake).toHaveBeenCalledExactlyOnceWith(30_005, expect.any(Function));
+    setHorizon(30_006);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([
+      0, 1000, 20_000, 30_006,
+    ]);
+    const edge = await complete();
+    expect(edge.ledTemporal?.arduinoIndicators?.[0]?.samples).toContainEqual({
+      atMicroseconds: 30_005,
+      voltage: 0,
+    });
+    const ordinary = await start(false);
+    ordinary.tick(27_000);
+    expect(ordinary.executor.advances.at(-1)?.requestedHorizonMicroseconds).toBe(27_000);
+    await ordinary.complete();
+    ordinary.tick(30_006);
+    const partitioned = await ordinary.complete();
+    expect(edge.state).toEqual(partitioned.state);
+    expect(edge.result).toEqual(partitioned.result);
+    ordinary.controller.dispose();
+    controller.dispose();
+  });
+
+  it('cancels a reserved slot and sends Serial input immediately in canonical order', async () => {
+    const { controller, executor, tick, scheduleArduinoWake, complete, setHorizon } = await start();
+    tick(27_000);
+    const staleTimer = scheduleArduinoWake.mock.calls[0]![1];
+    const cancel = scheduleArduinoWake.mock.results[0]!.value;
+    controller.sendSerialRx('uno', 'A', 27_000);
+    controller.sendSerialRx('uno', 'B', 27_000);
+    expect(cancel).toHaveBeenCalledOnce();
+    setHorizon(30_006);
+    staleTimer();
+    expect(executor.advances).toHaveLength(4);
+    expect(executor.advances[3]?.inputEvents).toEqual([
+      { atMicroseconds: 20_001, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+    ]);
+    await complete();
+    expect(executor.advances[4]?.inputEvents).toEqual([
+      { atMicroseconds: 27_001, targetId: 'uno', operation: 'serialRx', payload: 'B' },
+    ]);
+    controller.dispose();
+  });
+
+  it('does not advance ahead of the host clock when a pending wake fires early', async () => {
+    const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start();
+    tick(27_000);
+    setHorizon(30_004);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(executor.advances).toHaveLength(3);
+    expect(scheduleArduinoWake.mock.calls.map(([due]) => due)).toEqual([30_005, 30_005]);
+    setHorizon(30_005);
+    scheduleArduinoWake.mock.calls[1]![1]();
+    expect(executor.advances[3]?.requestedHorizonMicroseconds).toBe(30_005);
+    controller.dispose();
+  });
+
+  it('synchronizes a source edit immediately when an ordinary poll was reserved', async () => {
+    const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start();
+    tick(27_000);
+    const edited = {
+      ...document,
+      components: document.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { arduinoSource: 'void setup(){}void loop(){delay(50);}' },
+            }
+          : component,
+      ),
+    };
+    controller.update(edited, 27_000);
+    expect(executor.advances).toHaveLength(4);
+    expect(executor.advances[3]?.generationId).toBe(1);
+    expect(executor.advances[3]?.document.components).toEqual(edited.components);
+    expect(scheduleArduinoWake.mock.results[0]?.value).toHaveBeenCalledOnce();
+    setHorizon(30_006);
+    scheduleArduinoWake.mock.calls[0]![1]();
+    expect(executor.advances).toHaveLength(4);
+    controller.dispose();
+  });
+
+  it.each(['pause', 'restart', 'stop'] as const)(
+    'ignores a stale timer after %s',
+    async (transition) => {
+      const { controller, executor, tick, scheduleArduinoWake, setHorizon } = await start();
+      tick(27_000);
+      const staleTimer = scheduleArduinoWake.mock.calls[0]![1];
+      const cancel = scheduleArduinoWake.mock.results[0]!.value;
+      if (transition === 'pause') controller.setPaused(true);
+      if (transition === 'restart') controller.restart(document);
+      if (transition === 'stop') controller.stop();
+      setHorizon(30_006);
+      staleTimer();
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([
+        0, 1000, 20_000,
+      ]);
+      controller.dispose();
+    },
+  );
+});
 
 describe('Electronics canonical Worker controller', () => {
   it('completes H0 at zero rate but blocks positive demand until explicit resume', async () => {

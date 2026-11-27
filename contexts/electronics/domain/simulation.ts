@@ -1,3 +1,18 @@
+import {
+  finishElectricalQuality,
+  kclTolerance,
+  powerTolerance,
+  preparedNumbersFinite,
+  logicalTerminal,
+  KCL_TOLERANCE_A,
+  SOURCE_VOLTAGE_TOLERANCE_V,
+  MIN_POWER_BALANCE_TOLERANCE_W,
+  type SimulationQuality,
+} from './electrical-solution-quality.js';
+export {
+  createArduinoCheckpointQuality,
+  type SimulationQuality,
+} from './electrical-solution-quality.js';
 import { type ElectronicsDocument, type SchematicComponent, type Terminal } from './document.js';
 import {
   arduinoOutputBranchesFromSnapshot,
@@ -42,17 +57,6 @@ import { isPingUltrasonic } from './models/ping-ultrasonic-runtime.js';
 
 export type SimulationStatus = 'solved' | 'unsupported' | 'invalid' | 'nonconvergent';
 
-export interface SimulationQuality {
-  readonly finite: boolean;
-  readonly passed: boolean;
-  readonly maxKclResidualAmp: number;
-  readonly maxSourceVoltageResidualVolt: number;
-  readonly powerBalanceResidualWatt: number;
-  readonly powerBalanceToleranceWatt: number;
-  readonly kclToleranceAmp: number;
-  readonly sourceVoltageToleranceVolt: number;
-}
-
 export interface CompiledNet {
   readonly id: string;
   readonly terminals: readonly string[];
@@ -81,10 +85,6 @@ export interface SimulationResult extends SolveResult {
 }
 
 const CLOSED_RESISTANCE = 1e-4;
-const KCL_TOLERANCE_A = 1e-6;
-const TRANSIENT_KCL_RELATIVE_TOLERANCE = 0.02;
-const SOURCE_VOLTAGE_TOLERANCE_V = 1e-9;
-const MIN_POWER_BALANCE_TOLERANCE_W = 1e-9;
 const MODEL_SET_DIGEST = `sha256:${sha256Hex(
   JSON.stringify({
     identities: canonicalElectricalModelRegistry(),
@@ -210,40 +210,6 @@ function deterministicSolveResult(result: SolveResult): SolveResult {
         }
       : {}),
   };
-}
-
-type LogicalTerminal = 'a' | 'b' | 'wiper';
-
-function logicalTerminal(component: SchematicComponent, terminal: LogicalTerminal): Terminal {
-  if (!component.componentTypeId) return terminal;
-  if (component.kind === 'source') {
-    const positive = component.pinIds?.includes('BAT+') ? 'BAT+' : 'positive';
-    const negative = component.pinIds?.includes('BAT-') ? 'BAT-' : 'negative';
-    return terminal === 'a' ? positive : negative;
-  }
-  if (component.kind === 'resistor' || component.kind === 'photoresistor')
-    return terminal === 'a' ? 'lead-1' : 'lead-2';
-  if (component.kind === 'piezo') return terminal === 'a' ? 'positive' : 'negative';
-  if (component.kind === 'led' || component.kind === 'diode') {
-    return terminal === 'a' ? 'anode' : 'cathode';
-  }
-  if (component.kind === 'button') return terminal === 'a' ? 'SW-A1' : 'SW-B1';
-  if (component.kind === 'switch') {
-    if (terminal === 'a') return 'common';
-    return component.state === true ? 'throw-right' : 'throw-left';
-  }
-  if (component.kind === 'potentiometer') {
-    if (terminal === 'wiper') return 'wiper';
-    return terminal === 'a' ? 'terminal-1' : 'terminal-2';
-  }
-  if (component.kind === 'lamp') return terminal === 'a' ? 'L1' : 'L2';
-  return terminal;
-}
-
-function rounded(value: number, digits = 12): number {
-  const factor = 10 ** digits;
-  const result = Math.round(value * factor) / factor;
-  return Object.is(result, -0) ? 0 : result;
 }
 
 export function compileCircuit(document: ElectronicsDocument): CompiledCircuit {
@@ -612,9 +578,7 @@ export function verifyCircuitQuality(
       Object.values(component.terminalCurrents ?? {}).map((value) => Math.abs(value ?? 0)),
     ),
   );
-  const kclToleranceAmp = result.transientState
-    ? Math.max(KCL_TOLERANCE_A, maxTerminalCurrentAmp * TRANSIENT_KCL_RELATIVE_TOLERANCE)
-    : KCL_TOLERANCE_A;
+  const kclToleranceAmp = kclTolerance(!!result.transientState, maxTerminalCurrentAmp);
   const powerBalanceComponents = document.components.filter(
     (component) =>
       !['wire', 'breadboard'].includes(component.kind) &&
@@ -659,157 +623,17 @@ export function verifyCircuitQuality(
   const powerBalanceResidualWatt = Math.abs(
     terminalPowerByComponent.reduce((total, power) => total + power, 0) + (shuntPowerWatt ?? 0),
   );
-  const powerBalanceToleranceWatt = Math.max(
-    MIN_POWER_BALANCE_TOLERANCE_W,
-    suppliedPowerWatt * 1e-6,
-  );
-  const passed =
-    finite &&
-    maxKclResidualAmp <= kclToleranceAmp &&
-    maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V &&
-    (!powerBalanceApplicable ||
-      (shuntPowerWatt !== null && powerBalanceResidualWatt <= powerBalanceToleranceWatt));
-  return {
+  const powerBalanceToleranceWatt = powerTolerance(suppliedPowerWatt);
+  return finishElectricalQuality(
     finite,
-    passed,
-    maxKclResidualAmp: rounded(maxKclResidualAmp),
-    maxSourceVoltageResidualVolt: rounded(maxSourceVoltageResidualVolt),
-    powerBalanceResidualWatt: rounded(powerBalanceResidualWatt),
-    powerBalanceToleranceWatt: rounded(powerBalanceToleranceWatt),
-    kclToleranceAmp: rounded(kclToleranceAmp),
-    sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
-  };
-}
-
-// This collector is used only for a solver-issued, synchronous current frame.
-// The public collector above retains all arbitrary caller observation semantics.
-function preparedNumbersFinite(
-  result: SolveResult,
-  keys: (record: object) => readonly string[] | undefined,
-): boolean {
-  let finite = true;
-  const check = (value: number) => {
-    finite = Number.isFinite(value) && finite;
-  };
-  const record = (
-    values: Readonly<Record<string, number | undefined>>,
-    filterUndefined: boolean,
-  ) => {
-    const orderedKeys = keys(values);
-    if (orderedKeys) {
-      for (const key of orderedKeys) {
-        const value = values[key];
-        if (!filterUndefined || value !== undefined) check(value as number);
-      }
-    } else {
-      const current = Object.values(values);
-      for (const value of filterUndefined
-        ? current.filter((value) => value !== undefined)
-        : current)
-        check(value as number);
-    }
-  };
-  check(result.current);
-  check(result.iterations);
-  check(result.numericalResidual);
-  check(result.numericalTolerance);
-  const transient = result.transientState;
-  if (transient) {
-    check(transient.simulationTimeMs);
-    for (const entry of transient.capacitors) {
-      check(entry.capacitanceFarad);
-      check(entry.initialVoltageVolt);
-      check(entry.voltageRatingVolt);
-      check(entry.voltageVolt);
-    }
-    for (const entry of transient.thermal) {
-      check(entry.temperatureCelsius);
-      check(entry.loadRatio);
-      check(entry.accumulatedDamage);
-    }
-    for (const entry of transient.motors ?? []) {
-      check(entry.simulationTimeSeconds);
-      check(entry.currentAmp);
-      check(entry.motorAngularVelocityRadPerSecond);
-      check(entry.motorAngularPhaseRadian);
-      check(entry.temperatureCelsius);
-      check(entry.accumulatedDamage);
-    }
-    for (const entry of transient.multimeterFuses ?? [])
-      check(entry.accumulatedI2tAmpSquaredSecond);
-  }
-  if (result.controllerState) {
-    check(result.controllerState.simulationTimeMs);
-    for (const entry of result.controllerState.boards) {
-      const runtime = entry.runtime;
-      check(runtime.virtualTimeMs);
-      check(runtime.resumeAtMs);
-      check(runtime.programCounter);
-      check(runtime.loopStartedAtMs);
-      check(runtime.loopIterations);
-      record(runtime.variables, false);
-      record(runtime.locals, false);
-      record(runtime.outputVoltages, true);
-      for (const tone of Object.values(runtime.tones))
-        if (tone) {
-          check(tone.frequencyHz);
-          if (tone.expiresAtMs !== undefined) check(tone.expiresAtMs);
-        }
-    }
-  }
-  if (result.transientAnalysis) {
-    check(result.transientAnalysis.acceptedSteps);
-    check(result.transientAnalysis.rejectedSteps);
-    check(result.transientAnalysis.minStepMs);
-    check(result.transientAnalysis.maxStepMs);
-  }
-  for (const node of result.nodes) check(node.voltage);
-  for (const component of result.components) {
-    check(component.voltageDrop);
-    check(component.current);
-    check(component.power ?? 0);
-    check(component.internalResistanceOhm ?? 0);
-    check(component.internalPower ?? 0);
-    check(component.voltageSag ?? 0);
-    check(component.voltageSetpointVolt ?? 0);
-    check(component.currentLimitAmp ?? 0);
-    check(component.brightness ?? 0);
-    check(component.baseCurrent ?? 0);
-    check(component.collectorCurrent ?? 0);
-    check(component.emitterCurrent ?? 0);
-    check(component.currentGain ?? 0);
-    check(component.frequencyHz ?? 0);
-    check(component.soundLevel ?? 0);
-    check(component.motorRpm ?? 0);
-    check(component.outputRpm ?? 0);
-    check(component.motorAngularPhaseRadian ?? 0);
-    check(component.electromagneticTorqueNewtonMeter ?? 0);
-    check(component.outputTorqueNewtonMeter ?? 0);
-    check(component.outputLoadTorqueNewtonMeter ?? 0);
-    check(component.transmissionEfficiency ?? 0);
-    check(component.copperLossWatt ?? 0);
-    check(component.motorMechanicalPowerWatt ?? 0);
-    check(component.outputMechanicalPowerWatt ?? 0);
-    check(component.capacitanceFarad ?? 0);
-    check(component.chargeCoulomb ?? 0);
-    check(component.storedEnergyJoule ?? 0);
-    check(component.voltageRatingVolt ?? 0);
-    check(component.temperatureCelsius ?? 0);
-    check(component.sensorTemperatureCelsius ?? 0);
-    check(component.sensorMoisturePercent ?? 0);
-    check(component.sensorResistanceOhm ?? 0);
-    check(component.sensorOutputVoltageVolt ?? 0);
-    check(component.sensorSupplyVoltageVolt ?? 0);
-    check(component.sensorOutputCurrentAmp ?? 0);
-    check(component.thermalLoadPercent ?? 0);
-    check(component.accumulatedDamagePercent ?? 0);
-    check(component.voltageConstraintResidual ?? 0);
-    record(component.terminalVoltages, true);
-    if (component.branchCurrents) record(component.branchCurrents, false);
-    if (component.terminalCurrents) record(component.terminalCurrents, true);
-    if (component.branchBrightness) record(component.branchBrightness, false);
-  }
-  return finite;
+    maxKclResidualAmp,
+    maxSourceVoltageResidualVolt,
+    powerBalanceResidualWatt,
+    powerBalanceToleranceWatt,
+    kclToleranceAmp,
+    powerBalanceApplicable,
+    shuntPowerWatt,
+  );
 }
 
 /** Package internal: a private topology and scratch, enabled by the owned clock. */
@@ -1065,9 +889,7 @@ export function createArduinoQualityTraversal(
           for (const value of Object.values(currents).map((value) => Math.abs(value ?? 0)))
             maxTerminalCurrentAmp = Math.max(maxTerminalCurrentAmp, value);
       }
-      const kclToleranceAmp = result.transientState
-        ? Math.max(KCL_TOLERANCE_A, maxTerminalCurrentAmp * TRANSIENT_KCL_RELATIVE_TOLERANCE)
-        : KCL_TOLERANCE_A;
+      const kclToleranceAmp = kclTolerance(!!result.transientState, maxTerminalCurrentAmp);
       const powerBalanceComponents = document.components.filter(
         (component) =>
           !['wire', 'breadboard'].includes(component.kind) &&
@@ -1119,26 +941,17 @@ export function createArduinoQualityTraversal(
         ? numericalShuntPowerWatt(compiled, result, componentResult)
         : 0;
       const powerBalanceResidualWatt = Math.abs(totalPowerWatt + (shuntPowerWatt ?? 0));
-      const powerBalanceToleranceWatt = Math.max(
-        MIN_POWER_BALANCE_TOLERANCE_W,
-        suppliedPowerWatt * 1e-6,
-      );
-      const passed =
-        finite &&
-        maxKclResidualAmp <= kclToleranceAmp &&
-        maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V &&
-        (!powerBalanceApplicable ||
-          (shuntPowerWatt !== null && powerBalanceResidualWatt <= powerBalanceToleranceWatt));
-      return {
+      const powerBalanceToleranceWatt = powerTolerance(suppliedPowerWatt);
+      return finishElectricalQuality(
         finite,
-        passed,
-        maxKclResidualAmp: rounded(maxKclResidualAmp),
-        maxSourceVoltageResidualVolt: rounded(maxSourceVoltageResidualVolt),
-        powerBalanceResidualWatt: rounded(powerBalanceResidualWatt),
-        powerBalanceToleranceWatt: rounded(powerBalanceToleranceWatt),
-        kclToleranceAmp: rounded(kclToleranceAmp),
-        sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
-      };
+        maxKclResidualAmp,
+        maxSourceVoltageResidualVolt,
+        powerBalanceResidualWatt,
+        powerBalanceToleranceWatt,
+        kclToleranceAmp,
+        powerBalanceApplicable,
+        shuntPowerWatt,
+      );
     } finally {
       componentResult.clear();
       residualByNode.clear();
