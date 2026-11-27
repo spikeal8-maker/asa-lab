@@ -234,6 +234,71 @@ it('reads exact owned drafts and saved versions without mutations or foreign pro
     'INSERT INTO project_drafts(project_id,tenant_id,document_json,revision,updated_by_principal_id) VALUES($1,$2,\'{"circuit":"full retained contents"}\',3,$3)',
     [project, f.target.tenant_id, f.target.principal_id],
   );
+  const image = Buffer.alloc(80, 17);
+  await admin.query(
+    'INSERT INTO project_snapshots(project_id,tenant_id,image,content_type,width,height,source_revision,captured_by_principal_id) VALUES($1,$2,$3,$4,16,16,3,$5)',
+    [project, f.target.tenant_id, image, 'image/png', f.target.principal_id],
+  );
+  const sessions = [randomUUID(), randomUUID()];
+  for (const session of sessions) {
+    await admin.query(
+      "INSERT INTO product_module_sessions(id,actor_kind,account_id,principal_id,tenant_id,project_id,module_key,network_kind) VALUES($1,'account',$2,$3,$4,$5,'electronics','unknown')",
+      [session, f.target.account_id, f.target.principal_id, f.target.tenant_id, project],
+    );
+  }
+  await admin.query(
+    "INSERT INTO product_module_activity_slices(session_id,started_at,ended_at,active_seconds) VALUES($1,'2026-01-01T10:00:00Z','2026-01-01T10:00:40Z',40),($2,'2026-01-01T10:00:25Z','2026-01-01T10:01:00Z',35)",
+    sessions,
+  );
+  const thumbnail = async (actor: string, target: string, revision: number) =>
+    (
+      await runtime.query(
+        "SELECT crm_project_card_snapshot($1,'account',$2,NULL,$3,$4,$5) AS value",
+        [actor, target, project, revision, randomUUID()],
+      )
+    ).rows[0].value;
+  const listed = (
+    await runtime.query(
+      "SELECT crm_content_page($1,'account',$2,NULL,'projects',25,NULL,$3) AS value",
+      [f.actor.principal_id, f.target.account_id, randomUUID()],
+    )
+  ).rows[0].value;
+  expect(listed.items).toEqual([
+    expect.objectContaining({
+      id: project,
+      snapshotRevision: 3,
+      updatedAt: expect.any(String),
+      usage: { openCount: 2, activeSeconds: 60 },
+    }),
+  ]);
+  const snapshot = await thumbnail(f.actor.principal_id, f.target.account_id, 3);
+  expect(snapshot.contentType).toBe('image/png');
+  const audits = await admin.query(
+    "SELECT metadata_json FROM administrative_audit_events WHERE action='crm.project.snapshot.read' AND target_id=$1",
+    [f.target.account_id],
+  );
+  expect(audits.rows).toEqual([
+    {
+      metadata_json: {
+        classroomId: null,
+        before: null,
+        after: { projectId: project, revision: 3 },
+      },
+    },
+  ]);
+  expect(Buffer.from(snapshot.image, 'base64')).toEqual(image);
+  expect(await thumbnail(f.actor.principal_id, f.target.account_id, 2)).toEqual({});
+  expect(await thumbnail(f.actor.principal_id, f.actor.account_id, 3)).toEqual({});
+  await expect(thumbnail(f.target.principal_id, f.actor.account_id, 3)).rejects.toMatchObject({
+    code: '42501',
+  });
+  await expect(
+    runtime.query('SELECT project_card_usage($1,$2,$3)', [
+      project,
+      f.target.tenant_id,
+      f.target.principal_id,
+    ]),
+  ).rejects.toMatchObject({ code: '42501' });
   const version = (
     await admin.query(
       'INSERT INTO project_versions(project_id,tenant_id,version_no,document_json,created_by_principal_id) VALUES($1,$2,1,\'{"circuit":"old version"}\',$3) RETURNING id',
