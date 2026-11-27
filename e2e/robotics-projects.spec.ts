@@ -2566,6 +2566,62 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
       throw new Error('Actual pane bounds missing');
     return value;
   };
+  const inspectStatusClearance = async (label: string) => {
+    const status = workspace.locator(':scope > .robotics-observation');
+    const details = status.locator(':scope > .robotics-status-popover');
+    const trigger = details.locator(':scope > summary');
+    const ruler = field.locator('.robotics-side-scale:visible');
+    const dimensions = field.locator('.robotics-field-stage-status');
+    await expect(fieldCanvas).toHaveAttribute('data-rendered', 'true');
+    await expect(ruler).toHaveCount(1);
+    await expect(dimensions).toBeVisible();
+    const before = {
+      time: await clock(),
+      pose: await pose(),
+      camera: await fieldCanvas.getAttribute('data-camera'),
+      document: (await readProject(page, projectId)).draft.document,
+    };
+    if ((await details.getAttribute('open')) !== null) await trigger.click();
+    const measure = async (open: boolean) => {
+      await visibleControl(page, trigger);
+      const [popover, summary, scale, size, viewport] = await Promise.all([
+        rect(status),
+        rect(trigger),
+        rect(ruler),
+        rect(dimensions),
+        rect(field.locator('.robotics-field-viewport')),
+      ]);
+      const disjoint = (a: typeof popover, b: typeof popover) =>
+        Math.min(a.x + a.width, b.x + b.width) <= Math.max(a.x, b.x) ||
+        Math.min(a.y + a.height, b.y + b.height) <= Math.max(a.y, b.y);
+      for (const box of [popover, summary]) {
+        expect(disjoint(box, scale)).toBe(true);
+        expect(disjoint(box, size)).toBe(true);
+        expect(box.x).toBeGreaterThanOrEqual(viewport.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.x + viewport.width + 1);
+        expect(box.y).toBeGreaterThanOrEqual(viewport.y);
+        expect(box.y + box.height).toBeLessThanOrEqual(viewport.y + viewport.height + 1);
+      }
+      expect((await details.getAttribute('open')) !== null).toBe(open);
+      return { open, popover, summary, scale, size, viewport };
+    };
+    const closed = await measure(false);
+    await trigger.click();
+    await expect(status.getByText('До препятствия', { exact: true })).toBeVisible();
+    const serial = details.locator('.robotics-drive');
+    if ((await serial.getAttribute('open')) === null)
+      await serial.locator(':scope > summary').click();
+    await expect(serial.getByRole('button', { name: /Вперёд/ })).toBeVisible();
+    const open = await measure(true);
+    await page.screenshot({ path: `${EVIDENCE}/split-status-open-${label}.png`, fullPage: true });
+    await trigger.click();
+    const closedAgain = await measure(false);
+    expect(await clock()).toBe(before.time);
+    expect(await pose()).toEqual(before.pose);
+    expect(await fieldCanvas.getAttribute('data-camera')).toBe(before.camera);
+    expect((await readProject(page, projectId)).draft.document).toEqual(before.document);
+    return { label, closed, open, closedAgain };
+  };
   const width = async () => Number(await separator.getAttribute('aria-valuenow'));
   const closeFieldDrawer = async () => {
     const close = page.getByRole('button', { name: 'Закрыть панель поля', exact: true });
@@ -2863,6 +2919,7 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   const desktopZoom = await fieldZoom.textContent();
   await frames();
   const desktopCamera = JSON.parse((await fieldCanvas.getAttribute('data-camera'))!) as number[][];
+  const statusDesktop = await inspectStatusClearance('1440');
   await page.screenshot({ path: `${EVIDENCE}/split-workspace-code-1440.png`, fullPage: true });
 
   // A real captured resize must be cancelled when its separator becomes hidden.
@@ -2911,6 +2968,7 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   await fieldInput.focus();
   await fieldInput.press('Delete');
   expect((await readProject(page, projectId)).draft.document).toEqual(confirmed.draft.document);
+  const statusCompact = await inspectStatusClearance('320');
   await page.screenshot({ path: `${EVIDENCE}/split-workspace-field-320.png`, fullPage: true });
   await compact.getByRole('button', { name: 'Редактор', exact: true }).click();
   await expect
@@ -2974,6 +3032,7 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
         selectedText,
         paused,
         stoppedRenderCount,
+        statusClearances: [statusDesktop, statusCompact],
         sameInstancesBeforeReload: true,
       },
       null,
