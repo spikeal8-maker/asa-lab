@@ -92,6 +92,10 @@ function realtime682ShortCycleAudit(
   electrical: ShortCycleEdge[],
   native: ShortCycleEdge[],
   cycles = 10,
+  render?: {
+    readonly opportunities: readonly { at: number; epoch: number }[];
+    readonly samples: readonly { at: number; epoch: number }[];
+  },
 ) {
   const frameMs = 1000 / 60,
     phaseBound = frameMs + 2,
@@ -138,15 +142,70 @@ function realtime682ShortCycleAudit(
   }
   const driftRange = lateness.length ? Math.max(...lateness) - Math.min(...lateness) : Infinity;
   if (driftRange > edgeBound) errors.push('cumulative-drift');
-  let lit = 0;
-  for (let index = 1; index < shown.length; index++)
-    if (shown[index - 1]!.high) lit += shown[index]!.at - shown[index - 1]!.at;
-  const duration = (shown.at(-1)?.at ?? 0) - (shown[0]?.at ?? 0);
+  const measureDuty = (edges: readonly ShortCycleEdge[]) => {
+    let lit = 0;
+    for (let index = 1; index < edges.length; index++) {
+      const before = edges[index - 1]!;
+      if (before.high) lit += edges[index]!.at - before.at;
+    }
+    const duration = (edges.at(-1)?.at ?? 0) - (edges[0]?.at ?? 0);
+    return lit / duration;
+  };
   const expectedDuration = (expected.at(-1)!.at - expected[0]!.at) / 1000;
   const expectedDuty = (cycles * (phaseMs * 1000 + 2)) / (expectedDuration * 1000);
-  const duty = lit / duration,
+  const duty = measureDuty(shown),
     dutyBound = Math.min(0.05, frameMs / expectedDuration + 0.02);
-  if (!Number.isFinite(duty) || Math.abs(duty - expectedDuty) > dutyBound)
+  const physicalDuty = phaseMs === 30 ? measureDuty(physical) : null;
+  let sampledExpectedDuty: number | null = null;
+  if (phaseMs === 30) {
+    // The electrical cycle must still match the nominal 50% duty with the
+    // exact instruction overhead in its HIGH and LOW durations.
+    if (physicalDuty !== expectedDuty) errors.push('electrical-duty');
+    const end = Math.max(h0 + expected.at(-1)!.at / 1000, shown.at(-1)?.at ?? h0);
+    const lastSample = render?.samples.findIndex(({ at }) => at >= end) ?? -1;
+    const samples = render?.samples.slice(0, lastSample + 1) ?? [];
+    const opportunities = render?.opportunities.filter(({ at }) => at >= h0) ?? [];
+    const start = opportunities[0]?.epoch;
+    const complete =
+      lastSample >= 0 &&
+      start !== undefined &&
+      Number.isSafeInteger(start) &&
+      start > 0 &&
+      shown.every(({ at }) => samples.some((sample) => sample.at === at)) &&
+      samples.every(({ at, epoch }, index) => {
+        const current = opportunities[index];
+        const next = opportunities[index + 1];
+        return (
+          Number.isFinite(at) &&
+          epoch === start + index &&
+          current?.epoch === epoch &&
+          next?.epoch === epoch + 1 &&
+          Number.isFinite(next.at) &&
+          current.at <= at &&
+          at < next.at
+        );
+      });
+    if (complete) {
+      const reference = expected.map(({ at, high }) => ({
+        at: samples.find((sample) => sample.at >= h0 + at / 1000)?.at ?? NaN,
+        high,
+      }));
+      // Form the reference independently from the actual LED levels. Every
+      // ideal transition also needs a distinct, witnessed rendering opportunity.
+      if (
+        reference.every(
+          ({ at }, index) => Number.isFinite(at) && (index === 0 || at > reference[index - 1]!.at),
+        )
+      )
+        sampledExpectedDuty = measureDuty(reference);
+    }
+    if (sampledExpectedDuty === null) errors.push('incomplete-native-raf');
+  }
+  const comparisonDuty = phaseMs === 30 ? sampledExpectedDuty : expectedDuty;
+  if (
+    !Number.isFinite(duty) ||
+    (comparisonDuty !== null && Math.abs(duty - comparisonDuty) > dutyBound)
+  )
     errors.push('integrated-duty');
   return {
     errors,
@@ -159,6 +218,7 @@ function realtime682ShortCycleAudit(
     driftRange,
     duty,
     expectedDuty,
+    ...(phaseMs === 30 ? { physicalDuty, sampledExpectedDuty } : {}),
     dutyBound,
     phaseBound,
     edgeBound,
@@ -804,6 +864,7 @@ async function realtime682Journal(
         push('paint', {
           witnessAt: previous.at,
           witnessKind: sampleInFrame ? 'native-raf' : 'render-opportunity-task',
+          ...(sampleInFrame ? { witnessEpoch: renderTaskEpoch } : {}),
           leds: previous.leds,
         });
       previous = null;
@@ -1357,7 +1418,28 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
               const high = led.brightness > 0;
               if (native.at(-1)?.high !== high) native.push({ at: Number(row.witnessAt), high });
             }
-            const report = realtime682ShortCycleAudit(shortMs, h0.at, electrical, native);
+            const render =
+              shortMs === 30
+                ? {
+                    opportunities: journal.records
+                      .filter((row) => row.kind === 'raf-snapshot')
+                      .map((row) => ({ at: Number(row.rafAt), epoch: Number(row.epoch) })),
+                    samples: paint
+                      .filter((row) => row.witnessKind === 'native-raf')
+                      .map((row) => ({
+                        at: Number(row.witnessAt),
+                        epoch: Number(row.witnessEpoch),
+                      })),
+                  }
+                : undefined;
+            const report = realtime682ShortCycleAudit(
+              shortMs,
+              h0.at,
+              electrical,
+              native,
+              10,
+              render,
+            );
             journal.retain('short-cycle-result', { shortMs, h0, report });
             expect(report.shown[0]!.at - h0.at).toBeLessThanOrEqual(50);
             expect(report.errors).toEqual([]);

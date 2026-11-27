@@ -3791,6 +3791,7 @@ describe('Issue 682 durable batch and active long interval', () => {
     expect(atLevel('paint', 16)).toBe(70);
     expect(atLevel('render-task-snapshot', 18)).toBe(0);
     expect(received.filter((row) => row.kind === 'paint')).toHaveLength(1);
+    expect(received.find((row) => row.kind === 'paint')?.witnessEpoch).toBe(2);
     deliver();
     // Lose the last (native read) callback but keep the heartbeat, product and timer.
     frames.pop();
@@ -3857,6 +3858,62 @@ describe('Issue 682 durable batch and active long interval', () => {
     expect(() => run.send(batch)).toThrow('no ACK');
     expect(run.bytes()).toBe(originals);
     expect(run.events).toEqual(['append', 'durable', 'observe']);
+  });
+  it('compares short30 with a complete native frame trace while preserving exact electrical duty', () => {
+    const check = runInNewContext(
+      compile(actualFunction('realtime682ShortCycleAudit') + '\nrealtime682ShortCycleAudit;'),
+    );
+    const electrical = Array.from({ length: 21 }, (_, index) => ({
+      at: 2 + Math.floor(index / 2) * 60_005 + (index % 2) * 30_002,
+      high: index % 2 === 0,
+    }));
+    const refresh = 1000 / 60;
+    // Two 0.1 ms changes to when the screen refreshes can move a correct
+    // transition by a full frame while the cadence still satisfies the gate.
+    const samples = Array.from({ length: 38 }, (_, index) => ({
+      at: 0.003 + index * refresh + (index === 18 || index === 36 ? 0.1 : 0),
+      epoch: index + 1,
+    }));
+    const opportunities = samples.map(({ at, epoch }) => ({ at: at - 0.001, epoch }));
+    const native = electrical.map(({ at, high }) => ({
+      at: samples.find((sample) => sample.at >= at / 1000)!.at,
+      high,
+    }));
+    const complete = { samples, opportunities };
+    const correct = check(30, 0, electrical, native, 10, complete);
+    expect(correct.errors).toEqual([]);
+    expect(correct.physicalDuty).toBe(correct.expectedDuty);
+    expect(correct.duty).toBeCloseTo(0.555296, 5);
+    expect(correct.sampledExpectedDuty).toBe(correct.duty);
+    expect(Math.abs(correct.duty - correct.expectedDuty)).toBeGreaterThan(correct.dutyBound);
+    expect(correct.dutyBound).toBeCloseTo(0.04777546);
+
+    const missing = samples.filter(({ epoch }) => epoch !== 7);
+    expect(
+      check(30, 0, electrical, native, 10, { ...complete, samples: missing }).errors,
+    ).toContain('incomplete-native-raf');
+    expect(
+      check(30, 0, electrical, native, 10, { ...complete, opportunities: opportunities.slice(1) })
+        .errors,
+    ).toContain('incomplete-native-raf');
+    expect(
+      check(30, 0, electrical, native, 10, { ...complete, samples: samples.slice(0, -2) }).errors,
+    ).toContain('incomplete-native-raf');
+    const unattested = native.map((edge, index) =>
+      index === 1 ? { ...edge, at: edge.at + 0.1 } : edge,
+    );
+    expect(check(30, 0, electrical, unattested, 10, complete).errors).toContain(
+      'incomplete-native-raf',
+    );
+    const incorrect = electrical.map((edge, index) =>
+      index === 1 ? { ...edge, at: edge.at + 1 } : edge,
+    );
+    expect(check(30, 0, incorrect, native, 10, complete).errors).toEqual(
+      expect.arrayContaining(['electrical-front-1', 'electrical-duty']),
+    );
+    expect(check(30, 0, electrical, native.slice(0, -1), 10, complete).errors).toContain(
+      'missing-front',
+    );
   });
   const long = runInNewContext(
     compile(
