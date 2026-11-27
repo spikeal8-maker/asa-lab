@@ -1,7 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import type pg from 'pg';
-import type { PublicScratchPlayerBootstrap } from '@asa-lab/contracts';
+import type {
+  PublicScratchPlayerBootstrap,
+  StudentScratchReviewBootstrap,
+} from '@asa-lab/contracts';
 import type { BlocksAssetFormat, BlocksProjectDocumentV1 } from '@asa-lab/blocks';
 import { assetByteLimit, inspectBlocksDocument, snapshotJson } from './blocks-durable-document.js';
 import { readBlocksRuntimeServerConfig } from './blocks-runtime-config.js';
@@ -13,10 +16,13 @@ import {
 } from './blocks-asset-storage.js';
 import { publicationError } from './public-projects.errors.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
+import type { PublicationReviewer } from './student-publication-review.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TYPE = 'asa-public-scratch-player+jwt';
 const AUD = 'asa-public-scratch-player';
+const REVIEW_TYPE = 'asa-student-scratch-review+jwt';
+const REVIEW_AUD = 'asa-student-scratch-review';
 const TTL = 600;
 const JSON_LIMIT = 4 * 1024 * 1024;
 const ASSET_LIMIT = 64 * 1024 * 1024;
@@ -102,6 +108,224 @@ export async function publicScratchDocument(value: unknown): Promise<BlocksProje
   };
   visit(project, 0);
   return document;
+}
+
+// Match the pinned VM's native SB3 serialization, without forwarding authoring
+// provenance or foreign costume objects that can bypass manifest lookup.
+const TARGET_FIELDS = [
+  'isStage',
+  'name',
+  'variables',
+  'lists',
+  'broadcasts',
+  'currentCostume',
+  'volume',
+  'layerOrder',
+] as const;
+const STAGE_FIELDS = ['tempo', 'videoTransparency', 'videoState'] as const;
+const SPRITE_FIELDS = [
+  'visible',
+  'x',
+  'y',
+  'size',
+  'direction',
+  'draggable',
+  'rotationStyle',
+] as const;
+const COSTUME_FIELDS = [
+  'assetId',
+  'dataFormat',
+  'md5ext',
+  'name',
+  'bitmapResolution',
+  'rotationCenterX',
+  'rotationCenterY',
+] as const;
+const SOUND_FIELDS = ['assetId', 'dataFormat', 'md5ext', 'name', 'rate', 'sampleCount'] as const;
+const BLOCK_FIELDS = [
+  'opcode',
+  'comment',
+  'next',
+  'topLevel',
+  'parent',
+  'shadow',
+  'x',
+  'y',
+] as const;
+const COMMENT_FIELDS = ['blockId', 'text', 'minimized', 'x', 'y', 'width', 'height'] as const;
+const MONITOR_FIELDS = [
+  'id',
+  'mode',
+  'opcode',
+  'spriteName',
+  'width',
+  'height',
+  'x',
+  'y',
+  'visible',
+  'sliderMin',
+  'sliderMax',
+  'isDiscrete',
+] as const;
+const PROCEDURE_ARGUMENT_FIELDS = ['argumentids', 'argumentnames', 'argumentdefaults'] as const;
+
+function unsupportedScratchShape() {
+  return publicationError(
+    'player_unsupported',
+    'Сохранённая программа недоступна для просмотра.',
+    422,
+  );
+}
+
+function nativeRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw unsupportedScratchShape();
+  return value as Record<string, unknown>;
+}
+
+function nativeFields(value: unknown, fields: readonly string[]) {
+  const input = nativeRecord(value);
+  return Object.fromEntries(
+    fields.filter((key) => Object.hasOwn(input, key)).map((key) => [key, input[key]]),
+  );
+}
+
+function scratchScalar(value: unknown): value is string | number | boolean {
+  return (
+    typeof value === 'string' ||
+    (typeof value === 'number' && Number.isFinite(value)) ||
+    typeof value === 'boolean'
+  );
+}
+
+function nativeScratchField(value: unknown) {
+  if (!Array.isArray(value) || !scratchScalar(value[0])) throw unsupportedScratchShape();
+  const [field, id] = value;
+  return typeof id === 'string' || id === null ? [field, id] : [field];
+}
+
+function nativeScratchInput(value: unknown) {
+  if (!Array.isArray(value)) throw unsupportedScratchShape();
+  const [mode, block, shadow] = value;
+  // Parser validation bounds primitive types. The VM only reads inline reporter coordinates at top level.
+  const inline = (ref: unknown) => (Array.isArray(ref) ? ref.slice(0, 3) : (ref ?? null));
+  return mode === 3 ? [mode, inline(block), inline(shadow)] : [mode, inline(block)];
+}
+
+function nativeScratchMutation(value: unknown, opcode: unknown) {
+  const mutation = nativeRecord(value);
+  const clean = nativeFields(mutation, ['tagName', 'hasnext']);
+  // The native VM reads procedure attributes as JSON arrays, not as arbitrary JSON.
+  if (opcode === 'procedures_prototype' || opcode === 'procedures_call') {
+    Object.assign(clean, nativeFields(mutation, ['proccode', 'warp']));
+    for (const key of PROCEDURE_ARGUMENT_FIELDS) {
+      if (!Object.hasOwn(mutation, key)) continue;
+      let args: unknown;
+      try {
+        const serialized = mutation[key];
+        if (typeof serialized !== 'string') throw unsupportedScratchShape();
+        args = JSON.parse(serialized);
+      } catch {
+        throw unsupportedScratchShape();
+      }
+      const validItem =
+        key === 'argumentdefaults' ? scratchScalar : (item: unknown) => typeof item === 'string';
+      if (!Array.isArray(args) || !args.every(validItem)) throw unsupportedScratchShape();
+      clean[key] = JSON.stringify(args);
+    }
+  }
+  // The native mutations above have no child nodes used by playback.
+  if (Object.hasOwn(mutation, 'children')) clean['children'] = [];
+  return clean;
+}
+
+function nativeScratchBlock(value: unknown) {
+  if (Array.isArray(value)) return value;
+  const block = nativeRecord(value);
+  const clean = nativeFields(block, BLOCK_FIELDS);
+  if (Object.hasOwn(block, 'inputs'))
+    clean['inputs'] = Object.fromEntries(
+      Object.entries(nativeRecord(block['inputs'])).map(([name, input]) => [
+        name,
+        nativeScratchInput(input),
+      ]),
+    );
+  if (Object.hasOwn(block, 'fields'))
+    clean['fields'] = Object.fromEntries(
+      Object.entries(nativeRecord(block['fields'])).map(([name, field]) => [
+        name,
+        nativeScratchField(field),
+      ]),
+    );
+  if (Object.hasOwn(block, 'mutation'))
+    clean['mutation'] = nativeScratchMutation(block['mutation'], block['opcode']);
+  return clean;
+}
+
+function nativeScratchMonitor(value: unknown) {
+  const monitor = nativeRecord(value);
+  const clean = Object.fromEntries(
+    Object.entries(nativeFields(monitor, MONITOR_FIELDS)).filter(
+      ([, field]) => field === null || scratchScalar(field),
+    ),
+  );
+  const params = monitor['params'];
+  if (params && typeof params === 'object' && !Array.isArray(params))
+    clean['params'] = Object.fromEntries(
+      Object.entries(params).filter(([, param]) => scratchScalar(param)),
+    );
+  else if (Object.hasOwn(monitor, 'params')) clean['params'] = {};
+  const current = monitor['value'];
+  if (scratchScalar(current) || current === null) clean['value'] = current;
+  else if (Array.isArray(current)) clean['value'] = current.filter(scratchScalar);
+  return clean;
+}
+
+export async function studentScratchDocument(value: unknown): Promise<BlocksProjectDocumentV1> {
+  const document = await publicScratchDocument(value);
+  const project = document.projectJson!;
+  const targets = (project['targets'] as Record<string, unknown>[]).map((target) => ({
+    ...nativeFields(target, TARGET_FIELDS),
+    ...nativeFields(target, target['isStage'] === true ? STAGE_FIELDS : SPRITE_FIELDS),
+    ...(target['isStage'] === true &&
+    (target['textToSpeechLanguage'] === null || typeof target['textToSpeechLanguage'] === 'string')
+      ? { textToSpeechLanguage: target['textToSpeechLanguage'] }
+      : {}),
+    blocks: Object.fromEntries(
+      Object.entries(nativeRecord(target['blocks'])).map(([id, block]) => [
+        id,
+        nativeScratchBlock(block),
+      ]),
+    ),
+    ...(target['comments'] === undefined
+      ? {}
+      : {
+          comments: Object.fromEntries(
+            Object.entries(nativeRecord(target['comments'])).map(([id, comment]) => [
+              id,
+              nativeFields(comment, COMMENT_FIELDS),
+            ]),
+          ),
+        }),
+    costumes: (target['costumes'] as unknown[]).map((costume) =>
+      nativeFields(costume, COSTUME_FIELDS),
+    ),
+    sounds: (target['sounds'] as unknown[]).map((value) => {
+      const sound = nativeRecord(value);
+      return {
+        ...nativeFields(sound, SOUND_FIELDS),
+        ...(typeof sound['format'] === 'string' ? { format: sound['format'] } : {}),
+      };
+    }),
+  }));
+  return publicScratchDocument({
+    ...document,
+    projectJson: {
+      targets,
+      monitors: (project['monitors'] as unknown[]).map(nativeScratchMonitor),
+      extensions: project['extensions'],
+      meta: { semver: '3.0.0' },
+    },
+  });
 }
 
 export class PublicScratchPlayerService {
@@ -305,6 +529,140 @@ export class PublicScratchPlayerService {
       throw error();
     }
   }
+
+  async issueStudentReview(
+    reviewer: PublicationReviewer,
+    requestId: string,
+  ): Promise<StudentScratchReviewBootstrap> {
+    if (!UUID.test(requestId)) throw error();
+    const release = await this.enter();
+    try {
+      const result = await this.pool!.query<{ source_revision: number; document_json: unknown }>(
+        'SELECT * FROM public.classroom_publication_student_scratch_source($1,$2,$3,$4)',
+        [reviewer.actor, reviewer.role, reviewer.classroomId, requestId],
+      );
+      const source = result.rows[0];
+      if (!source || !Number.isSafeInteger(source.source_revision) || source.source_revision < 1)
+        throw error();
+      let config;
+      try {
+        config = readBlocksRuntimeServerConfig(this.env);
+      } catch {
+        throw publicationError('player_unavailable', 'Просмотр временно недоступен.', 503);
+      }
+      const document = await studentScratchDocument(source.document_json);
+      const { SignJWT } = await import('jose');
+      const issuedAt = this.now();
+      const binding = requestId.toLowerCase();
+      const runtimeToken = await new SignJWT({
+        requestId: binding,
+        sourceRevision: source.source_revision,
+        reviewer: reviewer.actor,
+        role: reviewer.role,
+        classroomId: reviewer.classroomId,
+        runtimeOrigin: config.runtimeOrigin,
+        mode: 'student-review-player',
+      })
+        .setProtectedHeader({ alg: 'HS256', typ: REVIEW_TYPE })
+        .setIssuer('asa-lab')
+        .setAudience(REVIEW_AUD)
+        .setJti(randomUUID())
+        .setIssuedAt(issuedAt)
+        .setNotBefore(issuedAt)
+        .setExpirationTime(issuedAt + TTL)
+        .sign(config.signingKey);
+      return {
+        schemaVersion: 1,
+        viewerFamily: 'scratch',
+        publicationId: binding,
+        revisionId: binding,
+        reviewRequestId: binding,
+        sourceRevision: source.source_revision,
+        runtimeOrigin: config.runtimeOrigin,
+        runtimeToken,
+        expiresAt: issuedAt + TTL,
+        serverTime: issuedAt,
+        projectJson: document.projectJson!,
+        assets: document.assets,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  private async verifyStudentReview(
+    binding: PublicScratchBinding,
+    token: string,
+    origin: string | undefined,
+  ) {
+    const config = readBlocksRuntimeServerConfig(this.env);
+    if (
+      !validPublicScratchBinding(binding) ||
+      binding.publicationId !== binding.revisionId ||
+      origin !== config.runtimeOrigin ||
+      token.length > 4096
+    )
+      throw error();
+    const { jwtVerify } = await import('jose');
+    const claims = [
+      'iss',
+      'aud',
+      'iat',
+      'nbf',
+      'exp',
+      'jti',
+      'requestId',
+      'sourceRevision',
+      'reviewer',
+      'role',
+      'classroomId',
+      'runtimeOrigin',
+      'mode',
+    ];
+    try {
+      const { payload } = await jwtVerify(token, config.signingKey, {
+        issuer: 'asa-lab',
+        audience: REVIEW_AUD,
+        typ: REVIEW_TYPE,
+        algorithms: ['HS256'],
+        currentDate: new Date(this.now() * 1000),
+        clockTolerance: 0,
+        requiredClaims: claims,
+      });
+      const role = payload['role'];
+      const classroomId = payload['classroomId'];
+      const revision = payload['sourceRevision'];
+      const reviewer = payload['reviewer'];
+      if (
+        Object.keys(payload).length !== claims.length ||
+        payload['requestId'] !== binding.publicationId ||
+        payload['mode'] !== 'student-review-player' ||
+        payload['runtimeOrigin'] !== config.runtimeOrigin ||
+        typeof revision !== 'number' ||
+        !Number.isSafeInteger(revision) ||
+        revision < 1 ||
+        revision > 2147483647 ||
+        typeof reviewer !== 'string' ||
+        !UUID.test(reviewer) ||
+        !UUID.test(String(payload.jti)) ||
+        !Number.isSafeInteger(payload.iat) ||
+        payload.nbf !== payload.iat ||
+        payload.exp !== payload.iat! + TTL ||
+        !(
+          (role === 'teacher' && typeof classroomId === 'string' && UUID.test(classroomId)) ||
+          (role === 'platform' && classroomId === null)
+        )
+      )
+        throw error();
+      if (!this.budget.consume(payload.jti!).allowed)
+        throw publicationError('too_many_requests', 'Слишком много запросов просмотра.', 429);
+      return { reviewer, role, classroomId, revision, exp: payload.exp! };
+    } catch (cause) {
+      if (cause && typeof cause === 'object' && 'getStatus' in cause) throw cause;
+      throw error();
+    }
+  }
+
   async asset(
     binding: PublicScratchBinding,
     token: string,
@@ -313,7 +671,19 @@ export class PublicScratchPlayerService {
     dataFormat: BlocksAssetFormat,
     signal?: AbortSignal,
   ) {
-    const grant = await this.verify(binding, token, origin);
+    // The compact JWS flows unchanged through the official host. The untrusted
+    // header only selects which verifier may run, never which asset is readable.
+    const kind = await import('jose').then(({ decodeProtectedHeader }) => {
+      if (token.length > 4096) throw error();
+      try {
+        return decodeProtectedHeader(token).typ;
+      } catch {
+        throw error();
+      }
+    });
+    const review =
+      kind === REVIEW_TYPE ? await this.verifyStudentReview(binding, token, origin) : null;
+    const grant = review ?? (await this.verify(binding, token, origin));
     if (
       !/^[a-f0-9]{32}$/.test(assetId) ||
       !['svg', 'png', 'jpg', 'wav', 'mp3'].includes(dataFormat)
@@ -328,12 +698,22 @@ export class PublicScratchPlayerService {
         data_format: BlocksAssetFormat;
         sha256: string;
         size_bytes: string;
-      }>('SELECT * FROM public.public_scratch_player_asset($1,$2,$3,$4)', [
-        binding.publicationId,
-        binding.revisionId,
-        assetId,
-        dataFormat,
-      ]);
+      }>(
+        review
+          ? 'SELECT * FROM public.classroom_publication_student_scratch_asset($1,$2,$3,$4,$5,$6,$7)'
+          : 'SELECT * FROM public.public_scratch_player_asset($1,$2,$3,$4)',
+        review
+          ? [
+              review.reviewer,
+              review.role,
+              review.classroomId,
+              binding.publicationId,
+              review.revision,
+              assetId,
+              dataFormat,
+            ]
+          : [binding.publicationId, binding.revisionId, assetId, dataFormat],
+      );
       const ref = result.rows[0];
       if (
         !ref ||

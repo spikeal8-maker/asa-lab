@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from 'react';
+import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { PublicScratchPlayer } from './PublicScratchPlayer';
@@ -50,7 +50,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-async function mount() {
+async function mount(overrides: Partial<ComponentProps<typeof PublicScratchPlayer>> = {}) {
   const unavailable = vi.fn();
   await act(async () =>
     root.render(
@@ -59,6 +59,7 @@ async function mount() {
         revisionId: REV,
         onUnavailable: unavailable,
         fallback: createElement('p', null, 'Cover'),
+        ...overrides,
       }),
     ),
   );
@@ -94,6 +95,41 @@ async function ready(iframe: HTMLIFrameElement, init: Record<string, unknown>) {
   });
 }
 describe('public player capability lifecycle', () => {
+  it('loads a private review only from its authorized bootstrap and requires native readiness', async () => {
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ...body(),
+            revisionId: PUB,
+            reviewRequestId: PUB,
+            sourceRevision: 7,
+          }),
+          { headers: { date: new Date(SERVER).toUTCString() } },
+        ),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    const onReady = vi.fn();
+    const review = { role: 'teacher' as const, classroomId: REV, sourceRevision: 7 };
+    const f = await mount({ revisionId: PUB, review, onReady });
+    expect(fetcher).toHaveBeenCalledWith(
+      `/api/project-distribution/classrooms/${REV}/publication-requests/${PUB}/scratch-player`,
+      expect.objectContaining({ credentials: 'same-origin', cache: 'no-store' }),
+    );
+    const init = messages(f.post).find((message) => message['messageType'] === 'ASA_BLOCKS_INIT')!;
+    expect(init).toMatchObject({
+      mode: 'player',
+      assetScope: 'publication',
+      projectId: PUB,
+      versionId: PUB,
+    });
+    expect(init['runtimeToken']).toBe('header.initial.signature');
+    expect(onReady).not.toHaveBeenCalled();
+    await ready(f.iframe, init);
+    expect(onReady).toHaveBeenCalledOnce();
+    expect(f.iframe.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin');
+  });
+
   it.each([null, 'invalid', new Date(SERVER + 600000).toUTCString()])(
     'fails closed for missing, invalid or expired HTTP Date: %s',
     async (date) => {

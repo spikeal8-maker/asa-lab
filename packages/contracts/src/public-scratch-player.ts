@@ -16,3 +16,9 @@ export interface PublicScratchPlayerBootstrap {
     readonly sizeBytes: number;
   }[];
 }
+
+/** Read-only VM binding for a pending review. The token has no public or editor authority. */
+export interface StudentScratchReviewBootstrap extends PublicScratchPlayerBootstrap {
+  readonly reviewRequestId: string;
+  readonly sourceRevision: number;
+}

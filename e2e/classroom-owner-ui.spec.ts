@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
+import { PUBLIC_THREE_D_NODE_FIELDS } from '@asa-lab/contracts';
+import { createThreeDNode } from '../contexts/three-d/domain/document';
+import { createInitialRoboticsProject } from '../contexts/robotics/domain/default-project';
 
 import { fixture, origin, classId, classCode, seat } from './fixtures/classroom-owner';
 const evidence = 'reports/playwright/classroom-owner-evidence';
@@ -108,6 +111,9 @@ test.describe('Classroom owner fixes', () => {
   for (const width of [1440, 1024, 390, 320])
     test(`compact classroom and settings at ${width}px`, async ({ page }) => {
       const state = await fixture(page, 3);
+      await page.route(`**/api/project-distribution/classrooms/${classId}/policy`, (route) =>
+        route.fulfill({ json: { publish: true, download: false, comments: false, version: 1 } }),
+      );
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/#/classrooms');
       await expect(
@@ -134,7 +140,21 @@ test.describe('Classroom owner fixes', () => {
       if (await page.getByLabel('Раздел класса', { exact: true }).isVisible())
         await page.getByLabel('Раздел класса', { exact: true }).selectOption('settings');
       else await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-      await expect(page.getByText('Безопасный режим для всех', { exact: true })).toBeVisible();
+      const protection = page.getByRole('checkbox', { name: 'Безопасный режим для всех' });
+      await expect(protection).toBeVisible();
+      await expect(protection).toHaveAccessibleDescription(
+        'Защита блокирует публикацию и закрывает общий доступ к уже опубликованным работам. ' +
+          'После выключения доступ к этим публикациям не восстанавливается. ' +
+          'Личная защита ученика сохраняется.',
+      );
+      await expect(
+        page.getByRole('checkbox', { name: 'Публикация проектов', exact: true }),
+      ).toHaveAccessibleDescription(
+        /запрещает новые публикации и обновления\. Прежние публикации сохраняются\./,
+      );
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
       await expect(
         page.getByText('Шкала новых оцениваемых заданий', { exact: true }),
       ).toBeVisible();
@@ -168,6 +188,197 @@ test.describe('Classroom owner fixes', () => {
     expect(state.mutations[1]!.body).toEqual({ code: classCode });
     expect(state.errors).toEqual([]);
   });
+  for (const viewerChunkFails of [false, true])
+    test(
+      viewerChunkFails
+        ? 'publication queue requests a page reload after the viewer module fails'
+        : 'publication queue requires the exact saved review artifact before deciding on a phone',
+      async ({ page }) => {
+        const state = await fixture(page, 2);
+        const queuePath = `/api/project-distribution/classrooms/${classId}/publication-requests`;
+        const requestId = '65595527-08cd-46d7-a028-ba6df4f80a18';
+        const metadata = {
+          title: 'Учебный макет',
+          description: null,
+          tags: [],
+          license: 'reserved',
+        };
+        const entry = {
+          requestId,
+          state: 'waiting_teacher',
+          sourceRevision: 2,
+          moduleKey: 'three-d',
+          metadata,
+        };
+        const box = createThreeDNode('box', 'review-box');
+        const node = Object.fromEntries(
+          PUBLIC_THREE_D_NODE_FIELDS.map((field) => [field, box[field]]),
+        );
+        let requests = 0;
+        let artifactReads = 0;
+        const decisions: unknown[] = [];
+        if (viewerChunkFails) {
+          await page.route('**/assets/PublicThreeDViewer-*.js', (route) => route.abort());
+        }
+        await page.route(`**${queuePath}?*`, (route) => {
+          requests++;
+          return route.fulfill({
+            json: {
+              items: decisions.length ? [] : [entry, { ...entry, state: 'waiting_platform' }],
+            },
+          });
+        });
+        await page.route(`**${queuePath}/${requestId}/artifact`, (route) => {
+          artifactReads++;
+          return route.fulfill({
+            json: {
+              requestId,
+              sourceRevision: 2,
+              artifact: {
+                schemaVersion: 4,
+                status: 'display',
+                viewerFamily: 'three-d',
+                nodes: [node],
+                units: 'mm',
+                provenance: {
+                  publicationId: requestId,
+                  revisionNumber: !viewerChunkFails && artifactReads === 1 ? 1 : 2,
+                },
+                capabilities: { readOnly: true, interactive: true, download: false },
+              },
+            },
+          });
+        });
+        await page.route(`**${queuePath}/${requestId}/decision`, (route) => {
+          decisions.push(route.request().postDataJSON());
+          return route.fulfill({ json: { ...entry, state: 'rejected' } });
+        });
+        await page.setViewportSize({ width: 320, height: 844 });
+        await page.goto(`/#/classrooms/${classId}`);
+        await page.getByLabel('Раздел класса', { exact: true }).selectOption('projects');
+        const queue = page.getByRole('region', { name: 'Заявки на публикацию' });
+        await expect(queue.locator('summary')).toBeVisible();
+        expect(requests).toBe(0);
+        await queue.locator('summary').click();
+        await expect(queue.getByRole('listitem')).toHaveCount(1);
+        await queue.getByRole('button', { name: 'Проверить' }).click();
+        const dialog = page.getByRole('dialog', { name: 'Проверка публикации' });
+        const approve = dialog.getByRole('button', { name: 'Одобрить' });
+        const reject = dialog.getByRole('button', { name: 'Отклонить' });
+        if (viewerChunkFails) {
+          await expect(dialog.getByRole('alert')).toContainText('Не удалось загрузить просмотрщик');
+          await expect(dialog.getByRole('button', { name: 'Обновить страницу' })).toBeEnabled();
+          await expect(dialog.getByRole('button', { name: 'Повторить просмотр' })).toHaveCount(0);
+          await expect(approve).toBeDisabled();
+          await expect(reject).toBeDisabled();
+          expect(artifactReads).toBe(1);
+          expect(decisions).toEqual([]);
+          return;
+        }
+        await expect(dialog.getByRole('alert')).toContainText('Сохранённая работа недоступна');
+        await expect(approve).toBeDisabled();
+        await expect(reject).toBeDisabled();
+        await expect(dialog.locator('summary')).toHaveText('Обложка автора');
+        expect(decisions).toEqual([]);
+        await dialog.getByRole('button', { name: 'Повторить просмотр' }).click();
+        await expect(dialog.getByTestId('public-three-d-viewer')).toHaveAttribute(
+          'data-ready',
+          'true',
+        );
+        await expect(reject).toBeEnabled();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+          true,
+        );
+        await reject.click();
+        await expect(dialog).toHaveCount(0);
+        await expect(queue.getByText('Заявка отклонена.')).toBeVisible();
+        await expect(queue.getByText('Заявок на проверку нет.')).toBeVisible();
+        await expect(queue.locator('summary')).toBeFocused();
+        expect(decisions).toEqual([{ approve: false }]);
+        expect(state.errors).toEqual([]);
+      },
+    );
+  for (const moduleKey of ['electronics', 'robotics'] as const)
+    test(`publication queue loads the exact saved ${moduleKey} viewer`, async ({ page }) => {
+      const state = await fixture(page, 2);
+      const base = `/api/project-distribution/classrooms/${classId}/publication-requests`;
+      const requestId = '65595527-08cd-46d7-a028-ba6df4f80a19';
+      const metadata = {
+        title: 'Работа на проверке',
+        description: null,
+        tags: [],
+        license: 'reserved',
+      };
+      const entry = { requestId, state: 'waiting_teacher', sourceRevision: 6, moduleKey, metadata };
+      const identity = {
+        provenance: { publicationId: requestId, revisionNumber: 6 },
+        capabilities: { readOnly: true, interactive: true, download: false },
+      };
+      const robot = createInitialRoboticsProject();
+      const { schemaVersion, components, connections, simulation, annotations } = robot.circuit;
+      const values =
+        moduleKey === 'electronics'
+          ? {
+              schemaVersion: 3,
+              viewerFamily: 'electronics',
+              status: 'simulation',
+              components: [
+                { id: 'resistor', kind: 'resistor', value: 220, position: { x: 20, y: 20 } },
+              ],
+              connections: [],
+              solverIterations: 16,
+            }
+          : {
+              schemaVersion: 7,
+              viewerFamily: 'robotics',
+              status: 'simulation',
+              robotVersion: robot.schemaVersion,
+              world: robot.world,
+              circuit: { schemaVersion, components, connections, simulation, annotations },
+            };
+      let releaseArtifact!: () => void;
+      const pendingArtifact = new Promise<void>((resolve) => {
+        releaseArtifact = resolve;
+      });
+      await page.route(`**${base}?*`, (route) => route.fulfill({ json: { items: [entry] } }));
+      await page.route(`**${base}/${requestId}/artifact`, async (route) => {
+        await pendingArtifact;
+        await route.fulfill({
+          json: {
+            requestId,
+            sourceRevision: 6,
+            artifact: { ...identity, ...values },
+          },
+        });
+      });
+      const width = moduleKey === 'electronics' ? 1440 : 390;
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/#/classrooms/${classId}`);
+      if (width === 1440) {
+        await page
+          .getByRole('navigation', { name: 'Разделы класса' })
+          .getByRole('button', { name: 'Проекты', exact: true })
+          .click();
+      } else {
+        await page.getByLabel('Раздел класса', { exact: true }).selectOption('projects');
+      }
+      const queue = page.getByRole('region', { name: 'Заявки на публикацию' });
+      await queue.locator('summary').click();
+      await queue.getByRole('button', { name: 'Проверить' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Проверка публикации' });
+      const approve = dialog.getByRole('button', { name: 'Одобрить' });
+      await expect(approve).toBeDisabled();
+      releaseArtifact();
+      const viewer = dialog.getByTestId(
+        moduleKey === 'electronics' ? 'public-electronics-start' : 'classroom-robotics-start',
+      );
+      await expect(viewer).toBeEnabled();
+      await expect(approve).toBeEnabled();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      expect(state.errors).toEqual([]);
+    });
 });
 
 test.describe('Access-card QR raster regression', () => {

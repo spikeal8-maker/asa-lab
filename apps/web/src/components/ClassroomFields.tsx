@@ -27,6 +27,9 @@ export const CLASSROOM_TOPIC_OPTIONS: ReadonlyArray<{ key: string; label: string
   { key: 'robotics', label: 'Робототехника' },
 ];
 
+export const SAFE_MODE_PUBLICATION_HELP =
+  'Защита блокирует публикацию и закрывает общий доступ к уже опубликованным работам. После выключения доступ к этим публикациям не восстанавливается.';
+
 export function ageBandLabel(value: Classroom['ageBand']): string {
   return CLASSROOM_AGE_OPTIONS.find((entry) => entry.value === value)?.label ?? 'Разный возраст';
 }
@@ -118,11 +121,13 @@ export function ClassroomFields({
           type="checkbox"
           checked={draft.safeModeDefault}
           disabled={busy}
+          aria-labelledby={`${idPrefix}-safe-mode-label`}
+          aria-describedby={`${idPrefix}-safe-mode-help`}
           onChange={(event) => onChange({ ...draft, safeModeDefault: event.target.checked })}
         />
         <span>
-          <strong>Безопасный режим</strong>
-          <small>Проекты учеников закрыты от публичной публикации. Рекомендуется.</small>
+          <strong id={`${idPrefix}-safe-mode-label`}>Безопасный режим</strong>
+          <small id={`${idPrefix}-safe-mode-help`}>{SAFE_MODE_PUBLICATION_HELP}</small>
         </span>
       </label>
     </>

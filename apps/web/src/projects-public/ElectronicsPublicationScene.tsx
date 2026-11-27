@@ -53,8 +53,12 @@ export function publicDisplayComponentModel(source: PublicDisplayComponent): Sch
 /** A frozen presentation model; no editor, document state or runtime is mounted. */
 export function ElectronicsPublicationScene({
   artifact,
+  onReady,
+  onUnavailable,
 }: {
   readonly artifact: ElectronicsDisplayArtifact | ElectronicsSimulationArtifact;
+  readonly onReady?: () => void;
+  readonly onUnavailable?: (message?: string) => void;
 }): JSX.Element {
   const programs = useMemo(
     () => (artifact.schemaVersion === 3 ? publishedArduinoPrograms(artifact.components) : []),
@@ -65,6 +69,8 @@ export function ElectronicsPublicationScene({
       key={`${artifact.provenance.publicationId}:${artifact.provenance.revisionNumber}`}
       source={artifact}
       programs={programs}
+      {...(onReady ? { onReady } : {})}
+      {...(onUnavailable ? { onUnavailable } : {})}
     />
   );
 }
@@ -95,6 +101,7 @@ export function ClassroomElectronicsSimulationScene({
 function ElectronicsPlaybackScene({
   source,
   programs,
+  onReady,
   onUnavailable,
 }: {
   readonly source:
@@ -103,6 +110,7 @@ function ElectronicsPlaybackScene({
     | ClassroomElectronicsSimulation
     | ClassroomFreeElectronicsSimulation;
   readonly programs: readonly PreviewBoard[];
+  readonly onReady?: () => void;
   readonly onUnavailable?: (message?: string) => void;
 }): JSX.Element {
   const classroom = 'simulation' in source;
@@ -115,6 +123,9 @@ function ElectronicsPlaybackScene({
   const idlePort = useMemo(() => new NativeOpticalPresentation(), []);
   const section = useRef<HTMLElement>(null);
   const activeRuntime = useRef<PublicElectronicsRuntime | null>(null);
+  useEffect(() => {
+    if (section.current) onReady?.();
+  }, [onReady, source]);
   const stop = () => activeRuntime.current?.dispose();
   const start = () => {
     if (activeRuntime.current || (!classroom && source.schemaVersion !== 3)) return;

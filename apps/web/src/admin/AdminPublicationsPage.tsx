@@ -1,9 +1,15 @@
 import { PublicationCommentModeration } from './PublicationCommentModeration';
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import './admin-publications.css';
 import { PublicationAcquisitionSettings } from './PublicationAcquisitionSettings';
 import { PublicationReactionSettings } from './PublicationReactionSettings';
+
+const StudentPublicationReviewQueue = lazy(() =>
+  import('../projects-public/StudentPublicationReviewQueue').then((module) => ({
+    default: module.StudentPublicationReviewQueue,
+  })),
+);
 
 interface Publication {
   readonly schemaVersion?: number;
@@ -352,6 +358,11 @@ export function AdminPublicationsPage({
           Обновить
         </button>
       </div>
+      {!denied ? (
+        <Suspense fallback={null}>
+          <StudentPublicationReviewQueue scope={null} />
+        </Suspense>
+      ) : null}
       {error && !selected ? (
         <p role="alert" className="admin-inline-error">
           {error}

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import {
   api,
   type Classroom,
@@ -26,6 +35,7 @@ import {
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { ClassroomGradebook } from '../components/ClassroomGradebook';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
+import { SAFE_MODE_PUBLICATION_HELP } from '../components/ClassroomFields';
 import { ClassroomProjectSettings } from '../components/ClassroomProjectSettings';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
 import { ClassShareScreen } from '../components/ClassShareScreen';
@@ -53,6 +63,12 @@ import {
   ClassroomStaffProfile,
   ClassroomParticipantManagers,
 } from '../components/ClassroomParticipantPanels';
+
+const StudentPublicationReviewQueue = lazy(() =>
+  import('../projects-public/StudentPublicationReviewQueue').then((module) => ({
+    default: module.StudentPublicationReviewQueue,
+  })),
+);
 
 type ClassroomTab =
   | 'students'
@@ -255,11 +271,16 @@ function StudentDialog({
               type="checkbox"
               checked={safeMode}
               disabled={busy}
+              aria-labelledby="student-dialog-protection-label"
+              aria-describedby="student-dialog-protection-help"
               onChange={(event) => setSafeMode(event.target.checked)}
             />
             <span>
-              <strong>Безопасный режим</strong>
-              <small>Публичная публикация и открытый профиль недоступны.</small>
+              <strong id="student-dialog-protection-label">Безопасный режим</strong>
+              <small id="student-dialog-protection-help">
+                Защита действует, если включена здесь или для всего класса.{' '}
+                {SAFE_MODE_PUBLICATION_HELP}
+              </small>
             </span>
           </label>
           {error ? (
@@ -1099,6 +1120,7 @@ function ClassroomPageContent({
                       type="checkbox"
                       checked={classroom.safeModeDefault}
                       disabled={Boolean(busy) || archived}
+                      aria-describedby="classroom-protection-help"
                       onChange={async (event) => {
                         const safeMode = event.currentTarget.checked;
                         await action(
@@ -1122,6 +1144,9 @@ function ClassroomPageContent({
                     />
                     <i aria-hidden="true" />
                   </label>
+                  <small id="classroom-protection-help">
+                    {SAFE_MODE_PUBLICATION_HELP} Личная защита ученика сохраняется.
+                  </small>
                 </fieldset>
                 <ClassroomProjectSettings
                   classroomId={classroomId}
@@ -1513,7 +1538,14 @@ function ClassroomPageContent({
         ) : null}
 
         {tab === 'projects' ? (
-          <ClassroomStudentProjects classroomId={classroomId} onOpenProject={onOpenProject} />
+          <>
+            {!archived ? (
+              <Suspense fallback={null}>
+                <StudentPublicationReviewQueue key={classroomId} scope={{ classroomId }} />
+              </Suspense>
+            ) : null}
+            <ClassroomStudentProjects classroomId={classroomId} onOpenProject={onOpenProject} />
+          </>
         ) : null}
         {tab === 'activities' ? (
           <ClassroomLearning

@@ -4,6 +4,8 @@ import { expect, test, type BrowserContext, type Page, type Request } from '@pla
 import { registerAccountSetup } from './registration-setup';
 import { portalSidebar, portalTopBar } from './portal-navigation';
 import { openAiUsageNativeZoom } from './ai-usage-native-zoom';
+import { e2eAdminPool } from './seed';
+import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
 const evidenceDir = 'e2e/artifacts/student-project-policy';
 async function capture(page: Page, name: string) {
   for (const width of [320, 390, 1440]) {
@@ -31,7 +33,7 @@ async function expectProjectPermissionSaved(
   await expect(inlineSuccess).toHaveCount(0);
 }
 
-test('teacher policy explicitly permits own Seat publication and preserves public read after disabling', async ({
+test('teacher and platform approve the saved Seat work before its author publishes', async ({
   page,
   browser,
   baseURL,
@@ -93,11 +95,17 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
   const student = (await issued.json()).student as { id: string; studentCode: string };
 
   const studentContext = await browser.newContext({ baseURL: origin });
+  const moderatorContext = await browser.newContext({
+    baseURL: origin,
+    viewport: { width: 390, height: 900 },
+  });
+  const moderator = await moderatorContext.newPage();
   await studentContext.route('https://st.max.ru/js/max-web-app.js', (route) =>
     route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }),
   );
   const learner = await studentContext.newPage();
   learner.on('pageerror', (error) => errors.push(error.message));
+  moderator.on('pageerror', (error) => errors.push(error.message));
   try {
     await learner.goto(`${origin}/#/join-class?code=${encodeURIComponent(classCode)}`);
     await learner.getByLabel('Код ученика', { exact: true }).fill(student.studentCode);
@@ -112,10 +120,23 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     await learner.goto(`${origin}/#/projects`);
     const created = await learner.request.post('/api/projects', {
       headers: { origin, 'idempotency-key': randomKey() },
-      data: { scope: 'personal', module: 'electronics', title: 'Публикация ученика' },
+      data: { scope: 'personal', module: 'three-d', title: 'Публикация ученика' },
     });
     expect(created.status(), await created.text()).toBe(201);
     const projectId = (await created.json()).project.id as string;
+    const saved = await learner.request.put(`/api/projects/${projectId}/draft`, {
+      headers: { origin },
+      data: {
+        document: {
+          ...createEmptyThreeDDocument(),
+          nodes: [createThreeDNode('box', 'reviewed-box')],
+        },
+        baseRevision: 1,
+        mutationId: randomUUID(),
+      },
+    });
+    expect(saved.status(), await saved.text()).toBe(200);
+    const sourceRevision = (await saved.json()).draft.revision as number;
     const image = await learner.evaluate(() => {
       const canvas = document.createElement('canvas');
       canvas.width = 400;
@@ -129,13 +150,16 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     });
     const snapshot = await learner.request.put(`/api/projects/${projectId}/snapshot`, {
       headers: { origin },
-      data: { imageDataUrl: image, sourceRevision: 1 },
+      data: { imageDataUrl: image, sourceRevision },
     });
     expect(snapshot.status(), await snapshot.text()).toBe(200);
     const endpoint = `/api/projects/${projectId}/publication`;
-    expect((await learner.request.post(endpoint, { headers: { origin }, data: {} })).status()).toBe(
-      403,
-    );
+    const assertDirectDenied = async () => {
+      const direct = await learner.request.post(endpoint, { headers: { origin }, data: {} });
+      expect(direct.status(), await direct.text()).toBe(403);
+      expect(await direct.json()).toMatchObject({ error: { code: 'publication_forbidden' } });
+    };
+    await assertDirectDenied();
     await page.goto(`${origin}/#/classrooms/${classroomId}`);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
@@ -147,6 +171,7 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     await controls.getByLabel('Публикация проектов', { exact: true }).check();
     await controls.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
     await expectProjectPermissionSaved(page, controls);
+    await assertDirectDenied();
     await capture(page, 'teacher-class');
     await learner.reload();
     const card = learner.getByTestId('project-card').filter({ hasText: 'Публикация ученика' });
@@ -157,14 +182,97 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     await actions.click();
     await card.getByRole('button', { name: 'Публикация', exact: true }).click();
     const dialog = learner.getByRole('dialog', { name: 'Публикация проекта' });
-    await expect(dialog.getByRole('button', { name: 'Опубликовать', exact: true })).toBeEnabled();
-    await dialog.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+    const submit = dialog.getByRole('button', { name: 'Отправить на одобрение' });
+    const publish = dialog.getByRole('button', { name: 'Опубликовать одобренную версию' });
+    const refresh = dialog.getByRole('button', { name: 'Обновить статус заявки' });
+    const readPublication = async () => {
+      const result = await learner.request.get(endpoint);
+      expect(result.status(), await result.text()).toBe(200);
+      return (await result.json()).publication;
+    };
+    await submit.click();
+    await expect(dialog.getByText('Ожидает одобрения преподавателя класса.')).toBeVisible();
+    await expect(submit).toBeDisabled();
+    expect(await readPublication()).toBeNull();
+
+    const openReview = async (reviewer: Page) => {
+      const queue = reviewer.getByRole('region', { name: 'Заявки на публикацию' });
+      await queue.locator('summary').click();
+      await queue
+        .getByRole('listitem')
+        .filter({ hasText: 'Публикация ученика' })
+        .getByRole('button', { name: 'Проверить' })
+        .click();
+      const preview = reviewer.getByRole('dialog', { name: 'Проверка публикации' });
+      await expect(preview.getByTestId('public-three-d-viewer')).toHaveAttribute(
+        'data-ready',
+        'true',
+      );
+      await expect(preview.getByText('Сохранённая версия ' + sourceRevision)).toBeVisible();
+      await expect(preview.getByRole('button', { name: 'Повернуть модель влево' })).toBeEnabled();
+      await preview.getByRole('button', { name: 'Одобрить', exact: true }).click();
+      await expect(queue.getByText('Работа одобрена.')).toBeVisible();
+    };
+
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Проекты', exact: true })
+      .click();
+    await page.setViewportSize({ width: 320, height: 900 });
+    await openReview(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    expect(await readPublication()).toBeNull();
+    await refresh.click();
     await expect(
-      dialog.getByRole('button', { name: 'Обновить публикацию', exact: true }),
-    ).toBeEnabled();
+      dialog.getByText('Преподаватель одобрил. Ожидает одобрения администратора.'),
+    ).toBeVisible();
+    await expect(publish).toHaveCount(0);
+
+    await moderatorContext.route('https://st.max.ru/js/max-web-app.js', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }),
+    );
+    const adminRegister = await registerAccountSetup(
+      moderator.request,
+      {
+        headers: { origin },
+        data: {
+          email: `publication-review-${id}@admission.test`,
+          username: `review_${id.slice(0, 20)}`,
+          displayName: 'Администратор публикаций',
+          password: `Safe-${id}-Password`,
+          birthDate: '1990-04-12',
+          country: 'RU',
+        },
+      },
+      test.info(),
+    );
+    expect(adminRegister.status(), await adminRegister.text()).toBe(201);
+    const adminId = (await adminRegister.json()).user.id as string;
+    const db = e2eAdminPool();
+    try {
+      await db.query(
+        "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'platform_admin','verified','asa-lab-2026-07','migration')",
+        [adminId],
+      );
+      await db.query("UPDATE accounts SET email_verification_state='verified' WHERE id=$1", [
+        adminId,
+      ]);
+    } finally {
+      await db.end();
+    }
+    await moderator.goto('/#/admin/publications');
+    await openReview(moderator);
+    expect(await readPublication()).toBeNull();
+    await refresh.click();
+    await expect(publish).toBeEnabled();
+    await publish.click();
+    await expect(dialog.getByRole('link', { name: 'Открыть публикацию' })).toBeVisible();
     await capture(learner, 'seat-published');
-    const state = await learner.request.get(endpoint);
-    const publicationId = (await state.json()).publication.publicationId as string;
+    const publicationId = (await readPublication()).publicationId as string;
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Настройки', exact: true })
+      .click();
     await controls.getByLabel('Публикация проектов', { exact: true }).uncheck();
     await controls.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
     await expectProjectPermissionSaved(page, controls);
@@ -185,14 +293,12 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     await individual.getByRole('button', { name: 'Сохранить разрешения', exact: true }).click();
     await expectProjectPermissionSaved(page, individual);
     await capture(page, 'teacher-seat');
-    expect((await learner.request.post(endpoint, { headers: { origin }, data: {} })).status()).toBe(
-      200,
-    );
+    await assertDirectDenied();
     expect((await learner.request.delete(endpoint, { headers: { origin } })).status()).toBe(200);
     expect((await learner.request.get(`/api/public-projects/${publicationId}`)).status()).toBe(404);
     expect(errors).toEqual([]);
   } finally {
-    await studentContext.close();
+    await Promise.all([studentContext.close(), moderatorContext.close()]);
   }
 });
 

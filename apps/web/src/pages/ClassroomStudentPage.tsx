@@ -26,6 +26,7 @@ import { canonicalLearningLabel } from '../learning/canonical-learning-presentat
 import '../modules/project-card.css';
 import './classroom-student.css';
 import { ClassroomProjectSettings } from '../components/ClassroomProjectSettings';
+import { SAFE_MODE_PUBLICATION_HELP } from '../components/ClassroomFields';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
 import { CrmUserCard } from '../admin/CrmUserCard';
 import { registerAuxiliarySettingsDraft } from '../components/settings-navigation';
@@ -143,6 +144,7 @@ export function ClassroomStudentPage({
   const focusAfterNavigation = useRef<string | null>(null);
   const learnerPickerId = useId();
   const protectionDescriptionId = useId();
+  const protectionHelpId = useId();
   const generation = useRef(0);
   const profileGeneration = useRef(0);
   const sessionEnded = useRef(false);
@@ -999,14 +1001,16 @@ export function ClassroomStudentPage({
                     <input
                       type="checkbox"
                       aria-label={`Защита ученика в настройках: ${student.displayLabel}`}
+                      aria-describedby={protectionHelpId}
                       checked={student.safeMode}
                       disabled={!seatActions || settingsLocked || controlsBusy}
                       onChange={(event) => updateSafeMode(event.target.checked)}
                     />
                     Защита ученика {student.safeMode ? 'включена' : 'выключена'}
                   </label>
-                  <p className="classroom-student-settings-note">
-                    Это настройка ученика. Классная защита и доступ к играм управляются отдельно.
+                  <p id={protectionHelpId} className="classroom-student-settings-note">
+                    Защита действует, если включена здесь или для всего класса.{' '}
+                    {SAFE_MODE_PUBLICATION_HELP}
                   </p>
                 </>
               ) : null}
