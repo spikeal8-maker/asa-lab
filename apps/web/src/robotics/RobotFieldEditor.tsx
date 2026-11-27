@@ -488,9 +488,12 @@ export function RobotFieldEditor({
     tool: PlacementTool;
     position: RoboticsPoint;
   } | null>(null);
-  const paletteDrag = useRef<{ kind: Tool; view: FieldView; world: RoboticsWorldDocument } | null>(
-    null,
-  );
+  const paletteDrag = useRef<{
+    kind: Tool;
+    view: FieldView;
+    world: RoboticsWorldDocument;
+    enteredOrbit: boolean;
+  } | null>(null);
   const dragFeedback = useRef<HTMLCanvasElement | null>(null);
   const panePointers = useRef(new Map<number, Element>());
   const spatialDrag = useRef<{
@@ -819,7 +822,8 @@ export function RobotFieldEditor({
       return;
     }
     if (fieldView === 'orbit') {
-      clearPaletteDrag();
+      // Chromium can deliver the previous drag's leave before a new drag reaches the canvas.
+      if (paletteDrag.current?.enteredOrbit) clearPaletteDrag();
       return;
     }
     setDropHover(false);
@@ -855,7 +859,9 @@ export function RobotFieldEditor({
 
   function dragOverSpatial(event: DragEvent<HTMLDivElement>) {
     const kind = spatialDragKind(event);
-    if (!kind) return;
+    const drag = paletteDrag.current;
+    if (!kind || !drag) return;
+    drag.enteredOrbit = true;
     event.preventDefault();
     const position = spatialDropPoint(event);
     const onField = position && placementPoint(world, kind, position, snap);
@@ -2024,7 +2030,12 @@ export function RobotFieldEditor({
                             document.body.append(feedback);
                             dragFeedback.current = feedback;
                             event.dataTransfer.setDragImage(feedback, 0, 0);
-                            paletteDrag.current = { kind, view: fieldView, world };
+                            paletteDrag.current = {
+                              kind,
+                              view: fieldView,
+                              world,
+                              enteredOrbit: false,
+                            };
                             event.dataTransfer.setData(FIELD_TOOL_TRANSFER, kind);
                             event.dataTransfer.setData('text/plain', kind);
                             event.dataTransfer.effectAllowed = 'copy';
