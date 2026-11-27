@@ -798,8 +798,12 @@ export class ElectronicsLiveSimulationWorkerController {
       : coalesceIdlePolls
         ? Math.min(wake.dueMicroseconds, committed + window)
         : wake.dueMicroseconds;
+    // A ready response can arrive just before the next MCU transition. Arm
+    // that known wake now when there is less than one ordinary poll to wait.
     if (
-      (proactive && !balanced) ||
+      (proactive &&
+        !balanced &&
+        (!coalesceIdlePolls || due - horizon > ARDUINO_WAKE_RESERVATION_MICROSECONDS)) ||
       horizon >= due ||
       due > committed + window ||
       (!coalesceIdlePolls && due - horizon > ARDUINO_WAKE_RESERVATION_MICROSECONDS)
@@ -833,7 +837,7 @@ export class ElectronicsLiveSimulationWorkerController {
     const document = this.canonicalDocument;
     const runtimeDocument = this.lastRuntimeDocument;
     if (
-      balanced &&
+      coalesceIdlePolls &&
       due === wake.dueMicroseconds &&
       document &&
       runtimeDocument &&
@@ -877,7 +881,7 @@ export class ElectronicsLiveSimulationWorkerController {
       const callbacks = this.callbacks;
       if (
         !wake ||
-        !this.shouldBalanceSleep(wake) ||
+        !wake.coalesceIdlePolls ||
         !callbacks?.readHostHorizonMicroseconds ||
         this.wakeReservation ||
         this.firstPositiveObservation ||
