@@ -4824,6 +4824,10 @@
 .robotics-lab .robotics-workspace[data-split='true'] .robotics-drive {
   padding: 8px;
 }
+.robotics-lab .robotics-workspace[data-split='true'] .robotics-status-popover > .robotics-drive {
+  display: block;
+}
+
 .robotics-pane-choice {
   display: flex;
   gap: 4px;
