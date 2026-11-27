@@ -4595,7 +4595,14 @@
   height: auto;
   min-height: 48px;
   flex-wrap: nowrap;
+  align-content: flex-start;
   gap: 8px;
+}
+.robotics-unified-header > .robotics-header-brand-zone,
+.robotics-unified-header > .robotics-header-controls {
+  /* A percentage here creates a circular cross-size when the header wraps
+   * inside an auto grid row, letting its second row overflow the workspace. */
+  height: 48px;
 }
 .robotics-unified-header .robotics-header-title-input {
   width: clamp(90px, 13vw, 200px);

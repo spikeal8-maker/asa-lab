@@ -1313,6 +1313,9 @@ async function inspectHeaderControls(page: Page, projectId: string) {
       const geometry = await group.evaluate((element) => {
         const header = element.closest('header')!;
         const bounds = header.getBoundingClientRect();
+        const workspace = header
+          .parentElement!.querySelector('.robotics-workspace')!
+          .getBoundingClientRect();
         const controls = [
           element.querySelector('.workbench-simulation-clock-button')!,
           ...element.querySelectorAll('.robotics-run-buttons button'),
@@ -1323,11 +1326,21 @@ async function inspectHeaderControls(page: Page, projectId: string) {
             '.robotics-header-save, .robotics-header-brand-zone, .robotics-header-controls',
           ),
         ].map((node) => node.getBoundingClientRect());
+        const children = [...other, element.getBoundingClientRect()];
         const overlaps = (a: DOMRect, b: DOMRect) =>
           Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
           Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
         return {
           header: bounds.toJSON(),
+          workspace: workspace.toJSON(),
+          children: children.map((rect) => rect.toJSON()),
+          childrenContained: children.every(
+            (rect) =>
+              rect.left >= bounds.left &&
+              rect.right <= bounds.right + 1 &&
+              rect.top >= bounds.top &&
+              rect.bottom <= bounds.bottom + 1,
+          ),
           controls: rects.map((rect) => rect.toJSON()),
           contained: rects.every(
             (rect) =>
@@ -1356,12 +1369,36 @@ async function inspectHeaderControls(page: Page, projectId: string) {
       expect(geometry.contained).toBe(true);
       expect(geometry.reachable).toBe(true);
       expect(geometry.separate).toBe(true);
+      expect(geometry.childrenContained).toBe(true);
+      expect(geometry.workspace.top).toBeGreaterThanOrEqual(geometry.header.bottom);
       if (width === 320)
         for (const bounds of geometry.controls) {
           expect(bounds.width).toBeGreaterThanOrEqual(44);
           expect(bounds.height).toBeGreaterThanOrEqual(44);
         }
       await noOverflow(page);
+      if (tab === 'Поле') {
+        const close = page.getByRole('button', { name: 'Закрыть панель поля', exact: true });
+        if (await close.isVisible()) {
+          await close.click();
+          await expect(page.locator('.robotics-field-catalog-toggle')).toHaveAttribute(
+            'aria-expanded',
+            'false',
+          );
+        }
+        await page.getByRole('button', { name: 'Сбоку', exact: true }).click();
+        await expect(page.getByTestId('robotics-field-spatial')).toHaveAttribute(
+          'data-field-view',
+          'side',
+        );
+        await page.getByRole('button', { name: 'Сверху', exact: true }).click();
+        await expect(page.getByTestId('robotics-field-spatial')).toHaveAttribute(
+          'data-field-view',
+          'top',
+        );
+        expect(await clock()).toBe(paused);
+        expect(await pose()).toEqual(pausedPose);
+      }
       if (tab === 'Код') {
         for (const control of [
           page.getByRole('combobox', { name: 'Программируемая плата', exact: true }),
