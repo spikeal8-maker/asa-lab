@@ -127,6 +127,143 @@ function solve(options: Harness = {}) {
 }
 
 describe('L298N real ASA Lab netlist -> shared DC solver', () => {
+  function oneMotor(volts: 6 | 9, unoLogic: boolean, reverse = false): ElectronicsDocument {
+    const sourcePins =
+      volts === 6 ? (['BAT+', 'BAT-'] as const) : (['positive', 'negative'] as const);
+    const doc = harness({ regulatorJumperInstalled: !unoLogic });
+    const driver = doc.components.find((c) => c.id === 'driver')!;
+    const battery: SchematicComponent = {
+      ...base('battery', 'source', volts),
+      componentTypeId: volts === 6 ? 'battery-holder-aa-4' : 'battery-9v',
+      pinIds: [...sourcePins],
+    };
+    const motor: SchematicComponent = {
+      ...base('motor', 'visual', 6),
+      componentTypeId: 'dc-motor',
+      pinIds: ['positive', 'negative'],
+    };
+    const uno: SchematicComponent = {
+      ...base('uno', 'visual', 5),
+      componentTypeId: 'arduino-uno',
+      pinIds: ['power-5v', 'power-3v3', 'power-gnd-1', 'd2', 'd3', 'd13'],
+      stateProperties: {
+        arduinoSource:
+          'void setup(){pinMode(2,OUTPUT);pinMode(3,OUTPUT);digitalWrite(2,HIGH);digitalWrite(3,LOW);}void loop(){delay(1000);}',
+      },
+    };
+    return {
+      ...doc,
+      components: [driver, battery, motor, ...(unoLogic ? [uno] : [])],
+      connections: [
+        wire('vs', 'battery', sourcePins[0], 'driver', '+12V'),
+        wire('negative', 'battery', sourcePins[1], 'driver', 'GND'),
+        wire('red', 'driver', 'OUT1', 'motor', 'positive'),
+        wire('black', 'driver', 'OUT2', 'motor', 'negative'),
+        wire(
+          'high',
+          unoLogic ? 'uno' : 'driver',
+          unoLogic ? 'd2' : '+5V',
+          'driver',
+          reverse ? 'IN2' : 'IN1',
+        ),
+        wire(
+          'low',
+          unoLogic ? 'uno' : 'driver',
+          unoLogic ? 'd3' : 'GND',
+          'driver',
+          reverse ? 'IN1' : 'IN2',
+        ),
+        ...(unoLogic
+          ? [
+              wire('logic', 'uno', 'power-5v', 'driver', '+5V'),
+              wire('common', 'uno', 'power-gnd-1', 'driver', 'GND'),
+            ]
+          : []),
+      ],
+    };
+  }
+
+  it.each([
+    [9, false, false],
+    [9, false, true],
+    [6, true, false],
+    [6, true, true],
+  ] as const)(
+    'drives one motor with a real %i V battery, Uno logic %s and reversed controls %s',
+    (volts, unoLogic, reverse) => {
+      const result = analyseCircuit(oneMotor(volts, unoLogic, reverse), { simulationTimeMs: 500 });
+      expect(result.quality.passed, JSON.stringify(result.diagnostics)).toBe(true);
+      const driver = result.components.find((c) => c.componentId === 'driver')!;
+      const motor = result.components.find((c) => c.componentId === 'motor')!;
+      expect(driver.lit).toBe(true);
+      expect(driver.terminalVoltages['+5V']).toBeCloseTo(5, 1);
+      expect(driver.terminalVoltages.OUT3).toBeUndefined();
+      expect(driver.terminalVoltages.OUT4).toBeUndefined();
+      expect(driver.terminalCurrents?.OUT3).toBe(0);
+      expect(driver.terminalCurrents?.OUT4).toBe(0);
+      expect((reverse ? -1 : 1) * (motor.motorRpm ?? 0)).toBeGreaterThan(0);
+      expect((reverse ? -1 : 1) * motor.current).toBeGreaterThan(0);
+    },
+  );
+  it('keeps a 6 V holder solved at regulator dropout and explains why the motor is stopped', () => {
+    const result = analyseCircuit(oneMotor(6, false), { simulationTimeMs: 500 });
+    expect(result.quality.passed).toBe(true);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'l298n_logic_supply',
+        severity: 'warning',
+        componentIds: ['driver'],
+      }),
+    );
+    expect(result.components.find((c) => c.componentId === 'driver')?.lit).toBe(false);
+    expect(result.components.find((c) => c.componentId === 'motor')?.motorRpm).toBeCloseTo(0);
+  });
+  it('does not energise the motor from a Uno logic supply with no common return', () => {
+    const doc = oneMotor(6, true);
+    const result = analyseCircuit(
+      { ...doc, connections: doc.connections.filter((c) => c.id !== 'common') },
+      { simulationTimeMs: 500 },
+    );
+    expect(result.quality.passed).toBe(false);
+    expect(result.components.find((c) => c.componentId === 'motor')).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'unsupported_topology',
+        componentIds: ['driver'],
+        message: expect.stringContaining('общий минус'),
+      }),
+    );
+  });
+  it('rejects a battery wired straight to the logic rail and names both terminals', () => {
+    const doc = oneMotor(6, false);
+    const result = solveCircuit({
+      ...doc,
+      connections: [...doc.connections, wire('wrong-jumper', 'driver', '+12V', 'driver', '+5V')],
+    });
+    expect(result.status).toBe('unsupported');
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'unsupported_topology',
+        message: expect.stringContaining('клеммы +12V и +5V соединены'),
+      }),
+    );
+  });
+  it('requires defined logic when any otherwise unused output is connected', () => {
+    const doc = oneMotor(9, false);
+    const result = solveCircuit({
+      ...doc,
+      components: [...doc.components, base('probe', 'resistor', 10000)],
+      connections: [...doc.connections, wire('probe', 'driver', 'OUT3', 'probe', 'a')],
+    });
+    expect(result.status).toBe('unsupported');
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: 'unsupported_topology',
+        message: expect.stringContaining('IN3, IN4'),
+      }),
+    );
+  });
+
   it('drives both shunted bridges with rail-wired inputs and no PWM control nets', () => {
     const document = harness();
     expect(l298nControlNetIndices(document, buildNetlist(document).nodeOf).size).toBe(0);

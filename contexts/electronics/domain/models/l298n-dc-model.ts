@@ -50,6 +50,8 @@ export interface L298nIterationState {
 export interface L298nOperatingPoint {
   readonly terminalVoltages: Readonly<Record<Terminal, number>>;
   readonly drivenTerminals: ReadonlySet<string>;
+  /** Open output pins cannot drive another net. Unspecified means both channels are observable. */
+  readonly connectedOutputs?: ReadonlySet<Terminal>;
   readonly externalLogicSourcePresent?: boolean;
 }
 export interface L298nObservation {
@@ -138,6 +140,19 @@ const MAX_CHANNEL_CURRENT_AMP = L298N_BOARD_PROFILE.maxChannelCurrentAmp;
 const REGULATOR_GAIN_SIEMENS = L298N_BOARD_PROFILE.regulator.gainSiemens;
 const REGULATOR_MAX_CURRENT_AMP = L298N_BOARD_PROFILE.regulator.maxCurrentAmp;
 
+function l298nRegulatorCurrent(on: boolean, logicVoltage: number): number {
+  return on
+    ? REGULATOR_GAIN_SIEMENS * (L298N_BOARD_PROFILE.regulator.outputVolt - logicVoltage)
+    : 0;
+}
+
+function regulatorOverCurrent(current: number): boolean {
+  return (
+    current < -L298N_BOARD_PROFILE.regulator.reverseCurrentToleranceAmp ||
+    current > REGULATOR_MAX_CURRENT_AMP
+  );
+}
+
 const FLYBACK_EDGES = [
   ['OUT1', '+12V', 'A'],
   ['OUT2', '+12V', 'A'],
@@ -200,6 +215,78 @@ function channelState(
   return first === 'low'
     ? { mode: 'brake-low', firstRail: 'GND', secondRail: 'GND' }
     : { mode: 'brake-high', firstRail: '+12V', secondRail: '+12V' };
+}
+
+export function l298nUnresolvedInputs(
+  config: L298nParameters,
+  channelA: L298nChannelState,
+  channelB: L298nChannelState,
+  point: L298nOperatingPoint,
+): Terminal[] {
+  const outputs = point.connectedOutputs;
+  const pins: Terminal[] = [];
+  if (channelA.mode === 'unknown' && (!outputs || outputs.has('OUT1') || outputs.has('OUT2'))) {
+    if (!config.enaJumperInstalled) pins.push('ENA');
+    pins.push('IN1', 'IN2');
+  }
+  if (channelB.mode === 'unknown' && (!outputs || outputs.has('OUT3') || outputs.has('OUT4'))) {
+    if (!config.enbJumperInstalled) pins.push('ENB');
+    pins.push('IN3', 'IN4');
+  }
+  return pins.filter(
+    (pin) =>
+      l298nLogicLevel(
+        point.terminalVoltages[pin],
+        point.terminalVoltages['GND'],
+        point.drivenTerminals.has(pin),
+      ) === 'unknown',
+  );
+}
+
+export function l298nFailureMessage(
+  config: L298nParameters,
+  state: L298nIterationState,
+  point: L298nOperatingPoint,
+  issue: L298nObservation,
+  motorAndLogicJoined: boolean,
+): string {
+  if (motorAndLogicJoined && (state.regulatorConflict || state.voltageOutOfRange))
+    return 'L298N: клеммы +12V и +5V соединены. Уберите перемычку между силовым и логическим питанием.';
+  if (state.regulatorConflict)
+    return 'L298N: внешнее питание +5V подключено при установленной 5V_EN. Снимите 5V_EN или отключите внешний источник +5V.';
+  if (state.voltageOutOfRange) {
+    const voltage = (pin: string) => point.terminalVoltages[pin] - point.terminalVoltages['GND'];
+    if (
+      config.regulatorJumperInstalled &&
+      voltage('+12V') > L298N_BOARD_PROFILE.regulator.maximumInputVolt
+    )
+      return 'L298N: на +12V больше 12 В. Снимите 5V_EN и подайте отдельные 5 В относительно GND.';
+    if (
+      voltage('+5V') < L298N_BOARD_PROFILE.minimumSupplyVoltageVolt ||
+      voltage('+5V') > L298N_BOARD_PROFILE.logicMaximumVolt
+    )
+      return 'L298N: напряжение на +5V вне допустимого диапазона. Проверьте полярность и питание логики относительно GND.';
+    if (
+      voltage('+12V') < L298N_BOARD_PROFILE.minimumSupplyVoltageVolt ||
+      voltage('+12V') > L298N_BOARD_PROFILE.motorMaximumVolt
+    )
+      return 'L298N: напряжение силового питания вне допустимого диапазона. Проверьте напряжение и полярность батареи на +12V и GND.';
+    return 'L298N: напряжение управляющего входа вне допустимого диапазона. Проверьте уровень IN/EN относительно GND и общий минус источников.';
+  }
+  if (issue.overCurrent) {
+    if (
+      regulatorOverCurrent(
+        l298nRegulatorCurrent(
+          state.regulatorOn,
+          point.terminalVoltages['+5V'] - point.terminalVoltages['GND'],
+        ),
+      )
+    )
+      return 'L298N: недопустимый ток стабилизатора +5V. Проверьте нагрузку на +5V и подключение внешнего питания.';
+    return 'L298N: ток силового канала превышает 2 А. Проверьте нагрузку и соединения выходов.';
+  }
+  const pins = l298nUnresolvedInputs(config, state.channelA, state.channelB, point);
+  return `L298N: не определён уровень ${pins.join(', ')}. Подключите входы к GND или +5V. При управлении от Arduino соедините земли плат.`;
 }
 
 /**
@@ -384,7 +471,9 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
       channelB,
       logicPowered,
       motorPowered,
-      inputKnown: channelA.mode !== 'unknown' && channelB.mode !== 'unknown',
+      inputKnown:
+        (channelA.mode !== 'unknown' && channelB.mode !== 'unknown') ||
+        l298nUnresolvedInputs(config, channelA, channelB, point).length === 0,
       regulatorOn,
       regulatorConflict,
       voltageOutOfRange,
@@ -413,15 +502,11 @@ export const L298N_DC_MODEL: IterativeDcDeviceModel<
     currents['+5V'] += iLogic;
     currents['GND'] -= iLogic;
     let powerWatt = iLogic * (v('+5V') - v('GND'));
-    const regulatorCurrent = state.regulatorOn
-      ? REGULATOR_GAIN_SIEMENS * (L298N_BOARD_PROFILE.regulator.outputVolt - (v('+5V') - v('GND')))
-      : 0;
+    const regulatorCurrent = l298nRegulatorCurrent(state.regulatorOn, v('+5V') - v('GND'));
     currents['+12V'] += regulatorCurrent;
     currents['+5V'] -= regulatorCurrent;
     powerWatt += regulatorCurrent * (v('+12V') - v('+5V'));
-    let overCurrent =
-      regulatorCurrent < -L298N_BOARD_PROFILE.regulator.reverseCurrentToleranceAmp ||
-      regulatorCurrent > REGULATOR_MAX_CURRENT_AMP;
+    let overCurrent = regulatorOverCurrent(regulatorCurrent);
     const edges = [
       ['OUT1', state.channelA.firstRail],
       ['OUT2', state.channelA.secondRail],
