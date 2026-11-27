@@ -18992,6 +18992,95 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-PERSPECTIVE-PLACE-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3-PERSPECTIVE-PLACE
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_perspective_palette_placement_selected
+      owner_acceptance: pending
+      owner_authorization: The owner requested dragging objects from the palette directly onto the field while
+        working in 3D and asked to finish unmet editor interactions. This selects native palette placement for four
+        existing object kinds in the same Perspective field after protected compact camera and Side ruler delivery.
+        Implementation begins after protected canonical integration and fresh exact source preflight.
+      registration_baseline:
+        main: 60964cc4b2fe6aee131249567ac354b153fb8f02
+        zoom_source: 533bb795b093451bf975057e844f70b6972a2a5b
+        zoom_pr: https://github.com/spikeal8-maker/asa-lab/pull/1368
+        preserved_task: parallel_lanes.robotics.historical_compact_field_zoom_task
+        zoom_result: parallel_lanes.robotics.compact_field_zoom_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-CAT-01
+        - REQ-CAT-02
+        - REQ-CAM-02
+        - REQ-DEL-02
+      scope: Support native placement of the existing wall, ball, can and block from the existing Field palette
+        into the same active interactive Perspective viewport. Project real viewport pointer coordinates through
+        the live camera onto z=0 and reuse canonical bounds, snapping, footprint, validation and authoring. Draw
+        one temporary non-pickable candidate in that viewport from the existing mesh builders.
+      planned_paths:
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/RobotFieldSpatialView.tsx
+      - apps/web/src/robotics/field-spatial-scene.ts
+      - apps/web/src/robotics/testing/robotics-field-spatial.spec.ts
+      - e2e/robotics-projects.spec.ts
+      - apps/web/src/robotics/testing/robotics-field-dock.spec.ts
+      - apps/web/src/robotics/robotics.css
+      conditional_paths:
+        apps/web/src/robotics/testing/robotics-field-dock.spec.ts: Only focused native palette and mode ownership regressions.
+        apps/web/src/robotics/robotics.css: Only scoped drag cursor, feedback status or existing viewport interaction styling.
+      ux_acceptance:
+      - Drag wall, ball, can or block from its existing real palette item into Perspective and stay in the same view
+        and camera. Suppress the browser card screenshot with the existing empty drag image technique, and show the
+        actual-size translucent geometry with a clear validity cue. Build one transient render-only candidate from
+        the existing mesh shapes. Its visibility is independent of saved source, runtime, undo history and picking.
+        Update or dispose it with the real viewport lifecycle without replacing the world or starting another renderer.
+      - A valid drop commits exactly one validated real object at the demonstrated canonical anchor and keeps the
+        Perspective camera. Off-field, off-viewport, invalid footprint, no valid intersection, foreign drag, canceled
+        drag, hidden/inactive view, unavailable WebGL and running or paused edit locks cannot commit. Leaving, Escape,
+        drag end, view changes and context loss clear candidate, transient feedback and ownership without a hidden edit.
+      - Preserve the existing Top drag/edit and select-then-place path, perspective motion of existing items, dock,
+        common header and compact primary camera controls. Freehand and stamp retain their current Top authoring
+        route. Side remains a view for inspection, with its calibrated borderless ruler and a truthful placement cue.
+        Select-then-place continues to be available for keyboard and touch through the existing Top workflow.
+      constraints:
+      - Only the listed existing paths may change. Keep existing camera math and interactions, stored world
+        format/schema and ids, source/mutation ownership, user data/save, circuit/Arduino/runtime/Worker behavior,
+        and lesson/publication gates. Preserve the existing lazy WebGL boundary and guarded browser initialization.
+      - Do not introduce ramp, platform, bridge, additional terrain, collider or model changes, native engine or
+        acquisition, production installation, stand startup, deployment or database mutation. All earlier results
+        and physical FAIL/GAP evidence remain immutable history. ROBOTICS-FIELD-CORE-D01-D02 keeps its original E1
+        binding and blocks. No owner acceptance, release claim or full physics acceptance is selected.
+      verification:
+        pure: Exercise the actual ground-plane projection and native lifecycle boundary, supported kinds, geometry
+          parity, unpickable preview and exactly one canonical commit on a valid drop. Preserve existing focused
+          camera, DOM ownership, Top and Side regression checks.
+        browser: Extend the existing exact-source built ordinary project proof. Use real native palette drag/drop
+          into the saved account Perspective viewport. Independently compare the actual canvas rect/projection and
+          camera readback to final native event coordinates, and verify temporary geometry before drop, no source
+          write during hover or cancellation, one validated placement, geometry and camera continuity, Undo/Redo,
+          save and reopen. Exercise all four kinds and invalid or out-of-viewport/canceled drags with no history
+          mutation. Keep existing Top, Side, compact toolbar, split, Arduino and immutable publication assertions.
+          Record actual browser evidence, without fabricated events or a synthetic physics/render fixture.
+        gates: 'Registration: sole-path PLAN/control, YAML formatting and full byte/semantic inverse, actual pnpm
+          validate:electronics-agent-docs and pnpm gate:governance. Candidate: fresh focused types/build and pnpm
+          test:robotics, changed-file lint/format, independent review and protected General and
+          pnpm gate:projects-publication:browser proofs at exact source SHA. No new service, port or database.'
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    historical_compact_field_zoom_task:
       id: TASK-ELECTRONICS-ROBOTICS-COMPACT-FIELD-ZOOM-001
       issue: 1071
       branch: main
@@ -19070,6 +19159,53 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    compact_field_zoom_result:
+      observed_on: '2026-11-27'
+      status: PROTECTED_SOURCE_AND_BUILT_BROWSER_VERIFIED_UI_ONLY
+      source: 533bb795b093451bf975057e844f70b6972a2a5b
+      source_tree: 64d74e7f995e0d7b2d15660814de48326b1baaed
+      merge: 60964cc4b2fe6aee131249567ac354b153fb8f02
+      merge_tree: 64d74e7f995e0d7b2d15660814de48326b1baaed
+      pr:
+        number: 1368
+        url: https://github.com/spikeal8-maker/asa-lab/pull/1368
+        state: MERGED
+      required:
+        head: 533bb795b093451bf975057e844f70b6972a2a5b
+        attempt: 2
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/46021492546/job/140606470390
+      browser:
+        head: 533bb795b093451bf975057e844f70b6972a2a5b
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/46021492637/job/140583120221
+        journeys_passed: 5
+        artifact_id: 15211576229
+        artifact_name: public-projects-533bb795b093451bf975057e844f70b6972a2a5b
+        artifact_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/46021492637/artifacts/15211576229
+        artifact_bytes: 44563578
+        artifact_sha256: 432963dd14ffd598d5c4025e72160b51a8afdd3817d11664a73d3c44cd4030d3
+        controller_verified_receipt:
+          file: side-scale.json
+          widths_css_px:
+          - 320
+          - 1440
+          device_pixel_ratios:
+          - 1
+          - 2
+          primary_buttons_same_row_offset_css_px: 0
+          compact_minimum_touch_target_css_px: 44
+          current_side_scale_verified: true
+      focused_controller_receipt:
+        robotics_tests_passed: 503
+        fresh_nx_typecheck_tasks: 8
+        fresh_nx_build_tasks: 8
+      delivered: The existing Field toolbar keeps all three camera choices and both zoom buttons reachable without
+        horizontal scroll. The real Side camera displays its metric line and value without a background plate.
+        Browser proof retained camera, focus, paused world/time/source and independent editor zoom.
+      owner_acceptance: pending
+      deployment: not_authorized
+      physical_qualification: NOT_CLAIMED
     historical_split_workspace_task:
       id: TASK-ELECTRONICS-ROBOTICS-SPLIT-WORKSPACE-001
       issue: 1071
