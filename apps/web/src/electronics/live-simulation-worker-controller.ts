@@ -53,6 +53,11 @@ export interface LiveSimulationWorkerCallbacks {
   readonly inputEventLimit?: number;
   readonly onInputBudget?: (budget: LiveSimulationInputBudget) => void;
   readonly onGenerationPending?: () => void;
+  /** Allows mounting hidden native resources while the real time-zero request is in flight. */
+  readonly onPreflightAssets?: (
+    result: SolveResult,
+    document: SchematicDocument,
+  ) => void | Promise<void>;
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
   /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
   readonly readHostHorizonMicroseconds?: () => number | null;
@@ -671,7 +676,7 @@ export class ElectronicsLiveSimulationWorkerController {
     if (generationId !== this.generationId) return;
     void this.executor
       .preflight(generationId, document)
-      .then((result) => this.completePreflight(generationId, result))
+      .then((result) => this.completePreflight(generationId, result, document))
       .catch((error) => this.fail(generationId, error));
   }
 
@@ -793,8 +798,12 @@ export class ElectronicsLiveSimulationWorkerController {
       : coalesceIdlePolls
         ? Math.min(wake.dueMicroseconds, committed + window)
         : wake.dueMicroseconds;
+    // A ready response can arrive just before the next MCU transition. Arm
+    // that known wake now when there is less than one ordinary poll to wait.
     if (
-      (proactive && !balanced) ||
+      (proactive &&
+        !balanced &&
+        (!coalesceIdlePolls || due - horizon > ARDUINO_WAKE_RESERVATION_MICROSECONDS)) ||
       horizon >= due ||
       due > committed + window ||
       (!coalesceIdlePolls && due - horizon > ARDUINO_WAKE_RESERVATION_MICROSECONDS)
@@ -828,7 +837,7 @@ export class ElectronicsLiveSimulationWorkerController {
     const document = this.canonicalDocument;
     const runtimeDocument = this.lastRuntimeDocument;
     if (
-      balanced &&
+      coalesceIdlePolls &&
       due === wake.dueMicroseconds &&
       document &&
       runtimeDocument &&
@@ -872,7 +881,7 @@ export class ElectronicsLiveSimulationWorkerController {
       const callbacks = this.callbacks;
       if (
         !wake ||
-        !this.shouldBalanceSleep(wake) ||
+        !wake.coalesceIdlePolls ||
         !callbacks?.readHostHorizonMicroseconds ||
         this.wakeReservation ||
         this.firstPositiveObservation ||
@@ -1015,7 +1024,11 @@ export class ElectronicsLiveSimulationWorkerController {
     this.publishInputBudget();
   }
 
-  private completePreflight(generationId: number, result: SolveResult): void {
+  private async completePreflight(
+    generationId: number,
+    result: SolveResult,
+    document: SchematicDocument,
+  ): Promise<void> {
     if (generationId !== this.generationId) return;
     this.inFlight = false;
     this.inFlightKind = null;
@@ -1025,6 +1038,19 @@ export class ElectronicsLiveSimulationWorkerController {
       return;
     }
     this.pump();
+    if (
+      generationId === this.generationId &&
+      this.lastRuntimeDocument === document &&
+      this.pendingInputEvents.length === 0 &&
+      !this.paused
+    ) {
+      try {
+        await this.callbacks?.onPreflightAssets?.(result, document);
+      } catch {
+        // The timed request already owns the run. Its regular asset request
+        // and diagnostics remain authoritative if optional warming fails.
+      }
+    }
   }
 
   private completeAdvance(

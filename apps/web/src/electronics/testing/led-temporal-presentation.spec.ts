@@ -376,6 +376,86 @@ describe('one early elapsed optical phase', () => {
     expect(presenter.reanchorCount).toBe(0);
   });
 
+  it.each([119000, 124000])(
+    'keeps one render opportunity for LOW when its unknown successor arrives at %i µs',
+    (successor) => {
+      const p = withDarkFrame();
+      const edges = [10000, 40000, 69000, 104000, successor, 138000];
+      const packets = [
+        [11000, 10000],
+        [55000, 45000],
+        [90000, 80000],
+        [114000, 110000],
+        [125000, successor],
+        [145000, 140000],
+      ] as const;
+      const draw = Array.from({ length: 11 }, (_, index) =>
+        Math.round(((index + 1) * 1000000) / 60),
+      );
+      let from = 0;
+      let witnessed = false;
+      const levelAt = (at: number) => (edges.filter((t) => t <= at).length % 2 ? 80 : 0);
+      const shown: number[] = [];
+      for (const wall of [...packets.map((packet) => packet[0]), ...draw].sort((a, b) => a - b)) {
+        const packet = packets.find((entry) => entry[0] === wall);
+        if (packet) {
+          const to = packet[1];
+          const times = [...new Set([from, ...edges.filter((t) => t > from && t <= to), to])];
+          const data = accepted(
+            from,
+            to,
+            times.map((time) => point(time, levelAt(time))),
+          );
+          p.accept(solved(data), data, wall);
+          const offer = witnessed && p.prepareElapsedFrame(wall);
+          if (offer) {
+            expect(p.acknowledgeFrame(offer, wall)).toBe(true);
+            witnessed = false;
+          }
+          from = to;
+          continue;
+        }
+        const frame = p.prepareFrame(wall);
+        if (frame) expect(p.acknowledgeFrame(frame, wall)).toBe(true);
+        witnessed = true;
+        const level = p.sample().get('led')!;
+        if (shown.at(-1) !== level) shown.push(level);
+      }
+      // HIGH at 69 ms, LOW at 104, the new HIGH, and then LOW at 138 each
+      // received distinct refresh opportunities. New history never erases one.
+      expect(shown).toEqual([80, 0, 80, 0, 80, 0]);
+    },
+  );
+
+  it('offers an already confirmed short pulse after two long mounted phases', () => {
+    const presenter = withDarkFrame();
+    let from = 0;
+    let level = 0;
+    for (const [edge, refresh] of [
+      [10000, 16000],
+      [40000, 48000],
+      [70000, 76000],
+    ] as const) {
+      const nextLevel = level ? 0 : 80;
+      const observation = accepted(from, edge, [point(from, level), point(edge, nextLevel)]);
+      presenter.accept(solved(observation), observation, edge);
+      const frame = presenter.prepareFrame(refresh)!;
+      expect(presenter.acknowledgeFrame(frame, refresh)).toBe(true);
+      from = edge;
+      level = nextLevel;
+    }
+    // The 4 ms dark pulse is already complete in electrical history. Holding
+    // its predecessor to correct the display integral would miss this opportunity.
+    const future = accepted(70000, 140000, [
+      point(70000, 80),
+      point(100000, 0),
+      point(104000, 80),
+      point(140000, 0),
+    ]);
+    presenter.accept(solved(future), future, 101000);
+    expect(presenter.prepareElapsedFrame(101000)?.brightness.get('led')).toBe(0);
+  });
+
   it.each([false, true])(
     'shows a short successor at both paints after a late ACK (streamed %s)',
     (streamed) => {
@@ -2090,7 +2170,10 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
-    state.nativeOpticalPresentation = { commit: () => {}, witnessAfterAnimationFrame: () => {} };
+    state.nativeOpticalPresentation = {
+      commit: () => {},
+      witnessAfterAnimationFrame: () => {},
+    };
     state.settleSimulationPauseRef = { current: null };
     if (name === 'raf') {
       // Bind the real RAF's new display-only metric dependencies. The actual
@@ -3016,5 +3099,57 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
       );
       expect(journal.errors).toEqual(['Error: Baseline journal sequence gap']);
     }
+  });
+});
+
+describe('confirmed optical delivery at real refresh opportunities', () => {
+  // Wall times in microseconds. The second trace stalls the next native refresh.
+  it.each([
+    {
+      name: '50 ms phases after a delayed first asset',
+      arrivals: [15_000, 54_800, 104_400],
+      edges: [2, 50_004, 100_007],
+      refresh: [30_300, 46_800, 63_800, 80_100, 96_500, 112_600, 129_700],
+      shown: [30_300, 63_800, 112_600],
+    },
+    {
+      name: '30 ms phases before a 26 ms refresh gap',
+      arrivals: [8_000, 56_000, 83_900, 95_000],
+      edges: [2, 30_004, 60_007, 90_009],
+      refresh: [16_667, 33_333, 42_000, 57_800, 67_700, 84_500, 100_000, 126_000],
+      shown: [16_667, 57_800, 84_500, 100_000],
+    },
+  ])('shows every accepted change on its first available refresh: $name', (trace) => {
+    const presenter = new LedTemporalPresentation();
+    const initial = window(0, 0, [channel('led', [point(0, 0)])]);
+    presenter.accept(electrical(initial), initial, 0);
+    expect(presenter.acknowledgeFrame(presenter.prepareInitialFrame()!, 0)).toBe(true);
+    let committed = 0;
+    let previousLevel = 0;
+    let shownLevel = 0;
+    const shown: number[] = [];
+    for (const wall of [...trace.arrivals, ...trace.refresh].sort((a, b) => a - b)) {
+      const index = trace.arrivals.indexOf(wall);
+      if (index >= 0) {
+        const edge = trace.edges[index]!;
+        const nextLevel = previousLevel ? 0 : 70;
+        const observation = window(committed, edge, [
+          channel('led', [point(committed, previousLevel), point(edge, nextLevel)]),
+        ]);
+        presenter.accept(electrical(observation), observation, wall);
+        previousLevel = nextLevel;
+        committed = edge;
+        continue;
+      }
+      const frame = presenter.prepareFrame(wall);
+      if (frame) {
+        expect(frame.atMicroseconds).toBeLessThanOrEqual(committed);
+        expect(presenter.acknowledgeFrame(frame, wall)).toBe(true);
+      }
+      const value = presenter.sample().get('led') ?? 0;
+      if (value !== shownLevel) shown.push(wall);
+      shownLevel = value;
+    }
+    expect(shown).toEqual(trace.shown);
   });
 });

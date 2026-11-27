@@ -898,6 +898,12 @@ describe('actual LED optical observation through the production Worker evaluator
       postMessage: (reply: ElectronicsSimulationWorkerResponse) => posted.push(reply),
     };
     vi.stubGlobal('self', scope);
+    const createOwner = vi.spyOn(
+      electronicsEngine,
+      'createElectronicsWorkerElectricalTemplateOwner',
+    );
+    const prepareWake = vi.spyOn(electronicsEngine, 'prepareDedicatedElectronicsSleepingWake');
+    vi.doMock('@asa-lab/electronics/engine', () => electronicsEngine);
     try {
       await import('../simulation.worker');
       const send = (request: ElectronicsSimulationWorkerMessage) =>
@@ -931,6 +937,9 @@ describe('actual LED optical observation through the production Worker evaluator
       prepare();
       await Promise.resolve();
       expect(posted).toEqual([]);
+      const owner = createOwner.mock.results.at(-1)?.value;
+      expect(owner).toBeDefined();
+      expect(prepareWake.mock.lastCall?.[2].electricalTemplateOwner).toBe(owner);
       const granted = await advance({ ...next, ...id });
       expect(granted.metrics.preparedComputeMs).toBeUndefined();
       expect(granted.advance).toEqual(direct.advance);
@@ -963,12 +972,18 @@ describe('actual LED optical observation through the production Worker evaluator
       expect((await advance({ ...next, ...id })).metrics.preparedComputeMs).toBeUndefined();
       prepare();
       send({ ...next, kind: 'cancel-generation' });
+      prepareWake.mockClear();
+      prepare();
+      expect(prepareWake).not.toHaveBeenCalled();
       expect(
         (await advance({ ...next, ...id, generationId: next.generationId + 1 })).metrics
           .preparedComputeMs,
       ).toBeUndefined();
       expect(posted).toEqual([]);
     } finally {
+      vi.doUnmock('@asa-lab/electronics/engine');
+      prepareWake.mockRestore();
+      createOwner.mockRestore();
       vi.unstubAllGlobals();
       vi.resetModules();
     }

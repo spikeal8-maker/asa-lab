@@ -268,6 +268,23 @@ export class NativeOpticalPresentation {
     if (!observation) this.clearRenderWitness();
     this.update({ observation, ...(proposed ? {} : { committed: observation }) });
   }
+  /** Warm hidden LED images. Only a later timed frame can acquire a display lease. */
+  preparePreflightAssets(
+    result: SolveResult,
+    document: SchematicDocument,
+    nextSequence: () => number,
+  ) {
+    if (!result.solved || !result.quality?.passed) return;
+    const lit = new Map<string, number>();
+    for (const component of result.components)
+      if (component.brightness !== undefined && component.brightness > 0)
+        lit.set(component.componentId, component.brightness);
+    if (!lit.size) return;
+    const assets = opticalFrameAssets({ brightness: lit }, result, document);
+    for (const id of assets.keys()) if (!lit.has(id)) assets.delete(id);
+    if (assets.size) this.setPreparation({ token: `preflight:${nextSequence()}`, assets });
+  }
+
   setPreparation(preparation: NativeOpticalSnapshot['preparation']) {
     this.update({ preparation });
   }
