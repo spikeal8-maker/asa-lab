@@ -52,7 +52,9 @@ afterAll(async () => {
   }
 });
 
-function source(): RoboticsProject {
+function source(
+  workspace = JSON.stringify({ privateEditorLabel: 'PRIVATE_BLOCKS' }),
+): RoboticsProject {
   const initial = createInitialRoboticsProject();
   const stamped = createRoboticsTileStamp(
     'turn',
@@ -78,7 +80,7 @@ function source(): RoboticsProject {
               stateProperties: {
                 ...component.stateProperties,
                 arduinoSource: '// PRIVATE_PROGRAM\nvoid setup(){}void loop(){}',
-                arduinoWorkspace: JSON.stringify({ privateEditorLabel: 'PRIVATE_BLOCKS' }),
+                arduinoWorkspace: workspace,
               },
             }
           : component,
@@ -361,24 +363,73 @@ describe('Robotics immutable publication on real HTTP and restricted PostgreSQL'
 
   it('preserves default-off StudentSeat publication, independent download policy and published-read continuity', async () => {
     const seat = await studentProjectPolicyFixture(admin, runtime);
-    const f = await createProject(seat.teacher.tenantId, {
-      principalId: seat.principal,
-      userId: null,
+    const workspace = JSON.stringify({
+      blocks: {
+        languageVersion: 0,
+        blocks: [
+          { type: 'asa_setup', id: 'setup' },
+          { type: 'asa_loop', id: 'loop' },
+        ],
+      },
+      privateEditorLabel: 'PRIVATE_BLOCKS',
     });
+    const f = await createProject(
+      seat.teacher.tenantId,
+      { principalId: seat.principal, userId: null },
+      source(workspace),
+    );
     const cookies = { asa_student_session: seat.token };
+    const endpoint = `/api/projects/${f.projectId}/publication`;
+    const metadata = { title: f.title, license: 'public-domain', tags: ['robotics'] };
+    const direct = () => inject(app, { method: 'POST', url: endpoint, cookies, payload: metadata });
     expect(await seat.read()).toMatchObject({ publish: false, download: false, version: 0 });
-    const denied = await inject(app, {
-      method: 'POST',
-      url: `/api/projects/${f.projectId}/publication`,
-      cookies,
-      payload: {},
-    });
+    const denied = await direct();
     expect(denied.statusCode).toBe(403);
     expect(denied.json().error.code).toBe('publication_forbidden');
     expect(await seat.write({ publish: true, download: false, expectedVersion: 0 })).toMatchObject({
       version: 1,
     });
-    const publication = await publish(f.projectId, cookies, f.title);
+    const bypass = await direct();
+    expect(bypass.statusCode, bypass.body).toBe(403);
+    expect(bypass.json().error.code).toBe('publication_forbidden');
+    const submitted = await inject(app, {
+      method: 'POST',
+      url: endpoint + '/approval',
+      headers: { 'idempotency-key': randomUUID() },
+      cookies,
+      payload: { sourceRevision: 1, metadata },
+    });
+    expect(submitted.statusCode, submitted.body).toBe(200);
+    expect(submitted.json()).toMatchObject({
+      state: 'waiting_teacher',
+      sourceRevision: 1,
+      moduleKey: 'robotics',
+    });
+    const { requestId } = submitted.json<{ requestId: string }>();
+    expect(await seat.reviewPublication(requestId, 'teacher')).toMatchObject({
+      requestId,
+      state: 'waiting_platform',
+    });
+    expect(await seat.reviewPublication(requestId, 'platform')).toMatchObject({
+      requestId,
+      state: 'approved',
+    });
+    const published = await inject(app, {
+      method: 'POST',
+      url: endpoint + '/approval/' + requestId + '/publish',
+      cookies,
+      payload: {},
+    });
+    expect(published.statusCode, published.body).toBe(200);
+    expect(published.json()).toMatchObject({ requestId, state: 'published', sourceRevision: 1 });
+    const status = await inject(app, { method: 'GET', url: endpoint, cookies });
+    expect(status.statusCode, status.body).toBe(200);
+    const publication = status.json<OwnerPublicationStatus>().publication;
+    if (!publication) throw Error('Approved Robotics publication receipt missing');
+    expect(published.json()).toMatchObject({
+      publicationId: publication.publicationId,
+      publicationRevisionId: publication.revisionId,
+    });
     const frozen = await read(publication);
     expect(frozen.status, frozen.body).toBe(200);
     expect(frozen.json().artifact.schemaVersion).toBe(6);

@@ -1,18 +1,29 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { PublicScratchPlayerBootstrap } from '@asa-lab/contracts';
+import type {
+  PublicScratchPlayerBootstrap,
+  StudentScratchReviewBootstrap,
+} from '@asa-lab/contracts';
 import { BlocksRuntimeBridge } from '../blocks/runtime-protocol';
 import { parseBlocksRuntimeSession } from '../blocks/runtime-session';
+
+export type ScratchReviewScope =
+  | { readonly role: 'teacher'; readonly classroomId: string; readonly sourceRevision: number }
+  | { readonly role: 'platform'; readonly sourceRevision: number };
 
 /** Official isolated Scratch host, with a publication-only read capability. */
 export function PublicScratchPlayer({
   publicationId,
   revisionId,
   onUnavailable,
+  onReady,
+  review,
   fallback,
 }: {
   readonly publicationId: string;
   readonly revisionId: string;
   readonly onUnavailable: () => void;
+  readonly onReady?: () => void;
+  readonly review?: ScratchReviewScope;
   readonly fallback: ReactNode;
 }): JSX.Element {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -22,6 +33,11 @@ export function PublicScratchPlayer({
   const [integrations, setIntegrations] = useState(false);
   const [loaded, setLoaded] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const callbacks = useRef({ onReady, onUnavailable });
+  callbacks.current = { onReady, onUnavailable };
+  const role = review?.role;
+  const sourceRevision = review?.sourceRevision;
+  const classroomId = review?.role === 'teacher' ? review.classroomId : undefined;
   useEffect(() => {
     const element = wrapper.current;
     const changed = () => setFullscreen(document.fullscreenElement === element);
@@ -66,7 +82,7 @@ export function PublicScratchPlayer({
       failed = true;
       clear();
       setState('error');
-      if (unavailable) onUnavailable();
+      if (unavailable || role) callbacks.current.onUnavailable();
     };
     const connect = async () => {
       if (disposed || failed || controller) return;
@@ -83,16 +99,19 @@ export function PublicScratchPlayer({
       const requestTimer = setTimeout(() => requestController.abort(), 15000);
       let retryable = true;
       try {
-        const response = await fetch(
-          `/api/public-projects/${publicationId}/scratch-player?revisionId=${revisionId}`,
-          {
-            signal: requestController.signal,
-            credentials: 'omit',
-            cache: 'no-store',
-            redirect: 'error',
-            headers: { accept: 'application/json' },
-          },
-        );
+        const requestPath =
+          role === 'teacher'
+            ? `/api/project-distribution/classrooms/${encodeURIComponent(classroomId!)}/publication-requests/${encodeURIComponent(publicationId)}/scratch-player`
+            : role === 'platform'
+              ? `/api/admin/v1/publications/student-requests/${encodeURIComponent(publicationId)}/scratch-player`
+              : `/api/public-projects/${publicationId}/scratch-player?revisionId=${revisionId}`;
+        const response = await fetch(requestPath, {
+          signal: requestController.signal,
+          credentials: role ? 'same-origin' : 'omit',
+          cache: 'no-store',
+          redirect: 'error',
+          headers: { accept: 'application/json' },
+        });
         if (!current()) return;
         if (requestController.signal.aborted) throw new Error('Player request timed out');
         if ([400, 401, 403, 404, 409, 410].includes(response.status)) {
@@ -120,7 +139,10 @@ export function PublicScratchPlayer({
           value.schemaVersion !== 1 ||
           value.viewerFamily !== 'scratch' ||
           value.publicationId !== publicationId ||
-          value.revisionId !== revisionId
+          value.revisionId !== revisionId ||
+          (role &&
+            ((value as StudentScratchReviewBootstrap).reviewRequestId !== publicationId ||
+              (value as StudentScratchReviewBootstrap).sourceRevision !== sourceRevision))
         )
           throw new Error('Player binding mismatch');
         // The HTTP server Date, not a body field or the pupil's calendar, anchors expiry.
@@ -162,7 +184,7 @@ export function PublicScratchPlayer({
             projectJson: session.projectJson,
             hasProjectJson: true,
             assets: session.assets,
-            recoveryPrincipalKey: `public:${publicationId}:${revisionId}`,
+            recoveryPrincipalKey: `${role ? 'review' : 'public'}:${publicationId}:${revisionId}`,
           });
           bridge.sendInit();
         } else bridge.updateToken(session.runtimeToken);
@@ -207,6 +229,7 @@ export function PublicScratchPlayer({
       ) {
         clearTimeout(startupTimer);
         setState('ready');
+        callbacks.current.onReady?.();
       }
     };
     const resume = () => {
@@ -236,11 +259,15 @@ export function PublicScratchPlayer({
       disposed = true;
       clear();
     };
-  }, [loaded, publicationId, revisionId, onUnavailable]);
+  }, [loaded, publicationId, revisionId, role, classroomId, sourceRevision]);
   if (state === 'error')
     return (
       <div data-testid="public-scratch-fallback">
-        <p role="status">Scratch не загрузился. Откройте публикацию повторно.</p>
+        <p role="status">
+          {role
+            ? 'Не удалось открыть заявку в Scratch.'
+            : 'Scratch не загрузился. Откройте публикацию повторно.'}
+        </p>
         {fallback}
       </div>
     );
@@ -303,7 +330,11 @@ export function PublicScratchPlayer({
       ) : null}
       <iframe
         ref={frame}
-        title="Scratch — просмотр опубликованного проекта"
+        title={
+          role
+            ? 'Scratch — проверка сохранённого проекта'
+            : 'Scratch — просмотр опубликованного проекта'
+        }
         src="/internal/blocks/?asaStatus=parent"
         sandbox="allow-scripts allow-same-origin"
         allow="fullscreen; camera 'none'; microphone 'none'; usb 'none'; serial 'none'; hid 'none'"

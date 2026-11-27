@@ -210,6 +210,7 @@ export function ProjectProperties({
               <PublicationPanel
                 projectId={project.id}
                 moduleKey={project.moduleKey}
+                sourceRevision={project.snapshotRevision ?? null}
                 metadata={{
                   title: title.trim(),
                   description: description.trim() || null,

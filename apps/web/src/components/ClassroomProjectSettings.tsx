@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { call } from '../api-call';
 import { useClassroomActionFeedback } from './ClassroomActionFeedback';
 import './classroom-games-settings.css';
@@ -31,6 +31,7 @@ export function ClassroomProjectSettings({
     JSON.stringify(['projects', classroomId, seatId ?? null, readOnly]),
   );
   const [attempt, setAttempt] = useState(0);
+  const publicationHelpId = useId();
   const generation = useRef(0);
   const path = `/api/project-distribution/classrooms/${encodeURIComponent(classroomId)}/${seatId ? `seats/${encodeURIComponent(seatId)}` : 'policy'}`;
   const dirty = !!policy && !!draft && JSON.stringify(policy) !== JSON.stringify(draft);
@@ -114,6 +115,7 @@ export function ClassroomProjectSettings({
                   : 'Скачивание проектов'}
               {seatId ? (
                 <select
+                  aria-describedby={key === 'publish' ? publicationHelpId : undefined}
                   aria-label={
                     key === 'publish'
                       ? 'Публикация проектов'
@@ -138,6 +140,7 @@ export function ClassroomProjectSettings({
               ) : (
                 <input
                   type="checkbox"
+                  aria-describedby={key === 'publish' ? publicationHelpId : undefined}
                   checked={draft[key] ?? false}
                   disabled={
                     readOnly ||
@@ -157,9 +160,9 @@ export function ClassroomProjectSettings({
             Получение копий действует только при общем разрешении администратора платформы и
             согласии автора. «Разрешить» для класса или ученика не отменяет общий запрет.
           </p>
-          <p className="classroom-games-help">
-            Выключение публикации запрещает новые публикации и обновления. Уже опубликованные работы
-            остаются доступны. Просмотр работ от этих разрешений не зависит.
+          <p id={publicationHelpId} className="classroom-games-help">
+            Отключение разрешения запрещает новые публикации и обновления. Прежние публикации
+            сохраняются. Защита, модерация и отзыв действуют отдельно.
           </p>
           <button
             type="button"
