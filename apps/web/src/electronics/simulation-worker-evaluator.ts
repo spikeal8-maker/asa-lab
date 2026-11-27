@@ -254,7 +254,10 @@ function sameMessageData(left: unknown, right: unknown): boolean {
 }
 
 /** A one-use prepared session can only evaluate its matching ordinary transport request. */
-export function prepareDedicatedSimulationWorkerWake(original: SimulationPrepareRequest) {
+export function prepareDedicatedSimulationWorkerWake(
+  original: SimulationPrepareRequest,
+  electricalTemplateOwner: ElectricalTemplateOwner,
+) {
   const started = performance.now();
   const expected = structuredClone(original);
   const prefix = prepareDedicatedElectronicsSleepingWake(
@@ -263,7 +266,7 @@ export function prepareDedicatedSimulationWorkerWake(original: SimulationPrepare
       requestedHorizonMicroseconds: expected.requestedHorizonMicroseconds,
       state: expected.state,
     },
-    { observeLedTemporal: true, observeSevenSegmentTemporal: true },
+    { observeLedTemporal: true, observeSevenSegmentTemporal: true, electricalTemplateOwner },
   );
   if (!prefix) return null;
   const computeMs = performance.now() - started;
