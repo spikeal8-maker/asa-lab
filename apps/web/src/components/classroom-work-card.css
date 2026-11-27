@@ -75,9 +75,14 @@
   line-height: 1.3;
 }
 .classroom-work-card-title strong {
+  display: -webkit-box;
+  overflow: hidden;
   font-size: 15px;
+  overflow-wrap: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
-.classroom-work-card-title > :is(strong, span:not(.classroom-work-card-meta)) {
+.classroom-work-card-title > span:not(.classroom-work-card-meta) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
