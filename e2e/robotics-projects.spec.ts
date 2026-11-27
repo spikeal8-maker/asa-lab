@@ -2965,7 +2965,6 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   expect(initialBounds.width).toBe(240);
   await expect(observationSeparator).toHaveAttribute('aria-valuemin', '200');
   await expect(observationSeparator).toHaveAttribute('aria-valuemax', '360');
-  const zoomBeforeResize = await fieldScale(page).textContent();
   await observationSeparator.press('Home');
   const minimumBounds = await observerBounds(field);
   expect(minimumBounds.width).toBe(200);
@@ -2976,6 +2975,14 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
       minimumBounds.left.x + minimumBounds.left.width + 1,
     );
   }
+  // The Top percent is relative to the current viewport fit. Compare the
+  // real orthographic projection and displayed scale at the same pane width.
+  await expect(spatial).toHaveAttribute('data-field-view', 'top');
+  const minimumTopCamera = await cameraSample(fieldCanvas);
+  const minimumTopProjection = await fieldCanvas.getAttribute('data-projection');
+  const minimumTopScale = await fieldScale(page).textContent();
+  if (!minimumTopProjection || !minimumTopScale)
+    throw new Error('Top camera projection and scale are required at 200 px');
   await clickPrimaryFieldControl(page, 'Сбоку');
   const metric = await sideRuler(page);
   const dimensions = await rect(field.locator('.robotics-field-stage-status'));
@@ -2989,7 +2996,10 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   expect(observerSideZoom.decreased).toBe(observerSideZoom.before);
   await clickPrimaryFieldControl(page, 'Сверху');
   await expect(spatial).toHaveAttribute('data-field-view', 'top');
-  expect(await fieldScale(page).textContent()).toBe(zoomBeforeResize);
+  await expect(observationSeparator).toHaveAttribute('aria-valuenow', '200');
+  await sameCamera(fieldCanvas, minimumTopCamera);
+  await expect(fieldCanvas).toHaveAttribute('data-projection', minimumTopProjection);
+  await expect(fieldScale(page)).toHaveText(minimumTopScale);
   await observationSeparator.press('ArrowRight');
   expect(await widthOf(observationSeparator)).toBe(216);
   await observationSeparator.press('End');
