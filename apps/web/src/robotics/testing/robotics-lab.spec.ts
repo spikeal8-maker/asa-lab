@@ -380,6 +380,7 @@ beforeEach(() => {
     return 1;
   });
   vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
@@ -702,7 +703,8 @@ describe('robotics UI integration with the common workbench port', () => {
     await click('Код');
     expect(metric('canonical-program')).toBeTruthy();
     expect(metric('canonical-stage')).toBe(stage);
-    expect(stage.closest('[hidden]')).toBeNull();
+    expect(stage.closest('[hidden]')).not.toBeNull();
+    expect(container.querySelector('#robotics-panel-field')?.hasAttribute('hidden')).toBe(false);
     await click('Закрыть общий редактор');
     expect(metric('canonical-stage')).toBe(stage);
     expect(port.stageMounts).toBe(1);
@@ -711,7 +713,7 @@ describe('robotics UI integration with the common workbench port', () => {
       runtimeInputEventLimit: 1000,
       reportSimulationDiagnostics: false,
       // Closing fullscreen Code returns to Electronics.
-      keyboardShortcutsEnabled: true,
+      keyboardShortcutsEnabled: false,
     });
   });
 
@@ -730,12 +732,236 @@ describe('robotics UI integration with the common workbench port', () => {
       expect(container.querySelector(`#robotics-panel-${id}`)?.hasAttribute('hidden')).toBe(false);
       expect(container.querySelectorAll('[role="tabpanel"]:not([hidden])')).toHaveLength(1);
       expect(document.activeElement).toBe(tab);
-      expect(port.options?.keyboardShortcutsEnabled).toBe(id === 'electronics');
+      expect(port.options?.keyboardShortcutsEnabled).toBe(false);
+      if (id === 'electronics') {
+        act(() => (container.querySelector('.robotics-workbench') as HTMLElement).focus());
+        expect(port.options?.keyboardShortcutsEnabled).toBe(true);
+      }
       expect(metric('canonical-stage')).toBe(stage);
-      expect(stage.closest('[hidden]')).toBeNull();
+      expect(Boolean(stage.closest('[hidden]'))).toBe(id === 'program');
     }
     expect(port.stageMounts).toBe(1);
     expect(port.stageUnmounts).toBe(0);
+  });
+
+  it('retains the actual shared Field, Stage and program through split panes without duplicate tabpanel ownership', async () => {
+    const field = container.querySelector('#robotics-panel-field')!;
+    const stage = metric('canonical-stage');
+    const original = JSON.stringify(port.host!.getCurrentDocument());
+    await click('Электроника');
+    expect(field.hasAttribute('hidden')).toBe(false);
+    expect(field.getAttribute('role')).toBe('region');
+    expect(
+      container.querySelector('.robotics-field-editor-body')?.getAttribute('data-compact-dock'),
+    ).toBe('true');
+    expect(stage.closest('[hidden]')).toBeNull();
+    await click('Код');
+    const program = metric('canonical-program');
+    await click('Поле');
+    expect(container.querySelector('#robotics-panel-field')).toBe(field);
+    expect(field.getAttribute('role')).toBe('tabpanel');
+    expect(
+      container.querySelector('.robotics-field-editor-body')?.getAttribute('data-compact-dock'),
+    ).toBe('false');
+    await click('Робот');
+    expect(field.hasAttribute('hidden')).toBe(true);
+    await click('Код');
+    expect(container.querySelector('#robotics-panel-field')).toBe(field);
+    expect(metric('canonical-stage')).toBe(stage);
+    expect(metric('canonical-program')).toBe(program);
+    expect(port.stageMounts).toBe(1);
+    expect(port.programMounts).toBe(1);
+    expect(container.querySelectorAll('[id="robotics-field-catalog"]')).toHaveLength(1);
+    expect(container.querySelectorAll('.robotics-mini-field')).toHaveLength(0);
+    expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(original);
+  });
+
+  it('keeps desktop editor preference through compact clamping, bounds keyboard and captured pointer resize, and ignores late canceled movement', async () => {
+    await click('Электроника');
+    const workspace = container.querySelector<HTMLElement>('.robotics-workspace')!;
+    const separator = container.querySelector<HTMLElement>('[role="separator"]')!;
+    const source = JSON.stringify(port.host!.getCurrentDocument());
+    const width = () => Number(separator.getAttribute('aria-valuenow'));
+    const key = async (value: string, shiftKey = false) => {
+      await act(async () =>
+        separator.dispatchEvent(
+          new KeyboardEvent('keydown', { key: value, shiftKey, bubbles: true }),
+        ),
+      );
+    };
+    expect(separator.getAttribute('aria-label')).toBe('Ширина редактора');
+    expect(width()).toBe(480);
+    await key('ArrowRight');
+    expect(width()).toBe(496);
+    await key('ArrowRight', true);
+    expect(width()).toBe(536);
+    await key('Home');
+    expect(width()).toBe(320);
+    await key('End');
+    expect(width()).toBe(800);
+    await key('ArrowRight');
+    expect(width()).toBe(800);
+    const captures = new Set<number>();
+    separator.setPointerCapture = (id) => {
+      captures.add(id);
+    };
+    separator.hasPointerCapture = (id) => captures.has(id);
+    separator.releasePointerCapture = (id) => {
+      captures.delete(id);
+    };
+    const pointer = async (type: string, x: number) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX: x, button: 0 });
+      Object.defineProperty(event, 'pointerId', { value: 77 });
+      await act(async () => separator.dispatchEvent(event));
+    };
+    await pointer('pointerdown', 800);
+    // Same-width/height-only layout notifications cannot abort captured resize.
+    await act(async () => window.dispatchEvent(new Event('resize')));
+    expect(captures.has(77)).toBe(true);
+    await pointer('pointermove', 600);
+    expect(width()).toBe(600);
+    await pointer('lostpointercapture', 600);
+    await pointer('pointermove', 400);
+    expect(width()).toBe(600);
+    expect(captures.size).toBe(0);
+    const preference = localStorage.getItem('asa-lab:robotics:editor-width:v1');
+    const resize = async (value: number) => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value });
+      await act(async () => window.dispatchEvent(new Event('resize')));
+    };
+    await resize(320);
+    expect(workspace.dataset.compactSplit).toBe('true');
+    expect(separator.hasAttribute('hidden')).toBe(true);
+    expect(width()).toBe(320);
+    expect(localStorage.getItem('asa-lab:robotics:editor-width:v1')).toBe(preference);
+    await resize(1440);
+    expect(workspace.dataset.compactSplit).toBe('false');
+    expect(width()).toBe(600);
+    expect(separator.hasAttribute('hidden')).toBe(false);
+    expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(source);
+  });
+
+  it('hands shortcut ownership to only the actual focused visible pane, never the header, separator or covered Circuit', async () => {
+    await click('Электроника');
+    const stageHost = container.querySelector<HTMLElement>('.robotics-workbench')!;
+    const field = container.querySelector<HTMLElement>('#robotics-panel-field')!;
+    const separator = container.querySelector<HTMLElement>('[role="separator"]')!;
+    expect(port.options?.keyboardShortcutsEnabled).toBe(false);
+    act(() => stageHost.focus());
+    expect(port.options?.keyboardShortcutsEnabled).toBe(true);
+    act(() => field.focus());
+    expect(port.options?.keyboardShortcutsEnabled).toBe(false);
+    act(() => separator.focus());
+    expect(port.options?.keyboardShortcutsEnabled).toBe(false);
+    act(() => stageHost.focus());
+    expect(port.options?.keyboardShortcutsEnabled).toBe(true);
+    await click('Открыть код');
+    expect(stageHost.inert).toBe(true);
+    expect(port.options?.keyboardShortcutsEnabled).toBe(false);
+    await click('Код');
+    act(() => field.focus());
+    expect(port.options?.keyboardShortcutsEnabled).toBe(false);
+    act(() => control('Сохранить').focus());
+    expect(container.querySelector<HTMLElement>('.robotics-workspace')?.dataset.shortcutOwner).toBe(
+      'none',
+    );
+  });
+
+  it('releases actual Field-owned pointer capture on editor focus without disabling the next visible Field edit', async () => {
+    await click('Электроника');
+    const field = container.querySelector<HTMLElement>('#robotics-panel-field')!;
+    const stage = container.querySelector<HTMLElement>('.robotics-workbench')!;
+    act(() => field.focus());
+    const target = field.querySelector<HTMLElement>('.robotics-field-stage-status')!;
+    const release = vi.fn();
+    let captured = true;
+    target.hasPointerCapture = () => captured;
+    target.releasePointerCapture = () => {
+      captured = false;
+      release();
+    };
+    const down = new MouseEvent('pointerdown', { bubbles: true });
+    Object.defineProperty(down, 'pointerId', { value: 93 });
+    await act(async () => target.dispatchEvent(down));
+    act(() => stage.focus());
+    expect(release).toHaveBeenCalledOnce();
+    expect(captured).toBe(false);
+    // Focus returns to the same mounted Field, not a gated/recreated scene.
+    act(() => field.focus());
+    expect(container.querySelector('#robotics-panel-field')).toBe(field);
+    expect(container.querySelector<HTMLElement>('.robotics-workspace')?.dataset.shortcutOwner).toBe(
+      'field',
+    );
+    expect(port.options?.keyboardShortcutsEnabled).toBe(false);
+  });
+
+  it('sends exactly one lifecycle cancellation to the actual owned Circuit pointer and ignores completed or recursively lost capture', async () => {
+    await click('Электроника');
+    const stage = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    stage.setAttribute('class', 'workbench-canvas');
+    metric('canonical-stage').append(stage);
+    const ids: number[] = [];
+    stage.addEventListener('pointercancel', (event) => {
+      const id = (event as globalThis.PointerEvent).pointerId;
+      ids.push(id);
+      const lost = new Event('lostpointercapture', { bubbles: true });
+      Object.defineProperty(lost, 'pointerId', { value: id });
+      stage.dispatchEvent(lost);
+    });
+    const event = async (type: string, id: number) => {
+      const pointer = new MouseEvent(type, { bubbles: true });
+      Object.defineProperties(pointer, {
+        pointerId: { value: id },
+        pointerType: { value: 'mouse' },
+      });
+      await act(async () => stage.dispatchEvent(pointer));
+    };
+    const field = container.querySelector<HTMLElement>('#robotics-panel-field')!;
+    await event('pointerdown', 12);
+    act(() => field.focus());
+    expect(ids).toEqual([12]);
+    await event('pointerup', 12);
+    act(() => control('Сохранить').focus());
+    expect(ids).toEqual([12]);
+    await event('pointerdown', 13);
+    await event('lostpointercapture', 13);
+    expect(ids).toEqual([12, 13]);
+    await event('pointerdown', 14);
+    await event('pointerup', 14);
+    await click('Робот');
+    expect(ids).toEqual([12, 13]);
+  });
+
+  it('switches compact real panes without remount or hidden focus, flushes pending program, and rejects unseen Field commits', async () => {
+    await click('Код');
+    const field = container.querySelector<HTMLElement>('#robotics-panel-field')!;
+    const stage = metric('canonical-stage');
+    const program = metric('canonical-program');
+    const documentBefore = JSON.stringify(port.host!.getCurrentDocument());
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 });
+    await act(async () => window.dispatchEvent(new Event('resize')));
+    const choice = container.querySelector<HTMLElement>('.robotics-pane-choice')!;
+    expect(choice.hidden).toBe(false);
+    expect(field.hidden).toBe(true);
+    const buttons = [...choice.querySelectorAll<HTMLButtonElement>('button')];
+    await act(async () => buttons[1]!.click());
+    expect(field.hidden).toBe(false);
+    expect(program.closest('[hidden]')).not.toBeNull();
+    expect(document.activeElement?.closest('[hidden], [inert]')).toBeNull();
+    await act(async () => buttons[0]!.click());
+    expect(field.hidden).toBe(true);
+    expect(program.closest('[hidden]')).toBeNull();
+    expect(port.programFlush).toHaveBeenCalled();
+    // Programmatically delivering a stale hidden-canvas Delete cannot edit the source.
+    const canvas = field.querySelector<HTMLElement>('.robotics-field-canvas')!;
+    await act(async () =>
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true })),
+    );
+    expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(documentBefore);
+    expect(metric('canonical-stage')).toBe(stage);
+    expect(metric('canonical-program')).toBe(program);
+    expect(port.stageMounts).toBe(1);
+    expect(port.programMounts).toBe(1);
   });
 
   it('resynchronizes direct host history and rejects stale editor flush/publication in the same event', async () => {

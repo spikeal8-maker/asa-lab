@@ -54,6 +54,9 @@ const WORKBENCH_OPTIONS = {
 const number = (value: number, digits = 1) =>
   value.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const ROBOTICS_SIDE_STORAGE_KEY = 'asa-lab:robotics:side-width:v1';
+const ROBOTICS_EDITOR_STORAGE_KEY = 'asa-lab:robotics:editor-width:v1';
+const ROBOTICS_EDITOR_MIN = 320;
+const ROBOTICS_FIELD_MIN = 640;
 const ROBOTICS_SIDE_MIN = 180;
 const ROBOTICS_SIDE_MAX = 960;
 function roboticsSideWidth(value: number, available: number): number {
@@ -361,14 +364,88 @@ export function RoboticsWorkspace({
       return roboticsSideWidth(240, window.innerWidth);
     }
   });
+  const [editorPreference, setEditorPreference] = useState(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(ROBOTICS_EDITOR_STORAGE_KEY));
+      return Number.isFinite(saved) && saved >= ROBOTICS_EDITOR_MIN ? Math.min(960, saved) : 480;
+    } catch {
+      return 480;
+    }
+  });
+  const [workspaceWidth, setWorkspaceWidth] = useState(window.innerWidth);
+  const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
+  const split = section === 'electronics' || section === 'program';
+  const compactSplit = split && workspaceWidth < 1024;
+  const [pane, setPane] = useState<'editor' | 'field'>('editor');
+  const paneLayout = useRef({ section, pane, compactSplit });
+  paneLayout.current = { section, pane, compactSplit };
+  const [shortcutOwner, setShortcutOwner] = useState<'editor' | 'field' | 'none'>('none');
+  const [codeDrawerOpen, setCodeDrawerOpen] = useState(false);
+  const codeDrawerVisible = section === 'electronics' && codeDrawerOpen;
+  const editorVisible = split && (!compactSplit || pane === 'editor');
+  const fieldVisible = section === 'field' || (split && (!compactSplit || pane === 'field'));
+  const editorMaximum = Math.max(
+    ROBOTICS_EDITOR_MIN,
+    Math.min(960, workspaceWidth - ROBOTICS_FIELD_MIN),
+  );
+  const editorWidth = Math.max(ROBOTICS_EDITOR_MIN, Math.min(editorMaximum, editorPreference));
+  const paneWidth = split ? editorWidth : sideWidth;
   const sideDragRef = useRef<{ pointerId: number; clientX: number; width: number } | null>(null);
+  const separatorRef = useRef<HTMLDivElement>(null);
+  const circuitPointer = useRef<{ target: SVGSVGElement; id: number; type: string } | null>(null);
+  function cancelCircuitGesture(): void {
+    const owned = circuitPointer.current;
+    circuitPointer.current = null;
+    if (!owned) return;
+    // Notify the real Stage lifecycle, including its local vertex press and
+    // native controller draft. This is cancellation, never a synthetic move/up.
+    const event =
+      typeof PointerEvent === 'function'
+        ? new PointerEvent('pointercancel', {
+            bubbles: true,
+            pointerId: owned.id,
+            pointerType: owned.type,
+          })
+        : Object.defineProperties(new Event('pointercancel', { bubbles: true }), {
+            pointerId: { value: owned.id },
+            pointerType: { value: owned.type },
+          });
+    owned.target.dispatchEvent(event);
+  }
+  function beginCircuitPointer(event: ReactPointerEvent<HTMLElement>) {
+    ownPane('editor');
+    const target = event.target as Element;
+    if (target.closest('[data-testid="ultrasonic-target"]')) return;
+    const svg = target.closest<SVGSVGElement>('svg.workbench-canvas');
+    if (svg) circuitPointer.current = { target: svg, id: event.pointerId, type: event.pointerType };
+  }
+  function finishCircuitPointer(event: ReactPointerEvent<HTMLElement>) {
+    if (circuitPointer.current?.id === event.pointerId) circuitPointer.current = null;
+  }
+  function loseCircuitPointer(event: ReactPointerEvent<HTMLElement>) {
+    if (circuitPointer.current?.id === event.pointerId) cancelCircuitGesture();
+  }
+  const fieldPanelRef = useRef<HTMLElement>(null);
+  const lastPaneFocus = useRef<Partial<Record<'editor' | 'field', HTMLElement>>>({});
   function updateSideWidth(value: number): void {
-    const available = workspaceRef.current?.clientWidth ?? window.innerWidth;
-    setSideWidth(roboticsSideWidth(value, available));
+    if (split)
+      setEditorPreference(
+        Math.max(ROBOTICS_EDITOR_MIN, Math.min(editorMaximum, Math.round(value))),
+      );
+    else setSideWidth(roboticsSideWidth(value, workspaceWidth));
+  }
+  function cancelSideDrag(): void {
+    const current = sideDragRef.current;
+    sideDragRef.current = null;
+    if (current && separatorRef.current?.hasPointerCapture?.(current.pointerId))
+      separatorRef.current.releasePointerCapture(current.pointerId);
   }
   function sidePointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (event.button !== 0 || compactLayout) return;
-    sideDragRef.current = { pointerId: event.pointerId, clientX: event.clientX, width: sideWidth };
+    if (event.button !== 0 || (split ? compactSplit : compactLayout)) return;
+    setShortcutOwner('none');
+    cancelCircuitGesture();
+    controllerRef.current.cancelFamilyPlacement();
+    sideDragRef.current = { pointerId: event.pointerId, clientX: event.clientX, width: paneWidth };
     event.currentTarget.setPointerCapture(event.pointerId);
     event.preventDefault();
   }
@@ -378,45 +455,72 @@ export function RoboticsWorkspace({
     updateSideWidth(drag.width + event.clientX - drag.clientX);
   }
   function sidePointerEnd(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (sideDragRef.current?.pointerId !== event.pointerId) return;
-    sideDragRef.current = null;
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId))
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    if (sideDragRef.current?.pointerId === event.pointerId) cancelSideDrag();
   }
   function sideKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     const step = event.shiftKey ? 40 : 16;
-    const available = workspaceRef.current?.clientWidth ?? window.innerWidth;
     const next =
       event.key === 'ArrowLeft'
-        ? sideWidth - step
+        ? paneWidth - step
         : event.key === 'ArrowRight'
-          ? sideWidth + step
+          ? paneWidth + step
           : event.key === 'Home'
-            ? ROBOTICS_SIDE_MIN
+            ? split
+              ? ROBOTICS_EDITOR_MIN
+              : ROBOTICS_SIDE_MIN
             : event.key === 'End'
-              ? Math.min(ROBOTICS_SIDE_MAX, available / 2)
+              ? split
+                ? editorMaximum
+                : Math.min(ROBOTICS_SIDE_MAX, workspaceWidth / 2)
               : null;
     if (next === null) return;
     event.preventDefault();
+    event.stopPropagation();
     updateSideWidth(next);
   }
   useEffect(() => {
     try {
       window.localStorage.setItem(ROBOTICS_SIDE_STORAGE_KEY, String(sideWidth));
     } catch {
-      /* Width remains interactive without persistent storage. */
+      /* The local preference is optional. */
     }
   }, [sideWidth]);
   useEffect(() => {
-    const clampWidth = () =>
-      setSideWidth((current) => roboticsSideWidth(current, window.innerWidth));
-    window.addEventListener('resize', clampWidth);
-    return () => window.removeEventListener('resize', clampWidth);
+    try {
+      window.localStorage.setItem(ROBOTICS_EDITOR_STORAGE_KEY, String(editorPreference));
+    } catch {
+      /* A narrow viewport never replaces the desktop preference. */
+    }
+  }, [editorPreference]);
+  useLayoutEffect(() => {
+    let measuredWidth = workspaceRef.current?.clientWidth || window.innerWidth;
+    const measure = () => {
+      const width = workspaceRef.current?.clientWidth || window.innerWidth;
+      if (width === measuredWidth) return;
+      measuredWidth = width;
+      setWorkspaceWidth(width);
+      setSideWidth((current) => roboticsSideWidth(current, width));
+      cancelSideDrag();
+      cancelCircuitGesture();
+    };
+    setWorkspaceWidth(measuredWidth);
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    if (workspaceRef.current) observer?.observe(workspaceRef.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+      cancelSideDrag();
+    };
   }, []);
-  const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
   const controller = useElectronicsWorkbenchHost(projectId, local.host, {
     ...WORKBENCH_OPTIONS,
-    keyboardShortcutsEnabled: section === 'electronics',
+    keyboardShortcutsEnabled:
+      section === 'electronics' &&
+      editorVisible &&
+      !codeDrawerVisible &&
+      shortcutOwner === 'editor',
   });
   const controllerRef = useRef(controller);
   controllerRef.current = controller;
@@ -438,9 +542,7 @@ export function RoboticsWorkspace({
   const [lastCommand, setLastCommand] = useState<string | null>(null);
   const selectedRateRef = useRef(1);
   const [showGrid, setShowGrid] = useState(true);
-  const [codeDrawerOpen, setCodeDrawerOpen] = useState(false);
-  const codeDrawerVisible = section === 'electronics' && codeDrawerOpen;
-  const codeOpen = section === 'program' || codeDrawerVisible;
+  const codeOpen = editorVisible && (section === 'program' || codeDrawerVisible);
   const [codeMounted, setCodeMounted] = useState(false);
   const [codeWidth, setCodeWidth] = useState(() =>
     Math.max(320, Math.min(1456, window.innerWidth - 74)),
@@ -466,8 +568,8 @@ export function RoboticsWorkspace({
   const stageHostRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef<Partial<Record<Section, HTMLButtonElement | null>>>({});
   const codeHostRef = useRef<HTMLDivElement | null>(null);
-  const measuredProgramWidth = useRef<number | null>(null);
-  const revealedProgramRevision = useRef(local.programRevision);
+  const fittedCircuitRevision = useRef<number | null>(null);
+  const revealedProgramRevision = useRef<number | null>(null);
   const previousPaletteOpen = useRef(paletteOpen);
   const previousRun = useRef(false);
   const previousWorld = useRef(sourceWorld);
@@ -514,10 +616,19 @@ export function RoboticsWorkspace({
 
   useEffect(() => {
     // Preserve source geometry; begin Electronics at 50% of the usual fitted zoom.
-    if (section !== 'electronics') return;
-    const frame = window.requestAnimationFrame(() => controllerRef.current.fitSceneScaled(0.5));
+    if (
+      section !== 'electronics' ||
+      !editorVisible ||
+      codeDrawerVisible ||
+      fittedCircuitRevision.current === local.openRevision
+    )
+      return;
+    const frame = window.requestAnimationFrame(() => {
+      controllerRef.current.fitSceneScaled(0.5);
+      fittedCircuitRevision.current = local.openRevision;
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, [local.openRevision, section, compactLayout]);
+  }, [local.openRevision, section, editorVisible, codeDrawerVisible]);
 
   const halt = useCallback((message: string) => {
     if (haltedRef.current) return;
@@ -693,8 +804,12 @@ export function RoboticsWorkspace({
     if (local.openSavedProject()) setChosenProgramPreset(null);
   }
   function navigate(next: Section) {
+    cancelCircuitGesture();
     flushProgram();
     controller.cancelFamilyPlacement();
+    cancelSideDrag();
+    setShortcutOwner('none');
+    setPane('editor');
     if (next === 'electronics' && section !== 'electronics')
       controller.setLibraryOpen(!compactLayout);
     if (next === 'program') setCodeMounted(true);
@@ -745,27 +860,22 @@ export function RoboticsWorkspace({
     },
   };
   useLayoutEffect(() => {
-    if (stageHostRef.current) stageHostRef.current.inert = section !== 'electronics';
+    if (stageHostRef.current)
+      stageHostRef.current.inert = section !== 'electronics' || !editorVisible || codeDrawerVisible;
     // The catalog starts structural placement; runtime controls in the shared
     // inspector remain available. Keep the real Stage and native leaves visible.
     const library = stageHostRef.current?.querySelector<HTMLElement>('.workbench-library');
     if (library) library.inert = running;
-  }, [section, running, controller.libraryOpen]);
+  }, [section, editorVisible, codeDrawerVisible, running, controller.libraryOpen]);
   useLayoutEffect(() => {
     if (!codeOpen || !codeHostRef.current) return;
     const host = codeHostRef.current;
     let frame: number | null = null;
     const measure = () => {
       if (host.clientWidth <= 0) return;
-      const previous = measuredProgramWidth.current;
-      const width = host.clientWidth;
-      measuredProgramWidth.current = width;
-      setCodeWidth(width);
-      if (
-        revealedProgramRevision.current !== local.programRevision ||
-        (previous !== null && previous !== width) ||
-        (previous === null && width <= 760)
-      ) {
+      setCodeWidth(host.clientWidth);
+      // Resize the real editor without resetting its selection, scroll or Blockly zoom.
+      if (revealedProgramRevision.current !== local.programRevision) {
         if (frame !== null) window.cancelAnimationFrame(frame);
         frame = window.requestAnimationFrame(() => {
           programHandle.current?.revealProgramStart();
@@ -790,6 +900,59 @@ export function RoboticsWorkspace({
     const frame = window.requestAnimationFrame(() => programHandle.current?.revealProgramStart());
     return () => window.cancelAnimationFrame(frame);
   }, [codeOpen, paletteOpen]);
+
+  function focusPane(next: 'editor' | 'field') {
+    cancelCircuitGesture();
+    flushProgram();
+    controller.cancelFamilyPlacement();
+    cancelSideDrag();
+    setShortcutOwner('none');
+    setPane(next);
+    const fromSection = section;
+    requestAnimationFrame(() => {
+      const current = paneLayout.current;
+      if (current.section !== fromSection || current.pane !== next || !current.compactSplit) return;
+      const host =
+        next === 'field'
+          ? fieldPanelRef.current
+          : section === 'program' || codeDrawerVisible
+            ? codeHostRef.current
+            : stageHostRef.current;
+      const candidates = host?.querySelectorAll<HTMLElement>('textarea, [tabindex="0"], button');
+      const usable = (node: HTMLElement) =>
+        host?.contains(node) &&
+        node.getClientRects().length > 0 &&
+        !node.closest('[hidden], [inert]') &&
+        !node.matches(':disabled, [aria-disabled="true"]');
+      const previous = lastPaneFocus.current[next];
+      const first = previous && usable(previous) ? previous : [...(candidates ?? [])].find(usable);
+      (first ?? host)?.focus({ preventScroll: true });
+    });
+  }
+  function ownPane(next: 'editor' | 'field', focused?: HTMLElement) {
+    if (focused) lastPaneFocus.current[next] = focused;
+    setShortcutOwner(next);
+    if (next !== 'editor') {
+      cancelCircuitGesture();
+      controller.cancelFamilyPlacement();
+    }
+  }
+  function fieldKeys(event: ReactKeyboardEvent<HTMLElement>) {
+    const target = event.target as HTMLElement;
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey &&
+      ['z', 'y'].includes(event.key.toLowerCase())
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (running) return;
+      flushProgram();
+      if (event.key.toLowerCase() === 'y' || event.shiftKey) controller.redo();
+      else controller.undo();
+    }
+  }
 
   const board = local.robotProject.circuit.components.find(
     (part) => part.id === sourceWorld.bindings.boardId,
@@ -949,6 +1112,18 @@ export function RoboticsWorkspace({
       className="robotics-lab"
       data-testid="robotics-lab"
       data-section={section}
+      onFocusCapture={(event) => {
+        if (!(event.target as Element).closest('[data-editing-pane]')) {
+          cancelCircuitGesture();
+          setShortcutOwner('none');
+        }
+      }}
+      onPointerDownCapture={(event) => {
+        if (!(event.target as Element).closest('[data-editing-pane]')) {
+          cancelCircuitGesture();
+          setShortcutOwner('none');
+        }
+      }}
       data-input-admitted={budget?.admitted ?? 0}
       data-input-accepted={budget?.accepted ?? 0}
       data-input-pending={budget?.pending ?? 0}
@@ -984,17 +1159,55 @@ export function RoboticsWorkspace({
       <div
         className="robotics-workspace"
         ref={workspaceRef}
-        style={{ '--robotics-side-width': `${sideWidth}px` } as CSSProperties}
+        data-split={split}
+        data-compact-split={compactSplit}
+        data-pane={pane}
+        data-editor-width={editorWidth}
+        data-shortcut-owner={shortcutOwner}
+        style={
+          {
+            '--robotics-side-width': `${sideWidth}px`,
+            '--robotics-editor-width': `${editorWidth}px`,
+          } as CSSProperties
+        }
       >
+        <div
+          className="robotics-pane-choice"
+          role="group"
+          aria-label="Рабочая область"
+          hidden={!compactSplit}
+        >
+          <button
+            type="button"
+            aria-pressed={pane === 'editor'}
+            onClick={() => focusPane('editor')}
+          >
+            Редактор
+          </button>
+          <button type="button" aria-pressed={pane === 'field'} onClick={() => focusPane('field')}>
+            Поле
+          </button>
+        </div>
         <section
+          ref={fieldPanelRef}
+          data-editing-pane="field"
+          tabIndex={-1}
+          onFocusCapture={(event) => ownPane('field', event.target as HTMLElement)}
+          onPointerDownCapture={() => ownPane('field')}
+          onKeyDown={fieldKeys}
           className="robotics-panel robotics-field-panel"
-          role="tabpanel"
+          role={section === 'field' ? 'tabpanel' : 'region'}
           id="robotics-panel-field"
-          aria-labelledby="robotics-tab-field"
-          hidden={section !== 'field'}
+          aria-label={section === 'field' ? undefined : 'Поле'}
+          aria-labelledby={section === 'field' ? 'robotics-tab-field' : undefined}
+          hidden={!fieldVisible}
         >
           <RobotFieldEditor
             allowExport={allowDistribution}
+            active={fieldVisible}
+            compactDock={split}
+            interactionKey={`${section}:${pane}:${editorWidth}`}
+            interactive={shortcutOwner === 'field' || (!split && fieldVisible)}
             sourceSchemaVersion={local.robotProject.schemaVersion}
             onUpgradeField={local.enableExtendedField}
             world={sourceWorld}
@@ -1029,12 +1242,15 @@ export function RoboticsWorkspace({
           />
         </section>
         <section
+          data-editing-pane="editor"
+          onFocusCapture={(event) => ownPane('editor', event.target as HTMLElement)}
+          onPointerDownCapture={() => ownPane('editor')}
           className="robotics-panel robotics-electronics-panel"
           role="tabpanel"
           id="robotics-panel-electronics"
           aria-labelledby="robotics-tab-electronics"
           aria-owns={section === 'electronics' ? 'robotics-scheme' : undefined}
-          hidden={section !== 'electronics'}
+          hidden={section !== 'electronics' || !editorVisible}
         >
           <div className="robotics-panel-toolbar robotics-electronics-toolbar">
             <RoboticsElectronicsToolbar
@@ -1043,12 +1259,18 @@ export function RoboticsWorkspace({
               codeOpen={codeDrawerVisible}
               onToggleCode={() => {
                 setCodeMounted(true);
+                cancelCircuitGesture();
+                controller.cancelFamilyPlacement();
+                setShortcutOwner('none');
                 setCodeDrawerOpen((current) => !current);
               }}
             />
           </div>
         </section>
         <section
+          data-editing-pane="editor"
+          onFocusCapture={(event) => ownPane('editor', event.target as HTMLElement)}
+          onPointerDownCapture={() => ownPane('editor')}
           className="robotics-panel robotics-program-panel"
           role={codeDrawerVisible ? 'region' : 'tabpanel'}
           id="robotics-panel-program"
@@ -1060,6 +1282,7 @@ export function RoboticsWorkspace({
         >
           <div
             ref={codeHostRef}
+            tabIndex={-1}
             className="workbench-shell robotics-program-shell"
             style={{ '--arduino-code-panel-width': `${codeWidth}px` } as CSSProperties}
           >
@@ -1082,8 +1305,12 @@ export function RoboticsWorkspace({
             ) : null}
           </div>
         </section>
-        <aside className="robotics-observation" aria-label="Наблюдение за роботом">
-          {section !== 'field' ? (
+        <aside
+          className="robotics-observation"
+          aria-label="Наблюдение за роботом"
+          hidden={split && !fieldVisible}
+        >
+          {section === 'robot' ? (
             <div className="robotics-mini-field">
               <div className="robotics-panel-toolbar">
                 <h2>Поле</h2>
@@ -1100,66 +1327,76 @@ export function RoboticsWorkspace({
               />
             </div>
           ) : null}
-          <dl className="robotics-metrics">
-            <div>
-              <dt>До препятствия</dt>
-              <dd
-                data-testid="robotics-distance"
-                data-distance-meters={distance.status === 'ok' ? distance.distanceMeters : ''}
-              >
-                {distance.status === 'ok'
-                  ? `${number(distance.distanceMeters * 100)} см`
-                  : 'Вне диапазона'}
-              </dd>
-            </div>
-            <div>
-              <dt>Левый мотор</dt>
-              <dd data-testid="robotics-left-rpm" data-rpm={worldState.leftRpm}>
-                {number(worldState.leftRpm, 0)} об/мин
-              </dd>
-            </div>
-            <div>
-              <dt>Правый мотор</dt>
-              <dd data-testid="robotics-right-rpm" data-rpm={worldState.rightRpm}>
-                {number(worldState.rightRpm, 0)} об/мин
-              </dd>
-            </div>
-          </dl>
-          <details className="robotics-drive" open={section === 'field'}>
-            <summary>Команды Serial</summary>
-            <div className="robotics-drive-pad">
-              {(
-                [
-                  ['F', 'Вперёд', '↑'],
-                  ['L', 'Влево', '↶'],
-                  ['S', 'Выбег', '■'],
-                  ['R', 'Вправо', '↷'],
-                ] as const
-              ).map(([command, label, symbol]) => (
-                <button
-                  type="button"
-                  key={command}
-                  disabled={!canCommand}
-                  onClick={() => sendCommand(command, label)}
+          <details className="robotics-status-popover" open={split ? undefined : true}>
+            <summary hidden={!split}>Состояние и Serial</summary>
+            <dl className="robotics-metrics">
+              <div>
+                <dt>До препятствия</dt>
+                <dd
+                  data-testid="robotics-distance"
+                  data-distance-meters={distance.status === 'ok' ? distance.distanceMeters : ''}
                 >
-                  <span aria-hidden="true">{symbol}</span>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="robotics-help">
-              Команды F/L/R/S работают, если программа их обрабатывает.{' '}
-              {paused || pausing
-                ? 'Продолжите программу, чтобы отправить команду.'
-                : lastCommand
-                  ? `Отправлено: ${lastCommand}.`
-                  : !running
-                    ? 'Сначала запустите программу.'
-                    : ''}
-            </p>
+                  {distance.status === 'ok'
+                    ? `${number(distance.distanceMeters * 100)} см`
+                    : 'Вне диапазона'}
+                </dd>
+              </div>
+              <div>
+                <dt>Левый мотор</dt>
+                <dd data-testid="robotics-left-rpm" data-rpm={worldState.leftRpm}>
+                  {number(worldState.leftRpm, 0)} об/мин
+                </dd>
+              </div>
+              <div>
+                <dt>Правый мотор</dt>
+                <dd data-testid="robotics-right-rpm" data-rpm={worldState.rightRpm}>
+                  {number(worldState.rightRpm, 0)} об/мин
+                </dd>
+              </div>
+            </dl>
+            <details className="robotics-drive" open={section === 'field'}>
+              <summary>Команды Serial</summary>
+              <div className="robotics-drive-pad">
+                {(
+                  [
+                    ['F', 'Вперёд', '↑'],
+                    ['L', 'Влево', '↶'],
+                    ['S', 'Выбег', '■'],
+                    ['R', 'Вправо', '↷'],
+                  ] as const
+                ).map(([command, label, symbol]) => (
+                  <button
+                    type="button"
+                    key={command}
+                    disabled={!canCommand}
+                    onClick={() => sendCommand(command, label)}
+                  >
+                    <span aria-hidden="true">{symbol}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="robotics-help">
+                Команды F/L/R/S работают, если программа их обрабатывает.{' '}
+                {paused || pausing
+                  ? 'Продолжите программу, чтобы отправить команду.'
+                  : lastCommand
+                    ? `Отправлено: ${lastCommand}.`
+                    : !running
+                      ? 'Сначала запустите программу.'
+                      : ''}
+              </p>
+            </details>
           </details>
         </aside>
         <section
+          data-editing-pane="editor"
+          onFocusCapture={(event) => ownPane('editor', event.target as HTMLElement)}
+          onPointerDownCapture={beginCircuitPointer}
+          hidden={split && (section !== 'electronics' || !editorVisible)}
+          onPointerUpCapture={finishCircuitPointer}
+          onPointerCancelCapture={finishCircuitPointer}
+          onLostPointerCapture={loseCircuitPointer}
           className={`robotics-schematic ${section === 'electronics' ? 'editing' : 'preview'}`}
           id="robotics-scheme"
           aria-label={
@@ -1174,6 +1411,7 @@ export function RoboticsWorkspace({
           </div>
           <div
             ref={stageHostRef}
+            tabIndex={-1}
             className={`workbench-shell robotics-workbench${controller.libraryOpen && section === 'electronics' ? '' : ' library-collapsed'}`}
           >
             <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
@@ -1185,25 +1423,29 @@ export function RoboticsWorkspace({
           </div>
         </section>
         <div
+          ref={separatorRef}
           className="robotics-side-resizer"
           role="separator"
-          aria-label="Ширина панели наблюдения"
+          hidden={compactSplit}
+          aria-label={split ? 'Ширина редактора' : 'Ширина панели наблюдения'}
           aria-orientation="vertical"
-          aria-valuemin={ROBOTICS_SIDE_MIN}
-          aria-valuemax={Math.max(
-            ROBOTICS_SIDE_MIN,
-            Math.min(
-              ROBOTICS_SIDE_MAX,
-              Math.floor((workspaceRef.current?.clientWidth ?? window.innerWidth) / 2),
-            ),
-          )}
-          aria-valuenow={sideWidth}
+          aria-valuemin={split ? ROBOTICS_EDITOR_MIN : ROBOTICS_SIDE_MIN}
+          aria-valuemax={
+            split
+              ? editorMaximum
+              : Math.max(
+                  ROBOTICS_SIDE_MIN,
+                  Math.min(ROBOTICS_SIDE_MAX, Math.floor(workspaceWidth / 2)),
+                )
+          }
+          aria-valuenow={paneWidth}
           title="Перетаскивайте границу панели. Стрелки меняют ширину, Home/End — пределы."
           tabIndex={0}
           onPointerDown={sidePointerDown}
           onPointerMove={sidePointerMove}
           onPointerUp={sidePointerEnd}
           onPointerCancel={sidePointerEnd}
+          onLostPointerCapture={sidePointerEnd}
           onKeyDown={sideKeyDown}
         />
       </div>

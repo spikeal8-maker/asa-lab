@@ -3,6 +3,7 @@ import {
   useCallback,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -439,6 +440,10 @@ export function RobotFieldEditor({
   canRedo,
   onUndo,
   onRedo,
+  active = true,
+  compactDock = false,
+  interactive = true,
+  interactionKey = '',
 }: {
   world: RoboticsWorldDocument;
   allowExport?: boolean;
@@ -454,6 +459,10 @@ export function RobotFieldEditor({
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  active?: boolean;
+  compactDock?: boolean;
+  interactive?: boolean;
+  interactionKey?: string;
 }) {
   const [tool, setTool] = useState<Tool>('select');
   const [stamp, setStamp] = useState<RoboticsTileStampKind>('straight');
@@ -476,6 +485,7 @@ export function RobotFieldEditor({
   } | null>(null);
   const draggedTool = useRef<Tool | null>(null);
   const dragFeedback = useRef<HTMLCanvasElement | null>(null);
+  const panePointers = useRef(new Map<number, Element>());
   const spatialDrag = useRef<{
     world: RoboticsWorldDocument;
     key: RoboticsObjectKey;
@@ -497,6 +507,8 @@ export function RobotFieldEditor({
   latestWorldRef.current = world;
   const latestRunningRef = useRef(running);
   latestRunningRef.current = running;
+  const latestActiveRef = useRef(active);
+  latestActiveRef.current = active;
   const imageInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const propertiesButton = useRef<HTMLButtonElement>(null);
@@ -578,6 +590,12 @@ export function RobotFieldEditor({
   const selectedTool = TOOLS.find((item) => item.id === tool)!;
 
   function releaseDrag(releaseCapture = true) {
+    if (releaseCapture) {
+      const owned = [...panePointers.current];
+      panePointers.current.clear();
+      for (const [id, target] of owned)
+        if (target.hasPointerCapture?.(id)) target.releasePointerCapture(id);
+    }
     const current = drag.current;
     const resizing = resizeDrag.current;
     drag.current = null;
@@ -613,6 +631,26 @@ export function RobotFieldEditor({
     dragFeedback.current = null;
     draggedTool.current = null;
   }, [world, running]);
+  useLayoutEffect(() => {
+    cameraControl.leave();
+    cameraControl.cancel();
+    pendingTouch.current = null;
+    releaseDrag();
+    clearTrace();
+    setPlacement(null);
+    setDropHover(false);
+    draggedTool.current = null;
+    dragFeedback.current?.remove();
+    dragFeedback.current = null;
+  }, [active, interactionKey]);
+  useLayoutEffect(() => {
+    if (interactive) return;
+    cameraControl.leave();
+    cameraControl.cancel();
+    pendingTouch.current = null;
+    releaseDrag();
+    setPlacement(null);
+  }, [interactive]);
   useEffect(
     () => () => {
       dragFeedback.current?.remove();
@@ -626,7 +664,7 @@ export function RobotFieldEditor({
     setError(error instanceof Error ? error.message : 'Не удалось изменить предмет.');
   }
   function commit(next: RoboticsWorldDocument): boolean {
-    if (running) return false;
+    if (running || !latestActiveRef.current) return false;
     const parsed = parseRoboticsWorldDocument(next);
     if (!parsed.ok) {
       setError(parsed.message);
@@ -1451,7 +1489,17 @@ export function RobotFieldEditor({
           {error}
         </p>
       ) : null}
-      <div className="robotics-field-editor-body" data-properties-open={propertiesOpen}>
+      <div
+        className="robotics-field-editor-body"
+        data-properties-open={propertiesOpen}
+        data-compact-dock={compactDock}
+        onPointerDownCapture={(event) =>
+          panePointers.current.set(event.pointerId, event.target as Element)
+        }
+        onPointerUpCapture={(event) => panePointers.current.delete(event.pointerId)}
+        onPointerCancelCapture={(event) => panePointers.current.delete(event.pointerId)}
+        onLostPointerCapture={(event) => panePointers.current.delete(event.pointerId)}
+      >
         <div className="robotics-field-stage" data-view={fieldView}>
           <div className="robotics-field-viewport" data-top-artwork={topSvg ? 'svg' : 'webgl'}>
             <div
@@ -1593,16 +1641,20 @@ export function RobotFieldEditor({
                     showGrid={showGrid}
                     selection={selection}
                     view={fieldView}
-                    active={!(topView && Boolean(draft || ghost || tracePoints.length))}
+                    active={active && !(topView && Boolean(draft || ghost || tracePoints.length))}
                     topProjection={projection}
                     onReady={setSpatialReady}
                     onControls={registerSpatialControls}
                     onZoom={setSpatialZoom}
                     edit={
-                      !running && fieldView === 'orbit'
+                      active && !running && fieldView === 'orbit'
                         ? {
                             begin: (key, start) => {
-                              if (latestRunningRef.current || latestWorldRef.current !== world)
+                              if (
+                                !latestActiveRef.current ||
+                                latestRunningRef.current ||
+                                latestWorldRef.current !== world
+                              )
                                 return false;
                               const canonical = canonicalRoboticsObjectKey(world, key);
                               if (!canonical) return false;
@@ -1757,7 +1809,8 @@ export function RobotFieldEditor({
                     event.stopPropagation();
                     setObjectEditorOpen(false);
                     setDockTab('objects');
-                    if (window.matchMedia('(max-width: 1279px)').matches) closeProperties();
+                    if (compactDock) closeProperties();
+                    else if (window.matchMedia('(max-width: 1279px)').matches) closeProperties();
                   }
                 }}
               >
@@ -1772,7 +1825,8 @@ export function RobotFieldEditor({
                     onClick={() => {
                       setObjectEditorOpen(false);
                       setDockTab('objects');
-                      if (window.matchMedia('(max-width: 1279px)').matches) closeProperties();
+                      if (compactDock) closeProperties();
+                      else if (window.matchMedia('(max-width: 1279px)').matches) closeProperties();
                     }}
                   >
                     ×
