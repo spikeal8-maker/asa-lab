@@ -1403,7 +1403,13 @@ async function inspectHeaderControls(page: Page, projectId: string) {
         for (const control of [
           page.getByRole('combobox', { name: 'Программируемая плата', exact: true }),
           page.locator('.arduino-mode-menu > summary'),
-          page.getByRole('button', { name: 'Проверить код', exact: true }),
+          page.getByRole('button', {
+            name:
+              width === 320
+                ? 'Проверить совместимость кода с симулятором (не компиляция)'
+                : 'Проверить код',
+            exact: true,
+          }),
           page.getByRole('button', { name: 'Скачать .ino', exact: true }),
           page.locator('.robotics-code-extras > summary'),
         ])
