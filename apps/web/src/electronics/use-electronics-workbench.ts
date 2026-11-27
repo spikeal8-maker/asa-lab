@@ -1207,6 +1207,25 @@ export function useElectronicsWorkbenchHost(
           setLiveObservation(null);
           setSimulationMessage(null);
         },
+        onPreflightAssets: (result, document) => {
+          if (
+            !currentSession() ||
+            !session?.active ||
+            generationConfirmed ||
+            displayed ||
+            pending ||
+            publishing ||
+            nativePreparationSource !== nativePreparationSourceRef.current ||
+            runtimeDocumentRef.current !== document ||
+            simulationPacing.read().rate === 0
+          )
+            return;
+          nativeOpticalPresentation.preparePreflightAssets(
+            result,
+            document,
+            () => ++nativePreparationSequence,
+          );
+        },
         onInitialReady: (hostOffsetMicroseconds) => {
           if (!currentSession() || simulationStartedAtRef.current !== null) return;
           simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;

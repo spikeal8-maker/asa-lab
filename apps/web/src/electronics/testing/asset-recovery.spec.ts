@@ -1301,6 +1301,36 @@ describe('resident LED body preparation and joint DOM commit', () => {
     expect(f.lActive()).toBe('0');
   });
 
+  it('shows a failed warm image only when the circuit actually requests its asset', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'Image',
+      class {
+        onerror: (() => void) | null = null;
+        set src(_href: string) {
+          queueMicrotask(() => this.onerror?.());
+        }
+      },
+    );
+    const f = fixture();
+    const asset = f.asset(33);
+    await f.render({ prepared: { token: 'preflight:1', asset } });
+    await f.load(f.imageFor(f.asset(0)));
+    const hidden = f.imageFor(asset);
+    await act(async () => nativeCallback(hidden, 'error')());
+    await act(async () => vi.advanceTimersByTimeAsync(1500));
+    const badge = () => f.host.querySelector('[data-testid="owner-image-error"]');
+    expect(hidden.getAttribute('data-owner-image-status')).toBe('failed');
+    expect(hidden.getAttribute('data-led-asset-active')).toBe('false');
+    expect(badge()).toBeNull();
+    await f.render({ running: false, prepared: undefined });
+    expect(badge()).toBeNull();
+    await f.render({ running: true, prepared: { token: 'g2:high', asset } });
+    expect(f.imageFor(asset)).toBe(hidden);
+    expect(badge()).not.toBeNull();
+    expect(f.events).toContainEqual(expect.objectContaining({ token: 'g2:high', status: 'error' }));
+  });
+
   it('waits for native OFF and HIGH, then moves the loaded keyed node with the same href in a joint LED/L commit', async () => {
     const f = fixture();
     const request = { token: 'g1:high', asset: f.asset(70) };

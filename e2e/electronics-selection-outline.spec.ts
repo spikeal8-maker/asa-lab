@@ -1872,16 +1872,18 @@ for (const width of [1440, 1024, 390, 320])
           ),
         ).toBe(true);
         expect(puts).toHaveLength(1);
-        expect((await server(page, projectId)).draft).toEqual(saved.draft);
+        const finalServer = await server(page, projectId);
+        lastServer = finalServer;
+        expect(finalServer.draft).toEqual(saved.draft);
         failures.assertEmpty();
         await checkpoint('complete');
       } catch (error) {
         retainPrimary(error);
         throw error;
       } finally {
-        // Node evidence is already available even when the page was closed by timeout.
-        writeCleanupRaw(lastCheckpoint);
-        for (const [name, capture] of [
+        // The complete checkpoint already persisted the checked server, observer and storage.
+        const completed = lastCheckpoint === 'complete' && !establishedFailure();
+        const diagnosticCaptures = [
           [
             'observer',
             async () => {
@@ -1913,9 +1915,14 @@ for (const width of [1440, 1024, 390, 320])
               await page.screenshot({ path: info.outputPath('finally.png') });
             },
           ],
-        ] as const) {
-          await supplemental(name, capture);
+        ] as const;
+        if (!completed) {
+          // Node evidence is already available even when the page was closed by timeout.
           writeCleanupRaw(lastCheckpoint);
+          for (const [name, capture] of diagnosticCaptures) {
+            await supplemental(name, capture);
+            writeCleanupRaw(lastCheckpoint);
+          }
         }
         await supplemental(
           'worker-journal-attachment',
@@ -1926,7 +1933,7 @@ for (const width of [1440, 1024, 390, 320])
             }),
           true,
         );
-        writeCleanupRaw(lastCheckpoint);
+        if (!completed || establishedFailure()) writeCleanupRaw(lastCheckpoint);
         await supplemental(
           'raw-attachment',
           () =>
@@ -1936,7 +1943,7 @@ for (const width of [1440, 1024, 390, 320])
             }),
           true,
         );
-        writeCleanupRaw(lastCheckpoint);
+        if (!completed || establishedFailure()) writeCleanupRaw(lastCheckpoint);
       }
       requireMandatoryEvidence();
     });

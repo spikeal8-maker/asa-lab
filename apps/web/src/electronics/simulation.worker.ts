@@ -59,7 +59,8 @@ scope.onmessage = (event): void => {
       )
         return;
       releasePreparedWake();
-      preparedWake = prepareDedicatedSimulationWorkerWake(request) ?? undefined;
+      preparedWake =
+        prepareDedicatedSimulationWorkerWake(request, templateOwner.reuse) ?? undefined;
       return;
     }
     if (

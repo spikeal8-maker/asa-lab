@@ -874,6 +874,74 @@ describe('Arduino wake reservation', () => {
     controller.dispose();
   });
 
+  it.each(['wake', 'input'] as const)(
+    'arms an imminent unbalanced MCU wake from its ready response, with priority for %s',
+    async (action) => {
+      const executor = Object.assign(new FakeExecutor(), {
+        prepareAdvance: vi.fn(() => 'imminent-wake'),
+        discardPreparedAdvance: vi.fn(),
+      });
+      const source = withSketch(shortSource);
+      const { controller, tick, complete, setHorizon, scheduleArduinoWake } = await start(
+        true,
+        source,
+        false,
+        executor,
+      );
+      tick(21_500);
+      await complete();
+      tick(41_500);
+      setHorizon(54_000);
+      await complete();
+      const [due, fire] = scheduleArduinoWake.mock.calls.at(-1)!;
+      expect(due).toBe(60_009);
+      expect(executor.prepareAdvance).toHaveBeenCalledOnce();
+      expect(executor.advances.at(-1)?.requestedHorizonMicroseconds).toBe(41_500);
+      if (action === 'input') controller.sendSerialRx('uno', 'X', 55_000);
+      setHorizon(61_400);
+      fire();
+      if (action === 'input') {
+        expect(scheduleArduinoWake.mock.results.at(-1)?.value).toHaveBeenCalledOnce();
+        expect(executor.advances.at(-1)?.inputEvents).toEqual([
+          { atMicroseconds: 41_501, targetId: 'uno', operation: 'serialRx', payload: 'X' },
+        ]);
+        expect(executor.advances.at(-1)?.preparedRequestId).toBeUndefined();
+      } else {
+        expect(executor.advances.at(-1)).toMatchObject({
+          requestedHorizonMicroseconds: 61_400,
+          preparedRequestId: 'imminent-wake',
+          inputEvents: [],
+        });
+        setHorizon(75_000);
+        const actual = await complete();
+        expect(actual.ledTemporal?.arduinoIndicators?.[0]?.samples).toContainEqual({
+          atMicroseconds: due,
+          voltage: 0,
+        });
+        const ordinary = await start(false, source, false);
+        for (const horizon of [21_500, 41_500]) {
+          ordinary.tick(horizon);
+          await ordinary.complete();
+        }
+        ordinary.tick(61_400);
+        expect(actual).toEqual(await ordinary.complete());
+        const [nextDue, fireNext] = scheduleArduinoWake.mock.calls.at(-1)!;
+        expect(nextDue).toBe(80_011);
+        setHorizon(81_400);
+        fireNext();
+        const high = await complete();
+        const rising = high.ledTemporal?.arduinoIndicators?.[0]?.samples.find(
+          (sample) => sample.atMicroseconds === 80_012,
+        );
+        expect(rising?.voltage).toBeGreaterThan(2.5);
+        ordinary.tick(81_400);
+        expect(high).toEqual(await ordinary.complete());
+        ordinary.controller.dispose();
+      }
+      controller.dispose();
+    },
+  );
+
   it('balances a confirmed long sleep and schedules each next boundary without another poll', async () => {
     const quiet = withSketch(quietSource);
     const { controller, executor, tick, scheduleArduinoWake, complete, setHorizon } = await start(
@@ -1836,6 +1904,99 @@ describe('Electronics canonical Worker controller', () => {
     await flush();
     expect(onResult).not.toHaveBeenCalled();
   });
+
+  it.each(['current', 'stop', 'restart', 'input', 'serial', 'source', 'pause', 'fault'] as const)(
+    'offers private image hints only for the current unmodified preflight (%s)',
+    async (action) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const onResult = vi.fn();
+      const onInitialReady = vi.fn();
+      let horizonAtHint: number | undefined;
+      const onPreflightAssets = vi.fn(() => {
+        horizonAtHint = executor.advances.at(-1)?.requestedHorizonMicroseconds;
+      });
+      const callbacks = { onResult, onInitialReady, onPreflightAssets, onFailure: vi.fn() };
+      controller.start('project', serialCircuit, callbacks);
+      if (action === 'stop') controller.stop();
+      if (action === 'restart') controller.restart(serialCircuit);
+      if (action === 'input')
+        controller.update(
+          {
+            ...serialCircuit,
+            components: serialCircuit.components.map((part) =>
+              part.id === 'button' ? { ...part, state: true } : part,
+            ),
+          },
+          1_000,
+        );
+      if (action === 'serial') controller.sendSerialRx('uno', 'A', 1000);
+      if (action === 'source')
+        controller.update(
+          {
+            ...serialCircuit,
+            components: serialCircuit.components.map((part) =>
+              part.id === 'uno'
+                ? {
+                    ...part,
+                    stateProperties: {
+                      ...part.stateProperties,
+                      arduinoSource: 'void setup(){} void loop(){delay(50);}',
+                    },
+                  }
+                : part,
+            ),
+          },
+          1000,
+        );
+      if (action === 'pause') controller.setPaused(true);
+      const preflight =
+        action === 'fault'
+          ? { ...result(1), solved: false, status: 'nonconvergent' as const }
+          : result(1);
+      executor.preflights[0]!.resolve(preflight);
+      await flush();
+      if (action === 'current') {
+        expect(onPreflightAssets).toHaveBeenCalledExactlyOnceWith(preflight, serialCircuit);
+        expect(horizonAtHint).toBe(0);
+      } else expect(onPreflightAssets).not.toHaveBeenCalled();
+      expect(onInitialReady).not.toHaveBeenCalled();
+      expect(onResult).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['throw', 'reject'] as const)(
+    'keeps time zero and later observations after an optional image hint fails (%s)',
+    async (failure) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const callbacks = {
+        onResult: vi.fn(),
+        onInitialReady: vi.fn(),
+        onFailure: vi.fn(),
+        onPreflightAssets: vi.fn(() => {
+          const error = new Error('image preparation failed');
+          if (failure === 'throw') throw error;
+          return Promise.reject(error);
+        }),
+      };
+      controller.start('project', circuit, callbacks);
+      executor.preflights[0]!.resolve(result(1));
+      await flush();
+      expect(callbacks.onPreflightAssets).toHaveBeenCalledOnce();
+      expect(executor.advances[0]?.requestedHorizonMicroseconds).toBe(0);
+      executor.advances[0]!.deferred.resolve(timedAdvance('ready', 0, 0, 2));
+      await flush();
+      expect(callbacks.onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
+      expect(callbacks.onResult).toHaveBeenCalledExactlyOnceWith(result(2), undefined, undefined);
+      controller.update(circuit, 25_000);
+      executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 3));
+      await flush();
+      expect(callbacks.onResult).toHaveBeenLastCalledWith(result(3), undefined, 'dc-inputs-v1');
+      expect(callbacks.onFailure).not.toHaveBeenCalled();
+      controller.stop();
+    },
+  );
 
   it('publishes time zero before coalesced preflight horizons and later ready observations', async () => {
     const executor = new FakeExecutor();
