@@ -1844,8 +1844,9 @@ describe('Electronics canonical Worker controller', () => {
       const controller = new ElectronicsLiveSimulationWorkerController(executor);
       const onResult = vi.fn();
       const onInitialReady = vi.fn();
+      let horizonAtHint: number | undefined;
       const onPreflightAssets = vi.fn(() => {
-        expect(executor.advances.at(-1)?.requestedHorizonMicroseconds).toBe(0);
+        horizonAtHint = executor.advances.at(-1)?.requestedHorizonMicroseconds;
       });
       const callbacks = { onResult, onInitialReady, onPreflightAssets, onFailure: vi.fn() };
       controller.start('project', serialCircuit, callbacks);
@@ -1887,11 +1888,45 @@ describe('Electronics canonical Worker controller', () => {
           : result(1);
       executor.preflights[0]!.resolve(preflight);
       await flush();
-      if (action === 'current')
+      if (action === 'current') {
         expect(onPreflightAssets).toHaveBeenCalledExactlyOnceWith(preflight, serialCircuit);
-      else expect(onPreflightAssets).not.toHaveBeenCalled();
+        expect(horizonAtHint).toBe(0);
+      } else expect(onPreflightAssets).not.toHaveBeenCalled();
       expect(onInitialReady).not.toHaveBeenCalled();
       expect(onResult).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['throw', 'reject'] as const)(
+    'keeps time zero and later observations after an optional image hint fails (%s)',
+    async (failure) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const callbacks = {
+        onResult: vi.fn(),
+        onInitialReady: vi.fn(),
+        onFailure: vi.fn(),
+        onPreflightAssets: vi.fn(() => {
+          const error = new Error('image preparation failed');
+          if (failure === 'throw') throw error;
+          return Promise.reject(error);
+        }),
+      };
+      controller.start('project', circuit, callbacks);
+      executor.preflights[0]!.resolve(result(1));
+      await flush();
+      expect(callbacks.onPreflightAssets).toHaveBeenCalledOnce();
+      expect(executor.advances[0]?.requestedHorizonMicroseconds).toBe(0);
+      executor.advances[0]!.deferred.resolve(timedAdvance('ready', 0, 0, 2));
+      await flush();
+      expect(callbacks.onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
+      expect(callbacks.onResult).toHaveBeenCalledExactlyOnceWith(result(2), undefined, undefined);
+      controller.update(circuit, 25_000);
+      executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 3));
+      await flush();
+      expect(callbacks.onResult).toHaveBeenLastCalledWith(result(3), undefined, 'dc-inputs-v1');
+      expect(callbacks.onFailure).not.toHaveBeenCalled();
+      controller.stop();
     },
   );
 

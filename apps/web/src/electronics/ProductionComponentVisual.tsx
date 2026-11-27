@@ -708,6 +708,7 @@ function OwnerLedAssetSlot({
   slot,
   asset,
   active,
+  reportFailure,
   token,
   register,
   ...geometry
@@ -715,6 +716,7 @@ function OwnerLedAssetSlot({
   readonly slot: number;
   readonly asset: string;
   readonly active: boolean;
+  readonly reportFailure: boolean;
   readonly token: string | undefined;
   readonly register: (slot: number, binding: MountedLedAssetBinding) => void;
 }) {
@@ -748,7 +750,7 @@ function OwnerLedAssetSlot({
         }}
         pointerEvents="none"
       />
-      {ownerImage.failed && (
+      {ownerImage.failed && reportFailure && (
         <OwnerAssetErrorBadge
           width={geometry.width}
           height={geometry.height}
@@ -864,6 +866,13 @@ function OwnerPreparedLedImage({
       ? 0
       : (targetSlot ?? lastActive.current);
   const activeToken = running && targetSlot !== undefined ? committed?.token : undefined;
+  // A preflight guess has no timed observation behind it. Keep its native
+  // failure for recovery, and report it if a confirmed frame needs that asset.
+  const requiredAsset = running
+    ? prepared?.token.startsWith('preflight:')
+      ? undefined
+      : prepared?.asset
+    : asset;
 
   useLayoutEffect(() => {
     current.current = { prepared, committed, rollback, running, componentId, onReadiness };
@@ -1017,6 +1026,12 @@ function OwnerPreparedLedImage({
             slot={slot.id}
             asset={slot.asset}
             active={slot.id === active}
+            reportFailure={
+              slot.id === 0 ||
+              slot.id === active ||
+              slot.asset === requiredAsset ||
+              (running && (slot.asset === committed?.asset || slot.asset === rollback?.asset))
+            }
             token={activeToken}
             register={register}
             {...geometry}

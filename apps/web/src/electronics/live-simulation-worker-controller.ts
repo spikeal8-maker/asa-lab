@@ -54,7 +54,10 @@ export interface LiveSimulationWorkerCallbacks {
   readonly onInputBudget?: (budget: LiveSimulationInputBudget) => void;
   readonly onGenerationPending?: () => void;
   /** Allows mounting hidden native resources while the real time-zero request is in flight. */
-  readonly onPreflightAssets?: (result: SolveResult, document: SchematicDocument) => void;
+  readonly onPreflightAssets?: (
+    result: SolveResult,
+    document: SchematicDocument,
+  ) => void | Promise<void>;
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
   /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
   readonly readHostHorizonMicroseconds?: () => number | null;
@@ -1017,11 +1020,11 @@ export class ElectronicsLiveSimulationWorkerController {
     this.publishInputBudget();
   }
 
-  private completePreflight(
+  private async completePreflight(
     generationId: number,
     result: SolveResult,
     document: SchematicDocument,
-  ): void {
+  ): Promise<void> {
     if (generationId !== this.generationId) return;
     this.inFlight = false;
     this.inFlightKind = null;
@@ -1036,8 +1039,14 @@ export class ElectronicsLiveSimulationWorkerController {
       this.lastRuntimeDocument === document &&
       this.pendingInputEvents.length === 0 &&
       !this.paused
-    )
-      this.callbacks?.onPreflightAssets?.(result, document);
+    ) {
+      try {
+        await this.callbacks?.onPreflightAssets?.(result, document);
+      } catch {
+        // The timed request already owns the run. Its regular asset request
+        // and diagnostics remain authoritative if optional warming fails.
+      }
+    }
   }
 
   private completeAdvance(
