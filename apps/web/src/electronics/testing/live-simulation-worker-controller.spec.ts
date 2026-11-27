@@ -187,6 +187,7 @@ interface AdvanceCall {
   readonly state: ElectronicsTimedState;
   readonly requestedHorizonMicroseconds: number;
   readonly inputEvents: readonly ElectronicsTimedInputEvent[];
+  readonly preparedRequestId?: string;
   readonly deferred: Deferred<SimulationTimedAdvancePayload>;
 }
 class FakeExecutor implements ElectronicsSimulationWorkerExecutor {
@@ -213,6 +214,7 @@ class FakeExecutor implements ElectronicsSimulationWorkerExecutor {
     state: ElectronicsTimedState,
     requestedHorizonMicroseconds: number,
     inputEvents: readonly ElectronicsTimedInputEvent[] = [],
+    preparedRequestId?: string,
   ): Promise<SimulationTimedAdvancePayload> {
     const request = deferred<SimulationTimedAdvancePayload>();
     this.advances.push({
@@ -221,6 +223,7 @@ class FakeExecutor implements ElectronicsSimulationWorkerExecutor {
       state,
       requestedHorizonMicroseconds,
       inputEvents,
+      ...(preparedRequestId ? { preparedRequestId } : {}),
       deferred: request,
     });
     return request.promise;
@@ -609,8 +612,8 @@ describe('Arduino wake reservation', () => {
     canSchedule = true,
     runtimeDocument = document,
     settleAtTwentyMilliseconds = true,
+    executor = new FakeExecutor(),
   ) {
-    const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
     let horizon = 0;
     let opticsIdle = false;
@@ -791,6 +794,57 @@ describe('Arduino wake reservation', () => {
     expect(cancel).toHaveBeenCalledOnce();
     expect(executor.advances[2]?.requestedHorizonMicroseconds).toBe(10_000);
     controller.dispose();
+  });
+
+  it('authorizes a prepared wake against elapsed host time and revokes it on pause and input', async () => {
+    const quiet = withSketch(quietSource);
+    for (const action of ['wake', 'pause', 'input', 'stop', 'replace'] as const) {
+      const executor = Object.assign(new FakeExecutor(), {
+        prepareAdvance: vi.fn(() => 'prepared'),
+        discardPreparedAdvance: vi.fn(),
+      });
+
+      const { controller, complete, scheduleArduinoWake, setHorizon } = await start(
+        true,
+        quiet,
+        false,
+        executor,
+      );
+      for (const [index, target] of [20_668, 40_336].entries()) {
+        setHorizon(target);
+        scheduleArduinoWake.mock.calls[index]![1]();
+        await complete();
+      }
+      expect(executor.prepareAdvance).toHaveBeenCalledTimes(1);
+      const before = executor.advances.length;
+      const horizon = 60_005;
+      expect(controller.committedHorizonMicroseconds).toBe(40_336);
+      expect(executor.advances).toHaveLength(before);
+      const wake = scheduleArduinoWake.mock.calls[2]![1];
+      if (action === 'pause') controller.setPaused(true);
+      if (action === 'input') controller.sendSerialRx('uno', 'A', 41_000);
+      if (action === 'stop') controller.stop();
+      if (action === 'replace') controller.update(withSketch(shortSource), 41_000);
+      setHorizon(horizon + 10);
+      wake();
+      if (action === 'wake') {
+        expect(executor.advances.at(-1)).toMatchObject({
+          requestedHorizonMicroseconds: horizon,
+          inputEvents: [],
+          preparedRequestId: 'prepared',
+        });
+        expect(controller.committedHorizonMicroseconds).toBe(40_336);
+        expect((await complete()).ledTemporal?.arduinoIndicators?.[0]?.samples).toContainEqual({
+          atMicroseconds: 60_004,
+          voltage: 0,
+        });
+      } else {
+        expect(executor.advances.every((call) => call.preparedRequestId === undefined)).toBe(true);
+        if (action === 'pause' || action === 'stop')
+          expect(executor.discardPreparedAdvance).toHaveBeenCalled();
+      }
+      controller.dispose();
+    }
   });
 
   it('balances a confirmed long sleep and schedules each next boundary without another poll', async () => {

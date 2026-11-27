@@ -24,8 +24,10 @@ import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
   type ElectronicsSimulationWorkerRequest,
+  type ElectronicsSimulationWorkerMessage,
   type ElectronicsSimulationWorkerResponse,
   type SimulationPreflightRequest,
+  type SimulationAdvanceRequest,
   type SimulationTimedAdvancePayload,
 } from '../simulation-worker-protocol';
 
@@ -888,6 +890,90 @@ describe('Worker owned-session disposal', () => {
 });
 
 describe('actual LED optical observation through the production Worker evaluator', () => {
+  it('publishes a prepared physical wake only for the same canonical request', async () => {
+    type AdvanceReply = Extract<ElectronicsSimulationWorkerResponse, { ok: true; kind: 'advance' }>;
+    const posted: ElectronicsSimulationWorkerResponse[] = [];
+    const scope = {
+      onmessage: null as ((event: MessageEvent<ElectronicsSimulationWorkerMessage>) => void) | null,
+      postMessage: (reply: ElectronicsSimulationWorkerResponse) => posted.push(reply),
+    };
+    vi.stubGlobal('self', scope);
+    try {
+      await import('../simulation.worker');
+      const send = (request: ElectronicsSimulationWorkerMessage) =>
+        scope.onmessage!({
+          data: structuredClone(request),
+        } as MessageEvent<ElectronicsSimulationWorkerMessage>);
+      const advance = async (request: SimulationAdvanceRequest): Promise<AdvanceReply> => {
+        send(request);
+        await vi.waitFor(() => expect(posted.at(-1)?.requestId).toBe(request.requestId));
+        const reply = posted.pop()!;
+        if (!reply.ok || reply.kind !== 'advance') throw Error('Expected a canonical advance');
+        return reply;
+      };
+      const first = {
+        ...ledRequest(
+          'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(30);}',
+        ),
+        requestedHorizonMicroseconds: 20_000,
+      };
+      const base = await advance(first);
+      expect(base.advance.state.continuation?.clockProfileId).toBe('electrothermal-events-v2');
+      const next = {
+        ...first,
+        state: base.advance.state,
+        requestedHorizonMicroseconds: 30_005,
+        requestId: 'canonical',
+      };
+      const direct = await advance(next);
+      const prepare = () => send({ ...next, kind: 'prepare-advance', requestId: 'expected-wake' });
+      const id = { preparedRequestId: 'expected-wake' };
+      prepare();
+      await Promise.resolve();
+      expect(posted).toEqual([]);
+      const granted = await advance({ ...next, ...id });
+      expect(granted.metrics.preparedComputeMs).toBe(granted.metrics.computeMs);
+      expect(granted.advance).toEqual(direct.advance);
+      for (const changed of [
+        { requestedHorizonMicroseconds: 30_004 },
+        { state: first.state },
+        { document: { ...next.document, annotations: [] } },
+        {
+          inputEvents: [
+            {
+              atMicroseconds: 20_001,
+              targetId: 'uno',
+              operation: 'serialRx' as const,
+              payload: 'A',
+            },
+          ],
+        },
+        { ...id, preparedRequestId: 'stale-grant' },
+      ]) {
+        prepare();
+        const request = { ...next, ...id, ...changed };
+        const fallback = await advance(request);
+        expect(fallback.metrics.preparedComputeMs).toBeUndefined();
+        const { preparedRequestId, ...ordinary } = request;
+        expect(preparedRequestId).toBeTruthy();
+        expect(fallback.advance).toEqual((await advance(ordinary)).advance);
+      }
+      prepare();
+      send({ ...next, kind: 'discard-preparation', ...id });
+      expect((await advance({ ...next, ...id })).metrics.preparedComputeMs).toBeUndefined();
+      prepare();
+      send({ ...next, kind: 'cancel-generation' });
+      expect(
+        (await advance({ ...next, ...id, generationId: next.generationId + 1 })).metrics
+          .preparedComputeMs,
+      ).toBeUndefined();
+      expect(posted).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+  });
+
   function ledRequest(source: string) {
     const document: SchematicDocument = {
       ...arduinoCircuit,
