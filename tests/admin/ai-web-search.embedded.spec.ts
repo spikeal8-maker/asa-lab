@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import type { FastifyRequest } from 'fastify';
+import { AiAdminController } from '../../apps/api/src/ai-admin.controller';
 import { AiChatService } from '../../apps/api/src/ai-chat.service';
 import { AiWebSearchService } from '../../apps/api/src/ai-web-search';
 import { aiAttachmentImageFixture } from '../../apps/api/src/ai-attachments/validation.fixture';
@@ -47,21 +49,24 @@ async function identity(elevated = false) {
     );
   return principal;
 }
-function upstream() {
+function upstream(empty = false, searchResponse?: string) {
   return vi.fn<typeof fetch>(async (url, options) => {
     const u = new URL(String(url));
     if (u.hostname === 'search')
       return new Response(
-        JSON.stringify({
-          results: [
-            {
-              title: 'Источник',
-              url: 'https://example.org/fact',
-              content: 'Подтверждённый факт.',
-              thumbnail_src: 'https://tse1.mm.bing.net/th?id=image',
-            },
-          ],
-        }),
+        searchResponse ??
+          JSON.stringify({
+            results: empty
+              ? []
+              : [
+                  {
+                    title: 'Источник',
+                    url: 'https://example.org/fact',
+                    content: 'Подтверждённый факт.',
+                    thumbnail_src: 'https://tse1.mm.bing.net/th?id=image',
+                  },
+                ],
+          }),
       );
     if (u.hostname === 'tse1.mm.bing.net')
       return new Response(new Uint8Array(aiAttachmentImageFixture('png')), {
@@ -159,6 +164,189 @@ it('persists exact owner sources for JSON, refresh/replay and variants without a
   expect(
     fetchImpl.mock.calls.filter((c) => new URL(String(c[0])).hostname === 'search'),
   ).toHaveLength(1);
+});
+it('persists distinct filtered and empty receipts without exposing rejected results', async () => {
+  const owner = await identity();
+  const web = new AiWebSearchService(pool);
+  const { enabled, weatherEnabled, operationsPerHour, configurationVersion, blockedDomains } =
+    await web.admin(admin);
+  const config = { enabled, weatherEnabled, operationsPerHour, configurationVersion };
+  const saved = await web.save(admin, { ...config, blockedDomains: ['example.org'] }, randomUUID());
+  try {
+    for (const empty of [false, true]) {
+      const fetchImpl = upstream(empty);
+      const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+      const thread = await chat.createThread(owner);
+      const request = randomUUID();
+      await chat.send(owner, thread.id, 'Найди факт', request, 'web');
+      const receipt = await web.evidence(owner, thread.id, request);
+      expect(receipt).toMatchObject({ status: 'empty', sources: [], images: [] });
+      expect(receipt?.reason).toBe(empty ? undefined : 'domains_filtered');
+      expect(JSON.stringify(receipt)).not.toContain('example.org');
+      const modelRequest = fetchImpl.mock.calls.find(([url]) =>
+        String(url).startsWith('https://api.deepseek.com/'),
+      );
+      const modelBody = JSON.parse(String(modelRequest?.[1]?.body));
+      const modelInput = modelBody.messages.at(-1).content;
+      expect(modelInput).toContain('"status":"empty"');
+      expect(modelInput.includes('domains_filtered')).toBe(!empty);
+      expect(modelInput).not.toContain('example.org');
+    }
+  } finally {
+    await web.save(
+      admin,
+      { ...config, configurationVersion: saved.configurationVersion, blockedDomains },
+      randomUUID(),
+    );
+  }
+});
+it.each(['web', 'images'] as const)(
+  'applies the result limit after filtering the bounded %s candidate window',
+  async (mode) => {
+    const owner = await identity();
+    const web = new AiWebSearchService(pool);
+    const {
+      enabled,
+      weatherEnabled,
+      operationsPerHour,
+      configurationVersion,
+      blockedDomains,
+      resultsLimit,
+    } = await web.admin(admin);
+    const config = { enabled, weatherEnabled, operationsPerHour, configurationVersion };
+    const saved = await web.save(
+      admin,
+      { ...config, resultsLimit: 1, blockedDomains: ['blocked.example.org'] },
+      randomUUID(),
+    );
+    try {
+      const results = Array.from({ length: 48 }, (_, i) => ({
+        title: 'Источник ' + i,
+        url: 'https://' + (i < 46 ? 'blocked.example.org' : 'example.org') + '/result-' + i,
+        thumbnail_src: 'https://tse1.mm.bing.net/th?id=image-' + (i === 46 ? 0 : i),
+      }));
+      const fetchImpl = upstream(false, JSON.stringify({ results }));
+      const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+      const thread = await chat.createThread(owner);
+      const request = randomUUID();
+      await chat.send(owner, thread.id, 'Найди факт', request, mode);
+      const receipt = await web.evidence(owner, thread.id, request);
+      expect(receipt?.status).toBe('ready');
+      expect(receipt?.sources.map(({ id, url }) => ({ id, url }))).toEqual([
+        { id: 1, url: 'https://example.org/result-46' },
+      ]);
+      const imagePath = `/api/ai/threads/${thread.id}/web-search/${request}/images/1`;
+      expect(
+        receipt?.images.map(({ id, sourceUrl, thumbnailUrl }) => ({ id, sourceUrl, thumbnailUrl })),
+      ).toEqual(
+        mode === 'images'
+          ? [{ id: 1, sourceUrl: 'https://example.org/result-46', thumbnailUrl: imagePath }]
+          : [],
+      );
+      if (mode === 'images') {
+        const ownerWeb = new AiWebSearchService(pool, fetchImpl);
+        const image = await ownerWeb.image(owner, thread.id, request, 1);
+        expect(image.mediaType).toBe('image/png');
+      }
+      expect(JSON.stringify(receipt)).not.toContain('blocked.example.org');
+    } finally {
+      await web.save(
+        admin,
+        {
+          ...config,
+          configurationVersion: saved.configurationVersion,
+          blockedDomains,
+          resultsLimit,
+        },
+        randomUUID(),
+      );
+    }
+  },
+);
+it.each([
+  { searchResponse: '{}', status: 'unavailable', reason: 'invalid_results', sourceCount: 0 },
+  {
+    searchResponse: '{"results":[{"title":"missing URL"}]}',
+    status: 'empty',
+    reason: 'invalid_results',
+    sourceCount: 0,
+  },
+  {
+    searchResponse:
+      '{"results":[{"url":"https://example.org/fact","title":"Факт"}],"unresponsive_engines":[["internal engine","private failure"]]}',
+    status: 'ready',
+    reason: 'provider_partial_failure',
+    sourceCount: 1,
+  },
+])(
+  'records $reason when the provider response has status $status',
+  async ({ searchResponse, status, reason, sourceCount }) => {
+    const owner = await identity();
+    const fetchImpl = upstream(false, searchResponse);
+    const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+    const thread = await chat.createThread(owner);
+    const request = randomUUID();
+    await chat.send(owner, thread.id, 'Найди факт', request, 'web');
+    const receipt = await new AiWebSearchService(pool).evidence(owner, thread.id, request);
+    expect(receipt).toMatchObject({ status, reason });
+    expect(receipt?.sources).toHaveLength(sourceCount);
+    expect(JSON.stringify(receipt)).not.toMatch(/internal engine|private failure/);
+  },
+);
+it('probes both modes with fixed public queries and enforces operator access and cooldown', async () => {
+  const stranger = await identity();
+  const fetchImpl = upstream();
+  const web = new AiWebSearchService(pool, fetchImpl);
+  await expect(web.probe(stranger)).rejects.toMatchObject({ code: '42501' });
+  expect(fetchImpl).not.toHaveBeenCalled();
+
+  const chat = new AiChatService(pool, { encryptionKey: ROOT_KEY, fetchImpl });
+  const serviceArgs = [
+    { resolve: async () => ({ principalId: admin }) },
+    { resolveAccess: async () => ({ scopes: [{ kind: 'platform', role: 'platform_admin' }] }) },
+    chat,
+  ] as unknown as ConstructorParameters<typeof AiAdminController>;
+  const controller = new AiAdminController(...serviceArgs);
+  const request = {
+    cookies: {},
+    headers: { host: 'asa.test', origin: 'https://asa.test', 'content-type': 'application/json' },
+  } as unknown as FastifyRequest;
+  const foreign = { ...request, headers: { ...request.headers, origin: 'https://other.test' } };
+  await expect(controller.probeWebSearch(foreign, {})).rejects.toMatchObject({ status: 403 });
+  await expect(controller.probeWebSearch(request, { query: 'private' })).rejects.toMatchObject({
+    status: 400,
+  });
+  expect(fetchImpl).not.toHaveBeenCalled();
+
+  const receiptsBefore = await db.query('SELECT count(*) FROM ai_web_search_receipts');
+  const result = await controller.probeWebSearch(request, {});
+  expect(result.modes).toEqual([
+    {
+      mode: 'web',
+      status: 'results',
+      count: 1,
+      diagnostics: { rawCount: 1, validatedCount: 1, engineFailureCount: 0 },
+    },
+    {
+      mode: 'images',
+      status: 'results',
+      count: 1,
+      diagnostics: { rawCount: 1, validatedCount: 1, engineFailureCount: 0 },
+    },
+  ]);
+  expect(
+    fetchImpl.mock.calls.map(([url]) => {
+      const target = new URL(String(url));
+      return [target.hostname, target.searchParams.get('q')];
+    }),
+  ).toEqual([
+    ['search', 'официальный сайт ЮНЕСКО'],
+    ['search', 'Эйфелева башня'],
+  ]);
+  expect(await db.query('SELECT count(*) FROM ai_web_search_receipts')).toEqual(receiptsBefore);
+  expect(JSON.stringify(result)).not.toContain('example.org');
+  await expect(controller.probeWebSearch(request, {})).rejects.toMatchObject({ status: 429 });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
 });
 it('keeps image original URLs private and authenticates the same-origin raster proxy', async () => {
   const owner = await identity(),

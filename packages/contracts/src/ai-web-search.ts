@@ -60,6 +60,9 @@ export interface AiWebSearchEvidence {
   readonly reason?:
     | 'not_configured'
     | 'provider_unavailable'
+    | 'domains_filtered'
+    | 'invalid_results'
+    | 'provider_partial_failure'
     | 'weather_unavailable'
     | 'location_required'
     | 'location_ambiguous'
@@ -86,6 +89,20 @@ export interface AiWebSearchAdminConfig extends AiWebSearchStatus {
   readonly weatherEnabled: boolean;
   readonly operationsPerHour: number;
   readonly configurationVersion: number;
+}
+
+export interface AiWebSearchProbeResult {
+  readonly checkedAt: string;
+  readonly modes: readonly {
+    readonly mode: 'web' | 'images';
+    readonly status: 'results' | 'empty' | 'invalid' | 'filtered' | 'partial' | 'unavailable';
+    readonly count: number;
+    readonly diagnostics?: {
+      readonly rawCount: number;
+      readonly validatedCount: number;
+      readonly engineFailureCount: number;
+    };
+  }[];
 }
 
 export interface AiWebSearchAdminUpdate {

@@ -62,6 +62,32 @@ it('has no credential or endpoint inputs and saves only server-owned enablement 
   });
   expect(host.textContent).toContain('Поисковый запрос не выполнялся');
 });
+it('runs the neutral service check only on click and shows both mode outcomes', async () => {
+  await render();
+  const button = [...host.querySelectorAll('button')].find((item) =>
+    item.textContent?.includes('Проверить поисковый сервис'),
+  )!;
+  expect(button.disabled).toBe(false);
+  expect(vi.mocked(call)).toHaveBeenCalledTimes(1);
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: {
+      checkedAt: '2026-11-21T10:00:00Z',
+      modes: [
+        { mode: 'web', status: 'empty', count: 0 },
+        { mode: 'images', status: 'partial', count: 2 },
+      ],
+    },
+  });
+  await act(async () => button.click());
+  expect(vi.mocked(call).mock.calls[1]).toEqual([
+    '/api/admin/v1/ai/web-search/probe',
+    { method: 'POST', body: '{}' },
+  ]);
+  expect(host.textContent).toContain('Сайты — Нет совпадений (0)');
+  expect(host.textContent).toContain('Изображения — Часть поисковых движков не ответила (2)');
+});
 it('allows disabling forecast independently and keeps revision errors safe', async () => {
   await render();
   const label = [...host.querySelectorAll('label')].find((item) =>

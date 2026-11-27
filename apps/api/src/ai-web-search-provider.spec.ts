@@ -152,6 +152,17 @@ it('keeps Bing ts thumbnails from raw Searx image results as gallery metadata', 
   ]);
   expect(results.images.every((image) => searchThumbnailUrl(image.thumbnailUrl))).toBe(true);
 });
+it('classifies successful HTTP responses with invalid JSON or missing results data', async () => {
+  for (const body of ['<html>Bad gateway</html>', '{}']) {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(body));
+    const provider = new FreeInternetProvider(fetchImpl, cache(), {
+      searchEndpoint: 'http://search:8080',
+    });
+    await expect(
+      provider.search('Казань', false, new AbortController().signal),
+    ).rejects.toMatchObject({ kind: 'invalid_response' });
+  }
+});
 it('bounds actual streamed bytes', async () =>
   await expect(boundedWebResponse(new Response('123456'), 5)).rejects.toThrow());
 it('sends SearxNG only the fixed safe search parameters and no credentials', async () => {
