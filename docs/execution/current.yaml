@@ -18992,6 +18992,123 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-HEADER-CONTROLS-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3-HEADER-CONTROLS
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_single_header_controls_selected
+      owner_acceptance: pending
+      owner_authorization: 'The owner''s 2026-11-27 ordinary Robotics workspace visual direction selects the next
+        bounded presentation dependency after accepted Field and Robot previews: one common time/Run-Pause-Reset
+        group in the actual top RoboticsHeader on every tab. This specific placement direction supersedes the prior
+        per-tab toolbar location only; it changes no runtime or broader workspace layout. Implementation begins only
+        after protected canonical selection and fresh exact source preflight.'
+      registration_baseline:
+        main: 5bdf7951f2435e765c6284cc8a95aeb0602f32f5
+        robot_source: b9644d69a8bc6a89643b026e2461190016a07d72
+        robot_pr: https://github.com/spikeal8-maker/asa-lab/pull/1362
+        preserved_task: parallel_lanes.robotics.historical_robot_visual_task
+        robot_result: parallel_lanes.robotics.robot_visual_result
+        field_result: parallel_lanes.robotics.field_visual_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-DEL-02
+        - REQ-DEL-05
+        - REQ-UI-04
+        - REQ-LAYOUT-01
+      scope: Relocate the existing sole simulationControls element and its existing model-time readout from conditional
+        Field/Robot/Electronics/Code toolbar slots into the actual shared RoboticsHeader, in both standalone and
+        normal account editor entry. Keep one live control group and the same controller, handlers and source. This
+        is UI_ONLY presentation, not additional runtime, time ownership, numerical or hardware work.
+      planned_paths:
+      - apps/web/src/robotics/RoboticsLab.tsx
+      - apps/web/src/robotics/RoboticsEditor.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/RobotAssemblyPanel.tsx
+      - apps/web/src/robotics/testing/robotics-lab.spec.ts
+      - e2e/robotics-projects.spec.ts
+      - apps/web/src/robotics/testing/robotics.browser.mjs
+      conditional_paths:
+        apps/web/src/robotics/RobotFieldEditor.tsx: Only remove the now-dead simulationControls prop/slot and genuinely
+          unused ReactNode usage if necessary; preserve the accepted Field toolbar/camera/gestures.
+        apps/web/src/robotics/RobotAssemblyPanel.tsx: Only remove the now-dead simulationControls prop/slot and genuinely
+          unused ReactNode usage if necessary; preserve assembly renderer/settings lifecycle.
+        apps/web/src/robotics/testing/robotics.browser.mjs: Only adapt actual changed header geometry/selector expectations
+          if relocation requires it; no replacement of the ordinary publication browser proof.
+      ux_acceptance:
+      - Render exactly one accessible live time/Run-Pause-Reset group inside the actual top RoboticsHeader for Field,
+        Robot, Electronics and Code, in standalone and normal account editor. Pass the existing controls through
+        the header contract as needed; remove former per-tab duplicate/empty action slots rather than hiding extra
+        live controls. Switching tabs must preserve the same live control element/controller ownership and not remount
+        or reset the simulation, code editor, circuit stage or preview.
+      - Keep the existing control names, status/disabled states, Start-Pause-Continue/Reset behavior, speed/pace
+        controls and keyboard shortcuts. Retain model time from the current canonical state; never introduce wall-clock
+        timers, another clock/controller/Worker or fake time. Clicks invoke existing handlers once; halted/error/budget
+        states and running edit locks keep their current semantics. This relocation changes no solver, Arduino generation,
+        physics step or pacing rules.
+      - Keep the group visible, usable and keyboard reachable on all four tabs at1440px and320px without overlap,
+        clipping, horizontal overflow or duplicated controls. Responsive wrapping stays within the actual header
+        if needed. Preserve project title/save/status/notices/navigation/avatar access and the existing camera toolbar,
+        grid/rulers and Robot turntable controls; no second fixed run bar or overlay covering editor tools.
+      - Preserve paused model time/pose and saved document identity when switching tabs, resizing, opening/closing
+        existing code modes or saving/reopening. Preserve circuit/code editor instances, unsaved sketch/Blockly contents
+        and current board bindings. No changes to program source, validation, publication/save protocol, schema or
+        runtime state are permitted to make the UI pass.
+      - The accepted Field E3 drag/ghost/picking/keyboard/fallback and Robot shared mesh/camera/inactive-render lifecycle
+        remain regressions. Header relocation cannot start hidden renderer loops, lose pointer ownership, alter object
+        dimensions/origins or add a physical ramp/drive behavior.
+      constraints:
+      - Only listed existing paths may change. Conditional paths are limited to dead-slot cleanup or the exact harness
+        adaptation above; do not perform adjacent refactors. No new source files, assets/artwork/SVG, packages/lockfile/configuration,
+        schema, runtime/Worker/solver/electronics/Arduino implementation, numerical profile, API/database, deployment/service/route
+        or native acquisition/build.
+      - All prior tasks/results, E1 source/raw records and physical FAIL/GAP are immutable history. ROBOTICS-FIELD-CORE-D01-D02
+        keeps its original binding/blocks; no spatial_product_integration, full_physics_acceptance, owner acceptance,
+        release_claim, deployment or working-DB action follows from this UI_ONLY task. No old consumed opt-in or
+        stand start/mount/retry is authorized.
+      - The experimental editable ramp remains historical TEST_ONLY; no ordinary terrain/ramp/platform/bridge schema
+        or new physics is introduced. Current saved product/circuit/code and actual controls remain the source of
+        truth.
+      - Resizable real left Arduino/electronics/code panels beside the shared field remain a separate later intended
+        slice, not part of this header relocation. Do not change the workspace layout or create new editor/controller
+        instances here.
+      verification:
+        pure: Extend existing robotics-lab specs to prove one actual header control group on all tabs/entries, same
+          element/controller and handler calls through switching, unchanged time/pose/source/editor instances, running/paused/halted
+          disabled rules and reset semantics. Preserve Field/Robot tests and current code/circuit state. No mocked
+          new simulation result or modified numerical expectations.
+        browser: Use the existing ordinary projects-publication built Web/API/isolated PostgreSQL journey at the
+          exact candidate SHA. At1440px and320px verify the real top header contains exactly one visible reachable
+          group on every tab with no overflow/overlap; exercise actual Start/Pause/Continue/Reset through the existing
+          runtime and check time/pose/state behavior. Retain code/sketch/Blockly and circuit state while switching,
+          paused clock/pose, save/reopen and publication. Preserve Field visual/gesture/ruler and Robot turntable/lifecycle
+          regressions. Capture objective header/control counts/bounds/state plus screenshots; applicability-only
+          checks or synthetic DOM/time/poses are not browser PASS.
+        gates: 'Registration: sole-path PLAN/control, YAML format and full byte/semantic history inverse, actual
+          pnpm validate:electronics-agent-docs and pnpm gate:governance. Source after protected selection: pnpm test:robotics,
+          changed-file format/lint/strict typing, independent exact-source review and ordinary required General.
+          Real browser evidence uses existing pnpm gate:projects-publication:browser and .github/workflows/projects-publication.yml;
+          legacy test:robotics:browser only if the selected relocation requires adaptation. No local service, new
+          port/stand, working database or deployment.'
+      dependent_intent:
+        not_selected_now: Resizable real left code/electronics editing and shared Field workspace using the same
+          existing editors, project and controller; select and verify separately after header delivery.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    historical_robot_visual_task:
       id: TASK-ELECTRONICS-ROBOTICS-ROBOT-VISUAL-001
       issue: 1071
       branch: main
@@ -19112,6 +19229,39 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    robot_visual_result:
+      observed_on: '2026-11-27'
+      status: PROTECTED_SOURCE_AND_BUILT_BROWSER_VERIFIED_UI_ONLY
+      source: b9644d69a8bc6a89643b026e2461190016a07d72
+      source_tree: 78446e0667054563bcb2505c951aa6b0af35fe49
+      merge: 5bdf7951f2435e765c6284cc8a95aeb0602f32f5
+      pr:
+        number: 1362
+        url: https://github.com/spikeal8-maker/asa-lab/pull/1362
+        state: MERGED
+      required:
+        head: b9644d69a8bc6a89643b026e2461190016a07d72
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45926321688/job/140277689344
+      browser:
+        head: b9644d69a8bc6a89643b026e2461190016a07d72
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45926321692/job/140268425405
+        artifact_id: 15167177592
+        artifact_name: public-projects-b9644d69a8bc6a89643b026e2461190016a07d72
+        artifact_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45926321692/artifacts/15167177592
+        artifact_bytes: 43268206
+        artifact_sha256: 9d3c95a950a9fe474ad9e93c12a65356af3228e1006019c9314baada822e6d62
+        scope: Actual normal publication built-browser Robot and Field journeys at1440/320; verification is distinct
+          from deployment or owner acceptance.
+      merged_source_parity: All8 changed source/test paths are byte-identical between exact tested source and actual
+        protected merge.
+      delivered: The ordinary Robot tab uses the same accepted Field box/Uno/caster mesh, isolated construction-local
+        turntable with Top/Front/Side/Perspective, geometry-bounded camera zoom/Fit, explicit inactive/lazy renderer
+        lifecycle and accessible Top SVG fallback. Existing settings/bindings/shared editors remain.
+      owner_acceptance: pending
+      deployment: not_authorized
+      physical_qualification: NOT_CLAIMED; D01/D02 and historical physical FAIL/GAP remain unchanged.
     historical_field_visual_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-VISUAL-001
       issue: 1071
