@@ -79,7 +79,7 @@ test('человек с аккаунтом входит в класс по ко�
   await adultPage.getByRole('button', { name: 'Классы', exact: true }).click();
   await adultPage.getByRole('button', { name: 'Я учусь в классе →' }).click();
   await expect(adultPage.getByRole('heading', { name: 'Я учусь' })).toBeVisible();
-  await adultPage.getByLabel('Код класса').fill(joinCode);
+  await adultPage.getByLabel('Код класса', { exact: true }).fill(joinCode);
   await adultPage.getByRole('button', { name: 'Войти в класс' }).click();
   await adultPage.screenshot({ path: `${evidenceDir}/join-attempt.png`, fullPage: true });
   const problem = adultPage.locator('.form-error');

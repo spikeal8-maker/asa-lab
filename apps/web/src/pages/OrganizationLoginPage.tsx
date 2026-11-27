@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
+import { VisibilityField } from '../components/VisibilityField';
 
 export function OrganizationLoginPage({
   onSignedIn,
@@ -15,6 +16,7 @@ export function OrganizationLoginPage({
   const [workspace, setWorkspace] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
@@ -54,10 +56,7 @@ export function OrganizationLoginPage({
   return (
     <div className="page-center">
       <main className="login-card" aria-busy={busy}>
-        <button type="button" className="btn-ghost entry-back" onClick={onBack}>
-          ← Назад
-        </button>
-        <AuthHomeBrand onHome={onHome} />
+        <AuthHomeBrand onHome={onHome} onBack={onBack} />
         <p className="subtitle">Вход через организацию</p>
         <p className="legacy-hint legacy-banner">
           Совместимый путь для школ, подключённых по коду организации.
@@ -83,9 +82,11 @@ export function OrganizationLoginPage({
             onChange={(event) => setEmail(event.target.value)}
           />
           <label htmlFor="org-password">Пароль</label>
-          <input
+          <VisibilityField
             id="org-password"
-            type="password"
+            fieldLabel="пароль"
+            visible={showPassword}
+            onVisibilityChange={setShowPassword}
             autoComplete="current-password"
             value={password}
             disabled={busy}

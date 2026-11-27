@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { ClassCodeField } from '../components/ClassCodeField';
+import { VisibilityField } from '../components/VisibilityField';
 import './join-class.css';
 
 type JoinState =
@@ -37,8 +38,9 @@ export function JoinClassPage({
     initialClassCode ? { kind: 'resolving' } : { kind: 'code' },
   );
   const [code, setCode] = useState(initialClassCode);
-  const [showCode, setShowCode] = useState(false);
+  const [showCode, setShowCode] = useState(true);
   const [studentCode, setStudentCode] = useState('');
+  const [showStudentCode, setShowStudentCode] = useState(false);
   const [busy, setBusy] = useState(initialClassCode.length > 0);
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<{ title: string; alreadyMember: boolean } | null>(null);
@@ -69,7 +71,7 @@ export function JoinClassPage({
     const result = await api.resolveClassroomCode(code);
     setBusy(false);
     if (result.ok) {
-      setShowCode(false);
+      setShowCode(true);
       setState({ kind: 'student-code', classroom: result.data.classroom });
       return;
     }
@@ -125,22 +127,19 @@ export function JoinClassPage({
   return (
     <div className="page-center join-class-page">
       <main className="login-card join-class-card">
-        <button
-          type="button"
-          className="btn-ghost entry-back"
-          onClick={
+        <AuthHomeBrand
+          onHome={onHome}
+          onBack={
             state.kind === 'student-code'
               ? () => {
                   setError(null);
                   setStudentCode('');
+                  setShowStudentCode(false);
                   setState({ kind: 'code' });
                 }
               : onBack
           }
-        >
-          ← Назад
-        </button>
-        <AuthHomeBrand onHome={onHome} />
+        />
         {state.kind === 'resolving' ? (
           <div className="join-class-resolving" role="status" aria-live="polite">
             <strong>Открываем класс…</strong>
@@ -196,8 +195,11 @@ export function JoinClassPage({
                   Код с вашей личной карточки доступа. Регистр букв учитывается.
                 </p>
                 <label htmlFor="class-student-code">Код ученика</label>
-                <input
+                <VisibilityField
                   id="class-student-code"
+                  fieldLabel="код ученика"
+                  visible={showStudentCode}
+                  onVisibilityChange={setShowStudentCode}
                   autoFocus
                   autoComplete="one-time-code"
                   autoCapitalize="none"

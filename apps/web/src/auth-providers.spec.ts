@@ -208,7 +208,9 @@ describe('confirmed unlinked provider account choice', () => {
     const button = [...container.querySelectorAll('button')].find(
       (entry) =>
         (
-          entry.querySelector('span:not([aria-hidden])')?.textContent ?? entry.textContent
+          entry.getAttribute('aria-label') ??
+          entry.querySelector('span:not([aria-hidden])')?.textContent ??
+          entry.textContent
         )?.trim() === label,
     );
     if (!button) throw new Error(`Missing button: ${label}`);
