@@ -1139,6 +1139,132 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
   );
 });
 
+async function inspectRobotConstruction(page: Page, projectId: string) {
+  const source = await saved(page, projectId);
+  const revision = source.draft.revision;
+  const panel = page.locator('#robotics-panel-robot');
+  const spatial = panel.getByTestId('robotics-assembly-spatial');
+  const canvas = spatial.locator('canvas');
+  const frame = () =>
+    canvas.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+  const observations: unknown[] = [];
+  let identity: Awaited<ReturnType<typeof canvas.elementHandle>> = null;
+  for (const width of [1440, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByRole('tab', { name: 'Робот', exact: true }).click();
+    await panel.getByRole('button', { name: 'Перспектива', exact: true }).click();
+    await canvas.scrollIntoViewIfNeeded();
+    await expect(canvas).toHaveAttribute('data-rendered', 'true');
+    await expect(panel.getByTestId('robotics-assembly-viewport')).toHaveAttribute(
+      'data-renderer',
+      'webgl',
+    );
+    await frame();
+    await noOverflow(page);
+    if (!identity) identity = await canvas.elementHandle();
+    else expect(await canvas.evaluate((element, first) => element === first, identity)).toBe(true);
+    expect(JSON.parse((await canvas.getAttribute('data-robot-geometry'))!)).toEqual(
+      source.draft.document.world.robot,
+    );
+    await expect(spatial).toHaveAttribute('data-coordinate-frame', 'construction-local');
+    const area = await canvas.boundingBox();
+    if (!area || area.width < 100 || area.height < 100)
+      throw new Error('Construction viewport inaccessible');
+    const beforeOrbit = await canvas.getAttribute('data-camera');
+    await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(area.x + area.width / 2 + 36, area.y + area.height / 2 + 18, {
+      steps: 9,
+    });
+    await page.mouse.up();
+    await expect(canvas).not.toHaveAttribute('data-camera', beforeOrbit!);
+    await frame();
+    const orbit = await canvas.getAttribute('data-camera');
+    await page.screenshot({
+      path: `${EVIDENCE}/robot-visual-perspective-${width}.png`,
+      fullPage: true,
+    });
+    const cameras: unknown[] = [];
+    for (const [label, value] of [
+      ['Спереди', 'front'],
+      ['Сверху', 'top'],
+      ['Сбоку', 'side'],
+      ['Перспектива', 'orbit'],
+    ] as const) {
+      await panel.getByRole('button', { name: label, exact: true }).click();
+      await expect(panel.getByRole('button', { name: label, exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await expect(spatial).toHaveAttribute('data-field-view', value);
+      await frame();
+      expect(await canvas.evaluate((element, first) => element === first, identity)).toBe(true);
+      const camera = JSON.parse((await canvas.getAttribute('data-camera'))!) as number[][];
+      expect(camera.flat().every(Number.isFinite)).toBe(true);
+      cameras.push({
+        view: value,
+        camera,
+        projection: JSON.parse((await canvas.getAttribute('data-projection'))!),
+      });
+      if (value === 'front') {
+        expect(camera[0]![0]).toBeGreaterThan(camera[2]![0]!);
+        expect(camera[0]![1]).toBeCloseTo(camera[2]![1]!, 9);
+        expect(camera[0]![2]).toBeCloseTo(camera[2]![2]!, 9);
+      }
+      if (value === 'top')
+        await page.screenshot({
+          path: `${EVIDENCE}/robot-visual-top-${width}.png`,
+          fullPage: true,
+        });
+    }
+    const prior = JSON.parse(orbit!) as number[][];
+    const returned = JSON.parse((await canvas.getAttribute('data-camera'))!) as number[][];
+    returned.forEach((row, i) =>
+      row.forEach((value, j) => expect(value).toBeCloseTo(prior[i]![j]!, 9)),
+    );
+    await panel.getByRole('button', { name: 'Показать конструкцию целиком', exact: true }).click();
+    await expect(panel.getByLabel('Масштаб конструкции', { exact: true })).toHaveText('100%');
+    await panel.getByRole('button', { name: 'Приблизить конструкцию', exact: true }).click();
+    await expect(panel.getByLabel('Масштаб конструкции', { exact: true })).toHaveText('125%');
+    await panel.getByRole('button', { name: 'Показать конструкцию целиком', exact: true }).click();
+    await page.getByRole('tab', { name: 'Поле', exact: true }).click();
+    await frame();
+    const stopped = await canvas.getAttribute('data-render-count');
+    await frame();
+    expect(await canvas.getAttribute('data-render-count')).toBe(stopped);
+    const fieldCanvas = page.getByTestId('robotics-field-spatial').locator('canvas');
+    await expect(fieldCanvas).toHaveAttribute('data-rendered', 'true');
+    await fieldCanvas.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    expect(JSON.parse((await fieldCanvas.getAttribute('data-robot-geometry'))!)).toEqual(
+      source.draft.document.world.robot,
+    );
+    const after = await readProject(page, projectId);
+    expect(after.draft.revision).toBe(revision);
+    expect(after.draft.document).toEqual(source.draft.document);
+    observations.push({ width, cameras, stopped, document: digest(after.draft.document) });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('tab', { name: 'Робот', exact: true }).click();
+  writeFileSync(
+    `${EVIDENCE}/robot-visual.json`,
+    JSON.stringify(
+      { projectId, sourceDigest: digest(source.draft.document), observations },
+      null,
+      2,
+    ),
+  );
+}
+
 test('Robotics uses account projects, the main portal and an immutable publication for a second user', async ({
   page,
   browser,
@@ -1214,6 +1340,7 @@ test('Robotics uses account projects, the main portal and an immutable publicati
   await page.getByRole('tab', { name: 'Робот', exact: true }).click();
   // Assembly inputs use millimetres; the saved document and publication use metres.
   await numberField(page, 'Длина корпуса', 180);
+  await inspectRobotConstruction(page, projectId);
   await page.getByRole('tab', { name: 'Электроника', exact: true }).click();
   await expect(
     page.locator('.workbench-canvas [data-testid="schematic-component"][data-component-id="uno"]'),
@@ -1269,6 +1396,41 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     .toBeGreaterThan(200_000);
   const duringRun = await saved(page, projectId);
   expect(duringRun.draft).toEqual(confirmed.draft);
+  await page.getByRole('tab', { name: 'Робот', exact: true }).click();
+  await expect(page.getByRole('spinbutton', { name: 'Длина корпуса', exact: true })).toBeDisabled();
+  await expect(
+    page
+      .locator('#robotics-panel-robot')
+      .getByRole('combobox', { name: 'Левый мотор', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Пауза', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+  const pausedTime = await page.getByTestId('robotics-time').getAttribute('data-microseconds');
+  await page.getByRole('tab', { name: 'Поле', exact: true }).click();
+  const fieldPose = await page
+    .getByTestId('robotics-field-spatial')
+    .evaluate((element) =>
+      ['data-x-meters', 'data-y-meters', 'data-heading-radians'].map((key) =>
+        element.getAttribute(key),
+      ),
+    );
+  for (const tab of ['Электроника', 'Код', 'Робот', 'Поле']) {
+    await page.getByRole('tab', { name: tab, exact: true }).click();
+    expect(await page.getByTestId('robotics-time').getAttribute('data-microseconds')).toBe(
+      pausedTime,
+    );
+    if (tab === 'Код') await expect(code).toHaveValue(source);
+  }
+  expect(
+    await page
+      .getByTestId('robotics-field-spatial')
+      .evaluate((element) =>
+        ['data-x-meters', 'data-y-meters', 'data-heading-radians'].map((key) =>
+          element.getAttribute(key),
+        ),
+      ),
+  ).toEqual(fieldPose);
+  expect((await saved(page, projectId)).draft.document).toEqual(confirmed.draft.document);
   await page.getByRole('button', { name: 'Остановить', exact: true }).click();
 
   for (const width of WIDTHS) {
@@ -1336,6 +1498,21 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     const reopened = await readProject(restored, projectId);
     expect(reopened.draft.document).toEqual(confirmed.draft.document);
     expect(reopened.draft.revision).toBe(confirmed.draft.revision);
+    await restored.getByRole('tab', { name: 'Робот', exact: true }).click();
+    const restoredRobot = restored.getByTestId('robotics-assembly-spatial').locator('canvas');
+    await expect(restoredRobot).toHaveAttribute('data-rendered', 'true');
+    await expect
+      .poll(async () =>
+        JSON.parse((await restoredRobot.getAttribute('data-robot-geometry')) ?? 'null'),
+      )
+      .toEqual(confirmed.draft.document.world.robot);
+    await expect(
+      restored.getByRole('spinbutton', { name: 'Длина корпуса', exact: true }),
+    ).toHaveValue('180');
+    await restored.screenshot({
+      path: `${EVIDENCE}/robot-visual-restored-1440.png`,
+      fullPage: true,
+    });
     await restored.getByRole('tab', { name: 'Код', exact: true }).click();
     await expect(
       restored.getByRole('textbox', { name: 'Код Arduino C++', exact: true }),

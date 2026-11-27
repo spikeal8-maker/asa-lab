@@ -1008,6 +1008,7 @@ export function RoboticsWorkspace({
           hidden={section !== 'robot'}
         >
           <RobotAssemblyPanel
+            active={section === 'robot'}
             project={local.robotProject}
             running={running}
             onCommit={local.setWorld}

@@ -452,6 +452,43 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(header!.querySelector('.robotics-header-save')).toBe(save);
   });
 
+  it('opens the construction preview only for the Robot tab and preserves source/editor ownership on camera changes', async () => {
+    const stage = metric('canonical-stage');
+    const snapshot = JSON.stringify(port.host!.getCurrentDocument());
+    const viewport = () =>
+      container.querySelector<HTMLElement>('[data-testid="robotics-assembly-viewport"]')!;
+    expect(viewport().dataset.active).toBe('false');
+    expect(viewport().querySelector('canvas')).toBeNull();
+    await click('Робот');
+    expect(viewport().dataset.active).toBe('true');
+    const panel = container.querySelector('#robotics-panel-robot')!;
+    const cameraButtons = [
+      ...panel.querySelectorAll<HTMLButtonElement>('.robotics-field-view-switch button'),
+    ];
+    expect(cameraButtons.map((button) => button.textContent)).toEqual([
+      'Перспектива',
+      'Спереди',
+      'Сверху',
+      'Сбоку',
+    ]);
+    for (const button of cameraButtons) {
+      await act(async () => button.click());
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(snapshot);
+    }
+    // jsdom has no GPU: the original labelled SVG and mm form remain usable.
+    expect(panel.querySelector('[data-testid="robotics-assembly-field"]')).not.toBeNull();
+    const length = panel.querySelector<HTMLInputElement>('input[aria-label="Длина корпуса"]');
+    expect(length).not.toBeNull();
+    expect(length?.value).toBe('200');
+    await click('Электроника');
+    expect(viewport().dataset.active).toBe('false');
+    expect(metric('canonical-stage')).toBe(stage);
+    expect(port.stageMounts).toBe(1);
+    expect(port.stageUnmounts).toBe(0);
+    expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(snapshot);
+  });
+
   it('keeps idle snapshot uploads off, captures explicit Save once and reuses its confirmation for publication', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     const { project, snapshot, publication } = await mountAccountEditor();
