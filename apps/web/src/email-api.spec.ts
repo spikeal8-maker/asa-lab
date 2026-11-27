@@ -53,5 +53,6 @@ it('strips proof before third-party scripts, without persistent storage or an en
   expect(html.indexOf('/email-proof-bootstrap.js')).toBeLessThan(
     html.indexOf('/runtime-config.js'),
   );
-  expect(html.indexOf('/email-proof-bootstrap.js')).toBeLessThan(html.indexOf('https://st.max.ru'));
+  expect(html.indexOf('/email-proof-bootstrap.js')).toBeLessThan(html.indexOf('/src/main.tsx'));
+  expect(html).not.toContain('https://st.max.ru');
 });
