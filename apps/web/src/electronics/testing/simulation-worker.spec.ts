@@ -898,9 +898,12 @@ describe('actual LED optical observation through the production Worker evaluator
       postMessage: (reply: ElectronicsSimulationWorkerResponse) => posted.push(reply),
     };
     vi.stubGlobal('self', scope);
-    const workerEngine = await import('@asa-lab/electronics/engine');
-    const createOwner = vi.spyOn(workerEngine, 'createElectronicsWorkerElectricalTemplateOwner');
-    const prepareWake = vi.spyOn(workerEngine, 'prepareDedicatedElectronicsSleepingWake');
+    const createOwner = vi.spyOn(
+      electronicsEngine,
+      'createElectronicsWorkerElectricalTemplateOwner',
+    );
+    const prepareWake = vi.spyOn(electronicsEngine, 'prepareDedicatedElectronicsSleepingWake');
+    vi.doMock('@asa-lab/electronics/engine', () => electronicsEngine);
     try {
       await import('../simulation.worker');
       const send = (request: ElectronicsSimulationWorkerMessage) =>
@@ -978,6 +981,7 @@ describe('actual LED optical observation through the production Worker evaluator
       ).toBeUndefined();
       expect(posted).toEqual([]);
     } finally {
+      vi.doUnmock('@asa-lab/electronics/engine');
       prepareWake.mockRestore();
       createOwner.mockRestore();
       vi.unstubAllGlobals();
