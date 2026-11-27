@@ -18992,6 +18992,127 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-ROBOT-VISUAL-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3-ROBOT-VISUAL
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_robot_assembly_visual_selected
+      owner_acceptance: pending
+      owner_authorization: The owner's explicit 2026-11-27 ordinary-editor visual priority continues after accepted
+        Field visual delivery. Select only the dependent Robot assembly preview using the same accepted box/Uno/caster
+        appearance; do not start future header/layout or physical-ramp work. This documentation selection becomes
+        implementation authority only after protected main integration and fresh exact source preflight.
+      registration_baseline:
+        main: 1e475bb19ad8771f8bf3efb3e67c116c10770a4f
+        field_source: e8c54fea458ac69cc119b48c865d495b9fe5294c
+        field_pr: https://github.com/spikeal8-maker/asa-lab/pull/1360
+        preserved_task: parallel_lanes.robotics.historical_field_visual_task
+        field_result: parallel_lanes.robotics.field_visual_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-DEL-02
+        - REQ-DEL-05
+        - REQ-VIEW-03
+        - REQ-LAYOUT-01
+      scope: Replace the ordinary Robot tab's old top-only visual preview with an isolated, rotatable construction
+        preview sharing the already accepted Field robot mesh factory and existing saved robot dimensions. Keep the
+        current assembly/bindings/settings controls and shared project/controller. This is a UI_ONLY view of the
+        same construction, not another simulation, electrical model, drive or new kit/schema.
+      planned_paths:
+      - apps/web/src/robotics/RobotAssemblyPanel.tsx
+      - apps/web/src/robotics/RobotFieldSpatialView.tsx
+      - apps/web/src/robotics/field-spatial-scene.ts
+      - apps/web/src/robotics/RoboticsLab.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/testing/robotics-field-spatial.spec.ts
+      - apps/web/src/robotics/testing/robotics-lab.spec.ts
+      - e2e/robotics-projects.spec.ts
+      ux_acceptance:
+      - 'Reuse one shared accepted robot geometry/material factory for Field and Robot assembly: existing-dimension
+        chassis/Uno-like shell, two wheels, sensor and attached visual rear caster. Do not duplicate an approximate
+        second mesh recipe or load new artwork/assets. Isolate the turntable to the robot rather than showing the
+        entire field, unrelated obstacles, rims or other field content. Existing Field rendering, dimensions and
+        appearance remain unchanged by default.'
+      - Offer reachable labelled Perspective/oblique, Front, Top and Side views plus genuine pointer orbit and camera
+        zoom/Fit around actual robot bounds. Top is real orthographic and Front follows the robot's existing forward
+        axis. Derive camera/frustum/target from the same bounded robot geometry, not the Field's whole-scene fit
+        or a hardcoded large minimum span. Preserve mouse/touch/keyboard access, responsive1440px/320px reachability
+        and an understandable current-view indication.
+      - Use metres internally and the existing millimetre-based assembly controls. A validated dimension/sensor setting
+        updates both previews from the same saved world values; existing concrete circuit component bindings, validation/error
+        messages, undo/redo, disabled/running locks, save/reopen and board/program ownership remain unchanged. Camera
+        interactions must not write any dimension, pose, circuit, code or document revision.
+      - Show an honest construction preview, never fabricate runtime movement or start a robot/electrical/Arduino
+        simulation to animate it. Do not create another controller, clock, Worker or kinematic/physical state. The
+        preview's local framing/orbit cannot alter the saved robot origin/initial pose, wheel track, sensor mount,
+        body mass/contact or drive behavior. Keep existing actual simulation controls passed to the Robot tab as
+        they are; header-wide relocation is not selected.
+      - Pass explicit Robot-tab activity from the existing workspace. Do not initialize hidden preview rendering
+        unnecessarily; stop scheduled RAF and gestures while inactive/hidden and resume at most one coalesced redraw
+        when active. Keep one preview scene/canvas across its view changes where appropriate; cleanup observers,
+        event listeners, OrbitControls, geometries/materials/textures and renderer on replacement/unmount. No hidden
+        continuous loop, leaked context or simultaneous duplicate preview.
+      - Keep the existing accessible Top SVG assembly fallback when WebGL is unavailable, fails or loses context.
+        Preserve useful labels and all assembly settings without requiring GPU success; identify fallback honestly
+        and do not count it as real WebGL browser evidence. Context restoration must not lose settings, spawn a second
+        renderer or commit a stale gesture.
+      - Switch between Robot, Field, Electronics and Code without recreating the existing circuit/code editor instances,
+        losing unsaved sketch/Blockly selection or changing paused model time/pose. Preserve the newly accepted Field
+        Top/Side/oblique geometry, rulers, grid, one-toolbar camera controls and E3 placement/drag/fallback behavior.
+      constraints:
+      - Only the eight listed existing paths are planned. No new source files, assets/SVG/generated runtime artwork
+        or dependency/configuration changes. Field defaults and its accepted visual interactions are regressions
+        to preserve, not a new redesign. Any additional file needed requires a separately checked scope decision
+        before edits.
+      - No world/document schema, contexts/robotics physics/runtime, Worker, solver, electronics/Arduino implementation,
+        program, API/database, Docker/service/route, native build/acquisition, stand startup/mount or old consumed
+        experiment dispatch. Existing code/electronics instances and data remain shared.
+      - ROBOTICS-FIELD-CORE-D01-D02 keeps its exact binding and blocks. No spatial_product_integration, full_physics_acceptance,
+        owner acceptance, release_claim, deployment or working-DB action follows from this preview. Physical FAIL/GAP
+        and all archived source/raw/selection records remain immutable.
+      - The experimental editable ramp remains preserved history. No physical ramp/platform/bridge tool or terrain
+        schema is added to the ordinary product, and no flat picture is labelled as working spatial mechanics. Earlier
+        readiness/history records never authorize a retry.
+      - Common top-header run/pause/reset/time and resizable left Arduino/electronics/code layout remain separate
+        future dependent selections. Do not expand this turntable slice into workspace relocation or a new simulation.
+      verification:
+        pure: 'Extend the existing spatial/lab specs with real Three scene/camera geometry: shared Field/Robot mesh
+          dimensions/materials and caster attachment across supported settings; subject-only framing and correct
+          Front/Top/Side projections; one scene and active/inactive/tab-switch RAF behavior; context-loss/fallback
+          and complete disposal. Verify actual accepted document bindings/controls, immutable camera-only state,
+          undo/save values and no duplicate controller/editor initialization. Existing Field tests must remain intact;
+          no mocked physical outcome.'
+        browser: Extend the existing normal projects-publication built Web/API/isolated PostgreSQL journey at the
+          exact candidate SHA. At1440px and320px open Robot, prove actual WebGL turntable orbit and each view, change
+          real assembly settings and compare the same saved model/Field geometry, verify running locks and switch
+          through Field/Electronics/Code with sketch/Blockly and paused time/pose retained. Check inactive rendering
+          stops and settings survive save/reopen. Capture screenshots and objective camera/geometry/document/lifecycle
+          evidence; fallback is separately tested and never substituted for real WebGL PASS.
+        gates: 'Registration: sole-path PLAN/control, YAML formatting and full text/semantic inverse, actual pnpm
+          validate:electronics-agent-docs and pnpm gate:governance. Source only after canonical selection: pnpm test:robotics,
+          changed-file lint/strict types/format, independent exact-source HIGH and required General. Real browser
+          proof uses existing pnpm gate:projects-publication:browser and .github/workflows/projects-publication.yml,
+          not a new local port/stand or working database.'
+      dependent_intent:
+        not_selected_now:
+        - One common header for run/pause/reset/time without new controller ownership.
+        - Resizable left Arduino/electronics/code panels alongside the shared field using the same editor/document
+          instances.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    historical_field_visual_task:
       id: TASK-ELECTRONICS-ROBOTICS-FIELD-VISUAL-001
       issue: 1071
       branch: main
@@ -19120,6 +19241,39 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    field_visual_result:
+      observed_on: '2026-11-27'
+      status: PROTECTED_SOURCE_AND_BUILT_BROWSER_VERIFIED_UI_ONLY
+      source: e8c54fea458ac69cc119b48c865d495b9fe5294c
+      source_tree: da4703c899248b073313214fcc05d7279cb15bc1
+      merge: 1e475bb19ad8771f8bf3efb3e67c116c10770a4f
+      pr:
+        number: 1360
+        url: https://github.com/spikeal8-maker/asa-lab/pull/1360
+        state: MERGED
+      required:
+        head: e8c54fea458ac69cc119b48c865d495b9fe5294c
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45916009072/job/140244782422
+      browser:
+        head: e8c54fea458ac69cc119b48c865d495b9fe5294c
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45916008784/job/140235391799
+        artifact_id: 15161799814
+        artifact_name: public-projects-e8c54fea458ac69cc119b48c865d495b9fe5294c
+        artifact_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45916008784/artifacts/15161799814
+        artifact_bytes: 42570063
+        artifact_sha256: 397593c7fe850ebd9ef2ac03b1214c58a1599eb3efa149a9fbeb7819994a9f91
+        scope: Actual normal publication built-browser Field visual/gesture/side-scale journeys at1440/320; source/browser
+          verification is distinct from installation or owner acceptance.
+      merged_source_parity: All10 changed source/test paths from the reviewed/tested source are byte-identical at
+        the actual merge. Existing source tests and source/browser evidence remain bound to their exact tested SHA.
+      delivered: Shared Three Top/oblique/Side Field presentation, original SVG interaction/fallback, calibrated
+        zoom/Fit/rulers/grid, compact toolbar and same-dimension visual box/Uno/caster with attached bracket. Existing
+        saved model/runtime retained.
+      owner_acceptance: pending
+      deployment: not_authorized
+      physical_qualification: NOT_CLAIMED; D01/D02 and all historical physical FAIL/GAP remain unchanged.
     historical_editable_ramp_live_task:
       id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-LIVE-001
       issue: 1071
