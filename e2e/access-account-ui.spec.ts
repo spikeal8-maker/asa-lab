@@ -74,7 +74,7 @@ for (const [width, path] of [
   [1440, '/#/attending'],
   [320, '/#/learning?view=classes'],
 ] as const) {
-  test(`Account class code stays masked and resets after a successful request at ${width}px`, async ({
+  test(`Account class code starts visible and resets after a successful request at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 800 });
@@ -104,37 +104,38 @@ for (const [width, path] of [
     const show = form.getByRole('button', { name: 'Показать код класса' });
     const hide = form.getByRole('button', { name: 'Скрыть код класса' });
     const submit = form.getByRole('button', { name: 'Войти в класс' });
-    await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveAttribute('type', 'text');
     await expect(submit).toBeDisabled();
     await code.fill('abc def 234');
     await code.focus();
     await page.keyboard.press('Tab');
-    await expect(show).toBeFocused();
-    await page.keyboard.press('Space');
-    await expect(code).toHaveAttribute('type', 'text');
     await expect(hide).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(code).toHaveAttribute('type', 'password');
+    await expect(show).toBeFocused();
     await code.fill('abc def 345');
     await submit.click();
     await expect(form.getByRole('alert')).toHaveText('Класс не найден.');
-    await expect(code).toHaveAttribute('type', 'text');
-    await expect(code).toHaveValue('ABC DEF 345');
-    await hide.click();
     await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveValue('ABC DEF 345');
+    await show.click();
+    await expect(code).toHaveAttribute('type', 'text');
 
     const input = (await code.boundingBox())!;
-    const toggle = (await show.boundingBox())!;
+    const toggle = (await hide.boundingBox())!;
     const action = (await submit.boundingBox())!;
     expect(toggle.width).toBeGreaterThanOrEqual(44);
     expect(toggle.height).toBeGreaterThanOrEqual(44);
-    expect(input.x + input.width).toBeLessThanOrEqual(toggle.x);
+    expect(toggle.x).toBeGreaterThan(input.x);
+    expect(toggle.x + toggle.width).toBeLessThanOrEqual(input.x + input.width + 1);
     expect(toggle.x + toggle.width).toBeLessThanOrEqual(width);
     expect(action.x + action.width).toBeLessThanOrEqual(width);
     await page.screenshot({ path: test.info().outputPath(`account-class-code-${width}.png`) });
 
-    await show.click();
+    await hide.click();
     await submit.click();
     await expect(form.getByRole('status')).toContainText('Заявка в класс «Мой класс» отправлена.');
-    await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveAttribute('type', 'text');
     await expect(code).toHaveValue('');
     await expect(submit).toBeDisabled();
     expect(received).toEqual(['ABC DEF 345', 'ABC DEF 345']);
@@ -152,11 +153,11 @@ test('classroom entry remains retryable when its page fails to load', async ({ p
 
   await page.unroute(chunk);
   await failure.getByRole('button', { name: 'Попробовать снова' }).click();
-  await expect(page.getByLabel('Код класса', { exact: true })).toHaveAttribute('type', 'password');
+  await expect(page.getByLabel('Код класса', { exact: true })).toHaveAttribute('type', 'text');
 });
 
-for (const width of [1440, 320]) {
-  test(`manual class code stays masked until revealed and retries without losing input at ${width}px`, async ({
+for (const width of [1440, 390, 320]) {
+  test(`class code can be hidden while the personal learner code starts masked at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 800 });
@@ -180,46 +181,72 @@ for (const width of [1440, 320]) {
         },
       });
     });
+    const submissions: { code: string; studentCode: string }[] = [];
+    await page.route('**/api/class-join/studentseat', (route) => {
+      submissions.push(route.request().postDataJSON());
+      return route.fulfill({
+        status: 403,
+        json: { error: { code: 'invalid_code', message: 'Не подошёл код ученика.' } },
+      });
+    });
     await page.goto('/#/join-class');
 
     const code = page.getByLabel('Код класса', { exact: true });
     const show = page.getByRole('button', { name: 'Показать код класса' });
     const hide = page.getByRole('button', { name: 'Скрыть код класса' });
-    await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveAttribute('type', 'text');
     await code.fill('abc def 234');
     await expect(code).toHaveValue('ABC DEF 234');
     await code.focus();
     await page.keyboard.press('Tab');
-    await expect(show).toBeFocused();
-    await page.keyboard.press('Space');
-    await expect(code).toHaveAttribute('type', 'text');
     await expect(hide).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(code).toHaveAttribute('type', 'password');
+    await expect(show).toBeFocused();
     await code.fill('abc def 345');
-    await expect(code).toHaveAttribute('type', 'text');
+    await expect(code).toHaveAttribute('type', 'password');
     await page.getByRole('button', { name: 'Продолжить' }).click();
     await expect(page.getByRole('alert')).toHaveText('Класс не найден.');
-    await expect(code).toHaveAttribute('type', 'text');
-    await expect(code).toHaveValue('ABC DEF 345');
-    await hide.click();
     await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveValue('ABC DEF 345');
+    await show.click();
+    await expect(code).toHaveAttribute('type', 'text');
     await expect(code).toHaveValue('ABC DEF 345');
     expect(codes).toEqual(['ABC DEF 345']);
 
     const input = (await code.boundingBox())!;
-    const toggle = (await show.boundingBox())!;
+    const toggle = (await hide.boundingBox())!;
     expect(toggle.width).toBeGreaterThanOrEqual(44);
     expect(toggle.height).toBeGreaterThanOrEqual(44);
-    expect(input.x + input.width).toBeLessThanOrEqual(toggle.x);
+    expect(toggle.x).toBeGreaterThan(input.x);
+    expect(toggle.x + toggle.width).toBeLessThanOrEqual(input.x + input.width + 1);
     expect(toggle.x + toggle.width).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: test.info().outputPath(`class-code-masked-${width}.png`) });
-    await show.click();
+    await page.screenshot({ path: test.info().outputPath(`class-code-${width}.png`) });
+    await hide.click();
     await page.getByRole('button', { name: 'Продолжить' }).click();
     await expect(page.getByRole('heading', { name: 'Введите код ученика' })).toBeVisible();
-    await expect(page.getByLabel('Код ученика', { exact: true })).toBeFocused();
+    const student = page.getByLabel('Код ученика', { exact: true });
+    const showStudent = page.getByRole('button', { name: 'Показать код ученика' });
+    const hideStudent = page.getByRole('button', { name: 'Скрыть код ученика' });
+    await expect(student).toBeFocused();
+    await expect(student).toHaveAttribute('type', 'password');
+    await student.fill('aB7k');
+    await page.keyboard.press('Tab');
+    await expect(showStudent).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(student).toHaveAttribute('type', 'text');
+    await expect(student).toHaveValue('aB7k');
+    await hideStudent.click();
+    await page.getByRole('button', { name: 'Войти', exact: true }).click();
+    await expect(page.getByRole('alert')).toHaveText('Не подошёл код ученика.');
+    await expect(student).toHaveAttribute('type', 'password');
+    await expect(student).toHaveValue('aB7k');
+    expect(submissions).toEqual([{ code: 'ABC DEF 345', studentCode: 'aB7k' }]);
+    await page.screenshot({ path: test.info().outputPath(`personal-code-${width}.png`) });
     expect(codes).toEqual(['ABC DEF 345', 'ABC DEF 345']);
 
     await page.getByRole('button', { name: '← Назад' }).click();
-    await expect(code).toHaveAttribute('type', 'password');
+    await expect(code).toHaveAttribute('type', 'text');
     await expect(code).toHaveValue('ABC DEF 345');
   });
 }

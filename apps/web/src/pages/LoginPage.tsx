@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
+import { VisibilityField } from '../components/VisibilityField';
 import { AuthProviderStatus, SocialAuthButtons, useAuthProviders } from '../auth-providers';
 
 export function LoginPage({
@@ -23,6 +24,7 @@ export function LoginPage({
 }): JSX.Element {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
@@ -106,10 +108,7 @@ export function LoginPage({
   return (
     <div className="page-center">
       <main className="login-card" aria-busy={busy}>
-        <button type="button" className="btn-ghost entry-back" onClick={onBack}>
-          ← Назад
-        </button>
-        <AuthHomeBrand onHome={onHome} />
+        <AuthHomeBrand onHome={onHome} onBack={onBack} />
         <h1 className="auth-title">Вход</h1>
         {onClassCodeLogin ? (
           <nav className="auth-method-switch" aria-label="Способ входа">
@@ -133,18 +132,15 @@ export function LoginPage({
             value={identifier}
             disabled={busy}
             aria-invalid={message ? 'true' : undefined}
-            aria-describedby={['login-identifier-hint', message ? messageId : null]
-              .filter(Boolean)
-              .join(' ')}
+            aria-describedby={message ? messageId : undefined}
             onChange={(event) => setIdentifier(event.target.value)}
           />
-          <p id="login-identifier-hint" className="field-hint">
-            Для нового аккаунта используйте почту; прежний логин тоже подходит.
-          </p>
           <label htmlFor="password">Пароль</label>
-          <input
+          <VisibilityField
             id="password"
-            type="password"
+            fieldLabel="пароль"
+            visible={showPassword}
+            onVisibilityChange={setShowPassword}
             autoComplete="current-password"
             value={password}
             disabled={busy}

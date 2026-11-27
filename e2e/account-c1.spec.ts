@@ -104,7 +104,7 @@ test('owner completes Account C1 and existing project modules remain available',
   });
   await secondPage.goto('/#/sign-in');
   await secondPage.getByLabel('Почта или логин').fill(email);
-  await secondPage.getByLabel('Пароль').fill(password);
+  await secondPage.getByLabel('Пароль', { exact: true }).fill(password);
   await secondPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
   await expect(secondPage.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
@@ -266,7 +266,7 @@ test('owner completes Account C1 and existing project modules remain available',
   const oldPasswordPage = await context.newPage();
   await oldPasswordPage.goto('/#/sign-in');
   await oldPasswordPage.getByLabel('Почта или логин').fill(email);
-  await oldPasswordPage.getByLabel('Пароль').fill(password);
+  await oldPasswordPage.getByLabel('Пароль', { exact: true }).fill(password);
   await oldPasswordPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const oldPasswordLoginResponsePromise = oldPasswordPage.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -282,7 +282,7 @@ test('owner completes Account C1 and existing project modules remain available',
 
   await page.goto('/#/sign-in');
   await page.getByLabel('Почта или логин').fill(email);
-  await page.getByLabel('Пароль').fill(newPassword);
+  await page.getByLabel('Пароль', { exact: true }).fill(newPassword);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const newPasswordLoginResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -471,7 +471,7 @@ test('migrated teacher changes password through organization browser login', asy
 
   await page.goto('/#/sign-in');
   await page.getByLabel('Почта или логин').fill(teacher.email);
-  await page.getByLabel('Пароль').fill(passwordB);
+  await page.getByLabel('Пароль', { exact: true }).fill(passwordB);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const normalLogin = page.waitForResponse((response) => {
     const url = new URL(response.url());

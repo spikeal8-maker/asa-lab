@@ -15,7 +15,7 @@ export async function loginWithOrganization(
   await page.getByTestId('login-organization').click();
   await page.getByLabel('Код организации').fill(credentials.workspace);
   await page.getByLabel('Email', { exact: true }).fill(credentials.email);
-  await page.getByLabel('Пароль').fill(credentials.password);
+  await page.getByLabel('Пароль', { exact: true }).fill(credentials.password);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const submit = page.getByRole('button', { name: 'Войти через организацию' });
   await expect(submit).toBeEnabled();

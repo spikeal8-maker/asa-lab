@@ -1,4 +1,4 @@
-import './class-code-field.css';
+import { VisibilityField } from './VisibilityField';
 
 interface ClassCodeFieldProps {
   readonly id: string;
@@ -21,34 +21,23 @@ export function ClassCodeField({
   onChange,
   onVisibilityChange,
 }: ClassCodeFieldProps): JSX.Element {
-  const visibilityLabel = visible ? 'Скрыть код класса' : 'Показать код класса';
   return (
-    <div className="join-class-code-field">
-      <input
-        id={id}
-        type={visible ? 'text' : 'password'}
-        autoFocus={autoFocus}
-        autoComplete="one-time-code"
-        autoCapitalize="characters"
-        autoCorrect="off"
-        spellCheck={false}
-        inputMode="text"
-        value={value}
-        maxLength={maxLength}
-        disabled={disabled}
-        placeholder="ABC DEF 234"
-        onChange={(event) => onChange(event.target.value.toUpperCase())}
-      />
-      <button
-        type="button"
-        className="btn-ghost join-class-code-toggle"
-        aria-controls={id}
-        aria-label={visibilityLabel}
-        title={visibilityLabel}
-        onClick={() => onVisibilityChange(!visible)}
-      >
-        <span className="join-class-code-eye" aria-hidden="true" />
-      </button>
-    </div>
+    <VisibilityField
+      id={id}
+      fieldLabel="код класса"
+      visible={visible}
+      onVisibilityChange={onVisibilityChange}
+      autoFocus={autoFocus}
+      autoComplete="one-time-code"
+      autoCapitalize="characters"
+      autoCorrect="off"
+      spellCheck={false}
+      inputMode="text"
+      value={value}
+      maxLength={maxLength}
+      disabled={disabled}
+      placeholder="ABC DEF 234"
+      onChange={(event) => onChange(event.target.value.toUpperCase())}
+    />
   );
 }
