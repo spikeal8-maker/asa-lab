@@ -173,6 +173,27 @@ function worldBounds(object: THREE.Object3D): number[] {
   );
 }
 
+it('clears only transient measurement labels and preserves persistent overlay children', () => {
+  const manipulator = Object.create(DirectManipulator.prototype) as {
+    clearDimensionVisuals(): void;
+    labelAnchors: readonly unknown[];
+  };
+  const first = { remove: vi.fn() };
+  const second = { remove: vi.fn() };
+  const overlay = { replaceChildren: vi.fn() };
+  Object.assign(manipulator, {
+    dimensionRoot: new THREE.Group(),
+    labelAnchors: [{ element: first }, { element: second }],
+    overlay,
+  });
+  manipulator.clearDimensionVisuals();
+  manipulator.clearDimensionVisuals();
+  expect(first.remove).toHaveBeenCalledTimes(1);
+  expect(second.remove).toHaveBeenCalledTimes(1);
+  expect(overlay.replaceChildren).not.toHaveBeenCalled();
+  expect(manipulator.labelAnchors).toEqual([]);
+});
+
 describe('Boolean Worker scene lifecycle', () => {
   afterEach(() => {
     cleanup.splice(0).forEach((dispose) => dispose());

@@ -377,6 +377,12 @@ export async function createApiApp(
     // deliberate boundary cast lets the canonical plugin types apply.
     const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
     fastify.addHook('onClose', cleanup);
+    fastify.addHook('onRoute', (route) => {
+      if (route.method === 'PUT' && route.url === '/api/projects/:projectId/draft') {
+        // Detailed 3D sketches can exceed the default limit. Only draft writes use this budget.
+        route.bodyLimit = 4 * 1024 * 1024;
+      }
+    });
     const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
     registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
     registerAiAttachmentTransport(fastify);

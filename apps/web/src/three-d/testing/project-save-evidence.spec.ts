@@ -161,6 +161,50 @@ it('ignores object key order but preserves node order and geometry in signatures
   expect(threeDDocumentSignature(changed)).not.toBe(threeDDocumentSignature(document));
 });
 
+it('keeps a rejected draft locally and waits for a smaller edit before autosaving again', async () => {
+  const original = createEmptyThreeDDocument();
+  const first = createThreeDNode('box', 'one');
+  const second = createThreeDNode('box', 'two');
+  const oversized = { ...original, nodes: [first, second] };
+  const larger = { ...oversized, nodes: [...oversized.nodes, createThreeDNode('box', 'tri')] };
+  const reduced = { ...original, nodes: [first] };
+  requests.openProject.mockResolvedValue({
+    ok: true,
+    data: {
+      draft: { document: original, revision: 3 },
+      project: { title: 'Synthetic project' },
+      versions: [],
+    },
+  });
+  requests.saveDraft
+    .mockResolvedValueOnce({ ok: false, status: 413 })
+    .mockResolvedValueOnce({ ok: true, data: { draft: { revision: 4 } } });
+  let controller!: ThreeDProjectController;
+  function Editor() {
+    controller = useThreeDProject('limited-draft');
+    return null;
+  }
+  await act(async () => root.render(createElement(Editor)));
+  await act(async () => controller.importDocument(oversized));
+  await act(async () => vi.advanceTimersByTime(650));
+  expect(controller.saveError).toMatch(/слишком большой/);
+  expect(readLocalThreeDDraft(window.localStorage, 'limited-draft')?.document).toEqual(oversized);
+
+  await act(async () => controller.importDocument(larger));
+  await act(async () => vi.advanceTimersByTime(650));
+  await act(async () => controller.createCheckpoint());
+  expect(requests.saveDraft).toHaveBeenCalledTimes(1);
+  expect(requests.createCheckpoint).not.toHaveBeenCalled();
+  expect(controller.saveState).toBe('error');
+  expect(readLocalThreeDDraft(window.localStorage, 'limited-draft')?.document).toEqual(larger);
+
+  await act(async () => controller.importDocument(reduced));
+  await act(async () => vi.advanceTimersByTime(650));
+  expect(requests.saveDraft).toHaveBeenLastCalledWith('limited-draft', reduced, 3);
+  expect(controller.saveState).toBe('saved');
+  expect(readLocalThreeDDraft(window.localStorage, 'limited-draft')).toBeNull();
+});
+
 it('keeps newer geometry dirty after an older save and queues it with the confirmed revision', async () => {
   const original = jsonbOrder({
     ...createEmptyThreeDDocument(),
