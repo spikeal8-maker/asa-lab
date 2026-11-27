@@ -376,6 +376,36 @@ describe('one early elapsed optical phase', () => {
     expect(presenter.reanchorCount).toBe(0);
   });
 
+  it('offers an already confirmed short pulse after two long mounted phases', () => {
+    const presenter = withDarkFrame();
+    let from = 0;
+    let level = 0;
+    for (const [edge, refresh] of [
+      [10000, 16000],
+      [40000, 48000],
+      [70000, 76000],
+    ] as const) {
+      const nextLevel = level ? 0 : 80;
+      const observation = accepted(from, edge, [point(from, level), point(edge, nextLevel)]);
+      presenter.accept(solved(observation), observation, edge);
+      const frame = presenter.prepareFrame(refresh)!;
+      expect(presenter.acknowledgeFrame(frame, refresh)).toBe(true);
+      presenter.recordRenderedFrame(refresh, frame);
+      from = edge;
+      level = nextLevel;
+    }
+    // The 4 ms dark pulse is already complete in electrical history. Holding
+    // its predecessor to correct the display integral would miss this opportunity.
+    const future = accepted(70000, 140000, [
+      point(70000, 80),
+      point(100000, 0),
+      point(104000, 80),
+      point(140000, 0),
+    ]);
+    presenter.accept(solved(future), future, 101000);
+    expect(presenter.prepareElapsedFrame(101000)?.brightness.get('led')).toBe(0);
+  });
+
   it.each([false, true])(
     'shows a short successor at both paints after a late ACK (streamed %s)',
     (streamed) => {
@@ -2090,7 +2120,11 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
-    state.nativeOpticalPresentation = { commit: () => {}, witnessAfterAnimationFrame: () => {} };
+    state.nativeOpticalPresentation = {
+      commit: () => {},
+      mountedAnimationFrame: () => null,
+      witnessAfterAnimationFrame: () => {},
+    };
     state.settleSimulationPauseRef = { current: null };
     if (name === 'raf') {
       // Bind the real RAF's new display-only metric dependencies. The actual
@@ -3016,5 +3050,61 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
       );
       expect(journal.errors).toEqual(['Error: Baseline journal sequence gap']);
     }
+  });
+});
+
+describe('clocked native LED sampling', () => {
+  it('keeps a late confirmed HIGH from shortening the next full cycle on the mounted image', () => {
+    // Microseconds relative to H0 in the period-14 recording. The response at
+    // 372700 misses the refresh at 367600 and cannot light a pixel before 393600.
+    const ready = [
+      11100, 37700, 66700, 101700, 127200, 154100, 185100, 214300, 244400, 273500, 303700, 341500,
+      372700, 400300, 428900,
+    ];
+    const refresh = [
+      17100, 32100, 48300, 65400, 83100, 99100, 117000, 131800, 148500, 164900, 181900, 198300,
+      216800, 231500, 249100, 265600, 282300, 298600, 316200, 335800, 352100, 367600, 393600,
+      406300, 415600, 431500, 448600,
+    ];
+    const replay = (mounted: boolean) => {
+      const presenter = new LedTemporalPresentation();
+      const initial = window(0, 0, [channel('led', [point(0, 0)])]);
+      presenter.accept(electrical(initial), initial, 0);
+      expect(presenter.acknowledgeFrame(presenter.prepareInitialFrame()!, 0)).toBe(true);
+      const shown: number[] = [];
+      let level = 0;
+      let committed = 0;
+      let lit = false;
+      for (const wall of [...ready, ...refresh].sort((left, right) => left - right)) {
+        const index = ready.indexOf(wall);
+        if (index >= 0) {
+          const nextEdge = 2 + Math.floor(index * 30002.5);
+          const nextLevel = level ? 0 : 70;
+          const observation = window(committed, nextEdge, [
+            channel('led', [point(committed, level), point(nextEdge, nextLevel)]),
+          ]);
+          presenter.accept(electrical(observation), observation, wall);
+          committed = nextEdge;
+          level = nextLevel;
+          continue;
+        }
+        const frame = presenter.prepareFrame(wall);
+        if (frame) {
+          expect(frame.atMicroseconds).toBeLessThanOrEqual(committed);
+          expect(presenter.acknowledgeFrame(frame, wall)).toBe(true);
+        }
+        presenter.recordRenderedFrame(wall, mounted ? presenter.displayedFrame : null);
+        const nextLit = (presenter.sample().get('led') ?? 0) > 0;
+        if (nextLit !== lit) shown.push(wall);
+        lit = nextLit;
+      }
+      return shown;
+    };
+    const mounted = replay(true);
+    expect(mounted).toHaveLength(ready.length);
+    expect(mounted[12]).toBe(393600);
+    expect(mounted[14]! - mounted[12]!).toBe(55000);
+    const missing = replay(false);
+    expect(missing[14]! - missing[12]!).toBe(37900);
   });
 });
