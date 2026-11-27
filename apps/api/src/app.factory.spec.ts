@@ -24,6 +24,30 @@ afterEach(async () => {
   }
 });
 
+it('accepts larger draft JSON without raising the limit on other project routes', async () => {
+  const app = await createApiApp({
+    pool: null,
+    analyticsPool: null,
+    acquisitionPool: null,
+    webDist: null,
+  });
+  apps.push(app);
+  const http = app.getHttpAdapter().getInstance();
+  const project = '/api/projects/11111111-1111-4111-8111-111111111111';
+  const payload = { document: { geometry: 'x'.repeat(2 * 1024 * 1024) } };
+
+  const draft = await http.inject({ method: 'PUT', url: project + '/draft', payload });
+  expect(draft.statusCode).toBe(401);
+  const other = await http.inject({ method: 'PUT', url: project + '/snapshot', payload });
+  expect(other.statusCode).toBe(413);
+  const oversized = await http.inject({
+    method: 'PUT',
+    url: project + '/draft',
+    payload: { document: { geometry: 'x'.repeat(4 * 1024 * 1024) } },
+  });
+  expect(oversized.statusCode).toBe(413);
+});
+
 describe('HTTP runtime warning integration', () => {
   afterEach(() => {
     vi.restoreAllMocks();

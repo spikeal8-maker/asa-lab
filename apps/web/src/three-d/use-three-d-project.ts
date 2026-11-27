@@ -59,6 +59,7 @@ export interface ThreeDProjectController {
   readonly selectedBundleId: string | null;
   readonly saveState: SaveState;
   readonly saveError: string | null;
+  readonly saveLimitExceeded: boolean;
   readonly requiresSignIn: boolean;
   readonly notice: string | null;
   readonly versions: readonly ProjectVersion[];
@@ -113,6 +114,9 @@ export interface ThreeDProjectController {
   readonly clearNotice: () => void;
 }
 
+const DRAFT_TOO_LARGE =
+  'Черновик слишком большой для сервера. Уменьшите модель и повторите сохранение.';
+
 let localIdSequence = 0;
 
 function makeId(prefix: string): string {
@@ -127,6 +131,12 @@ function friendlySaveFailure(status: number): {
   readonly message: string;
   readonly signIn: boolean;
 } {
+  if (status === 413) {
+    return {
+      message: DRAFT_TOO_LARGE,
+      signIn: false,
+    };
+  }
   if (status === 401) {
     return {
       message: 'Сессия завершена. Изменения сохранены в этом браузере.',
@@ -166,6 +176,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
   const serverRevisionRef = useRef<number | null>(null);
   const savedTitleRef = useRef('Новый 3D-проект');
   const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const rejectedDraftBytesRef = useRef<number | null>(null);
 
   const replaceHistory = useCallback((next: HistoryState): void => {
     historyRef.current = next;
@@ -176,6 +187,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     let active = true;
     setLoading(true);
     setError(null);
+    rejectedDraftBytesRef.current = null;
     void api.openProject<ThreeDDocument>(projectId).then((response) => {
       if (!active) return;
       if (!response.ok) {
@@ -239,7 +251,17 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     (document: ThreeDDocument, signature: string): void => {
       autosaveQueueRef.current = autosaveQueueRef.current.then(async () => {
         const current = historyRef.current?.present;
-        if (!current || threeDDocumentSignature(current) !== signature) return;
+        if (
+          !current ||
+          threeDDocumentSignature(current) !== signature ||
+          signature === lastSavedRef.current
+        )
+          return;
+        if (
+          rejectedDraftBytesRef.current !== null &&
+          new TextEncoder().encode(signature).byteLength >= rejectedDraftBytesRef.current
+        )
+          return;
         setSaveState('saving');
         const baseRevision = serverRevisionRef.current;
         if (baseRevision === null) {
@@ -249,6 +271,9 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
         }
         const response = await api.saveDraft<ThreeDDocument>(projectId, document, baseRevision);
         if (!response.ok) {
+          if (response.status === 413) {
+            rejectedDraftBytesRef.current = new TextEncoder().encode(signature).byteLength;
+          }
           const failure = friendlySaveFailure(response.status);
           setSaveState('error');
           setSaveError(failure.message);
@@ -257,6 +282,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
           return;
         }
         lastSavedRef.current = signature;
+        rejectedDraftBytesRef.current = null;
         serverRevisionRef.current = response.data.draft.revision;
         setSaveError(null);
         setRequiresSignIn(false);
@@ -291,6 +317,15 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
       return;
     }
     writeLocalThreeDDraft(window.localStorage, projectId, document, lastSavedRef.current);
+    if (
+      rejectedDraftBytesRef.current !== null &&
+      new TextEncoder().encode(signature).byteLength >= rejectedDraftBytesRef.current
+    ) {
+      setSaveState('error');
+      setSaveError(friendlySaveFailure(413).message);
+      setRequiresSignIn(false);
+      return;
+    }
     setSaveState('dirty');
     setSaveError(null);
     setRequiresSignIn(false);
@@ -775,59 +810,77 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     if (current) replaceHistory(redoHistory(current));
   }, [replaceHistory]);
 
-  const createCheckpoint = useCallback(async (): Promise<void> => {
+  const createCheckpoint = useCallback((): Promise<void> => {
     const document = historyRef.current?.present;
-    if (!document) return;
-    setSaveState('saving');
-    const baseRevision = serverRevisionRef.current;
-    if (baseRevision === null) {
-      setSaveState('error');
-      setSaveError('Не удалось определить сохранённую версию проекта.');
-      return;
-    }
-    const save = await api.saveDraft<ThreeDDocument>(projectId, document, baseRevision);
-    if (!save.ok) {
-      const failure = friendlySaveFailure(save.status);
-      setSaveState('error');
-      setSaveError(failure.message);
-      setRequiresSignIn(failure.signIn);
-      setNotice(null);
-      return;
-    }
+    if (!document) return Promise.resolve();
     const signature = threeDDocumentSignature(document);
-    lastSavedRef.current = signature;
-    serverRevisionRef.current = save.data.draft.revision;
-    const currentDocument = historyRef.current?.present;
-    if (currentDocument && threeDDocumentSignature(currentDocument) !== signature) {
-      writeLocalThreeDDraft(window.localStorage, projectId, currentDocument, signature);
-      setSaveRetry((current) => current + 1);
-    } else {
-      clearLocalThreeDDraft(window.localStorage, projectId);
-    }
-    setSaveError(null);
-    setRequiresSignIn(false);
-    const response = await api.createCheckpoint(projectId, 'Версия из ASA 3D');
-    if (!response.ok) {
-      const failure = friendlySaveFailure(response.status);
-      setSaveState('error');
-      setSaveError(failure.message);
-      setRequiresSignIn(failure.signIn);
-      setNotice(null);
-      return;
-    }
-    setVersions((current) => [response.data.version, ...current]);
-    // Checkpoint completion may arrive after a newer edit. Only the current
-    // confirmed document can enable the Learning exact-revision submission.
-    setSaveState(
-      historyRef.current &&
-        threeDDocumentSignature(historyRef.current.present) === lastSavedRef.current
-        ? 'saved'
-        : 'dirty',
-    );
-    setNotice(`Создана неизменяемая версия №${response.data.version.versionNo}.`);
+    const checkpoint = autosaveQueueRef.current.then(async () => {
+      if (
+        rejectedDraftBytesRef.current !== null &&
+        new TextEncoder().encode(signature).byteLength >= rejectedDraftBytesRef.current
+      ) {
+        setSaveState('error');
+        setSaveError(friendlySaveFailure(413).message);
+        setRequiresSignIn(false);
+        return;
+      }
+      setSaveState('saving');
+      const baseRevision = serverRevisionRef.current;
+      if (baseRevision === null) {
+        setSaveState('error');
+        setSaveError('Не удалось определить сохранённую версию проекта.');
+        return;
+      }
+      const save = await api.saveDraft<ThreeDDocument>(projectId, document, baseRevision);
+      if (!save.ok) {
+        if (save.status === 413) {
+          rejectedDraftBytesRef.current = new TextEncoder().encode(signature).byteLength;
+        }
+        const failure = friendlySaveFailure(save.status);
+        setSaveState('error');
+        setSaveError(failure.message);
+        setRequiresSignIn(failure.signIn);
+        setNotice(null);
+        return;
+      }
+      lastSavedRef.current = signature;
+      rejectedDraftBytesRef.current = null;
+      serverRevisionRef.current = save.data.draft.revision;
+      const currentDocument = historyRef.current?.present;
+      if (currentDocument && threeDDocumentSignature(currentDocument) !== signature) {
+        writeLocalThreeDDraft(window.localStorage, projectId, currentDocument, signature);
+        setSaveRetry((current) => current + 1);
+      } else {
+        clearLocalThreeDDraft(window.localStorage, projectId);
+      }
+      setSaveError(null);
+      setRequiresSignIn(false);
+      const response = await api.createCheckpoint(projectId, 'Версия из ASA 3D');
+      if (!response.ok) {
+        const failure = friendlySaveFailure(response.status);
+        setSaveState('error');
+        setSaveError(failure.message);
+        setRequiresSignIn(failure.signIn);
+        setNotice(null);
+        return;
+      }
+      setVersions((current) => [response.data.version, ...current]);
+      // Checkpoint completion may arrive after a newer edit. Only the current
+      // confirmed document can enable the Learning exact-revision submission.
+      setSaveState(
+        historyRef.current &&
+          threeDDocumentSignature(historyRef.current.present) === lastSavedRef.current
+          ? 'saved'
+          : 'dirty',
+      );
+      setNotice(`Создана неизменяемая версия №${response.data.version.versionNo}.`);
+    });
+    autosaveQueueRef.current = checkpoint;
+    return checkpoint;
   }, [projectId]);
 
   const retrySave = useCallback((): void => {
+    rejectedDraftBytesRef.current = null;
     setSaveError(null);
     setRequiresSignIn(false);
     setSaveRetry((current) => current + 1);
@@ -935,6 +988,7 @@ export function useThreeDProject(projectId: string): ThreeDProjectController {
     selectedBundleId,
     saveState,
     saveError,
+    saveLimitExceeded: saveError === DRAFT_TOO_LARGE,
     requiresSignIn,
     notice,
     versions,

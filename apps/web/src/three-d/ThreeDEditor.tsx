@@ -298,7 +298,13 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             }`}
             onClick={controller.requiresSignIn ? controller.signInAgain : controller.retrySave}
           >
-            <span>{controller.requiresSignIn ? 'Сессия завершена' : 'Сохранение прервано'}</span>
+            <span>
+              {controller.requiresSignIn
+                ? 'Сессия завершена'
+                : controller.saveLimitExceeded
+                  ? 'Черновик слишком большой'
+                  : 'Сохранение прервано'}
+            </span>
             <strong>{controller.requiresSignIn ? 'Войти снова' : 'Повторить'}</strong>
           </button>
         ) : (
