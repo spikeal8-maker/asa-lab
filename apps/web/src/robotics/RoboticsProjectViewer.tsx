@@ -20,12 +20,21 @@ export default function RoboticsProjectViewer({
   document,
   sessionId,
   fallback,
+  onReady,
+  onUnavailable,
 }: {
   readonly document: unknown;
   readonly sessionId: string;
   readonly fallback: ReactNode;
+  readonly onReady?: () => void;
+  readonly onUnavailable?: () => void;
 }) {
   const parsed = useMemo(() => parseRoboticsProject(document), [document]);
+  const events = useRef({ onReady, onUnavailable });
+  events.current = { onReady, onUnavailable };
+  useEffect(() => {
+    if (!parsed.ok) events.current.onUnavailable?.();
+  }, [parsed]);
   if (!parsed.ok)
     return (
       <>
@@ -33,10 +42,22 @@ export default function RoboticsProjectViewer({
         {fallback}
       </>
     );
-  return <SavedRobot key={sessionId} project={parsed.project} sessionId={sessionId} />;
+  return (
+    <SavedRobot key={sessionId} project={parsed.project} sessionId={sessionId} events={events} />
+  );
 }
 
-function SavedRobot({ project, sessionId }: { project: RoboticsProject; sessionId: string }) {
+function SavedRobot({
+  project,
+  sessionId,
+  events,
+}: {
+  project: RoboticsProject;
+  sessionId: string;
+  events: {
+    current: { onReady: (() => void) | undefined; onUnavailable: (() => void) | undefined };
+  };
+}) {
   const [catalog, setCatalog] = useState<'ready' | 'loading' | 'error'>(() =>
     productionLibraryReady() ? 'ready' : 'loading',
   );
@@ -65,6 +86,10 @@ function SavedRobot({ project, sessionId }: { project: RoboticsProject; sessionI
     };
   }, []);
   const bindingError = catalog === 'ready' ? validateRoboticsBindings(project) : null;
+  useEffect(() => {
+    if (catalog === 'error' || bindingError) events.current.onUnavailable?.();
+    else if (catalog === 'ready') events.current.onReady?.();
+  }, [bindingError, catalog, events, project]);
   useEffect(() => {
     if (!running) return;
     const stop = (reason: string) => {

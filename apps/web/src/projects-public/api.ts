@@ -37,6 +37,7 @@ export interface PublicProject {
 }
 
 export interface ProjectPublicationStatus {
+  readonly requiresApproval?: true;
   readonly acquisition?: { readonly allowed: boolean; readonly version: number } | null;
   readonly publication: {
     readonly publicationId: string;

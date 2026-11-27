@@ -7,6 +7,7 @@ import type { ApiResult } from '../api-call';
 import { ProjectProperties } from '../components/ProjectProperties';
 import { PublicationPanel } from './PublicationPanel';
 import { publicProjectsApi, type ProjectPublicationStatus, type PublicationMetadata } from './api';
+import { studentPublicationAuthorApi, type ReviewRequest } from './student-publication-review-api';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -67,11 +68,12 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-async function render(moduleKey?: string) {
+async function render(moduleKey?: string, sourceRevision: number | null = null) {
   await act(async () =>
     root.render(
       createElement(PublicationPanel, {
         projectId,
+        sourceRevision,
         ...(moduleKey === undefined ? {} : { moduleKey }),
         metadata,
         disabled: false,
@@ -85,6 +87,156 @@ async function publish() {
     host.querySelector<HTMLButtonElement>('[data-testid="publication-publish"]')!.click(),
   );
 }
+
+it('submits the saved revision and publishes only after the approved request is refreshed', async () => {
+  const owner = { ...status(), publication: null, requiresApproval: true as const };
+  vi.mocked(publicProjectsApi.status).mockResolvedValue(response(owner));
+  const candidate: ReviewRequest = {
+    requestId: revisionId,
+    state: 'waiting_teacher',
+    sourceRevision: 2,
+    moduleKey: 'electronics',
+    metadata,
+  };
+  const current = vi.spyOn(studentPublicationAuthorApi, 'current').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { request: null },
+  });
+  const submit = vi.spyOn(studentPublicationAuthorApi, 'submit').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: candidate,
+  });
+  const approvedPublish = vi.spyOn(studentPublicationAuthorApi, 'publish').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { ...candidate, state: 'published' },
+  });
+  const button = (text: string) =>
+    [...host.querySelectorAll('button')].find((element) => element.textContent === text);
+  await render('electronics', 2);
+  await act(async () => {
+    await import('./StudentPublicationAuthor');
+  });
+  expect(button('Отправить на одобрение')?.disabled).toBe(false);
+  expect(host.querySelector('[data-testid="publication-publish"]')).toBeNull();
+  await act(async () => button('Отправить на одобрение')!.click());
+  expect(submit).toHaveBeenCalledExactlyOnceWith(
+    projectId,
+    2,
+    metadata,
+    expect.any(String),
+    expect.any(AbortSignal),
+  );
+  expect(button('Отправить на одобрение')?.disabled).toBe(true);
+  expect(approvedPublish).not.toHaveBeenCalled();
+  current.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      request: {
+        ...candidate,
+        state: 'approved',
+      },
+    },
+  });
+  await act(async () => button('Обновить статус заявки')!.click());
+  await expect(button('Опубликовать одобренную версию')?.disabled).toBe(false);
+  current.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      request: {
+        ...candidate,
+        state: 'published',
+      },
+    },
+  });
+  await act(async () => button('Опубликовать одобренную версию')!.click());
+  expect(approvedPublish).toHaveBeenCalledExactlyOnceWith(
+    projectId,
+    revisionId,
+    expect.any(AbortSignal),
+  );
+  expect(publicProjectsApi.publish).not.toHaveBeenCalled();
+});
+
+it('retains Seat approval after consent and revocation and describes the past receipt', async () => {
+  const owner = { ...status(), requiresApproval: true as const };
+  vi.mocked(publicProjectsApi.status).mockResolvedValue(response(owner));
+  vi.spyOn(publicProjectsApi, 'setAcquisition').mockResolvedValue(
+    response({ ...status(), acquisition: { allowed: true, version: 8 } }),
+  );
+  vi.spyOn(publicProjectsApi, 'revoke').mockResolvedValue(
+    response({
+      ...status(),
+      publication: { ...owner.publication!, state: 'revoked', publicPath: null },
+    }),
+  );
+  vi.spyOn(studentPublicationAuthorApi, 'current').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      request: {
+        requestId: revisionId,
+        state: 'published',
+        sourceRevision: 1,
+        moduleKey: 'electronics',
+        metadata,
+      },
+    },
+  });
+  const directPublish = () => host.querySelector('[data-testid="publication-publish"]');
+  const click = async (selector: string) =>
+    act(async () => host.querySelector<HTMLElement>(selector)!.click());
+
+  await render('electronics', 2);
+  await act(async () => {
+    await import('./StudentPublicationAuthor');
+  });
+  expect(host.textContent).toContain('Одобренная версия опубликована.');
+  expect(directPublish()).toBeNull();
+  await click('input[type="checkbox"]');
+  expect(publicProjectsApi.setAcquisition).toHaveBeenCalledExactlyOnceWith(
+    projectId,
+    true,
+    7,
+    revisionId,
+  );
+  expect(directPublish()).toBeNull();
+  await click('[data-testid="publication-revoke"]');
+  await click('[data-testid="publication-revoke-confirm"]');
+  expect(publicProjectsApi.revoke).toHaveBeenCalledExactlyOnceWith(projectId);
+  expect(host.textContent).toContain('Снято с публикации');
+  expect(host.textContent).toContain('Эта версия ранее была опубликована.');
+  expect(host.textContent).not.toContain('Одобренная версия опубликована.');
+  expect(host.textContent).toContain('Отправить на одобрение');
+  expect(directPublish()).toBeNull();
+  expect(publicProjectsApi.publish).not.toHaveBeenCalled();
+  expect(publicProjectsApi.status).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ['classroom_safe_mode', 'Безопасный режим запрещает публикацию этой работы.'],
+  ['publication_forbidden', 'Публикация этой работы ограничена настройками доступа.'],
+])('explains the actual publication restriction %s', async (reasonCode, message) => {
+  const banned = status();
+  vi.mocked(publicProjectsApi.status).mockResolvedValue(
+    response({
+      ...banned,
+      publication: { ...banned.publication!, publicPath: null },
+      canPublish: false,
+      reasonCode,
+    }),
+  );
+  await render('electronics');
+  expect(host.querySelector('[data-testid="publication-permission"]')?.textContent).toBe(message);
+  expect(
+    host.querySelector<HTMLButtonElement>('[data-testid="publication-publish"]')?.disabled,
+  ).toBe(true);
+  expect(publicProjectsApi.publish).not.toHaveBeenCalled();
+});
 
 it('receives Robotics identity through ProjectProperties and describes only the public view', async () => {
   const project = { id: projectId, moduleKey: 'robotics', ...metadata } as Project;

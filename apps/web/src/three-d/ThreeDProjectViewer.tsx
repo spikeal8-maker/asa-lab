@@ -9,11 +9,15 @@ export function ThreeDProjectViewer({
   label,
   fallback,
   testId,
+  onReady,
+  onUnavailable,
 }: {
   readonly document: ThreeDDocument;
   readonly label: string;
   readonly fallback: ReactNode;
   readonly testId?: string;
+  readonly onReady?: () => void;
+  readonly onUnavailable?: () => void;
 }): JSX.Element {
   const viewport = useRef<ThreeDPresentationHandle>(null);
   const section = useRef<HTMLElement>(null);
@@ -140,8 +144,14 @@ export function ThreeDProjectViewer({
         <ThreeDPresentation
           ref={viewport}
           document={model}
-          onReady={() => setState('ready')}
-          onError={() => setState('failed')}
+          onReady={() => {
+            setState('ready');
+            onReady?.();
+          }}
+          onError={() => {
+            setState('failed');
+            onUnavailable?.();
+          }}
         />
         {!ready && <div className="public-three-d-fallback">{fallback}</div>}
       </div>

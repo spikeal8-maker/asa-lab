@@ -6,9 +6,13 @@ import { publicThreeDDocument } from '../three-d/public-three-d-document';
 export function PublicThreeDViewer({
   artifact,
   fallback,
+  onReady,
+  onUnavailable,
 }: {
   readonly artifact: PublicThreeDArtifact;
   readonly fallback: ReactNode;
+  readonly onReady?: () => void;
+  readonly onUnavailable?: () => void;
 }): JSX.Element {
   const document = useMemo(() => publicThreeDDocument(artifact), [artifact]);
   return (
@@ -17,6 +21,8 @@ export function PublicThreeDViewer({
       label="Интерактивная 3D-модель"
       fallback={fallback}
       testId="public-three-d-viewer"
+      {...(onReady ? { onReady } : {})}
+      {...(onUnavailable ? { onUnavailable } : {})}
     />
   );
 }

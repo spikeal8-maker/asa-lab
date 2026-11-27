@@ -74,7 +74,10 @@ export type {
   PublicDisplayComponentKind,
   PublicDisplayVisualProperties,
 } from './public-project-display-artifact.js';
-export type { PublicScratchPlayerBootstrap } from './public-scratch-player';
+export type {
+  PublicScratchPlayerBootstrap,
+  StudentScratchReviewBootstrap,
+} from './public-scratch-player';
 export {
   validatePublicThreeDArtifact,
   PUBLIC_THREE_D_NODE_FIELDS,
@@ -148,6 +151,12 @@ export {
 export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
 
 export { publicArduinoBlocks, classroomArduinoBlocks } from './public-arduino-blocks.js';
+export {
+  validateStudentPublicationReviewArtifact,
+  type RoboticsPublicationReviewArtifact,
+  type ScratchPublicationReviewArtifact,
+  type StudentPublicationReviewArtifact,
+} from './student-publication-review-artifact.js';
 
 export type {
   ChessNetworkScope,
