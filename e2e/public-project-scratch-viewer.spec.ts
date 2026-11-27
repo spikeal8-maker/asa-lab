@@ -478,19 +478,23 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
 
 test('private Scratch review boots the same readonly host with sealed assets and loses access after the author saves', async ({
   browser,
+  baseURL,
 }) => {
   test.setTimeout(120000);
+  if (!baseURL) throw Error('The private Scratch review requires the portal URL');
+  const origin = new URL(baseURL).origin;
+  const headers = { origin };
   const admin = e2eAdminPool();
-  const teacherContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const learnerContext = await browser.newContext();
+  const teacherContext = await browser.newContext({
+    baseURL: origin,
+    viewport: { width: 1440, height: 900 },
+  });
+  const learnerContext = await browser.newContext({ baseURL: origin });
   try {
     await nativeHost(teacherContext);
     const teacher = await seedTeacher(admin, 'scratch-review-player');
     const page = await teacherContext.newPage();
     const learner = await learnerContext.newPage();
-    await Promise.all([page.goto('/#/explore'), learner.goto('/#/explore')]);
-    const origin = new URL(page.url()).origin;
-    const headers = { origin };
     expect(
       (
         await page.request.post('/api/auth/login', {
@@ -594,11 +598,18 @@ test('private Scratch review boots the same readonly host with sealed assets and
     const boot = await granted.json();
     expect(boot).toMatchObject({ reviewRequestId: id, sourceRevision: revision });
     expect(boot.runtimeToken.split('.')).toHaveLength(3);
+    // Mount the portal after API sign-in so the first session read sees the teacher cookie.
     await page.goto('/#/classrooms/' + classroomId);
-    await page
+    const projects = page
       .getByRole('navigation', { name: 'Разделы класса' })
-      .getByRole('button', { name: 'Проекты', exact: true })
-      .click();
+      .getByRole('button', { name: 'Проекты', exact: true });
+    await expect(
+      projects,
+      'The signed-in teacher opens the classroom before Scratch loads',
+    ).toBeVisible({
+      timeout: 10000,
+    });
+    await projects.click();
     const queue = page.getByRole('region', { name: 'Заявки на публикацию' });
     await queue.locator('summary').click();
     await queue
