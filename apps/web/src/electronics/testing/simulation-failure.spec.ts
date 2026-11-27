@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SolveResult } from '../../api';
 import {
   circuitStateMessage,
+  preflightFailure,
   simulationFailureMessage,
   timedAdvanceFailure,
   SimulationFailure,
@@ -45,6 +46,49 @@ describe('simulation failure presentation', () => {
     expect(
       circuitStateMessage({ ...noSource, diagnostics: [...noSource.diagnostics, short] }),
     ).toEqual({ category: 'circuit-state', code: 'short_circuit', text: 'Short circuit.' });
+  });
+
+  it('shows the L298N power warning even when the circuit was solved', () => {
+    const diagnostic = {
+      code: 'l298n_logic_supply',
+      severity: 'warning',
+      message: 'L298N: снимите 5V_EN, подайте внешние 5 В на +5V и соедините GND.',
+    } as const;
+    const solved: SolveResult = {
+      ...noSource,
+      solved: true,
+      status: 'solved',
+      diagnostics: [diagnostic],
+    };
+    const firstMessage = circuitStateMessage(solved);
+    expect(firstMessage).toEqual({
+      category: 'circuit-state',
+      code: diagnostic.code,
+      text: diagnostic.message,
+    });
+    expect(circuitStateMessage({ ...solved, diagnostics: [{ ...diagnostic }] }, firstMessage)).toBe(
+      firstMessage,
+    );
+    expect(
+      circuitStateMessage({
+        ...solved,
+        diagnostics: [{ ...diagnostic, code: 'led_near_limit' }],
+      }),
+    ).toBeNull();
+  });
+
+  it('shows the exact L298N wiring instruction from preflight', () => {
+    const message = 'L298N: проверьте нагрузку канала. Ток превышает 2 А.';
+    const failure = preflightFailure({
+      ...noSource,
+      status: 'unsupported',
+      diagnostics: [{ code: 'unsupported_topology', severity: 'error', message }],
+    })!;
+    expect(simulationFailureMessage(failure)).toEqual({
+      category: 'unsupported',
+      code: 'unsupported_topology',
+      text: message,
+    });
   });
 
   it.each([

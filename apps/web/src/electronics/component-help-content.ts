@@ -21,6 +21,24 @@ export function componentHelpSections(
   variantId?: string,
   options?: { readonly ledColour?: string },
 ): readonly HelpSection[] {
+  if (variantId === 'l298n-motor-driver')
+    return [
+      {
+        id: 'connection',
+        title: 'Питание от батареи 6 В',
+        text: 'Подключите плюс батареи 6 В к +12V (VS), минус — к GND. Снимите 5V_EN и подайте отдельные стабилизированные 5 В на +5V. Соедините GND платы, источника 5 В и Arduino с минусом батареи.',
+      },
+      {
+        id: 'usage',
+        title: 'Пуск и реверс канала A',
+        text: 'Подключите мотор к OUT1 и OUT2. С установленной ENA канал A разрешён. Для внешнего сигнала или ШИМ снимите ENA и подайте сигнал на её контакт. IN1=HIGH и IN2=LOW вращают мотор в одну сторону. Для реверса поменяйте уровни местами.',
+      },
+      {
+        id: 'safety',
+        title: 'Перемычка 5V_EN и ток',
+        text: 'При 7–12 В на VS установленная 5V_EN включает встроенное питание логики. Держите +12V (VS) и +5V раздельными. Ток ниже 2 А на канал допустим в модели. При превышении проверьте нагрузку и короткие замыкания.',
+      },
+    ];
   if (variantId === 'soil-moisture-sensor')
     return [
       {

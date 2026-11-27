@@ -1275,7 +1275,7 @@ export function useElectronicsWorkbenchHost(
             ledPresentation.acceptSnapshot(nextResult, latestCommittedHorizon);
           }
           observeReanchor();
-          const message = circuitStateMessage(nextResult);
+          const message = circuitStateMessage(nextResult, lastCircuitMessage);
           if (message !== lastCircuitMessage) {
             lastCircuitMessage = message;
             setSimulationMessage(message);

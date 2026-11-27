@@ -9,7 +9,14 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import type { SchematicComponent } from '../../api';
 import { L298nLedOverlay } from '../L298nLedOverlay';
-import { l298nExternalEnablePad, terminalPosition } from '../component-catalog';
+import {
+  catalogEntry,
+  l298nExternalEnablePad,
+  terminalPosition,
+  workbenchCatalog,
+} from '../component-catalog';
+import { componentHelpSections } from '../component-help-content';
+import { componentInformationProfile } from '../component-information';
 import {
   configureProductionLibrary,
   ownerCatalogItems,
@@ -62,6 +69,34 @@ const controller = source('apps/web/src/electronics/use-electronics-workbench.ts
 const visual = source('apps/web/src/electronics/ProductionComponentVisual.tsx');
 
 describe('L298N full feature-branch UI/state contract (#1199 P2)', () => {
+  it('routes the installed red-43mm driver to its real power and motor wiring reference', () => {
+    const family = workbenchCatalog().find((item) => item.familyId === 'l298n-motor-driver')!;
+    const variant = family.variants.find((item) => item.variantId === 'red-43mm')!;
+    const component = { ...board(true, true), variantId: variant.variantId };
+    const entry = catalogEntry(component)!;
+    expect(entry).toBe(variant.entry);
+    const card = componentHelpSections(component.kind, entry.description, entry.key);
+    const power = card.find((item) => item.id === 'connection')?.text;
+    expect(power).toContain('6 В к +12V (VS)');
+    expect(power).toContain('5V_EN');
+    expect(power).toContain('5 В на +5V');
+    expect(power).toContain('GND');
+    const direction = card.find((item) => item.id === 'usage')?.text;
+    expect(direction).toContain('OUT1 и OUT2');
+    expect(direction).toContain('ENA');
+    expect(direction).toContain('IN1=HIGH и IN2=LOW');
+    expect(direction).toContain('Для реверса поменяйте уровни местами');
+    const limit = card.find((item) => item.id === 'safety')?.text;
+    expect(limit).toContain('раздельными');
+    expect(limit).toContain('Ток ниже 2 А на канал');
+    expect(componentInformationProfile(family.familyId, component.kind)).toMatchObject({
+      terminalPresentation: 'full',
+      technicalMetrics: expect.arrayContaining([
+        expect.objectContaining({ metricBindingId: 'voltage-drop', label: 'Моторное питание VS' }),
+      ]),
+    });
+  });
+
   it('enables owner-sourced 43x43-mm catalog only after integrated domain slice', () => {
     expect(ownerItem).toMatchObject({
       status: 'enabled',

@@ -342,6 +342,17 @@ export function componentInformationProfile(
   componentFamilyId: string,
   kind: ComponentKind,
 ): ComponentInformationProfile {
+  if (componentFamilyId === 'l298n-motor-driver')
+    return {
+      componentFamilyId,
+      compactFields: [NAME_FIELD],
+      technicalMetrics: [
+        { ...METRICS.voltage, label: 'Моторное питание VS' },
+        { ...METRICS.current, label: 'Ток питания' },
+        METRICS.power,
+      ],
+      terminalPresentation: 'full',
+    };
   if (componentFamilyId === 'temperature-sensor' || componentFamilyId === 'soil-moisture-sensor')
     return {
       componentFamilyId,
