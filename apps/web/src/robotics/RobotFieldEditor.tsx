@@ -1332,6 +1332,47 @@ export function RobotFieldEditor({
             : 'Учебный'}
       </span>
       <div className="robotics-field-toolbar" role="toolbar" aria-label="Инструменты поля">
+        <div className="robotics-field-toolbar-primary">
+          <div className="robotics-field-view-switch" role="group" aria-label="Камера поля">
+            {FIELD_VIEWS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={fieldView === id}
+                onClick={() => changeFieldView(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="robotics-field-zoom">
+            <button
+              type="button"
+              aria-label="Отдалить поле"
+              disabled={
+                topView
+                  ? (cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE
+                  : !spatialReady
+              }
+              onClick={() => stepZoom(-1)}
+            >
+              −
+            </button>
+            <output aria-label="Масштаб поля">{Math.round(zoom * 100)}%</output>
+            <button
+              type="button"
+              aria-label="Приблизить поле"
+              disabled={
+                topView
+                  ? (cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE
+                  : !spatialReady
+              }
+              onClick={() => stepZoom(1)}
+            >
+              +
+            </button>
+          </div>
+        </div>
         <div className="robotics-field-toolbar-scroll">
           <button
             ref={propertiesButton}
@@ -1352,19 +1393,34 @@ export function RobotFieldEditor({
             <span aria-hidden="true">▦</span>
             Элементы поля
           </button>
-          <div className="robotics-field-view-switch" role="group" aria-label="Камера поля">
-            {FIELD_VIEWS.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={fieldView === id}
-                onClick={() => changeFieldView(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <div className="robotics-field-view-tools" aria-label="Вид и привязка поля">
+            <button
+              type="button"
+              aria-label="Показать поле целиком"
+              title="Показать всё (Home)"
+              disabled={!topView && !spatialReady}
+              onClick={fit}
+            >
+              Всё поле
+            </button>
+            <button
+              type="button"
+              aria-label="К роботу"
+              title="К роботу"
+              disabled={!topView && !spatialReady}
+              onClick={focusRobot}
+            >
+              Робот
+            </button>
+            <button
+              type="button"
+              aria-label="К выделенному"
+              title="К выделенному"
+              disabled={!selection || (!topView && !spatialReady)}
+              onClick={focusSelection}
+            >
+              Выбор
+            </button>
             <label className="robotics-grid-toggle">
               <input
                 type="checkbox"
@@ -1422,60 +1478,6 @@ export function RobotFieldEditor({
               >
                 <span aria-hidden="true">↷</span>
                 <span>Вперёд</span>
-              </button>
-            </div>
-            <div className="robotics-field-zoom">
-              <button
-                type="button"
-                aria-label="Отдалить поле"
-                disabled={
-                  topView
-                    ? (cameraControl.camera?.pixelsPerMeter ?? 1) <= FIELD_CAMERA_MIN_SCALE
-                    : !spatialReady
-                }
-                onClick={() => stepZoom(-1)}
-              >
-                −
-              </button>
-              <output aria-label="Масштаб поля">{Math.round(zoom * 100)}%</output>
-              <button
-                type="button"
-                aria-label="Приблизить поле"
-                disabled={
-                  topView
-                    ? (cameraControl.camera?.pixelsPerMeter ?? 1) >= FIELD_CAMERA_MAX_SCALE
-                    : !spatialReady
-                }
-                onClick={() => stepZoom(1)}
-              >
-                +
-              </button>
-              <button
-                type="button"
-                aria-label="Показать поле целиком"
-                title="Показать всё (Home)"
-                disabled={!topView && !spatialReady}
-                onClick={fit}
-              >
-                Всё поле
-              </button>
-              <button
-                type="button"
-                aria-label="К роботу"
-                title="К роботу"
-                disabled={!topView && !spatialReady}
-                onClick={focusRobot}
-              >
-                Робот
-              </button>
-              <button
-                type="button"
-                aria-label="К выделенному"
-                title="К выделенному"
-                disabled={!selection || (!topView && !spatialReady)}
-                onClick={focusSelection}
-              >
-                Выбор
               </button>
             </div>
           </div>
