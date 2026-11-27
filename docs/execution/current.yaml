@@ -18992,6 +18992,101 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-ELECTRONICS-OBSERVER-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3-ELECTRONICS-OBSERVER
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_electronics_observer_selected
+      owner_acceptance: pending
+      owner_authorization: The owner clarified that the Electronics tab must show the full working schematic on
+        the right, with an adjustable narrow panel on the left for the real Field cameras and a rotatable Robot.
+        This selects the Electronics layout and its observation interactions after protected Perspective palette
+        delivery. Implementation begins after protected canonical integration and fresh exact source preflight.
+      registration_baseline:
+        main: 00276d061d0aa56e3bedb00189f23ec114d400b6
+        perspective_source: 3a959c5f0c6a3daff1023ad7c97bf87af31a3d1a
+        perspective_pr: https://github.com/spikeal8-maker/asa-lab/pull/1375
+        preserved_task: parallel_lanes.robotics.historical_perspective_place_task
+        perspective_result: parallel_lanes.robotics.perspective_place_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-UI-02
+        - REQ-UI-04
+        - REQ-UI-05
+        - REQ-UI-08
+        - REQ-CAM-05
+        - REQ-LAYOUT-01
+        - REQ-DEL-02
+      scope: On Electronics, give the existing full live schematic and its tooling the flexible main area on the
+        right. Place an adjustable compact observation panel on the left with Field and Robot choices. Reflow the
+        existing Field and Robot viewports without duplicating scenes, controllers or project/runtime state.
+        Preserve the separate Code layout and the full Field and Robot workspaces.
+      planned_paths:
+      - apps/web/src/robotics/RoboticsLab.tsx
+      - apps/web/src/robotics/RobotAssemblyPanel.tsx
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/testing/robotics-lab.spec.ts
+      - e2e/robotics-projects.spec.ts
+      conditional_paths:
+        apps/web/src/robotics/RobotFieldEditor.tsx: Only narrow observer camera controls or observation behavior.
+        apps/web/src/robotics/testing/robotics-lab.spec.ts: Only focused layout, width, visibility and focus regressions.
+      ux_acceptance:
+      - Keep the real production WorkbenchStage, component library, schematic tools, keyboard and pointer editing
+        in the right main area. Anchor the existing Electronics Code drawer to that area and preserve its document,
+        read/write ownership and runtime. Keep Serial observation and status accessible with either left selection.
+      - The left panel starts narrow and resizes by pointer and keyboard with accessible limits. Persist its width
+        independently of the Code split width and preserve a usable primary schematic area. Compact workspace shows
+        one accessible pane at a time, with schematic and observation choices and remembered Field or Robot
+        selection. A compact width clamp cannot overwrite an explicit wide preference.
+      - Field uses the existing active Field with Top, Perspective and Side, navigable pan and zoom, and the
+        calibrated ruler. The real primary camera and scale controls remain reachable at the actual panel width,
+        including beside the wide schematic. Robot uses the existing genuine 3D view with pointer orbit and camera
+        controls. Hide assembly forms only in observation. Preserve full Robot construction on its own tab.
+      - Switch left selection and resize without remounting viewports or resetting camera, pause time, live pose,
+        project, undo or schematic selection. Suspend hidden rendering and clear transient drag or shortcut
+        ownership so the hidden pane cannot take a mutation. Focus goes to a usable control when opening either
+        compact pane. Preserve main navigation, project reload/save and the existing Code-to-Field workspace.
+      constraints:
+      - Only the listed existing paths may change. Preserve current route, access/publication conditions,
+        circuit/grid and Arduino behavior, project/schema, physics, engines and scaling math. The full Field
+        keeps its current authoring, including native palette gestures in Perspective. Shared grid independence,
+        direct Code-on-Field and its mode-specific widths, terrain and native physics are separate.
+      - All earlier tasks, results and physical FAIL/GAP evidence remain immutable. ROBOTICS-FIELD-CORE-D01-D02
+        keeps its original E1 binding and blocks. No new service or address, stand startup, production update,
+        deployment, database mutation, release claim, owner acceptance or physics acceptance is selected.
+      verification:
+        pure: Preserve existing Robotics regression checks and cover separate width constraints and persistence
+          behavior, layout routing, visible-pane focus, and activation/ownership handoff where pure checks apply.
+        product: Use the normal account project and prove layout bounds with Electronics left/right in the
+          intended order, the full functional schematic, Code drawer and Serial access, in-pane camera targets,
+          calibrated Scale/Side, real pointer Robot orbit, and no hidden focus or shortcut mutation. Validate
+          actual instance/camera continuity, paired unchanged paused clock/pose/source, and schematic/project state.
+        browser: Extend the existing exact-source built ordinary project journey. Measure narrow observer and main
+          Stage bounds at1440px and camera hit targets at the actual left width. Choose all three Field cameras,
+          exercise pan and independent zoom, and rotate the real Robot WebGL camera using ordinary pointer input.
+          Compare camera readbacks before and after left-tab and workspace transitions. Exercise pointer and
+          keyboard resize, compact switches at320px followed by return to wide and saved-project reload. Preserve
+          prior Field, Circuit, Code, Perspective palette and publication assertions.
+        gates: 'Registration: sole-path PLAN/control, YAML formatting and full byte/semantic inverse, actual pnpm
+          validate:electronics-agent-docs and pnpm gate:governance. Candidate: fresh focused types/build and pnpm
+          test:robotics, changed-file lint/format, independent review and protected General and
+          pnpm gate:projects-publication:browser proofs at exact source SHA.'
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    historical_perspective_place_task:
       id: TASK-ELECTRONICS-ROBOTICS-PERSPECTIVE-PLACE-001
       issue: 1071
       branch: main
@@ -19080,6 +19175,43 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    perspective_place_result:
+      observed_on: '2026-11-27'
+      status: PROTECTED_SOURCE_AND_BUILT_BROWSER_VERIFIED_UI_ONLY
+      source: 3a959c5f0c6a3daff1023ad7c97bf87af31a3d1a
+      source_tree: 929a3e9953a4075af51d6603634f0afdc34e8ded
+      merge: 00276d061d0aa56e3bedb00189f23ec114d400b6
+      merge_tree: 929a3e9953a4075af51d6603634f0afdc34e8ded
+      pr:
+        number: 1375
+        url: https://github.com/spikeal8-maker/asa-lab/pull/1375
+        state: MERGED
+      required:
+        head: 3a959c5f0c6a3daff1023ad7c97bf87af31a3d1a
+        attempt: 1
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/46057360907/job/140714724390
+      browser:
+        head: 3a959c5f0c6a3daff1023ad7c97bf87af31a3d1a
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/46057360801/job/140703110677
+        journeys_passed: 6
+        artifact_id: 15227194835
+        artifact_name: public-projects-3a959c5f0c6a3daff1023ad7c97bf87af31a3d1a
+        artifact_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/46057360801/artifacts/15227194835
+        artifact_bytes: 45607397
+        artifact_sha256: 2e99d22728eca90c8f86fa17f273ec7c75ea476c937d6701b83bcfd9051635b4
+      local_exact_source:
+        robotics_tests_passed: 516
+        robotics_tests_total: 516
+        nx_typecheck_tasks_fresh: 8
+        nx_build_tasks_fresh: 8
+      scope: Native placement of wall, ball, can and block into the existing Perspective Field using canonical
+        ground projection and a transient unpickable mesh. Exact built proof covers actual palette drags,
+        committed and canceled paths and the preserved project journeys.
+      owner_acceptance: pending
+      physical_acceptance: unchanged
+      deployment: not_run
     historical_compact_field_zoom_task:
       id: TASK-ELECTRONICS-ROBOTICS-COMPACT-FIELD-ZOOM-001
       issue: 1071
