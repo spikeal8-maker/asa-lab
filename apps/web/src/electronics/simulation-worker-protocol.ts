@@ -24,24 +24,11 @@ export interface SimulationPreflightRequest extends SimulationWorkerRequestBase 
 }
 
 export interface SimulationAdvanceRequest extends SimulationWorkerRequestBase {
-  readonly preparedRequestId?: string;
   readonly kind: 'advance';
   readonly document: SchematicDocument;
   readonly state: ElectronicsTimedState;
   readonly requestedHorizonMicroseconds: number;
   readonly inputEvents?: readonly ElectronicsTimedInputEvent[];
-}
-
-export interface SimulationPrepareRequest extends Omit<
-  SimulationAdvanceRequest,
-  'kind' | 'preparedRequestId' | 'inputEvents'
-> {
-  readonly kind: 'prepare-advance';
-}
-
-export interface SimulationDiscardPreparation extends SimulationWorkerRequestBase {
-  readonly kind: 'discard-preparation';
-  readonly preparedRequestId: string;
 }
 
 export interface SimulationCancelRequest extends SimulationWorkerRequestBase {
@@ -50,10 +37,6 @@ export interface SimulationCancelRequest extends SimulationWorkerRequestBase {
 
 export type ElectronicsSimulationWorkerRequest =
   SimulationPreflightRequest | SimulationAdvanceRequest | SimulationCancelRequest;
-
-/** The dedicated transport also accepts private, non-publishing preparation messages. */
-export type ElectronicsSimulationWorkerMessage =
-  ElectronicsSimulationWorkerRequest | SimulationPrepareRequest | SimulationDiscardPreparation;
 
 export interface SimulationTimedAdvancePayload {
   readonly executionStatus: 'ready' | 'yielded' | 'fault';
@@ -67,8 +50,6 @@ export interface SimulationTimedAdvancePayload {
 }
 
 export interface SimulationWorkerMetrics {
-  /** Portion of the reported compute time performed before the authoritative request. */
-  readonly preparedComputeMs?: number;
   readonly computeMs: number;
   readonly solverRevision: typeof ELECTRONICS_SIMULATION_ENGINE_REVISION;
   readonly executionStatus: 'preflight' | 'ready' | 'yielded' | 'fault';

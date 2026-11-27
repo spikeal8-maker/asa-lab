@@ -8,8 +8,6 @@ import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
   type ElectronicsSimulationWorkerRequest,
-  type SimulationPrepareRequest,
-  type SimulationDiscardPreparation,
   type ElectronicsSimulationWorkerResponse,
   type SimulationAdvanceRequest,
   type SimulationPreflightRequest,
@@ -22,7 +20,6 @@ export interface ElectronicsSimulationWorkerLike {
   onerror: ((event: ErrorEvent) => void) | null;
   onmessageerror: ((event: MessageEvent) => void) | null;
   postMessage(message: ElectronicsSimulationWorkerRequest): void;
-  postPreparation?(message: SimulationPrepareRequest | SimulationDiscardPreparation): void;
   terminate(): void;
 }
 
@@ -37,13 +34,9 @@ interface PendingSimulation {
 }
 
 function defaultWorkerFactory(): ElectronicsSimulationWorkerLike {
-  const worker = new Worker(new URL('./simulation.worker.ts', import.meta.url), {
+  return new Worker(new URL('./simulation.worker.ts', import.meta.url), {
     type: 'module',
     name: 'asa-electronics-simulation',
-  });
-  return Object.assign(worker, {
-    postPreparation: (message: SimulationPrepareRequest | SimulationDiscardPreparation) =>
-      worker.postMessage(message),
   });
 }
 
@@ -122,57 +115,17 @@ export class ElectronicsSimulationWorkerClient {
     }
   }
 
-  /** Preparation has no public result. A matching ordinary advance is still required. */
-  prepareAdvance(
-    generationId: number,
-    document: SchematicDocument,
-    state: ElectronicsTimedState,
-    horizon: number,
-  ): string | null {
-    const worker = this.worker;
-    if (!worker?.postPreparation || !this.isCurrent(generationId)) return null;
-    try {
-      const base = this.requestBase(generationId);
-      worker.postPreparation({
-        ...base,
-        kind: 'prepare-advance',
-        document,
-        state,
-        requestedHorizonMicroseconds: horizon,
-      });
-      return base.requestId;
-    } catch {
-      // A failed optional clone leaves the normal advance and its error handling intact.
-      return null;
-    }
-  }
-
-  discardPreparedAdvance(generationId: number, preparedRequestId: string): void {
-    if (!this.worker?.postPreparation || !this.isCurrent(generationId)) return;
-    try {
-      this.worker.postPreparation({
-        ...this.requestBase(generationId),
-        kind: 'discard-preparation',
-        preparedRequestId,
-      });
-    } catch {
-      // The caller has already dropped the only grant that could consume it.
-    }
-  }
-
   advance(
     generationId: number,
     document: SchematicDocument,
     state: ElectronicsTimedState,
     requestedHorizonMicroseconds: number,
     inputEvents: readonly ElectronicsTimedInputEvent[] = [],
-    preparedRequestId?: string,
   ): Promise<SimulationTimedAdvancePayload> {
     try {
       return this.send({
         ...this.requestBase(generationId),
         kind: 'advance',
-        ...(preparedRequestId === undefined ? {} : { preparedRequestId }),
         document,
         state,
         requestedHorizonMicroseconds,
