@@ -18992,6 +18992,139 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-SPLIT-WORKSPACE-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E3-SPLIT-WORKSPACE
+      profile: UI_ONLY
+      checkpoint: ui_only_e3_real_editor_field_split_selected
+      owner_acceptance: pending
+      owner_authorization: The owner's explicit ordinary Robotics visual programme now selects the dependent real
+        split workspace after protected Field, Robot and common-header delivery. Reuse the actual circuit and text/Blockly
+        Arduino editors on the left with one persistent interactive Field on the right. This is a bounded UI_ONLY
+        presentation slice; implementation begins only after protected canonical integration and fresh exact preflight.
+      registration_baseline:
+        main: fbe2768b45c61fabd9910504fc02d13e025c20d1
+        header_source: 362a0535275362bcd0a48115aac4d8073f0d5782
+        header_pr: https://github.com/spikeal8-maker/asa-lab/pull/1364
+        preserved_task: parallel_lanes.robotics.historical_header_controls_task
+        header_result: parallel_lanes.robotics.header_controls_result
+        robot_result: parallel_lanes.robotics.robot_visual_result
+        field_result: parallel_lanes.robotics.field_visual_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-DEL-02
+        - REQ-DEL-05
+        - REQ-UI-06
+        - REQ-UI-07
+        - REQ-UI-08
+        - REQ-LAYOUT-01
+      scope: Make the existing actual Circuit or Arduino text/Blockly editor a resizable left pane alongside the
+        same persistent interactive Field editor on the right. Reuse the current project, controller, world, clock,
+        viewport and editor instances; a miniature read-only drawing is not the requested Field. The Robot construction
+        tab keeps its current desktop turntable/settings placement. This changes presentation, focus and transient
+        gesture ownership, not simulation or data models.
+      planned_paths:
+      - apps/web/src/robotics/RoboticsLab.tsx
+      - apps/web/src/robotics/robotics.css
+      - apps/web/src/robotics/testing/robotics-lab.spec.ts
+      - e2e/robotics-projects.spec.ts
+      - apps/web/src/robotics/RobotFieldEditor.tsx
+      - apps/web/src/robotics/RoboticsEditor.tsx
+      - apps/web/src/robotics/testing/robotics.browser.mjs
+      conditional_paths:
+        apps/web/src/robotics/RobotFieldEditor.tsx: Only presentation props, split-mode drawer/focus and cancellation
+          of transient gestures when panes hide/resize; preserve scene/document and accepted camera/gesture behavior.
+        apps/web/src/robotics/RoboticsEditor.tsx: Only presentation/focus/prop seam required for the same normal
+          account workspace; preserve save/publication/controller ownership.
+        apps/web/src/robotics/testing/robotics.browser.mjs: Only adapt actual changed layout/selector assumptions;
+          retain existing editor, save and Blockly checks. Primary real browser proof remains the existing publication
+          journey.
+      ux_acceptance:
+      - At desktop sizes, Electronics shows the existing interactive WorkbenchStage on the left and Code shows the
+        existing ArduinoCodePanel in its selected text/Blockly mode on the left, with the same actual interactive
+        Field editor on the right. Keep the Field-only view usable at full available width. Retain one Field component/viewport
+        through section changes rather than conditional copies or re-created worlds; do not add a second live miniature
+        Field in split mode. Robot retains its current desktop construction view/settings, with the same preserved
+        Field instance inactive if hidden.
+      - Provide a reachable desktop separator with pointer drag and keyboard operation, bounded minimum usable pane
+        sizes, pointer capture/cancel/lost-capture cleanup and accessible orientation/current width. Persist only
+        the user's desktop UI width preference. Narrow viewport clamps or temporary pane hiding must not overwrite
+        that desktop preference; restoring desktop restores the user's intended width within the new desktop bounds.
+        Resize cannot dirty the project or reset its camera, code, time or pose.
+      - Keep the Field's existing catalog/inspector as a closable controlled drawer in split mode, including at1440px,
+        rather than adding another fixed300px rail beside editor and Field. Field-only keeps the accepted dock behavior.
+        Preserve selection/properties, palette/tools, validation/undo, metric rulers, active grid and all Top/Side/oblique
+        camera Fit/zoom/pan/picking/drag functionality. Field navigation/zoom and circuit or code navigation/zoom
+        remain independent; changing a pane cannot masquerade as a document or runtime edit.
+      - At320px use an accessible choice of the real editor pane or Field pane instead of unreadable simultaneous
+        columns. A compact visible control hands focus to the selected editor/Field without remounting it, losing
+        pending text/Blockly/circuit selection, duplicating DOM IDs/renderers or exposing hidden controls in keyboard
+        order. Suspend hidden rendering/gestures and release captures; on return retain the same Field camera/view
+        and editor contents. Existing Robot responsive turntable and one common header remain usable.
+      - Make shortcut/focus ownership explicit now that Field and an editor coexist. Electronics must not consume
+        Delete/Undo intended for Field, nor may Field consume circuit/code/text editing shortcuts. Route an event
+        at most once to its current editable/focused owner while respecting text inputs, Blockly and existing shortcut
+        semantics. Preserve the single canonical history and existing flush/publication handlers; do not implement
+        a second history, controller or new state model. Switching focus/panes or resizing cancels stale transient
+        drags without committing unseen edits.
+      - Retain one authoritative world/document/controller/model clock and the accepted header time/Run-Pause-Reset
+        group. Section/pane/view changes, drawer opening and resize never pause/restart/reset an experiment by themselves.
+        Preserve running edit locks, errors/halt/disabled states, saved identity, undo/redo, existing telemetry/Serial
+        access without another fixed rail, actual code/sketch/Blockly sources and board bindings, pending-code flush,
+        autosave/manual save/reopen and publication. No fake poses, duplicate simulation, new time loops or calculation
+        changes.
+      constraints:
+      - Only the seven listed existing paths are planned, with the three conditional paths limited above. No new
+        source files, assets/artwork/SVG, packages/lockfile/configuration, engine/Worker/native/Arduino calculations,
+        schema/world/runtime implementation, API/database, service/route, stand startup/mount or deployment. Do not
+        change parser, model dimensions or drive behavior to satisfy layout tests.
+      - 'All earlier tasks/results and physical FAIL/GAP/raw/source evidence remain immutable history. ROBOTICS-FIELD-CORE-D01-D02
+        keeps its original E1 binding and blocks: this slice grants no spatial_product_integration, full_physics_acceptance,
+        owner acceptance, release_claim, deployment or working-DB operation. A protected UI merge is not installation
+        evidence.'
+      - Adjustable physical ramp/platform/bridge tools remain separately gated; existing geometry helper/fixtures
+        and live prototype are TEST_ONLY. Do not introduce a terrain schema, flat fake physical-ramp drawing, new
+        native acquisition or rerun an old consumed opt-in.
+      - Preserve the accepted Field and Robot renderers, common header and normal account/standalone entry semantics.
+        Any extra implementation path or materially different pane behavior requires a checked scope decision before
+        edits; this selection does not authorize adjacent editor/runtime refactors.
+      verification:
+        pure: Extend existing robotics-lab integration tests for one persistent Field/WorkbenchStage/ArduinoCodePanel
+          and no duplicate IDs/controllers; same source/time/pose/view/camera after section/pane/resize changes;
+          independent zoom, running locks, saved/pending text and Blockly contents. Test keyboard/pointer separator
+          bounds and cancel, desktop preference surviving narrow clamping, split-only inspector drawer, focus handoff
+          and one-owner Delete/Undo without duplicate history. Preserve actual existing handlers and Field/Robot/header
+          regressions; do not mock a new physical result.
+        browser: Use the existing ordinary publication built Web/API/isolated PostgreSQL saved-account scenario at
+          the exact candidate SHA. At1440px prove actual editable circuit or text/Blockly left, actual interactive
+          Field right, pointer+keyboard resizing with real geometry/bounds and drawer/no-extra-rail; edit both models
+          and verify focus-owned shortcuts. At320px exercise reachable pane switching and focus, hidden renderer/capture
+          suspension, restored desktop preference and retained text versus blocks. Retain a continuity receipt for
+          paused clock/pose/document/camera and persistent editor/Field DOM through all tabs, independent zoom, running
+          locks, save/reopen/publication, existing Robot turntable and header. Capture screenshots and objective
+          state/bounds/identity measurements; no fallback-only or synthetic DOM/time/pose substitute for real built-browser
+          proof.
+        gates: 'Registration: sole-path PLAN/control, YAML formatting and full byte/semantic inverse, actual pnpm
+          validate:electronics-agent-docs and pnpm gate:governance. Source after canonical integration: fresh no-cache
+          focused types/build and pnpm test:robotics with NX_SKIP_NX_CACHE=true where Nx is used, changed-file lint/format,
+          exact independent source review and ordinary protected required General. Real browser evidence uses existing
+          pnpm gate:projects-publication:browser and .github/workflows/projects-publication.yml, not a new local
+          service, port, working DB or deployment.'
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/robotics/README.md
+      deployment: not_authorized
+      database_actions: isolated_ci_tests_only
+    historical_header_controls_task:
       id: TASK-ELECTRONICS-ROBOTICS-HEADER-CONTROLS-001
       issue: 1071
       branch: main
@@ -19108,6 +19241,54 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    header_controls_result:
+      observed_on: '2026-11-27'
+      status: PROTECTED_SOURCE_AND_BUILT_BROWSER_VERIFIED_UI_ONLY
+      source: 362a0535275362bcd0a48115aac4d8073f0d5782
+      source_tree: c9cc83cc3c48de5c19560bf607ee72ac73894839
+      merge: fbe2768b45c61fabd9910504fc02d13e025c20d1
+      merge_tree: c9cc83cc3c48de5c19560bf607ee72ac73894839
+      pr:
+        number: 1364
+        url: https://github.com/spikeal8-maker/asa-lab/pull/1364
+        state: MERGED
+      required:
+        head: 362a0535275362bcd0a48115aac4d8073f0d5782
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45939956957/job/140321318827
+      browser:
+        head: 362a0535275362bcd0a48115aac4d8073f0d5782
+        conclusion: SUCCESS
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45939956861/job/140311822746
+        artifact_id: 15172976294
+        artifact_name: public-projects-362a0535275362bcd0a48115aac4d8073f0d5782
+        artifact_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/45939956861/artifacts/15172976294
+        artifact_bytes: 43938221
+        artifact_sha256: 68ab308794e9f1ed4756a8cdee1e535b438b31b11610f0983a3190ae34c1311b
+        controller_verified_receipt:
+          file: header-controls.json
+          widths_css_px:
+          - 1440
+          - 320
+          all_four_tabs_contained_and_reachable: true
+          paused_microseconds_both: 300100
+          resumed_microseconds_in_report_order:
+          - 425100
+          - 400100
+          reset_microseconds_both: 0
+          screenshots: 8
+      focused_controller_receipt:
+        robotics_tests_passed: 448
+        fresh_nx_tasks: 8
+        exact_final_review: HIGH; final E2E-only delta independently reviewed
+      merged_source_parity: All8 changed source/test paths are byte-identical between exact tested source and actual
+        protected merge.
+      delivered: One existing authoritative simulationControls/time group is inside the actual common RoboticsHeader
+        for standalone and normal account, reachable across all4 tabs at1440/320; original controller/handlers/flush/time/source/editor
+        ownership retained.
+      owner_acceptance: pending
+      deployment: not_authorized
+      physical_qualification: NOT_CLAIMED; existing D01/D02 and historical physical FAIL/GAP remain unchanged.
     historical_robot_visual_task:
       id: TASK-ELECTRONICS-ROBOTICS-ROBOT-VISUAL-001
       issue: 1071
