@@ -1057,22 +1057,81 @@
   grid-template-columns: minmax(0, 1fr) 310px;
 }
 .robotics-assembly-view {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
-  padding: 20px;
-  background: radial-gradient(circle, #f1f8fb, #fff 70%);
+  background: #253945;
 }
-.robotics-assembly-view .robotics-field {
-  max-height: 410px;
+.robotics-assembly-camera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: #edf2f3;
 }
-.robotics-assembly-view .robotics-help {
+.robotics-assembly-camera .robotics-field-view-switch {
+  border-color: #cad6da;
+  background: #dce7e9;
+}
+.robotics-assembly-camera .robotics-field-view-switch button {
+  color: #344e59;
+}
+.robotics-assembly-camera .robotics-field-view-switch button[aria-pressed='true'] {
+  background: #235e65;
+  color: #fff;
+}
+.robotics-assembly-camera .robotics-field-view-switch button:hover {
+  background: #c5dadc;
+  color: #173f3b;
+}
+.robotics-assembly-zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+  font-size: 11px;
+  color: #344e59;
+}
+.robotics-assembly-zoom button {
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid #c4d3d8;
+  border-radius: 5px;
+  color: #344e59;
+  background: #fff;
+  cursor: pointer;
+}
+.robotics-assembly-zoom output {
+  min-width: 40px;
   text-align: center;
-  flex: 0 0 auto;
-  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.robotics-assembly-camera :focus-visible {
+  outline: 2px solid #148d84;
+  outline-offset: 2px;
+}
+.robotics-assembly-viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.robotics-assembly-fallback {
+  position: absolute;
+  inset: 0;
+  background: #f0f5f6;
+}
+.robotics-assembly-fallback[hidden] {
+  display: none;
+}
+.robotics-assembly-caption {
+  position: absolute;
+  inset: auto 10px 10px auto;
+  font-size: 11px;
+  color: #526972;
+  pointer-events: none;
 }
 .robotics-assembly-settings {
   min-width: 0;
@@ -1114,9 +1173,6 @@
   }
   .robotics-assembly-editor {
     grid-template-columns: minmax(0, 1fr) 280px;
-  }
-  .robotics-assembly-view {
-    padding: 10px;
   }
 }
 @media (max-width: 760px) {
@@ -1180,7 +1236,14 @@
     overflow: auto;
   }
   .robotics-assembly-view {
-    height: 200px;
+    height: 340px;
+  }
+  .robotics-assembly-camera .robotics-field-view-switch {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .robotics-assembly-camera button {
+    min-height: 40px;
   }
   .robotics-assembly-settings {
     overflow: visible;

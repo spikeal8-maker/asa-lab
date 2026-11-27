@@ -21,19 +21,31 @@ import {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { moveFieldObject } from '../RobotFieldEditor';
 import { fieldWorldToScreen } from '../field-camera';
-import { createFieldSpatialScene } from '../field-spatial-scene';
+import {
+  createFieldSpatialScene,
+  createRobotSpatialScene,
+  readRobotVisualGeometry,
+} from '../field-spatial-scene';
 import RobotFieldSpatialView, {
   bindSpatialFieldGestures,
   spatialEditPoint,
   readSideMetricScale,
   configureTopCamera,
+  frameRobotCamera,
   type FieldViewportControls,
 } from '../RobotFieldSpatialView';
 
-const rendererFailure = vi.hoisted(() => ({ render: vi.fn(), dispose: vi.fn() }));
+const rendererFailure = vi.hoisted(() => ({
+  render: vi.fn(),
+  dispose: vi.fn(),
+  construct: vi.fn(),
+}));
 vi.mock('three', async (original) => ({
   ...(await original<typeof import('three')>()),
   WebGLRenderer: class {
+    constructor() {
+      rendererFailure.construct();
+    }
     render = rendererFailure.render;
     dispose = rendererFailure.dispose;
     setPixelRatio() {}
@@ -762,5 +774,437 @@ it('joins the actual rear caster cup to the deck across supported chassis and wh
         }
   } finally {
     image.mockRestore();
+  }
+});
+
+it('isolates the exact shared robot construction in metres without field content or a runtime pose', () => {
+  const base = createRoboticsWorldV3Document('arena');
+  const image = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  try {
+    for (const size of [0.05, 0.2, 0.5]) {
+      const world = {
+        ...base,
+        robot: {
+          ...base.robot,
+          bodyLengthMeters: size,
+          bodyWidthMeters: size,
+          sensorForwardMeters: 0.3,
+          sensorLateralMeters: -0.3,
+          sensorHeadingRadians: 0.8,
+        },
+      };
+      const before = JSON.stringify(world);
+      const field = createFieldSpatialScene(world, () => {}),
+        assembly = createRobotSpatialScene(world);
+      try {
+        expect(assembly.robotGeometry).toEqual(field.robotGeometry);
+        expect(assembly.robotGeometry).toEqual(world.robot);
+        const robot = assembly.scene.getObjectByName('robot')!;
+        expect(robot.position.toArray()).toEqual([0, 0, 0]);
+        expect(robot.quaternion.toArray()).toEqual([0, 0, 0, 1]);
+        expect(readRobotVisualGeometry(robot as import('three').Group)).toEqual(world.robot);
+        expect(assembly.scene.getObjectByName('metric-grid')).toBeUndefined();
+        expect(assembly.scene.children.filter((object) => !('isLight' in object))).toEqual([robot]);
+        expect(robot.getObjectByName('visual-caster-bracket')).toBeDefined();
+        const centre = new Vector3(),
+          diameter = assembly.readFocus('robot', centre);
+        const bounds = new Box3().setFromObject(robot);
+        expect(diameter).toBeCloseTo(bounds.min.distanceTo(bounds.max), 12);
+        for (const [width, height] of [
+          [900, 650],
+          [320, 250],
+          [320, 650],
+        ])
+          for (const view of ['top', 'front', 'side', 'orbit'] as const) {
+            const camera = view === 'orbit' ? new PerspectiveCamera(38) : new OrthographicCamera();
+            frameRobotCamera(camera, view, centre, diameter, width!, height!);
+            for (const x of [bounds.min.x, bounds.max.x])
+              for (const y of [bounds.min.y, bounds.max.y])
+                for (const z of [bounds.min.z, bounds.max.z]) {
+                  const projected = new Vector3(x, y, z).project(camera);
+                  expect(Math.abs(projected.x)).toBeLessThan(1);
+                  expect(Math.abs(projected.y)).toBeLessThan(1);
+                  expect(Math.abs(projected.z)).toBeLessThan(1);
+                }
+            if (view === 'front') {
+              const direction = camera.position.clone().sub(centre).normalize();
+              expect(direction.toArray()).toEqual([1, 0, 0]);
+              expect(
+                new Vector3(centre.x, centre.y + 0.01, centre.z).project(camera).x,
+              ).toBeGreaterThan(0);
+            }
+          }
+        expect(JSON.stringify(world)).toBe(before);
+      } finally {
+        field.dispose();
+        assembly.dispose();
+      }
+    }
+  } finally {
+    image.mockRestore();
+  }
+});
+
+it('keeps the robot scene/camera across modes, suspends hidden drawing and restores real context without a second renderer', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const callbacks = new Map<number, FrameRequestCallback>();
+  let serial = 0;
+  vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => {
+    callbacks.set(++serial, fn);
+    return serial;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
+  let resize!: (width: number, height: number) => void;
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(element: Element) {
+        resize = (width, height) =>
+          this.callback(
+            [{ target: element, contentRect: { width, height } } as ResizeObserverEntry],
+            this as unknown as ResizeObserver,
+          );
+        resize(800, 600);
+      }
+      disconnect() {}
+    },
+  );
+  const holder = document.createElement('div');
+  document.body.append(holder);
+  const root = createRoot(holder);
+  const world = createRoboticsWorldV3Document('arena');
+  const before = JSON.stringify(world);
+  const ready = vi.fn();
+  rendererFailure.render.mockReset();
+  rendererFailure.dispose.mockReset();
+  rendererFailure.construct.mockReset();
+  const flush = async () => {
+    await act(async () => {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      for (const fn of pending) fn(0);
+    });
+  };
+  const mount = async (view: 'top' | 'front' | 'side' | 'orbit', active = true) => {
+    await act(async () =>
+      root.render(
+        createElement(RobotFieldSpatialView, {
+          subject: 'robot',
+          world,
+          view,
+          active,
+          onReady: ready,
+        }),
+      ),
+    );
+    await flush();
+  };
+  try {
+    await mount('orbit', false);
+    expect(rendererFailure.construct).not.toHaveBeenCalled();
+    expect(rendererFailure.render).not.toHaveBeenCalled();
+    await mount('orbit');
+    expect(rendererFailure.construct).toHaveBeenCalledTimes(1);
+    const canvas = holder.querySelector('canvas')!;
+    const scene = rendererFailure.render.mock.calls.at(-1)![0] as import('three').Scene;
+    await act(async () => resize(320, 650));
+    await flush();
+    const portraitCamera = rendererFailure.render.mock.calls.at(-1)![1] as PerspectiveCamera;
+    const box = new Box3().setFromObject(scene.getObjectByName('robot')!);
+    for (const x of [box.min.x, box.max.x])
+      for (const y of [box.min.y, box.max.y])
+        for (const z of [box.min.z, box.max.z]) {
+          const corner = new Vector3(x, y, z).project(portraitCamera);
+          expect(Math.abs(corner.x)).toBeLessThan(1);
+          expect(Math.abs(corner.y)).toBeLessThan(1);
+        }
+    await act(async () => resize(800, 600));
+    await flush();
+    for (const mode of ['front', 'top', 'side', 'orbit'] as const) {
+      await mount(mode);
+      expect(holder.querySelector('canvas')).toBe(canvas);
+      expect(rendererFailure.render.mock.calls.at(-1)![0]).toBe(scene);
+      expect(
+        holder
+          .querySelector('[data-testid="robotics-assembly-spatial"]')
+          ?.getAttribute('data-coordinate-frame'),
+      ).toBe('construction-local');
+    }
+    await act(async () =>
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })),
+    );
+    await flush();
+    const orbit = canvas.dataset.camera;
+    const captured = new Set<number>();
+    canvas.setPointerCapture = (id) => {
+      captured.add(id);
+    };
+    canvas.hasPointerCapture = (id) => captured.has(id);
+    canvas.releasePointerCapture = vi.fn((id) => {
+      captured.delete(id);
+    });
+    const down = new MouseEvent('pointerdown', {
+      bubbles: true,
+      button: 0,
+      clientX: 400,
+      clientY: 300,
+    });
+    Object.defineProperties(down, {
+      pointerId: { value: 9 },
+      pointerType: { value: 'mouse' },
+      isPrimary: { value: true },
+    });
+    await act(async () => canvas.dispatchEvent(down));
+    expect(captured.has(9)).toBe(true);
+    await mount('orbit', false);
+    expect(captured.size).toBe(0);
+    expect(canvas.releasePointerCapture).toHaveBeenCalledWith(9);
+    const rendered = rendererFailure.render.mock.calls.length;
+    await mount('orbit', false);
+    await flush();
+    expect(rendererFailure.render).toHaveBeenCalledTimes(rendered);
+    expect(callbacks.size).toBe(0);
+    await mount('orbit');
+    const cameraValues = JSON.parse(canvas.dataset.camera!) as number[][];
+    const savedCamera = JSON.parse(orbit!) as number[][];
+    cameraValues.forEach((row, i) =>
+      row.forEach((value, j) => expect(value).toBeCloseTo(savedCamera[i]![j]!, 12)),
+    );
+    await act(async () =>
+      canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })),
+    );
+    expect(ready).toHaveBeenLastCalledWith(false);
+    await flush();
+    const lostCount = rendererFailure.render.mock.calls.length;
+    await mount('orbit');
+    expect(rendererFailure.render).toHaveBeenCalledTimes(lostCount);
+    await act(async () => canvas.dispatchEvent(new Event('webglcontextrestored')));
+    await flush();
+    expect(ready).toHaveBeenLastCalledWith(true);
+    expect(rendererFailure.render.mock.calls.at(-1)![0]).toBe(scene);
+    const restored = JSON.parse(canvas.dataset.camera!) as number[][];
+    restored.forEach((row, i) =>
+      row.forEach((value, j) => expect(value).toBeCloseTo(savedCamera[i]![j]!, 12)),
+    );
+    expect(rendererFailure.dispose).not.toHaveBeenCalled();
+    expect(rendererFailure.construct).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(world)).toBe(before);
+  } finally {
+    await act(async () => root.unmount());
+    holder.remove();
+    expect(rendererFailure.dispose).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
+});
+
+it('bounds every Robot dolly path inside native clip planes and recomputes limits after resize or a smaller model', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const callbacks = new Map<number, FrameRequestCallback>();
+  let serial = 0;
+  vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => {
+    callbacks.set(++serial, fn);
+    return serial;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id));
+  let resize!: (width: number, height: number) => void;
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(element: Element) {
+        resize = (width, height) =>
+          this.callback(
+            [{ target: element, contentRect: { width, height } } as ResizeObserverEntry],
+            this as unknown as ResizeObserver,
+          );
+        resize(800, 600);
+      }
+      disconnect() {}
+    },
+  );
+  const holder = document.createElement('div');
+  document.body.append(holder);
+  const root = createRoot(holder);
+  const original = createRoboticsWorldV3Document('arena'),
+    before = JSON.stringify(original);
+  let world = original;
+  let commands: FieldViewportControls | null = null;
+  const control = () => {
+    const value = commands as FieldViewportControls | null;
+    if (!value) throw new Error('Missing actual viewport controller');
+    return value;
+  };
+  rendererFailure.render.mockReset();
+  rendererFailure.dispose.mockReset();
+  const flush = async () => {
+    await act(async () => {
+      const pending = [...callbacks.values()];
+      callbacks.clear();
+      pending.forEach((fn) => fn(0));
+    });
+  };
+  const mount = async () => {
+    await act(async () =>
+      root.render(
+        createElement(RobotFieldSpatialView, {
+          world,
+          subject: 'robot',
+          view: 'orbit',
+          active: true,
+          onControls: (value) => {
+            commands = value;
+          },
+        }),
+      ),
+    );
+    await flush();
+  };
+  try {
+    await mount();
+    const canvas = holder.querySelector('canvas')!;
+    Object.defineProperties(canvas, { clientWidth: { value: 800 }, clientHeight: { value: 600 } });
+    const captured = new Set<number>();
+    canvas.setPointerCapture = (id) => {
+      captured.add(id);
+    };
+    canvas.hasPointerCapture = (id) => captured.has(id);
+    canvas.releasePointerCapture = (id) => {
+      captured.delete(id);
+    };
+    const measure = (whole: boolean) => {
+      const [scene, camera] = rendererFailure.render.mock.calls.at(-1)! as [
+        import('three').Scene,
+        PerspectiveCamera,
+      ];
+      camera.updateMatrixWorld(true);
+      const bounds = new Box3().setFromObject(scene.getObjectByName('robot')!);
+      const centre = bounds.getCenter(new Vector3()),
+        radius = bounds.min.distanceTo(bounds.max) / 2;
+      const distance = camera.position.distanceTo(centre);
+      expect(distance - radius).toBeGreaterThan(camera.near);
+      expect(distance + radius).toBeLessThan(camera.far);
+      for (const x of [bounds.min.x, bounds.max.x])
+        for (const y of [bounds.min.y, bounds.max.y])
+          for (const z of [bounds.min.z, bounds.max.z]) {
+            const corner = new Vector3(x, y, z).project(camera);
+            expect(Math.abs(corner.z)).toBeLessThan(1);
+            if (whole) {
+              expect(Math.abs(corner.x)).toBeLessThan(1);
+              expect(Math.abs(corner.y)).toBeLessThan(1);
+            }
+          }
+      return distance;
+    };
+    const zoom = async (factor: number, count = 1) => {
+      await act(async () => {
+        for (let i = 0; i < count; i++) control().zoom(factor);
+      });
+      await flush();
+    };
+    const fit = async () => {
+      await act(async () => control().fit());
+      await flush();
+      return measure(true);
+    };
+    const extremes = async () => {
+      const fitted = await fit();
+      await zoom(1 / 1.25, 80);
+      const maximum = measure(true);
+      expect(maximum).toBeCloseTo(fitted * 4, 10);
+      await fit();
+      await act(async () => {
+        for (let i = 0; i < 80; i++)
+          canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true }));
+      });
+      await flush();
+      expect(measure(true)).toBeCloseTo(maximum, 10);
+      await fit();
+      await act(async () => {
+        for (let i = 0; i < 20; i++)
+          canvas.dispatchEvent(
+            new WheelEvent('wheel', { deltaY: 1000, bubbles: true, cancelable: true }),
+          );
+      });
+      await flush();
+      expect(measure(true)).toBeCloseTo(maximum, 10);
+      await zoom(1.25, 100);
+      const minimum = measure(false);
+      await fit();
+      await act(async () => {
+        for (let i = 0; i < 20; i++)
+          canvas.dispatchEvent(
+            new WheelEvent('wheel', { deltaY: -1000, bubbles: true, cancelable: true }),
+          );
+      });
+      await flush();
+      expect(measure(false)).toBeCloseTo(minimum, 10);
+      await fit();
+      return { fitted, maximum };
+    };
+    await extremes();
+    const touch = async (type: string, id: number, x: number) => {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: 300,
+      });
+      Object.defineProperties(event, {
+        pointerId: { value: id },
+        pointerType: { value: 'touch' },
+        isPrimary: { value: id === 31 },
+      });
+      await act(async () => canvas.dispatchEvent(event));
+    };
+    const fitted = await fit();
+    await touch('pointerdown', 31, 100);
+    await touch('pointerdown', 32, 700);
+    await touch('pointermove', 31, 395);
+    await touch('pointermove', 32, 405);
+    await flush();
+    const pinch = JSON.parse(canvas.dataset.camera!) as number[][];
+    expect(
+      new Vector3(...(pinch[0] as [number, number, number])).distanceTo(
+        new Vector3(...(pinch[2] as [number, number, number])),
+      ),
+    ).toBeCloseTo(fitted * 4, 10);
+    await touch('pointerup', 31, 395);
+    await touch('pointerup', 32, 405);
+    await fit();
+    await zoom(1 / 1.25, 80);
+    await act(async () => resize(320, 650));
+    await flush();
+    measure(true);
+    await extremes();
+    await zoom(1 / 1.25, 80);
+    world = {
+      ...original,
+      robot: {
+        ...original.robot,
+        bodyLengthMeters: 0.05,
+        bodyWidthMeters: 0.05,
+        wheelRadiusMeters: 0.01,
+        wheelTrackMeters: 0.05,
+        wheelWidthMeters: 0.005,
+        sensorForwardMeters: 0.03,
+      },
+    };
+    await mount();
+    measure(true);
+    const small = await extremes();
+    await zoom(1 / 1.25, 80);
+    await act(async () => resize(800, 600));
+    await flush();
+    measure(true);
+    const wide = await extremes();
+    expect(wide.maximum).toBeLessThan(small.maximum);
+    expect(JSON.stringify(original)).toBe(before);
+  } finally {
+    await act(async () => root.unmount());
+    holder.remove();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   }
 });
