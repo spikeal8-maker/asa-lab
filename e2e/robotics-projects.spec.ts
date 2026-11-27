@@ -2515,3 +2515,529 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
     for (const context of contexts) await context.close();
   }
 });
+
+test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, focus and compact switching', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  mkdirSync(EVIDENCE, { recursive: true });
+  const failures = collectBrowserFailures(page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await register(page, 'Автор проверки общего рабочего пространства');
+  await page.locator('.portal-header .portal-quick-create > summary').click();
+  const response = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === '/api/projects' && r.request().method() === 'POST',
+  );
+  await page
+    .locator('.portal-header .portal-create-options')
+    .getByRole('button', { name: /^Робототехника/ })
+    .click();
+  const created = await response;
+  expect(created.status()).toBe(201);
+  const projectId = (await created.json()).project.id as string;
+  await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+  const workspace = page.locator('.robotics-workspace');
+  const field = page.locator('#robotics-panel-field');
+  const spatial = page.getByTestId('robotics-field-spatial');
+  const fieldCanvas = spatial.locator('canvas');
+  const stage = page.locator('.workbench-canvas');
+  const separator = page.getByRole('separator', { name: 'Ширина редактора', exact: true });
+  const header = page.locator('.robotics-unified-header');
+  const clock = () => header.getByTestId('robotics-time').getAttribute('data-microseconds');
+  const pose = () =>
+    spatial.evaluate((element) =>
+      ['data-x-meters', 'data-y-meters', 'data-heading-radians'].map((k) =>
+        element.getAttribute(k),
+      ),
+    );
+  const frames = () =>
+    page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+  const rect = async (locator: Locator) => {
+    const value = await locator.boundingBox();
+    if (!value || value.width <= 0 || value.height <= 0)
+      throw new Error('Actual pane bounds missing');
+    return value;
+  };
+  const inspectStatusClearance = async (label: string) => {
+    const status = workspace.locator(':scope > .robotics-observation');
+    const details = status.locator(':scope > .robotics-status-popover');
+    const trigger = details.locator(':scope > summary');
+    const ruler = field.locator('.robotics-side-scale:visible');
+    const dimensions = field.locator('.robotics-field-stage-status');
+    await expect(fieldCanvas).toHaveAttribute('data-rendered', 'true');
+    await expect(ruler).toHaveCount(1);
+    await expect(dimensions).toBeVisible();
+    const before = {
+      time: await clock(),
+      pose: await pose(),
+      camera: await fieldCanvas.getAttribute('data-camera'),
+      document: (await readProject(page, projectId)).draft.document,
+    };
+    if ((await details.getAttribute('open')) !== null) await trigger.click();
+    const measure = async (open: boolean) => {
+      await visibleControl(page, trigger);
+      const [popover, summary, scale, size, viewport] = await Promise.all([
+        rect(status),
+        rect(trigger),
+        rect(ruler),
+        rect(dimensions),
+        rect(field.locator('.robotics-field-viewport')),
+      ]);
+      const disjoint = (a: typeof popover, b: typeof popover) =>
+        Math.min(a.x + a.width, b.x + b.width) <= Math.max(a.x, b.x) ||
+        Math.min(a.y + a.height, b.y + b.height) <= Math.max(a.y, b.y);
+      for (const box of [popover, summary]) {
+        expect(disjoint(box, scale)).toBe(true);
+        expect(disjoint(box, size)).toBe(true);
+        expect(box.x).toBeGreaterThanOrEqual(viewport.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.x + viewport.width + 1);
+        expect(box.y).toBeGreaterThanOrEqual(viewport.y);
+        expect(box.y + box.height).toBeLessThanOrEqual(viewport.y + viewport.height + 1);
+      }
+      expect((await details.getAttribute('open')) !== null).toBe(open);
+      return { open, popover, summary, scale, size, viewport };
+    };
+    const closed = await measure(false);
+    await trigger.click();
+    await expect(status.getByText('До препятствия', { exact: true })).toBeVisible();
+    const serial = details.locator('.robotics-drive');
+    if ((await serial.getAttribute('open')) === null)
+      await serial.locator(':scope > summary').click();
+    await expect(serial.getByRole('button', { name: /Вперёд/ })).toBeVisible();
+    const open = await measure(true);
+    await page.screenshot({ path: `${EVIDENCE}/split-status-open-${label}.png`, fullPage: true });
+    await trigger.click();
+    const closedAgain = await measure(false);
+    expect(await clock()).toBe(before.time);
+    expect(await pose()).toEqual(before.pose);
+    expect(await fieldCanvas.getAttribute('data-camera')).toBe(before.camera);
+    expect((await readProject(page, projectId)).draft.document).toEqual(before.document);
+    return { label, closed, open, closedAgain };
+  };
+  const width = async () => Number(await separator.getAttribute('aria-valuenow'));
+  const closeFieldDrawer = async () => {
+    const close = page.getByRole('button', { name: 'Закрыть панель поля', exact: true });
+    if (await close.isVisible()) await close.click();
+  };
+  const expectSame = async (
+    locator: Locator,
+    handle: NonNullable<Awaited<ReturnType<Locator['elementHandle']>>>,
+  ) => expect(await locator.evaluate((element, first) => element === first, handle)).toBe(true);
+  const circuitPart = (id: string) =>
+    stage
+      .locator(`[data-testid="schematic-component"][data-component-id="${id}"] [role="button"]`)
+      .first();
+  const source = await saved(page, projectId);
+  await showObjectCatalog(page);
+  await page
+    .getByTestId('robotics-field-palette')
+    .getByRole('button', { name: 'Мяч', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Добавить', exact: true }).click();
+  const withBall = await saved(page, projectId);
+  const ball = withBall.draft.document.world.field.balls.find(
+    (item) => !source.draft.document.world.field.balls.some((old) => old.id === item.id),
+  );
+  if (!ball) throw new Error('Real placed Field ball missing');
+  await closeFieldDrawer();
+  await expect(fieldCanvas).toHaveAttribute('data-rendered', 'true');
+  const fieldIdentity = await fieldCanvas.elementHandle();
+  const stageIdentity = await stage.elementHandle();
+  const controlsIdentity = await header.locator('.robotics-run-bar').elementHandle();
+  if (!fieldIdentity || !stageIdentity || !controlsIdentity)
+    throw new Error('Shared instances missing');
+  await page.getByRole('tab', { name: 'Электроника', exact: true }).click();
+  await expect(workspace).toHaveAttribute('data-split', 'true');
+  await expect(separator).toBeVisible();
+  await expect(stage).toBeVisible();
+  await expect(fieldCanvas).toBeVisible();
+  const bounds = async (editor: Locator) => {
+    const [left, right, divider, area] = await Promise.all([
+      rect(editor),
+      rect(field),
+      rect(separator),
+      rect(workspace),
+    ]);
+    expect(left.width).toBeGreaterThan(100);
+    expect(right.width).toBeGreaterThanOrEqual(640);
+    expect(left.x + left.width).toBeLessThanOrEqual(right.x + 1);
+    expect(divider.x + divider.width / 2).toBeGreaterThan(left.x);
+    expect(Math.abs(divider.x + divider.width / 2 - right.x)).toBeLessThanOrEqual(
+      divider.width + 1,
+    );
+    expect(right.x + right.width).toBeLessThanOrEqual(area.x + area.width + 1);
+    expect(Math.abs(left.width - (await width()))).toBeLessThanOrEqual(1);
+    await noOverflow(page);
+    return { left, right, divider, area, width: await width() };
+  };
+  const circuit = page.locator('.robotics-schematic.editing');
+  const initialBounds = await bounds(circuit);
+  expect(initialBounds.width).toBe(480);
+  const zoomBeforeResize = await page.getByLabel('Масштаб поля', { exact: true }).textContent();
+  await separator.focus();
+  await separator.press('Home');
+  const minimum = Number(await separator.getAttribute('aria-valuemin'));
+  const maximum = Number(await separator.getAttribute('aria-valuemax'));
+  expect(await width()).toBe(minimum);
+  await separator.press('ArrowRight');
+  expect(await width()).toBe(minimum + 16);
+  await separator.press('Shift+ArrowRight');
+  expect(await width()).toBe(minimum + 56);
+  await separator.press('End');
+  expect(await width()).toBe(maximum);
+  const maximumBounds = await bounds(circuit);
+  await separator.press('Home');
+  const divider = await rect(separator);
+  const startX = Math.round(divider.x + divider.width / 2),
+    startY = Math.round(divider.y + divider.height / 2);
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + 160, startY, { steps: 10 });
+  await page.mouse.up();
+  expect(await width()).toBe(minimum + 160);
+  await separator.focus();
+  await separator.press('Shift+ArrowRight');
+  const preferredWidth = await width();
+  const preferredBytes = await page.evaluate(() =>
+    localStorage.getItem('asa-lab:robotics:editor-width:v1'),
+  );
+  expect(preferredBytes).not.toBeNull();
+  const resizedBounds = await bounds(circuit);
+  expect(await page.getByLabel('Масштаб поля', { exact: true }).textContent()).toBe(
+    zoomBeforeResize,
+  );
+  expect((await readProject(page, projectId)).draft.document).toEqual(withBall.draft.document);
+
+  // Each real editor owns its navigation. Wheel over the circuit cannot zoom Field.
+  const fieldZoom = page.getByLabel('Масштаб поля', { exact: true });
+  const circuitZoom = circuit.locator('.workbench-stage-controls > span[aria-label^="Масштаб "]');
+  const beforeCircuitZoom = await circuitZoom.textContent();
+  const beforeFieldZoom = await fieldZoom.textContent();
+  const circuitArea = await rect(stage);
+  const wheelPoint = await stage.evaluate((element) => {
+    const area = element.getBoundingClientRect();
+    for (const fy of [0.25, 0.5, 0.75])
+      for (const fx of [0.25, 0.5, 0.75]) {
+        const x = Math.round(area.x + area.width * fx),
+          y = Math.round(area.y + area.height * fy);
+        const hit = document.elementFromPoint(x, y);
+        if (hit && element.contains(hit)) return { x, y };
+      }
+    throw new Error('No reachable real circuit point');
+  });
+  expect(circuitArea.width).toBeGreaterThan(100);
+  await page.mouse.move(wheelPoint.x, wheelPoint.y);
+  await page.mouse.wheel(0, -180);
+  await expect(circuitZoom).not.toHaveText(beforeCircuitZoom!);
+  expect(await fieldZoom.textContent()).toBe(beforeFieldZoom);
+  const afterCircuitZoom = await circuitZoom.textContent();
+  const circuitViewBox = await stage.getAttribute('viewBox');
+  await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+  await expect(fieldZoom).not.toHaveText(beforeFieldZoom!);
+  expect(await circuitZoom.textContent()).toBe(afterCircuitZoom);
+  expect(await stage.getAttribute('viewBox')).toBe(circuitViewBox);
+  const grid = page.getByRole('checkbox', { name: 'Сетка', exact: true });
+  await grid.uncheck();
+  await expect(fieldCanvas).toHaveAttribute('data-grid-rendered', 'false');
+  await grid.check();
+  await expect(fieldCanvas).toHaveAttribute('data-grid-rendered', 'true');
+  await page.getByRole('button', { name: 'Сбоку', exact: true }).click();
+  const metric = await sideRuler(page);
+  await page.getByRole('button', { name: 'Перспектива', exact: true }).click();
+  await frames();
+  const orbit = await fieldCanvas.getAttribute('data-camera');
+  const fieldArea = await rect(fieldCanvas);
+  await page.mouse.move(fieldArea.x + 12, fieldArea.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(fieldArea.x + 46, fieldArea.y + 25, { steps: 8 });
+  await page.mouse.up();
+  await expect(fieldCanvas).not.toHaveAttribute('data-camera', orbit!);
+  await page.getByRole('button', { name: 'Сверху', exact: true }).click();
+  // A split-mode drawer overlays Field; it must not introduce a third fixed rail.
+  const viewport = field.locator('.robotics-field-viewport');
+  const closedFieldWidth = (await rect(viewport)).width;
+  await showObjectCatalog(page);
+  expect((await rect(viewport)).width).toBeCloseTo(closedFieldWidth, 6);
+  await closeFieldDrawer();
+  expect((await readProject(page, projectId)).draft.document).toEqual(withBall.draft.document);
+  await page.screenshot({
+    path: `${EVIDENCE}/split-workspace-electronics-1440.png`,
+    fullPage: true,
+  });
+
+  // Keep a real circuit selection while deleting a Field item, then reverse owners.
+  const uno = circuitPart('uno');
+  await uno.focus();
+  await uno.press('Enter');
+  await expect(
+    stage.locator('[data-component-id="uno"][data-testid="schematic-component"]'),
+  ).toHaveClass(/workbench-component-selected/);
+  await selectFieldObject(page, 'ball:' + ball.id);
+  await closeFieldDrawer();
+  const fieldInput = page.getByRole('group', { name: 'Полотно поля', exact: true });
+  await fieldInput.focus();
+  await expect(workspace).toHaveAttribute('data-shortcut-owner', 'field');
+  await fieldInput.press('Delete');
+  const fieldDeleted = await saved(page, projectId);
+  expect(fieldDeleted.draft.document.world.field.balls.some((item) => item.id === ball.id)).toBe(
+    false,
+  );
+  expect(fieldDeleted.draft.document.circuit).toEqual(withBall.draft.document.circuit);
+  await fieldInput.focus();
+  await fieldInput.press('Control+z');
+  expect((await saved(page, projectId)).draft.document).toEqual(withBall.draft.document);
+  await uno.focus();
+  await uno.press('Enter');
+  await expect(workspace).toHaveAttribute('data-shortcut-owner', 'editor');
+  await uno.press('Delete');
+  const circuitDeleted = await saved(page, projectId);
+  expect(circuitDeleted.draft.document.circuit.components.some((item) => item.id === 'uno')).toBe(
+    false,
+  );
+  expect(circuitDeleted.draft.document.world).toEqual(withBall.draft.document.world);
+  const fitCircuit = circuit.getByRole('button', { name: 'Подогнать проект', exact: true });
+  await fitCircuit.focus();
+  await fitCircuit.press('Control+z');
+  expect((await saved(page, projectId)).draft.document).toEqual(withBall.draft.document);
+
+  await page.getByRole('tab', { name: 'Код', exact: true }).click();
+  const codeBounds = await bounds(page.locator('#robotics-panel-program'));
+  const blocks = page.getByTestId('arduino-block-workspace');
+  await expect(blocks).toBeVisible();
+  await page.locator('.robotics-code-extras > summary').click();
+  const presetBoard = (await readProject(page, projectId)).draft.document.circuit.components.find(
+    (item) => item.id === withBall.draft.document.world.bindings.boardId,
+  )!;
+  const confirmPreset = page.waitForEvent('dialog').then(async (dialog) => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toBe(
+      `Заменить программу платы робота «${presetBoard.name?.trim() || 'Arduino Uno R3'}» (${presetBoard.id}) примером «Поворот налево»? Редактор откроет эту плату. Программы других плат, схема и поле сохранятся. Изменение можно отменить.`,
+    );
+    await dialog.accept();
+  });
+  await Promise.all([
+    confirmPreset,
+    page.getByRole('combobox', { name: 'Пример программы', exact: true }).selectOption('turn-left'),
+  ]);
+  await expect(
+    blocks.locator('.blocklyDraggable[data-id^="robotics-turn-left-"]').first(),
+  ).toBeAttached();
+  const preset = await saved(page, projectId);
+  const program = preset.draft.document.circuit.components.find(
+    (item) => item.id === 'uno',
+  )!.stateProperties!;
+  expect(program['arduinoCodeMode']).toBe('blocks');
+  const blockSource = String(program['arduinoWorkspace']);
+  expect(blockSource).toContain('robotics-turn-left-');
+  expect(blockSource).toContain('asa_setup');
+  expect(blockSource).toContain('asa_loop');
+  const blockIdentity = await blocks.elementHandle();
+  if (!blockIdentity) throw new Error('Actual Blockly workspace missing');
+  if ((await page.locator('.robotics-code-extras').getAttribute('open')) !== null)
+    await page.locator('.robotics-code-extras > summary').click();
+  const blockCanvas = blocks.locator('svg.blocklySvg > .blocklyWorkspace > .blocklyBlockCanvas');
+  const blockScale = () =>
+    blockCanvas.evaluate((element) => {
+      const matrix = (element as SVGGraphicsElement).getScreenCTM();
+      if (!matrix) throw new Error('Actual Blockly projection missing');
+      return Math.hypot(matrix.a, matrix.b);
+    });
+  const beforeBlockScale = await blockScale();
+  const beforeBlockFieldZoom = await fieldZoom.textContent();
+  await blocks.locator('.blocklyZoomIn').click();
+  await expect.poll(blockScale).toBeGreaterThan(beforeBlockScale);
+  expect(await fieldZoom.textContent()).toBe(beforeBlockFieldZoom);
+  const zoomedBlockScale = await blockScale();
+  await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+  await expect(fieldZoom).not.toHaveText(beforeBlockFieldZoom!);
+  expect(await blockScale()).toBeCloseTo(zoomedBlockScale, 8);
+  const blockIds = await blocks
+    .locator('.blocklyDraggable[data-id]')
+    .evaluateAll((elements) => elements.map((e) => e.getAttribute('data-id')));
+  for (const tab of ['Поле', 'Электроника', 'Робот', 'Код']) {
+    await page.getByRole('tab', { name: tab, exact: true }).click();
+    await expectSame(blocks, blockIdentity);
+    await expectSame(fieldCanvas, fieldIdentity);
+    await expectSame(stage, stageIdentity);
+    if (tab === 'Поле') {
+      await expect(workspace).toHaveAttribute('data-split', 'false');
+      await expect(fieldCanvas).toBeVisible();
+      await expect(separator).toBeHidden();
+    }
+  }
+  expect(
+    await blocks
+      .locator('.blocklyDraggable[data-id]')
+      .evaluateAll((elements) => elements.map((e) => e.getAttribute('data-id'))),
+  ).toEqual(blockIds);
+  expect((await readProject(page, projectId)).draft.document).toEqual(preset.draft.document);
+
+  await page.locator('.arduino-mode-menu > summary').click();
+  await page.getByRole('button', { name: 'Текст', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Продолжить?', exact: true })
+    .getByRole('button', { name: 'Продолжить', exact: true })
+    .click();
+  const code = page.locator('.robotics-program-shell textarea[aria-label="Код Arduino C++"]');
+  await expect(code).toBeVisible();
+  const text = '// split workspace draft\n' + (await code.inputValue());
+  await code.fill(text);
+  // Start uses the real pending-code flush; no test substitutes a Worker or its clock.
+  await header.getByRole('button', { name: 'Запустить', exact: true }).click();
+  await expect
+    .poll(async () => Number(await clock()), { timeout: 60_000 })
+    .toBeGreaterThan(100_000);
+  await header.getByRole('button', { name: 'Пауза', exact: true }).click();
+  await expect(header.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+  const confirmed = await saved(page, projectId);
+  expect(
+    confirmed.draft.document.circuit.components.find((item) => item.id === 'uno')!.stateProperties![
+      'arduinoSource'
+    ],
+  ).toBe(text);
+  await code.press('Control+Home');
+  await code.press('Shift+ArrowRight');
+  const selection = () =>
+    code.evaluate((element) => {
+      const input = element as HTMLTextAreaElement;
+      return [input.selectionStart, input.selectionEnd, input.selectionDirection];
+    });
+  const selectedText = await selection();
+  expect(Number(selectedText[1])).toBeGreaterThan(Number(selectedText[0]));
+  const codeIdentity = await code.elementHandle();
+  if (!codeIdentity) throw new Error('Actual text editor missing');
+  const paused = { time: await clock(), pose: await pose() };
+  const currentView = await spatial.getAttribute('data-field-view');
+  const desktopZoom = await fieldZoom.textContent();
+  await frames();
+  const desktopCamera = JSON.parse((await fieldCanvas.getAttribute('data-camera'))!) as number[][];
+  const statusDesktop = await inspectStatusClearance('1440');
+  await page.screenshot({ path: `${EVIDENCE}/split-workspace-code-1440.png`, fullPage: true });
+
+  // A real captured resize must be cancelled when its separator becomes hidden.
+  // Moving/releasing the original pointer afterwards cannot overwrite the preference.
+  const pendingDivider = await rect(separator);
+  await page.mouse.move(
+    pendingDivider.x + pendingDivider.width / 2,
+    pendingDivider.y + pendingDivider.height / 2,
+  );
+  await page.mouse.down();
+  await page.setViewportSize({ width: 320, height: 900 });
+  const compact = page.getByRole('group', { name: 'Рабочая область', exact: true });
+  await expect(compact).toBeVisible();
+  await expect(separator).toBeHidden();
+  await page.mouse.move(300, 400);
+  await page.mouse.up();
+  await compact.getByRole('button', { name: 'Редактор', exact: true }).click();
+  await expect(code).toBeVisible();
+  await expect(field).toBeHidden();
+  await frames();
+  const stoppedRenderCount = await fieldCanvas.getAttribute('data-render-count');
+  await frames();
+  expect(await fieldCanvas.getAttribute('data-render-count')).toBe(stoppedRenderCount);
+  await expectSame(code, codeIdentity);
+  expect(await code.inputValue()).toBe(text);
+  expect(await selection()).toEqual(selectedText);
+  expect(await page.evaluate(() => localStorage.getItem('asa-lab:robotics:editor-width:v1'))).toBe(
+    preferredBytes,
+  );
+  await compact.getByRole('button', { name: 'Поле', exact: true }).click();
+  await expect(fieldCanvas).toBeVisible();
+  await expect(code).toBeHidden();
+  await expect
+    .poll(() =>
+      page
+        .locator('#robotics-panel-field')
+        .evaluate((element) => element.contains(document.activeElement)),
+    )
+    .toBe(true);
+  await expectSame(fieldCanvas, fieldIdentity);
+  await expect(spatial).toHaveAttribute('data-field-view', currentView!);
+  await closeFieldDrawer();
+  await page.getByRole('button', { name: 'Сбоку', exact: true }).click();
+  const compactMetric = await sideRuler(page);
+  await page.getByRole('button', { name: 'Сверху', exact: true }).click();
+  await fieldInput.focus();
+  await fieldInput.press('Delete');
+  expect((await readProject(page, projectId)).draft.document).toEqual(confirmed.draft.document);
+  const statusCompact = await inspectStatusClearance('320');
+  await page.screenshot({ path: `${EVIDENCE}/split-workspace-field-320.png`, fullPage: true });
+  await compact.getByRole('button', { name: 'Редактор', exact: true }).click();
+  await expect
+    .poll(() =>
+      page
+        .locator('#robotics-panel-program')
+        .evaluate((element) => element.contains(document.activeElement)),
+    )
+    .toBe(true);
+  await expectSame(code, codeIdentity);
+  expect(await selection()).toEqual(selectedText);
+  expect({ time: await clock(), pose: await pose() }).toEqual(paused);
+  await noOverflow(page);
+  await page.screenshot({ path: `${EVIDENCE}/split-workspace-code-320.png`, fullPage: true });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(fieldCanvas).toBeVisible();
+  await expect(code).toBeVisible();
+  await expect(separator).toBeVisible();
+  expect(await width()).toBe(preferredWidth);
+  expect(await fieldZoom.textContent()).toBe(desktopZoom);
+  await frames();
+  const restoredCamera = JSON.parse((await fieldCanvas.getAttribute('data-camera'))!) as number[][];
+  restoredCamera.forEach((row, i) =>
+    row.forEach((v, j) => expect(v).toBeCloseTo(desktopCamera[i]![j]!, 7)),
+  );
+  await expectSame(fieldCanvas, fieldIdentity);
+  await expectSame(stage, stageIdentity);
+  await expectSame(code, codeIdentity);
+  await expectSame(header.locator('.robotics-run-bar'), controlsIdentity);
+  expect(await selection()).toEqual(selectedText);
+  expect({ time: await clock(), pose: await pose() }).toEqual(paused);
+  const stable = await saved(page, projectId);
+  expect(stable.draft.document).toEqual(confirmed.draft.document);
+  expect(stable.draft.revision).toBe(confirmed.draft.revision);
+  await header.getByRole('button', { name: 'Остановить', exact: true }).click();
+  const url = page.url();
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('robotics-account-editor')).toBeVisible();
+  await page.getByRole('tab', { name: 'Код', exact: true }).click();
+  await expect(code).toHaveValue(text);
+  await expect(separator).toBeVisible();
+  expect(await width()).toBe(preferredWidth);
+  expect((await readProject(page, projectId)).draft.document).toEqual(confirmed.draft.document);
+  writeFileSync(
+    `${EVIDENCE}/split-workspace.json`,
+    JSON.stringify(
+      {
+        profile: 'UI_ONLY',
+        projectId,
+        sourceDigest: digest(confirmed.draft.document),
+        initialBounds,
+        resizedBounds,
+        maximumBounds,
+        codeBounds,
+        preferredWidth,
+        circuitZoom: { before: beforeCircuitZoom, after: afterCircuitZoom },
+        blockScale: { before: beforeBlockScale, after: zoomedBlockScale },
+        metric,
+        compactMetric,
+        selectedText,
+        paused,
+        stoppedRenderCount,
+        statusClearances: [statusDesktop, statusCompact],
+        sameInstancesBeforeReload: true,
+      },
+      null,
+      2,
+    ),
+  );
+  failures.assertEmpty();
+});

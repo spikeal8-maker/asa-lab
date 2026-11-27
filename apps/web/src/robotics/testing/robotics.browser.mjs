@@ -453,6 +453,7 @@ async function viewport(width, height, section) {
           return hit !== null && button.contains(hit);
         }),
       },
+      stageHidden: Boolean(document.querySelector('.workbench-canvas')?.closest('[hidden]')),
       oneStage: document.querySelectorAll('.workbench-canvas').length === 1,
       sameStage: window.roboticsMountedStage === document.querySelector('.workbench-canvas'),
       hiddenFocus: Boolean(document.activeElement?.closest('[hidden], [inert]')),
@@ -487,7 +488,10 @@ async function viewport(width, height, section) {
     'run controls fit inside the actual header, not an editor toolbar',
   );
   assert.ok(layout.oneStage && layout.sameStage, 'one mounted stage through all sections');
-  assert.ok(layout.stage.width > 90 && layout.stage.height > 65, 'real stage has a visible size');
+  if (section === 'Программа')
+    assert.equal(layout.stageHidden, true, 'Code keeps the same Circuit mounted but hidden');
+  else
+    assert.ok(layout.stage.width > 90 && layout.stage.height > 65, 'real stage has a visible size');
   assert.ok(layout.active.width > 250);
   // The electronics tab owns the persistent scheme region via aria-owns;
   // its toolbar and the actual Stage occupy adjacent rows of the same editor.
