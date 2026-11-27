@@ -84,14 +84,6 @@ interface HeldHistory<T extends HeldPresentationSample> {
   readonly completeSince: number;
 }
 
-function sampleLuminance(sample: HeldPresentationSample): number {
-  return 'brightness' in sample ? Math.round(sample.brightness) : sample.voltage >= 2.5 ? 100 : 0;
-}
-
-function frameLuminance(frame: Omit<LedPresentationFrame, 'token'>, id: string): number {
-  return Math.round(frame.brightness.get(id) ?? (frame.arduinoLStates.get(id) ? 100 : 0));
-}
-
 function heldValue(sample: HeldPresentationSample): number {
   return 'voltage' in sample ? sample.voltage : sample.brightness;
 }
@@ -276,193 +268,10 @@ export class LedTemporalPresentation {
   private firstRafAfterCommit: number | null = null;
   private opticalTransitions: 0 | 1 | 2 = 0;
 
-  private deferredPaint: { readonly frame: LedPresentationFrame; readonly wall: number } | null =
-    null;
-  private opticalEdges: number[] = [];
-  private paintLags: number[] = [];
-  private lastPaintedEdge: number | undefined;
-  private lastPaintedFrame: LedPresentationFrame | null = null;
-  private currentPaint: { at: number; frame: LedPresentationFrame | null } | null = null;
-  private unsettledPaints: { at: number; duration: number; frame: LedPresentationFrame }[] = [];
-  private luminanceError = new Map<string, number>();
-
-  get samplesNativePaint(): boolean {
-    const edges = this.opticalEdges;
-    return (
-      edges.length > 0 &&
-      (edges.length < 2 ||
-        edges[edges.length - 1]! - edges[edges.length - 2]! >=
-          LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS)
-    );
-  }
-
-  private clearPaintSampling(): void {
-    this.deferredPaint = null;
-    this.opticalEdges = [];
-    this.clearPaintedIntervals();
-  }
-
-  private clearPaintedIntervals(): void {
-    this.paintLags = [];
-    this.lastPaintedEdge = undefined;
-    this.lastPaintedFrame = null;
-    this.currentPaint = null;
-    this.unsettledPaints = [];
-    this.luminanceError.clear();
-  }
-
-  private recordOpticalEdges(observation: ElectronicsLedTemporalObservation): void {
-    if (
-      this.pacingChanged ||
-      this.displays.size ||
-      !this.b.size ||
-      observation.components.some(
-        (channel) => channel.truncated || !this.b.has(channel.componentId),
-      ) ||
-      observation.arduinoIndicators?.some(
-        (channel) => channel.truncated || !this.c.has(channel.componentId),
-      )
-    ) {
-      this.clearPaintSampling();
-      return;
-    }
-    const added = new Set<number>();
-    for (const { samples } of [
-      ...observation.components,
-      ...(observation.arduinoIndicators ?? []),
-    ]) {
-      for (let index = 1; index < samples.length; index++) {
-        if (sampleLuminance(samples[index - 1]!) !== sampleLuminance(samples[index]!))
-          added.add(samples[index]!.atMicroseconds);
-      }
-    }
-    if (!added.size) {
-      const lastEdge = this.opticalEdges.at(-1);
-      if (lastEdge !== undefined && observation.toMicroseconds - lastEdge > HISTORY_MICROSECONDS)
-        this.clearPaintSampling();
-      return;
-    }
-    const edges = [...new Set([...this.opticalEdges, ...added])].sort((a, b) => a - b);
-    const firstRecent = edges.findIndex(
-      (time) => time >= observation.toMicroseconds - HISTORY_MICROSECONDS,
-    );
-    this.opticalEdges = edges.slice(
-      Math.max(0, firstRecent - 2, edges.length - MAX_HISTORY_SAMPLES),
-    );
-    if (!this.samplesNativePaint) this.clearPaintedIntervals();
-  }
-
-  private opticalEdgeIndex(at: number): number {
-    let index = this.opticalEdges.length - 1;
-    while (index >= 0 && this.opticalEdges[index]! > at) index--;
-    return index;
-  }
-
-  private resolvedEdge(at: number): number | undefined {
-    const index = this.opticalEdgeIndex(at);
-    const edges = this.opticalEdges;
-    if (
-      index < 2 ||
-      (edges[index + 1] !== undefined && edges[index + 1]! - at < FAST_PHASE_MICROSECONDS) ||
-      edges[index]! - edges[index - 1]! < LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS ||
-      edges[index - 1]! - edges[index - 2]! < LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS
-    )
-      return undefined;
-    return edges[index];
-  }
-
-  /** Integrate the last mounted vector on the real refresh grid, once its electrical samples exist. */
-  private finishPaintInterval(wallMicroseconds: number): void {
-    if (!this.e || this.a === null || this.pacingChanged || this.displays.size || !this.b.size)
-      return;
-    const at = this.e.m + Math.max(0, wallMicroseconds - this.e.w);
-    const previous = this.currentPaint;
-    if (previous?.frame && at > previous.at) {
-      const duration = at - previous.at;
-      if (duration > HISTORY_MICROSECONDS) this.clearPaintSampling();
-      else this.unsettledPaints.push({ at: previous.at, duration, frame: previous.frame });
-    }
-    this.currentPaint = { at, frame: null };
-    while (this.unsettledPaints.length && this.unsettledPaints[0]!.at <= this.a) {
-      const paint = this.unsettledPaints.shift()!;
-      for (const [id, history] of [...this.b, ...this.c]) {
-        const samples = history.samples;
-        let index = samples.length - 1;
-        while (index >= 0 && samples[index]!.atMicroseconds > paint.at) index--;
-        if (index < 0 || history.completeSince > paint.at) {
-          this.luminanceError.delete(id);
-          continue;
-        }
-        const difference = frameLuminance(paint.frame, id) - sampleLuminance(samples[index]!);
-        const integral = (this.luminanceError.get(id) ?? 0) + difference * paint.duration;
-        const bound = 100 * HISTORY_MICROSECONDS;
-        this.luminanceError.set(id, Math.max(-bound, Math.min(bound, integral)));
-      }
-    }
-    if (
-      this.unsettledPaints.length &&
-      (at - this.unsettledPaints[0]!.at > HISTORY_MICROSECONDS ||
-        this.unsettledPaints.length >= MAX_HISTORY_SAMPLES)
-    )
-      this.clearPaintSampling();
-  }
-
-  /** The renderer calls this at the end of its RAF, after the joint native commit or rollback. */
-  recordRenderedFrame(wallMicroseconds: number, mounted: LedPresentationFrame | null): void {
-    if (!this.e || !this.currentPaint) return;
-    const frame = this.j;
-    if (!mounted || !frame || !sameOpticalFrame(frame, mounted)) {
-      this.clearPaintSampling();
-      return;
-    }
-    const at = this.e.m + Math.max(0, wallMicroseconds - this.e.w);
-    if (!this.lastPaintedFrame || !sameOpticalFrame(this.lastPaintedFrame, frame)) {
-      const edge = this.opticalEdges[this.opticalEdgeIndex(frame.atMicroseconds)];
-      if (edge !== undefined && edge !== this.lastPaintedEdge) {
-        this.lastPaintedEdge = edge;
-        this.paintLags = [...this.paintLags, at - edge].slice(-2);
-      }
-    }
-    this.currentPaint = { at, frame };
-    this.lastPaintedFrame = frame;
-  }
-
-  private deferOpticalTransition(
-    next: Omit<LedPresentationFrame, 'token'>,
-    wallMicroseconds: number,
-  ): boolean {
-    const shown = this.j;
-    const edge = this.resolvedEdge(next.atMicroseconds);
-    if (
-      !this.e ||
-      !shown ||
-      edge === undefined ||
-      edge === this.lastPaintedEdge ||
-      this.paintLags.length !== 2
-    )
-      return false;
-    const lag = this.e.m + Math.max(0, wallMicroseconds - this.e.w) - edge;
-    if (lag >= FAST_PHASE_MICROSECONDS) return false;
-    if (Math.max(...this.paintLags) - lag > FAST_PHASE_MICROSECONDS) return true;
-    if (lag > Math.min(...this.paintLags)) return false;
-    // Keep the current vector for one refresh only if it reduces squared, integrated luminance error.
-    let errorAlongTransition = 0;
-    let squaredChange = 0;
-    for (const id of [...this.b.keys(), ...this.c.keys()]) {
-      const change = frameLuminance(shown, id) - frameLuminance(next, id);
-      errorAlongTransition += (this.luminanceError.get(id) ?? 0) * change;
-      squaredChange += change * change;
-    }
-    return (
-      squaredChange > 0 && errorAlongTransition < (-FAST_PHASE_MICROSECONDS * squaredChange) / 2
-    );
-  }
-
   /** Reanchor only this host adapter; pending frames retain their original ACK. */
   setPlaybackRate(rate: number, wallMicroseconds: number): void {
     this.playbackRate = rate;
     this.pacingChanged = true;
-    this.clearPaintSampling();
     this.paceFrame = this.k;
     if (this.d !== null) this.e = { w: wallMicroseconds, m: this.presentedMicroseconds };
   }
@@ -498,8 +307,6 @@ export class LedTemporalPresentation {
   /** Resource demand can follow wall time without preparing or acknowledging a frame. */
   nextNativeAssetFrameAt(wallMicroseconds?: number): LedNativeAssetFrame | null {
     if (this.d === null || this.a === null) return null;
-    const deferred = this.deferredPaint && this.o(this.deferredPaint.frame.atMicroseconds);
-    if (deferred) return { ...deferred, generation: this.g };
     const target =
       wallMicroseconds === undefined || this.e === null
         ? this.d
@@ -545,7 +352,6 @@ export class LedTemporalPresentation {
   reset(): void {
     this.a = null;
     this.b.clear();
-    this.clearPaintSampling();
     this.c.clear();
     this.displays.clear();
     this.displayFailures.clear();
@@ -803,7 +609,6 @@ export class LedTemporalPresentation {
     this.b = next;
     this.displays = nextDisplays;
     this.displayFailures = nextDisplayFailures;
-    this.recordOpticalEdges(observation);
     if (this.k && [...this.k.brightness.keys()].some((id) => !next.has(id))) this.k = null;
     if (
       this.k &&
@@ -873,7 +678,6 @@ export class LedTemporalPresentation {
    */
   prepareFrame(wallMicroseconds: number): LedPresentationFrame | null {
     this.h++;
-    if (this.samplesNativePaint) this.finishPaintInterval(wallMicroseconds);
     if (this.j && this.firstRafAfterCommit === null) this.firstRafAfterCommit = wallMicroseconds;
     if (this.h === this.elapsedAckSlot) return null;
     const elapsed = this.e === null ? 0 : Math.max(0, wallMicroseconds - this.e.w);
@@ -902,34 +706,7 @@ export class LedTemporalPresentation {
       ...values,
       token: `${this.g}:${++this.f}`,
     };
-    const deferred = this.deferredPaint;
-    this.deferredPaint = null;
-    if (
-      deferred &&
-      wallMicroseconds - deferred.wall <= HISTORY_MICROSECONDS &&
-      this.a - deferred.frame.atMicroseconds <= HISTORY_MICROSECONDS
-    ) {
-      const retained = this.o(deferred.frame.atMicroseconds);
-      if (
-        retained &&
-        sameOpticalFrame(deferred.frame, { ...retained, token: deferred.frame.token })
-      ) {
-        // The previous opportunity already chose this confirmed phase. A newer
-        // READY can return to the displayed level before this actual refresh.
-        // Carry at most the current opportunity's distinct sample into the next.
-        if (!sameOpticalFrame(deferred.frame, frame))
-          this.deferredPaint = { frame, wall: wallMicroseconds };
-        this.k = deferred.frame;
-        return this.k;
-      }
-    }
-    if (this.j && !sameOpticalFrame(this.j, frame)) {
-      if (!this.canPublishDistinctFrame) return null;
-      if (this.deferOpticalTransition(frame, wallMicroseconds)) {
-        this.deferredPaint = { frame, wall: wallMicroseconds };
-        return null;
-      }
-    }
+    if (this.j && !sameOpticalFrame(this.j, frame) && !this.canPublishDistinctFrame) return null;
     this.k = frame;
     return frame;
   }
@@ -941,7 +718,6 @@ export class LedTemporalPresentation {
   prepareElapsedFrame(wallMicroseconds: number): LedPresentationFrame | null {
     if (
       this.k ||
-      this.deferredPaint ||
       !this.j ||
       this.h < this.i ||
       this.d === null ||
@@ -982,12 +758,7 @@ export class LedTemporalPresentation {
       }
       previous = candidate;
     }
-    if (
-      !changed ||
-      (this.lastPaintedFrame && this.resolvedEdge(target) !== undefined) ||
-      this.waitForPaint(target, wallMicroseconds)
-    )
-      return null;
+    if (!changed || this.waitForPaint(target, wallMicroseconds)) return null;
     const lastUnaveraged = this.o(this.d, false);
     if (!lastUnaveraged || !sameOpticalFrame(this.j, { ...lastUnaveraged, token: '' })) return null;
     const frame = { ...previous, token: `${this.g}:${++this.f}` };

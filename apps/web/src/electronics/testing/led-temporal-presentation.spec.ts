@@ -417,7 +417,6 @@ describe('one early elapsed optical phase', () => {
         }
         const frame = p.prepareFrame(wall);
         if (frame) expect(p.acknowledgeFrame(frame, wall)).toBe(true);
-        p.recordRenderedFrame(wall, p.displayedFrame);
         witnessed = true;
         const level = p.sample().get('led')!;
         if (shown.at(-1) !== level) shown.push(level);
@@ -442,7 +441,6 @@ describe('one early elapsed optical phase', () => {
       presenter.accept(solved(observation), observation, edge);
       const frame = presenter.prepareFrame(refresh)!;
       expect(presenter.acknowledgeFrame(frame, refresh)).toBe(true);
-      presenter.recordRenderedFrame(refresh, frame);
       from = edge;
       level = nextLevel;
     }
@@ -2174,7 +2172,6 @@ describe('ordinary LED native readiness and the shared host publication barrier'
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
     state.nativeOpticalPresentation = {
       commit: () => {},
-      mountedAnimationFrame: () => null,
       witnessAfterAnimationFrame: () => {},
     };
     state.settleSimulationPauseRef = { current: null };
@@ -3105,58 +3102,54 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
   });
 });
 
-describe('clocked native LED sampling', () => {
-  it('keeps a late confirmed HIGH from shortening the next full cycle on the mounted image', () => {
-    // Microseconds relative to H0 in the period-14 recording. The response at
-    // 372700 misses the refresh at 367600 and cannot light a pixel before 393600.
-    const ready = [
-      11100, 37700, 66700, 101700, 127200, 154100, 185100, 214300, 244400, 273500, 303700, 341500,
-      372700, 400300, 428900,
-    ];
-    const refresh = [
-      17100, 32100, 48300, 65400, 83100, 99100, 117000, 131800, 148500, 164900, 181900, 198300,
-      216800, 231500, 249100, 265600, 282300, 298600, 316200, 335800, 352100, 367600, 393600,
-      406300, 415600, 431500, 448600,
-    ];
-    const replay = (mounted: boolean) => {
-      const presenter = new LedTemporalPresentation();
-      const initial = window(0, 0, [channel('led', [point(0, 0)])]);
-      presenter.accept(electrical(initial), initial, 0);
-      expect(presenter.acknowledgeFrame(presenter.prepareInitialFrame()!, 0)).toBe(true);
-      const shown: number[] = [];
-      let level = 0;
-      let committed = 0;
-      let lit = false;
-      for (const wall of [...ready, ...refresh].sort((left, right) => left - right)) {
-        const index = ready.indexOf(wall);
-        if (index >= 0) {
-          const nextEdge = 2 + Math.floor(index * 30002.5);
-          const nextLevel = level ? 0 : 70;
-          const observation = window(committed, nextEdge, [
-            channel('led', [point(committed, level), point(nextEdge, nextLevel)]),
-          ]);
-          presenter.accept(electrical(observation), observation, wall);
-          committed = nextEdge;
-          level = nextLevel;
-          continue;
-        }
-        const frame = presenter.prepareFrame(wall);
-        if (frame) {
-          expect(frame.atMicroseconds).toBeLessThanOrEqual(committed);
-          expect(presenter.acknowledgeFrame(frame, wall)).toBe(true);
-        }
-        presenter.recordRenderedFrame(wall, mounted ? presenter.displayedFrame : null);
-        const nextLit = (presenter.sample().get('led') ?? 0) > 0;
-        if (nextLit !== lit) shown.push(wall);
-        lit = nextLit;
+describe('confirmed optical delivery at real refresh opportunities', () => {
+  // Wall times in microseconds. The second trace stalls the next native refresh.
+  it.each([
+    {
+      name: '50 ms phases after a delayed first asset',
+      arrivals: [15_000, 54_800, 104_400],
+      edges: [2, 50_004, 100_007],
+      refresh: [30_300, 46_800, 63_800, 80_100, 96_500, 112_600, 129_700],
+      shown: [30_300, 63_800, 112_600],
+    },
+    {
+      name: '30 ms phases before a 26 ms refresh gap',
+      arrivals: [8_000, 56_000, 83_900, 95_000],
+      edges: [2, 30_004, 60_007, 90_009],
+      refresh: [16_667, 33_333, 42_000, 57_800, 67_700, 84_500, 100_000, 126_000],
+      shown: [16_667, 57_800, 84_500, 100_000],
+    },
+  ])('shows every accepted change on its first available refresh: $name', (trace) => {
+    const presenter = new LedTemporalPresentation();
+    const initial = window(0, 0, [channel('led', [point(0, 0)])]);
+    presenter.accept(electrical(initial), initial, 0);
+    expect(presenter.acknowledgeFrame(presenter.prepareInitialFrame()!, 0)).toBe(true);
+    let committed = 0;
+    let previousLevel = 0;
+    let shownLevel = 0;
+    const shown: number[] = [];
+    for (const wall of [...trace.arrivals, ...trace.refresh].sort((a, b) => a - b)) {
+      const index = trace.arrivals.indexOf(wall);
+      if (index >= 0) {
+        const edge = trace.edges[index]!;
+        const nextLevel = previousLevel ? 0 : 70;
+        const observation = window(committed, edge, [
+          channel('led', [point(committed, previousLevel), point(edge, nextLevel)]),
+        ]);
+        presenter.accept(electrical(observation), observation, wall);
+        previousLevel = nextLevel;
+        committed = edge;
+        continue;
       }
-      return shown;
-    };
-    const mounted = replay(true);
-    expect(mounted).toHaveLength(ready.length);
-    expect(mounted[12]).toBe(393600);
-    expect(mounted[14]! - mounted[12]!).toBe(55000);
-    const missing = replay(false);
-    expect(missing[14]! - missing[12]!).toBe(37900);
+      const frame = presenter.prepareFrame(wall);
+      if (frame) {
+        expect(frame.atMicroseconds).toBeLessThanOrEqual(committed);
+        expect(presenter.acknowledgeFrame(frame, wall)).toBe(true);
+      }
+      const value = presenter.sample().get('led') ?? 0;
+      if (value !== shownLevel) shown.push(wall);
+      shownLevel = value;
+    }
+    expect(shown).toEqual(trace.shown);
   });
 });

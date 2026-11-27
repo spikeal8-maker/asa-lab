@@ -1094,11 +1094,6 @@ export function useElectronicsWorkbenchHost(
         // Optical commit never flushes a queued whole-Workbench metric update.
         if (currentSession() && nativePreparationSource === nativePreparationSourceRef.current) {
           setCommittedHorizonMicroseconds(latestCommittedHorizon);
-          if (ledPresentation.samplesNativePaint)
-            ledPresentation.recordRenderedFrame(
-              Math.round(window.performance.now() * 1000),
-              nativeOpticalPresentation.mountedAnimationFrame(),
-            );
           nativeOpticalPresentation.witnessAfterAnimationFrame(
             publishElapsedFrame,
             () => elapsedWaitingForWitness,

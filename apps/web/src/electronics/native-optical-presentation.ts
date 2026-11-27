@@ -178,15 +178,6 @@ export class NativeOpticalPresentation {
     );
   }
 
-  mountedAnimationFrame(): LedPresentationFrame | null {
-    const committed = this.snapshot.committed;
-    return committed?.ledAssets.size &&
-      window.document.visibilityState === 'visible' &&
-      this.mountedVector(committed)
-      ? committed.frame
-      : null;
-  }
-
   hasRenderWitness(): boolean {
     return (
       this.witnessedObservation !== null &&
