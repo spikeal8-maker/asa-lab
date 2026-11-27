@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FieldView, FieldViewportControls } from './RobotFieldSpatialView';
 import type { SchematicDocument } from '../api';
 import { RobotField } from './RobotField';
 import { RoboticsNumberField } from './RobotFieldEditor';
@@ -9,6 +10,14 @@ import {
   parseRoboticsWorldDocument,
   type RoboticsWorldDocument,
 } from './world';
+
+const RobotFieldSpatialView = lazy(() => import('./RobotFieldSpatialView'));
+const VIEWS = [
+  { id: 'orbit', label: 'Перспектива' },
+  { id: 'front', label: 'Спереди' },
+  { id: 'top', label: 'Сверху' },
+  { id: 'side', label: 'Сбоку' },
+] as const;
 
 const ROLES = [
   { key: 'boardId', type: 'arduino-uno', label: 'Arduino Uno' },
@@ -26,18 +35,29 @@ const DIMENSIONS = [
 
 export function RobotAssemblyPanel({
   project,
+  active = false,
   running,
   onCommit,
   onOpenElectronics,
-  simulationControls,
 }: {
   project: RoboticsProject;
+  active?: boolean;
   running: boolean;
   onCommit: (world: RoboticsWorldDocument) => boolean;
   onOpenElectronics: () => void;
-  simulationControls?: ReactNode;
 }) {
   const world = project.world;
+  const [visited, setVisited] = useState(active);
+  const [view, setView] = useState<FieldView>('orbit');
+  const [ready, setReady] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const commands = useRef<FieldViewportControls | null>(null);
+  const register = useCallback((value: FieldViewportControls | null) => {
+    commands.current = value;
+  }, []);
+  useEffect(() => {
+    if (active) setVisited(true);
+  }, [active]);
   const [error, setError] = useState<string | null>(null);
   const bindingError = validateRoboticsBindings(project);
   function commit(next: RoboticsWorldDocument) {
@@ -56,7 +76,11 @@ export function RobotAssemblyPanel({
     setError(null);
     return true;
   }
-  const start = createRoboticsWorldState(world);
+  const start = useMemo(() => createRoboticsWorldState(world), [world]);
+  const sourceDistance = useMemo(
+    () => measureRoboticsDistance(world, world.initialPose, start.balls),
+    [world, start],
+  );
   const labelOf = (component: SchematicDocument['components'][number]) =>
     component.name ? `${component.name} · ${component.id}` : component.id;
   return (
@@ -68,7 +92,6 @@ export function RobotAssemblyPanel({
             Добавить компонент
           </button>
         </div>
-        {simulationControls}
       </div>
       {running ? (
         <p className="robotics-edit-hint">
@@ -77,15 +100,86 @@ export function RobotAssemblyPanel({
       ) : null}
       <div className="robotics-assembly-editor">
         <div className="robotics-assembly-view">
-          <RobotField
-            world={world}
-            state={start}
-            distance={measureRoboticsDistance(world, world.initialPose, start.balls)}
-            showGrid={false}
-            view="robot"
-            testIdPrefix="robotics-assembly"
-          />
-          <p className="robotics-help">Вид сверху · реальные размеры в миллиметрах</p>
+          <div
+            className="robotics-assembly-camera"
+            role="group"
+            aria-label="Камера конструкции робота"
+          >
+            <div className="robotics-field-view-switch">
+              {VIEWS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={view === item.id}
+                  onClick={() => setView(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="robotics-assembly-zoom">
+              <button
+                type="button"
+                aria-label="Отдалить конструкцию"
+                disabled={!ready}
+                onClick={() => commands.current?.zoom(1 / 1.25)}
+              >
+                −
+              </button>
+              <output aria-label="Масштаб конструкции">{Math.round(zoom * 100)}%</output>
+              <button
+                type="button"
+                aria-label="Приблизить конструкцию"
+                disabled={!ready}
+                onClick={() => commands.current?.zoom(1.25)}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                aria-label="Показать конструкцию целиком"
+                disabled={!ready}
+                onClick={() => commands.current?.fit()}
+              >
+                Всё
+              </button>
+            </div>
+          </div>
+          <div
+            className="robotics-assembly-viewport"
+            data-testid="robotics-assembly-viewport"
+            data-active={active}
+            data-renderer={ready ? 'webgl' : 'svg'}
+            data-view={view}
+          >
+            {visited ? (
+              <Suspense fallback={null}>
+                <RobotFieldSpatialView
+                  world={world}
+                  subject="robot"
+                  view={view}
+                  active={active}
+                  showGrid={false}
+                  onReady={setReady}
+                  onControls={register}
+                  onZoom={setZoom}
+                />
+              </Suspense>
+            ) : null}
+            <div className="robotics-assembly-fallback" hidden={ready}>
+              <RobotField
+                world={world}
+                state={start}
+                distance={sourceDistance}
+                showGrid={false}
+                view="robot"
+                testIdPrefix="robotics-assembly"
+              />
+              <span className="robotics-assembly-caption" role="status">
+                Вид сверху · SVG
+              </span>
+            </div>
+          </div>
         </div>
         <div className="robotics-assembly-settings">
           {error || bindingError ? (

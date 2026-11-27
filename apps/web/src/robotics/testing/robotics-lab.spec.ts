@@ -426,7 +426,7 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(save?.parentElement).toBe(header);
     expect(save?.nextElementSibling).toBe(header!.querySelector('.robotics-header-notice'));
     expect(header!.querySelector('.robotics-header-notice')?.nextElementSibling).toBe(
-      header!.querySelector('.robotics-header-controls'),
+      header!.querySelector('.robotics-run-bar'),
     );
     expect(header!.querySelector('.robotics-header-controls')?.lastElementChild).toBe(
       header!.querySelector('.robotics-header-profile'),
@@ -450,6 +450,98 @@ describe('robotics UI integration with the common workbench port', () => {
     }
     await click('Сохранить');
     expect(header!.querySelector('.robotics-header-save')).toBe(save);
+  });
+
+  it.each(['standalone', 'account'])(
+    'keeps the same sole header controls and editor instances across tabs in %s',
+    async (entry) => {
+      if (entry === 'account') await mountAccountEditor();
+      const header = container.querySelector('.robotics-unified-header')!;
+      const controls = header.querySelector('.robotics-run-bar')!;
+      const clock = metric('robotics-time');
+      const stage = metric('canonical-stage');
+      await click('Код');
+      const program = metric('canonical-program');
+      const mounts = [port.stageMounts, port.programMounts];
+      const circuit = port.host!.getCurrentDocument();
+      const initialSource = JSON.stringify(circuit);
+      await click('Запустить');
+      expect(port.toggle).toHaveBeenCalledOnce();
+      act(() => port.presentation!.setObservation(electricalObservation(100_000)));
+      await click('Пауза');
+      const pauseCommands = port.setRate.mock.calls.length;
+      const pose = metric('robotics-robot').getAttribute('data-x-meters');
+      await click('Изменить скорость моделирования');
+      const pacePanel = header.querySelector('.workbench-simulation-pace-panel');
+      expect(pacePanel).not.toBeNull();
+      for (const tab of ['Поле', 'Робот', 'Электроника', 'Код', 'Поле']) {
+        await click(tab);
+        expect(container.querySelectorAll('.robotics-run-bar')).toHaveLength(1);
+        expect(container.querySelector('.robotics-unified-header .robotics-run-bar')).toBe(
+          controls,
+        );
+        expect(metric('robotics-time')).toBe(clock);
+        expect(header.querySelector('.workbench-simulation-pace-panel')).toBe(pacePanel);
+        expect(clock.dataset.microseconds).toBe('100000');
+        expect(metric('robotics-robot').getAttribute('data-x-meters')).toBe(pose);
+        expect(control('Продолжить').disabled).toBe(false);
+        expect(metric('canonical-stage')).toBe(stage);
+        expect(metric('canonical-program')).toBe(program);
+        expect([port.stageMounts, port.programMounts]).toEqual(mounts);
+        expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(initialSource);
+      }
+      expect(port.setRate.mock.calls).toHaveLength(pauseCommands);
+      await act(async () => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      });
+      expect(document.activeElement).toBe(control('Изменить скорость моделирования'));
+      await click('Продолжить');
+      expect(port.setRate).toHaveBeenLastCalledWith(1);
+      expect(port.toggle).toHaveBeenCalledOnce();
+      await click('Сбросить');
+      expect(port.reset).toHaveBeenCalledOnce();
+      expect(clock.dataset.microseconds).toBe('0');
+      expect(control('Пауза').disabled).toBe(true);
+      expect(header.querySelector('.robotics-run-bar')).toBe(controls);
+      expect(port.host!.getCurrentDocument()).toBe(circuit);
+    },
+  );
+
+  it('opens the construction preview only for the Robot tab and preserves source/editor ownership on camera changes', async () => {
+    const stage = metric('canonical-stage');
+    const snapshot = JSON.stringify(port.host!.getCurrentDocument());
+    const viewport = () =>
+      container.querySelector<HTMLElement>('[data-testid="robotics-assembly-viewport"]')!;
+    expect(viewport().dataset.active).toBe('false');
+    expect(viewport().querySelector('canvas')).toBeNull();
+    await click('Робот');
+    expect(viewport().dataset.active).toBe('true');
+    const panel = container.querySelector('#robotics-panel-robot')!;
+    const cameraButtons = [
+      ...panel.querySelectorAll<HTMLButtonElement>('.robotics-field-view-switch button'),
+    ];
+    expect(cameraButtons.map((button) => button.textContent)).toEqual([
+      'Перспектива',
+      'Спереди',
+      'Сверху',
+      'Сбоку',
+    ]);
+    for (const button of cameraButtons) {
+      await act(async () => button.click());
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(snapshot);
+    }
+    // jsdom has no GPU: the original labelled SVG and mm form remain usable.
+    expect(panel.querySelector('[data-testid="robotics-assembly-field"]')).not.toBeNull();
+    const length = panel.querySelector<HTMLInputElement>('input[aria-label="Длина корпуса"]');
+    expect(length).not.toBeNull();
+    expect(length?.value).toBe('200');
+    await click('Электроника');
+    expect(viewport().dataset.active).toBe('false');
+    expect(metric('canonical-stage')).toBe(stage);
+    expect(port.stageMounts).toBe(1);
+    expect(port.stageUnmounts).toBe(0);
+    expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(snapshot);
   });
 
   it('keeps idle snapshot uploads off, captures explicit Save once and reuses its confirmation for publication', async () => {
@@ -576,7 +668,8 @@ describe('robotics UI integration with the common workbench port', () => {
       return createElement(RoboticsWorkspace, {
         project: account,
         projectId: project.id,
-        header: (tabs) => createElement('header', null, project.title, tabs),
+        header: (tabs, _notices, controls) =>
+          createElement('header', null, project.title, tabs, controls),
       });
     }
     act(() => root.render(createElement(AccountHarness)));

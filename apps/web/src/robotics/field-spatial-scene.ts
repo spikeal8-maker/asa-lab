@@ -179,7 +179,7 @@ function createDecorations(
   };
 }
 
-function createRobot(robot: RoboticsFieldGeometry['robot']): THREE.Group {
+export function createRobotVisual(robot: RoboticsFieldGeometry['robot']): THREE.Group {
   const group = new THREE.Group();
   const length = robot.bodyLengthMeters;
   const width = robot.bodyWidthMeters;
@@ -188,6 +188,8 @@ function createRobot(robot: RoboticsFieldGeometry['robot']): THREE.Group {
   const tyreWidth = robot.wheelWidthMeters;
   const deckZ = wheelRadius * 1.55;
   const deckThickness = Math.min(0.009, wheelRadius * 0.35);
+  const shellHeight = Math.min(0.035, length * 0.18);
+  const boardZ = deckZ + deckThickness / 2 + shellHeight + 0.004;
   const rubber = metal(0x202833, 0.95);
   const aluminium = metal(0x9db5bd, 0.32, 0.32);
   const steel = metal(0x627988, 0.43, 0.35);
@@ -195,14 +197,22 @@ function createRobot(robot: RoboticsFieldGeometry['robot']): THREE.Group {
   const plastic = metal(0x28394b, 0.62);
   const wheel = new THREE.CylinderGeometry(wheelRadius, wheelRadius, tyreWidth, 24);
   const hub = new THREE.CylinderGeometry(wheelRadius * 0.53, wheelRadius * 0.53, 0.004, 20);
-  addMesh(group, new THREE.BoxGeometry(length, width, deckThickness), aluminium, 0, 0, deckZ);
+  const deck = addMesh(
+    group,
+    new THREE.BoxGeometry(length, width, deckThickness),
+    aluminium,
+    0,
+    0,
+    deckZ,
+  );
+  deck.name = 'visual-chassis-deck';
   addMesh(
     group,
-    new THREE.BoxGeometry(length * 0.68, width * 0.7, deckThickness * 1.3),
+    new THREE.BoxGeometry(length * 0.68, width * 0.7, shellHeight),
     plastic,
     -length * 0.06,
     0,
-    deckZ + deckThickness,
+    deckZ + deckThickness / 2 + shellHeight / 2,
   );
   addMesh(
     group,
@@ -210,7 +220,7 @@ function createRobot(robot: RoboticsFieldGeometry['robot']): THREE.Group {
     circuit,
     length * 0.17,
     0,
-    deckZ + deckThickness * 1.9,
+    boardZ,
   );
   addMesh(
     group,
@@ -218,10 +228,11 @@ function createRobot(robot: RoboticsFieldGeometry['robot']): THREE.Group {
     plastic,
     length * 0.18,
     0,
-    deckZ + deckThickness * 2.5,
+    boardZ + 0.008,
   );
   for (const side of [-1, 1]) {
-    addMesh(group, wheel, rubber, 0, (side * track) / 2, wheelRadius);
+    const tyre = addMesh(group, wheel, rubber, 0, (side * track) / 2, wheelRadius);
+    tyre.name = side === 1 ? 'visual-wheel-left' : 'visual-wheel-right';
     addMesh(group, hub, steel, 0, (side * (track + tyreWidth)) / 2, wheelRadius);
     addMesh(
       group,
@@ -232,7 +243,56 @@ function createRobot(robot: RoboticsFieldGeometry['robot']): THREE.Group {
       wheelRadius,
     );
   }
+  const casterRadius = Math.min(wheelRadius * 0.38, width * 0.12, length * 0.06);
+  const casterX = -length * 0.42;
+  const caster = addMesh(
+    group,
+    new THREE.SphereGeometry(casterRadius, 20, 12),
+    steel,
+    casterX,
+    0,
+    casterRadius,
+  );
+  caster.name = 'visual-rear-caster';
+  const cup = addMesh(
+    group,
+    new THREE.BoxGeometry(casterRadius * 1.8, casterRadius * 1.8, 0.006),
+    aluminium,
+    casterX,
+    0,
+    casterRadius * 1.9,
+  );
+  cup.name = 'visual-caster-cup';
+  const cupTop = casterRadius * 1.9 + 0.003;
+  const deckUnderside = deckZ - deckThickness / 2;
+  // Slight embed at both ends keeps the actual Float32 meshes joined. The
+  // bracket stays inside the existing chassis plan and is appearance only.
+  const embed = Math.min(0.001, casterRadius * 0.15, deckThickness * 0.15);
+  const bracket = addMesh(
+    group,
+    new THREE.BoxGeometry(
+      casterRadius * 0.65,
+      casterRadius * 0.65,
+      deckUnderside - cupTop + embed * 2,
+    ),
+    steel,
+    casterX,
+    0,
+    (cupTop + deckUnderside) / 2,
+  );
+  bracket.name = 'visual-caster-bracket';
+  // Uno-like board/headers are visual detail; no hardware origin or model changes.
+  for (const side of [-1, 1])
+    addMesh(
+      group,
+      new THREE.BoxGeometry(length * 0.28, 0.004, 0.007),
+      rubber,
+      length * 0.17,
+      side * width * 0.23,
+      boardZ + 0.006,
+    );
   const sensor = new THREE.Group();
+  sensor.name = 'visual-hcsr04';
   sensor.position.set(robot.sensorForwardMeters, robot.sensorLateralMeters, deckZ + 0.012);
   sensor.rotation.z = robot.sensorHeadingRadians;
   group.add(sensor);
@@ -268,7 +328,7 @@ function createBall(radius: number): THREE.Group {
   const group = new THREE.Group();
   addMesh(group, new THREE.SphereGeometry(radius, 28, 18), metal(0xec9942, 0.64), 0, 0, radius);
   const seam = metal(0x9e4a1b, 0.84);
-  const seamGeometry = rim(radius * 0.999, Math.min(radius * 0.012, 0.0012));
+  const seamGeometry = rim(radius * 0.988, Math.min(radius * 0.012, 0.0012));
   addMesh(group, seamGeometry, seam, 0, 0, radius);
   addMesh(group, seamGeometry, seam, 0, 0, radius).rotateY(Math.PI / 2);
   return group;
@@ -291,6 +351,7 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
   const previewPositions = new Map<THREE.Object3D, THREE.Vector3>();
   const objectKeys = new WeakMap<THREE.Object3D, RoboticsObjectKey>();
   function addPickable(key: RoboticsObjectKey, item: THREE.Object3D): void {
+    item.name ||= key;
     objects.set(key, item);
     const roots = previewRoots.get(key) ?? new Set<THREE.Object3D>();
     roots.add(item);
@@ -303,15 +364,31 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
   scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x87969f, 2.25), sun);
   const surfaceColors = { smooth: 0x9eacb5, wood: 0xb49872, carpet: 0x8f99a9 };
   const floor = metal(surfaceColors[field.surface ?? 'smooth'], 0.93);
-  addMesh(
-    scene,
-    new THREE.BoxGeometry(width, height, 0.045),
-    floor,
-    width / 2,
-    height / 2,
-    -0.0225,
-  );
+  addMesh(scene, new THREE.BoxGeometry(width, height, 0.012), floor, width / 2, height / 2, -0.006);
+  // Low visual perimeter only: outside canonical XY and absent from picking/physics.
+  const rimMaterial = metal(0x526773, 0.66, 0.18);
+  const rimWidth = 0.012;
+  const rimHeight = 0.009;
+  for (const y of [-rimWidth / 2, height + rimWidth / 2])
+    addMesh(
+      scene,
+      new THREE.BoxGeometry(width + rimWidth * 2, rimWidth, rimHeight),
+      rimMaterial,
+      width / 2,
+      y,
+      rimHeight / 2,
+    );
+  for (const x of [-rimWidth / 2, width + rimWidth / 2])
+    addMesh(
+      scene,
+      new THREE.BoxGeometry(rimWidth, height, rimHeight),
+      rimMaterial,
+      x,
+      height / 2,
+      rimHeight / 2,
+    );
   const metricGrid = new THREE.Group();
+  metricGrid.name = 'metric-grid';
   scene.add(metricGrid);
   addGroundLines(
     metricGrid,
@@ -516,7 +593,7 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
     bodyMeshes.set(body.id, item);
   }
 
-  const robot = createRobot(world.robot);
+  const robot = createRobotVisual(world.robot);
   addShadow(
     robot,
     world.robot.bodyLengthMeters / 2,
@@ -666,22 +743,79 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
 
   function dispose(): void {
     disposeDecorations();
-    const geometries = new Set<THREE.BufferGeometry>();
-    const materials = new Set<THREE.Material>();
-    const textures = new Set<THREE.Texture>();
-    scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh || object instanceof THREE.Line)) return;
-      geometries.add(object.geometry);
-      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-        materials.add(material);
-        if (material instanceof THREE.MeshBasicMaterial && material.map) textures.add(material.map);
-      }
-    });
-    for (const texture of textures) texture.dispose();
-    for (const material of materials) material.dispose();
-    for (const geometry of geometries) geometry.dispose();
-    scene.clear();
+    disposeSpatialResources(scene);
   }
 
-  return { scene, applySnapshot, readFocus, pick, pickHit, dispose };
+  return {
+    scene,
+    applySnapshot,
+    readFocus,
+    pick,
+    pickHit,
+    dispose,
+    robotGeometry: readRobotVisualGeometry(robot),
+  };
+}
+
+function disposeSpatialResources(scene: THREE.Scene): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  const textures = new Set<THREE.Texture>();
+  scene.traverse((object) => {
+    if (!(object instanceof THREE.Mesh || object instanceof THREE.Line)) return;
+    geometries.add(object.geometry);
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      materials.add(material);
+      if (material instanceof THREE.MeshBasicMaterial && material.map) textures.add(material.map);
+    }
+  });
+  for (const texture of textures) texture.dispose();
+  for (const material of materials) material.dispose();
+  for (const geometry of geometries) geometry.dispose();
+  scene.clear();
+}
+
+/** Actual shared mesh parameters, for read-only view parity evidence in metres. */
+export function readRobotVisualGeometry(robot: THREE.Group) {
+  const deck = robot.getObjectByName('visual-chassis-deck') as THREE.Mesh<THREE.BoxGeometry>;
+  const left = robot.getObjectByName('visual-wheel-left') as THREE.Mesh<THREE.CylinderGeometry>;
+  const right = robot.getObjectByName('visual-wheel-right') as THREE.Mesh<THREE.CylinderGeometry>;
+  const sensor = robot.getObjectByName('visual-hcsr04')!;
+  return {
+    bodyLengthMeters: deck.geometry.parameters.width,
+    bodyWidthMeters: deck.geometry.parameters.height,
+    wheelRadiusMeters: left.geometry.parameters.radiusTop,
+    wheelWidthMeters: left.geometry.parameters.height,
+    wheelTrackMeters: left.position.y - right.position.y,
+    sensorForwardMeters: sensor.position.x,
+    sensorLateralMeters: sensor.position.y,
+    sensorHeadingRadians: sensor.rotation.z,
+  };
+}
+
+/** Construction-local coordinates, not runtime state: only the same robot mesh. */
+export function createRobotSpatialScene(
+  world: RoboticsFieldGeometry,
+): ReturnType<typeof createFieldSpatialScene> {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(SPATIAL_FIELD_BACKGROUND);
+  const robot = createRobotVisual(world.robot);
+  robot.name = 'robot';
+  scene.add(robot);
+  const sun = new THREE.DirectionalLight(0xffebd7, 2);
+  sun.position.set(1, -2, 3);
+  scene.add(new THREE.HemisphereLight(0xeaf4ff, 0x87969f, 2.25), sun);
+  const bounds = new THREE.Box3().setFromObject(robot);
+  return {
+    scene,
+    robotGeometry: readRobotVisualGeometry(robot),
+    applySnapshot: () => {},
+    readFocus: (_key: RoboticsObjectKey, target: THREE.Vector3) => {
+      bounds.getCenter(target);
+      return bounds.min.distanceTo(bounds.max);
+    },
+    pick: () => undefined,
+    pickHit: () => undefined,
+    dispose: () => disposeSpatialResources(scene),
+  };
 }

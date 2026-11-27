@@ -36,6 +36,8 @@ export function useFieldCamera(
     onStart: (keepPointerCapture: boolean) => void;
     onCancel: () => void;
     isEditing: () => boolean;
+    initialFocus?: { xMeters: number; yMeters: number };
+    initialMagnification?: number;
   },
 ) {
   const [view, setView] = useState<{ camera: FieldCamera | null; viewport: FieldViewport }>({
@@ -107,6 +109,18 @@ export function useFieldCamera(
                 viewport,
               ),
       };
+      if (!current.camera) {
+        next.camera = {
+          ...next.camera,
+          xMeters: optionsRef.current.initialFocus?.xMeters ?? next.camera.xMeters,
+          yMeters: optionsRef.current.initialFocus?.yMeters ?? next.camera.yMeters,
+          pixelsPerMeter: Math.min(
+            10_000,
+            next.camera.pixelsPerMeter * (optionsRef.current.initialMagnification ?? 1),
+          ),
+        };
+        fitTarget.current = null;
+      }
       viewRef.current = next;
       setView(next);
     };

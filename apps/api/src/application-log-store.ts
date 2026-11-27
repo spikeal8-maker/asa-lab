@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { logModule, logSubsystem } from './log-subsystems.js';
+import { isScratchSaveFailureCode } from './scratch-save-diagnostics.js';
 
 const FIELDS = new Set([
   'time',
@@ -25,6 +26,7 @@ const FIELDS = new Set([
   'relatedRequestId',
   'operation',
   'failureKind',
+  'failureCode',
   'instanceId',
   'eventId',
   'occurredAt',
@@ -67,6 +69,7 @@ const SEGMENT = /^seg-\d{16}-\d{16}\.jsonl$/;
 // Recheck the client controller's closed request context at the storage boundary.
 // These fields never admit URLs, error text or provider operation labels.
 const REQUEST_CONTEXT: Readonly<Record<string, (value: unknown) => boolean>> = {
+  failureCode: isScratchSaveFailureCode,
   httpStatus: (value) =>
     typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 599,
   relatedRequestId: (value) =>
