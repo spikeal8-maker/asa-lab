@@ -309,6 +309,100 @@ function standaloneWithSwitches() {
   };
 }
 
+function singleMotorBatteryCircuit({ batteryVolt, logic, reversed }) {
+  const base = circuit({ signA: 1, signB: -1, dutyA: 255, dutyB: 255 });
+  const arduino = logic === 'arduino';
+  const onboard = logic === 'regulator';
+  const batteryPins = batteryVolt === 9 ? ['positive', 'negative'] : ['BAT+', 'BAT-'];
+  const [positive, negative] = batteryPins;
+  const wire = (id, from, terminal, pin) => ({
+    id,
+    from: { componentId: from, terminal },
+    to: { componentId: 'driver', terminal: pin },
+  });
+  const components = base.components.filter(
+    (part) => part.id !== 'motor-b' && (arduino || part.id !== 'uno'),
+  );
+  const driveSource = logic === 'bench' ? 'logic-supply' : 'driver';
+  const highPin = logic === 'bench' ? 'positive' : '+5V';
+  const directInputs = [
+    wire('direct-high', driveSource, highPin, reversed ? 'IN2' : 'IN1'),
+    wire('direct-low', 'vs', negative, reversed ? 'IN1' : 'IN2'),
+  ];
+  return {
+    ...base,
+    components: components
+      .map((part) => {
+        if (part.id === 'driver') {
+          return {
+            ...part,
+            stateProperties: {
+              enaJumperInstalled: true,
+              enbJumperInstalled: true,
+              regulatorJumperInstalled: onboard,
+            },
+          };
+        }
+        if (part.id === 'vs') {
+          return {
+            ...part,
+            componentTypeId: batteryVolt === 9 ? 'battery-9v' : 'battery-holder-aa-4',
+            pinIds: batteryPins,
+            value: batteryVolt,
+          };
+        }
+        if (part.id === 'uno') {
+          return {
+            ...part,
+            stateProperties: {
+              arduinoSource:
+                'void setup(){pinMode(2,OUTPUT);pinMode(4,OUTPUT);}' +
+                'void loop(){digitalWrite(2,HIGH);digitalWrite(4,LOW);delay(250);' +
+                'digitalWrite(2,LOW);digitalWrite(4,HIGH);delay(500);}',
+            },
+          };
+        }
+        return part;
+      })
+      .concat(
+        logic === 'bench'
+          ? [
+              {
+                id: 'logic-supply',
+                kind: 'source',
+                componentTypeId: 'regulated-power-supply',
+                pinIds: ['positive', 'negative'],
+                value: 5,
+                position: { x: 0, y: 200 },
+                stateProperties: {
+                  outputEnabled: true,
+                  voltageSetpointVolt: 5,
+                  currentLimitAmp: 0.5,
+                },
+              },
+            ]
+          : [],
+      ),
+    connections: [
+      wire('battery-positive', 'vs', positive, '+12V'),
+      wire('battery-ground', 'vs', negative, 'GND'),
+      ...base.connections.filter((connection) =>
+        (arduino
+          ? ['logic', 'logic-ground', 'in1', 'in2', 'out1', 'out2']
+          : ['out1', 'out2']
+        ).includes(connection.id),
+      ),
+      ...(arduino ? [] : directInputs),
+      ...(logic === 'bench'
+        ? [
+            wire('logic-positive', 'logic-supply', 'positive', '+5V'),
+            wire('logic-ground', 'logic-supply', 'negative', 'GND'),
+          ]
+        : []),
+    ],
+  };
+}
+
 function finiteTree(value, path = 'result') {
   if (typeof value === 'number') assert.ok(Number.isFinite(value), path + ' is finite');
   else if (Array.isArray(value)) value.forEach((item, i) => finiteTree(item, path + '[' + i + ']'));
@@ -353,7 +447,7 @@ function projection(advance) {
     diagnostics: advance.diagnostics,
   };
 }
-function frameSummary(advance) {
+function frameSummary(advance, includeMotorB = true) {
   const driver = component(advance.result, 'driver');
   const motor = (id) => {
     const value = component(advance.result, id);
@@ -373,7 +467,7 @@ function frameSummary(advance) {
     enbVolt: driver.terminalVoltages.ENB,
     logicLit: driver.lit,
     motorA: motor('motor-a'),
-    motorB: motor('motor-b'),
+    ...(includeMotorB ? { motorB: motor('motor-b') } : {}),
     quality: advance.result.quality,
     diagnostics: advance.result.diagnostics,
     continuationSha256: sha256(advance.state.continuation.serializedState),
@@ -594,6 +688,96 @@ try {
     );
     solved(payload.result, label + ' @ ' + horizon + ' us');
     return payload;
+  }
+
+  const batteryCases = [
+    { id: 'single-motor-pp3-forward', batteryVolt: 9, logic: 'regulator', steps: [[200_000, 1]] },
+    {
+      id: 'single-motor-pp3-reverse',
+      batteryVolt: 9,
+      logic: 'regulator',
+      reversed: true,
+      steps: [[200_000, -1]],
+    },
+    {
+      id: 'single-motor-aa-onboard-undervoltage',
+      batteryVolt: 6,
+      logic: 'regulator',
+      steps: [[200_000, 0]],
+    },
+    {
+      id: 'single-motor-aa-external-5v-forward',
+      batteryVolt: 6,
+      logic: 'bench',
+      steps: [[200_000, 1]],
+    },
+    {
+      id: 'single-motor-aa-external-5v-reverse',
+      batteryVolt: 6,
+      logic: 'bench',
+      reversed: true,
+      steps: [[200_000, -1]],
+    },
+    {
+      id: 'single-motor-aa-arduino-live-reversal',
+      batteryVolt: 6,
+      logic: 'arduino',
+      steps: [
+        [200_000, 1],
+        [500_000, -1],
+      ],
+    },
+  ];
+  for (const spec of batteryCases) {
+    const document = singleMotorBatteryCircuit(spec);
+    const record = { id: spec.id, documentSha256: sha256(JSON.stringify(document)), frames: [] };
+    receipt.cases.push(record);
+    await openWorker(spec.id);
+    record.preflight = await preflight(
+      spec.id,
+      document,
+      spec.logic === 'arduino' ? 'arduino' : 'none',
+    );
+    let state = identity.initialState;
+    let previousHorizon = 0;
+    for (const [horizon, sign] of [[0, null], ...spec.steps]) {
+      const sample = await advance(spec.id, document, state, horizon, previousHorizon);
+      state = JSON.parse(JSON.stringify(sample.state));
+      previousHorizon = horizon;
+      const driver = component(sample.result, 'driver');
+      const frame = frameSummary(sample, false);
+      const { GND: ground, '+12V': vs, '+5V': logic, OUT1, OUT2 } = driver.terminalVoltages;
+      const motorSupplyVolt = vs - ground;
+      const logicVolt = logic - ground;
+      record.frames.push({ ...frame, motorSupplyVolt, logicVolt });
+      if (sign === null) continue;
+      assert.ok(
+        motorSupplyVolt > spec.batteryVolt - 2 && motorSupplyVolt <= spec.batteryVolt + 0.01,
+      );
+      assert.ok(Math.abs(driver.terminalCurrents.OUT3) < 1e-8);
+      assert.ok(Math.abs(driver.terminalCurrents.OUT4) < 1e-8);
+      assert.ok(Math.abs(frame.motorA.voltageDrop - (OUT1 - OUT2)) < 1e-8);
+      if (sign === 0) {
+        assert.ok(logicVolt < 4.5);
+        assert.equal(frame.logicLit, false);
+        assert.ok(Math.abs(frame.motorA.current) < 1e-8);
+        assert.ok(Math.abs(frame.motorA.outputRpm) < 1e-8);
+        assert.ok(frame.diagnostics.some(({ code }) => code === 'l298n_logic_supply'));
+      } else {
+        assert.ok(logicVolt > 4.5 && logicVolt < 5.5);
+        assert.equal(frame.logicLit, true);
+        assert.ok(frame.motorA.voltageDrop * sign > 0.5, 'Output voltage polarity');
+        assert.ok(frame.motorA.current * sign > 0.01, 'Winding current direction');
+        assert.ok(frame.motorA.outputRpm * sign > 0, 'Actual shaft rotation');
+      }
+    }
+    await closeWorker(spec.id);
+    record.status = 'pass';
+    await persistReceipt();
+    console.log(
+      'L298N_DOMAIN_WORKER_CASE_PASS',
+      JSON.stringify({ id: spec.id, frames: record.frames.length }),
+    );
   }
 
   const specs = [
