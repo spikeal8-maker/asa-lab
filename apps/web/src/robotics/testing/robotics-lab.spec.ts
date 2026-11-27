@@ -755,6 +755,25 @@ describe('robotics UI integration with the common workbench port', () => {
       container.querySelector('.robotics-field-editor-body')?.getAttribute('data-compact-dock'),
     ).toBe('true');
     expect(stage.closest('[hidden]')).toBeNull();
+    const robot = container.querySelector('#robotics-panel-robot')!;
+    const switcher = metric('robotics-observation-switch');
+    const selectObservation = async (label: string) => {
+      const button = [...switcher.querySelectorAll('button')].find(
+        (item) => item.textContent === label,
+      )!;
+      await act(async () => button.click());
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+    };
+    const fieldDock = container.querySelector('#robotics-field-catalog')!;
+    expect(fieldDock.hasAttribute('hidden')).toBe(true);
+    await selectObservation('Робот');
+    expect(field.hasAttribute('hidden')).toBe(true);
+    expect(robot.hasAttribute('hidden')).toBe(false);
+    expect(robot.getAttribute('role')).toBe('region');
+    expect(robot.querySelector('.robotics-assembly-settings')?.hasAttribute('hidden')).toBe(true);
+    await selectObservation('Поле');
+    expect(field.hasAttribute('hidden')).toBe(false);
+    expect(robot.hasAttribute('hidden')).toBe(true);
     await click('Код');
     const program = metric('canonical-program');
     await click('Поле');
@@ -765,6 +784,10 @@ describe('robotics UI integration with the common workbench port', () => {
     ).toBe('false');
     await click('Робот');
     expect(field.hasAttribute('hidden')).toBe(true);
+    expect(container.querySelector('#robotics-panel-robot')).toBe(robot);
+    expect(robot.hasAttribute('hidden')).toBe(false);
+    expect(robot.getAttribute('role')).toBe('tabpanel');
+    expect(robot.querySelector('.robotics-assembly-settings')?.hasAttribute('hidden')).toBe(false);
     await click('Код');
     expect(container.querySelector('#robotics-panel-field')).toBe(field);
     expect(metric('canonical-stage')).toBe(stage);
@@ -777,7 +800,7 @@ describe('robotics UI integration with the common workbench port', () => {
   });
 
   it('keeps desktop editor preference through compact clamping, bounds keyboard and captured pointer resize, and ignores late canceled movement', async () => {
-    await click('Электроника');
+    await click('Код');
     const workspace = container.querySelector<HTMLElement>('.robotics-workspace')!;
     const separator = container.querySelector<HTMLElement>('[role="separator"]')!;
     const source = JSON.stringify(port.host!.getCurrentDocument());
@@ -838,6 +861,60 @@ describe('robotics UI integration with the common workbench port', () => {
     expect(workspace.dataset.compactSplit).toBe('false');
     expect(width()).toBe(600);
     expect(separator.hasAttribute('hidden')).toBe(false);
+    expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(source);
+  });
+
+  it('persists Electronics observer width independently and restores its chosen subject across compact panes', async () => {
+    const observationKey = 'asa-lab:robotics:electronics-observation-width:v1';
+    const codeKey = 'asa-lab:robotics:editor-width:v1';
+    const separator = container.querySelector<HTMLElement>('[role="separator"]')!;
+    const field = container.querySelector<HTMLElement>('#robotics-panel-field')!;
+    const robot = container.querySelector<HTMLElement>('#robotics-panel-robot')!;
+    const stage = metric('canonical-stage');
+    const source = JSON.stringify(port.host!.getCurrentDocument());
+    const width = () => Number(separator.getAttribute('aria-valuenow'));
+    const key = async (value: string) => {
+      await act(async () =>
+        separator.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true })),
+      );
+    };
+    const resize = async (value: number) => {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value });
+      await act(async () => window.dispatchEvent(new Event('resize')));
+    };
+    await click('Электроника');
+    expect(separator.getAttribute('aria-label')).toBe('Ширина панели наблюдения');
+    expect(width()).toBe(240);
+    await key('Home');
+    expect(width()).toBe(200);
+    await key('ArrowRight');
+    expect(width()).toBe(216);
+    await key('End');
+    expect(width()).toBe(360);
+    expect(localStorage.getItem(observationKey)).toBe('360');
+    expect(localStorage.getItem(codeKey)).toBe('480');
+    const robotButton = metric('robotics-observation-switch').querySelectorAll('button')[1]!;
+    await act(async () => robotButton.click());
+    expect(field.hidden).toBe(true);
+    expect(robot.hidden).toBe(false);
+    await resize(320);
+    expect(separator.hidden).toBe(true);
+    expect(robot.hidden).toBe(true);
+    const chooser = container.querySelector('.robotics-pane-choice')!;
+    const [editor, observation] = [...chooser.querySelectorAll('button')];
+    expect(observation!.textContent).toBe('Наблюдение');
+    await act(async () => observation!.click());
+    expect(robot.hidden).toBe(false);
+    expect(stage.closest('[hidden]')).not.toBeNull();
+    await act(async () => editor!.click());
+    expect(robot.hidden).toBe(true);
+    expect(stage.closest('[hidden]')).toBeNull();
+    await resize(1440);
+    expect(robot.hidden).toBe(false);
+    expect(width()).toBe(360);
+    expect(localStorage.getItem(observationKey)).toBe('360');
+    await click('Код');
+    expect(width()).toBe(480);
     expect(JSON.stringify(port.host!.getCurrentDocument())).toBe(source);
   });
 

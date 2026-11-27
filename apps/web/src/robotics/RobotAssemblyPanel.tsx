@@ -36,12 +36,14 @@ const DIMENSIONS = [
 export function RobotAssemblyPanel({
   project,
   active = false,
+  observation = false,
   running,
   onCommit,
   onOpenElectronics,
 }: {
   project: RoboticsProject;
   active?: boolean;
+  observation?: boolean;
   running: boolean;
   onCommit: (world: RoboticsWorldDocument) => boolean;
   onOpenElectronics: () => void;
@@ -61,7 +63,7 @@ export function RobotAssemblyPanel({
   const [error, setError] = useState<string | null>(null);
   const bindingError = validateRoboticsBindings(project);
   function commit(next: RoboticsWorldDocument) {
-    if (running) return false;
+    if (running || observation) return false;
     const parsed = parseRoboticsWorldDocument(next);
     if (!parsed.ok) {
       setError(parsed.message);
@@ -85,7 +87,7 @@ export function RobotAssemblyPanel({
     component.name ? `${component.name} · ${component.id}` : component.id;
   return (
     <>
-      <div className="robotics-panel-toolbar robotics-robot-toolbar">
+      <div className="robotics-panel-toolbar robotics-robot-toolbar" hidden={observation}>
         <div className="robotics-robot-toolbar-tools">
           <h2>Робот</h2>
           <button type="button" className="robotics-button" onClick={onOpenElectronics}>
@@ -93,12 +95,12 @@ export function RobotAssemblyPanel({
           </button>
         </div>
       </div>
-      {running ? (
+      {running && !observation ? (
         <p className="robotics-edit-hint">
           Остановите моделирование, чтобы изменить конструкцию или назначение компонентов.
         </p>
       ) : null}
-      <div className="robotics-assembly-editor">
+      <div className="robotics-assembly-editor" data-observation={observation}>
         <div className="robotics-assembly-view">
           <div
             className="robotics-assembly-camera"
@@ -181,7 +183,7 @@ export function RobotAssemblyPanel({
             </div>
           </div>
         </div>
-        <div className="robotics-assembly-settings">
+        <div className="robotics-assembly-settings" hidden={observation}>
           {error || bindingError ? (
             <p role="alert" className="robotics-field-error robotics-scene-error">
               {error ?? bindingError}

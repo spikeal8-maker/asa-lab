@@ -4962,3 +4962,129 @@
     min-width: 32px;
   }
 }
+
+/* Electronics keeps its real editor on the right and reflows the same two observation views. */
+.robotics-lab .robotics-workspace[data-electronics-observer='true'][data-compact-split='false'] {
+  grid-template-columns: var(--robotics-observation-width) minmax(0, 1fr);
+  grid-template-areas: 'observation-tools editor-tools' 'field editor';
+}
+.robotics-lab .robotics-workspace[data-electronics-observer='true'] > .robotics-observation-switch {
+  grid-area: observation-tools;
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 4px;
+  border-bottom: 1px solid #ccdce5;
+  background: #f0f5f8;
+}
+.robotics-observation-switch button {
+  flex: 1 1 0;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid #bfd3df;
+  border-radius: 6px;
+  color: #345970;
+  background: #fff;
+}
+.robotics-observation-switch button[aria-pressed='true'] {
+  border-color: #149ab5;
+  background: #e6f7fa;
+  color: #096b86;
+}
+.robotics-lab .robotics-workspace[data-electronics-observer='true'] > .robotics-field-panel,
+.robotics-lab .robotics-workspace[data-electronics-observer='true'] > .robotics-robot-panel {
+  grid-area: field;
+  min-width: 0;
+  min-height: 0;
+  border-left: 0;
+  border-right: 1px solid #cbdde8;
+}
+.robotics-lab
+  .robotics-workspace[data-electronics-observer='true'][data-compact-split='false']
+  > .robotics-side-resizer {
+  left: calc(var(--robotics-observation-width) - 4px);
+}
+.robotics-lab
+  .robotics-workspace[data-electronics-observer='true'][data-compact-split='false']
+  > .robotics-program-panel[data-drawer-open='true'] {
+  inset: 46px 0 0 var(--robotics-observation-width);
+  width: auto;
+  max-width: none;
+}
+.robotics-lab .robotics-workspace[data-electronics-observer='true'] > .robotics-observation {
+  inset: auto auto 56px 8px;
+  max-width: calc(var(--robotics-observation-width) - 16px);
+}
+.robotics-lab
+  .robotics-workspace[data-electronics-observer='true'][data-compact-split='true'][data-pane='field'] {
+  grid-template-rows: 49px 46px minmax(0, 1fr);
+  grid-template-areas: 'choice' 'observation-tools' 'field';
+}
+.robotics-lab
+  .robotics-workspace[data-electronics-observer='true'][data-compact-split='true']
+  > .robotics-observation {
+  max-width: calc(100% - 16px);
+}
+.robotics-lab .robotics-field-toolbar[data-observation='true'] {
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 2px;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+.robotics-field-toolbar[data-observation='true'] .robotics-field-toolbar-primary {
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px 3px;
+}
+.robotics-lab
+  .robotics-field-toolbar[data-observation='true']
+  :is(.robotics-field-toolbar-scroll, .robotics-field-view-tools) {
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+.robotics-lab .robotics-field-toolbar[data-observation='true'] .robotics-field-view-tools {
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 0 3px 2px;
+}
+.robotics-lab .robotics-field-toolbar[data-observation='true'] .robotics-field-view-switch,
+.robotics-assembly-editor[data-observation='true'] .robotics-field-view-switch {
+  flex-wrap: wrap;
+  gap: 1px;
+  padding: 0;
+}
+.robotics-lab .robotics-field-toolbar[data-observation='true'] button,
+.robotics-assembly-editor[data-observation='true'] button {
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 3px;
+}
+.robotics-lab .robotics-field-toolbar[data-observation='true'] .robotics-grid-toggle {
+  min-height: 44px;
+}
+.robotics-assembly-editor[data-observation='true'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.robotics-assembly-editor[data-observation='true'] .robotics-assembly-view {
+  height: auto;
+}
+.robotics-assembly-editor[data-observation='true'] .robotics-assembly-camera {
+  padding: 2px 3px;
+}
+.robotics-assembly-editor[data-observation='true'] .robotics-field-view-switch {
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+.robotics-assembly-editor[data-observation='true'] .robotics-assembly-zoom {
+  margin-inline-start: 0;
+}
