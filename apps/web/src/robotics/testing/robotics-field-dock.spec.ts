@@ -38,3 +38,25 @@ describe('ROBOTICS-FIELD-DOCK-001 source invariants', () => {
     expect(editor).toContain('onClick={onUndo}');
   });
 });
+
+describe('Compact Field controls', () => {
+  it('keeps one camera and zoom group outside the secondary tools scroller', () => {
+    expect(editor.match(/aria-label="Инструменты поля"/g)).toHaveLength(1);
+    expect(editor.match(/aria-label="Камера поля"/g)).toHaveLength(1);
+    const primary = editor.split('className="robotics-field-toolbar-primary"')[1]!;
+    const [cameraZoom, secondary] = primary.split('className="robotics-field-toolbar-scroll"');
+    expect(cameraZoom).toContain('onClick={() => changeFieldView(id)}');
+    expect(cameraZoom).toContain('onClick={() => stepZoom(-1)}');
+    expect(cameraZoom).toContain('aria-label="Масштаб поля"');
+    expect(cameraZoom).toContain('onClick={() => stepZoom(1)}');
+    expect(secondary).toContain('aria-label="Показать поле целиком"');
+    expect(secondary).not.toContain('onClick={() => stepZoom(');
+  });
+
+  it('removes the frame from the spatial Side ruler only', () => {
+    expect(stylesheet).toMatch(
+      /\.robotics-field-spatial\[data-field-view='side'\] \.robotics-side-scale \{[^}]*border-radius: 0;[^}]*background: transparent;/,
+    );
+    expect(stylesheet).toMatch(/\.robotics-side-scale \{[^}]*background: #20343cdb;/);
+  });
+});

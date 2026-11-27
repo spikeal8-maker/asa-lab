@@ -94,6 +94,10 @@ async function sideRuler(page: Page) {
   expect(measurement.toolbar.bottom).toBeLessThanOrEqual(measurement.viewport.top + 1);
   await expect(ruler).toHaveAccessibleName('Масштаб бокового вида: ' + measurement.label);
   await expect(ruler).toHaveCSS('pointer-events', 'none');
+  await expect(ruler).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(ruler).toHaveCSS('border-width', '0px');
+  await expect(ruler).toHaveCSS('border-radius', '0px');
+  await expect(ruler).toHaveCSS('box-shadow', 'none');
   return measurement;
 }
 
@@ -374,6 +378,112 @@ async function visibleControl(page: Page, control: Locator): Promise<void> {
   expect(box!.height).toBeGreaterThanOrEqual(28);
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+}
+
+const FIELD_PRIMARY_BUTTONS = [
+  'Сверху',
+  'Перспектива',
+  'Сбоку',
+  'Отдалить поле',
+  'Приблизить поле',
+] as const;
+type FieldPrimaryButton = (typeof FIELD_PRIMARY_BUTTONS)[number];
+
+const fieldToolbar = (page: Page) =>
+  page.getByRole('toolbar', { name: 'Инструменты поля', exact: true });
+const fieldPrimaryButton = (page: Page, name: FieldPrimaryButton) =>
+  fieldToolbar(page).getByRole('button', { name, exact: true });
+const fieldScale = (page: Page) => fieldToolbar(page).getByLabel('Масштаб поля', { exact: true });
+
+async function measurePrimaryControl(control: Locator, hitTest: boolean, minimum: number) {
+  await expect(control).toHaveCount(1);
+  const measurement = await control.evaluate((element, hitTest) => {
+    const bounds = element.getBoundingClientRect();
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    const containedBy = (area: DOMRect, axis: 'x' | 'y') =>
+      axis === 'x'
+        ? bounds.left >= area.left && bounds.right <= area.right + 1
+        : bounds.top >= area.top && bounds.bottom <= area.bottom + 1;
+    let unclipped =
+      bounds.left >= 0 &&
+      bounds.top >= 0 &&
+      bounds.right <= innerWidth + 1 &&
+      bounds.bottom <= innerHeight + 1;
+    for (let parent = element.parentElement; parent && unclipped; parent = parent.parentElement) {
+      const style = getComputedStyle(parent);
+      const area = parent.getBoundingClientRect();
+      if (style.overflowX !== 'visible') unclipped = containedBy(area, 'x');
+      if (style.overflowY !== 'visible') unclipped &&= containedBy(area, 'y');
+    }
+    return {
+      bounds: bounds.toJSON(),
+      center: { x, y },
+      unclipped,
+      hittable: !hitTest || (hit !== null && element.contains(hit)),
+    };
+  }, hitTest);
+  expect(measurement.unclipped).toBe(true);
+  expect(measurement.hittable).toBe(true);
+  expect(measurement.bounds.width).toBeGreaterThanOrEqual(minimum);
+  expect(measurement.bounds.height).toBeGreaterThanOrEqual(minimum);
+  return measurement;
+}
+
+/** Client bounds and hit-testing do not scroll a previously offscreen control into view. */
+async function measurePrimaryFieldControls(page: Page) {
+  const width = page.viewportSize()!.width;
+  await expect(fieldToolbar(page)).toHaveCount(1);
+  await noOverflow(page);
+  const buttons = [];
+  for (const name of FIELD_PRIMARY_BUTTONS) {
+    buttons.push({
+      name,
+      ...(await measurePrimaryControl(
+        fieldPrimaryButton(page, name),
+        true,
+        width === 320 ? 44 : 1,
+      )),
+    });
+  }
+  await expect(fieldScale(page)).toHaveText(/^\d+%$/);
+  const scale = await measurePrimaryControl(fieldScale(page), false, 1);
+  if (width === 320) {
+    const centersY = [...buttons.map(({ center }) => center.y), scale.center.y];
+    expect(Math.max(...centersY) - Math.min(...centersY)).toBeLessThanOrEqual(2);
+  }
+  return { width, buttons, scale };
+}
+
+async function clickPrimaryFieldControl(page: Page, name: FieldPrimaryButton) {
+  const control = fieldPrimaryButton(page, name);
+  await expect(control).toBeEnabled();
+  const { center } = await measurePrimaryControl(control, true, 1);
+  await page.mouse.click(center.x, center.y);
+}
+
+async function roundTripFieldZoom(page: Page, renderAttribute: 'data-camera' | 'data-projection') {
+  const canvas = page.getByTestId('robotics-field-spatial').locator('canvas');
+  await canvas.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  const readZoom = async () => Number((await fieldScale(page).textContent())?.replace('%', ''));
+  const before = await readZoom();
+  const initialRender = await canvas.getAttribute(renderAttribute);
+  expect(initialRender).not.toBeNull();
+  await clickPrimaryFieldControl(page, 'Приблизить поле');
+  await expect.poll(readZoom).toBeGreaterThan(before);
+  await expect(canvas).not.toHaveAttribute(renderAttribute, initialRender!);
+  const increased = await readZoom();
+  const zoomedRender = await canvas.getAttribute(renderAttribute);
+  await clickPrimaryFieldControl(page, 'Отдалить поле');
+  await expect.poll(readZoom).toBeLessThan(increased);
+  await expect(canvas).not.toHaveAttribute(renderAttribute, zoomedRender!);
+  return { before, increased, decreased: await readZoom() };
 }
 
 /**
@@ -914,6 +1024,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
   const storageState = await page.context().storageState();
   const measurements: unknown[] = [];
   const topMeasurements: unknown[] = [];
+  const toolbarMeasurements: unknown[] = [];
 
   for (const dpr of [1, 2]) {
     const context = await browser.newContext({
@@ -950,8 +1061,10 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         .toBeGreaterThan(200_000);
       await target.getByRole('button', { name: 'Пауза', exact: true }).click();
       await expect(target.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
-      await target.getByRole('button', { name: 'Сбоку', exact: true }).click();
+      await measurePrimaryFieldControls(target);
+      await clickPrimaryFieldControl(target, 'Сбоку');
       const spatial = target.getByTestId('robotics-field-spatial');
+      const sideCanvas = spatial.locator('canvas');
       const snapshot = () =>
         spatial.evaluate((element) =>
           [
@@ -968,7 +1081,17 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
       const revision = (await readProject(target, projectId)).draft.revision;
 
       for (const width of [1440, 320]) {
+        const cameraBeforeResize = await sideCanvas.getAttribute('data-camera');
+        const zoomBeforeResize = (await sideRuler(target)).zoom;
+        await expect(fieldPrimaryButton(target, 'Сбоку')).toBeFocused();
         await target.setViewportSize({ width, height: 900 });
+        const primary = await measurePrimaryFieldControls(target);
+        await expect(spatial).toHaveAttribute('data-field-view', 'side');
+        await expect(fieldPrimaryButton(target, 'Сбоку')).toBeFocused();
+        const resized = await sideRuler(target);
+        expect(resized.zoom).toBe(zoomBeforeResize);
+        expect(await sideCanvas.getAttribute('data-camera')).toBe(cameraBeforeResize);
+        expect(await snapshot()).toEqual(paused);
         const closeDock = target.getByRole('button', { name: 'Закрыть панель поля', exact: true });
         if (await closeDock.isVisible()) await closeDock.click();
         await target.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
@@ -983,10 +1106,15 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
               (fitted.viewport.width / fitted.viewport.height),
           ) * 1.22;
         expect(fitted.pixelsPerMeter).toBeCloseTo(fitted.viewport.height / verticalSpan, 8);
-        await target.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+        await clickPrimaryFieldControl(target, 'Приблизить поле');
         await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1.25);
         const zoomed = await sideRuler(target);
         expect(zoomed.pixelsPerMeter / fitted.pixelsPerMeter).toBeCloseTo(1.25, 8);
+        await clickPrimaryFieldControl(target, 'Отдалить поле');
+        await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1);
+        expect((await sideRuler(target)).pixelsPerMeter).toBeCloseTo(fitted.pixelsPerMeter, 8);
+        await clickPrimaryFieldControl(target, 'Приблизить поле');
+        await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1.25);
         const canvas = target
           .getByRole('img', { name: 'Масштаб бокового вида: ' + zoomed.label })
           .locator('..')
@@ -1007,7 +1135,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         await spatial.screenshot({ path: `${EVIDENCE}/side-scale-${width}-dpr${dpr}.png` });
         measurements.push({ width, dpr, fitted, zoomed, focused, paused });
         // Same actual WebGL scene above its authoritative SVG ground transform.
-        await target.getByRole('button', { name: 'Сверху', exact: true }).click();
+        await clickPrimaryFieldControl(target, 'Сверху');
         await expect(spatial).toHaveAttribute('data-field-view', 'top');
         await expect(target.getByTestId('robotics-field')).toHaveAttribute(
           'data-render-layer',
@@ -1080,23 +1208,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         await expect(topCanvas).toHaveAttribute('data-grid-rendered', 'false');
         await grid.check();
         await expect(topCanvas).toHaveAttribute('data-grid-rendered', 'true');
-        const topZoom = Number(
-          (await target.getByLabel('Масштаб поля', { exact: true }).textContent())!.replace(
-            '%',
-            '',
-          ),
-        );
-        await target.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
-        await expect
-          .poll(async () =>
-            Number(
-              (await target.getByLabel('Масштаб поля', { exact: true }).textContent())!.replace(
-                '%',
-                '',
-              ),
-            ),
-          )
-          .toBeGreaterThan(topZoom);
+        const topZoom = await roundTripFieldZoom(target, 'data-projection');
         await target.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
         await expect(target.getByLabel('Масштаб поля', { exact: true })).toHaveText('50%');
         expect(await snapshot()).toEqual(paused);
@@ -1105,12 +1217,15 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
           path: `${EVIDENCE}/field-visual-top-${width}-dpr${dpr}.png`,
           fullPage: true,
         });
-        await target.getByRole('button', { name: 'Перспектива', exact: true }).click();
+        await clickPrimaryFieldControl(target, 'Перспектива');
+        await expect(spatial).toHaveAttribute('data-field-view', 'orbit');
         await expect(target.getByTestId('robotics-side-scale')).toHaveCount(0);
-        await target.getByRole('button', { name: 'Сверху', exact: true }).click();
+        const perspectiveZoom = await roundTripFieldZoom(target, 'data-camera');
+        await clickPrimaryFieldControl(target, 'Сверху');
         await expect(target.getByTestId('robotics-side-scale')).toHaveCount(0);
-        await target.getByRole('button', { name: 'Сбоку', exact: true }).click();
+        await clickPrimaryFieldControl(target, 'Сбоку');
         await sideRuler(target);
+        toolbarMeasurements.push({ dpr, primary, topZoom, perspectiveZoom, zoomBeforeResize });
       }
       await target.getByRole('tab', { name: 'Робот', exact: true }).click();
       await expect(target.getByTestId('robotics-side-scale')).toBeHidden();
@@ -1132,7 +1247,14 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
   writeFileSync(
     `${EVIDENCE}/side-scale.json`,
     JSON.stringify(
-      { profile: 'UI_ONLY', projectId, sourceDigest, measurements, topMeasurements },
+      {
+        profile: 'UI_ONLY',
+        projectId,
+        sourceDigest,
+        measurements,
+        topMeasurements,
+        toolbarMeasurements,
+      },
       null,
       2,
     ),
@@ -2717,6 +2839,7 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   expect((await readProject(page, projectId)).draft.document).toEqual(withBall.draft.document);
 
   // Each real editor owns its navigation. Wheel over the circuit cannot zoom Field.
+  const desktopFieldControls = await measurePrimaryFieldControls(page);
   const fieldZoom = page.getByLabel('Масштаб поля', { exact: true });
   const circuitZoom = circuit.locator('.workbench-stage-controls > span[aria-label^="Масштаб "]');
   const beforeCircuitZoom = await circuitZoom.textContent();
@@ -2740,7 +2863,7 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   expect(await fieldZoom.textContent()).toBe(beforeFieldZoom);
   const afterCircuitZoom = await circuitZoom.textContent();
   const circuitViewBox = await stage.getAttribute('viewBox');
-  await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+  await clickPrimaryFieldControl(page, 'Приблизить поле');
   await expect(fieldZoom).not.toHaveText(beforeFieldZoom!);
   expect(await circuitZoom.textContent()).toBe(afterCircuitZoom);
   expect(await stage.getAttribute('viewBox')).toBe(circuitViewBox);
@@ -2962,9 +3085,12 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
   await expectSame(fieldCanvas, fieldIdentity);
   await expect(spatial).toHaveAttribute('data-field-view', currentView!);
   await closeFieldDrawer();
-  await page.getByRole('button', { name: 'Сбоку', exact: true }).click();
+  const compactFieldControls = await measurePrimaryFieldControls(page);
+  await clickPrimaryFieldControl(page, 'Сбоку');
   const compactMetric = await sideRuler(page);
-  await page.getByRole('button', { name: 'Сверху', exact: true }).click();
+  const compactSideZoom = await roundTripFieldZoom(page, 'data-projection');
+  expect(compactSideZoom.decreased).toBe(compactSideZoom.before);
+  await clickPrimaryFieldControl(page, 'Сверху');
   await fieldInput.focus();
   await fieldInput.press('Delete');
   expect((await readProject(page, projectId)).draft.document).toEqual(confirmed.draft.document);
@@ -3033,6 +3159,8 @@ test('SPLIT-WORKSPACE UI_ONLY retains real editors and Field through resize, foc
         paused,
         stoppedRenderCount,
         statusClearances: [statusDesktop, statusCompact],
+        fieldControls: [desktopFieldControls, compactFieldControls],
+        compactSideZoom,
         sameInstancesBeforeReload: true,
       },
       null,
