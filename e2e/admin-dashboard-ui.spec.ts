@@ -178,12 +178,23 @@ async function fixture(page: Page) {
                       module: 'electronics',
                       status: 'active',
                       occurredAt: '2026-10-25T10:00:00Z',
+                      updatedAt: '2026-10-26T10:00:00Z',
+                      snapshotRevision: 3,
+                      usage: { openCount: 7, activeSeconds: 180 },
                     },
                   ]
                 : [],
           next: category === 'messages' && !next ? 'crm-next' : null,
         });
       }
+      if (path.endsWith('/projects/20000000-0000-4000-8000-000000000003/snapshot'))
+        return route.fulfill({
+          contentType: 'image/png',
+          body: Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aAnsAAAAASUVORK5CYII=',
+            'base64',
+          ),
+        });
       if (path.includes('/projects/'))
         return reply({
           projectId: '20000000-0000-4000-8000-000000000003',
@@ -917,7 +928,17 @@ for (const width of [1440, 1024, 390, 320]) {
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/crm-transcript-${width}.png`, fullPage: true });
     await account.getByRole('tab', { name: 'Проекты', exact: true }).click();
-    await account.getByRole('button', { name: 'Просмотр проекта', exact: true }).click();
+    const project = account.locator('.classroom-work-card');
+    await expect(project.getByRole('img', { name: 'Электроника' })).toBeVisible();
+    await expect(project.getByText('Открытий 7')).toBeVisible();
+    await expect(project.getByText('Время 3 мин')).toBeVisible();
+    await expect(project.locator('img')).toBeVisible();
+    await expect
+      .poll(() => project.locator('img').evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBeGreaterThan(0);
+    await noPageOverflow(page);
+    await project.screenshot({ path: `${evidence}/crm-project-card-${width}.png` });
+    await project.getByRole('button', { name: /^Предпросмотр работы / }).click();
     await account.getByText('Полные данные проекта — только просмотр', { exact: true }).click();
     await expect(account.locator('pre')).toContainText('Полное сохранённое содержимое');
     await account.getByRole('tab', { name: 'Входы и действия', exact: true }).click();

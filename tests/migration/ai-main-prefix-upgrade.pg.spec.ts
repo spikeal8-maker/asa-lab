@@ -118,6 +118,7 @@ const expectedPending = [
   '0337', // Effective Safe Mode in the learner's class list.
   '0338', // Exact private classroom copy provenance and distribution guards.
   '0339', // Private, exact StudentSeat publication review.
+  '0340', // Project card dates, activity and scoped CRM previews.
 ];
 
 interface Identity {

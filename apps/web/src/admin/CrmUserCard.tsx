@@ -1,9 +1,12 @@
+import { ClassroomWorkCard } from '../components/ClassroomWorkCard';
+import { publicModuleName } from '../projects-public/presentation';
 import { CrmResponsibilities } from './CrmResponsibilities';
 import { CrmSeatDetail } from './CrmSeatDetail';
 import { CrmEmailChange } from './CrmEmailChange';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
   crmApi,
+  crmProjectSnapshotUrl,
   type CrmSubject,
   type CrmProfile,
   type CrmContentPage,
@@ -789,63 +792,77 @@ export function CrmContent({
         </div>
       ) : null}
       {page && !page.items.length && !busy ? <p>Сохранившихся записей нет.</p> : null}
-      <ol className="crm-full-content">
-        {page?.items.map((item) => (
-          <li key={item.id}>
-            {category === 'messages' ? (
-              <>
-                <strong>{item.role === 'user' ? 'Пользователь' : 'ИИ'}</strong>
-                <p className="crm-message-text">{item.text}</p>
-                <small>
-                  Диалог: {item.threadId} · Запрос: {item.requestId} · {item.state}
-                </small>
-              </>
-            ) : category === 'projects' ? (
-              <>
-                <strong>{item.title}</strong>
-                <span>
-                  {item.module} · {item.status}
-                </span>
-                <button type="button" disabled={busy} onClick={() => void openProject(item.id)}>
-                  Просмотр проекта
-                </button>
-              </>
-            ) : category === 'sessions' ? (
-              <>
-                <strong>
-                  Вход:{' '}
-                  {item.state === 'revoked'
-                    ? 'Завершён'
-                    : item.state === 'expired'
-                      ? 'Срок истёк'
-                      : 'Действует'}
-                </strong>
-                <span>
-                  Последняя связь:{' '}
-                  {item.lastSeenAt
-                    ? new Date(item.lastSeenAt).toLocaleString('ru-RU')
-                    : 'Не зафиксирована'}
-                </span>
-                <small>Сессия: {item.id}</small>
-              </>
-            ) : (
-              <>
-                <strong>{item.eventType}</strong>
-                <span>
-                  {item.module ?? 'Система'} · {item.state}
-                </span>
-                <span>
-                  IP: {item.ipAddress ?? 'Не зафиксирован'} ·{' '}
-                  {item.device ?? 'Устройство не зафиксировано'}
-                </span>
-              </>
-            )}
-            <time dateTime={item.occurredAt}>
-              {new Date(item.occurredAt).toLocaleString('ru-RU')}
-            </time>
-          </li>
-        ))}
-      </ol>
+      {category === 'projects' ? (
+        <ul className="classroom-work-card-list" aria-busy={busy}>
+          {page?.items.map((item) => (
+            <ClassroomWorkCard
+              key={item.id}
+              projectId={item.id}
+              title={item.title ?? item.id}
+              moduleKey={item.module ?? 'all'}
+              moduleLabel={publicModuleName(item.module ?? 'all')}
+              archived={item.status === 'archived'}
+              createdAt={item.occurredAt}
+              updatedAt={item.updatedAt ?? item.occurredAt}
+              usage={item.usage}
+              snapshotUrl={
+                item.snapshotRevision
+                  ? crmProjectSnapshotUrl(subject, item.id, item.snapshotRevision)
+                  : null
+              }
+              onPreview={() => void openProject(item.id)}
+            />
+          ))}
+        </ul>
+      ) : (
+        <ol className="crm-full-content">
+          {page?.items.map((item) => (
+            <li key={item.id}>
+              {category === 'messages' ? (
+                <>
+                  <strong>{item.role === 'user' ? 'Пользователь' : 'ИИ'}</strong>
+                  <p className="crm-message-text">{item.text}</p>
+                  <small>
+                    Диалог: {item.threadId} · Запрос: {item.requestId} · {item.state}
+                  </small>
+                </>
+              ) : category === 'sessions' ? (
+                <>
+                  <strong>
+                    Вход:{' '}
+                    {item.state === 'revoked'
+                      ? 'Завершён'
+                      : item.state === 'expired'
+                        ? 'Срок истёк'
+                        : 'Действует'}
+                  </strong>
+                  <span>
+                    Последняя связь:{' '}
+                    {item.lastSeenAt
+                      ? new Date(item.lastSeenAt).toLocaleString('ru-RU')
+                      : 'Не зафиксирована'}
+                  </span>
+                  <small>Сессия: {item.id}</small>
+                </>
+              ) : (
+                <>
+                  <strong>{item.eventType}</strong>
+                  <span>
+                    {item.module ?? 'Система'} · {item.state}
+                  </span>
+                  <span>
+                    IP: {item.ipAddress ?? 'Не зафиксирован'} ·{' '}
+                    {item.device ?? 'Устройство не зафиксировано'}
+                  </span>
+                </>
+              )}
+              <time dateTime={item.occurredAt}>
+                {new Date(item.occurredAt).toLocaleString('ru-RU')}
+              </time>
+            </li>
+          ))}
+        </ol>
+      )}
       {page ? <p>Показано записей: {page.items.length}.</p> : null}
       {page?.next && !failure ? (
         <button type="button" disabled={busy} onClick={() => void load(page.next)}>

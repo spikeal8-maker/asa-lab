@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { observationApi, type ObservationProjectsPage } from '../classroom-observation-api';
-import { useSchoolTime } from './school-time';
 import { ClassroomWorkCard } from './ClassroomWorkCard';
 import { classroomWorkScope, WorkPreview } from './WorkPreview';
 import './classroom-observation.css';
@@ -9,6 +8,7 @@ const EDITORS: Record<string, string> = {
   'three-d': '3D',
   electronics: 'Электроника',
   blocks: 'Scratch',
+  robotics: 'Робототехника',
 };
 export function ClassroomStudentProjects({
   classroomId,
@@ -27,7 +27,6 @@ function ProjectList({
   classroomId: string;
   onOpenProject: (projectId: string, moduleKey: string, seatId?: string) => void;
 }): JSX.Element {
-  const time = useSchoolTime();
   const [module, setModule] = useState('');
   const [learner, setLearner] = useState('');
   const [search, setSearch] = useState('');
@@ -223,11 +222,13 @@ function ProjectList({
                   projectId={work.id}
                   title={work.title}
                   learner={work.student}
+                  moduleKey={work.moduleKey}
                   moduleLabel={EDITORS[work.moduleKey] ?? work.moduleKey}
                   status={<span>{work.assigned ? 'По заданию' : 'Без задания'}</span>}
                   archived={work.status === 'archived'}
                   updatedAt={work.updatedAt}
-                  dateLabel={time.dateTime(work.updatedAt)}
+                  createdAt={work.createdAt}
+                  usage={work.usage}
                   refresh={snapshotRefresh}
                   onPreview={() => setPreviewId(work.id)}
                   editor={{ onOpen: () => onOpenProject(work.id, work.moduleKey, work.seatId) }}
