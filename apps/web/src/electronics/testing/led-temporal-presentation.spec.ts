@@ -2364,12 +2364,22 @@ describe('native repeated-phase oracle with prospective instruction timing', () 
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText;
   type Edge = { at: number; high: boolean };
+  type Raf = { at: number; epoch: number };
   const audit = runInNewContext(`${javascript}; realtime682ShortCycleAudit`) as (
     ms: number,
     h0: number,
     electrical: Edge[],
     native: Edge[],
+    cycles: number,
+    render: { opportunities: Raf[]; samples: Raf[] },
   ) => { errors: string[]; phaseErrors: number[] };
+  const h0 = 1000;
+  const frameMs = 1000 / 60;
+  const frames = Array.from({ length: 140 }, (_, index) => {
+    const epoch = Math.ceil(h0 / frameMs) + index;
+    return { at: epoch * frameMs, epoch };
+  });
+  const render = { opportunities: frames, samples: frames };
   const physical = (ms: number) =>
     Array.from({ length: 21 }, (_, index) => ({
       at: 2 + Math.floor(index / 2) * (2 * ms * 1000 + 5) + (index % 2) * (ms * 1000 + 2),
@@ -2378,43 +2388,51 @@ describe('native repeated-phase oracle with prospective instruction timing', () 
   const native = (ms: number) =>
     physical(ms).map((edge) => ({
       ...edge,
-      at: Math.ceil((1000 + edge.at / 1000) / (1000 / 60)) * (1000 / 60),
+      at: Math.ceil((h0 + edge.at / 1000) / frameMs) * frameMs,
     }));
 
   it.each([20, 30, 50, 100])(
     'accepts exactly ten actual %i ms cycles quantized to 60 Hz, with no widened tolerance',
     (ms) => {
-      expect(audit(ms, 1000, physical(ms), native(ms)).errors).toEqual([]);
+      expect(audit(ms, h0, physical(ms), native(ms), 10, render).errors).toEqual([]);
     },
   );
 
   it.each([
-    'cold65ms',
-    'lost-front',
-    'extra-front',
-    'late-worker',
-    'drift',
-    'wrong-duty',
-    'wrong-electrical-time',
-  ] as const)('rejects %s rather than reanchoring or hiding first phases', (fault) => {
-    const electrical = physical(30),
-      shown = native(30);
-    if (fault === 'cold65ms') shown[1]!.at = shown[0]!.at + 65.3;
-    if (fault === 'lost-front') shown.splice(1, 2);
-    if (fault === 'extra-front')
-      shown.splice(
-        1,
-        0,
-        { at: shown[0]!.at + 5, high: false },
-        { at: shown[0]!.at + 10, high: true },
-      );
-    if (fault === 'late-worker') for (const edge of shown) edge.at += 100;
-    if (fault === 'drift') for (const [index, edge] of shown.entries()) edge.at += index * 3;
-    if (fault === 'wrong-duty')
-      for (const [index, edge] of shown.entries()) if (index % 2) edge.at += 18;
-    if (fault === 'wrong-electrical-time') electrical[1]!.at++;
-    expect(audit(30, 1000, electrical, shown).errors.length).toBeGreaterThan(0);
-  });
+    ['cold65ms', 'phase-duration-1'],
+    ['lost-front', 'missing-front'],
+    ['extra-front', 'phase-duration-1'],
+    ['late-worker', 'edge-lateness-0'],
+    ['drift', 'cumulative-drift'],
+    ['wrong-duty', 'integrated-duty'],
+    ['wrong-electrical-time', 'electrical-front-1'],
+  ] as const)(
+    'rejects %s rather than reanchoring or hiding first phases',
+    (fault, expectedError) => {
+      const electrical = physical(30),
+        shown = native(30);
+      if (fault === 'cold65ms') shown[1]!.at = shown[0]!.at + 65.3;
+      if (fault === 'lost-front') shown.splice(1, 2);
+      if (fault === 'extra-front')
+        shown.splice(
+          1,
+          0,
+          { at: shown[0]!.at + 5, high: false },
+          { at: shown[0]!.at + 10, high: true },
+        );
+      if (fault === 'late-worker') for (const edge of shown) edge.at += 100;
+      if (fault === 'drift') for (const [index, edge] of shown.entries()) edge.at += index * 3;
+      if (fault === 'wrong-duty') {
+        for (let index = 1; index < shown.length - 1; index += 2) {
+          const low = shown[index]!;
+          const laterFrame = frames.find((frame) => frame.at > low.at);
+          if (laterFrame && laterFrame.at < shown[index + 1]!.at) low.at = laterFrame.at;
+        }
+      }
+      if (fault === 'wrong-electrical-time') electrical[1]!.at++;
+      expect(audit(30, h0, electrical, shown, 10, render).errors).toContain(expectedError);
+    },
+  );
 });
 
 describe('dark H0 bootstrap remains an unacknowledged native candidate', () => {
