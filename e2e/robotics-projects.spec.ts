@@ -4,6 +4,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
 import type { PublicRoboticsArtifactV6 } from '../packages/contracts/src/public-robotics-artifact-v6';
 import type { Project, ProjectDraft } from '../contexts/projects/domain/project';
 import type { RoboticsProject } from '../contexts/robotics/domain/document';
+import { createRoboticsBall } from '../contexts/robotics/domain/world-document';
 import { collectBrowserFailures } from './browser-failures';
 import { accountMenu, openAccountMenu, openPortalSection, portalTopBar } from './portal-navigation';
 
@@ -27,7 +28,16 @@ async function sideRuler(page: Page) {
     ruler.evaluate((element) => {
       const bar = element.querySelector<HTMLElement>('.robotics-side-scale-bar');
       const canvas = element.parentElement?.querySelector('canvas');
-      if (!bar || !canvas) throw new Error('Side ruler lost its real canvas/bar');
+      const toolbar = document.querySelector<HTMLElement>(
+        '#robotics-panel-field .robotics-field-toolbar',
+      );
+      if (!bar || !canvas || !toolbar)
+        throw new Error('Side ruler lost its real canvas/bar/toolbar');
+      if (
+        canvas.dataset.rendered !== 'true' ||
+        element.parentElement?.getAttribute('data-renderer') !== 'webgl'
+      )
+        throw new Error('Side ruler has no actual WebGL render');
       const projection: number[] = JSON.parse(element.getAttribute('data-projection') ?? 'null');
       if (projection?.length !== 7 || !projection.every(Number.isFinite))
         throw new Error('Missing actual orthographic render inputs');
@@ -65,10 +75,9 @@ async function sideRuler(page: Page) {
         pixelsPerMeter: (zoom * width) / (right - left),
         viewport: viewport.toJSON(),
         bounds: element.getBoundingClientRect().toJSON(),
-        controls: element
-          .parentElement!.querySelector('.robotics-spatial-controls')!
-          .getBoundingClientRect()
-          .toJSON(),
+        toolbar: toolbar.getBoundingClientRect().toJSON(),
+        toolbarCount: document.querySelectorAll('#robotics-panel-field .robotics-field-toolbar')
+          .length,
       };
     });
   await expect.poll(async () => (await read()).error).toBeLessThanOrEqual(1);
@@ -79,7 +88,10 @@ async function sideRuler(page: Page) {
   expect(measurement.bounds.right).toBeLessThanOrEqual(measurement.viewport.right);
   expect(measurement.bounds.top).toBeGreaterThanOrEqual(measurement.viewport.top);
   expect(measurement.bounds.bottom).toBeLessThanOrEqual(measurement.viewport.bottom);
-  expect(measurement.bounds.bottom).toBeLessThanOrEqual(measurement.controls.top);
+  expect(measurement.toolbarCount).toBe(1);
+  expect(measurement.toolbar.width).toBeGreaterThan(0);
+  expect(measurement.toolbar.height).toBeGreaterThan(0);
+  expect(measurement.toolbar.bottom).toBeLessThanOrEqual(measurement.viewport.top + 1);
   await expect(ruler).toHaveAccessibleName('Масштаб бокового вида: ' + measurement.label);
   await expect(ruler).toHaveCSS('pointer-events', 'none');
   return measurement;
@@ -539,14 +551,127 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     .getByRole('button', { name: 'Мяч', exact: true });
   const card = await paletteBall.boundingBox();
   const svg = page.getByTestId('robotics-field');
-  const drop = await svg.evaluate((element) => {
-    if (!(element instanceof SVGSVGElement)) throw new Error('Actual Top SVG missing');
-    const matrix = element.getScreenCTM();
-    if (!matrix) throw new Error('Actual Top projection missing');
-    // A clear point away from the starter robot and barrier, in SVG millimetres.
-    const point = new DOMPoint(800, 3800).matrixTransform(matrix);
-    return { x: point.x, y: point.y };
-  });
+  await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
+  await expect(svg).toHaveAttribute('data-render-layer', 'interaction');
+  await expect(page.getByTestId('robotics-field-spatial').locator('canvas')).toHaveAttribute(
+    'data-rendered',
+    'true',
+  );
+  await expect(page.getByRole('checkbox', { name: 'Привязка', exact: true })).not.toBeChecked();
+  await page.screenshot({ path: `${EVIDENCE}/field-visual-default100-1440.png`, fullPage: true });
+  const radiusMeters = createRoboticsBall('drop-probe', { xMeters: 0, yMeters: 0 }).radiusMeters;
+  const drop = await svg.evaluate(
+    (element, { world, radiusMeters }) => {
+      if (!(element instanceof SVGSVGElement)) throw new Error('Actual Top SVG missing');
+      const matrix = element.getScreenCTM();
+      // Chromium can return SVGMatrix: its public affine a–f/inverse API has no is2D.
+      const determinant = matrix ? matrix.a * matrix.d - matrix.b * matrix.c : NaN;
+      if (
+        !matrix ||
+        !Number.isFinite(determinant) ||
+        determinant === 0 ||
+        ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite) ||
+        matrix.a <= 0 ||
+        matrix.d <= 0
+      )
+        throw new Error('Actual affine Top projection missing');
+      const area = element.getBoundingClientRect();
+      if (!(area.width > 0 && area.height > 0)) throw new Error('Actual Top viewport missing');
+      const inverse = matrix.inverse();
+      const clearance = radiusMeters + 0.03;
+      const free = (xMeters: number, yMeters: number) => {
+        if (![xMeters, yMeters].every(Number.isFinite)) return false;
+        if (
+          xMeters <= clearance ||
+          yMeters <= clearance ||
+          xMeters >= world.field.widthMeters - clearance ||
+          yMeters >= world.field.heightMeters - clearance
+        )
+          return false;
+        const robotRadius = Math.max(
+          Math.hypot(world.robot.bodyLengthMeters, world.robot.bodyWidthMeters) / 2,
+          world.robot.wheelTrackMeters / 2 + world.robot.wheelWidthMeters,
+          Math.abs(world.robot.sensorForwardMeters) + 0.05,
+        );
+        if (
+          Math.hypot(xMeters - world.initialPose.xMeters, yMeters - world.initialPose.yMeters) <=
+          robotRadius + clearance
+        )
+          return false;
+        if (
+          world.field.balls.some(
+            (ball) =>
+              Math.hypot(xMeters - ball.xMeters, yMeters - ball.yMeters) <=
+              ball.radiusMeters + clearance,
+          )
+        )
+          return false;
+        if (
+          (world.field.bodies ?? []).some(
+            (body) =>
+              Math.hypot(xMeters - body.xMeters, yMeters - body.yMeters) <=
+              (body.kind === 'can'
+                ? body.radiusMeters
+                : Math.hypot(body.widthMeters, body.depthMeters) / 2) +
+                clearance,
+          )
+        )
+          return false;
+        return !world.field.obstacles.some(
+          (wall) =>
+            Math.hypot(
+              xMeters - wall.xMeters - wall.widthMeters / 2,
+              yMeters - wall.yMeters - wall.heightMeters / 2,
+            ) <=
+            Math.hypot(wall.widthMeters, wall.heightMeters) / 2 + clearance,
+        );
+      };
+      for (const fy of [0.3, 0.45, 0.6, 0.75])
+        for (const fx of [0.3, 0.45, 0.6, 0.75]) {
+          const x = Math.round(area.left + area.width * fx),
+            y = Math.round(area.top + area.height * fy);
+          // Native HTML DnD uses integer CSS coordinates. Include the final +1 move
+          // and enough screen-space room for the complete real candidate footprint.
+          const inset = radiusMeters * matrix.a * 1000 + 12;
+          if (
+            x - inset <= area.left ||
+            x + inset + 1 >= area.right ||
+            y - inset <= area.top ||
+            y + inset + 1 >= area.bottom
+          )
+            continue;
+          let final: { xMeters: number; yMeters: number } | null = null;
+          let accessible = true;
+          for (const delta of [0, 1]) {
+            const hit = document.elementFromPoint(x + delta, y + delta);
+            if (!hit || !element.contains(hit) || hit.closest('[data-scene-key]')) {
+              accessible = false;
+              break;
+            }
+            const ground = new DOMPoint(x + delta, y + delta).matrixTransform(inverse);
+            const point = {
+              xMeters: Math.round(ground.x * 10) / 10000,
+              yMeters: Math.round((world.field.heightMeters * 1000 - ground.y) * 10) / 10000,
+            };
+            if (!free(point.xMeters, point.yMeters)) {
+              accessible = false;
+              break;
+            }
+            final = point;
+          }
+          if (accessible && final)
+            return {
+              x,
+              y,
+              final,
+              viewport: area.toJSON(),
+              matrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+            };
+        }
+      throw new Error('No accessible free ground point in the actual default100% viewport');
+    },
+    { world: initial.draft.document.world, radiusMeters },
+  );
   if (!card) throw new Error('Palette card is not visible');
   await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
   await page.mouse.down();
@@ -557,6 +682,9 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   await expect(ghost).toHaveCount(1);
   const ghostKey = await ghost.getAttribute('data-scene-key');
   expect(ghostKey).toMatch(/^ball:/);
+  await expect(ghost).toHaveAttribute('data-field-ghost', 'valid');
+  expect(Number(await ghost.getAttribute('data-x-meters'))).toBeCloseTo(drop.final.xMeters, 8);
+  expect(Number(await ghost.getAttribute('data-y-meters'))).toBeCloseTo(drop.final.yMeters, 8);
   expect((await readProject(page, projectId)).draft.document).toEqual(initial.draft.document);
   await page.screenshot({ path: `${EVIDENCE}/field-edit-top-candidate-1440.png`, fullPage: true });
   await page.mouse.up();
@@ -566,7 +694,11 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     initial.draft.document.world.field.balls.length + 1,
   );
   const id = ghostKey!.slice('ball:'.length);
-  expect(committed.draft.document.world.field.balls.find((ball) => ball.id === id)).toBeDefined();
+  const placed = committed.draft.document.world.field.balls.find((ball) => ball.id === id);
+  expect(placed).toBeDefined();
+  expect(placed!.xMeters).toBeCloseTo(drop.final.xMeters, 8);
+  expect(placed!.yMeters).toBeCloseTo(drop.final.yMeters, 8);
+  expect(placed!.radiusMeters).toBe(radiusMeters);
   // Observe after the actual renderer RAF, including the final coalesced pointer event.
   const rendered = (canvas: Locator) =>
     canvas.evaluate(
@@ -601,9 +733,15 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     const canvas = page.getByTestId('robotics-field-spatial').locator('canvas');
     await expect(canvas).toBeVisible();
     await expect(page.locator('.robotics-spatial-notice')).toHaveCount(0);
-    await page
-      .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-      .click();
+    if (width === 1440) {
+      await rendered(canvas);
+      await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
+      await page.screenshot({
+        path: `${EVIDENCE}/field-visual-perspective-default100-1440.png`,
+        fullPage: true,
+      });
+    }
+    await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
     await expect(canvas).toHaveAttribute('data-camera', /./);
     await rendered(canvas);
     const camera = await canvas.getAttribute('data-camera');
@@ -666,9 +804,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     await expect(canvas).toHaveAttribute('data-edit-preview', 'null');
     expect((await readProject(page, projectId)).draft.document).toEqual(committed.draft.document);
     // An actual captured drag cancelled with Escape must not create a history entry.
-    await page
-      .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x + 44, y - 13, { steps: 8 });
@@ -678,9 +814,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     await expect(canvas).toHaveAttribute('data-edit-preview', 'null');
     expect((await saved(page, projectId)).draft.document).toEqual(committed.draft.document);
     // Captured pointer outside the actual viewport is rejected, not clamped into a commit.
-    await page
-      .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(rect.x - 10, rect.y + rect.height / 2, { steps: 8 });
@@ -723,9 +857,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   await page.getByRole('button', { name: 'Перспектива', exact: true }).click();
   const paused = await page.getByTestId('robotics-time').getAttribute('data-microseconds');
   const canvas = page.getByTestId('robotics-field-spatial').locator('canvas');
-  await page
-    .getByRole('button', { name: 'К выбранному предмету в объёмном виде', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'К выделенному', exact: true }).click();
   const lockedRect = await canvas.boundingBox();
   if (!lockedRect) throw new Error('Paused actual canvas missing');
   await page.mouse.move(lockedRect.x + lockedRect.width / 2, lockedRect.y + lockedRect.height / 2);
@@ -746,7 +878,7 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
   writeFileSync(
     `${EVIDENCE}/field-edit-gestures.json`,
     JSON.stringify(
-      { projectId, observations, paused, source: digest(committed.draft.document) },
+      { projectId, drop, placed, observations, paused, source: digest(committed.draft.document) },
       null,
       2,
     ),
@@ -781,6 +913,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
   const baseURL = origin(page);
   const storageState = await page.context().storageState();
   const measurements: unknown[] = [];
+  const topMeasurements: unknown[] = [];
 
   for (const dpr of [1, 2]) {
     const context = await browser.newContext({
@@ -798,6 +931,15 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
       await target.goto(url, { waitUntil: 'domcontentloaded' });
       await expect(target.getByTestId('robotics-account-editor')).toBeVisible();
       await target.getByRole('tab', { name: 'Поле', exact: true }).click();
+      await expect(target.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
+      await expect(target.getByTestId('robotics-field-spatial').locator('canvas')).toHaveAttribute(
+        'data-rendered',
+        'true',
+      );
+      await expect(target.getByTestId('robotics-field')).toHaveAttribute(
+        'data-render-layer',
+        'interaction',
+      );
       await target.getByRole('button', { name: 'Запустить', exact: true }).click();
       await expect
         .poll(
@@ -829,9 +971,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         await target.setViewportSize({ width, height: 900 });
         const closeDock = target.getByRole('button', { name: 'Закрыть панель поля', exact: true });
         if (await closeDock.isVisible()) await closeDock.click();
-        await target
-          .getByRole('button', { name: 'Показать всё поле в объёмном виде', exact: true })
-          .click();
+        await target.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
         await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1);
         const fitted = await sideRuler(target);
         expect(fitted.zoom).toBe(1);
@@ -843,7 +983,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
               (fitted.viewport.width / fitted.viewport.height),
           ) * 1.22;
         expect(fitted.pixelsPerMeter).toBeCloseTo(fitted.viewport.height / verticalSpan, 8);
-        await target.getByRole('button', { name: 'Приблизить объёмный вид', exact: true }).click();
+        await target.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
         await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1.25);
         const zoomed = await sideRuler(target);
         expect(zoomed.pixelsPerMeter / fitted.pixelsPerMeter).toBeCloseTo(1.25, 8);
@@ -856,7 +996,7 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         expect((await sideRuler(target)).pixelsPerMeter).toBeCloseTo(zoomed.pixelsPerMeter, 8);
         await canvas.press('Home');
         await expect.poll(async () => (await sideRuler(target)).zoom).toBe(1);
-        await target.getByRole('button', { name: 'К роботу в объёмном виде', exact: true }).click();
+        await target.getByRole('button', { name: 'К роботу', exact: true }).click();
         await expect.poll(async () => (await sideRuler(target)).zoom).toBeGreaterThan(1);
         const focused = await sideRuler(target);
         expect(focused.zoom).toBeGreaterThan(1);
@@ -866,6 +1006,105 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
         );
         await spatial.screenshot({ path: `${EVIDENCE}/side-scale-${width}-dpr${dpr}.png` });
         measurements.push({ width, dpr, fitted, zoomed, focused, paused });
+        // Same actual WebGL scene above its authoritative SVG ground transform.
+        await target.getByRole('button', { name: 'Сверху', exact: true }).click();
+        await expect(spatial).toHaveAttribute('data-field-view', 'top');
+        await expect(target.getByTestId('robotics-field')).toHaveAttribute(
+          'data-render-layer',
+          'interaction',
+        );
+        await expect(target.getByTestId('robotics-field-fallback')).toHaveCount(0);
+        await expect(target.locator('.robotics-field-toolbar')).toHaveCount(1);
+        await expect(
+          target.locator('.robotics-spatial-controls, .robotics-field-stage-toolbar'),
+        ).toHaveCount(0);
+        const topCanvas = spatial.locator('canvas');
+        await expect(topCanvas).toHaveAttribute('data-rendered', 'true');
+        await expect(target.getByTestId('robotics-top-scale')).toBeVisible();
+        // Let both layout ResizeObserver and the actual on-demand renderer commit.
+        await topCanvas.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+        );
+        const top = await target.getByTestId('robotics-field').evaluate((svg, fieldHeight) => {
+          if (!(svg instanceof SVGSVGElement)) throw new Error('Missing real edit overlay');
+          const matrix = svg.getScreenCTM();
+          const canvas = document.querySelector<HTMLCanvasElement>(
+            '#robotics-panel-field .robotics-field-spatial canvas',
+          );
+          const ruler = document.querySelector<HTMLElement>('[data-testid="robotics-top-scale"]');
+          if (!matrix || !canvas || !ruler) throw new Error('Missing real camera/ruler');
+          const projection: number[] = JSON.parse(canvas.dataset.projection!);
+          const [position, quaternion]: number[][] = JSON.parse(canvas.dataset.camera!);
+          if (!projection || projection.length !== 16 || !position || !quaternion)
+            throw new Error('Missing rendered camera readback');
+          const area = canvas.getBoundingClientRect();
+          const errors = [
+            [0, 0],
+            [0.8, 1.2],
+            [2.5, fieldHeight],
+          ].map(([x, y]) => {
+            const expected = new DOMPoint(x! * 1000, (fieldHeight - y!) * 1000).matrixTransform(
+              matrix,
+            );
+            const nx = projection[0]! * (x! - position[0]!) + projection[12]!;
+            const ny = projection[5]! * (y! - position[1]!) + projection[13]!;
+            return Math.hypot(
+              expected.x - (area.x + ((1 + nx) * area.width) / 2),
+              expected.y - (area.y + ((1 - ny) * area.height) / 2),
+            );
+          });
+          const meters = Number(ruler.dataset.meters);
+          const bar = ruler
+            .querySelector<HTMLElement>('.robotics-side-scale-bar')!
+            .getBoundingClientRect();
+          return {
+            errors,
+            quaternion,
+            meters,
+            cssPixels: bar.width,
+            expectedPixels: meters * matrix.a * 1000,
+            canvasCount: document.querySelectorAll(
+              '#robotics-panel-field .robotics-field-spatial canvas',
+            ).length,
+          };
+        }, before.draft.document.world.field.heightMeters);
+        expect(top.canvasCount).toBe(1);
+        expect(Math.max(...top.errors)).toBeLessThan(0.05);
+        expect(top.quaternion).toEqual([0, 0, 0, 1]);
+        expect(Math.abs(top.cssPixels - top.expectedPixels)).toBeLessThan(0.05);
+        const grid = target.getByRole('checkbox', { name: 'Сетка', exact: true });
+        await grid.uncheck();
+        await expect(topCanvas).toHaveAttribute('data-grid-rendered', 'false');
+        await grid.check();
+        await expect(topCanvas).toHaveAttribute('data-grid-rendered', 'true');
+        const topZoom = Number(
+          (await target.getByLabel('Масштаб поля', { exact: true }).textContent())!.replace(
+            '%',
+            '',
+          ),
+        );
+        await target.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+        await expect
+          .poll(async () =>
+            Number(
+              (await target.getByLabel('Масштаб поля', { exact: true }).textContent())!.replace(
+                '%',
+                '',
+              ),
+            ),
+          )
+          .toBeGreaterThan(topZoom);
+        await target.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
+        await expect(target.getByLabel('Масштаб поля', { exact: true })).toHaveText('50%');
+        expect(await snapshot()).toEqual(paused);
+        topMeasurements.push({ width, dpr, top, paused });
+        await target.screenshot({
+          path: `${EVIDENCE}/field-visual-top-${width}-dpr${dpr}.png`,
+          fullPage: true,
+        });
         await target.getByRole('button', { name: 'Перспектива', exact: true }).click();
         await expect(target.getByTestId('robotics-side-scale')).toHaveCount(0);
         await target.getByRole('button', { name: 'Сверху', exact: true }).click();
@@ -892,7 +1131,11 @@ test('SIDE-SCALE UI_ONLY calibrates the real side camera without changing the sa
   }
   writeFileSync(
     `${EVIDENCE}/side-scale.json`,
-    JSON.stringify({ profile: 'UI_ONLY', projectId, sourceDigest, measurements }, null, 2),
+    JSON.stringify(
+      { profile: 'UI_ONLY', projectId, sourceDigest, measurements, topMeasurements },
+      null,
+      2,
+    ),
   );
 });
 
@@ -1656,6 +1899,10 @@ test('FIELD v3 authors tiled tracks and real objects, runs Arduino contacts, and
           .getByTestId('robotics-field-palette')
           .getByRole('button', { name: label, exact: true }),
       );
+    await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();
+    for (let step = 0; step < 3; step++)
+      await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
+    await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('100%');
     await page.getByRole('button', { name: 'Приблизить поле', exact: true }).click();
     await expect(page.getByLabel('Масштаб поля', { exact: true })).toHaveText('125%');
     await page.getByRole('button', { name: 'Показать поле целиком', exact: true }).click();

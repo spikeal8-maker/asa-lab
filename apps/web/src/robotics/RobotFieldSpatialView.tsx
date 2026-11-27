@@ -3,10 +3,48 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { RoboticsObjectKey, RoboticsPoint } from '@asa-lab/robotics/world-document';
 import type { RoboticsFieldGeometry } from './RobotField';
+import {
+  FIELD_CAMERA_NORMAL_MAGNIFICATION,
+  type FieldCamera,
+  type FieldViewport,
+} from './field-camera';
 import { createFieldSpatialScene, SPATIAL_FIELD_BACKGROUND } from './field-spatial-scene';
 import type { RoboticsDistanceMeasurement, RoboticsWorldState } from './world';
 
-type FieldView = 'orbit' | 'side';
+type FieldView = 'top' | 'orbit' | 'side';
+export interface FieldViewportControls {
+  zoom: (factor: number) => void;
+  fit: () => void;
+  focus: (key?: RoboticsObjectKey) => void;
+}
+
+/** Exactly the SVG ground transform, including CSS size and its upward world Y. */
+export function configureTopCamera(
+  camera: THREE.OrthographicCamera,
+  reference: FieldCamera,
+  viewport: FieldViewport,
+): void {
+  const { width, height } = viewport;
+  if (
+    ![width, height, reference.xMeters, reference.yMeters, reference.pixelsPerMeter].every(
+      Number.isFinite,
+    ) ||
+    width <= 0 ||
+    height <= 0 ||
+    reference.pixelsPerMeter <= 0
+  )
+    throw new Error('Invalid field projection');
+  camera.left = -width / (2 * reference.pixelsPerMeter);
+  camera.right = -camera.left;
+  camera.top = height / (2 * reference.pixelsPerMeter);
+  camera.bottom = -camera.top;
+  camera.zoom = 1;
+  camera.up.set(0, 1, 0);
+  camera.position.set(reference.xMeters, reference.yMeters, 30);
+  camera.lookAt(reference.xMeters, reference.yMeters, 0);
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+}
 type ViewportCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
 
 interface SideMetricScale {
@@ -262,6 +300,10 @@ interface SpatialViewProps {
   active?: boolean;
   onSelect?: ((key: RoboticsObjectKey) => void) | undefined;
   edit?: SpatialEdit | undefined;
+  topProjection?: { camera: FieldCamera; viewport: FieldViewport } | undefined;
+  onReady?: ((ready: boolean) => void) | undefined;
+  onControls?: ((controls: FieldViewportControls | null) => void) | undefined;
+  onZoom?: ((zoom: number) => void) | undefined;
 }
 
 interface SceneProps {
@@ -274,6 +316,9 @@ interface SceneProps {
   view: FieldView;
   onSelect: SpatialViewProps['onSelect'];
   edit: SpatialViewProps['edit'];
+  topProjection: SpatialViewProps['topProjection'];
+  onReady: SpatialViewProps['onReady'];
+  onZoom: SpatialViewProps['onZoom'];
 }
 
 function createViewport(
@@ -291,6 +336,7 @@ function createViewport(
   renderer.setClearColor(SPATIAL_FIELD_BACKGROUND);
 
   const perspective = new THREE.PerspectiveCamera(38, 1, 0.01, 200);
+  const top = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 200);
   const side = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 200);
   perspective.up.set(0, 0, 1);
   side.up.set(0, 0, 1);
@@ -310,16 +356,22 @@ function createViewport(
   const point = new THREE.Vector2();
   const viewOffset = new THREE.Vector3();
   const angles = new THREE.Spherical();
-  const cameraTargets = { orbit: new THREE.Vector3(), side: new THREE.Vector3() };
+  const cameraTargets = {
+    top: new THREE.Vector3(),
+    orbit: new THREE.Vector3(),
+    side: new THREE.Vector3(),
+  };
   const fittedViews = new Set<FieldView>();
 
   function camera(): ViewportCamera {
-    return selectedView === 'side' ? side : perspective;
+    return selectedView === 'top' ? top : selectedView === 'side' ? side : perspective;
   }
 
   function projection(): void {
     const aspect = size.x / Math.max(1, size.y);
     const { widthMeters: width, heightMeters: height } = getProps().world.field;
+    const reference = getProps().topProjection;
+    if (reference) configureTopCamera(top, reference.camera, reference.viewport);
     perspective.aspect = aspect;
     perspective.updateProjectionMatrix();
     const verticalSpan = Math.max(1.25, width / Math.max(aspect, 0.01)) * 1.22;
@@ -339,6 +391,7 @@ function createViewport(
       !visible ||
       !getProps().active ||
       !drawing ||
+      (getProps().view === 'top' && !getProps().topProjection) ||
       size.x <= 0 ||
       size.y <= 0
     ) {
@@ -351,6 +404,18 @@ function createViewport(
       if (disposed || contextLost || !visible || !getProps().active || !drawing) return;
       try {
         renderer.render(drawing.scene, camera());
+        canvas.dataset.rendered = 'true';
+        canvas.dataset.gridRendered = String(getProps().showGrid);
+        canvas.dataset.projection = JSON.stringify(camera().projectionMatrix.toArray());
+        getProps().onReady?.(true);
+        if (selectedView !== 'top')
+          getProps().onZoom?.(
+            selectedView === 'side'
+              ? side.zoom / FIELD_CAMERA_NORMAL_MAGNIFICATION
+              : orbitFitDistance /
+                  Math.max(0.001, perspective.position.distanceTo(controls!.target)) /
+                  FIELD_CAMERA_NORMAL_MAGNIFICATION,
+          );
         // Read-only browser evidence from the actual rendered camera, never an alternate transform.
         canvas.dataset.camera = JSON.stringify([
           camera().position.toArray(),
@@ -363,7 +428,7 @@ function createViewport(
             camera(),
             size.x,
             size.y,
-            selectedView === 'side' && getProps().view === 'side',
+            selectedView !== 'orbit' && selectedView === getProps().view,
           ),
         );
       } catch {
@@ -372,8 +437,9 @@ function createViewport(
     });
   }
 
+  let orbitFitDistance = 1;
   function fit(): void {
-    if (!controls || !selectedView || !visible) return;
+    if (!controls || !selectedView || !visible || selectedView === 'top') return;
     const { widthMeters: width, heightMeters: height } = getProps().world.field;
     const extent = Math.hypot(width, height);
     const aspect = size.x / Math.max(1, size.y);
@@ -388,11 +454,14 @@ function createViewport(
       const distance =
         (extent * 0.54) /
         (Math.tan(THREE.MathUtils.degToRad(19)) * Math.min(1, Math.max(0.1, aspect)));
+      orbitFitDistance = distance;
       viewOffset.set(0.72, -1, 0.98).normalize().multiplyScalar(distance);
       perspective.position.copy(controls.target).add(viewOffset);
     }
     fittedViews.add(selectedView);
     controls.update();
+    if (selectedView === 'orbit')
+      orbitFitDistance = perspective.position.distanceTo(controls.target);
     invalidate();
   }
 
@@ -401,6 +470,7 @@ function createViewport(
     controls?.dispose();
     selectedView = view;
     controls = new OrbitControls(camera(), canvas);
+    controls.enabled = view !== 'top';
     controls.enableRotate = view === 'orbit';
     if (view === 'side') {
       controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
@@ -417,8 +487,16 @@ function createViewport(
     if (fittedViews.has(view)) {
       controls.target.copy(cameraTargets[view]);
       controls.update();
-    } else {
+    } else if (view !== 'top') {
       fit();
+      // Normal 100% is twice the former whole-field fit, centred on the real subject.
+      const pose = getProps().state?.pose ?? getProps().world.initialPose;
+      const delta = new THREE.Vector3(pose.xMeters, pose.yMeters, controls.target.z).sub(
+        controls.target,
+      );
+      camera().position.add(delta);
+      controls.target.add(delta);
+      zoom(FIELD_CAMERA_NORMAL_MAGNIFICATION);
     }
   }
 
@@ -463,13 +541,21 @@ function createViewport(
       }
     }
     if (selectedView !== view) switchView(view);
+    if (view === 'top') projection();
     drawing?.applySnapshot(state, distance, showGrid, selection, preview);
     invalidate();
   }
 
   function zoom(factor: number): void {
     gestures.cancel();
-    if (!controls) return;
+    if (
+      !controls ||
+      !interactive() ||
+      selectedView === 'top' ||
+      !Number.isFinite(factor) ||
+      factor <= 0
+    )
+      return;
     if (selectedView === 'side') {
       side.zoom = THREE.MathUtils.clamp(side.zoom * factor, controls.minZoom, controls.maxZoom);
       side.updateProjectionMatrix();
@@ -488,7 +574,7 @@ function createViewport(
 
   function nudge(horizontal: number, vertical: number): void {
     gestures.cancel();
-    if (!controls) return;
+    if (!controls || !interactive() || selectedView === 'top') return;
     if (selectedView === 'side') {
       const distance = (side.right - side.left) / side.zoom / 12;
       side.position.x += horizontal * distance;
@@ -514,10 +600,10 @@ function createViewport(
     invalidate();
   }
 
-  function focus(): void {
+  function focus(requested?: RoboticsObjectKey): void {
     gestures.cancel();
-    if (!controls || !drawing || !visible) return;
-    const key = getProps().selection ?? 'robot';
+    if (!controls || !drawing || !interactive() || selectedView === 'top') return;
+    const key = requested ?? getProps().selection ?? 'robot';
     viewOffset.copy(camera().position).sub(controls.target);
     const span = Math.max(0.85, drawing.readFocus(key, controls.target) * 1.45);
     if (selectedView === 'side') {
@@ -544,12 +630,14 @@ function createViewport(
     // Invalidate ownership before publishing fallback. A late release can never commit
     // an invisible draft, even before React processes the unavailable state.
     renderFailed = true;
+    canvas.dataset.rendered = 'false';
     press = null;
     gestures.cancel();
     preview = null;
     canvas.dataset.editPreview = 'null';
     if (controls) controls.enabled = false;
     setScale(null);
+    getProps().onReady?.(false);
     setUnavailable(true);
   }
   function hit(x: number, y: number) {
@@ -606,14 +694,16 @@ function createViewport(
     event.preventDefault();
     gestures.cancel();
     contextLost = true;
+    canvas.dataset.rendered = 'false';
     setScale(null);
+    getProps().onReady?.(false);
     setUnavailable(true);
   }
 
   function restoreContext(): void {
     contextLost = false;
     renderFailed = false;
-    if (controls) controls.enabled = true;
+    if (controls) controls.enabled = selectedView !== 'top';
     setUnavailable(false);
     update();
   }
@@ -667,6 +757,10 @@ export default function RobotFieldSpatialView({
   active = true,
   onSelect,
   edit,
+  topProjection,
+  onReady,
+  onControls,
+  onZoom,
 }: SpatialViewProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const props = useRef<SceneProps>({
@@ -679,8 +773,24 @@ export default function RobotFieldSpatialView({
     active,
     onSelect,
     edit,
+    topProjection,
+    onReady,
+    onZoom,
   });
-  props.current = { world, state, distance, selection, showGrid, view, active, onSelect, edit };
+  props.current = {
+    world,
+    state,
+    distance,
+    selection,
+    showGrid,
+    view,
+    active,
+    onSelect,
+    edit,
+    topProjection,
+    onReady,
+    onZoom,
+  };
   const viewport = useRef<ReturnType<typeof createViewport> | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [scale, setScale] = useState<SideMetricScale | null>(null);
@@ -703,10 +813,14 @@ export default function RobotFieldSpatialView({
           });
         },
       );
+      onControls?.(viewport.current);
     } catch {
+      onReady?.(false);
       setUnavailable(true);
     }
     return () => {
+      onControls?.(null);
+      onReady?.(false);
       viewport.current?.dispose();
       viewport.current = null;
     };
@@ -718,7 +832,7 @@ export default function RobotFieldSpatialView({
     } catch {
       viewport.current?.fail();
     }
-  }, [world, state, distance, selection, showGrid, view, active, Boolean(edit)]);
+  }, [world, state, distance, selection, showGrid, view, active, Boolean(edit), topProjection]);
 
   function keyDown(event: KeyboardEvent<HTMLCanvasElement>): void {
     switch (event.key) {
@@ -757,6 +871,7 @@ export default function RobotFieldSpatialView({
     <div
       className="robotics-field-spatial"
       data-testid="robotics-field-spatial"
+      data-renderer={unavailable ? 'fallback' : 'webgl'}
       data-field-view={view}
       data-microseconds={state?.atMicroseconds ?? 0}
       data-physics-microseconds={state?.physicsAtMicroseconds ?? 0}
@@ -766,19 +881,21 @@ export default function RobotFieldSpatialView({
     >
       <canvas
         ref={canvas}
-        tabIndex={unavailable ? -1 : 0}
+        tabIndex={unavailable || view === 'top' ? -1 : 0}
         onKeyDown={keyDown}
-        aria-hidden={unavailable}
+        aria-hidden={unavailable || view === 'top'}
         aria-label={view === 'side' ? 'Поле робота, вид сбоку' : 'Поле робота, объёмный вид'}
       />
-      {view === 'side' && active && !unavailable && scale ? (
+      {view !== 'orbit' && active && !unavailable && scale ? (
         <div
           className="robotics-side-scale"
-          data-testid="robotics-side-scale"
+          data-testid={view === 'side' ? 'robotics-side-scale' : 'robotics-top-scale'}
           data-meters={scale.meters}
           data-projection={JSON.stringify(scale.projection)}
           role="img"
-          aria-label={'Масштаб бокового вида: ' + scale.label}
+          aria-label={
+            (view === 'side' ? 'Масштаб бокового вида: ' : 'Масштаб вида сверху: ') + scale.label
+          }
         >
           <span
             className="robotics-side-scale-bar"
@@ -789,51 +906,11 @@ export default function RobotFieldSpatialView({
           <span aria-hidden="true">{scale.label}</span>
         </div>
       ) : null}
-      {unavailable ? (
+      {unavailable && view !== 'top' ? (
         <p className="robotics-spatial-notice" role="status">
           Объёмный вид недоступен. Выберите «Сверху» для работы с полем.
         </p>
-      ) : (
-        <div className="robotics-spatial-controls" role="group" aria-label="Камера объёмного вида">
-          <button
-            type="button"
-            className="robotics-button"
-            aria-label="Отдалить объёмный вид"
-            onClick={() => viewport.current?.zoom(1 / 1.25)}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className="robotics-button"
-            aria-label="Приблизить объёмный вид"
-            onClick={() => viewport.current?.zoom(1.25)}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className="robotics-button"
-            aria-label="Показать всё поле в объёмном виде"
-            onClick={() => viewport.current?.fit()}
-          >
-            Всё
-          </button>
-          <button
-            type="button"
-            className="robotics-button"
-            aria-label={
-              selection && selection !== 'robot'
-                ? 'К выбранному предмету в объёмном виде'
-                : 'К роботу в объёмном виде'
-            }
-            title="Приблизить выбранный предмет или робота (Shift+Home)"
-            onClick={() => viewport.current?.focus()}
-          >
-            {selection && selection !== 'robot' ? 'Объект' : 'Робот'}
-          </button>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }
