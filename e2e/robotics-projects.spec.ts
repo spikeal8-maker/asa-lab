@@ -564,9 +564,12 @@ test('FIELD-EDIT-GESTURES UI_ONLY drags one Top candidate and moves the same sav
     (element, { world, radiusMeters }) => {
       if (!(element instanceof SVGSVGElement)) throw new Error('Actual Top SVG missing');
       const matrix = element.getScreenCTM();
+      // Chromium can return SVGMatrix: its public affine a–f/inverse API has no is2D.
+      const determinant = matrix ? matrix.a * matrix.d - matrix.b * matrix.c : NaN;
       if (
         !matrix ||
-        !matrix.is2D ||
+        !Number.isFinite(determinant) ||
+        determinant === 0 ||
         ![matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].every(Number.isFinite) ||
         matrix.a <= 0 ||
         matrix.d <= 0
