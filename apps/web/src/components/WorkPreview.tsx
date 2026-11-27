@@ -1,10 +1,12 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, type ProjectFeedback } from '../api';
 import {
   observationApi,
+  type ClassroomCopySource,
   type ObservationFreeProjectPreview,
   type ObservationProjectReview,
 } from '../classroom-observation-api';
+import { ClassroomPrivateCopyAction } from './ClassroomPrivateCopyAction';
 import {
   FreeProjectPreview,
   FrozenProjectPreview,
@@ -182,6 +184,14 @@ function WorkPreviewDialog({
   const previewClassroomId = previewScope?.classroomId;
   const previewSeatId = previewScope?.seatId;
   const isFree = previewScope?.kind === 'free';
+  const copySource = useMemo<ClassroomCopySource | null>(() => {
+    if (savedWork?.kind === 'free') return { kind: 'free', revision: savedWork.project.revision };
+    if (savedWork?.kind === 'ready') {
+      const { attemptId, submissionId, projectVersionId } = savedWork.target;
+      return { kind: 'submission', attemptId, submissionId, projectVersionId };
+    }
+    return null;
+  }, [savedWork]);
   const showSavedWork = Boolean(reviewScope && savedWork?.kind !== 'none');
   const feedbackEnabled = !readOnly && !showSavedWork;
   const galleryEnabled =
@@ -387,6 +397,15 @@ function WorkPreviewDialog({
               <button type="button" className="btn-secondary" onClick={onOpenEditor}>
                 Открыть в редакторе
               </button>
+              {previewScope && copySource ? (
+                <ClassroomPrivateCopyAction
+                  key={JSON.stringify(copySource)}
+                  classroomId={previewScope.classroomId}
+                  seatId={previewScope.seatId}
+                  projectId={projectId}
+                  source={copySource}
+                />
+              ) : null}
               {savedWork?.kind === 'ready' &&
               reviewScope?.canReview &&
               savedWork.target.canReview ? (

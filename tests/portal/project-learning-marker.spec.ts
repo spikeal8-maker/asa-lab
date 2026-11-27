@@ -27,7 +27,9 @@ describe('personal Project list Learning marker', () => {
         preview_digest: null,
         snapshot_revision: null,
       }));
-      const query = vi.fn(async (sql: string, _values?: unknown[]) => {
+      const query = vi.fn<
+        (sql: string, values?: unknown[]) => Promise<{ rows: unknown[]; command?: string }>
+      >(async (sql) => {
         if (sql === 'COMMIT') return { rows: [], command: 'COMMIT' };
         if (sql.includes('learning_personal_project_origin_ids'))
           return { rows: [{ project_id: rows[0]?.id }] };
@@ -84,10 +86,19 @@ describe('personal Project list Learning marker', () => {
       if (sql.includes('FROM projects p')) return { rows: [ownNewest, ownOlder] };
       return { rows: [] };
     });
-    const linkedQuery = vi.fn(async () => ({ rows: [{ project: linked }] }));
+    const privateWorkspaceLookup =
+      'SELECT public.project_private_classroom_copy_tenant($1,$2) AS tenant_id';
+    const poolQuery = vi.fn<(sql: string, values: unknown[]) => Promise<{ rows: unknown[] }>>(
+      async (sql) => {
+        if (sql === privateWorkspaceLookup) return { rows: [{ tenant_id: null }] };
+        if (sql.includes('learning_linked_account_project_list'))
+          return { rows: [{ project: linked }] };
+        throw new Error(`Unexpected project list query: ${sql}`);
+      },
+    );
     const pool = {
       connect: async () => ({ query, release: vi.fn() }),
-      query: linkedQuery,
+      query: poolQuery,
     } as unknown as pg.Pool;
     const repository = new PgProjectRepository(pool);
     const actor = { principalId, userId: randomUUID() };
@@ -98,17 +109,23 @@ describe('personal Project list Learning marker', () => {
     });
     expect(all.map((project) => project.id)).toEqual([ownNewest.id, linked.id]);
     expect(all[1]?.isLearningWork).toBe(true);
-    expect(linkedQuery).toHaveBeenCalledWith(
+    expect(poolQuery).toHaveBeenNthCalledWith(1, privateWorkspaceLookup, [principalId, tenantId]);
+    expect(poolQuery).toHaveBeenNthCalledWith(
+      2,
       expect.stringContaining('learning_linked_account_project_list'),
       [principalId, 'active', null, null, false, 'recent', null, null, 2, null],
     );
-    linkedQuery.mockClear();
+    expect(poolQuery).toHaveBeenCalledTimes(2);
+    poolQuery.mockClear();
     const personal = await repository.listForActor(tenantId, actor, {
       scope: 'personal',
       limit: 2,
       kind: 'personal',
     });
     expect(personal.map((project) => project.id)).toEqual([ownNewest.id, ownOlder.id]);
-    expect(linkedQuery).not.toHaveBeenCalled();
+    expect(poolQuery).toHaveBeenCalledExactlyOnceWith(privateWorkspaceLookup, [
+      principalId,
+      tenantId,
+    ]);
   });
 });

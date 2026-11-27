@@ -354,12 +354,14 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
         onToggleWorkplane={toggleShapeWorkplane}
         onDrop={() => controller.dropSelectedToWorkplane(workplaneY)}
         onImport={() => importRef.current?.click()}
+        allowExport={!controller.privateClassroomCopy}
         stlUnavailableReason={
           geometryResultIsCurrent(geometryState, document)
             ? ''
             : 'STL доступен после успешного расчёта. Исходный JSON можно скачать сейчас.'
         }
         onExportStl={() => {
+          if (controller.privateClassroomCopy) return;
           try {
             if (!viewportRef.current) throw new Error('Рабочая плоскость ещё не готова.');
             downloadThreeDStl(viewportRef.current.exportStl(document), controller.title);
@@ -368,59 +370,66 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
             setExportError(error instanceof Error ? error.message : 'Не удалось подготовить STL.');
           }
         }}
-        onExportJson={() => downloadThreeDJson(document, controller.title)}
+        onExportJson={() => {
+          if (!controller.privateClassroomCopy) downloadThreeDJson(document, controller.title);
+        }}
         publicationControl={
-          <button
-            type="button"
-            className="asa3d-text-action"
-            disabled={
-              openingPublication ||
-              controller.saveState !== 'saved' ||
-              !geometryResultIsCurrent(geometryState, document)
-            }
-            title={
-              controller.saveState !== 'saved'
-                ? 'Дождитесь сохранения модели'
-                : 'Публикация модели в каталоге проектов'
-            }
-            onClick={() => {
-              void (async () => {
-                if (openingPublication || controller.saveState !== 'saved') return;
-                setOpeningPublication(true);
-                setExportError(null);
-                try {
-                  const captured = await captureProjectSnapshot(projectId);
-                  if (!captured) throw Error('Модель ещё готовится. Дождитесь завершения расчёта.');
-                  const saved = await api.saveProjectSnapshot(
-                    projectId,
-                    captured.image,
-                    captured.sourceRevision,
-                  );
-                  if (!saved.ok)
-                    throw Error(saved.error.message || 'Не удалось сохранить изображение модели.');
-                  const result = await api.openProject(projectId);
-                  if (!result.ok)
-                    throw Error(result.error.message || 'Не удалось открыть публикацию.');
-                  setPublicationProject(result.data.project);
-                } catch (error) {
-                  setExportError(
-                    error instanceof Error ? error.message : 'Не удалось открыть публикацию.',
-                  );
-                } finally {
-                  setOpeningPublication(false);
-                }
-              })();
-            }}
-          >
-            {openingPublication ? 'Подготовка…' : 'Публикация'}
-          </button>
+          controller.privateClassroomCopy ? null : (
+            <button
+              type="button"
+              className="asa3d-text-action"
+              disabled={
+                openingPublication ||
+                controller.saveState !== 'saved' ||
+                !geometryResultIsCurrent(geometryState, document)
+              }
+              title={
+                controller.saveState !== 'saved'
+                  ? 'Дождитесь сохранения модели'
+                  : 'Публикация модели в каталоге проектов'
+              }
+              onClick={() => {
+                void (async () => {
+                  if (openingPublication || controller.saveState !== 'saved') return;
+                  setOpeningPublication(true);
+                  setExportError(null);
+                  try {
+                    const captured = await captureProjectSnapshot(projectId);
+                    if (!captured)
+                      throw Error('Модель ещё готовится. Дождитесь завершения расчёта.');
+                    const saved = await api.saveProjectSnapshot(
+                      projectId,
+                      captured.image,
+                      captured.sourceRevision,
+                    );
+                    if (!saved.ok)
+                      throw Error(
+                        saved.error.message || 'Не удалось сохранить изображение модели.',
+                      );
+                    const result = await api.openProject(projectId);
+                    if (!result.ok)
+                      throw Error(result.error.message || 'Не удалось открыть публикацию.');
+                    setPublicationProject(result.data.project);
+                  } catch (error) {
+                    setExportError(
+                      error instanceof Error ? error.message : 'Не удалось открыть публикацию.',
+                    );
+                  } finally {
+                    setOpeningPublication(false);
+                  }
+                })();
+              }}
+            >
+              {openingPublication ? 'Подготовка…' : 'Публикация'}
+            </button>
+          )
         }
         sendControl={
           <VersionHistory
             projectId={projectId}
             versions={controller.versions}
-            triggerLabel="Отправить"
-            onShare={shareProject}
+            triggerLabel={controller.privateClassroomCopy ? 'История' : 'Отправить'}
+            {...(controller.privateClassroomCopy ? {} : { onShare: shareProject })}
             onSaveVersion={() => controller.createCheckpoint()}
             onRestored={(restoredDocument, serverRevision) => {
               controller.acceptRestoredDocument(restoredDocument, serverRevision);
@@ -638,7 +647,7 @@ export function ThreeDEditor({ projectId, onBack, user }: ThreeDEditorProps): JS
         />
       </section>
 
-      {publicationProject && (
+      {publicationProject && !controller.privateClassroomCopy && (
         <ProjectProperties
           project={publicationProject}
           initialSection="publication"

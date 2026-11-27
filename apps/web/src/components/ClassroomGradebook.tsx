@@ -11,6 +11,7 @@ import {
 import { LearningConditions } from './LearningConditions';
 import type { ObservationProjectReview } from '../classroom-observation-api';
 import { FrozenProjectPreview } from './ClassroomSubmittedProjectPreview';
+import { ClassroomPrivateCopyAction } from './ClassroomPrivateCopyAction';
 import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import './classroom-gradebook.css';
@@ -112,6 +113,26 @@ export function ReviewDetail({
   );
   const latest = attempt?.results[0] ?? null;
   const frozen = loadedSubmission?.submissionId === attempt?.submissionId ? loadedSubmission : null;
+  const submittedProject = frozen && 'projectVersionId' in frozen ? frozen : null;
+  const copyProjectId = submittedProject?.projectId;
+  const copyVersionId = submittedProject?.projectVersionId;
+  const copySubmissionId = submittedProject?.submissionId;
+  const copyAttemptId =
+    !readOnly && !pinned && attempt && attempt.projectVersionId === copyVersionId
+      ? attempt.id
+      : null;
+  const copySource = useMemo(
+    () =>
+      copyAttemptId && copySubmissionId && copyVersionId
+        ? {
+            kind: 'submission' as const,
+            attemptId: copyAttemptId,
+            submissionId: copySubmissionId,
+            projectVersionId: copyVersionId,
+          }
+        : null,
+    [copyAttemptId, copySubmissionId, copyVersionId],
+  );
   useEffect(() => {
     setFrozen(null);
     setError(null);
@@ -315,6 +336,15 @@ export function ReviewDetail({
                     submission={frozen}
                     initiallyOpen={Boolean(pinned)}
                   />
+                  {copySource && copyProjectId ? (
+                    <ClassroomPrivateCopyAction
+                      key={`${copyProjectId}:${copySource.attemptId}:${copySource.projectVersionId}`}
+                      classroomId={classroomId}
+                      seatId={item.seatId}
+                      projectId={copyProjectId}
+                      source={copySource}
+                    />
+                  ) : null}
                 </>
               )}
               <details>

@@ -104,6 +104,7 @@ export interface ThreeDToolbarProps {
   readonly onDrop: () => void;
   readonly onImport: () => void;
   readonly onExportStl: () => void;
+  readonly allowExport?: boolean;
   readonly stlUnavailableReason?: string;
   readonly onExportJson: () => void;
   readonly sendControl: ReactNode;
@@ -148,6 +149,7 @@ export function ThreeDToolbar({
   onDrop,
   onImport,
   onExportStl,
+  allowExport = true,
   stlUnavailableReason,
   onExportJson,
   sendControl,
@@ -422,42 +424,44 @@ export function ThreeDToolbar({
           >
             Импорт
           </button>
-          <div className="asa3d-export-wrap">
-            <button
-              type="button"
-              className="asa3d-text-action"
-              onClick={() => setExportOpen((open) => !open)}
-              aria-expanded={exportOpen}
-            >
-              Экспорт
-            </button>
-            {exportOpen && (
-              <div className="asa3d-export-menu">
-                {stlUnavailableReason && <small role="status">{stlUnavailableReason}</small>}
-                <button
-                  type="button"
-                  disabled={Boolean(stlUnavailableReason)}
-                  onClick={() => {
-                    onExportStl();
-                    setExportOpen(false);
-                    setToolsOpen(false);
-                  }}
-                >
-                  STL для 3D-печати
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onExportJson();
-                    setExportOpen(false);
-                    setToolsOpen(false);
-                  }}
-                >
-                  ASA 3D JSON
-                </button>
-              </div>
-            )}
-          </div>
+          {allowExport ? (
+            <div className="asa3d-export-wrap">
+              <button
+                type="button"
+                className="asa3d-text-action"
+                onClick={() => setExportOpen((open) => !open)}
+                aria-expanded={exportOpen}
+              >
+                Экспорт
+              </button>
+              {exportOpen && (
+                <div className="asa3d-export-menu">
+                  {stlUnavailableReason && <small role="status">{stlUnavailableReason}</small>}
+                  <button
+                    type="button"
+                    disabled={Boolean(stlUnavailableReason)}
+                    onClick={() => {
+                      onExportStl();
+                      setExportOpen(false);
+                      setToolsOpen(false);
+                    }}
+                  >
+                    STL для 3D-печати
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onExportJson();
+                      setExportOpen(false);
+                      setToolsOpen(false);
+                    }}
+                  >
+                    ASA 3D JSON
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : null}
           {sendControl}
         </div>
       </div>

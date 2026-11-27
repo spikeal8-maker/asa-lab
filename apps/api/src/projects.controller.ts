@@ -209,6 +209,24 @@ export class ProjectsController {
     return provider.analyse(validated.payload);
   }
 
+  private async privateClassroomCopies(principalId: string, projectIds: string[]) {
+    if (!this.pool || !projectIds.length) return new Set<string>();
+    const result = await this.pool.query<{ project_id: string }>(
+      'SELECT project_id FROM public.project_private_classroom_copies($1,$2::uuid[])',
+      [principalId, projectIds],
+    );
+    return new Set(result.rows.map((row) => row.project_id));
+  }
+
+  private async withPrivateClassroomCopy<T extends { id: string; scope: string }>(
+    principalId: string,
+    project: T,
+  ) {
+    if (project.scope !== 'personal') return project;
+    const flagged = await this.privateClassroomCopies(principalId, [project.id]);
+    return flagged.has(project.id) ? { ...project, privateClassroomCopy: true } : project;
+  }
+
   @Get()
   async list(
     @Req() request: FastifyRequest,
@@ -355,8 +373,16 @@ export class ProjectsController {
         );
       }
     }
+    const privateCopies = await this.privateClassroomCopies(
+      context.principalId,
+      result.value.filter((project) => project.scope === 'personal').map((project) => project.id),
+    );
     return {
-      items,
+      items: items.map((item, index) =>
+        privateCopies.has(result.value[index]!.id)
+          ? Object.assign({}, item, { privateClassroomCopy: true })
+          : item,
+      ),
       ...(limit === undefined
         ? {}
         : {
@@ -458,7 +484,7 @@ export class ProjectsController {
     );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     return {
-      project: result.value.project,
+      project: await this.withPrivateClassroomCopy(context.principalId, result.value.project),
       draft: result.value.draft,
       versions: result.value.versions,
       result: this.analyse(result.value.project.moduleKey, result.value.draft.document),
@@ -515,7 +541,7 @@ export class ProjectsController {
       title: shape.body['title'],
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
-    return { project: result.value };
+    return { project: await this.withPrivateClassroomCopy(context.principalId, result.value) };
   }
 
   @Post(':projectId/duplicate')
@@ -558,7 +584,7 @@ export class ProjectsController {
       status: shape.body['status'],
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
-    return { project: result.value };
+    return { project: await this.withPrivateClassroomCopy(context.principalId, result.value) };
   }
 
   @Post(':projectId/learning-collection')
