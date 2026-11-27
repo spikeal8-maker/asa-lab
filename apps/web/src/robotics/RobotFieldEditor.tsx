@@ -51,6 +51,7 @@ import {
   fitFieldCamera,
 } from './field-camera';
 import type { FieldViewportControls } from './RobotFieldSpatialView';
+import type { SpatialPlacement } from './field-spatial-scene';
 import { RobotFieldSettings } from './RobotFieldSettings';
 import {
   createImageVisual,
@@ -95,6 +96,10 @@ const TOOLS = [
 type Tool = (typeof TOOLS)[number]['id'];
 type PlacementTool = Exclude<Tool, 'select' | 'line' | 'curve'>;
 const FIELD_TOOL_TRANSFER = 'application/x-asa-robotics-field-tool';
+
+function isSpatialPlacementTool(tool: Tool): tool is SpatialPlacement['kind'] {
+  return tool === 'wall' || tool === 'ball' || tool === 'can' || tool === 'box';
+}
 
 function isPlacementTool(tool: Tool): tool is PlacementTool {
   return tool !== 'select' && tool !== 'line' && tool !== 'curve';
@@ -483,7 +488,12 @@ export function RobotFieldEditor({
     tool: PlacementTool;
     position: RoboticsPoint;
   } | null>(null);
-  const draggedTool = useRef<Tool | null>(null);
+  const paletteDrag = useRef<{
+    kind: Tool;
+    view: FieldView;
+    world: RoboticsWorldDocument;
+    enteredOrbit: boolean;
+  } | null>(null);
   const dragFeedback = useRef<HTMLCanvasElement | null>(null);
   const panePointers = useRef(new Map<number, Element>());
   const spatialDrag = useRef<{
@@ -498,6 +508,20 @@ export function RobotFieldEditor({
     spatialControls.current = value;
   }, []);
   const [spatialReady, setSpatialReady] = useState(false);
+  const clearPaletteDrag = useCallback(() => {
+    paletteDrag.current = null;
+    dragFeedback.current?.remove();
+    dragFeedback.current = null;
+    setDropHover(false);
+    setPlacement(null);
+  }, []);
+  const handleSpatialReady = useCallback(
+    (ready: boolean) => {
+      setSpatialReady(ready);
+      if (!ready && paletteDrag.current?.view === 'orbit') clearPaletteDrag();
+    },
+    [clearPaletteDrag],
+  );
   const [spatialZoom, setSpatialZoom] = useState(1);
   const canvasRef = useRef<HTMLDivElement>(null);
   const suppressNextCanvasClick = useRef(false);
@@ -614,43 +638,54 @@ export function RobotFieldEditor({
     pendingTouch.current = null;
     releaseDrag();
     clearTrace();
-    setDropHover(false);
-    setPlacement(null);
+    clearPaletteDrag();
     setTool('select');
     setPan(false);
-    dragFeedback.current?.remove();
-    dragFeedback.current = null;
-    draggedTool.current = null;
     setFieldView(next);
   }
   useEffect(() => {
     releaseDrag();
     setError(null);
-    setPlacement(null);
-    dragFeedback.current?.remove();
-    dragFeedback.current = null;
-    draggedTool.current = null;
-  }, [world, running]);
+    clearPaletteDrag();
+  }, [world, running, clearPaletteDrag]);
   useLayoutEffect(() => {
     cameraControl.leave();
     cameraControl.cancel();
     pendingTouch.current = null;
     releaseDrag();
     clearTrace();
-    setPlacement(null);
-    setDropHover(false);
-    draggedTool.current = null;
-    dragFeedback.current?.remove();
-    dragFeedback.current = null;
-  }, [active, interactionKey]);
+    clearPaletteDrag();
+  }, [active, interactionKey, clearPaletteDrag]);
   useLayoutEffect(() => {
     if (interactive) return;
     cameraControl.leave();
     cameraControl.cancel();
     pendingTouch.current = null;
     releaseDrag();
-    setPlacement(null);
-  }, [interactive]);
+    clearPaletteDrag();
+  }, [interactive, clearPaletteDrag]);
+  useEffect(() => {
+    if (!active || fieldView !== 'orbit') return;
+    const abort = () => {
+      if (paletteDrag.current?.view === 'orbit') clearPaletteDrag();
+    };
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') abort();
+    };
+    const visibilityChanged = () => {
+      if (document.hidden) abort();
+    };
+    window.addEventListener('blur', abort);
+    window.addEventListener('resize', abort);
+    window.addEventListener('keydown', keyDown, true);
+    document.addEventListener('visibilitychange', visibilityChanged);
+    return () => {
+      window.removeEventListener('blur', abort);
+      window.removeEventListener('resize', abort);
+      window.removeEventListener('keydown', keyDown, true);
+      document.removeEventListener('visibilitychange', visibilityChanged);
+    };
+  }, [active, fieldView, clearPaletteDrag]);
   useEffect(
     () => () => {
       dragFeedback.current?.remove();
@@ -760,18 +795,14 @@ export function RobotFieldEditor({
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
     if (!dropHover) setDropHover(true);
-    const kind = draggedTool.current;
+    const kind = paletteDrag.current?.kind;
     const position = pointAt(event.clientX, event.clientY);
     if (kind && isPlacementTool(kind) && position) setPlacement({ tool: kind, position });
   }
   function dropOnCanvas(event: DragEvent<HTMLDivElement>) {
     if (!event.dataTransfer.types.includes(FIELD_TOOL_TRANSFER)) return;
     event.preventDefault();
-    setDropHover(false);
-    setPlacement(null);
-    draggedTool.current = null;
-    dragFeedback.current?.remove();
-    dragFeedback.current = null;
+    clearPaletteDrag();
     if (running) return;
     const draggedKind = event.dataTransfer.getData(FIELD_TOOL_TRANSFER);
     const selected = TOOLS.find((item) => item.id === draggedKind);
@@ -786,6 +817,68 @@ export function RobotFieldEditor({
       } else add(position, selected.id);
     }
   }
+  function dragLeaveCanvas(event: DragEvent<HTMLDivElement>) {
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    if (fieldView === 'orbit') {
+      // Chromium can deliver the previous drag's leave before a new drag reaches the canvas.
+      if (paletteDrag.current?.enteredOrbit) clearPaletteDrag();
+      return;
+    }
+    setDropHover(false);
+    setPlacement(null);
+  }
+
+  function spatialDragKind(event: DragEvent<HTMLDivElement>): SpatialPlacement['kind'] | null {
+    const drag = paletteDrag.current;
+    if (
+      fieldView !== 'orbit' ||
+      !active ||
+      !interactive ||
+      !spatialReady ||
+      running ||
+      !drag ||
+      drag.view !== fieldView ||
+      drag.world !== world ||
+      !isSpatialPlacementTool(drag.kind) ||
+      (drag.kind !== 'wall' && drag.kind !== 'ball' && !extended) ||
+      isMaxed(drag.kind) ||
+      !event.dataTransfer.types.includes(FIELD_TOOL_TRANSFER) ||
+      !(event.target instanceof HTMLCanvasElement)
+    ) {
+      return null;
+    }
+    return drag.kind;
+  }
+
+  function spatialDropPoint(event: DragEvent<HTMLDivElement>): RoboticsPoint | null {
+    const point = spatialControls.current?.projectGround(event.clientX, event.clientY);
+    return point ? { xMeters: rounded(point.xMeters), yMeters: rounded(point.yMeters) } : null;
+  }
+
+  function dragOverSpatial(event: DragEvent<HTMLDivElement>) {
+    const kind = spatialDragKind(event);
+    const drag = paletteDrag.current;
+    if (!kind || !drag) return;
+    drag.enteredOrbit = true;
+    event.preventDefault();
+    const position = spatialDropPoint(event);
+    const onField = position && placementPoint(world, kind, position, snap);
+    event.dataTransfer.dropEffect = onField ? 'copy' : 'none';
+    setPlacement(position && onField ? { tool: kind, position } : null);
+  }
+
+  function dropOnSpatial(event: DragEvent<HTMLDivElement>) {
+    if (!event.dataTransfer.types.includes(FIELD_TOOL_TRANSFER)) return;
+    event.preventDefault();
+    const kind = spatialDragKind(event);
+    const position = kind ? spatialDropPoint(event) : null;
+    clearPaletteDrag();
+    if (kind && position && event.dataTransfer.getData(FIELD_TOOL_TRANSFER) === kind)
+      add(position, kind);
+  }
+
   const clearTrace = () => {
     setTracePoints([]);
     setTraceCursor(null);
@@ -1267,7 +1360,13 @@ export function RobotFieldEditor({
     requestAnimationFrame(() => propertiesButton.current?.focus());
   }
   const ghost = useMemo(() => {
-    if (!topView || running || !placement) return null;
+    if (
+      running ||
+      !placement ||
+      (!topView && (fieldView !== 'orbit' || !isSpatialPlacementTool(placement.tool)))
+    ) {
+      return null;
+    }
     const point = placementPoint(world, placement.tool, placement.position, snap);
     if (!point) return null;
     try {
@@ -1280,13 +1379,29 @@ export function RobotFieldEditor({
     } catch {
       return null;
     }
-  }, [placement, running, snap, stamp, topView, turns, world]);
+  }, [fieldView, placement, running, snap, stamp, topView, turns, world]);
+  let placementPreview: SpatialPlacement | null = null;
+  if (fieldView === 'orbit' && ghost?.key && placement) {
+    const { key, valid } = ghost;
+    const candidate = ghost.world.field;
+    if (placement.tool === 'wall') {
+      const object = candidate.obstacles.at(-1);
+      if (object) placementPreview = { kind: 'wall', object, key, valid };
+    } else if (placement.tool === 'ball') {
+      const object = candidate.balls.at(-1);
+      if (object) placementPreview = { kind: 'ball', object, key, valid };
+    } else {
+      const object = candidate.bodies?.at(-1);
+      if (object?.kind === 'can') placementPreview = { kind: 'can', object, key, valid };
+      if (object?.kind === 'box') placementPreview = { kind: 'box', object, key, valid };
+    }
+  }
   const topSvg = topView && (!spatialReady || Boolean(draft || ghost || tracePoints.length));
   const pixelsPerMeter = cameraControl.camera?.pixelsPerMeter ?? fitScale;
   const scaleMeters = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001].find(
     (value) => value * pixelsPerMeter <= Math.min(84, cameraControl.viewport.width - 32),
   );
-  const scene = draft ?? ghost?.world ?? world;
+  const scene = draft ?? (topView ? ghost?.world : undefined) ?? world;
   const previewState = draft ? createRoboticsWorldState(draft) : state;
   const previewDistance = draft
     ? measureRoboticsDistance(draft, draft.initialPose, previewState.balls, previewState.bodies)
@@ -1534,15 +1649,7 @@ export function RobotFieldEditor({
                 }
               }}
               onDragOver={dragOverCanvas}
-              onDragLeave={(event) => {
-                if (
-                  event.relatedTarget instanceof Node &&
-                  event.currentTarget.contains(event.relatedTarget)
-                )
-                  return;
-                setDropHover(false);
-                setPlacement(null);
-              }}
+              onDragLeave={dragLeaveCanvas}
               onDrop={dropOnCanvas}
               onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
@@ -1628,7 +1735,12 @@ export function RobotFieldEditor({
               </div>
             </div>
             {cameraControl.camera ? (
-              <div className="robotics-field-spatial-viewport">
+              <div
+                className="robotics-field-spatial-viewport"
+                onDragOver={fieldView === 'orbit' ? dragOverSpatial : undefined}
+                onDragLeave={fieldView === 'orbit' ? dragLeaveCanvas : undefined}
+                onDrop={fieldView === 'orbit' ? dropOnSpatial : undefined}
+              >
                 <Suspense
                   fallback={
                     <p className="robotics-spatial-notice" role="status">
@@ -1645,7 +1757,8 @@ export function RobotFieldEditor({
                     view={fieldView}
                     active={active && !(topView && Boolean(draft || ghost || tracePoints.length))}
                     topProjection={projection}
-                    onReady={setSpatialReady}
+                    placementPreview={placementPreview}
+                    onReady={handleSpatialReady}
                     onControls={registerSpatialControls}
                     onZoom={setSpatialZoom}
                     edit={
@@ -1881,6 +1994,10 @@ export function RobotFieldEditor({
                     {group.tools.map((kind) => {
                       const item = TOOLS.find((entry) => entry.id === kind)!;
                       const disabled = running || isMaxed(kind) || (item.extended && !extended);
+                      const draggable =
+                        !disabled &&
+                        (topView ||
+                          (fieldView === 'orbit' && spatialReady && isSpatialPlacementTool(kind)));
                       return (
                         <button
                           key={kind}
@@ -1892,11 +2009,17 @@ export function RobotFieldEditor({
                           title={
                             item.extended && !extended
                               ? 'Включите расширенное поле в настройках'
-                              : 'Перетащите на поле или выберите и нажмите на место'
+                              : draggable
+                                ? 'Перетащите на поле или разместите нажатием в виде сверху'
+                                : 'Выберите предмет, чтобы разместить в виде сверху'
                           }
                           disabled={disabled}
-                          draggable={!disabled && topView}
+                          draggable={draggable}
                           onDragStart={(event) => {
+                            if (!draggable || !active || !interactive) {
+                              event.preventDefault();
+                              return;
+                            }
                             dragFeedback.current?.remove();
                             // A blank ordinary canvas suppresses the browser's card screenshot.
                             // Actual field geometry remains the sole placement preview.
@@ -1907,18 +2030,17 @@ export function RobotFieldEditor({
                             document.body.append(feedback);
                             dragFeedback.current = feedback;
                             event.dataTransfer.setDragImage(feedback, 0, 0);
-                            draggedTool.current = kind;
+                            paletteDrag.current = {
+                              kind,
+                              view: fieldView,
+                              world,
+                              enteredOrbit: false,
+                            };
                             event.dataTransfer.setData(FIELD_TOOL_TRANSFER, kind);
                             event.dataTransfer.setData('text/plain', kind);
                             event.dataTransfer.effectAllowed = 'copy';
                           }}
-                          onDragEnd={() => {
-                            dragFeedback.current?.remove();
-                            dragFeedback.current = null;
-                            draggedTool.current = null;
-                            setDropHover(false);
-                            setPlacement(null);
-                          }}
+                          onDragEnd={clearPaletteDrag}
                           onClick={() => {
                             releaseDrag();
                             clearTrace();

@@ -1,5 +1,10 @@
 import * as THREE from 'three';
-import type { RoboticsObjectKey } from '@asa-lab/robotics/world-document';
+import type {
+  RoboticsBall,
+  RoboticsBody,
+  RoboticsObjectKey,
+  RoboticsRectObstacle,
+} from '@asa-lab/robotics/world-document';
 import type { RoboticsFieldGeometry } from './RobotField';
 import type { RoboticsDistanceMeasurement, RoboticsWorldState } from './world';
 
@@ -334,6 +339,81 @@ function createBall(radius: number): THREE.Group {
   return group;
 }
 
+export type SpatialPlacement = {
+  key: RoboticsObjectKey;
+  valid: boolean;
+} & (
+  | { kind: 'wall'; object: RoboticsRectObstacle }
+  | { kind: 'ball'; object: RoboticsBall }
+  | { kind: 'can'; object: Extract<RoboticsBody, { kind: 'can' }> }
+  | { kind: 'box'; object: Extract<RoboticsBody, { kind: 'box' }> }
+);
+
+function createWall(
+  wall: RoboticsRectObstacle,
+  material = metal(0x4c6478, 0.67),
+  cap = metal(0x8199ac, 0.52),
+): THREE.Group {
+  const group = new THREE.Group();
+  // Legacy walls have plan dimensions only. These sides are visualization geometry.
+  const capHeight = 0.004;
+  const bodyHeight = 0.083;
+  addMesh(
+    group,
+    new THREE.BoxGeometry(wall.widthMeters, wall.heightMeters, bodyHeight),
+    material,
+    0,
+    0,
+    bodyHeight / 2,
+  );
+  addMesh(
+    group,
+    new THREE.BoxGeometry(wall.widthMeters, wall.heightMeters, capHeight),
+    cap,
+    0,
+    0,
+    bodyHeight + capHeight / 2,
+  );
+  return group;
+}
+
+function createBody(
+  body: NonNullable<RoboticsFieldGeometry['field']['bodies']>[number],
+): THREE.Group {
+  if (body.kind === 'can') return createCan(body.radiusMeters, body.heightMeters);
+  const item = new THREE.Group();
+  const endGrain = metal(0xad7446, 0.92);
+  const grain = metal(0xb98252, 0.94);
+  const top = metal(0xd0a374, 0.9);
+  addMesh(
+    item,
+    new THREE.BoxGeometry(body.widthMeters, body.depthMeters, body.heightMeters),
+    [endGrain, endGrain, grain, grain, top, grain],
+    0,
+    0,
+    body.heightMeters / 2,
+  );
+  return item;
+}
+
+function placementGeometryKey(placement: SpatialPlacement): string {
+  switch (placement.kind) {
+    case 'wall':
+      return ['wall', placement.object.widthMeters, placement.object.heightMeters].join(':');
+    case 'ball':
+      return ['ball', placement.object.radiusMeters].join(':');
+    case 'can':
+      return ['can', placement.object.radiusMeters, placement.object.heightMeters].join(':');
+    case 'box':
+      return [
+        'box',
+        placement.object.widthMeters,
+        placement.object.depthMeters,
+        placement.object.heightMeters,
+      ].join(':');
+  }
+}
+
 export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate: () => void) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SPATIAL_FIELD_BACKGROUND);
@@ -530,32 +610,13 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
   const wallMaterial = metal(0x4c6478, 0.67);
   const wallCap = metal(0x8199ac, 0.52);
   for (const wall of field.obstacles) {
-    const group = new THREE.Group();
-    // Legacy walls have plan dimensions only. These sides are visualization geometry.
-    const capHeight = 0.004;
-    const bodyHeight = 0.083;
+    const group = createWall(wall, wallMaterial, wallCap);
     group.position.set(
       wall.xMeters + wall.widthMeters / 2,
       wall.yMeters + wall.heightMeters / 2,
       0,
     );
     group.rotation.z = wall.headingRadians ?? 0;
-    addMesh(
-      group,
-      new THREE.BoxGeometry(wall.widthMeters, wall.heightMeters, bodyHeight),
-      wallMaterial,
-      0,
-      0,
-      bodyHeight / 2,
-    );
-    addMesh(
-      group,
-      new THREE.BoxGeometry(wall.widthMeters, wall.heightMeters, capHeight),
-      wallCap,
-      0,
-      0,
-      bodyHeight + capHeight / 2,
-    );
     scene.add(group);
     addPickable(`wall:${wall.id}`, group);
   }
@@ -571,21 +632,7 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
 
   const bodyMeshes = new Map<string, THREE.Group>();
   for (const body of field.bodies ?? []) {
-    const item =
-      body.kind === 'can' ? createCan(body.radiusMeters, body.heightMeters) : new THREE.Group();
-    if (body.kind === 'box') {
-      const endGrain = metal(0xad7446, 0.92);
-      const grain = metal(0xb98252, 0.94);
-      const top = metal(0xd0a374, 0.9);
-      addMesh(
-        item,
-        new THREE.BoxGeometry(body.widthMeters, body.depthMeters, body.heightMeters),
-        [endGrain, endGrain, grain, grain, top, grain],
-        0,
-        0,
-        body.heightMeters / 2,
-      );
-    }
+    const item = createBody(body);
     if (body.kind === 'box') addShadow(item, body.widthMeters / 2, body.depthMeters / 2);
     else addShadow(item, body.radiusMeters, body.radiusMeters);
     scene.add(item);
@@ -689,6 +736,79 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
     }
   }
 
+  let placementShape: {
+    identity: string;
+    root: THREE.Group;
+    outline: THREE.Box3Helper;
+    meshCount: number;
+  } | null = null;
+  let placementPreview: {
+    kind: SpatialPlacement['kind'];
+    key: RoboticsObjectKey;
+    xMeters: number;
+    yMeters: number;
+    valid: boolean;
+    meshCount: number;
+  } | null = null;
+
+  function clearPlacementPreview(): void {
+    if (!placementShape) return;
+    scene.remove(placementShape.root, placementShape.outline);
+    disposeSpatialResources(placementShape.root);
+    disposeSpatialResources(placementShape.outline);
+    placementShape = null;
+    placementPreview = null;
+  }
+
+  function setPlacementPreview(placement: SpatialPlacement | null): void {
+    if (!placement) {
+      clearPlacementPreview();
+      return;
+    }
+    const identity = placementGeometryKey(placement);
+    if (placementShape?.identity !== identity) {
+      clearPlacementPreview();
+      const root =
+        placement.kind === 'wall'
+          ? createWall(placement.object)
+          : placement.kind === 'ball'
+            ? createBall(placement.object.radiusMeters)
+            : createBody(placement.object);
+      root.name = 'field-placement-preview';
+      let meshCount = 0;
+      root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        meshCount++;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          material.transparent = true;
+          material.opacity = 0.55;
+          material.depthWrite = false;
+        }
+      });
+      const outline = new THREE.Box3Helper(new THREE.Box3());
+      scene.add(root, outline);
+      // Preview meshes and their outline never join the saved-object pick list.
+      placementShape = { identity, root, outline, meshCount };
+    }
+    const { root, outline, meshCount } = placementShape;
+    const { object, key, kind, valid } = placement;
+    const offsetX = placement.kind === 'wall' ? placement.object.widthMeters / 2 : 0;
+    const offsetY = placement.kind === 'wall' ? placement.object.heightMeters / 2 : 0;
+    root.position.set(object.xMeters + offsetX, object.yMeters + offsetY, 0);
+    root.rotation.z = 'headingRadians' in object ? (object.headingRadians ?? 0) : 0;
+    outline.box.setFromObject(root);
+    (outline.material as THREE.LineBasicMaterial).color.setHex(valid ? 0x227e6c : 0xd82c2c);
+    placementPreview = {
+      kind,
+      key,
+      xMeters: root.position.x - offsetX,
+      yMeters: root.position.y - offsetY,
+      valid,
+      meshCount,
+    };
+  }
+
   const raycaster = new THREE.Raycaster();
   const pickables = [...new Set([...objects.values(), ...markingObjects])];
   const focusBounds = new THREE.Box3();
@@ -742,6 +862,7 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
   }
 
   function dispose(): void {
+    clearPlacementPreview();
     disposeDecorations();
     disposeSpatialResources(scene);
   }
@@ -749,6 +870,8 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
   return {
     scene,
     applySnapshot,
+    setPlacementPreview,
+    readPlacementPreview: () => placementPreview,
     readFocus,
     pick,
     pickHit,
@@ -757,11 +880,11 @@ export function createFieldSpatialScene(world: RoboticsFieldGeometry, invalidate
   };
 }
 
-function disposeSpatialResources(scene: THREE.Scene): void {
+function disposeSpatialResources(root: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
   const textures = new Set<THREE.Texture>();
-  scene.traverse((object) => {
+  root.traverse((object) => {
     if (!(object instanceof THREE.Mesh || object instanceof THREE.Line)) return;
     geometries.add(object.geometry);
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
@@ -772,7 +895,7 @@ function disposeSpatialResources(scene: THREE.Scene): void {
   for (const texture of textures) texture.dispose();
   for (const material of materials) material.dispose();
   for (const geometry of geometries) geometry.dispose();
-  scene.clear();
+  root.clear();
 }
 
 /** Actual shared mesh parameters, for read-only view parity evidence in metres. */
@@ -810,6 +933,8 @@ export function createRobotSpatialScene(
     scene,
     robotGeometry: readRobotVisualGeometry(robot),
     applySnapshot: () => {},
+    setPlacementPreview: () => {},
+    readPlacementPreview: () => null,
     readFocus: (_key: RoboticsObjectKey, target: THREE.Vector3) => {
       bounds.getCenter(target);
       return bounds.min.distanceTo(bounds.max);

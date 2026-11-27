@@ -10,6 +10,7 @@ import {
 } from './field-camera';
 import {
   createFieldSpatialScene,
+  type SpatialPlacement,
   createRobotSpatialScene,
   SPATIAL_FIELD_BACKGROUND,
 } from './field-spatial-scene';
@@ -20,6 +21,7 @@ export interface FieldViewportControls {
   zoom: (factor: number) => void;
   fit: () => void;
   focus: (key?: RoboticsObjectKey) => void;
+  projectGround: (clientX: number, clientY: number) => RoboticsPoint | null;
 }
 
 /** Exactly the SVG ground transform, including CSS size and its upward world Y. */
@@ -369,6 +371,7 @@ interface SpatialViewProps {
   active?: boolean;
   onSelect?: ((key: RoboticsObjectKey) => void) | undefined;
   edit?: SpatialEdit | undefined;
+  placementPreview?: SpatialPlacement | null;
   topProjection?: { camera: FieldCamera; viewport: FieldViewport } | undefined;
   onReady?: ((ready: boolean) => void) | undefined;
   onControls?: ((controls: FieldViewportControls | null) => void) | undefined;
@@ -386,6 +389,7 @@ interface SceneProps {
   view: FieldView;
   onSelect: SpatialViewProps['onSelect'];
   edit: SpatialViewProps['edit'];
+  placementPreview: SpatialPlacement | null;
   topProjection: SpatialViewProps['topProjection'];
   onReady: SpatialViewProps['onReady'];
   onZoom: SpatialViewProps['onZoom'];
@@ -570,6 +574,8 @@ function createViewport(
           controls?.target.toArray(),
         ]);
         canvas.dataset.editPreview = JSON.stringify(preview);
+        if (getProps().subject === 'field')
+          canvas.dataset.placementPreview = JSON.stringify(drawing.readPlacementPreview());
         setScale(
           readSideMetricScale(
             camera(),
@@ -674,6 +680,7 @@ function createViewport(
     const wasVisible = visible;
     visible = width > 0 && height > 0;
     if (!visible) {
+      clearPlacementPreview();
       gestures.cancel();
       suspendRobotControls();
       if (controls) controls.enabled = false;
@@ -693,10 +700,17 @@ function createViewport(
     invalidate();
   }
 
+  function clearPlacementPreview(): void {
+    if (getProps().subject !== 'field') return;
+    drawing?.setPlacementPreview(null);
+    canvas.dataset.placementPreview = 'null';
+  }
+
   function update(): void {
     gestures.sync();
     const { world, state, distance, showGrid, selection, active, view } = getProps();
     if (!active || !visible || disposed || contextLost || renderFailed) {
+      clearPlacementPreview();
       gestures.cancel();
       suspendRobotControls();
       if (controls) controls.enabled = false;
@@ -727,6 +741,8 @@ function createViewport(
     if (selectedView !== view || !controls) switchView(view);
     if (view === 'top') projection();
     drawing?.applySnapshot(state, distance, showGrid, selection, preview);
+    if (getProps().subject === 'field')
+      drawing?.setPlacementPreview(view === 'orbit' ? getProps().placementPreview : null);
     invalidate();
   }
 
@@ -841,6 +857,7 @@ function createViewport(
     gestures.cancel();
     preview = null;
     canvas.dataset.editPreview = 'null';
+    clearPlacementPreview();
     if (controls) controls.enabled = false;
     setScale(null);
     getProps().onReady?.(false);
@@ -904,6 +921,7 @@ function createViewport(
     gestures.cancel();
     suspendRobotControls();
     contextLost = true;
+    clearPlacementPreview();
     canvas.dataset.rendered = 'false';
     setScale(null);
     getProps().onReady?.(false);
@@ -953,6 +971,18 @@ function createViewport(
     },
     focus,
     zoom,
+    projectGround: (clientX: number, clientY: number) => {
+      const { view, subject } = getProps();
+      if (
+        !interactive() ||
+        !drawing ||
+        view !== 'orbit' ||
+        selectedView !== view ||
+        subject !== 'field'
+      )
+        return null;
+      return spatialEditPoint(camera(), canvas.getBoundingClientRect(), clientX, clientY, 0);
+    },
     nudge,
     dispose,
   };
@@ -969,6 +999,7 @@ export default function RobotFieldSpatialView({
   active = true,
   onSelect,
   edit,
+  placementPreview = null,
   topProjection,
   onReady,
   onControls,
@@ -986,6 +1017,7 @@ export default function RobotFieldSpatialView({
     active,
     onSelect,
     edit,
+    placementPreview,
     topProjection,
     onReady,
     onZoom,
@@ -1001,6 +1033,7 @@ export default function RobotFieldSpatialView({
     active,
     onSelect,
     edit,
+    placementPreview,
     topProjection,
     onReady,
     onZoom,
@@ -1061,6 +1094,7 @@ export default function RobotFieldSpatialView({
     view,
     active,
     Boolean(edit),
+    placementPreview,
     topProjection,
     subject,
   ]);
