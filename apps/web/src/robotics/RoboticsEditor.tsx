@@ -140,9 +140,10 @@ function OpenedRoboticsEditor({
       <RoboticsWorkspace
         project={controller}
         projectId={projectId}
-        header={(tabs, notices) => (
+        header={(tabs, notices, simulationControls) => (
           <RoboticsHeader
             tabs={tabs}
+            simulationControls={simulationControls}
             notices={notices}
             title={host.projectTitle}
             onTitleChange={host.setProjectTitle}

@@ -109,6 +109,7 @@ interface RoboticsHeaderNavigation {
 
 interface RoboticsHeaderProps {
   readonly tabs: ReactNode;
+  readonly simulationControls?: ReactNode;
   readonly notices?: readonly string[];
   readonly title: string;
   readonly onTitleChange: (value: string) => void;
@@ -128,6 +129,7 @@ interface RoboticsHeaderProps {
 /** Shares the brand, project identity and avatar primitives with Electronics. */
 export function RoboticsHeader({
   tabs,
+  simulationControls,
   notices = [],
   title,
   onTitleChange,
@@ -238,6 +240,7 @@ export function RoboticsHeader({
           </details>
         ) : null}
       </div>
+      {simulationControls}
       <div className="robotics-header-controls">
         {tabs}
         {onOpenSaved ? (
@@ -340,7 +343,11 @@ export function RoboticsWorkspace({
 }: {
   readonly project: RoboticsProjectController;
   readonly projectId?: string;
-  readonly header?: (tabs: ReactNode, notices: readonly string[]) => ReactNode;
+  readonly header?: (
+    tabs: ReactNode,
+    notices: readonly string[],
+    simulationControls: ReactNode,
+  ) => ReactNode;
 }) {
   const [section, setSection] = useState<Section>('field');
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -947,10 +954,11 @@ export function RoboticsWorkspace({
       data-input-exhausted={budget?.exhausted ?? false}
     >
       {header ? (
-        header(tabs, messages)
+        header(tabs, messages, simulationControls)
       ) : (
         <RoboticsHeader
           tabs={tabs}
+          simulationControls={simulationControls}
           notices={messages}
           title={local.host.projectTitle}
           onTitleChange={local.host.setProjectTitle}
@@ -997,7 +1005,6 @@ export function RoboticsWorkspace({
             canRedo={controller.canRedo}
             onUndo={() => controller.undo()}
             onRedo={() => controller.redo()}
-            simulationControls={section === 'field' ? simulationControls : null}
           />
         </section>
         <section
@@ -1012,7 +1019,6 @@ export function RoboticsWorkspace({
             project={local.robotProject}
             running={running}
             onCommit={local.setWorld}
-            simulationControls={section === 'robot' ? simulationControls : null}
             onOpenElectronics={() => {
               navigate('electronics');
               controller.setLibraryOpen(true);
@@ -1037,9 +1043,6 @@ export function RoboticsWorkspace({
                 setCodeDrawerOpen((current) => !current);
               }}
             />
-            <div className="robotics-toolbar-run-slot">
-              {section === 'electronics' ? simulationControls : null}
-            </div>
           </div>
         </section>
         <section
@@ -1070,7 +1073,6 @@ export function RoboticsWorkspace({
                   codeDrawerVisible ? setCodeDrawerOpen(false) : navigate('electronics')
                 }
                 programHandleRef={programHandle}
-                toolbarActions={section === 'program' ? simulationControls : undefined}
                 toolbarAccessory={section === 'program' ? codeAccessory : undefined}
               />
             ) : null}

@@ -8,7 +8,6 @@ import {
   useState,
   type DragEvent,
   type PointerEvent,
-  type ReactNode,
 } from 'react';
 import {
   createRoboticsBall,
@@ -439,7 +438,6 @@ export function RobotFieldEditor({
   canRedo,
   onUndo,
   onRedo,
-  simulationControls,
 }: {
   world: RoboticsWorldDocument;
   state: RoboticsWorldState;
@@ -454,7 +452,6 @@ export function RobotFieldEditor({
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  simulationControls?: ReactNode;
 }) {
   const [tool, setTool] = useState<Tool>('select');
   const [stamp, setStamp] = useState<RoboticsTileStampKind>('straight');
@@ -1445,7 +1442,6 @@ export function RobotFieldEditor({
             </div>
           </div>
         </div>
-        {simulationControls}
       </div>
       {error ? (
         <p className="robotics-field-error robotics-scene-error" role="alert">

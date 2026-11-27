@@ -1265,6 +1265,157 @@ async function inspectRobotConstruction(page: Page, projectId: string) {
   );
 }
 
+async function inspectHeaderControls(page: Page, projectId: string) {
+  const source = await saved(page, projectId);
+  const header = page.locator('.robotics-unified-header');
+  const group = header.locator('.robotics-run-bar');
+  const identity = await group.elementHandle();
+  const stage = await page.locator('.workbench-canvas').elementHandle();
+  const code = page.locator('.robotics-program-shell textarea[aria-label="Код Arduino C++"]');
+  await page.getByRole('tab', { name: 'Код', exact: true }).click();
+  const codeIdentity = await code.elementHandle();
+  if (!identity || !stage || !codeIdentity) throw new Error('Missing real shared header/editors');
+  const pose = () =>
+    page
+      .getByTestId('robotics-field-spatial')
+      .evaluate((element) =>
+        ['data-x-meters', 'data-y-meters', 'data-heading-radians'].map((key) =>
+          element.getAttribute(key),
+        ),
+      );
+  const clock = () => page.getByTestId('robotics-time').getAttribute('data-microseconds');
+  const measurements: unknown[] = [];
+  for (const width of [1440, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await group.getByRole('button', { name: 'Запустить', exact: true }).click();
+    await expect
+      .poll(async () => Number(await clock()), { timeout: 60_000 })
+      .toBeGreaterThan(100_000);
+    await group.getByRole('button', { name: 'Пауза', exact: true }).click();
+    await expect(group.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+    const paused = await clock();
+    const pausedPose = await pose();
+    const views: unknown[] = [];
+    for (const tab of ['Поле', 'Робот', 'Электроника', 'Код']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click();
+      await expect(page.locator('.robotics-run-bar')).toHaveCount(1);
+      await expect(page.getByTestId('robotics-time')).toHaveCount(1);
+      await expect(group).toBeVisible();
+      expect(await group.evaluate((element, first) => element === first, identity)).toBe(true);
+      expect(
+        await page
+          .locator('.workbench-canvas')
+          .evaluate((element, first) => element === first, stage),
+      ).toBe(true);
+      expect(await code.evaluate((element, first) => element === first, codeIdentity)).toBe(true);
+      expect(await clock()).toBe(paused);
+      expect(await pose()).toEqual(pausedPose);
+      const geometry = await group.evaluate((element) => {
+        const header = element.closest('header')!;
+        const bounds = header.getBoundingClientRect();
+        const controls = [
+          element.querySelector('.workbench-simulation-clock-button')!,
+          ...element.querySelectorAll('.robotics-run-buttons button'),
+        ];
+        const rects = controls.map((control) => control.getBoundingClientRect());
+        const other = [
+          ...header.querySelectorAll(
+            '.robotics-header-save, .robotics-header-brand-zone, .robotics-header-controls',
+          ),
+        ].map((node) => node.getBoundingClientRect());
+        const overlaps = (a: DOMRect, b: DOMRect) =>
+          Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+        return {
+          header: bounds.toJSON(),
+          controls: rects.map((rect) => rect.toJSON()),
+          contained: rects.every(
+            (rect) =>
+              rect.width > 0 &&
+              rect.height > 0 &&
+              rect.left >= bounds.left &&
+              rect.right <= bounds.right + 1 &&
+              rect.top >= bounds.top &&
+              rect.bottom <= bounds.bottom + 1,
+          ),
+          reachable: controls.every((control, i) => {
+            const rect = rects[i]!;
+            const hit = document.elementFromPoint(
+              rect.x + rect.width / 2,
+              rect.y + rect.height / 2,
+            );
+            return hit !== null && control.contains(hit);
+          }),
+          separate: rects.every(
+            (rect, i) =>
+              !rects.some((other, j) => i !== j && overlaps(rect, other)) &&
+              !other.some((other) => overlaps(rect, other)),
+          ),
+        };
+      });
+      expect(geometry.contained).toBe(true);
+      expect(geometry.reachable).toBe(true);
+      expect(geometry.separate).toBe(true);
+      if (width === 320)
+        for (const bounds of geometry.controls) {
+          expect(bounds.width).toBeGreaterThanOrEqual(44);
+          expect(bounds.height).toBeGreaterThanOrEqual(44);
+        }
+      await noOverflow(page);
+      if (tab === 'Код') {
+        for (const control of [
+          page.getByRole('combobox', { name: 'Программируемая плата', exact: true }),
+          page.locator('.arduino-mode-menu > summary'),
+          page.getByRole('button', { name: 'Проверить код', exact: true }),
+          page.getByRole('button', { name: 'Скачать .ino', exact: true }),
+          page.locator('.robotics-code-extras > summary'),
+        ])
+          await visibleControl(page, control);
+      }
+      views.push({ tab, ...geometry, time: await clock(), pose: await pose() });
+      await page.screenshot({
+        path: `${EVIDENCE}/header-controls-${tab}-${width}.png`,
+        fullPage: true,
+      });
+    }
+    expect((await readProject(page, projectId)).draft.document).toEqual(source.draft.document);
+    await group.getByRole('button', { name: 'Продолжить', exact: true }).click();
+    await expect
+      .poll(async () => Number(await clock()), { timeout: 60_000 })
+      .toBeGreaterThan(Number(paused));
+    await group.getByRole('button', { name: 'Пауза', exact: true }).click();
+    await expect(group.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+    const resumed = await clock();
+    await group.getByRole('button', { name: 'Сбросить', exact: true }).click();
+    await expect(page.getByTestId('robotics-time')).toHaveAttribute('data-microseconds', '0');
+    await expect(group.getByRole('button', { name: 'Запустить', exact: true })).toBeEnabled();
+    await expect(group.getByRole('button', { name: 'Пауза', exact: true })).toBeDisabled();
+    expect((await readProject(page, projectId)).draft.document).toEqual(source.draft.document);
+    const initial = source.draft.document.world.initialPose;
+    expect(await pose()).toEqual([
+      String(initial.xMeters),
+      String(initial.yMeters),
+      String(initial.headingRadians),
+    ]);
+    measurements.push({
+      width,
+      paused,
+      resumed,
+      resetTime: await clock(),
+      resetPose: await pose(),
+      views,
+    });
+  }
+  writeFileSync(
+    `${EVIDENCE}/header-controls.json`,
+    JSON.stringify(
+      { projectId, sourceDigest: digest(source.draft.document), measurements },
+      null,
+      2,
+    ),
+  );
+}
+
 test('Robotics uses account projects, the main portal and an immutable publication for a second user', async ({
   page,
   browser,
@@ -1360,6 +1511,21 @@ test('Robotics uses account projects, the main portal and an immutable publicati
     initialUno.stateProperties?.['arduinoWorkspace'],
   );
 
+  // Navigation through the common header must retain the actual Blockly DOM
+  // and its already-saved workspace, before changing editing modes below.
+  if ((await page.locator('.robotics-code-extras').getAttribute('open')) !== null)
+    await page.locator('.robotics-code-extras > summary').click();
+  const blockWorkspace = page.getByTestId('arduino-block-workspace');
+  const blockIdentity = await blockWorkspace.elementHandle();
+  if (!blockIdentity) throw new Error('Actual Blockly workspace missing');
+  for (const tab of ['Поле', 'Робот', 'Электроника', 'Код']) {
+    await page.getByRole('tab', { name: tab, exact: true }).click();
+    expect(
+      await blockWorkspace.evaluate((element, first) => element === first, blockIdentity),
+    ).toBe(true);
+    expect((await readProject(page, projectId)).draft.document).toEqual(blocksSaved.draft.document);
+  }
+
   await page.locator('.arduino-mode-menu > summary').click();
   await page.getByRole('button', { name: 'Текст', exact: true }).click();
   await page
@@ -1432,6 +1598,8 @@ test('Robotics uses account projects, the main portal and an immutable publicati
   ).toEqual(fieldPose);
   expect((await saved(page, projectId)).draft.document).toEqual(confirmed.draft.document);
   await page.getByRole('button', { name: 'Остановить', exact: true }).click();
+
+  await inspectHeaderControls(page, projectId);
 
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 900 });
