@@ -1,4 +1,12 @@
 import {
+  PHYSICS_QUANTUM_US,
+  integerTime,
+  identicalPhysicalState,
+  invalidClockThermalEpoch,
+  invalidClockPhysicalCheckpoint,
+  type ArduinoCircuitClockProfile,
+} from './arduino-clock-physics.js';
+import {
   advanceClockedArduinoRuntime,
   analyseArduinoProgramSyntax,
   arduinoRuntimeStateMatchesProgram,
@@ -78,8 +86,6 @@ import {
   createArduinoOperatingPointReuse,
   createArduinoQualityLayoutOwner,
   createArduinoElectricalCheckpointSolver,
-  clockedRcStateIsCompatible,
-  clockedPhysicalStateIsCompatible,
   solveCircuitWithHeldArduino,
   solveRcCircuitWithHeldArduino,
   solveRcCircuitWithHeldArduinoAndExternalShaft,
@@ -133,11 +139,8 @@ import {
   type ServoMotorRuntimeState,
 } from './models/servo-runtime.js';
 
-const MAX_TIME_US = 2 ** 50 - 1001;
 const MAX_INPUT_EVENTS = 1024;
 const MAX_BOARDS = 8;
-// Fixed barriers independent of UI refresh times. Adaptive trial steps stay inside each barrier.
-const PHYSICS_QUANTUM_US = 1000;
 const ELECTROTHERMAL_MODELS = new Set([
   'ordinary-led',
   'rgb-led',
@@ -192,26 +195,6 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
   );
 }
 
-// Reuse a zero-duration solve only when every carried physical input is identical.
-// Object.is also distinguishes signed zero; no state or frame is retained between advances.
-function identicalPhysicalState(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true;
-  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
-  if (Array.isArray(left) !== Array.isArray(right)) return false;
-  const keys = Object.keys(left);
-  return (
-    keys.length === Object.keys(right).length &&
-    keys.every(
-      (key) =>
-        Object.hasOwn(right, key) &&
-        identicalPhysicalState(
-          (left as Record<string, unknown>)[key],
-          (right as Record<string, unknown>)[key],
-        ),
-    )
-  );
-}
-
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
   readonly componentId: string;
@@ -242,8 +225,7 @@ export interface ArduinoCircuitInputEvent {
 
 export interface ArduinoCircuitClockState {
   readonly version: 1;
-  readonly profile:
-    'dc-inputs-v1' | 'rc-inputs-v2' | 'electrothermal-v1' | 'electrothermal-events-v2';
+  readonly profile: ArduinoCircuitClockProfile;
   readonly documentDigest: string;
   readonly reachedMicroseconds: number;
   /** Ordered, append-only history. Array index is the stable event sequence. */
@@ -331,16 +313,33 @@ export type ArduinoCircuitShaftBarrier = ArduinoCircuitShaftBarrierBase &
 type ShaftClockCapability = Pick<ArduinoCircuitShaftBarrierBase, 'componentId' | 'port'> & {
   readonly onCheckpoint: (atMicroseconds: number) => void;
 };
+/** Private handshake between one owned generator and its dedicated Worker session. */
+interface SleepingPhysicsState {
+  waiting: boolean;
+  actualHorizon?: number;
+}
+const sleepingPhysicsStates = new WeakMap<object, SleepingPhysicsState>();
+export function createArduinoSleepingPhysicsPrefix() {
+  const state: SleepingPhysicsState = { waiting: false };
+  const permit = {
+    waiting: () => state.waiting,
+    grant: (horizon: number) => {
+      if (!state.waiting || state.actualHorizon !== undefined || !integerTime(horizon))
+        return false;
+      state.actualHorizon = horizon;
+      return true;
+    },
+  };
+  sleepingPhysicsStates.set(permit, state);
+  return permit;
+}
+export type ArduinoSleepingPhysicsPrefix = ReturnType<typeof createArduinoSleepingPhysicsPrefix>;
 interface OwnedClockPause {
   readonly kind: 'owned-clock-pause';
   readonly checkpoint: () => ArduinoCircuitClockState;
 }
 type ClockSuspension = HcSr04ClockSuspension | ArduinoCircuitShaftBarrier | OwnedClockPause;
 type ClockResponse = HcSr04EnvironmentSample | ArduinoCircuitShaftSample | undefined;
-
-function integerTime(value: number): boolean {
-  return Number.isSafeInteger(value) && value >= 0 && value <= MAX_TIME_US;
-}
 
 function clockedComponent(component: SchematicComponent): boolean {
   // A narrow, opt-in electrical profile. Do not silently freeze physical history.
@@ -541,6 +540,7 @@ interface ClockPreparation {
   rawDisplayInitialObserved?: boolean;
 }
 type OwnedClockRequest = {
+  readonly sleepingPrefix: SleepingPhysicsState | undefined;
   readonly validatedDigest?: string;
   runtime?: ReturnType<typeof createOwnedClockedArduinoRuntime>;
   source?: string;
@@ -691,6 +691,7 @@ export function createOwnedArduinoCircuitClockRequest(
     readonly state?: { readonly continuation: { readonly serializedState: string } | null };
   },
   electricalTemplateOwner?: ArduinoElectricalTemplateOwner,
+  sleepingPrefix?: ArduinoSleepingPhysicsPrefix,
 ) {
   // Nothing can retain the graph before this decision. Once a generic callback
   // could have seen it, restoration of the public producers cannot promote it.
@@ -739,6 +740,7 @@ export function createOwnedArduinoCircuitClockRequest(
         validatedDigest,
         observeSevenSegmentTemporal,
         electricalTemplateOwner,
+        sleepingPrefix,
       ),
   };
 }
@@ -756,6 +758,7 @@ function createArduinoCircuitClockRequest(
   validatedDigest?: string,
   observeSevenSegmentTemporal = false,
   electricalTemplateOwner?: ArduinoElectricalTemplateOwner,
+  sleepingPrefix?: ArduinoSleepingPhysicsPrefix,
 ) {
   let collector =
     observeLedTemporal || observeSevenSegmentTemporal
@@ -792,6 +795,7 @@ function createArduinoCircuitClockRequest(
   };
   const ownership: OwnedClockRequest = {
     continued: false,
+    sleepingPrefix: sleepingPrefix && sleepingPhysicsStates.get(sleepingPrefix),
     ...(validatedDigest === undefined ? {} : { validatedDigest }),
   };
   if (stillOwned()) ownedClockRequests.set(preparation, ownership);
@@ -825,7 +829,7 @@ function createArduinoCircuitClockRequest(
         suspended?.clock ??
         iterateArduinoCircuitClock(
           data.document,
-          data.target,
+          ownership.sleepingPrefix?.actualHorizon ?? data.target,
           previous,
           data.options,
           preparation,
@@ -980,44 +984,6 @@ export function createArduinoCircuitShaftTestClock(
     ArduinoCircuitClockAdvance,
     ArduinoCircuitShaftSample | undefined
   >;
-}
-
-function invalidClockThermalEpoch(
-  epoch: NonNullable<ArduinoCircuitClockState['thermalEpochs']>[number],
-  componentId: string | undefined,
-  reachedMicroseconds: number,
-): boolean {
-  return (
-    epoch.componentId !== componentId ||
-    !integerTime(epoch.atMicroseconds) ||
-    epoch.atMicroseconds > reachedMicroseconds ||
-    !Number.isFinite(epoch.temperatureCelsius) ||
-    !Number.isFinite(epoch.accumulatedDamage) ||
-    epoch.accumulatedDamage < 0 ||
-    !Number.isFinite(epoch.loadRatio) ||
-    epoch.loadRatio < 0 ||
-    epoch.loadRatio > 20
-  );
-}
-
-function invalidClockPhysicalCheckpoint(
-  document: ElectronicsDocument,
-  profile: ArduinoCircuitClockState['profile'],
-  reachedMicroseconds: number,
-  physicalState: CapacitorTransientState | undefined,
-): boolean {
-  if (profile === 'dc-inputs-v1') return physicalState !== undefined;
-  if (!physicalState) return reachedMicroseconds >= PHYSICS_QUANTUM_US;
-  const isCompatible =
-    profile === 'electrothermal-v1' || profile === 'electrothermal-events-v2'
-      ? clockedPhysicalStateIsCompatible
-      : clockedRcStateIsCompatible;
-  return (
-    !isCompatible(document, physicalState, reachedMicroseconds / 1000) ||
-    !integerTime(Math.round(physicalState.simulationTimeMs * 1000)) ||
-    Math.round(physicalState.simulationTimeMs * 1000) / 1000 !== physicalState.simulationTimeMs ||
-    reachedMicroseconds - Math.round(physicalState.simulationTimeMs * 1000) >= PHYSICS_QUANTUM_US
-  );
 }
 
 function* iterateArduinoCircuitClock(
@@ -2012,10 +1978,42 @@ function* iterateArduinoCircuitClock(
       'Продолжение не соответствует схеме, программе или достигнутому времени. Нужен Reset.',
     );
   let clockEvents = 0;
+  let prefix =
+    ownership?.sleepingPrefix?.actualHorizon === undefined ? ownership?.sleepingPrefix : undefined;
   while (
-    nextTime() <= targetMicroseconds &&
-    (suspendedClock || clockEvents < budget || retainedBoard)
+    prefix ||
+    (nextTime() <= targetMicroseconds && (suspendedClock || clockEvents < budget || retainedBoard))
   ) {
+    if (prefix) {
+      const time = nextTime();
+      const runtime = retainedBoard && states.get(retainedBoard.id);
+      // The loop below is independent of the endpoint while the sleeping MCU has nothing
+      // to execute and the next event is a strictly earlier fixed physics barrier.
+      const ordinaryTick =
+        runtime &&
+        !suspendedClock &&
+        !winding &&
+        clockEvents < budget &&
+        pendingProgramLoads.size === 0 &&
+        time < targetMicroseconds &&
+        time === nextPhysicsTime() &&
+        failureTime > time &&
+        !runtime.pulseWait &&
+        !runtime.ultrasonicAdapter &&
+        !runtime.servo &&
+        Object.keys(runtime.tones).length === 0 &&
+        Math.round(runtime.resumeAtMs * 1000) > time;
+      if (!ordinaryTick) {
+        prefix.waiting = true;
+        yield { kind: 'owned-clock-pause', checkpoint };
+        const actual = prefix.actualHorizon;
+        if (actual === undefined || !integerTime(actual) || actual < targetMicroseconds)
+          return invalidContinuation();
+        targetMicroseconds = actual;
+        prefix = undefined;
+        continue;
+      }
+    }
     if (retainedBoard && clockEvents >= budget) {
       const runtime = states.get(retainedBoard.id);
       const source = loadedSources.get(retainedBoard.id);

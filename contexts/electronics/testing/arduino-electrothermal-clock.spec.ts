@@ -8,6 +8,7 @@ import {
 import {
   advanceArduinoCircuitClock,
   createOwnedArduinoCircuitClockRequest,
+  createArduinoSleepingPhysicsPrefix,
   type ArduinoCircuitInputEvent,
   type ArduinoCircuitClockState,
 } from '../domain/arduino-circuit-scheduler.js';
@@ -71,6 +72,55 @@ const motor: SchematicComponent = {
 };
 
 describe('shared clock electrothermal phase', () => {
+  it('continues the same fixed thermal ticks through the actual late wake without an extra endpoint', () => {
+    const doc = circuit(
+      [
+        {
+          ...uno,
+          stateProperties: {
+            arduinoSource:
+              'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(60);digitalWrite(13,LOW);delay(60);}',
+          },
+        },
+        {
+          ...part('r', 'resistor', 330),
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        },
+        { ...part('lamp', 'led', 2), componentTypeId: 'led-5mm', pinIds: ['anode', 'cathode'] },
+      ],
+      [
+        ['uno', 'd13', 'r', 'lead-1'],
+        ['r', 'lead-2', 'lamp', 'anode'],
+        ['lamp', 'cathode', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const prior = through(doc, 40_336).state!;
+    const request = { state: { continuation: { serializedState: JSON.stringify(prior) } } };
+    const prefix = createArduinoSleepingPhysicsPrefix();
+    const owner = createOwnedArduinoCircuitClockRequest(doc, request, undefined, prefix);
+    const ordinary = createOwnedArduinoCircuitClockRequest(doc, request);
+    const prepared = owner.create(60_005, prior, { inputs: [] }, true);
+    const reference = ordinary.create(61_400, prior, { inputs: [] }, true);
+    try {
+      expect(owner.check()).toBe(true);
+      expect(prefix.grant(61_400)).toBe(false);
+      expect(prepared.step()).toEqual({ advanced: null, ledTemporal: null });
+      expect(prefix.waiting()).toBe(true);
+      expect(prefix.grant(Number.NaN)).toBe(false);
+      expect(prefix.grant(61_400)).toBe(true);
+      expect(prefix.grant(61_401)).toBe(false);
+      const actual = prepared.step();
+      const uninterrupted = reference.step();
+      expect(actual?.advanced?.executionStatus).toBe('ready');
+      expect(actual?.advanced?.state?.reachedMicroseconds).toBe(61_400);
+      expect(JSON.stringify(actual)).toBe(JSON.stringify(uninterrupted));
+    } finally {
+      prepared.dispose();
+      reference.dispose();
+    }
+  });
+
   it('keeps Arduino-only GPIO meter current on the fuse-capable profile across live V to A', () => {
     const meter: SchematicComponent = {
       ...part('meter', 'visual', 0),

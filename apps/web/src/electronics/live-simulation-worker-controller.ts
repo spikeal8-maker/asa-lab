@@ -26,7 +26,15 @@ export interface ElectronicsSimulationWorkerExecutor {
     state: ElectronicsTimedState,
     requestedHorizonMicroseconds: number,
     inputEvents?: readonly ElectronicsTimedInputEvent[],
+    preparedRequestId?: string,
   ): Promise<SimulationTimedAdvancePayload>;
+  prepareAdvance?(
+    generationId: number,
+    document: SchematicDocument,
+    state: ElectronicsTimedState,
+    horizon: number,
+  ): string | null;
+  discardPreparedAdvance?(generationId: number, preparedRequestId: string): void;
   cancelActiveGeneration(): void;
   dispose(): void;
 }
@@ -377,6 +385,12 @@ export class ElectronicsLiveSimulationWorkerController {
   private acknowledgedWake: ArduinoWake | null = null;
   private balancedWakeDeadline: number | null = null;
   private hostDemandRevision = 0;
+  private preparedWake: {
+    readonly id: string;
+    readonly document: SchematicDocument;
+    readonly state: ElectronicsTimedState;
+    readonly horizon: number;
+  } | null = null;
   private wakeReservation: { readonly token: object; readonly cancel: () => void } | null = null;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private firstPositiveObservation = false;
@@ -732,7 +746,11 @@ export class ElectronicsLiveSimulationWorkerController {
     }
   }
 
-  private releaseWakeReservation(): void {
+  private releaseWakeReservation(dispatching = false): void {
+    const prepared = this.preparedWake;
+    this.preparedWake = null;
+    if (prepared && !dispatching && this.generationId !== null)
+      this.executor.discardPreparedAdvance?.(this.generationId, prepared.id);
     const reservation = this.wakeReservation;
     this.wakeReservation = null;
     reservation?.cancel();
@@ -805,6 +823,34 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     this.wakeReservation = { token, cancel };
     this.balancedWakeDeadline = balanced ? wake.dueMicroseconds : null;
+    // Prepare only the confirmed MCU wake, including the next instruction boundary
+    // after returning from loop(). Both endpoints stay inside the normal window.
+    const document = this.canonicalDocument;
+    const runtimeDocument = this.lastRuntimeDocument;
+    if (
+      balanced &&
+      due === wake.dueMicroseconds &&
+      document &&
+      runtimeDocument &&
+      this.executor.prepareAdvance
+    ) {
+      const state = this.timedState;
+      const target = Math.min(due + 1, committed + window);
+      const id = this.executor.prepareAdvance(generationId, document, state, target);
+      if (
+        id &&
+        this.wakeReservation?.token === token &&
+        this.lastRuntimeDocument === runtimeDocument &&
+        this.timedState === state &&
+        ownsIdlePoll()
+      )
+        this.preparedWake = {
+          id,
+          document: runtimeDocument,
+          state,
+          horizon: target,
+        };
+    }
     return true;
   }
 
@@ -911,7 +957,8 @@ export class ElectronicsLiveSimulationWorkerController {
     )
       return;
     if (!isCurrent()) return;
-    this.releaseWakeReservation();
+    const prepared = this.preparedWake;
+    this.releaseWakeReservation(true);
     if (!isCurrent()) return;
     // An input can commit beyond the presentation-limited host tick. Older
     // demand may observe the same committed time but must never rewind it.
@@ -931,6 +978,17 @@ export class ElectronicsLiveSimulationWorkerController {
             ),
           ),
         };
+    // The host must independently reach the sleep boundary before any prepared
+    // work can be committed. Input, source and generation changes use normal work.
+    const admitted =
+      prepared &&
+      prepared.document === this.lastRuntimeDocument &&
+      prepared.state === this.timedState &&
+      pendingTarget === this.latestTarget &&
+      !this.pendingInputEvents.length &&
+      target.requestedHorizonMicroseconds >= prepared.horizon
+        ? prepared
+        : null;
     // Complete time zero before pursuing host ticks or inputs queued after Start.
     if (!isStartup) {
       if (this.inputTarget) this.inputTarget = null;
@@ -950,6 +1008,7 @@ export class ElectronicsLiveSimulationWorkerController {
         this.timedState,
         target.requestedHorizonMicroseconds,
         inputEvents,
+        ...(admitted ? [admitted.id] : []),
       )
       .then((advance) => this.completeAdvance(generationId, target, advance, inputEvents.length))
       .catch((error) => this.fail(generationId, error));

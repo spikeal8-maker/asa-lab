@@ -11,6 +11,8 @@ import {
   createArduinoCircuitHcSr04TestClock,
   createArduinoCircuitShaftTestClock,
   createOwnedArduinoCircuitClockRequest,
+  type ArduinoSleepingPhysicsPrefix,
+  createArduinoSleepingPhysicsPrefix,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitHcSr04Barrier,
@@ -405,14 +407,18 @@ function openElectronicsAdvanceSession(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
   options: AdvanceSessionOptions,
+  prefix?: ArduinoSleepingPhysicsPrefix,
 ) {
   // The caller can change its document/state while the Worker yields; own this request snapshot.
   const ownedDocument = structuredClone(document);
-  const ownedRequest = structuredClone(request);
+  const ownedRequest = structuredClone(request) as ElectronicsTimedAdvanceRequest & {
+    requestedHorizonMicroseconds: number;
+  };
   const ownership = createOwnedArduinoCircuitClockRequest(
     ownedDocument,
     ownedRequest,
     options.electricalTemplateOwner,
+    prefix,
   );
   const iterator = advanceElectronicsRequest(
     ownedDocument,
@@ -429,6 +435,21 @@ function openElectronicsAdvanceSession(
     iterator.return(undefined as never);
   };
   return {
+    canPrepare: () => !disposed && ownership.check(),
+    setPrefixHorizon: (actual: number) => {
+      if (
+        !prefix ||
+        disposed ||
+        !ownership.check() ||
+        !Number.isSafeInteger(actual) ||
+        actual < ownedRequest.requestedHorizonMicroseconds ||
+        actual - (ownedRequest.state?.continuation?.committedHorizonMicroseconds ?? 0) > 25_000 ||
+        !prefix.grant(actual)
+      )
+        return false;
+      ownedRequest.requestedHorizonMicroseconds = actual;
+      return true;
+    },
     step: (workerSlice?: NativeWorkerSlice) =>
       disposed ? undefined : iterator.next(workerSlice).value!,
     dispose,
@@ -492,6 +513,13 @@ export function openDedicatedElectronicsAdvanceSession(
   const clock = dedicatedWorkerClock;
   if (!clock?.isCurrent()) return null;
   const session = openElectronicsAdvanceSession(document, request, options);
+  return dedicatedSession(session, clock);
+}
+
+function dedicatedSession(
+  session: ReturnType<typeof openElectronicsAdvanceSession>,
+  clock: NonNullable<typeof dedicatedWorkerClock>,
+) {
   return {
     step: () => session.step(),
     stepThroughOwnedPauses(deadline: number) {
@@ -517,6 +545,47 @@ export function openDedicatedElectronicsAdvanceSession(
     },
     dispose: session.dispose,
   };
+}
+
+/** Advance only ordinary fixed thermal ticks before an acknowledged Arduino wake. The exact
+ * public horizon is supplied later, before any MCU instruction or endpoint observation. */
+export function prepareDedicatedElectronicsSleepingWake(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  options: AdvanceSessionOptions,
+) {
+  const clock = dedicatedWorkerClock;
+  const continuation = request.state?.continuation;
+  const lower = request.requestedHorizonMicroseconds;
+  if (
+    !clock?.isCurrent() ||
+    !continuation ||
+    continuation.clockProfileId !== 'electrothermal-events-v2' ||
+    request.state?.lifecycle !== 'running' ||
+    request.inputEvents?.length ||
+    !Number.isSafeInteger(lower) ||
+    lower <= continuation.committedHorizonMicroseconds ||
+    lower - continuation.committedHorizonMicroseconds > 25_000
+  )
+    return null;
+  const prefix = createArduinoSleepingPhysicsPrefix();
+  const session = openElectronicsAdvanceSession(document, request, options, prefix);
+  try {
+    if (session.canPrepare() && session.step() === null && prefix.waiting()) {
+      return {
+        claim(actual: number) {
+          return clock.isCurrent() && session.setPrefixHorizon(actual)
+            ? dedicatedSession(session, clock)
+            : null;
+        },
+        dispose: session.dispose,
+      };
+    }
+  } catch {
+    // Speculative failures have no external effect. The authoritative request takes the ordinary path.
+  }
+  session.dispose();
+  return null;
 }
 
 /** A Worker creates one electrical-template owner for each live project and generation. */

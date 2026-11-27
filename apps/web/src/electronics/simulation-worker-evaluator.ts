@@ -2,6 +2,7 @@ import {
   advanceElectronicsToHorizon,
   createElectronicsAdvanceSession,
   openDedicatedElectronicsAdvanceSession,
+  prepareDedicatedElectronicsSleepingWake,
   analyseElectronicsSnapshot,
   prepareElectronicsSnapshot,
   projectElectronicsArduinoSerial,
@@ -16,6 +17,8 @@ import {
   type ElectronicsSimulationWorkerResponse,
   type SimulationAdvanceRequest,
   type SimulationPreflightRequest,
+  type SimulationPrepareRequest,
+  type SimulationDiscardPreparation,
   type SimulationTimedAdvancePayload,
 } from './simulation-worker-protocol';
 
@@ -171,6 +174,7 @@ function timedResponse(
   request: SimulationAdvanceRequest,
   timed: ElectronicsTimedAdvanceResult,
   computeMs: number,
+  preparedComputeMs?: number,
 ): ElectronicsSimulationWorkerResponse {
   const projectionStarted = globalThis.performance.now();
   const advance = advancePayload(request.document, timed);
@@ -184,6 +188,7 @@ function timedResponse(
     advance,
     metrics: {
       computeMs: computeMs + globalThis.performance.now() - projectionStarted,
+      ...(preparedComputeMs === undefined ? {} : { preparedComputeMs }),
       solverRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
       executionStatus: timed.executionStatus,
       requestedHorizonMicroseconds: timed.requestedHorizonMicroseconds,
@@ -208,6 +213,95 @@ export function evaluateSimulationWorkerRequestBatched(
   return evaluateBatches(request, isCurrent, yieldControl, electricalTemplateOwner);
 }
 
+interface PreparedWorkerAdvance {
+  readonly session: NonNullable<ReturnType<typeof openDedicatedElectronicsAdvanceSession>>;
+  readonly computeMs: number;
+}
+
+/** Accept only byte-equivalent plain transport data. Unknown object shapes take the ordinary path. */
+function sameMessageData(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+  const stack: [object, object][] = [[left, right]];
+  const leftVisited = new WeakSet<object>();
+  const rightVisited = new WeakSet<object>();
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    if (leftVisited.has(a) || rightVisited.has(b)) return false;
+    leftVisited.add(a);
+    rightVisited.add(b);
+    const prototype = Object.getPrototypeOf(a);
+    if (
+      (prototype !== Object.prototype && prototype !== Array.prototype) ||
+      Object.getPrototypeOf(b) !== prototype
+    )
+      return false;
+    if (Array.isArray(a) && (!Array.isArray(b) || a.length !== b.length)) return false;
+    const keys = Object.keys(a),
+      otherKeys = Object.keys(b);
+    if (keys.length !== otherKeys.length) return false;
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]!;
+      if (key !== otherKeys[i]) return false;
+      const x = (a as Record<string, unknown>)[key],
+        y = (b as Record<string, unknown>)[key];
+      if (Object.is(x, y)) continue;
+      if (!x || !y || typeof x !== 'object' || typeof y !== 'object') return false;
+      stack.push([x, y]);
+    }
+  }
+  return true;
+}
+
+/** A one-use prepared session can only evaluate its matching ordinary transport request. */
+export function prepareDedicatedSimulationWorkerWake(original: SimulationPrepareRequest) {
+  const started = performance.now();
+  const expected = structuredClone(original);
+  const prefix = prepareDedicatedElectronicsSleepingWake(
+    expected.document,
+    {
+      requestedHorizonMicroseconds: expected.requestedHorizonMicroseconds,
+      state: expected.state,
+    },
+    { observeLedTemporal: true, observeSevenSegmentTemporal: true },
+  );
+  if (!prefix) return null;
+  const computeMs = performance.now() - started;
+  return {
+    dispose: prefix.dispose,
+    matchesDiscard: (message: SimulationDiscardPreparation) =>
+      message.generationId === expected.generationId &&
+      message.projectSessionId === expected.projectSessionId &&
+      message.preparedRequestId === expected.requestId,
+    evaluate(request: SimulationAdvanceRequest, isCurrent: () => boolean) {
+      if (!(
+        request.kind === 'advance' &&
+        request.protocolVersion === ELECTRONICS_SIMULATION_WORKER_PROTOCOL &&
+        request.engineRevision === ELECTRONICS_SIMULATION_ENGINE_REVISION &&
+        request.preparedRequestId === expected.requestId &&
+        request.generationId === expected.generationId &&
+        request.projectSessionId === expected.projectSessionId &&
+        (request.inputEvents === undefined ||
+          (Array.isArray(request.inputEvents) && request.inputEvents.length === 0)) &&
+        sameMessageData(request.document, expected.document) &&
+        sameMessageData(request.state, expected.state)
+      ))
+        return null;
+      const session = prefix.claim(request.requestedHorizonMicroseconds);
+      return session
+        ? evaluateBatches(
+            request,
+            isCurrent,
+            yieldWorkerTask,
+            undefined,
+            openDedicatedElectronicsAdvanceSession,
+            { session, computeMs },
+          )
+        : null;
+    },
+  };
+}
+
 /** Only the dedicated Worker message loop supplies this entry's cancellation callback. */
 export function evaluateDedicatedSimulationWorkerRequest(
   request: EvaluationRequest,
@@ -229,6 +323,7 @@ async function evaluateBatches(
   yieldControl: () => Promise<void>,
   electricalTemplateOwner?: ElectricalTemplateOwner,
   openDedicatedSession?: typeof openDedicatedElectronicsAdvanceSession,
+  prepared?: PreparedWorkerAdvance,
 ): Promise<ElectronicsSimulationWorkerResponse | null> {
   if (
     request.kind !== 'advance' ||
@@ -238,7 +333,7 @@ async function evaluateBatches(
     request.requestedHorizonMicroseconds < 0
   )
     return isCurrent() ? evaluateSimulationWorkerRequest(request) : null;
-  let session: ReturnType<typeof createElectronicsAdvanceSession> | undefined;
+  let session: ReturnType<typeof createElectronicsAdvanceSession> | undefined = prepared?.session;
   try {
     const prepareStarted = globalThis.performance.now();
     const owned = structuredClone(request);
@@ -252,9 +347,10 @@ async function evaluateBatches(
       observeSevenSegmentTemporal: true,
       ...(electricalTemplateOwner ? { electricalTemplateOwner } : {}),
     };
-    const dedicated = openDedicatedSession?.(owned.document, advance, observations);
+    const dedicated =
+      prepared?.session ?? openDedicatedSession?.(owned.document, advance, observations);
     session = dedicated ?? createElectronicsAdvanceSession(owned.document, advance, observations);
-    let computeMs = globalThis.performance.now() - prepareStarted;
+    let computeMs = (prepared?.computeMs ?? 0) + globalThis.performance.now() - prepareStarted;
     let sliceStarted = globalThis.performance.now();
     let continuedInTurn = false;
     while (isCurrent()) {
@@ -265,7 +361,7 @@ async function evaluateBatches(
       const now = globalThis.performance.now();
       computeMs += now - before;
       if (!isCurrent()) return null;
-      if (timed) return timedResponse(owned, timed, computeMs);
+      if (timed) return timedResponse(owned, timed, computeMs, prepared?.computeMs);
       if (batch?.sliceExhausted || now - sliceStarted >= 8) {
         await yieldControl();
         sliceStarted = globalThis.performance.now();

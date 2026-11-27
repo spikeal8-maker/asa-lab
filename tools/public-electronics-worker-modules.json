@@ -10,6 +10,7 @@
     "contexts/electronics/domain/arduino-block-support.ts",
     "contexts/electronics/domain/arduino-capabilities.ts",
     "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+    "contexts/electronics/domain/arduino-clock-physics.ts",
     "contexts/electronics/domain/arduino-model.ts",
     "contexts/electronics/domain/arduino-program-runtime.ts",
     "contexts/electronics/domain/arduino-pulse-runtime.ts",
