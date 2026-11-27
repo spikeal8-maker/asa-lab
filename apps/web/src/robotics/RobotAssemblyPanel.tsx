@@ -1,13 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FieldView, FieldViewportControls } from './RobotFieldSpatialView';
 import type { SchematicDocument } from '../api';
 import { RobotField } from './RobotField';
@@ -48,14 +39,12 @@ export function RobotAssemblyPanel({
   running,
   onCommit,
   onOpenElectronics,
-  simulationControls,
 }: {
   project: RoboticsProject;
   active?: boolean;
   running: boolean;
   onCommit: (world: RoboticsWorldDocument) => boolean;
   onOpenElectronics: () => void;
-  simulationControls?: ReactNode;
 }) {
   const world = project.world;
   const [visited, setVisited] = useState(active);
@@ -103,7 +92,6 @@ export function RobotAssemblyPanel({
             Добавить компонент
           </button>
         </div>
-        {simulationControls}
       </div>
       {running ? (
         <p className="robotics-edit-hint">

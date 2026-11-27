@@ -4584,3 +4584,137 @@
   fill-opacity: 0;
   stroke-opacity: 0;
 }
+
+/* One persistent control group belongs to the application header, including
+ * its second internal row on compact screens. Editor toolbars own only tools. */
+.robotics-lab,
+.robotics-portal-editor .robotics-lab {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.robotics-lab .robotics-unified-header {
+  height: auto;
+  min-height: 48px;
+  flex-wrap: nowrap;
+  align-content: flex-start;
+  gap: 8px;
+}
+.robotics-unified-header > .robotics-header-brand-zone,
+.robotics-unified-header > .robotics-header-controls {
+  /* A percentage here creates a circular cross-size when the header wraps
+   * inside an auto grid row, letting its second row overflow the workspace. */
+  height: 48px;
+}
+.robotics-unified-header .robotics-header-title-input {
+  width: clamp(90px, 13vw, 200px);
+}
+.robotics-unified-header > .robotics-run-bar {
+  flex: 0 0 auto;
+  height: 48px;
+  min-height: 48px;
+  max-height: none;
+  padding: 0;
+}
+.robotics-unified-header .robotics-run-readout,
+.robotics-unified-header .robotics-run-buttons {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+.robotics-unified-header .robotics-header-notice:not([hidden]) {
+  flex: 0 0 30px;
+  max-width: 30px;
+  margin: 0;
+}
+.robotics-unified-header .robotics-header-notice-caption {
+  display: none;
+}
+.robotics-unified-header .robotics-header-notice-details > summary {
+  padding-inline: 6px;
+}
+.robotics-unified-header .robotics-header-notice-panel {
+  left: auto;
+  right: 0;
+}
+
+/* Removing Code's trailing run slot restores its direct toolbar children.
+ * Allow those actual controls to wrap instead of clipping a removed scroll group. */
+.robotics-lab .robotics-program-shell .arduino-code-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  gap: 5px;
+  width: 100%;
+  height: auto;
+  min-height: 46px;
+  max-height: none;
+  padding: 4px 6px;
+  overflow: visible;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar > * {
+  flex-shrink: 0;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar .arduino-code-toolbar-spacer {
+  display: none;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar .arduino-board-select {
+  order: -2;
+  margin: 0;
+  flex: 0 1 142px;
+  min-width: 100px;
+  max-width: 100%;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar > .arduino-mode-menu {
+  order: -1;
+  z-index: 60;
+}
+.robotics-lab .robotics-program-shell .arduino-code-toolbar-accessory {
+  margin-left: auto;
+}
+
+@media (max-width: 1400px) {
+  .robotics-lab .robotics-unified-header {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+  .robotics-unified-header > .robotics-run-bar {
+    order: 2;
+    flex: 1 1 calc(100% - 40px);
+    border-top: 1px solid #e2e9ed;
+  }
+  .robotics-unified-header .robotics-header-notice:not([hidden]) {
+    order: 3;
+  }
+}
+@media (max-width: 760px) {
+  .robotics-lab .robotics-unified-header {
+    column-gap: 3px;
+  }
+  .robotics-unified-header .robotics-header-title-input {
+    width: clamp(42px, 13vw, 100px);
+  }
+  .robotics-unified-header > .robotics-run-bar {
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .robotics-unified-header .robotics-run-bar .robotics-run-buttons .robotics-button,
+  .robotics-unified-header .robotics-run-bar .workbench-simulation-clock-button {
+    height: 44px;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .robotics-unified-header .robotics-run-bar .robotics-run-buttons .robotics-button.primary {
+    flex-basis: auto;
+    min-width: 44px;
+  }
+  .robotics-lab .robotics-code-extras-menu {
+    top: 144px;
+  }
+  .robotics-lab .robotics-program-shell .arduino-code-toolbar .arduino-board-select {
+    flex-basis: 115px;
+  }
+  .robotics-lab .robotics-program-shell .arduino-code-toolbar > .arduino-mode-menu {
+    flex: 0 0 76px;
+    width: 76px;
+  }
+}
