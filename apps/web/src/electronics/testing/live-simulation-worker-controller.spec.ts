@@ -1837,6 +1837,64 @@ describe('Electronics canonical Worker controller', () => {
     expect(onResult).not.toHaveBeenCalled();
   });
 
+  it.each(['current', 'stop', 'restart', 'input', 'serial', 'source', 'pause', 'fault'] as const)(
+    'offers private image hints only for the current unmodified preflight (%s)',
+    async (action) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const onResult = vi.fn();
+      const onInitialReady = vi.fn();
+      const onPreflightAssets = vi.fn(() => {
+        expect(executor.advances.at(-1)?.requestedHorizonMicroseconds).toBe(0);
+      });
+      const callbacks = { onResult, onInitialReady, onPreflightAssets, onFailure: vi.fn() };
+      controller.start('project', serialCircuit, callbacks);
+      if (action === 'stop') controller.stop();
+      if (action === 'restart') controller.restart(serialCircuit);
+      if (action === 'input')
+        controller.update(
+          {
+            ...serialCircuit,
+            components: serialCircuit.components.map((part) =>
+              part.id === 'button' ? { ...part, state: true } : part,
+            ),
+          },
+          1_000,
+        );
+      if (action === 'serial') controller.sendSerialRx('uno', 'A', 1000);
+      if (action === 'source')
+        controller.update(
+          {
+            ...serialCircuit,
+            components: serialCircuit.components.map((part) =>
+              part.id === 'uno'
+                ? {
+                    ...part,
+                    stateProperties: {
+                      ...part.stateProperties,
+                      arduinoSource: 'void setup(){} void loop(){delay(50);}',
+                    },
+                  }
+                : part,
+            ),
+          },
+          1000,
+        );
+      if (action === 'pause') controller.setPaused(true);
+      const preflight =
+        action === 'fault'
+          ? { ...result(1), solved: false, status: 'nonconvergent' as const }
+          : result(1);
+      executor.preflights[0]!.resolve(preflight);
+      await flush();
+      if (action === 'current')
+        expect(onPreflightAssets).toHaveBeenCalledExactlyOnceWith(preflight, serialCircuit);
+      else expect(onPreflightAssets).not.toHaveBeenCalled();
+      expect(onInitialReady).not.toHaveBeenCalled();
+      expect(onResult).not.toHaveBeenCalled();
+    },
+  );
+
   it('publishes time zero before coalesced preflight horizons and later ready observations', async () => {
     const executor = new FakeExecutor();
     const onResult = vi.fn();

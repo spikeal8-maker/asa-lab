@@ -1207,6 +1207,33 @@ export function useElectronicsWorkbenchHost(
           setLiveObservation(null);
           setSimulationMessage(null);
         },
+        onPreflightAssets: (result, document) => {
+          if (
+            !currentSession() ||
+            !session?.active ||
+            generationConfirmed ||
+            displayed ||
+            pending ||
+            publishing ||
+            nativePreparationSource !== nativePreparationSourceRef.current ||
+            runtimeDocumentRef.current !== document ||
+            simulationPacing.read().rate === 0 ||
+            !result.solved ||
+            !result.quality?.passed
+          )
+            return;
+          // Preflight can differ from the timed sketch. Its image gets a hidden slot
+          // only. The timed result still has to acquire its own native lease.
+          const lit = new Map<string, number>();
+          for (const component of result.components)
+            if (component.brightness !== undefined && component.brightness > 0)
+              lit.set(component.componentId, component.brightness);
+          if (!lit.size) return;
+          const assets = opticalFrameAssets({ brightness: lit }, result, document);
+          for (const id of assets.keys()) if (!lit.has(id)) assets.delete(id);
+          if (assets.size)
+            setLedAssetPreparation({ token: `preflight:${++nativePreparationSequence}`, assets });
+        },
         onInitialReady: (hostOffsetMicroseconds) => {
           if (!currentSession() || simulationStartedAtRef.current !== null) return;
           simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;

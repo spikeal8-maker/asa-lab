@@ -53,6 +53,8 @@ export interface LiveSimulationWorkerCallbacks {
   readonly inputEventLimit?: number;
   readonly onInputBudget?: (budget: LiveSimulationInputBudget) => void;
   readonly onGenerationPending?: () => void;
+  /** Allows mounting hidden native resources while the real time-zero request is in flight. */
+  readonly onPreflightAssets?: (result: SolveResult, document: SchematicDocument) => void;
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
   /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
   readonly readHostHorizonMicroseconds?: () => number | null;
@@ -671,7 +673,7 @@ export class ElectronicsLiveSimulationWorkerController {
     if (generationId !== this.generationId) return;
     void this.executor
       .preflight(generationId, document)
-      .then((result) => this.completePreflight(generationId, result))
+      .then((result) => this.completePreflight(generationId, result, document))
       .catch((error) => this.fail(generationId, error));
   }
 
@@ -1015,7 +1017,11 @@ export class ElectronicsLiveSimulationWorkerController {
     this.publishInputBudget();
   }
 
-  private completePreflight(generationId: number, result: SolveResult): void {
+  private completePreflight(
+    generationId: number,
+    result: SolveResult,
+    document: SchematicDocument,
+  ): void {
     if (generationId !== this.generationId) return;
     this.inFlight = false;
     this.inFlightKind = null;
@@ -1025,6 +1031,13 @@ export class ElectronicsLiveSimulationWorkerController {
       return;
     }
     this.pump();
+    if (
+      generationId === this.generationId &&
+      this.lastRuntimeDocument === document &&
+      this.pendingInputEvents.length === 0 &&
+      !this.paused
+    )
+      this.callbacks?.onPreflightAssets?.(result, document);
   }
 
   private completeAdvance(
