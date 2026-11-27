@@ -1,41 +1,52 @@
-.join-class-code-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  align-items: stretch;
-  gap: 4px;
+.visibility-field {
+  position: relative;
+  min-width: 0;
 }
 
-.join-class-code-field input {
+.visibility-field > input {
   min-width: 0;
   min-height: 44px;
+  padding-inline-end: 48px;
 }
 
-.join-class-code-field input::-ms-reveal {
+.visibility-field > input::-ms-reveal {
   display: none;
 }
 
-.join-class-code-field .join-class-code-toggle {
+.visibility-field > .visibility-field-toggle {
   display: grid;
   place-items: center;
+  width: 44px;
   min-height: 44px;
+  margin: 0;
   padding: 0;
-  position: relative;
-  color: var(--text);
-  border: 1px solid var(--border);
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-muted);
   border-radius: 8px;
 }
 
-.join-class-code-eye {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border: 1.5px solid currentColor;
-  border-radius: 74% 16%;
-  transform: rotate(45deg);
+.visibility-field > .visibility-field-toggle:hover,
+.visibility-field > .visibility-field-toggle:focus-visible {
+  color: var(--primary);
 }
 
-.join-class-code-eye::before {
+.visibility-field > .visibility-field-toggle:focus-visible {
+  outline-offset: -4px;
+}
+
+.visibility-field-eye {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 12px;
+  border: 1.6px solid currentColor;
+  border-radius: 50%;
+}
+
+.visibility-field-eye::before {
   content: '';
   width: 6px;
   height: 6px;
@@ -43,11 +54,13 @@
   background: currentColor;
 }
 
-.join-class-code-field input[type='password'] + button::after {
+.visibility-field > input[type='password'] + button::after {
   content: '';
   position: absolute;
-  width: 20px;
-  height: 1.5px;
+  width: 23px;
+  height: 2px;
+  border-radius: 2px;
   background: currentColor;
+  box-shadow: 0 1px var(--surface);
   transform: rotate(-45deg);
 }

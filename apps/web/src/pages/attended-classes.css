@@ -35,13 +35,14 @@
   gap: 10px;
 }
 
-.attended-join .join-class-code-field {
+.attended-join .visibility-field {
   flex: 1 1 244px;
   min-width: 0;
 }
 
 .attended-join input {
-  padding: 0 12px;
+  padding-block: 0;
+  padding-inline: 12px 48px;
   border: 1px solid #cfdde5;
   border-radius: 9px;
   background: #fff;

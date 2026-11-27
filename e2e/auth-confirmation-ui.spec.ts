@@ -645,6 +645,25 @@ async function passwordLogin(page: Page, identifier = 'auth-review-account'): Pr
   await expect(page.locator('input#identifier')).toHaveCount(0);
 }
 
+test('organization sign-in keeps the entered password masked by default', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  const state = await fixture(page);
+  await visit(page, '/organization-sign-in');
+  const password = page.getByLabel('Пароль', { exact: true });
+  const show = page.getByRole('button', { name: 'Показать пароль', exact: true });
+  const hide = page.getByRole('button', { name: 'Скрыть пароль', exact: true });
+  await expect(password).toHaveAttribute('type', 'password');
+  await expect(password).toHaveAttribute('autocomplete', 'current-password');
+  await password.fill('Synthetic-Org9');
+  await show.click();
+  await expect(password).toHaveAttribute('type', 'text');
+  await expect(password).toHaveValue('Synthetic-Org9');
+  await hide.click();
+  await expect(password).toHaveAttribute('type', 'password');
+  expect(state.requests.filter((request) => request.path === '/api/auth/login')).toEqual([]);
+  await screenshot(page, 'organization-login-320');
+});
+
 for (const width of [1440, 1024, 390, 320]) {
   test(`public landing keeps direct account entry without opening the menu at ${width}px`, async ({
     page,
@@ -738,14 +757,54 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
     const state = await fixture(page);
     await visit(page, '/sign-in');
-    await expect(
-      page.getByRole('button', { name: 'Войти через Telegram', exact: true }),
-    ).toBeVisible();
-    await expect(page.locator('#login-identifier-hint')).toBeVisible();
-    await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveAttribute(
-      'aria-describedby',
-      /login-identifier-hint/,
-    );
+    await expect(page.locator('#login-identifier-hint')).toHaveCount(0);
+    const back = (await page.getByRole('button', { name: '← Назад', exact: true }).boundingBox())!;
+    const brand = (await page.getByRole('button', { name: 'На главную ASA Lab' }).boundingBox())!;
+    expect(back.x + back.width).toBeLessThan(brand.x);
+    expect(Math.abs(back.y + back.height / 2 - brand.y - brand.height / 2)).toBeLessThanOrEqual(1);
+
+    const password = page.getByLabel('Пароль', { exact: true });
+    const showPassword = page.getByRole('button', { name: 'Показать пароль', exact: true });
+    const hidePassword = page.getByRole('button', { name: 'Скрыть пароль', exact: true });
+    await expect(password).toHaveAttribute('type', 'password');
+    await expect(password).toHaveAttribute('autocomplete', 'current-password');
+    await password.fill('Synthetic-Pass9');
+    await page.keyboard.press('Tab');
+    await expect(showPassword).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(password).toHaveAttribute('type', 'text');
+    await expect(password).toHaveValue('Synthetic-Pass9');
+    await expect(hidePassword).toBeFocused();
+    await expect(hidePassword).toHaveCSS('outline-offset', '-4px');
+    const inputBox = (await password.boundingBox())!;
+    const eyeBox = (await hidePassword.boundingBox())!;
+    expect(eyeBox.width).toBeGreaterThanOrEqual(44);
+    expect(eyeBox.height).toBeGreaterThanOrEqual(44);
+    expect(eyeBox.x).toBeGreaterThan(inputBox.x);
+    expect(eyeBox.x + eyeBox.width).toBeLessThanOrEqual(inputBox.x + inputBox.width + 1);
+    await hidePassword.click();
+    await expect(password).toHaveAttribute('type', 'password');
+    expect(state.requests.filter((request) => request.path === '/api/auth/login')).toEqual([]);
+
+    const max = page.getByRole('button', { name: 'Войти через MAX', exact: true });
+    const telegram = page.getByRole('button', { name: 'Войти через Telegram', exact: true });
+    await expect(max).toHaveText('Max');
+    await expect(telegram).toHaveText('Telegram');
+    for (const [control, logo] of [
+      [max, 'max'],
+      [telegram, 'telegram'],
+    ] as const) {
+      await expect(control.locator('img')).toHaveAttribute('src', `/assets/auth/${logo}.png`);
+      await expect
+        .poll(() => control.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth))
+        .toBeGreaterThan(0);
+    }
+    const maxBox = (await max.boundingBox())!;
+    const telegramBox = (await telegram.boundingBox())!;
+    expect(maxBox.y).toBe(telegramBox.y);
+    expect(maxBox.x + maxBox.width).toBeLessThanOrEqual(telegramBox.x);
+    expect(maxBox.height).toBeGreaterThanOrEqual(44);
+    expect(telegramBox.height).toBeGreaterThanOrEqual(44);
     await screenshot(page, `login-${width}`);
     state.providersFailure = true;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
