@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
 import type fixtureData from './mujoco-union-cylinder-static-witness.fixture.json';
 import type traceFixtureData from './mujoco-cylinder-primary-trace.fixture.json';
+import type polyFixtureData from './mujoco-cylinder-epa-polytope-trace.fixture.json';
 
 // This module imports no previous spec, engine glue, session, CLI or numerical solver.
 // Only the explicitly enabled final test may dynamically import the verified AOT glue.
@@ -111,9 +112,15 @@ const fixturePath = join(dirname(sourcePath), 'mujoco-union-cylinder-static-witn
 const f = parseSigned(readFileSync(fixturePath, 'utf8')) as typeof fixtureData;
 const traceFixturePath = join(dirname(sourcePath), 'mujoco-cylinder-primary-trace.fixture.json');
 const t = parseSigned(readFileSync(traceFixturePath, 'utf8')) as typeof traceFixtureData;
+const polyFixturePath = join(
+  dirname(sourcePath),
+  'mujoco-cylinder-epa-polytope-trace.fixture.json',
+);
+const p = parseSigned(readFileSync(polyFixturePath, 'utf8')) as typeof polyFixtureData;
 const repo = resolve(dirname(sourcePath), '../../..');
 const token = 'one-union-cylinder-static-witness-1071';
 const nativeEnabled =
+  process.env.ASA_EPA_POLYTOPE_NATIVE !== undefined ||
   process.env.ASA_CCD_TRACE_NATIVE !== undefined ||
   process.env.ASA_STATIC_WITNESS_NATIVE !== undefined;
 const sha = (input: Uint8Array | string) => createHash('sha256').update(input).digest('hex');
@@ -1138,6 +1145,7 @@ function acquireTraceCases(
   return { actual, parity };
 }
 async function nativeRun(env: NodeJS.ProcessEnv) {
+  if (env.ASA_EPA_POLYTOPE_NATIVE !== undefined) return polyNativeRun(env);
   traceAdmission(env);
   const expectedSource = required(env, 'ASA_CCD_TRACE_SOURCE_SHA256'),
     expectedFixture = required(env, 'ASA_STATIC_FIXTURE_SHA256');
@@ -1825,7 +1833,8 @@ function commandRecipe(b: TraceBuild, root: string) {
     );
   }
 }
-function privateArtifact(env: NodeJS.ProcessEnv, baselineWasm: Buffer) {
+function privateArtifact(env: NodeJS.ProcessEnv, baselineWasm: Buffer, configuration = t) {
+  const cfg = configuration;
   const path = required(env, 'ASA_CCD_TRACE_BUILD_RECEIPT'),
     digest = required(env, 'ASA_CCD_TRACE_BUILD_RECEIPT_SHA256');
   check(/^[0-9a-f]{64}$/.test(digest), 'REVIEWED_BUILD_RECEIPT_SHA256');
@@ -1835,17 +1844,17 @@ function privateArtifact(env: NodeJS.ProcessEnv, baselineWasm: Buffer) {
   check(inside(realpathSync(tmpdir()), root) && !inside(repo, root), 'PRIVATE_BUILD_OS_TEMP');
   const b = parseSigned(raw.toString()) as TraceBuild;
   check(
-    b.schema === t.build.schema &&
-      b.patchSha256 === t.patch.sha256 &&
-      b.originalGjkSha256 === t.immutableInputs.upstream_gjk.sha256 &&
-      b.patchedGjkSha256 === t.patch.patchedSha256 &&
+    b.schema === cfg.build.schema &&
+      b.patchSha256 === cfg.patch.sha256 &&
+      b.originalGjkSha256 === cfg.immutableInputs.upstream_gjk.sha256 &&
+      b.patchedGjkSha256 === cfg.patch.patchedSha256 &&
       b.inheritedBuildSha256 === f.engine.buildReceipt.sha256,
     'PRIVATE_BUILD_SOURCE_LINK',
   );
   // The reviewed build receipt records the frozen original recipe verbatim. Actual commands
   // may relocate only source/object/output/archive paths under its owned private workspace.
   check(
-    same(b.compileCommand, t.build.command) && same(b.linkCommand, t.build.inheritedLink),
+    same(b.compileCommand, cfg.build.command) && same(b.linkCommand, cfg.build.inheritedLink),
     'PRIVATE_BUILD_INHERITED_RECIPES',
   );
   commandRecipe(b, root);
@@ -1859,12 +1868,12 @@ function privateArtifact(env: NodeJS.ProcessEnv, baselineWasm: Buffer) {
     member = verifyArchive(archive, true);
   check(member.equals(object), 'PRIVATE_EXACT_REPLACEMENT_OBJECT');
   check(
-    b.files.patchedSource.bytes === t.patch.patchedBytes &&
-      b.files.patchedSource.sha256 === t.patch.patchedSha256,
+    b.files.patchedSource.bytes === cfg.patch.patchedBytes &&
+      b.files.patchedSource.sha256 === cfg.patch.patchedSha256,
     'PRIVATE_PATCHED_SOURCE_PIN',
   );
   read('patchedSource');
-  const inherited = t.build.inheritedInputs.filter(
+  const inherited = cfg.build.inheritedInputs.filter(
     (v) => !v.path.endsWith('/libmujoco.a') && !v.path.endsWith('/engine_collision_gjk.c.o'),
   );
   check(
@@ -1881,7 +1890,7 @@ function privateArtifact(env: NodeJS.ProcessEnv, baselineWasm: Buffer) {
     wasm = read('wasm'),
     declarations = read('declarations');
   check(
-    sha(wasm) !== f.engine.wasm.sha256 && wasm.includes(Buffer.from(t.frame.prefix + ' ints=')),
+    sha(wasm) !== f.engine.wasm.sha256 && wasm.includes(Buffer.from(cfg.frame.prefix + ' ints=')),
     'PRIVATE_LOGGING_WASM_REQUIRED',
   );
   check(
@@ -3569,4 +3578,1660 @@ it('rejects a prior valid query trace in the next live API context and never adv
     sink.events.filter((v) => (v as { kind: string }).kind === 'trace-stderr-raw'),
   ).toHaveLength(2);
   expect(() => stream.begin('position', f.cases[0]!)).toThrow('TRACE_NO_OVERWRITTEN_CONTEXT');
+});
+
+// V2 is a separately admitted observation mode. V1 remains independently parseable.
+type PolyVertex = { id: number; indices: number[]; flags: number; words: Packet };
+type PolyFace = {
+  id: number;
+  packed: number;
+  adj: number[];
+  index: number;
+  flags: number;
+  words: Packet;
+};
+type PolySnapshot = {
+  tag: 1;
+  header: number[];
+  scalars: Packet;
+  vertices: PolyVertex[];
+  faces: PolyFace[];
+  map: number[];
+  horizon: number[][];
+};
+type PolyMeta = { tag: 2 | 3; header: number[] };
+type PolyRecord = PolySnapshot | PolyMeta;
+function polyAdmission(env: NodeJS.ProcessEnv) {
+  check(env.ASA_EPA_POLYTOPE_NATIVE === p.polytope.token, 'EXACT_POLYTOPE_OPT_IN');
+  for (const key of Object.keys(env))
+    if (key !== 'ASA_EPA_POLYTOPE_NATIVE' && /^ASA_/.test(key) && /(?:NATIVE|ACQUIRE)/.test(key))
+      check(env[key] === undefined, 'POLYTOPE_AMBIGUOUS_OR_CONSUMED_' + key);
+}
+function polyBudget() {
+  const l = p.polytope.layout,
+    c = p.polytope.profile;
+  const snapshot = 1 + 32 * 4 + 16 * 8 + c.vertices * 88 + c.faces * 64 + c.map * 4 + c.horizon * 8;
+  // Successful seed >=4 faces. Inside epa slots monotonically append; at most20 attaches.
+  // Seed fallback/pop/reset is BEFORE this commit and has its own <=16 metadata records.
+  // Discarded trial arrays are not claimed as snapshots. Every value copied into the
+  // successful ACTIVE seed is retained there, including copied support IDs/points.
+  const count = 1 + c.visits * 3 + (c.faces - 4) + 1;
+  const encoded = snapshot * count + l.contextReserve + l.footerReserve;
+  check(snapshot === 4009 && count === 46 && encoded === 194654, 'POLY_EXACT_LAYOUT_PROOF');
+  check(c.metadata * 65 <= l.contextReserve && encoded <= l.binaryCap, 'POLY_BINARY_BOUND');
+  check(snapshot * count + l.contextReserve <= l.mainCap, 'POLY_RESERVED_ERROR_BOUND');
+  const framed = l.maxChunks * (l.chunkRawBytes * 2 + l.chunkEnvelopeMaxBytes) + 4096 + 256;
+  check(framed <= l.perQueryStderr && framed * 4 <= l.totalStderr, 'POLY_FRAMED_BOUND');
+  // Raw callback + per-API stream + final stream + decoded lossless data <=4 copies.
+  // <=2MiB framed each, <=1MiB binary represented as <=2MiB hex. Fixed model/errors <=2MiB.
+  const external = l.totalStderr * 4 + l.binaryCap * 4 * 2 + 2 * 1048576;
+  check(external <= l.externalBytes, 'POLY_DURABLE_DUPLICATES_BOUND');
+  return { snapshot, count, encoded, framed, external };
+}
+function polyOperationInverse(source: string) {
+  const inverse = source.replace(
+    /^\/\/ ASA_EPA_V2_BEGIN [a-z]+\n[\s\S]*?^\/\/ ASA_EPA_V2_END [a-z]+\n/gm,
+    '',
+  );
+  check(
+    !inverse.includes('asa_poly') && !inverse.includes('ASAPoly'),
+    'POLY_NO_UNACCOUNTED_OPERATIONS',
+  );
+  return inverse;
+}
+function polyPatchPreflight(env: NodeJS.ProcessEnv) {
+  const original = pinFile(required(env, 'ASA_CCD_TRACE_UPSTREAM_GJK'), {
+    bytes: p.patch.upstreamBytes,
+    sha256: p.immutableInputs.upstream_gjk.sha256,
+  });
+  const patch = pinFile(join(dirname(sourcePath), p.patch.file), p.patch);
+  const cumulative = applyTracePatch(original.toString(), patch.toString());
+  check(
+    Buffer.byteLength(cumulative) === p.patch.patchedBytes &&
+      sha(cumulative) === p.patch.patchedSha256,
+    'POLY_CUMULATIVE_C_PIN',
+  );
+  const v1 = polyOperationInverse(cumulative);
+  check(
+    Buffer.byteLength(v1) === p.v1Source.bytes && sha(v1) === p.v1Source.sha256,
+    'POLY_INVERSE_EXACT_V1',
+  );
+  check(traceOperationInverse(v1) === original.toString(), 'POLY_INVERSE_EXACT_UPSTREAM');
+  return { patch: p.patch, v1: p.v1Source, upstream: sha(original), budget: polyBudget() };
+}
+class PolyJournal implements Sink {
+  private fd: number;
+  private used = 0;
+  private closed = false;
+  constructor(readonly path: string) {
+    check(isAbsolute(path), 'POLY_RECEIPT_ABSOLUTE');
+    const parent = realpathSync(dirname(path));
+    check(inside(realpathSync(tmpdir()), parent) && !inside(repo, parent), 'POLY_RECEIPT_TEMP');
+    check(
+      !lstatSync(parent).isSymbolicLink() && readdirSync(parent).length === 0,
+      'POLY_EXCLUSIVE_EMPTY_PARENT',
+    );
+    this.fd = openSync(path, 'wx');
+  }
+  reserve() {
+    check(
+      this.used + 3 * 1048576 <= p.polytope.layout.externalBytes - 1048576,
+      'POLY_PRE_API_RECEIPT_RESERVE',
+    );
+  }
+  write(record: unknown, footer = false) {
+    const encoded = Buffer.from(stringifySigned(record) + '\n');
+    check(
+      this.used + encoded.length <= p.polytope.layout.externalBytes - (footer ? 0 : 1048576),
+      'POLY_RECEIPT_CAP',
+    );
+    let at = 0;
+    while (at < encoded.length) {
+      const n = writeSync(this.fd, encoded, at, encoded.length - at);
+      check(n > 0, 'POLY_RECEIPT_SHORT_WRITE');
+      at += n;
+    }
+    this.used += encoded.length;
+    fsyncSync(this.fd);
+  }
+  close() {
+    if (!this.closed) {
+      this.closed = true;
+      closeSync(this.fd);
+    }
+  }
+}
+function decodePoly(raw: Buffer, query: number) {
+  check(raw.length <= p.polytope.layout.binaryCap, 'POLY_BINARY_CAP');
+  let at = 0,
+    seq = 0,
+    snapshots = 0,
+    metadata = 0;
+  const records: PolyRecord[] = [];
+  const take = (n: number) => {
+    check(n >= 0 && at + n <= raw.length, 'POLY_TRUNCATED');
+    const b = raw.subarray(at, at + n);
+    at += n;
+    return b;
+  };
+  const ints = (n: number) => {
+    const b = take(n * 4);
+    return Array.from({ length: n }, (_, i) => b.readInt32LE(i * 4));
+  };
+  const floats = (n: number) => {
+    const b = take(n * 8);
+    const v = packet(decodePacket(b.toString('hex')));
+    validatePacket(v, n, 'POLY_F64');
+    return v;
+  };
+  while (at < raw.length) {
+    const tag = take(1)[0]!;
+    check(tag === 1 || tag === 2 || tag === 3, 'POLY_TAG');
+    const h = ints(tag === 1 ? 32 : 16);
+    check(h[0] === query && h[1] === ++seq, 'POLY_QUERY_SEQUENCE');
+    if (tag !== 1) {
+      check(
+        h.slice(tag === 2 ? 8 : 13).every((v) => v === 0),
+        'POLY_META_RESERVED',
+      );
+      if (tag === 2) {
+        check(++metadata <= 16 && (h[2] === 1 || h[2] === 2), 'POLY_SEED_METADATA');
+      } else {
+        check(
+          at === raw.length && h[12] === at - 65 && h[8] === snapshots && h[11] === metadata,
+          'POLY_FOOTER_CENSUS',
+        );
+      }
+      records.push({ tag, header: h });
+      continue;
+    }
+    check(
+      ++snapshots <= 46 && h[2]! >= 0 && h[2]! <= 5 && h[3]! >= 0 && h[4]! >= -1 && h[4]! <= 100,
+      'POLY_SNAPSHOT_ID',
+    );
+    check(
+      h[5]! >= 0 && h[5]! <= 7 && h[16]! >= 0 && h[16]! <= 8 && h[17] === 1,
+      'POLY_SCALAR_MASK',
+    );
+    check(
+      same(h.slice(18, 23), [100, 105, 600, 600, 89]) && h.slice(23).every((v) => v === 0),
+      'POLY_NATIVE_UNCHANGED_CAPACITY',
+    );
+    check(
+      h.slice(10, 14).every((id) => id >= -2 && id < 600) &&
+        h[14]! >= 0 &&
+        h[14]! <= 12 &&
+        (h[15] === 0 || h[15] === 1),
+      'POLY_INTEGER_REFERENCES',
+    );
+    const [nv, nf, nm, nh] = h.slice(6, 10) as [number, number, number, number];
+    check(
+      nv >= 0 && nv <= 16 && nf >= 0 && nf <= 24 && nm >= 0 && nm <= 24 && nh >= 0 && nh <= 89,
+      'POLY_PROFILE_COUNTS',
+    );
+    const scalars = floats(16);
+    check(
+      scalars.f64le.slice(9 * 16) === packet(Array(7).fill(0) as number[]).f64le,
+      'POLY_SCALAR_RESERVED',
+    );
+    const vertices: PolyVertex[] = [];
+    for (let i = 0; i < nv; i++) {
+      const r = ints(4);
+      check(r[0] === i && r[3] === 7, 'POLY_VERTEX_ID');
+      vertices.push({ id: i, indices: r.slice(1, 3), flags: r[3]!, words: floats(9) });
+    }
+    const faces: PolyFace[] = [];
+    for (let i = 0; i < nf; i++) {
+      const r = ints(8),
+        w = floats(4),
+        flags = r[6]!;
+      check(r[0] === i && r[7] === 0 && [3, 7, 31].includes(flags), 'POLY_FACE_DEFINED');
+      check(r[1]! >= 0 && r[1]! < 1 << 30, 'POLY_FACE_PACKED');
+      if (!(flags & 4))
+        check(w.f64le.slice(0, 48) === packet([0, 0, 0]).f64le, 'POLY_UNDEFINED_PROJECTION');
+      if (!(flags & 8)) check(w.f64le.slice(48) === packet([0]).f64le, 'POLY_UNDEFINED_DIST2');
+      if (!(flags & 16)) check(r[5] === 0, 'POLY_UNDEFINED_INDEX');
+      faces.push({ id: i, packed: r[1]!, adj: r.slice(2, 5), index: r[5]!, flags, words: w });
+    }
+    const map = ints(nm),
+      horizon = Array.from({ length: nh }, () => ints(2));
+    check(map.every((i) => i >= 0 && i < nf) && new Set(map).size === map.length, 'POLY_MAP_IDS');
+    check(
+      horizon.every((r) => r[0]! >= 0 && r[0]! < nf && r[1]! >= 0 && r[1]! < 3),
+      'POLY_HORIZON_IDS',
+    );
+    records.push({ tag: 1, header: h, scalars, vertices, faces, map, horizon });
+  }
+  check(
+    records.at(-1)?.tag === 3 && records.filter((v) => v.tag === 3).length === 1,
+    'POLY_EXACT_TERMINAL',
+  );
+  return records;
+}
+type PolyContext = {
+  kind: 'position' | 'distance';
+  case: string;
+  pair?: number[];
+  query: number;
+  lines: string[];
+  bytes: number;
+};
+class PolyCollector extends TraceCollector {
+  private context: PolyContext | undefined;
+  private v2Errors: string[] = [];
+  private v2Used = 0;
+  private v2Complete: PolyContext[] = [];
+  constructor(private polySink: Sink) {
+    super(polySink);
+  }
+  override accept(args: unknown[]) {
+    const text = args.length === 1 && typeof args[0] === 'string' ? args[0] : '';
+    if (!text.startsWith(p.polytope.prefix)) {
+      super.accept(args);
+      return;
+    }
+    try {
+      check(this.context?.kind === 'distance', 'POLY_OUTSIDE_DIRECT_QUERY');
+      const n = Buffer.byteLength(text) + 1;
+      check(
+        n <= 2176 &&
+          this.context.bytes + n <= p.polytope.layout.perQueryStderr &&
+          this.v2Used + n <= p.polytope.layout.totalStderr,
+        'POLY_STDERR_CAP',
+      );
+      this.context.bytes += n;
+      this.v2Used += n;
+      this.context.lines.push(text);
+      this.polySink.write({
+        kind: 'polytope-stderr-raw',
+        case: this.context.case,
+        pair: this.context.pair,
+        query: this.context.query,
+        text,
+        bytes: n,
+      });
+    } catch (error) {
+      this.v2Errors.push(String(error));
+      try {
+        this.polySink.write(
+          {
+            kind: 'polytope-capture-error',
+            error: String(error),
+            bytes: Buffer.byteLength(text),
+            sha256: sha(text),
+            prefix: text.slice(0, 1024),
+          },
+          true,
+        );
+      } catch (e) {
+        this.v2Errors.push(String(e));
+      }
+    }
+  }
+  override begin(kind: 'position' | 'distance', c: Case, pair?: number[]) {
+    check(!this.context && this.v2Errors.length === 0, 'POLY_PENDING_ERROR_OR_CONTEXT');
+    check(
+      this.v2Used + p.polytope.layout.perQueryStderr <= p.polytope.layout.totalStderr,
+      'POLY_PRE_API_STDERR_RESERVE',
+    );
+    super.begin(kind, c, pair);
+    const query =
+      kind === 'distance' ? t.queries.find((q) => q.case === c.id && same(q.pair, pair))?.index : 0;
+    check(query !== undefined, 'POLY_REGISTERED_QUERY');
+    this.context = { kind, case: c.id, ...(pair ? { pair } : {}), query, lines: [], bytes: 0 };
+  }
+  override end(event: ReplayRecord) {
+    const c = this.context;
+    check(c, 'POLY_NO_CONTEXT');
+    this.polySink.write({ kind: 'polytope-api-stream', context: c, errors: this.v2Errors });
+    check(this.v2Errors.length === 0, 'POLY_CAPTURE_FAILED_' + this.v2Errors[0]);
+    // Only structural/integer/defined-field guards before next API. No lambda/topology interpretation.
+    if (c.kind === 'distance') parsePolyLines(c.lines, c.query);
+    else check(c.lines.length === 0, 'POLY_NO_POSITION_TRACE');
+    super.end(event);
+    this.v2Complete.push(structuredClone(c));
+    this.context = undefined;
+  }
+  polySnapshot() {
+    return {
+      used: this.v2Used,
+      errors: this.v2Errors,
+      contexts: this.v2Complete,
+      active: this.context ?? null,
+    };
+  }
+  polyComplete() {
+    check(
+      this.v2Errors.length === 0 && !this.context && this.v2Complete.length === 8,
+      'POLY_ALL_8_CONTEXTS',
+    );
+    const q = this.v2Complete.filter((c) => c.kind === 'distance');
+    check(q.length === 4, 'POLY_EXACT_FOUR_QUERIES');
+    return q;
+  }
+}
+function parsePolyLines(lines: string[], query: number) {
+  check(lines.length >= 2 && lines.length <= 193, 'POLY_CHUNK_COUNT');
+  const end =
+    /^ASA_EPA_POLYTOPE_V2_END q=(\d+) chunks=(\d+) bytes=(\d+) error=(\d+) records=(\d+)$/.exec(
+      lines.at(-1)!,
+    );
+  check(
+    end && Number(end[1]) === query && Number(end[2]) === lines.length - 1,
+    'POLY_END_IDENTITY',
+  );
+  const total = Number(end[3]);
+  check(total > 0 && total <= 196608 && Number(end[4]) === 0, 'POLY_RECORDER_COMPLETE');
+  const chunks = lines.slice(0, -1).map((line, i) => {
+    const m =
+      /^ASA_EPA_POLYTOPE_V2 q=(\d+) chunk=(\d+) bytes=(\d+) total=(\d+) hex=([0-9a-f]+)$/.exec(
+        line,
+      );
+    check(
+      m && Number(m[1]) === query && Number(m[2]) === i && Number(m[4]) === total,
+      'POLY_CHUNK_IDENTITY',
+    );
+    const raw = Buffer.from(m[5]!, 'hex');
+    check(
+      m[5]!.length === raw.length * 2 &&
+        raw.length === Number(m[3]) &&
+        raw.length === (i === lines.length - 2 ? total - i * 1024 : 1024),
+      'POLY_CHUNK_BYTES',
+    );
+    check(Buffer.byteLength(line) - m[5]!.length + 1 <= 128, 'POLY_ENVELOPE_BOUND');
+    return raw;
+  });
+  const raw = Buffer.concat(chunks);
+  check(raw.length === total, 'POLY_TOTAL_BYTES');
+  const records = decodePoly(raw, query),
+    footer = records.at(-1) as PolyMeta;
+  check(footer.header[2] === 0 && footer.header[1] === Number(end[5]), 'POLY_FOOTER_END_IDENTITY');
+  return { raw, records, sha256: sha(raw) };
+}
+function polyOrderedMinimum(s: PolySnapshot) {
+  let face = s.header[11]!,
+    lower = Number.MAX_VALUE;
+  for (const id of s.map) {
+    const f = s.faces[id]!;
+    check(f.flags === 31 && f.index === s.map.indexOf(id), 'POLY_ACTUAL_ORDERED_MAP');
+    if (f.words.values[3]! < lower) {
+      lower = f.words.values[3]!;
+      face = id;
+    }
+  }
+  return { face, lower };
+}
+function polySeedEpochs(records: PolyRecord[]) {
+  let epoch = 0,
+    committed = false;
+  for (const r of records) {
+    if (r.tag === 2) {
+      check(!committed && r.header[3] === epoch, 'POLY_SEED_EPOCH');
+      if (r.header[2] === 2) epoch++;
+      else
+        check(
+          [2, 3, 4].includes(r.header[4]!) && r.header.slice(5, 8).every((v) => v >= 0 && v <= 600),
+          'POLY_SEED_ATTEMPT',
+        );
+    } else if (r.tag === 1) {
+      check(r.header[3] === epoch, 'POLY_COMMITTED_EPOCH');
+      if (r.header[2] === 0) {
+        check(!committed, 'POLY_SINGLE_SEED_COMMIT');
+        committed = true;
+      } else check(committed, 'POLY_NO_PRECOMMIT_SNAPSHOT');
+    }
+  }
+  check(committed, 'POLY_SEED_COMMIT_REQUIRED');
+}
+function polyExitCheck(snapshots: PolySnapshot[]) {
+  const last = snapshots.at(-1)!;
+  const support = [...snapshots]
+    .reverse()
+    .find((s) => s.header[2] === 2 && s.header[4] === last.header[4]);
+  const h = last.header,
+    s = last.scalars.values,
+    reason = h[14]!;
+  check(reason >= 1 && reason <= 12, 'POLY_EXPLICIT_EXIT_REASON');
+  if (reason === 1) check(s[3]! > s[5]! || h[10] === -1, 'POLY_EXIT_INVALID');
+  if (reason === 2) check(s[3]! <= 0, 'POLY_EXIT_ZERO');
+  if (reason === 3)
+    check(
+      support && support.scalars.values[7]! - support.scalars.values[6]! < 1e-8,
+      'POLY_GAP_BRANCH',
+    );
+  if (reason === 4)
+    check(
+      support && h[4] === 0 && support.scalars.values[4]! < support.scalars.values[6]! - 1e-8,
+      'POLY_NOCONTACT_BRANCH',
+    );
+  if (reason === 5) check(support, 'POLY_REPEAT_SUPPORT_BRANCH');
+  if (reason === 6)
+    check(
+      snapshots.some((v) => v.header[2] === 3 && v.header[14] === 6),
+      'POLY_HORIZON_ERROR_BRANCH',
+    );
+  if (reason === 7) check(h[9]! < 3, 'POLY_HORIZON_SHORT_BRANCH');
+  if (reason === 8) check(h[9]! > 600 - h[7]!, 'POLY_FACE_CAPACITY_BRANCH');
+  if (reason === 9)
+    check(
+      snapshots.some((v) => v.header[2] === 4 && v.header[14] === 9 && v.scalars.values[8] === 0),
+      'POLY_FIRST_ATTACH_ZERO_BRANCH',
+    );
+  if (reason === 10) check(false, 'POLY_LATER_ZERO_MUST_REACH_EMPTY_MAP_BRANCH');
+  if (reason === 11) check(h[8] === 0 || h[10] === -1, 'POLY_EMPTY_MAP_BRANCH');
+  if (reason === 12) check(h[4] === 100, 'POLY_ITERATION_LIMIT_BRANCH');
+}
+function polyFaceIds(f: PolyFace) {
+  return [f.packed & 1023, (f.packed >>> 10) & 1023, (f.packed >>> 20) & 1023];
+}
+function polyVec(v: readonly number[], at = 0): Vec {
+  return [v[at]!, v[at + 1]!, v[at + 2]!];
+}
+function polySub(a: readonly number[], b: readonly number[]): Vec {
+  return [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
+}
+function polyDot(a: readonly number[], b: readonly number[]) {
+  return a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+}
+function polyCross(a: readonly number[], b: readonly number[]): Vec {
+  return [
+    a[1]! * b[2]! - a[2]! * b[1]!,
+    a[2]! * b[0]! - a[0]! * b[2]!,
+    a[0]! * b[1]! - a[1]! * b[0]!,
+  ];
+}
+function polyClosestTriangle(a: Vec, b: Vec, c: Vec) {
+  const ab = polySub(b, a),
+    ac = polySub(c, a),
+    normal = polyCross(ab, ac),
+    nn = polyDot(normal, normal);
+  const options: { kind: string; lambda: number[]; point: Vec; dist2: number }[] = [];
+  for (const [i, j] of [
+    [0, 1],
+    [1, 2],
+    [2, 0],
+  ]) {
+    const v = [a, b, c],
+      u = v[i!]!,
+      w = v[j!]!,
+      d = polySub(w, u),
+      dd = polyDot(d, d),
+      t = dd ? Math.max(0, Math.min(1, -polyDot(u, d) / dd)) : 0;
+    const point: Vec = [u[0] + t * d[0], u[1] + t * d[1], u[2] + t * d[2]],
+      lambda = [0, 0, 0];
+    lambda[i!] = 1 - t;
+    lambda[j!] = t;
+    options.push({
+      kind: t > 0 && t < 1 ? 'EDGE' : 'VERTEX',
+      lambda,
+      point,
+      dist2: polyDot(point, point),
+    });
+  }
+  if (nn > 0) {
+    const point = normal.map((x) => (x * polyDot(normal, a)) / nn) as Vec;
+    const den = polyDot(ab, ab) * polyDot(ac, ac) - polyDot(ab, ac) ** 2;
+    if (den > 0) {
+      const ap = polySub(point, a),
+        v = (polyDot(ac, ac) * polyDot(ap, ab) - polyDot(ab, ac) * polyDot(ap, ac)) / den,
+        w = (polyDot(ab, ab) * polyDot(ap, ac) - polyDot(ab, ac) * polyDot(ap, ab)) / den;
+      const lambda = [1 - v - w, v, w];
+      if (lambda.every((x) => x >= 0))
+        options.push({ kind: 'FACE', lambda, point, dist2: polyDot(point, point) });
+    }
+  }
+  return options.reduce((a, b) => (a.dist2 <= b.dist2 ? a : b));
+}
+function polyHullObservation(s: PolySnapshot) {
+  const active = s.faces.filter((f) => f.flags === 31 && f.index !== -2),
+    center = s.scalars.values.slice(0, 3),
+    issues: string[] = [],
+    edges = new Map<string, string[]>();
+  const activeVertexIDs = [...new Set(active.flatMap((f) => polyFaceIds(f)))]
+    .filter((i) => i < s.vertices.length)
+    .sort((a, b) => a - b);
+  const unusedVertexIDs = s.vertices.map((v) => v.id).filter((i) => !activeVertexIDs.includes(i));
+  const unusedOutside = new Map(unusedVertexIDs.map((id) => [id, 0]));
+  let nearest: unknown = null,
+    best = Infinity;
+  for (const f of active) {
+    const ids = polyFaceIds(f);
+    if (ids.some((i) => i >= s.vertices.length)) {
+      issues.push('FACE_VERTEX_RANGE_' + f.id);
+      continue;
+    }
+    const points = ids.map((i) => polyVec(s.vertices[i]!.words.values)),
+      [a, b, c] = points as [Vec, Vec, Vec];
+    let n = polyCross(polySub(b, a), polySub(c, a));
+    const length = Math.sqrt(polyDot(n, n));
+    if (!length) {
+      issues.push('DEGENERATE_' + f.id);
+      continue;
+    }
+    if (polyDot(n, polySub(center, a)) > 0) n = n.map((x) => -x) as Vec;
+    const d = polyDot(n, a),
+      scale = Math.max(1, ...points.flat().map(Math.abs)),
+      roundoff = 128 * Number.EPSILON * length * scale;
+    if (d < -roundoff) issues.push('ORIGIN_OUTSIDE_' + f.id);
+    if (
+      activeVertexIDs.some((id) => polyDot(n, polyVec(s.vertices[id]!.words.values)) - d > roundoff)
+    )
+      issues.push('NONCONVEX_' + f.id);
+    for (const id of unusedVertexIDs)
+      unusedOutside.set(
+        id,
+        Math.max(
+          unusedOutside.get(id)!,
+          (polyDot(n, polyVec(s.vertices[id]!.words.values)) - d) / length,
+        ),
+      );
+    for (const [i, j] of [
+      [0, 1],
+      [1, 2],
+      [2, 0],
+    ]) {
+      const key = [ids[i!]!, ids[j!]!].sort((a, b) => a - b).join(',');
+      const rows = edges.get(key) ?? [];
+      rows.push(ids[i!] + ',' + ids[j!]);
+      edges.set(key, rows);
+    }
+    const closest = polyClosestTriangle(a, b, c);
+    if (closest.dist2 < best) {
+      best = closest.dist2;
+      nearest = { face: f.id, ...closest };
+    }
+    f.adj.forEach((j, k) => {
+      const other = s.faces[j];
+      if (!other || other.index === -2 || !other.adj.includes(f.id))
+        issues.push('ADJACENCY_' + f.id + '_' + k);
+    });
+  }
+  for (const [key, rows] of edges)
+    if (rows.length !== 2 || rows[0] !== rows[1]!.split(',').reverse().join(','))
+      issues.push('OPEN_OR_ORIENTATION_' + key);
+  // Defects are observations, never erased as parse failures or converted to physical PASS.
+  return {
+    activeFaces: active.length,
+    allocatedVertices: s.vertices.length,
+    activeVertexIDs,
+    unusedVertexIDs,
+    unusedSupportOutside: unusedVertexIDs.map((id) => ({
+      id,
+      maxSignedPlaneDistance: unusedOutside.get(id)!,
+    })),
+    issues,
+    nearestRecordedFiniteFeature: nearest,
+    closedConvexOriginCandidate: issues.length === 0,
+    roundoffPolicy: '128eps forward-error diagnostic only; no physical tolerance or repair',
+  };
+}
+function interpretPoly(contexts: PolyContext[], v1: TraceContext[], parity: PublicParity) {
+  parity.admitted();
+  check(contexts.length === 4 && v1.length === 4, 'POLY_INTERPRET_AFTER_ALL_PARITY');
+  return contexts.map((context, index) => {
+    const decoded = parsePolyLines(context.lines, index + 1),
+      records = decoded.records,
+      snapshots = records.filter((r): r is PolySnapshot => r.tag === 1);
+    check(snapshots[0]?.header[2] === 0 && snapshots.at(-1)?.header[2] === 5, 'POLY_SEED_FINAL');
+    polySeedEpochs(records);
+    let epoch = -1,
+      lastK = -1,
+      selects = 0,
+      previous: PolySnapshot | undefined;
+    for (const s of snapshots) {
+      check(s.header[3]! >= epoch, 'POLY_EPOCH_ORDER');
+      epoch = s.header[3]!;
+      check(
+        s.faces.every((f) => polyFaceIds(f).every((id) => id < s.vertices.length)),
+        'POLY_DEFINED_VERTEX_RANGE',
+      );
+      if (previous) {
+        check(
+          s.vertices.length >= previous.vertices.length && s.faces.length >= previous.faces.length,
+          'POLY_POST_SEED_MONOTONIC',
+        );
+        for (let j = 0; j < previous.vertices.length; j++)
+          check(same(s.vertices[j], previous.vertices[j]), 'POLY_IMMUTABLE_VERTEX');
+        for (let j = 0; j < previous.faces.length; j++) {
+          const a = previous.faces[j]!,
+            b = s.faces[j]!;
+          check(
+            a.packed === b.packed && (a.flags & b.flags) === a.flags,
+            'POLY_IMMUTABLE_FACE_OR_DEFINED',
+          );
+          if (a.flags & 4)
+            check(
+              a.words.f64le.slice(0, 48) === b.words.f64le.slice(0, 48),
+              'POLY_IMMUTABLE_FACE_PROJECTION',
+            );
+          if (a.flags & 8)
+            check(a.words.f64le.slice(48) === b.words.f64le.slice(48), 'POLY_IMMUTABLE_FACE_DIST2');
+        }
+      }
+      if (s.header[2] === 1) {
+        check(s.header[4] === lastK + 1, 'POLY_SELECTION_ITERATION');
+        lastK = s.header[4]!;
+        selects++;
+        const { face, lower } = polyOrderedMinimum(s);
+        check(
+          face === s.header[10] && packet([lower]).f64le === s.scalars.f64le.slice(48, 64),
+          'POLY_STRICT_ORDERED_MIN',
+        );
+      }
+      previous = s;
+    }
+    const last = snapshots.at(-1)!,
+      v = decodeTrace(v1[index]!.lines[0]!, index),
+      face = last.faces[last.header[10]!]!;
+    check(
+      face &&
+        face.flags === 31 &&
+        face.packed === v.ints[13] &&
+        face.index === v.ints[14] &&
+        last.header[4] === v.ints[10] &&
+        same(last.header.slice(6, 9), v.ints.slice(15, 18)),
+      'POLY_FINAL_V1_IDENTITY',
+    );
+    check(face.words.f64le === v.words.f64le.slice(3 * 16, 7 * 16), 'POLY_FINAL_V1_FACE_BITS');
+    const ids = polyFaceIds(face);
+    ids.forEach((id, i) => {
+      const vertex = last.vertices[id]!;
+      check(
+        vertex.words.f64le === v.words.f64le.slice((7 + 9 * i) * 16, (16 + 9 * i) * 16) &&
+          same(vertex.indices, v.ints.slice(21 + 2 * i, 23 + 2 * i)),
+        'POLY_FINAL_V1_SUPPORT_BITS',
+      );
+    });
+    check(
+      last.header[14]! > 0 && last.header[14]! <= 12 && selects === last.header[16],
+      'POLY_EXPLICIT_EXIT',
+    );
+    const support = [...snapshots].reverse().find((s) => s.header[2] === 2);
+    if (last.header[14] === 3)
+      check(
+        support && support.scalars.values[7]! - support.scalars.values[6]! < 1e-8,
+        'POLY_GAP_BRANCH',
+      );
+    if (last.header[14] === 4)
+      check(
+        support &&
+          support.header[4] === 0 &&
+          support.scalars.values[4]! < support.scalars.values[6]! - 1e-8,
+        'POLY_NOCONTACT_BRANCH',
+      );
+    polyExitCheck(snapshots);
+    return {
+      query: index + 1,
+      sha256: decoded.sha256,
+      records: records.length,
+      snapshots: snapshots.length,
+      selectionVisits: selects,
+      exit: p.polytope.exitReasons[last.header[14]!],
+      finalHull: polyHullObservation(last),
+      scope: 'INITIALIZED_EPA_OBSERVATION_ONLY_HISTORICAL_FAIL_GAP_UNCHANGED',
+    };
+  });
+}
+function polyHistorical(env: NodeJS.ProcessEnv) {
+  pinFile(traceFixturePath, p.priorEvidence.fixture);
+  pinFile(join(dirname(sourcePath), p.priorEvidence.patch.file), p.priorEvidence.patch);
+  pinFile(fixturePath, p.immutableInputs.static_source.fixture);
+  const old = historicalTraceInputs(env),
+    patch = polyPatchPreflight(env);
+  const spec = pinFile(required(env, 'ASA_EPA_POLYTOPE_V1_SPEC'), p.priorEvidence.spec);
+  const raw = pinFile(required(env, 'ASA_EPA_POLYTOPE_V1_RAW'), p.v1Raw);
+  const audit = pinFile(required(env, 'ASA_EPA_POLYTOPE_V1_AUDIT'), p.priorEvidence.audit);
+  const triangle = pinFile(
+    required(env, 'ASA_EPA_POLYTOPE_TRIANGLE_REPORT'),
+    p.priorEvidence.triangle,
+  );
+  const build = pinFile(required(env, 'ASA_EPA_POLYTOPE_V1_BUILD'), p.priorEvidence.build);
+  // Whole pinned artifacts are immutable inputs, never imported executable modules.
+  check(
+    sha(spec) === p.priorEvidence.spec.sha256 &&
+      audit.length > 0 &&
+      triangle.length > 0 &&
+      build.length > 0,
+    'POLY_COMPLETE_PRIOR_INPUTS',
+  );
+  const records = raw
+    .toString()
+    .trim()
+    .split('\n')
+    .map((line) => parseSigned(line)) as ReplayRecord[];
+  const finish = records.at(-1) as ReplayRecord & { phase?: string; runtime?: string };
+  check(
+    finish.kind === 'finish' && finish.phase === 'COMPLETE' && finish.runtime === 'COMPLETE',
+    'POLY_PRIOR_TRACE_COMPLETE',
+  );
+  const header = records.find((v) => v.kind === 'header') as ReplayRecord & {
+    traceAdmission?: { artifact?: { receipt?: Pin } };
+  };
+  check(
+    header?.source?.sha256 === p.priorEvidence.spec.sha256 &&
+      header.fixture?.sha256 === t.immutableInputs.static_source.fixture.sha256 &&
+      same(header.traceAdmission?.artifact?.receipt, p.priorEvidence.build),
+    'POLY_PRIOR_SOURCE_BUILD_RAW_LINK',
+  );
+  replay(records, false);
+  const publicParity = new PublicParity(old.baseline);
+  records
+    .filter((v) => v.kind === 'position' || v.kind === 'distance')
+    .forEach((v) => publicParity.observe(v));
+  publicParity.complete();
+  const trace = records.filter((v) => v.kind === 'trace-stderr-raw') as unknown as {
+    case: string;
+    pair: number[];
+    text: string;
+  }[];
+  check(trace.length === 4, 'POLY_PRIOR_EXACT_FOUR_V1');
+  const streams: TraceContext[] = trace.map((v, i) => {
+    check(v.case === t.queries[i]!.case && same(v.pair, t.queries[i]!.pair), 'POLY_PRIOR_V1_ORDER');
+    return {
+      kind: 'distance',
+      case: v.case,
+      pair: v.pair,
+      lines: [v.text],
+      bytes: Buffer.byteLength(v.text) + 1,
+    };
+  });
+  check(
+    same(
+      streams.map((v) => v.lines[0]),
+      p.frozenV1Lines,
+    ),
+    'POLY_FIXTURE_EXACT_PRIOR_V1_LINES',
+  );
+  interpretTraces(streams, publicParity);
+  return {
+    baseline: old.baseline,
+    streams,
+    proof: {
+      old: old.proof,
+      patch,
+      source: p.priorEvidence.spec,
+      raw: p.v1Raw,
+      audit: p.priorEvidence.audit,
+      triangle: p.priorEvidence.triangle,
+      build: p.priorEvidence.build,
+    },
+  };
+}
+async function polyNativeRun(env: NodeJS.ProcessEnv) {
+  polyAdmission(env);
+  const source = required(env, 'ASA_EPA_POLYTOPE_SOURCE_SHA256'),
+    fixture = required(env, 'ASA_EPA_POLYTOPE_FIXTURE_SHA256');
+  const path = required(env, 'ASA_EPA_POLYTOPE_RECEIPT'),
+    journal = new PolyJournal(path),
+    l = ledger();
+  let first: unknown,
+    phase = 'PRE_IMPORT',
+    collector: PolyCollector | undefined;
+  try {
+    journal.write({
+      kind: 'polytope-preflight',
+      source: { bytes: readFileSync(sourcePath).length, sha256: sha(readFileSync(sourcePath)) },
+      declaredSource: source,
+      fixture: {
+        bytes: readFileSync(polyFixturePath).length,
+        sha256: sha(readFileSync(polyFixturePath)),
+      },
+      declaredFixture: fixture,
+      counters: l,
+    });
+    check(
+      sha(readFileSync(sourcePath)) === source && sha(readFileSync(polyFixturePath)) === fixture,
+      'POLY_CURRENT_SOURCE_FIXTURE_PINS',
+    );
+    polyBudget();
+    const inputs = readInputs(env),
+      historical = polyHistorical(env),
+      artifact = privateArtifact(env, inputs.wasm, p);
+    collector = new PolyCollector(journal);
+    journal.write({
+      kind: 'header',
+      schema: p.schema,
+      source: { bytes: readFileSync(sourcePath).length, sha256: source },
+      fixture: { bytes: readFileSync(polyFixturePath).length, sha256: fixture },
+      pins: { inputs: inputs.proof, historical: historical.proof, artifact: artifact.proof },
+      profile: f.profile,
+      protocol: f.protocol,
+      caps: p.caps,
+      polytope: p.polytope,
+      counters: l,
+    });
+    const header = parseSigned(readFileSync(path, 'utf8').trim().split('\n').at(-1)!);
+    check(
+      header.source.sha256 === source && header.fixture.sha256 === fixture,
+      'POLY_HEADER_READBACK_BEFORE_IMPORT',
+    );
+    journal.reserve();
+    phase = 'MODULE_IMPORT';
+    const factory = (await import(pathToFileURL(artifact.gluePath).href)).default as (
+      options: Record<string, unknown>,
+    ) => Promise<Native>;
+    check(l.handles.module.attempted === 0, 'POLY_SINGLE_MODULE');
+    l.handles.module.attempted++;
+    const M = await factory({
+      wasmBinary: artifact.wasm,
+      printErr: (...args: unknown[]) => collector!.accept(args),
+      locateFile: (name: string) => {
+        check(name === f.engine.wasm.file, 'POLY_NO_EXTRA_RESOURCE');
+        return artifact.wasmPath;
+      },
+    });
+    l.handles.module.returned++;
+    check(
+      M.mj_version() === 4000000 &&
+        M.mj_versionString() === '4.0.0' &&
+        typeof M.mj_fwdPosition === 'function' &&
+        typeof M.mj_geomDistance === 'function' &&
+        typeof M.DoubleBuffer === 'function',
+      'POLY_EXACT_BINDINGS',
+    );
+    collector.endStartup();
+    phase = 'POSITION_DISPATCH';
+    const acquired = acquireTraceCases(M, l, journal, collector, historical.baseline),
+      streams = collector.complete();
+    check(
+      same(
+        streams.map((v) => v.lines),
+        historical.streams.map((v) => v.lines),
+      ),
+      'POLY_EXACT_ALL_FOUR_PRIOR_V1_BYTES',
+    );
+    polyFinalLedger(l);
+    const prior = interpretTraces(streams, acquired.parity),
+      observation = interpretPoly(collector.polyComplete(), streams, acquired.parity);
+    journal.write({
+      kind: 'polytope-evidence',
+      publicParity: true,
+      v1ByteParity: true,
+      prior,
+      observation,
+      scope: 'NO_PHYSICAL_REASSESSMENT_NO_REPAIR',
+    });
+    phase = 'COMPLETE';
+  } catch (error) {
+    first = error;
+  } finally {
+    try {
+      journal.write(
+        {
+          kind: 'finish',
+          phase,
+          runtime: first ? 'ERROR' : 'COMPLETE',
+          diagnostic: first ? 'INCONCLUSIVE' : 'COMPLETE',
+          acquisition: l.position.attempted || l.distance.attempted ? 'CONSUMED' : 'PRE_DISPATCH',
+          firstError: first ? String(first) : null,
+          ledger: l,
+          traceStream: collector?.snapshot() ?? null,
+          polytopeStream: collector?.polySnapshot() ?? null,
+          physical: 'NOT_REASSESSED_HISTORICAL_FAIL_UNCHANGED',
+          causal: 'HISTORICAL_GAP_UNCHANGED',
+          formal: 'D01_D02_OPEN',
+        },
+        true,
+      );
+    } catch (error) {
+      if (first) l.cleanupErrors.push('polytope-footer: ' + String(error));
+      else first = error;
+    } finally {
+      try {
+        journal.close();
+      } catch (error) {
+        if (first) l.cleanupErrors.push('polytope-close: ' + String(error));
+        else first = error;
+      }
+    }
+  }
+  if (first) throw first;
+}
+it.runIf(process.env.ASA_EPA_POLYTOPE_VERIFY_INPUTS === 'verify')(
+  'verifies V2 whole historical source/raw/audits, double C inverse and immutable native bytes without importing glue',
+  () => {
+    readInputs(process.env);
+    polyHistorical(process.env);
+  },
+);
+
+// Pure binary producer mirrors only the explicit framing, never C struct padding.
+function encodePoly(records: PolyRecord[]) {
+  const parts: Buffer[] = [];
+  const i32 = (v: number[]) => {
+    const b = Buffer.alloc(v.length * 4);
+    v.forEach((x, i) => b.writeInt32LE(x, i * 4));
+    return b;
+  };
+  for (const r of records) {
+    parts.push(Buffer.from([r.tag]), i32(r.header));
+    if (r.tag === 1) {
+      parts.push(Buffer.from(r.scalars.f64le, 'hex'));
+      for (const v of r.vertices)
+        parts.push(i32([v.id, ...v.indices, v.flags]), Buffer.from(v.words.f64le, 'hex'));
+      for (const f of r.faces)
+        parts.push(
+          i32([f.id, f.packed, ...f.adj, f.index, f.flags, 0]),
+          Buffer.from(f.words.f64le, 'hex'),
+        );
+      parts.push(i32(r.map));
+      for (const h of r.horizon) parts.push(i32(h));
+    }
+  }
+  return Buffer.concat(parts);
+}
+function polyLines(raw: Buffer, query: number, recordCount: number, error = 0) {
+  const n = Math.ceil(raw.length / 1024),
+    lines = Array.from({ length: n }, (_, i) => {
+      const b = raw.subarray(i * 1024, (i + 1) * 1024);
+      return (
+        p.polytope.prefix +
+        ' q=' +
+        query +
+        ' chunk=' +
+        i +
+        ' bytes=' +
+        b.length +
+        ' total=' +
+        raw.length +
+        ' hex=' +
+        b.toString('hex')
+      );
+    });
+  lines.push(
+    p.polytope.prefix +
+      '_END q=' +
+      query +
+      ' chunks=' +
+      n +
+      ' bytes=' +
+      raw.length +
+      ' error=' +
+      error +
+      ' records=' +
+      recordCount,
+  );
+  return lines;
+}
+function polyMockRecords(index: number) {
+  const v = decodeTrace(p.frozenV1Lines[index]!, index),
+    query = index + 1,
+    target = v.ints[16]!,
+    nv = v.ints[15]!,
+    nm = v.ints[17]!,
+    slot = v.ints[14]!;
+  const vertices: PolyVertex[] = Array.from({ length: nv }, (_, id) => ({
+    id,
+    indices: [0, 0],
+    flags: 7,
+    words: packet([0, 0, 1, 0, 0, 1, 0, 0, 0]),
+  }));
+  for (let i = 0; i < 3; i++)
+    vertices[v.ints[18 + i]!] = {
+      id: v.ints[18 + i]!,
+      indices: v.ints.slice(21 + 2 * i, 23 + 2 * i),
+      flags: 7,
+      words: packet(v.words.values.slice(7 + 9 * i, 16 + 9 * i)),
+    };
+  const faces: PolyFace[] = Array.from({ length: target }, (_, id) => ({
+    id,
+    packed: 0 + (1 << 10) + (2 << 20),
+    adj: [0, 0, 0],
+    index: -1,
+    flags: 31,
+    words: packet([0, 0, 2 * Math.sqrt(v.words.values[6]!), 4 * v.words.values[6]!]),
+  }));
+  const chosen = target - 1;
+  faces[chosen] = {
+    id: chosen,
+    packed: v.ints[13]!,
+    adj: [0, 0, 0],
+    index: slot,
+    flags: 31,
+    words: packet(v.words.values.slice(3, 7)),
+  };
+  let seq = 0;
+  const result: PolyRecord[] = [];
+  const meta = Array(16).fill(0) as number[];
+  meta[0] = query;
+  meta[1] = ++seq;
+  meta[2] = 1;
+  meta[4] = 4;
+  result.push({ tag: 2, header: meta });
+  let currentFaces = 4;
+  const snapshot = (kind: number, k: number, vc: number, fc: number, map: number[], reason = 0) => {
+    const h = Array(32).fill(0) as number[];
+    [
+      query,
+      ++seq,
+      kind,
+      0,
+      k,
+      kind === 4 ? 7 : kind === 2 || kind === 3 || kind === 5 ? 3 : 1,
+      vc,
+      fc,
+      map.length,
+      0,
+      map[slot] ?? map[0] ?? -1,
+      k ? 0 : -1,
+      kind === 2 ? vc - 1 : -1,
+      -1,
+      reason,
+      1,
+      k + 1,
+      1,
+      100,
+      105,
+      600,
+      600,
+      89,
+    ].forEach((x, i) => (h[i] = x));
+    if (kind === 4) h[13] = fc - 1;
+    if (kind === 0) {
+      h[4] = -1;
+      h[5] = 0;
+      h[16] = 0;
+      h[10] = -1;
+    }
+    const fs = structuredClone(faces.slice(0, fc));
+    for (const f of fs) f.index = map.indexOf(f.id);
+    const selected = h[10]! >= 0 ? fs[h[10]!]! : fs[0]!;
+    const s = Array(16).fill(0) as number[];
+    s[3] = selected.words.values[3]!;
+    s[4] = 1;
+    s[5] = 1;
+    s[6] = Math.sqrt(s[3]!);
+    s[7] = kind === 5 || k === 4 ? s[6]! + 5e-9 : s[6]! + 1e-6;
+    result.push({
+      tag: 1,
+      header: h,
+      scalars: packet(s),
+      vertices: structuredClone(vertices.slice(0, vc)),
+      faces: fs,
+      map,
+      horizon: [],
+    });
+  };
+  snapshot(0, -1, 4, currentFaces, [0]);
+  for (let k = 0; k < 5; k++) {
+    const final = k === 4,
+      map = final
+        ? Array.from({ length: nm }, (_, i) => (i === slot ? chosen : i < slot ? i : i - 1))
+        : [0];
+    snapshot(1, k, 4 + k, currentFaces, map);
+    snapshot(2, k, 5 + k, currentFaces, map);
+    if (k < 4) {
+      snapshot(3, k, 5 + k, currentFaces, map);
+      const add = k === 3 ? target - currentFaces : Math.min(3, target - currentFaces);
+      for (let j = 0; j < add; j++) {
+        currentFaces++;
+        snapshot(4, k, 5 + k, currentFaces, [0]);
+      }
+    }
+  }
+  const map = Array.from({ length: nm }, (_, i) => (i === slot ? chosen : i < slot ? i : i - 1));
+  snapshot(5, 4, nv, target, map, 3);
+  const before = encodePoly(result).length,
+    footer = Array(16).fill(0) as number[];
+  [
+    query,
+    ++seq,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    result.filter((r) => r.tag === 1).length,
+    5,
+    3,
+    1,
+    before,
+  ].forEach((x, i) => (footer[i] = x));
+  result.push({ tag: 3, header: footer });
+  return result;
+}
+function polyMockLines(index: number) {
+  const r = polyMockRecords(index);
+  return polyLines(encodePoly(r), index + 1, r.length);
+}
+it('V2 proves exact bounded snapshot/U8 framing and durable duplication budgets without claiming N100 full snapshots fit', () => {
+  expect(polyBudget()).toEqual({
+    snapshot: 4009,
+    count: 46,
+    encoded: 194654,
+    framed: 422144,
+    external: 12058624,
+  });
+  expect(p.polytope.profile).toEqual({
+    visits: 8,
+    vertices: 16,
+    faces: 24,
+    map: 24,
+    horizon: 89,
+    snapshots: 46,
+    metadata: 16,
+  });
+  const code = readFileSync(join(dirname(sourcePath), p.patch.file), 'utf8');
+  expect(sha(code)).toBe(p.patch.sha256);
+  expect(Buffer.byteLength(code)).toBe(p.patch.bytes);
+  expect(code).toContain('sizeof(Vertex) == 80 && sizeof(Face) == 56');
+  expect(code).toContain('asa_poly_defined(pt, ret == 0, 0)');
+  expect(code).toContain('asa_poly_meta(1, pt, 4)');
+  expect(code).toContain('asa_poly_reset(pt)');
+  expect(code).not.toMatch(/^\+.*\b(?:malloc|calloc|realloc|mj_step|mj_forward|mjc_support)\s*\(/m);
+});
+it('V2 denies ambiguous/consumed modes before even receipt creation/import and keeps default dispatch skipped', async () => {
+  expect(() => polyAdmission({})).toThrow('EXACT_POLYTOPE_OPT_IN');
+  expect(() => polyAdmission({ ASA_EPA_POLYTOPE_NATIVE: p.polytope.token })).not.toThrow();
+  for (const key of [
+    'ASA_CCD_TRACE_NATIVE',
+    'ASA_STATIC_WITNESS_NATIVE',
+    'ASA_TT_UNION_RECOVERY_NATIVE',
+    'ASA_TT_SPHERE_NATIVE',
+    'ASA_OTHER_ACQUIRE',
+  ]) {
+    const env = { ASA_EPA_POLYTOPE_NATIVE: p.polytope.token, [key]: 'consumed' };
+    expect(() => polyAdmission(env)).toThrow('POLYTOPE_AMBIGUOUS_OR_CONSUMED');
+    await expect(polyNativeRun(env)).rejects.toThrow('POLYTOPE_AMBIGUOUS_OR_CONSUMED');
+  }
+});
+it('V2 preserves actual signed-zero packets through complete binary and on-disk raw framing, rejecting bits/labels/count tampering', () => {
+  const records = polyMockRecords(0),
+    seed = records.find((v): v is PolySnapshot => v.tag === 1)!;
+  seed.scalars = packet([-0, ...seed.scalars.values.slice(1)]);
+  const raw = encodePoly(records),
+    lines = polyLines(raw, 1, records.length),
+    dir = mkdtempSync(join(tmpdir(), 'asa-poly-codec-')),
+    file = join(dir, 'roundtrip.json');
+  try {
+    const fd = openSync(file, 'wx');
+    try {
+      writeSync(fd, stringifySigned(lines));
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    const decoded = parsePolyLines(parseSigned(readFileSync(file, 'utf8')) as string[], 1);
+    expect(decoded.raw.equals(raw)).toBe(true);
+    const first = decoded.records.find((v): v is PolySnapshot => v.tag === 1)!;
+    expect(Object.is(first.scalars.values[0], -0)).toBe(true);
+    for (const mutate of [
+      (v: string[]) => {
+        v[0] = v[0]!.replace('q=1', 'q=2');
+      },
+      (v: string[]) => {
+        v[0] = v[0]!.replace('chunk=0', 'chunk=1');
+      },
+      (v: string[]) => {
+        v.pop();
+      },
+      (v: string[]) => {
+        v.splice(0, 0, v[0]!);
+      },
+      (v: string[]) => {
+        v[v.length - 1] = v.at(-1)!.replace('error=0', 'error=4');
+      },
+      (v: string[]) => {
+        v[0] = v[0]!.replace(/hex=../, 'hex=ff');
+      },
+    ]) {
+      const forged = [...lines];
+      mutate(forged);
+      expect(() => parsePolyLines(forged, 1)).toThrow();
+    }
+    expect(() => decodePoly(raw.subarray(0, -1), 1)).toThrow('POLY_TRUNCATED');
+    expect(() => parseSigned('{"x":"float64:NaN"}')).toThrow('SIGNED_ZERO_LABEL');
+  } finally {
+    unlinkSync(file);
+    rmdirSync(dir);
+  }
+});
+it('V2 represents partial attach safely and separates seed fallback reset epochs before monotonic EPA state', () => {
+  const records = polyMockRecords(0),
+    s = records.find((v): v is PolySnapshot => v.tag === 1)!;
+  s.faces[0]!.flags = 3;
+  s.faces[0]!.index = 0;
+  s.faces[0]!.words = packet([0, 0, 0, 0]);
+  expect(() => decodePoly(encodePoly(records), 1)).not.toThrow();
+  s.faces[0]!.words = packet([1, 0, 0, 0]);
+  expect(() => decodePoly(encodePoly(records), 1)).toThrow('POLY_UNDEFINED_PROJECTION');
+  s.faces[0]!.words = packet([0, 0, 0, 1]);
+  expect(() => decodePoly(encodePoly(records), 1)).toThrow('POLY_UNDEFINED_DIST2');
+  s.faces[0]!.words = packet([0, 0, 0, 0]);
+  s.faces[0]!.index = -1;
+  expect(() => decodePoly(encodePoly(records), 1)).toThrow('POLY_UNDEFINED_INDEX');
+  const code = readFileSync(join(dirname(sourcePath), p.patch.file), 'utf8');
+  expect(code.indexOf('pt->horizon.nedges > 89')).toBeLessThan(
+    code.indexOf('for (int i = 0; i < pt->horizon.nedges; i++)'),
+  );
+});
+function polyAssembledMock(collector: PolyCollector, bad?: 'query' | 'overflow' | 'incomplete') {
+  const stub = mockAssembledTrace(),
+    base = stub.M.mj_geomDistance;
+  stub.M.mj_geomDistance = (...args) => {
+    const value = base(...args),
+      index = stub.queryCount() - 1;
+    collector.accept([p.frozenV1Lines[index]!]);
+    const lines = polyMockLines(index);
+    if (bad === 'query' && index === 1) lines[0] = lines[0]!.replace('q=2', 'q=1');
+    if (bad === 'incomplete' && index === 0) lines.pop();
+    if (bad === 'overflow' && index === 0) lines[0] = 'ASA_EPA_POLYTOPE_V2 ' + 'x'.repeat(524288);
+    for (const line of lines) collector.accept([line]);
+    return value;
+  };
+  return stub;
+}
+it('V2 uses the SAME live acquisition hooks, cleanup and all8 public/V1 comparisons before semantic interpretation', () => {
+  const sink = memorySink(),
+    collector = new PolyCollector(sink),
+    mock = polyAssembledMock(collector),
+    l = ledger();
+  l.handles.module.attempted = l.handles.module.returned = 1;
+  collector.endStartup();
+  const acquired = acquireTraceCases(mock.M, l, sink, collector, assembledBaseline()),
+    v1 = collector.complete();
+  expect(acquired.parity.admitted()).toHaveLength(8);
+  expect(v1.map((v) => v.lines[0])).toEqual(p.frozenV1Lines);
+  expect(interpretPoly(collector.polyComplete(), v1, acquired.parity)).toHaveLength(4);
+  expect(replay(acquired.actual, false)).toHaveLength(2);
+  expect(l.position).toEqual({ attempted: 4, returned: 4 });
+  expect(l.distance).toEqual({ attempted: 4, returned: 4 });
+  for (const [kind, c] of Object.entries(l.handles))
+    if (kind !== 'module') expect(c.deleted).toBe(c.returned);
+  expect(sink.events.filter((v) => (v as ReplayRecord).kind === 'case-finish')).toHaveLength(2);
+});
+it('V2 stops before next API on wrong active query, incomplete stream or overflow while preserving first records and cleanup', () => {
+  for (const bad of ['query', 'incomplete', 'overflow'] as const) {
+    const sink = memorySink(),
+      collector = new PolyCollector(sink),
+      mock = polyAssembledMock(collector, bad),
+      l = ledger();
+    l.handles.module.attempted = l.handles.module.returned = 1;
+    collector.endStartup();
+    expect(() => acquireTraceCases(mock.M, l, sink, collector, assembledBaseline())).toThrow(
+      /POLY_/,
+    );
+    expect(l.distance.attempted).toBe(bad === 'query' ? 2 : 1);
+    expect(l.position.attempted).toBe(1);
+    for (const [kind, c] of Object.entries(l.handles))
+      if (kind !== 'module') expect(c.deleted).toBe(c.returned);
+    expect(sink.events.some((v) => (v as ReplayRecord).kind === 'case-finish')).toBe(true);
+    expect(sink.events.some((v) => (v as { kind: string }).kind === 'polytope-api-stream')).toBe(
+      true,
+    );
+  }
+});
+it('V2 independently replays ordered minimum including ties, detects forged state/selection and leaves geometric defects observable', () => {
+  const sink = memorySink(),
+    collector = new PolyCollector(sink),
+    mock = polyAssembledMock(collector),
+    l = ledger();
+  l.handles.module.attempted = l.handles.module.returned = 1;
+  collector.endStartup();
+  const acquired = acquireTraceCases(mock.M, l, sink, collector, assembledBaseline()),
+    contexts = collector.polyComplete(),
+    v1 = collector.complete();
+  const observed = interpretPoly(contexts, v1, acquired.parity);
+  expect(observed[0]!.finalHull.issues.length).toBeGreaterThan(0);
+  const mutate = (edit: (r: PolyRecord[]) => void) => {
+    const cs = structuredClone(contexts),
+      r = polyMockRecords(0);
+    edit(r);
+    cs[0]!.lines = polyLines(encodePoly(r), 1, r.length);
+    return () => interpretPoly(cs, v1, acquired.parity);
+  };
+  expect(
+    mutate((r) => {
+      const s = r.find((v): v is PolySnapshot => v.tag === 1 && v.header[2] === 1)!;
+      s.header[10] = 1;
+    }),
+  ).toThrow('POLY_STRICT_ORDERED_MIN');
+  expect(
+    mutate((r) => {
+      const s = r.find((v): v is PolySnapshot => v.tag === 1 && v.header[2] === 2)!;
+      s.vertices[0]!.words.values[0] = 7;
+      s.vertices[0]!.words = packet(s.vertices[0]!.words.values);
+    }),
+  ).toThrow('POLY_IMMUTABLE_VERTEX');
+  const unready = new PublicParity(assembledBaseline());
+  expect(() => interpretPoly(contexts, v1, unready)).toThrow(
+    'NO_TRACE_INTERPRETATION_BEFORE_PUBLIC_PARITY',
+  );
+});
+it('V2 replays seed epoch reset chronology and strict first-in-map ties without claiming discarded trial arrays', () => {
+  const r = polyMockRecords(0),
+    snap = r.find((v): v is PolySnapshot => v.tag === 1 && v.header[2] === 1)!;
+  const f0 = snap.faces[0]!,
+    f1 = snap.faces[1]!;
+  f0.index = 0;
+  f1.index = 1;
+  snap.map = [0, 1];
+  snap.header[11] = -1;
+  expect(polyOrderedMinimum(snap).face).toBe(0);
+  snap.map = [1, 0];
+  f0.index = 1;
+  f1.index = 0;
+  expect(polyOrderedMinimum(snap).face).toBe(1);
+  const initial = r[0] as PolyMeta,
+    reset = structuredClone(initial);
+  reset.header[1] = 2;
+  reset.header[2] = 2;
+  const next = structuredClone(initial);
+  next.header[1] = 3;
+  next.header[3] = 1;
+  next.header[4] = 3;
+  for (const v of r) if (v.tag === 1) v.header[3] = 1;
+  polySeedEpochs([initial, reset, next, ...r.slice(1)]);
+  expect(() => polySeedEpochs([initial, next, ...r.slice(1)])).toThrow('POLY_SEED_EPOCH');
+  expect(() => polySeedEpochs([initial, ...r.slice(1)])).toThrow('POLY_COMMITTED_EPOCH');
+});
+it('V2 explicit exit predicates retain first/later attach distinction and reject invalid reason claims', () => {
+  const source = polyMockRecords(0).filter((r): r is PolySnapshot => r.tag === 1),
+    base = structuredClone(source.at(-1)!);
+  const make = (reason: number) => {
+    const h = structuredClone(base);
+    h.header[14] = reason;
+    return h;
+  };
+  for (const reason of [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12]) {
+    const last = make(reason),
+      support = structuredClone(source.find((r) => r.header[2] === 2)!);
+    support.header[4] = last.header[4];
+    const h = last.header,
+      s = last.scalars.values;
+    if (reason === 1) {
+      s[3] = 2;
+      s[5] = 1;
+    }
+    if (reason === 2) s[3] = 0;
+    if (reason === 3) {
+      support.scalars = packet([0, 0, 0, 1, 1, 1, 1, 1 + 5e-9, 0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+    if (reason === 4) {
+      h[4] = 0;
+      support.header[4] = 0;
+      support.scalars = packet([0, 0, 0, 1, 0.5, 0.25, 1, 0.5, 0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+    if (reason === 7) h[9] = 2;
+    if (reason === 8) {
+      h[7] = 599;
+      h[9] = 2;
+    }
+    if (reason === 11) h[8] = 0;
+    if (reason === 12) h[4] = 100;
+    const extra = structuredClone(last);
+    extra.header[2] = reason === 6 ? 3 : 4;
+    extra.header[14] = reason;
+    extra.scalars.values[8] = 0;
+    expect(() => polyExitCheck([support, extra, last])).not.toThrow();
+  }
+  expect(() => polyExitCheck([make(10)])).toThrow('POLY_LATER_ZERO_MUST_REACH_EMPTY_MAP_BRANCH');
+  const bad = make(3);
+  bad.header[4] = 1;
+  expect(() => polyExitCheck([bad])).toThrow('POLY_GAP_BRANCH');
+});
+function polyFinalLedger(l: Ledger) {
+  check(
+    same(l.position, { attempted: 4, returned: 4 }) &&
+      same(l.distance, { attempted: 4, returned: 4 }) &&
+      l.step1 === 0 &&
+      l.step2 === 0 &&
+      l.forward === 0 &&
+      l.cleanupErrors.length === 0,
+    'POLY_FINAL_EXACT_CALLS',
+  );
+  check(
+    l.handles.module.attempted === 1 &&
+      l.handles.module.returned === 1 &&
+      l.handles.model.returned === 2 &&
+      l.handles.data.returned === 2 &&
+      l.handles.buffer.returned === 4,
+    'POLY_FINAL_CREATION_CENSUS',
+  );
+  for (const [kind, c] of Object.entries(l.handles))
+    if (kind !== 'module')
+      check(
+        c.attempted === c.returned && c.returned === c.deleteAttempted && c.returned === c.deleted,
+        'POLY_FINAL_RELEASE_' + kind,
+      );
+}
+function replayPolyRecords(
+  all: ReplayRecord[],
+  historical: { baseline: unknown[]; streams: TraceContext[] },
+  sourceSha: string,
+  fixtureSha: string,
+) {
+  const header = all.find((v) => v.kind === 'header') as
+      (ReplayRecord & { schema?: string }) | undefined,
+    finish = all.at(-1);
+  check(
+    header?.schema === p.schema && header.fixture?.sha256 === fixtureSha,
+    'POLY_DISK_SOURCE_SCHEMA',
+  );
+  check(header.source?.sha256 === sourceSha, 'POLY_DISK_SOURCE_PIN');
+  check(
+    finish?.kind === 'finish' &&
+      finish.runtime === 'COMPLETE' &&
+      finish.diagnostic === 'COMPLETE' &&
+      finish.acquisition === 'CONSUMED' &&
+      finish.firstError === null,
+    'POLY_DISK_COMPLETE',
+  );
+  check(finish.ledger, 'POLY_DISK_LEDGER');
+  polyFinalLedger(finish.ledger);
+  replay(all, false);
+  const parity = new PublicParity(historical.baseline);
+  const actual = all.filter((v) => v.kind === 'position' || v.kind === 'distance');
+  actual.forEach((v) => parity.observe(v));
+  parity.complete();
+  const v1 = all
+    .filter((v) => v.kind === 'trace-api-stderr')
+    .map((v) => (v as unknown as { stream: TraceContext }).stream)
+    .filter((v) => v.kind === 'distance');
+  check(
+    same(
+      v1.map((v) => v.lines),
+      historical.streams.map((v) => v.lines),
+    ),
+    'POLY_DISK_V1_EXACT',
+  );
+  interpretTraces(v1, parity);
+  const contexts = all
+    .filter((v) => v.kind === 'polytope-api-stream')
+    .map((v) => (v as unknown as { context: PolyContext }).context);
+  check(
+    contexts.length === 8 &&
+      contexts.every(
+        (v, i) =>
+          v.kind === actual[i]!.kind &&
+          v.case === actual[i]!.case &&
+          same(v.pair ?? null, actual[i]!.pair ?? null),
+      ),
+    'POLY_DISK_ALL_API_IDENTITIES',
+  );
+  const queries = contexts.filter((v) => v.kind === 'distance');
+  for (const q of queries) {
+    const rawLines = all
+      .filter(
+        (v) =>
+          v.kind === 'polytope-stderr-raw' && (v as unknown as { query: number }).query === q.query,
+      )
+      .map((v) => (v as unknown as { text: string }).text);
+    check(same(rawLines, q.lines), 'POLY_DISK_DUPLICATE_REPRESENTATION');
+  }
+  return interpretPoly(queries, v1, parity);
+}
+function replayPolyDisk(path: string, digest: string, env: NodeJS.ProcessEnv) {
+  check(/^[0-9a-f]{64}$/.test(digest), 'POLY_REPLAY_EXPECTED_SHA256');
+  const raw = readFileSync(path);
+  check(
+    raw.length <= p.polytope.layout.externalBytes && sha(raw) === digest,
+    'POLY_DISK_RECEIPT_PIN',
+  );
+  const all = raw
+    .toString()
+    .trim()
+    .split('\n')
+    .map((v) => parseSigned(v)) as ReplayRecord[];
+  return replayPolyRecords(
+    all,
+    polyHistorical(env),
+    env.ASA_EPA_POLYTOPE_REPLAY_SOURCE_SHA256 ?? sha(readFileSync(sourcePath)),
+    sha(readFileSync(polyFixturePath)),
+  );
+}
+it.runIf(process.env.ASA_EPA_POLYTOPE_REPLAY_RECEIPT !== undefined)(
+  'replays full exclusive V2 receipt from disk with original inputs, all public/V1 parity and geometry observations, no native',
+  () => {
+    expect(
+      replayPolyDisk(
+        required(process.env, 'ASA_EPA_POLYTOPE_REPLAY_RECEIPT'),
+        required(process.env, 'ASA_EPA_POLYTOPE_REPLAY_SHA256'),
+        process.env,
+      ),
+    ).toHaveLength(4);
+  },
+);
+it('V2 executes the actual shared full receipt replay after disk roundtrip and rejects corrupted terminal resources and stream duplicates', () => {
+  const sink = memorySink(),
+    collector = new PolyCollector(sink),
+    mock = polyAssembledMock(collector),
+    l = ledger(),
+    baseline = assembledBaseline();
+  const source = sha('pure-source'),
+    fixture = sha(readFileSync(polyFixturePath));
+  sink.write({
+    kind: 'header',
+    schema: p.schema,
+    source: { sha256: source },
+    fixture: { sha256: fixture },
+  });
+  l.handles.module.attempted = l.handles.module.returned = 1;
+  collector.endStartup();
+  acquireTraceCases(mock.M, l, sink, collector, baseline);
+  sink.write({
+    kind: 'finish',
+    runtime: 'COMPLETE',
+    diagnostic: 'COMPLETE',
+    acquisition: 'CONSUMED',
+    firstError: null,
+    ledger: l,
+    polytopeStream: collector.polySnapshot(),
+    traceStream: collector.snapshot(),
+  });
+  const dir = mkdtempSync(join(tmpdir(), 'asa-poly-full-replay-')),
+    file = join(dir, 'full.jsonl');
+  try {
+    const fd = openSync(file, 'wx');
+    try {
+      for (const r of sink.events) writeSync(fd, stringifySigned(r) + '\n');
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    const all = readFileSync(file, 'utf8')
+      .trim()
+      .split('\n')
+      .map((v) => parseSigned(v)) as ReplayRecord[];
+    const historical = { baseline, streams: collector.complete() };
+    expect(replayPolyRecords(all, historical, source, fixture)).toHaveLength(4);
+    const forged = structuredClone(all);
+    forged.at(-1)!.ledger!.handles.data.deleted--;
+    expect(() => replayPolyRecords(forged, historical, source, fixture)).toThrow(
+      'POLY_FINAL_RELEASE_data',
+    );
+    const bad = structuredClone(all);
+    const r = bad.find((v) => v.kind === 'polytope-stderr-raw') as unknown as { text: string };
+    r.text += 'x';
+    expect(() => replayPolyRecords(bad, historical, source, fixture)).toThrow(
+      'POLY_DISK_DUPLICATE_REPRESENTATION',
+    );
+  } finally {
+    unlinkSync(file);
+    rmdirSync(dir);
+  }
+});
+it('V2 separates complete allocated support pool from ACTIVE hull vertices when convergence leaves an unincorporated outside support', () => {
+  const points: Vec[] = [
+    [1, 1, 1],
+    [-1, -1, 1],
+    [-1, 1, -1],
+    [1, -1, -1],
+    [4, 0, 0],
+  ];
+  const ids = [
+    [0, 2, 1],
+    [0, 1, 3],
+    [0, 3, 2],
+    [1, 2, 3],
+  ];
+  const faces: PolyFace[] = ids.map((v, id) => {
+    const a = points[v[0]!]!,
+      b = points[v[1]!]!,
+      c = points[v[2]!]!,
+      n = polyCross(polySub(b, a), polySub(c, a)),
+      d = polyDot(n, a),
+      nn = polyDot(n, n),
+      pv = n.map((x) => (x * d) / nn);
+    return {
+      id,
+      packed: v[0]! + (v[1]! << 10) + (v[2]! << 20),
+      adj: [0, 1, 2, 3].filter((i) => i !== id),
+      index: id,
+      flags: 31,
+      words: packet([...pv, (d * d) / nn]),
+    };
+  });
+  const state: PolySnapshot = {
+    tag: 1,
+    header: Array(32).fill(0) as number[],
+    scalars: packet(Array(16).fill(0) as number[]),
+    vertices: points.map((v, id) => ({
+      id,
+      indices: [0, 0],
+      flags: 7,
+      words: packet([...v, ...v, 0, 0, 0]),
+    })),
+    faces,
+    map: [0, 1, 2, 3],
+    horizon: [],
+  };
+  const observed = polyHullObservation(state);
+  expect(observed.activeVertexIDs).toEqual([0, 1, 2, 3]);
+  expect(observed.unusedVertexIDs).toEqual([4]);
+  expect(observed.issues).toEqual([]);
+  expect(observed.closedConvexOriginCandidate).toBe(true);
+  expect(observed.unusedSupportOutside[0]!.maxSignedPlaneDistance).toBeGreaterThan(0);
+});
+it('V2 ordered minimum uses pinned binary64 DBL_MAX for empty map, large legal distances, first ties and the exact sentinel boundary', () => {
+  // ac60 engine_collision_gjk.h:40 defines mjMAX_LIMIT DBL_MAX in binary64 builds.
+  const state = polyMockRecords(0).find((r): r is PolySnapshot => r.tag === 1)!;
+  state.map = [];
+  state.header[11] = -1;
+  expect(polyOrderedMinimum(state)).toEqual({ face: -1, lower: Number.MAX_VALUE });
+  state.header[11] = 3;
+  expect(polyOrderedMinimum(state)).toEqual({ face: 3, lower: Number.MAX_VALUE });
+  const set = (id: number, distanceSquared: number, index: number) => {
+    const face = state.faces[id]!;
+    face.index = index;
+    face.words = packet([...face.words.values.slice(0, 3), distanceSquared]);
+  };
+  state.map = [0, 1];
+  set(0, 3e10, 0);
+  set(1, 2e10, 1);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 1, lower: 2e10 });
+  set(0, 2e10, 0);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 0, lower: 2e10 });
+  state.map = [1, 0];
+  set(1, 2e10, 0);
+  set(0, 2e10, 1);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 1, lower: 2e10 });
+  set(0, Number.MAX_VALUE, 1);
+  set(1, Number.MAX_VALUE, 0);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 3, lower: Number.MAX_VALUE });
+  const nextBelowMax = Number.MAX_VALUE - 2 ** 971;
+  expect(nextBelowMax).toBeLessThan(Number.MAX_VALUE);
+  set(0, nextBelowMax, 1);
+  expect(polyOrderedMinimum(state)).toEqual({ face: 0, lower: nextBelowMax });
 });

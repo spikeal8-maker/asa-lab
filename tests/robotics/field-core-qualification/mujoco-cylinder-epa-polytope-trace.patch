@@ -1,0 +1,424 @@
+--- a/src/engine/engine_collision_gjk.c
++++ b/src/engine/engine_collision_gjk.c
+@@ -16,0 +17,3 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN include
++#include <stdio.h>
++// ASA_PRIMARY_EPA_TRACE_END include
+@@ -124,0 +128,131 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN helpers
++// TEST_ONLY observation of four preregistered direct EPA queries. No support/math replacement.
++_Static_assert(sizeof(mjtNum) == 8, "ASA primary EPA trace requires binary64");
++_Static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "ASA trace requires WASM little endian");
++typedef struct {
++  const mjCCDConfig* config;
++  const mjCCDObj* obj1;
++  const mjCCDObj* obj2;
++  int query;
++  int copied;
++  int packed;
++  int face_index;
++  int nverts, nfaces, nmap;
++  int ids[3];
++  Vertex vertex[3];
++  mjtNum lambda[3], face_v[3], dist2, x1[3], x2[3];
++} ASAPrimaryTrace;
++
++typedef struct { int first, second; uint64_t bits[30]; } ASAPrimaryFilter;
++static const ASAPrimaryFilter asa_primary_filters[4] = {
++  {5, 1, {UINT64_C(0x3ff334060d0f8f17), UINT64_C(0x3fb0a3d6356f1468), UINT64_C(0x3fb998f4c9cc7e84), UINT64_C(0x3febef9d752d6ff1), UINT64_C(0xbfdf36cfaab00b18), UINT64_C(0xbe5429fe73000000), UINT64_C(0x3e0f4fdd90000000), UINT64_C(0xbe63cbc57e800000), UINT64_C(0x3feffffffffffff7), UINT64_C(0xbfdf36cfaab00b1e), UINT64_C(0xbfebef9d752d6feb), UINT64_C(0xbe610b13f4000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff00000016b9190), UINT64_C(0x0000000000000000), UINT64_C(0xbf530cc09ace5916), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0xbff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3fb23720026b3978), UINT64_C(0x3fe0000000000012), UINT64_C(0x3ff00000016b91a2)}},
++  {6, 1, {UINT64_C(0x3ff334060db752e1), UINT64_C(0xbfb0a3d7df0bccd6), UINT64_C(0x3fb998f4db861864), UINT64_C(0x3febef9d752d6ff1), UINT64_C(0xbfdf36cfaab00b18), UINT64_C(0xbe5429fe73000000), UINT64_C(0x3e0f4fdd90000000), UINT64_C(0xbe63cbc57e800000), UINT64_C(0x3feffffffffffff7), UINT64_C(0xbfdf36cfaab00b1e), UINT64_C(0xbfebef9d752d6feb), UINT64_C(0xbe610b13f4000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff00000016b9190), UINT64_C(0x0000000000000000), UINT64_C(0xbf530cc09ace5916), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0xbff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x3ff0000000000012), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x3fb23720026b3978), UINT64_C(0x3fe0000000000012), UINT64_C(0x3ff00000016b91a2)}},
++  {7, 3, {UINT64_C(0x3ff33287b38e9ca2), UINT64_C(0x3fb0a3d6e4ebdc39), UINT64_C(0x3fb998f3cc274375), UINT64_C(0x3fec1fedc47b07fb), UINT64_C(0xbfde875759cd751f), UINT64_C(0x3e4e45460e000000), UINT64_C(0xbe5d3d1634000000), UINT64_C(0xbe56249c8b000000), UINT64_C(0x3ff0000000000000), UINT64_C(0xbfde875759cd7515), UINT64_C(0xbfec1fedc47b07fa), UINT64_C(0xbe60b44c12000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff8b8bd231ad4a9), UINT64_C(0x0000000000000000), UINT64_C(0xbf74e493b5394498), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0xbfeff7f34862c751), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0xbff000000000000c), UINT64_C(0x3feff7f34862c751), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0x0000000000000000), UINT64_C(0x3faecbfebaf2fade), UINT64_C(0x3fdd36530e44266c), UINT64_C(0x3fe000000000000c)}},
++  {8, 3, {UINT64_C(0x3ff33287b310afa8), UINT64_C(0xbfb0a3d72f8f050b), UINT64_C(0x3fb998f3dd869ccf), UINT64_C(0x3fec1fedc47b07fb), UINT64_C(0xbfde875759cd751f), UINT64_C(0x3e4e45460e000000), UINT64_C(0xbe5d3d1634000000), UINT64_C(0xbe56249c8b000000), UINT64_C(0x3ff0000000000000), UINT64_C(0xbfde875759cd7515), UINT64_C(0xbfec1fedc47b07fa), UINT64_C(0xbe60b44c12000000), UINT64_C(0x3f9eb851eb851eb8), UINT64_C(0x3f847ae147ae147b), UINT64_C(0x0000000000000000), UINT64_C(0x3ff8b8bd231ad4a9), UINT64_C(0x0000000000000000), UINT64_C(0xbf74e493b5394498), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0xbfeff7f34862c751), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0x0000000000000000), UINT64_C(0xbff000000000000c), UINT64_C(0x3feff7f34862c751), UINT64_C(0x3fa6b125f2a00e40), UINT64_C(0x0000000000000000), UINT64_C(0x3faecbfebaf2fade), UINT64_C(0x3fdd36530e44266c), UINT64_C(0x3fe000000000000c)}}
++};
++
++static uint64_t asa_primary_bits(const mjtNum* value) {
++  uint64_t bits;
++  memcpy(&bits, value, sizeof(bits));
++  return bits;
++}
++
++static int asa_primary_query(const mjCCDConfig* config, const mjCCDObj* obj1,
++                             const mjCCDObj* obj2) {
++  if (config->max_iterations != 100 || config->max_contacts != 1 ||
++      config->npolygonmax != 0 || config->nmeshdegmax != 0 || !config->buffer ||
++      asa_primary_bits(&config->tolerance) != UINT64_C(0x3e45798ee2308c3a) ||
++      asa_primary_bits(&config->dist_cutoff) != 0 ||
++      obj1->geom_type != mjGEOM_CYLINDER || obj2->geom_type != mjGEOM_MESH ||
++      asa_primary_bits(&obj1->margin) != 0 || asa_primary_bits(&obj2->margin) != 0) {
++    return 0;
++  }
++  for (int q = 0; q < 4; q++) {
++    const ASAPrimaryFilter* expected = &asa_primary_filters[q];
++    if (obj1->geom != expected->first || obj2->geom != expected->second) continue;
++    const mjtNum* pieces[6] = {obj1->pos, obj1->mat, obj1->size,
++                                obj2->pos, obj2->mat, obj2->size};
++    const int widths[6] = {3, 9, 3, 3, 9, 3};
++    int equal = 1, at = 0;
++    for (int p = 0; p < 6; p++) {
++      for (int j = 0; j < widths[p]; j++, at++) {
++        if (asa_primary_bits(&pieces[p][j]) != expected->bits[at]) equal = 0;
++      }
++    }
++    if (equal) return q + 1;
++  }
++  return 0;
++}
++
++static void asa_primary_snapshot(ASAPrimaryTrace* trace, const Polytope* pt,
++                                  const Face* face, const int ids[3], const mjtNum lambda[3],
++                                  const mjtNum x1[3], const mjtNum x2[3]) {
++  if (!trace->query) return;
++  trace->copied++;
++  trace->packed = face->verts;
++  trace->face_index = face->index;
++  trace->nverts = pt->nverts;
++  trace->nfaces = pt->nfaces;
++  trace->nmap = pt->nmap;
++  memcpy(trace->ids, ids, sizeof(trace->ids));
++  for (int i = 0; i < 3; i++) trace->vertex[i] = pt->verts[ids[i]];
++  memcpy(trace->lambda, lambda, sizeof(trace->lambda));
++  memcpy(trace->face_v, face->v, sizeof(trace->face_v));
++  trace->dist2 = face->dist2;
++  memcpy(trace->x1, x1, sizeof(trace->x1));
++  memcpy(trace->x2, x2, sizeof(trace->x2));
++}
++
++static int asa_primary_append(mjtNum* out, int at, const mjtNum* values, int count) {
++  memcpy(out + at, values, sizeof(mjtNum) * count);
++  return at + count;
++}
++
++static void asa_primary_emit(const ASAPrimaryTrace* trace, const mjCCDStatus* status) {
++  if (!trace->query || !trace->copied) return;
++  const mjCCDConfig* c = trace->config;
++  const mjCCDObj* a = trace->obj1;
++  const mjCCDObj* b = trace->obj2;
++  const int ints[32] = {trace->query, a->geom, b->geom, a->geom_type, b->geom_type,
++    c->max_iterations, c->max_contacts, c->npolygonmax, c->nmeshdegmax,
++    status->gjk_iterations, status->epa_iterations, status->epa_status, status->nx,
++    trace->packed, trace->face_index, trace->nverts, trace->nfaces, trace->nmap,
++    trace->ids[0], trace->ids[1], trace->ids[2],
++    trace->vertex[0].index1, trace->vertex[0].index2,
++    trace->vertex[1].index1, trace->vertex[1].index2,
++    trace->vertex[2].index1, trace->vertex[2].index2,
++    a->nsupp, b->nsupp, b->data.mesh.nvert, b->data.mesh.graph != NULL, trace->copied};
++  mjtNum words[75];
++  int at = 0;
++  at = asa_primary_append(words, at, trace->lambda, 3);
++  at = asa_primary_append(words, at, trace->face_v, 3);
++  at = asa_primary_append(words, at, &trace->dist2, 1);
++  for (int i = 0; i < 3; i++) {
++    at = asa_primary_append(words, at, trace->vertex[i].vert, 3);
++    at = asa_primary_append(words, at, trace->vertex[i].vert1, 3);
++    at = asa_primary_append(words, at, trace->vertex[i].vert2, 3);
++  }
++  at = asa_primary_append(words, at, trace->x1, 3);
++  at = asa_primary_append(words, at, trace->x2, 3);
++  at = asa_primary_append(words, at, &status->dist[0], 1);
++  at = asa_primary_append(words, at, a->pos, 3);
++  at = asa_primary_append(words, at, a->mat, 9);
++  at = asa_primary_append(words, at, a->size, 3);
++  at = asa_primary_append(words, at, &a->margin, 1);
++  at = asa_primary_append(words, at, b->pos, 3);
++  at = asa_primary_append(words, at, b->mat, 9);
++  at = asa_primary_append(words, at, b->size, 3);
++  at = asa_primary_append(words, at, &b->margin, 1);
++  at = asa_primary_append(words, at, &c->tolerance, 1);
++  at = asa_primary_append(words, at, &c->dist_cutoff, 1);
++  // All values above are copies of completed operations, never reconstructed support/results.
++  // One line only. No floating-point printf conversion and no new WASM/public binding.
++  fputs("ASA_PRIMARY_EPA_V1 ints=", stderr);
++  for (int i = 0; i < 32; i++) fprintf(stderr, "%s%d", i ? "," : "", ints[i]);
++  fputs(" f64le=", stderr);
++  const unsigned char* raw = (const unsigned char*)words;
++  for (int i = 0; i < at * (int)sizeof(mjtNum); i++) fprintf(stderr, "%02x", raw[i]);
++  fputc('\n', stderr);
++}
++// ASA_PRIMARY_EPA_TRACE_END helpers
++
+@@ -143 +277,2 @@
+-static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2);
++static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
++                 ASAPrimaryTrace* asa_trace);
+@@ -414,0 +550,142 @@
++// ASA_EPA_V2_BEGIN helpers
++// TEST_ONLY separate recorder; never used as native CCD scratch or numerical input.
++_Static_assert(sizeof(int) == 4 && sizeof(void*) == 4, "V2 WASM32 ABI");
++_Static_assert(sizeof(Vertex) == 80 && sizeof(Face) == 56, "V2 original EPA ABI");
++enum { ASA_V2_CAP = 196608, ASA_V2_MAIN = 188416 };
++typedef struct {
++  unsigned char raw[ASA_V2_CAP], defined[600];
++  int query, used, records, snapshots, visits, metadata, epoch, committed;
++  int error, error_k, error_nv, error_nf, error_nm, error_nh;
++  int k, face, previous, support, attach, reason, attach_ret, mask;
++  mjtNum scalars[16];
++} ASAPolyTrace;
++static ASAPolyTrace asa_poly;
++static int asa_poly_face(const Polytope* pt, const Face* face) {
++  if (!face) return -1;
++  ptrdiff_t id = face - pt->faces;
++  return id >= 0 && id < pt->nfaces ? (int)id : -2;
++}
++static void asa_poly_error(int code, const Polytope* pt) {
++  if (!asa_poly.query || asa_poly.error) return;
++  asa_poly.error = code; asa_poly.error_k = asa_poly.k;
++  if (pt) {
++    asa_poly.error_nv = pt->nverts; asa_poly.error_nf = pt->nfaces;
++    asa_poly.error_nm = pt->nmap; asa_poly.error_nh = pt->horizon.nedges;
++  }
++}
++static void asa_poly_put(const void* src, int n, int reserved) {
++  if (asa_poly.error && !reserved) return;
++  int limit = reserved ? ASA_V2_CAP : ASA_V2_MAIN;
++  if (n < 0 || asa_poly.used > limit - n) { asa_poly_error(1, NULL); return; }
++  memcpy(asa_poly.raw + asa_poly.used, src, n); asa_poly.used += n;
++}
++static void asa_poly_meta(int kind, const Polytope* pt, int value) {
++  if (!asa_poly.query || asa_poly.error) return;
++  if (++asa_poly.metadata > 16) { asa_poly_error(2, pt); return; }
++  unsigned char tag = 2;
++  int h[16] = {asa_poly.query, ++asa_poly.records, kind, asa_poly.epoch, value,
++    pt ? pt->nverts : 0, pt ? pt->nfaces : 0, pt ? pt->nmap : 0};
++  asa_poly_put(&tag, 1, 0); asa_poly_put(h, sizeof(h), 0);
++}
++static void asa_poly_begin(int query) {
++  memset(&asa_poly, 0, sizeof(asa_poly));
++  asa_poly.query = query; asa_poly.k = -1;
++  asa_poly.face = asa_poly.previous = asa_poly.support = asa_poly.attach = -1;
++}
++static void asa_poly_reset(const Polytope* pt) {
++  asa_poly_meta(2, pt, 0); asa_poly.epoch++;
++  memset(asa_poly.defined, 0, sizeof(asa_poly.defined));
++}
++static void asa_poly_defined(const Polytope* pt, int success, int complete) {
++  if (!asa_poly.query || asa_poly.error) return;
++  int id = pt->nfaces - 1;
++  if (id < 0 || id >= 600) { asa_poly_error(3, pt); return; }
++  asa_poly.defined[id] = complete ? 31 : (success ? 7 : 3);
++}
++static void asa_poly_snapshot(int kind, const Polytope* pt) {
++  if (!asa_poly.query || asa_poly.error) return;
++  if (pt->nverts < 0 || pt->nverts > 16 || pt->nfaces < 0 || pt->nfaces > 24 ||
++      pt->nmap < 0 || pt->nmap > 24 || pt->horizon.nedges < 0 ||
++      pt->horizon.nedges > 89 || asa_poly.visits > 8 || ++asa_poly.snapshots > 46) {
++    asa_poly_error(4, pt); return;
++  }
++  // 1 U8 + 32 I32 + 16 F64, followed by bounded explicitly encoded rows.
++  unsigned char tag = 1;
++  int h[32] = {asa_poly.query, ++asa_poly.records, kind, asa_poly.epoch,
++    asa_poly.k, asa_poly.mask, pt->nverts, pt->nfaces, pt->nmap, pt->horizon.nedges,
++    asa_poly.face, asa_poly.previous, asa_poly.support, asa_poly.attach,
++    asa_poly.reason, asa_poly.attach_ret, asa_poly.visits, asa_poly.committed,
++    100, 105, 600, 600, 89};
++  mjtNum s[16]; memcpy(s, asa_poly.scalars, sizeof(s));
++  if (asa_poly.committed) memcpy(s, pt->center, sizeof(pt->center));
++  asa_poly_put(&tag, 1, 0); asa_poly_put(h, sizeof(h), 0); asa_poly_put(s, sizeof(s), 0);
++  for (int i = 0; i < pt->nverts; i++) {
++    const Vertex* v = pt->verts + i;
++    int row[4] = {i, v->index1, v->index2, 7};
++    asa_poly_put(row, sizeof(row), 0);
++    asa_poly_put(v->vert, sizeof(v->vert), 0);
++    asa_poly_put(v->vert1, sizeof(v->vert1), 0);
++    asa_poly_put(v->vert2, sizeof(v->vert2), 0);
++  }
++  for (int i = 0; i < pt->nfaces; i++) {
++    const Face* f = pt->faces + i;
++    int flags = asa_poly.defined[i];
++    int row[8] = {i, 0, 0, 0, 0, 0, flags, 0};
++    mjtNum vals[4] = {0};
++    if (flags & 1) row[1] = f->verts;
++    if (flags & 2) memcpy(row + 2, f->adj, sizeof(f->adj));
++    if (flags & 4) memcpy(vals, f->v, sizeof(f->v));
++    if (flags & 8) vals[3] = f->dist2;
++    if (flags & 16) row[5] = f->index;
++    asa_poly_put(row, sizeof(row), 0); asa_poly_put(vals, sizeof(vals), 0);
++  }
++  for (int i = 0; i < pt->nmap; i++) {
++    int id = asa_poly_face(pt, pt->map[i]); asa_poly_put(&id, sizeof(id), 0);
++  }
++  // horizon nedges may exceed native allocation on error; reject before reading arrays.
++  for (int i = 0; i < pt->horizon.nedges; i++) {
++    int row[2] = {pt->horizon.indices[i], pt->horizon.edges[i]};
++    asa_poly_put(row, sizeof(row), 0);
++  }
++}
++static void asa_poly_select(const Polytope* pt, const Face* f, const Face* prev,
++                            int k, mjtNum lo2, mjtNum up, mjtNum up2) {
++  if (!asa_poly.query || asa_poly.error) return;
++  asa_poly.k = k; asa_poly.visits++;
++  asa_poly.face = asa_poly_face(pt, f); asa_poly.previous = asa_poly_face(pt, prev);
++  asa_poly.support = asa_poly.attach = -1; asa_poly.mask = 1;
++  asa_poly.scalars[3] = lo2; asa_poly.scalars[4] = up; asa_poly.scalars[5] = up2;
++  asa_poly_snapshot(1, pt);
++}
++static void asa_poly_support(const Polytope* pt, int wi, mjtNum lower, mjtNum uk,
++                             mjtNum up, mjtNum up2) {
++  asa_poly.support = wi; asa_poly.mask |= 2;
++  asa_poly.scalars[4] = up; asa_poly.scalars[5] = up2;
++  asa_poly.scalars[6] = lower; asa_poly.scalars[7] = uk;
++  asa_poly_snapshot(2, pt);
++}
++static void asa_poly_attach(const Polytope* pt, mjtNum ret) {
++  asa_poly.attach = pt->nfaces - 1; asa_poly.scalars[8] = ret;
++  asa_poly.attach_ret = ret == 0 ? 0 : 1; asa_poly.mask |= 4;
++  asa_poly_snapshot(4, pt);
++}
++static void asa_poly_emit(void) {
++  if (!asa_poly.query) return;
++  unsigned char tag = 3;
++  int footer[16] = {asa_poly.query, ++asa_poly.records, asa_poly.error,
++    asa_poly.error_k, asa_poly.error_nv, asa_poly.error_nf, asa_poly.error_nm,
++    asa_poly.error_nh, asa_poly.snapshots, asa_poly.visits, asa_poly.reason,
++    asa_poly.metadata, asa_poly.used};
++  asa_poly_put(&tag, 1, 1); asa_poly_put(footer, sizeof(footer), 1);
++  int chunks = (asa_poly.used + 1023) / 1024;
++  for (int i = 0; i < chunks; i++) {
++    int n = asa_poly.used - i * 1024; if (n > 1024) n = 1024;
++    fprintf(stderr, "ASA_EPA_POLYTOPE_V2 q=%d chunk=%d bytes=%d total=%d hex=",
++            asa_poly.query, i, n, asa_poly.used);
++    for (int j = 0; j < n; j++) fprintf(stderr, "%02x", asa_poly.raw[i * 1024 + j]);
++    fputc('\n', stderr);
++  }
++  fprintf(stderr, "ASA_EPA_POLYTOPE_V2_END q=%d chunks=%d bytes=%d error=%d records=%d\n",
++          asa_poly.query, chunks, asa_poly.used, asa_poly.error, asa_poly.records);
++}
++// ASA_EPA_V2_END helpers
+@@ -841,0 +1119,3 @@
++// ASA_EPA_V2_BEGIN reset
++  asa_poly_reset(pt);
++// ASA_EPA_V2_END reset
+@@ -871,0 +1152,3 @@
++// ASA_EPA_V2_BEGIN reset
++  asa_poly_reset(pt);
++// ASA_EPA_V2_END reset
+@@ -993,0 +1277,3 @@
++// ASA_EPA_V2_BEGIN seed
++  asa_poly_meta(1, pt, 2);
++// ASA_EPA_V2_END seed
+@@ -1223,0 +1510,3 @@
++// ASA_EPA_V2_BEGIN seed
++  asa_poly_meta(1, pt, 3);
++// ASA_EPA_V2_END seed
+@@ -1361,0 +1651,3 @@
++// ASA_EPA_V2_BEGIN seed
++  asa_poly_meta(1, pt, 4);
++// ASA_EPA_V2_END seed
+@@ -1460,0 +1753,3 @@
++// ASA_EPA_V2_BEGIN defined
++  asa_poly_defined(pt, ret == 0, 0);
++// ASA_EPA_V2_END defined
+@@ -1473,0 +1769,3 @@
++// ASA_EPA_V2_BEGIN complete
++  asa_poly_defined(pt, 1, 1);
++// ASA_EPA_V2_END complete
+@@ -1549 +1847,2 @@
+-static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3]) {
++static mjtNum epaWitness(const Polytope* pt, const Face* face, mjtNum x1[3], mjtNum x2[3],
++                          ASAPrimaryTrace* asa_trace) {
+@@ -1562,0 +1862,3 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN snapshot
++  asa_primary_snapshot(asa_trace, pt, face, verts, lambda, x1, x2);
++// ASA_PRIMARY_EPA_TRACE_END snapshot
+@@ -1570 +1872,2 @@
+-static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2) {
++static Face* epa(mjCCDStatus* status, Polytope* pt, mjCCDObj* obj1, mjCCDObj* obj2,
++                 ASAPrimaryTrace* asa_trace) {
+@@ -1579,0 +1883,4 @@
++// ASA_EPA_V2_BEGIN seedcommit
++  asa_poly.committed = 1;
++  asa_poly_snapshot(0, pt);
++// ASA_EPA_V2_END seedcommit
+@@ -1592,0 +1900,3 @@
++// ASA_EPA_V2_BEGIN select
++    asa_poly_select(pt, face, pface, k, lower2, upper, upper2);
++// ASA_EPA_V2_END select
+@@ -1594,0 +1905,3 @@
++// ASA_EPA_V2_BEGIN invalid
++      asa_poly.reason = 1;
++// ASA_EPA_V2_END invalid
+@@ -1600,0 +1914,3 @@
++// ASA_EPA_V2_BEGIN zero
++      asa_poly.reason = 2;
++// ASA_EPA_V2_END zero
+@@ -1612,0 +1929,3 @@
++// ASA_EPA_V2_BEGIN support
++    asa_poly_support(pt, wi, lower, upper_k, upper, upper2);
++// ASA_EPA_V2_END support
+@@ -1613,0 +1933,3 @@
++// ASA_EPA_V2_BEGIN gap
++      asa_poly.reason = 3;
++// ASA_EPA_V2_END gap
+@@ -1619,0 +1942,3 @@
++// ASA_EPA_V2_BEGIN noncontact
++        asa_poly.reason = 4;
++// ASA_EPA_V2_END noncontact
+@@ -1632,0 +1958,3 @@
++// ASA_EPA_V2_BEGIN repeated
++        asa_poly.reason = 5;
++// ASA_EPA_V2_END repeated
+@@ -1638,0 +1967,4 @@
++// ASA_EPA_V2_BEGIN horizonerror
++      asa_poly.reason = 6;
++      asa_poly_snapshot(3, pt);
++// ASA_EPA_V2_END horizonerror
+@@ -1646,0 +1979,3 @@
++// ASA_EPA_V2_BEGIN horizon
++    asa_poly_snapshot(3, pt);
++// ASA_EPA_V2_END horizon
+@@ -1648,0 +1984,3 @@
++// ASA_EPA_V2_BEGIN horizonshort
++      asa_poly.reason = 7;
++// ASA_EPA_V2_END horizonshort
+@@ -1657,0 +1996,3 @@
++// ASA_EPA_V2_BEGIN capacity
++      asa_poly.reason = 8;
++// ASA_EPA_V2_END capacity
+@@ -1672,0 +2014,4 @@
++// ASA_EPA_V2_BEGIN firstzero
++      asa_poly.reason = 9;
++      asa_poly_attach(pt, dist2);
++// ASA_EPA_V2_END firstzero
+@@ -1682,0 +2028,3 @@
++// ASA_EPA_V2_BEGIN attach
++    asa_poly_attach(pt, dist2);
++// ASA_EPA_V2_END attach
+@@ -1698,0 +2047,4 @@
++// ASA_EPA_V2_BEGIN laterzero
++        asa_poly.reason = 10;
++        asa_poly_attach(pt, dist2);
++// ASA_EPA_V2_END laterzero
+@@ -1707,0 +2060,3 @@
++// ASA_EPA_V2_BEGIN attachnext
++      asa_poly_attach(pt, dist2);
++// ASA_EPA_V2_END attachnext
+@@ -1712,0 +2068,3 @@
++// ASA_EPA_V2_BEGIN emptymap
++      asa_poly.reason = 11;
++// ASA_EPA_V2_END emptymap
+@@ -1717,0 +2076,5 @@
++// ASA_EPA_V2_BEGIN exit
++  if (!asa_poly.reason) asa_poly.reason = 12;
++  asa_poly.k = k; asa_poly.face = asa_poly_face(pt, face);
++  asa_poly_snapshot(5, pt);
++// ASA_EPA_V2_END exit
+@@ -1719 +2082 @@
+-    status->dist[0] = epaWitness(pt, face, status->x1, status->x2);
++    status->dist[0] = epaWitness(pt, face, status->x1, status->x2, asa_trace);
+@@ -1733,0 +2097,6 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN emit
++  asa_primary_emit(asa_trace, status);
++// ASA_EPA_V2_BEGIN emit
++  asa_poly_emit();
++// ASA_EPA_V2_END emit
++// ASA_PRIMARY_EPA_TRACE_END emit
+@@ -2753,0 +3123,7 @@
++// ASA_PRIMARY_EPA_TRACE_BEGIN context
++  ASAPrimaryTrace asa_trace = {.config = config, .obj1 = obj1, .obj2 = obj2,
++                              .query = asa_primary_query(config, obj1, obj2)};
++// ASA_EPA_V2_BEGIN context
++  asa_poly_begin(asa_trace.query);
++// ASA_EPA_V2_END context
++// ASA_PRIMARY_EPA_TRACE_END context
+@@ -2883 +3259 @@
+-      Face* face = epa(status, &pt, obj1, obj2);
++      Face* face = epa(status, &pt, obj1, obj2, &asa_trace);
