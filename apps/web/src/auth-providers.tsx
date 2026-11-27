@@ -444,25 +444,43 @@ export function SocialAuthButtons({
         />
       ) : (
         <>
-          <div className="auth-social-buttons">
-            {available.map((provider) => (
-              <button
-                key={provider.id}
-                type="button"
-                className={`btn-secondary auth-provider-button auth-provider-${provider.id}`}
-                disabled={disabled || starting !== null || flow !== null}
-                onClick={() => void start(provider.id)}
-              >
-                <span className="auth-provider-mark" aria-hidden="true">
-                  {provider.id === 'max' ? 'M' : 'T'}
-                </span>
-                <span>
-                  {starting === provider.id
-                    ? 'Открываем…'
-                    : `${purpose === 'link' ? linkActionLabel : purpose === 'register' ? 'Создать через' : 'Войти через'} ${SOCIAL_PROVIDER_LABELS[provider.id]}`}
-                </span>
-              </button>
-            ))}
+          <div
+            className={
+              purpose === 'login'
+                ? 'auth-social-buttons auth-social-provider-row'
+                : 'auth-social-buttons'
+            }
+          >
+            {available.map((provider) => {
+              const name = SOCIAL_PROVIDER_LABELS[provider.id];
+              const action =
+                purpose === 'link'
+                  ? linkActionLabel
+                  : purpose === 'register'
+                    ? 'Создать через'
+                    : 'Войти через';
+              const label = starting === provider.id ? 'Открываем…' : `${action} ${name}`;
+              const loginLabel = provider.id === 'max' ? 'Max' : name;
+              return (
+                <button
+                  key={provider.id}
+                  type="button"
+                  className={`btn-secondary auth-provider-button auth-provider-${provider.id}`}
+                  aria-label={purpose === 'login' ? `Войти через ${name}` : undefined}
+                  disabled={disabled || starting !== null || flow !== null}
+                  onClick={() => void start(provider.id)}
+                >
+                  {purpose === 'login' ? (
+                    <img src={`/assets/auth/${provider.id}.png`} width={24} height={24} alt="" />
+                  ) : (
+                    <span className="auth-provider-mark" aria-hidden="true">
+                      {provider.id === 'max' ? 'M' : 'T'}
+                    </span>
+                  )}
+                  <span>{purpose === 'login' ? loginLabel : label}</span>
+                </button>
+              );
+            })}
           </div>
           {starting ? (
             <div className="auth-social-actions" role="status">

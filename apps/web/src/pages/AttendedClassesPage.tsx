@@ -48,7 +48,7 @@ export function AttendedClassesPage({
     readonly (SeatAssignment & { classroomTitle: string })[]
   >([]);
   const [code, setCode] = useState('');
-  const [showCode, setShowCode] = useState(false);
+  const [showCode, setShowCode] = useState(true);
   const [busy, setBusy] = useState(false);
   const starter = useRef(new AtomicLearningStarter());
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +102,7 @@ export function AttendedClassesPage({
       return;
     }
     setCode('');
-    setShowCode(false);
+    setShowCode(true);
     setNotice(
       result.data.alreadyMember
         ? `Вы уже учитесь в классе «${result.data.classroom.title}».`
