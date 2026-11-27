@@ -55,6 +55,9 @@ const number = (value: number, digits = 1) =>
   value.toLocaleString('ru-RU', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const ROBOTICS_SIDE_STORAGE_KEY = 'asa-lab:robotics:side-width:v1';
 const ROBOTICS_EDITOR_STORAGE_KEY = 'asa-lab:robotics:editor-width:v1';
+const ROBOTICS_OBSERVATION_STORAGE_KEY = 'asa-lab:robotics:electronics-observation-width:v1';
+const ROBOTICS_OBSERVATION_MIN = 200;
+const ROBOTICS_OBSERVATION_MAX = 360;
 const ROBOTICS_EDITOR_MIN = 320;
 const ROBOTICS_FIELD_MIN = 640;
 const ROBOTICS_SIDE_MIN = 180;
@@ -372,24 +375,57 @@ export function RoboticsWorkspace({
       return 480;
     }
   });
+  const [observationPreference, setObservationPreference] = useState(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(ROBOTICS_OBSERVATION_STORAGE_KEY));
+      if (Number.isFinite(saved) && saved >= ROBOTICS_OBSERVATION_MIN)
+        return Math.min(saved, ROBOTICS_OBSERVATION_MAX);
+    } catch {
+      /* The local preference is optional. */
+    }
+    return 240;
+  });
+  const [observationSubject, setObservationSubject] = useState<'field' | 'robot'>('field');
   const [workspaceWidth, setWorkspaceWidth] = useState(window.innerWidth);
   const [compactLayout, setCompactLayout] = useState(() => window.innerWidth <= 760);
-  const split = section === 'electronics' || section === 'program';
+  const electronicsObserver = section === 'electronics';
+  const split = electronicsObserver || section === 'program';
   const compactSplit = split && workspaceWidth < 1024;
   const [pane, setPane] = useState<'editor' | 'field'>('editor');
-  const paneLayout = useRef({ section, pane, compactSplit });
-  paneLayout.current = { section, pane, compactSplit };
+  const paneLayout = useRef({ section, pane, compactSplit, observationSubject });
+  paneLayout.current = { section, pane, compactSplit, observationSubject };
   const [shortcutOwner, setShortcutOwner] = useState<'editor' | 'field' | 'none'>('none');
   const [codeDrawerOpen, setCodeDrawerOpen] = useState(false);
   const codeDrawerVisible = section === 'electronics' && codeDrawerOpen;
   const editorVisible = split && (!compactSplit || pane === 'editor');
-  const fieldVisible = section === 'field' || (split && (!compactSplit || pane === 'field'));
+  const observationVisible = split && (!compactSplit || pane === 'field');
+  const fieldVisible =
+    section === 'field' ||
+    (observationVisible && (!electronicsObserver || observationSubject === 'field'));
+  const robotVisible =
+    section === 'robot' ||
+    (electronicsObserver && observationVisible && observationSubject === 'robot');
   const editorMaximum = Math.max(
     ROBOTICS_EDITOR_MIN,
     Math.min(960, workspaceWidth - ROBOTICS_FIELD_MIN),
   );
   const editorWidth = Math.max(ROBOTICS_EDITOR_MIN, Math.min(editorMaximum, editorPreference));
-  const paneWidth = split ? editorWidth : sideWidth;
+  const observationMaximum = Math.max(
+    ROBOTICS_OBSERVATION_MIN,
+    Math.min(ROBOTICS_OBSERVATION_MAX, workspaceWidth - ROBOTICS_FIELD_MIN),
+  );
+  const observationWidth = Math.min(observationPreference, observationMaximum);
+  const paneWidth = electronicsObserver ? observationWidth : split ? editorWidth : sideWidth;
+  const paneMinimum = electronicsObserver
+    ? ROBOTICS_OBSERVATION_MIN
+    : split
+      ? ROBOTICS_EDITOR_MIN
+      : ROBOTICS_SIDE_MIN;
+  const paneMaximum = electronicsObserver
+    ? observationMaximum
+    : split
+      ? editorMaximum
+      : Math.max(ROBOTICS_SIDE_MIN, Math.min(ROBOTICS_SIDE_MAX, Math.floor(workspaceWidth / 2)));
   const sideDragRef = useRef<{ pointerId: number; clientX: number; width: number } | null>(null);
   const separatorRef = useRef<HTMLDivElement>(null);
   const circuitPointer = useRef<{ target: SVGSVGElement; id: number; type: string } | null>(null);
@@ -426,13 +462,13 @@ export function RoboticsWorkspace({
     if (circuitPointer.current?.id === event.pointerId) cancelCircuitGesture();
   }
   const fieldPanelRef = useRef<HTMLElement>(null);
+  const robotPanelRef = useRef<HTMLElement>(null);
   const lastPaneFocus = useRef<Partial<Record<'editor' | 'field', HTMLElement>>>({});
   function updateSideWidth(value: number): void {
-    if (split)
-      setEditorPreference(
-        Math.max(ROBOTICS_EDITOR_MIN, Math.min(editorMaximum, Math.round(value))),
-      );
-    else setSideWidth(roboticsSideWidth(value, workspaceWidth));
+    const width = Math.max(paneMinimum, Math.min(paneMaximum, Math.round(value)));
+    if (electronicsObserver) setObservationPreference(width);
+    else if (split) setEditorPreference(width);
+    else setSideWidth(width);
   }
   function cancelSideDrag(): void {
     const current = sideDragRef.current;
@@ -465,13 +501,9 @@ export function RoboticsWorkspace({
         : event.key === 'ArrowRight'
           ? paneWidth + step
           : event.key === 'Home'
-            ? split
-              ? ROBOTICS_EDITOR_MIN
-              : ROBOTICS_SIDE_MIN
+            ? paneMinimum
             : event.key === 'End'
-              ? split
-                ? editorMaximum
-                : Math.min(ROBOTICS_SIDE_MAX, workspaceWidth / 2)
+              ? paneMaximum
               : null;
     if (next === null) return;
     event.preventDefault();
@@ -492,6 +524,13 @@ export function RoboticsWorkspace({
       /* A narrow viewport never replaces the desktop preference. */
     }
   }, [editorPreference]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ROBOTICS_OBSERVATION_STORAGE_KEY, String(observationPreference));
+    } catch {
+      /* A narrow viewport never replaces the desktop preference. */
+    }
+  }, [observationPreference]);
   useLayoutEffect(() => {
     let measuredWidth = workspaceRef.current?.clientWidth || window.innerWidth;
     const measure = () => {
@@ -914,19 +953,22 @@ export function RoboticsWorkspace({
       if (current.section !== fromSection || current.pane !== next || !current.compactSplit) return;
       const host =
         next === 'field'
-          ? fieldPanelRef.current
+          ? electronicsObserver && current.observationSubject === 'robot'
+            ? robotPanelRef.current
+            : fieldPanelRef.current
           : section === 'program' || codeDrawerVisible
             ? codeHostRef.current
             : stageHostRef.current;
-      const candidates = host?.querySelectorAll<HTMLElement>('textarea, [tabindex="0"], button');
+      if (!host || host.closest('[hidden], [inert]')) return;
+      const candidates = host.querySelectorAll<HTMLElement>('textarea, [tabindex="0"], button');
       const usable = (node: HTMLElement) =>
-        host?.contains(node) &&
+        host.contains(node) &&
         node.getClientRects().length > 0 &&
         !node.closest('[hidden], [inert]') &&
         !node.matches(':disabled, [aria-disabled="true"]');
       const previous = lastPaneFocus.current[next];
-      const first = previous && usable(previous) ? previous : [...(candidates ?? [])].find(usable);
-      (first ?? host)?.focus({ preventScroll: true });
+      const first = previous && usable(previous) ? previous : [...candidates].find(usable);
+      (first ?? host).focus({ preventScroll: true });
     });
   }
   function ownPane(next: 'editor' | 'field', focused?: HTMLElement) {
@@ -1161,6 +1203,9 @@ export function RoboticsWorkspace({
         ref={workspaceRef}
         data-split={split}
         data-compact-split={compactSplit}
+        data-electronics-observer={electronicsObserver}
+        data-observation-subject={observationSubject}
+        data-observation-width={observationWidth}
         data-pane={pane}
         data-editor-width={editorWidth}
         data-shortcut-owner={shortcutOwner}
@@ -1168,6 +1213,7 @@ export function RoboticsWorkspace({
           {
             '--robotics-side-width': `${sideWidth}px`,
             '--robotics-editor-width': `${editorWidth}px`,
+            '--robotics-observation-width': `${observationWidth}px`,
           } as CSSProperties
         }
       >
@@ -1185,7 +1231,32 @@ export function RoboticsWorkspace({
             Редактор
           </button>
           <button type="button" aria-pressed={pane === 'field'} onClick={() => focusPane('field')}>
+            {electronicsObserver ? 'Наблюдение' : 'Поле'}
+          </button>
+        </div>
+        <div
+          className="robotics-observation-switch"
+          data-testid="robotics-observation-switch"
+          data-editing-pane="field"
+          role="group"
+          aria-label="Режим наблюдения"
+          hidden={!electronicsObserver || !observationVisible}
+          onFocusCapture={() => ownPane('field')}
+          onPointerDownCapture={() => ownPane('field')}
+        >
+          <button
+            type="button"
+            aria-pressed={observationSubject === 'field'}
+            onClick={() => setObservationSubject('field')}
+          >
             Поле
+          </button>
+          <button
+            type="button"
+            aria-pressed={observationSubject === 'robot'}
+            onClick={() => setObservationSubject('robot')}
+          >
+            Робот
           </button>
         </div>
         <section
@@ -1194,7 +1265,7 @@ export function RoboticsWorkspace({
           tabIndex={-1}
           onFocusCapture={(event) => ownPane('field', event.target as HTMLElement)}
           onPointerDownCapture={() => ownPane('field')}
-          onKeyDown={fieldKeys}
+          onKeyDown={electronicsObserver ? undefined : fieldKeys}
           className="robotics-panel robotics-field-panel"
           role={section === 'field' ? 'tabpanel' : 'region'}
           id="robotics-panel-field"
@@ -1206,7 +1277,8 @@ export function RoboticsWorkspace({
             allowExport={allowDistribution}
             active={fieldVisible}
             compactDock={split}
-            interactionKey={`${section}:${pane}:${editorWidth}`}
+            observation={electronicsObserver}
+            interactionKey={`${section}:${pane}:${observationSubject}:${paneWidth}`}
             interactive={shortcutOwner === 'field' || (!split && fieldVisible)}
             sourceSchemaVersion={local.robotProject.schemaVersion}
             onUpgradeField={local.enableExtendedField}
@@ -1224,14 +1296,25 @@ export function RoboticsWorkspace({
           />
         </section>
         <section
+          ref={robotPanelRef}
           className="robotics-panel robotics-robot-panel"
-          role="tabpanel"
+          role={electronicsObserver ? 'region' : 'tabpanel'}
           id="robotics-panel-robot"
-          aria-labelledby="robotics-tab-robot"
-          hidden={section !== 'robot'}
+          aria-label={electronicsObserver ? 'Робот' : undefined}
+          aria-labelledby={electronicsObserver ? undefined : 'robotics-tab-robot'}
+          data-editing-pane={electronicsObserver ? 'field' : undefined}
+          tabIndex={electronicsObserver ? -1 : undefined}
+          onFocusCapture={
+            electronicsObserver
+              ? (event) => ownPane('field', event.target as HTMLElement)
+              : undefined
+          }
+          onPointerDownCapture={electronicsObserver ? () => ownPane('field') : undefined}
+          hidden={!robotVisible}
         >
           <RobotAssemblyPanel
-            active={section === 'robot'}
+            active={robotVisible}
+            observation={electronicsObserver}
             project={local.robotProject}
             running={running}
             onCommit={local.setWorld}
@@ -1308,7 +1391,7 @@ export function RoboticsWorkspace({
         <aside
           className="robotics-observation"
           aria-label="Наблюдение за роботом"
-          hidden={split && !fieldVisible}
+          hidden={split && !observationVisible}
         >
           {section === 'robot' ? (
             <div className="robotics-mini-field">
@@ -1427,17 +1510,10 @@ export function RoboticsWorkspace({
           className="robotics-side-resizer"
           role="separator"
           hidden={compactSplit}
-          aria-label={split ? 'Ширина редактора' : 'Ширина панели наблюдения'}
+          aria-label={section === 'program' ? 'Ширина редактора' : 'Ширина панели наблюдения'}
           aria-orientation="vertical"
-          aria-valuemin={split ? ROBOTICS_EDITOR_MIN : ROBOTICS_SIDE_MIN}
-          aria-valuemax={
-            split
-              ? editorMaximum
-              : Math.max(
-                  ROBOTICS_SIDE_MIN,
-                  Math.min(ROBOTICS_SIDE_MAX, Math.floor(workspaceWidth / 2)),
-                )
-          }
+          aria-valuemin={paneMinimum}
+          aria-valuemax={paneMaximum}
           aria-valuenow={paneWidth}
           title="Перетаскивайте границу панели. Стрелки меняют ширину, Home/End — пределы."
           tabIndex={0}

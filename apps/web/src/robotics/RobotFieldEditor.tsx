@@ -447,6 +447,7 @@ export function RobotFieldEditor({
   onRedo,
   active = true,
   compactDock = false,
+  observation = false,
   interactive = true,
   interactionKey = '',
 }: {
@@ -466,6 +467,7 @@ export function RobotFieldEditor({
   onRedo: () => void;
   active?: boolean;
   compactDock?: boolean;
+  observation?: boolean;
   interactive?: boolean;
   interactionKey?: string;
 }) {
@@ -531,8 +533,8 @@ export function RobotFieldEditor({
   latestWorldRef.current = world;
   const latestRunningRef = useRef(running);
   latestRunningRef.current = running;
-  const latestActiveRef = useRef(active);
-  latestActiveRef.current = active;
+  const latestAuthoringRef = useRef(active && !observation);
+  latestAuthoringRef.current = active && !observation;
   const imageInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const propertiesButton = useRef<HTMLButtonElement>(null);
@@ -655,7 +657,7 @@ export function RobotFieldEditor({
     releaseDrag();
     clearTrace();
     clearPaletteDrag();
-  }, [active, interactionKey, clearPaletteDrag]);
+  }, [active, interactionKey, observation, clearPaletteDrag]);
   useLayoutEffect(() => {
     if (interactive) return;
     cameraControl.leave();
@@ -699,7 +701,7 @@ export function RobotFieldEditor({
     setError(error instanceof Error ? error.message : 'Не удалось изменить предмет.');
   }
   function commit(next: RoboticsWorldDocument): boolean {
-    if (running || !latestActiveRef.current) return false;
+    if (running || !latestAuthoringRef.current) return false;
     const parsed = parseRoboticsWorldDocument(next);
     if (!parsed.ok) {
       setError(parsed.message);
@@ -1083,12 +1085,12 @@ export function RobotFieldEditor({
     const requestPan =
       event.button === 0 &&
       event.pointerType !== 'touch' &&
-      (pan || (tool === 'select' && !object));
+      (observation || pan || (tool === 'select' && !object));
     if (cameraControl.pointerDown(event, requestPan)) {
       suppressNextCanvasClick.current = true;
       return;
     }
-    if (running || pan || event.button !== 0 || !event.isPrimary) return;
+    if (observation || running || pan || event.button !== 0 || !event.isPrimary) return;
     const point = pointerPosition(event);
     if (!point) return;
     const handle = (event.target as Element).closest('[data-vector-handle]');
@@ -1154,7 +1156,7 @@ export function RobotFieldEditor({
       suppressNextCanvasClick.current = true;
       return;
     }
-    if (pendingTouch.current?.pointerId === event.pointerId) return;
+    if (observation || pendingTouch.current?.pointerId === event.pointerId) return;
     const resizing = resizeDrag.current;
     if (resizing && resizing.pointerId === event.pointerId && !running) {
       const point = pointerPosition(event);
@@ -1201,6 +1203,7 @@ export function RobotFieldEditor({
       suppressNextCanvasClick.current = true;
       return;
     }
+    if (observation) return;
     const touch = pendingTouch.current;
     if (touch?.pointerId === event.pointerId) {
       pendingTouch.current = null;
@@ -1361,6 +1364,7 @@ export function RobotFieldEditor({
   }
   const ghost = useMemo(() => {
     if (
+      observation ||
       running ||
       !placement ||
       (!topView && (fieldView !== 'orbit' || !isSpatialPlacementTool(placement.tool)))
@@ -1379,7 +1383,7 @@ export function RobotFieldEditor({
     } catch {
       return null;
     }
-  }, [fieldView, placement, running, snap, stamp, topView, turns, world]);
+  }, [fieldView, observation, placement, running, snap, stamp, topView, turns, world]);
   let placementPreview: SpatialPlacement | null = null;
   if (fieldView === 'orbit' && ghost?.key && placement) {
     const { key, valid } = ghost;
@@ -1396,15 +1400,22 @@ export function RobotFieldEditor({
       if (object?.kind === 'box') placementPreview = { kind: 'box', object, key, valid };
     }
   }
-  const topSvg = topView && (!spatialReady || Boolean(draft || ghost || tracePoints.length));
+  const renderDraft = observation ? null : draft;
+  const editingPreview = !observation && Boolean(renderDraft || ghost || tracePoints.length);
+  const topSvg = topView && (!spatialReady || editingPreview);
   const pixelsPerMeter = cameraControl.camera?.pixelsPerMeter ?? fitScale;
   const scaleMeters = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001].find(
     (value) => value * pixelsPerMeter <= Math.min(84, cameraControl.viewport.width - 32),
   );
-  const scene = draft ?? (topView ? ghost?.world : undefined) ?? world;
-  const previewState = draft ? createRoboticsWorldState(draft) : state;
-  const previewDistance = draft
-    ? measureRoboticsDistance(draft, draft.initialPose, previewState.balls, previewState.bodies)
+  const scene = renderDraft ?? (topView ? ghost?.world : undefined) ?? world;
+  const previewState = renderDraft ? createRoboticsWorldState(renderDraft) : state;
+  const previewDistance = renderDraft
+    ? measureRoboticsDistance(
+        renderDraft,
+        renderDraft.initialPose,
+        previewState.balls,
+        previewState.bodies,
+      )
     : distance;
   const seenGroups = new Set<string>();
   const objects: { key: RoboticsObjectKey; label: string }[] = [
@@ -1449,7 +1460,12 @@ export function RobotFieldEditor({
             ? 'Динамика 2D'
             : 'Учебный'}
       </span>
-      <div className="robotics-field-toolbar" role="toolbar" aria-label="Инструменты поля">
+      <div
+        className="robotics-field-toolbar"
+        data-observation={observation}
+        role="toolbar"
+        aria-label="Инструменты поля"
+      >
         <div className="robotics-field-toolbar-primary">
           <div className="robotics-field-view-switch" role="group" aria-label="Камера поля">
             {FIELD_VIEWS.map(({ id, label }) => (
@@ -1495,6 +1511,7 @@ export function RobotFieldEditor({
           <button
             ref={propertiesButton}
             type="button"
+            hidden={observation}
             className="robotics-button robotics-properties-toggle robotics-field-catalog-toggle"
             aria-controls="robotics-field-catalog"
             aria-expanded={propertiesOpen}
@@ -1533,13 +1550,14 @@ export function RobotFieldEditor({
             <button
               type="button"
               aria-label="К выделенному"
+              hidden={observation}
               title="К выделенному"
               disabled={!selection || (!topView && !spatialReady)}
               onClick={focusSelection}
             >
               Выбор
             </button>
-            <label className="robotics-grid-toggle">
+            <label className="robotics-grid-toggle" hidden={observation}>
               <input
                 type="checkbox"
                 checked={showGrid}
@@ -1549,6 +1567,7 @@ export function RobotFieldEditor({
             </label>
             <label
               className="robotics-grid-toggle"
+              hidden={observation}
               title="Предметы — к сетке; штампы трассы — к плиткам"
             >
               <input
@@ -1562,6 +1581,7 @@ export function RobotFieldEditor({
             <button
               type="button"
               aria-label="Перемещать вид поля"
+              hidden={observation}
               aria-pressed={pan}
               disabled={!topView}
               onClick={() => {
@@ -1576,12 +1596,13 @@ export function RobotFieldEditor({
               className="robotics-field-history"
               role="group"
               aria-label="История изменений поля"
+              hidden={observation}
             >
               <button
                 type="button"
                 aria-label="Отменить"
                 title="Шаг назад — отменить последнее изменение"
-                disabled={running || !canUndo}
+                disabled={observation || running || !canUndo}
                 onClick={onUndo}
               >
                 <span aria-hidden="true">↶</span>
@@ -1591,7 +1612,7 @@ export function RobotFieldEditor({
                 type="button"
                 aria-label="Повторить"
                 title="Шаг вперёд — вернуть отменённое изменение"
-                disabled={running || !canRedo}
+                disabled={observation || running || !canRedo}
                 onClick={onRedo}
               >
                 <span aria-hidden="true">↷</span>
@@ -1601,14 +1622,15 @@ export function RobotFieldEditor({
           </div>
         </div>
       </div>
-      {error ? (
+      {error && !observation ? (
         <p className="robotics-field-error robotics-scene-error" role="alert">
           {error}
         </p>
       ) : null}
       <div
         className="robotics-field-editor-body"
-        data-properties-open={propertiesOpen}
+        data-properties-open={!observation && propertiesOpen}
+        data-observation={observation}
         data-compact-dock={compactDock}
         onPointerDownCapture={(event) =>
           panePointers.current.set(event.pointerId, event.target as Element)
@@ -1626,7 +1648,7 @@ export function RobotFieldEditor({
               tabIndex={0}
               role="group"
               aria-label="Полотно поля"
-              data-pan={pan || cameraControl.spacePressed}
+              data-pan={observation || pan || cameraControl.spacePressed}
               data-camera-gesturing={cameraControl.gesturing}
               onPointerEnter={cameraControl.enter}
               onPointerLeave={() => {
@@ -1640,7 +1662,14 @@ export function RobotFieldEditor({
                   suppressNextCanvasClick.current = false;
                   return;
                 }
-                if (running || pan || cameraControl.spacePressed || tool !== 'select') return;
+                if (
+                  observation ||
+                  running ||
+                  pan ||
+                  cameraControl.spacePressed ||
+                  tool !== 'select'
+                )
+                  return;
                 const target = (event.target as Element).closest('[data-scene-key]');
                 const key = target?.getAttribute('data-scene-key') as RoboticsObjectKey | null;
                 if (key) {
@@ -1648,9 +1677,9 @@ export function RobotFieldEditor({
                   openDockProperties();
                 }
               }}
-              onDragOver={dragOverCanvas}
-              onDragLeave={dragLeaveCanvas}
-              onDrop={dropOnCanvas}
+              onDragOver={observation ? undefined : dragOverCanvas}
+              onDragLeave={observation ? undefined : dragLeaveCanvas}
+              onDrop={observation ? undefined : dropOnCanvas}
               onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
                 if (event.key === 'Escape') {
@@ -1665,7 +1694,7 @@ export function RobotFieldEditor({
                   setTool('select');
                   setPan(false);
                 }
-                if (event.key === 'Enter' && tool === 'line') {
+                if (!observation && event.key === 'Enter' && tool === 'line') {
                   event.preventDefault();
                   finishTrace();
                   return;
@@ -1682,7 +1711,7 @@ export function RobotFieldEditor({
                   event.preventDefault();
                   stepZoom(-1);
                 }
-                if (event.key === 'Delete' || event.key === 'Backspace') {
+                if (!observation && (event.key === 'Delete' || event.key === 'Backspace')) {
                   event.preventDefault();
                   remove();
                 }
@@ -1691,16 +1720,14 @@ export function RobotFieldEditor({
               <div className="robotics-field-camera-surface">
                 <RobotField
                   world={scene}
-                  renderLayer={
-                    spatialReady && !draft && !ghost && !tracePoints.length ? 'interaction' : 'full'
-                  }
+                  renderLayer={spatialReady && !editingPreview ? 'interaction' : 'full'}
                   projection={projection}
                   state={previewState}
                   distance={previewDistance}
                   showGrid={showGrid}
-                  selection={selection}
+                  selection={observation ? null : selection}
                   ghost={ghost}
-                  editable={!running && !pan}
+                  editable={!observation && !running && !pan}
                   onPointerDown={pointerDown}
                   onPointerMove={pointerMove}
                   onPointerUp={pointerUp}
@@ -1721,13 +1748,13 @@ export function RobotFieldEditor({
                       releaseDrag();
                   }}
                   onContextMenu={(event) => {
-                    if (tool !== 'line' && tool !== 'curve') return;
+                    if (observation || (tool !== 'line' && tool !== 'curve')) return;
                     event.preventDefault();
                     if (tool === 'line') finishTrace();
                     else clearTrace();
                   }}
                   draftStroke={
-                    (tool === 'line' || tool === 'curve') && tracePoints.length
+                    !observation && (tool === 'line' || tool === 'curve') && tracePoints.length
                       ? { kind: tool, points: tracePoints, cursor: traceCursor }
                       : null
                   }
@@ -1737,9 +1764,9 @@ export function RobotFieldEditor({
             {cameraControl.camera ? (
               <div
                 className="robotics-field-spatial-viewport"
-                onDragOver={fieldView === 'orbit' ? dragOverSpatial : undefined}
-                onDragLeave={fieldView === 'orbit' ? dragLeaveCanvas : undefined}
-                onDrop={fieldView === 'orbit' ? dropOnSpatial : undefined}
+                onDragOver={!observation && fieldView === 'orbit' ? dragOverSpatial : undefined}
+                onDragLeave={!observation && fieldView === 'orbit' ? dragLeaveCanvas : undefined}
+                onDrop={!observation && fieldView === 'orbit' ? dropOnSpatial : undefined}
               >
                 <Suspense
                   fallback={
@@ -1753,20 +1780,20 @@ export function RobotFieldEditor({
                     state={state}
                     distance={distance}
                     showGrid={showGrid}
-                    selection={selection}
+                    selection={observation ? null : selection}
                     view={fieldView}
-                    active={active && !(topView && Boolean(draft || ghost || tracePoints.length))}
+                    active={active && !(topView && editingPreview)}
                     topProjection={projection}
                     placementPreview={placementPreview}
                     onReady={handleSpatialReady}
                     onControls={registerSpatialControls}
                     onZoom={setSpatialZoom}
                     edit={
-                      active && !running && fieldView === 'orbit'
+                      active && !observation && !running && fieldView === 'orbit'
                         ? {
                             begin: (key, start) => {
                               if (
-                                !latestActiveRef.current ||
+                                !latestAuthoringRef.current ||
                                 latestRunningRef.current ||
                                 latestWorldRef.current !== world
                               )
@@ -1798,10 +1825,14 @@ export function RobotFieldEditor({
                           }
                         : undefined
                     }
-                    onSelect={(key) => {
-                      setSelection(canonicalRoboticsObjectKey(world, key));
-                      openDockProperties();
-                    }}
+                    onSelect={
+                      observation
+                        ? undefined
+                        : (key) => {
+                            setSelection(canonicalRoboticsObjectKey(world, key));
+                            openDockProperties();
+                          }
+                    }
                   />
                 </Suspense>
               </div>
@@ -1838,7 +1869,7 @@ export function RobotFieldEditor({
                 {fieldLengthFormat.format(world.field.widthMeters)} ×{' '}
                 {fieldLengthFormat.format(world.field.heightMeters)} м
               </span>
-              {topView && (ghost?.valid === false || tool !== 'select') ? (
+              {!observation && topView && (ghost?.valid === false || tool !== 'select') ? (
                 <span className="robotics-field-stage-instruction" role="status">
                   {ghost?.valid === false ? 'Здесь нельзя разместить предмет' : selectedTool.label}
                 </span>
@@ -1849,6 +1880,7 @@ export function RobotFieldEditor({
         <aside
           id="robotics-field-catalog"
           className="robotics-scene-inspector"
+          hidden={observation}
           aria-label="Свойства поля и предмета"
           onKeyDown={(event) => {
             if (event.key === 'Escape' && propertiesButton.current?.getClientRects().length) {
@@ -2194,7 +2226,7 @@ export function RobotFieldEditor({
               world={world}
               running={running}
               sourceSchemaVersion={sourceSchemaVersion}
-              onUpgradeField={onUpgradeField}
+              onUpgradeField={() => latestAuthoringRef.current && onUpgradeField()}
               onCommit={commit}
               onError={setError}
               onPresetApplied={() => setSelection(null)}
