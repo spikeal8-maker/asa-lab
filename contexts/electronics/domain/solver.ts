@@ -30,7 +30,8 @@ import { buildNetlist, terminalKey } from './netlist.js';
 import {
   isL298n,
   L298N_DC_MODEL,
-  l298nLogicLevel,
+  l298nFailureMessage,
+  l298nUnresolvedInputs,
   type L298nObservation,
   type L298nIterationState,
   type L298nOperatingPoint,
@@ -205,6 +206,7 @@ import {
 export { sourceInternalResistanceOhm } from './models/linear-dc-models.js';
 
 export type DiagnosticCode =
+  | 'l298n_logic_supply'
   | 'temperature_sensor_power'
   | 'temperature_sensor_load'
   | 'temperature_sensor_backfeed'
@@ -3684,6 +3686,24 @@ function solveCircuitStep(
     l298nDevices.length === 0 ? undefined : createL298nInputDriveResolver(l298nDriveContext);
   const resolveL298nLogicSource =
     l298nDevices.length === 0 ? undefined : createL298nLogicSourceResolver(l298nDriveContext);
+  const l298nConnectedOutputs =
+    l298nDevices.length === 0
+      ? undefined
+      : new Map(
+          l298nDevices.map(
+            ({ component }) =>
+              [
+                component.id,
+                new Set(
+                  ['OUT1', 'OUT2', 'OUT3', 'OUT4'].filter(
+                    (pin) =>
+                      (netlist.terminalsByNode.get(physicalNodeIndex(component, pin))?.length ??
+                        0) > 1,
+                  ),
+                ),
+              ] as const,
+          ),
+        );
   const l298nOperatingPoint = (
     component: SchematicComponent,
     values: number[],
@@ -3697,6 +3717,7 @@ function solveCircuitStep(
         ]),
       ),
       drivenTerminals: resolveL298nInputDrive?.(component, terminals) ?? new Set<Terminal>(),
+      connectedOutputs: l298nConnectedOutputs!.get(component.id)!,
       externalLogicSourcePresent:
         resolveL298nLogicSource?.(component, (other, terminal) =>
           voltageFrom(values, physicalNodeIndex(other, terminal)),
@@ -4193,34 +4214,34 @@ function solveCircuitStep(
       ),
     ]),
   );
-  const rejectedL298n = [...l298nObservations.values()].filter((value) => {
-    if (!value.unsupported) return false;
-    if (!options.clockedArduinoInputs || !options.heldArduinoSnapshots || value.overCurrent)
-      return true;
-    const device = l298nDevices.find((item) => item.componentId === value.componentId);
-    const state = l298nStates.get(value.componentId);
-    if (!device || !state || state.inputKnown || state.regulatorConflict || state.voltageOutOfRange)
-      return true;
-    const inputs: Terminal[] = [
-      'IN1',
-      'IN2',
-      'IN3',
-      'IN4',
-      ...(device.parameters.enaJumperInstalled ? [] : ['ENA']),
-      ...(device.parameters.enbJumperInstalled ? [] : ['ENB']),
-    ];
+  let rejectedL298n = false;
+  for (const device of l298nDevices) {
+    const value = l298nObservations.get(device.componentId)!;
+    if (!value.unsupported && (value.logicPowered || !value.motorPowered)) continue;
+    if (!value.unsupported) {
+      diagnostics.push({
+        code: 'l298n_logic_supply',
+        severity: 'warning',
+        componentIds: [device.componentId],
+        message: device.parameters.regulatorJumperInstalled
+          ? 'L298N: логика без питания. Для 5V_EN требуется 7–12 В на +12V. При меньшем напряжении снимите 5V_EN и подайте внешние 5 В на +5V с общим GND.'
+          : 'L298N: логика без питания. Подайте внешние 5 В на +5V и соедините минус источника с GND драйвера.',
+      });
+      continue;
+    }
+    const state = l298nStates.get(device.componentId)!;
     const point = l298nOperatingPoint(device.component, solution!);
-    const missing = inputs.filter((pin) => !point.drivenTerminals.has(pin));
-    const ground = point.terminalVoltages['GND'];
-    const knownValid = inputs.every((pin) => {
-      if (!point.drivenTerminals.has(pin)) return true;
-      return l298nLogicLevel(point.terminalVoltages[pin], ground, true) !== 'unknown';
-    });
-    // No invented LOW: the existing unknown-input branch remains non-conducting.
-    // Only canonical bootstrap/setup GPIO may be unsettled; loop/passive floats fail.
-    return (
-      !knownValid ||
-      !l298nArduinoSetupHighImpedance(
+    const missing = l298nUnresolvedInputs(device.parameters, state.channelA, state.channelB, point);
+    // Only canonical bootstrap/setup GPIO may be temporarily undriven.
+    if (
+      !value.overCurrent &&
+      !state.regulatorConflict &&
+      !state.voltageOutOfRange &&
+      options.clockedArduinoInputs &&
+      options.heldArduinoSnapshots &&
+      missing.length &&
+      missing.every((pin) => !point.drivenTerminals.has(pin)) &&
+      l298nArduinoSetupHighImpedance(
         device.component,
         missing,
         document,
@@ -4229,18 +4250,23 @@ function solveCircuitStep(
         simulationTimeMs,
         failedComponentIds,
       )
-    );
-  });
-  if (rejectedL298n.length > 0) {
+    )
+      continue;
+    rejectedL298n = true;
     diagnostics.push({
       code: 'unsupported_topology',
       severity: 'error',
-      message:
-        'L298N: недостоверный логический вход, недопустимый режим питания или ток более 2 А. Без вымышленных значений.',
-      componentIds: rejectedL298n.map((value) => value.componentId),
+      message: l298nFailureMessage(
+        device.parameters,
+        state,
+        point,
+        value,
+        physicalNodeIndex(device.component, '+5V') === physicalNodeIndex(device.component, '+12V'),
+      ),
+      componentIds: [device.componentId],
     });
-    return empty('unsupported', iterations, numericalResidual, numericalTolerance);
   }
+  if (rejectedL298n) return empty('unsupported', iterations, numericalResidual, numericalTolerance);
   const sourceCurrents = new Map<string, number>();
   for (const [position, source] of stampedVoltageSourceComponents.entries()) {
     sourceCurrents.set(source.id, solution[nodeVariableCount + position] as number);
@@ -4426,6 +4452,13 @@ function solveCircuitStep(
       const linkedLight = photoresistorLight?.get(component.id);
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
       for (const terminal of terminals) {
+        if (
+          l298n &&
+          ((l298n.channelA === 'unknown' && (terminal === 'OUT1' || terminal === 'OUT2')) ||
+            (l298n.channelB === 'unknown' && (terminal === 'OUT3' || terminal === 'OUT4'))) &&
+          !l298nConnectedOutputs?.get(component.id)?.has(terminal)
+        )
+          continue;
         terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
       }
       if (failedComponentIds.has(component.id)) {

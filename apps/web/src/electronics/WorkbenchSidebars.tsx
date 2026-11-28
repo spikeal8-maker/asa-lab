@@ -1074,7 +1074,7 @@ export function WorkbenchInspector({
               </label>
               {selectedIsL298n ? (
                 <fieldset
-                  className="workbench-state-controls workbench-primary-controls"
+                  className="workbench-state-controls workbench-primary-controls workbench-l298n-jumpers"
                   data-testid="l298n-jumper-controls"
                   disabled={c.simulationRunning}
                 >
@@ -1086,7 +1086,8 @@ export function WorkbenchInspector({
                       ['regulatorJumperInstalled', '5V_EN — внутренние 5 В'],
                     ] as const
                   ).map(([property, caption]) => (
-                    <label key={property}>
+                    <label key={property} className="workbench-toggle-property">
+                      <span>{caption}</span>
                       <input
                         type="checkbox"
                         data-testid={'l298n-jumper-' + property}
@@ -1095,21 +1096,23 @@ export function WorkbenchInspector({
                           c.setSelectedL298nJumper(property, event.target.checked)
                         }
                       />
-                      <span>{caption}</span>
                     </label>
                   ))}
                   <p className="workbench-component-note">
-                    Снимите ENA/ENB для внешнего PWM. Установить перемычку обратно можно только
-                    после отключения подключённого PWM-провода. Изменение доступно при остановленном
-                    моделировании и сохраняется вместе с проектом.
+                    Для внешнего ШИМ снимите ENA или ENB. Чтобы вернуть перемычку, сначала
+                    отсоедините провод.
                   </p>
-                  <p className="workbench-component-note" data-testid="l298n-supply-status">
-                    {c.simulationRunning && measurement
-                      ? measurement.lit === true
+                  <p className="workbench-component-note">
+                    5V_EN работает при 7–12 В на +12V (VS). С батареей 6 В снимите 5V_EN, подайте
+                    отдельные 5 В на +5V и соедините GND.
+                  </p>
+                  {c.simulationRunning && measurement ? (
+                    <p className="workbench-component-note" data-testid="l298n-supply-status">
+                      {measurement.lit === true
                         ? 'Логика 5 В: питание есть'
-                        : 'Логика 5 В: питания нет'
-                      : 'Индикатор показывает питание логики только при моделировании.'}
-                  </p>
+                        : 'Логика 5 В: питания нет'}
+                    </p>
+                  ) : null}
                 </fieldset>
               ) : null}
               {selectedIsPiezo ? (

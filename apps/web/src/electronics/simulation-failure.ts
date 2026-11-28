@@ -118,6 +118,12 @@ function technicalFailureText(code: string, detail = ''): string {
 
 export function simulationFailureMessage(failure: SimulationFailure): SimulationStatusMessage {
   const detail = failure.message.trim();
+  if (
+    failure.category === 'unsupported' &&
+    failure.code === 'unsupported_topology' &&
+    detail.startsWith('L298N:')
+  )
+    return { category: failure.category, code: failure.code, text: detail };
   const text =
     failure.category === 'unsupported'
       ? `Моделирование не поддерживается: ${detail}`
@@ -133,11 +139,22 @@ export function simulationFailureMessage(failure: SimulationFailure): Simulation
   return { category: failure.category, code: failure.code, text };
 }
 
-export function circuitStateMessage(result: SolveResult): SimulationStatusMessage | null {
-  if (result.solved || result.status !== 'invalid') return null;
-  const diagnostic = result.diagnostics.find(
-    (entry) => entry.severity === 'error' && entry.code !== 'no_source',
-  );
+export function circuitStateMessage(
+  result: SolveResult,
+  previous?: SimulationStatusMessage | null,
+): SimulationStatusMessage | null {
+  if (!result.solved && result.status !== 'invalid') return null;
+  const diagnostic = result.solved
+    ? result.diagnostics.find(
+        (entry) => entry.severity === 'warning' && entry.code === 'l298n_logic_supply',
+      )
+    : result.diagnostics.find((entry) => entry.severity === 'error' && entry.code !== 'no_source');
   if (!diagnostic) return null;
+  if (
+    previous?.category === 'circuit-state' &&
+    previous.code === diagnostic.code &&
+    previous.text === diagnostic.message
+  )
+    return previous;
   return { category: 'circuit-state', code: diagnostic.code, text: diagnostic.message };
 }
