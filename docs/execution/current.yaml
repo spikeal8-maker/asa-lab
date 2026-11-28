@@ -18992,6 +18992,120 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-NATIVE-STATIC-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E1-EDITABLE-RAMP-NATIVE-STATIC
+      profile: TEST_ONLY
+      checkpoint: e1_test_only_editable_ramp_native_static_selected
+      owner_acceptance: pending
+      owner_authorization: The owner requested a real configurable ramp in the ordinary Field and an Arduino-driven
+        climb. Select one prerequisite to determine whether the accepted metric ramp geometry compiles to the same
+        native contact surface before a separately selected motion experiment. Source implementation begins after
+        protected canonical integration and fresh exact source preflight.
+      registration_baseline:
+        main: d802293e00dfcddf7c701cc7eeb6ca1a4fbd19e4
+        tree: ccc83548b9933a675151e2fd037b6b06062fa66e
+        preserved_task: parallel_lanes.robotics.historical_editable_ramp_portable_passive_task
+        passive_result: parallel_lanes.robotics.editable_ramp_portable_passive_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-ENG-01
+        - REQ-TERR-01
+        - REQ-TERR-02
+        - REQ-DEL-05
+      scope: Compare the compiled shape and zero-time setup of two finite ramp geometries on the pinned MuJoCo AOT
+        engine. This is a Node-only position and contact readback with mj_forward. The ordinary project, live
+        circuit and physical clock are outside this slice.
+      planned_paths:
+      - tests/robotics/field-core-qualification/editable-ramp-native-static.fixture.json
+      - tests/robotics/field-core-qualification/editable-ramp-native-static.spec.ts
+      immutable_sources:
+        geometry: tests/robotics/field-core-qualification/editable-ramp-geometry.ts
+        geometry_sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848
+        experimental_source: 1bc8d27869fbada6a1740dc9e4e5996e68c8d322
+        experimental_fixture: apps/web/src/robotics/testing/editable-ramp-live/scene.fixture.json
+        experimental_fixture_sha256: 8f3d168218bba0cffc81f570abc3fdd692dbeab863237c5f60a3daabea18f142
+        full_xml_reference:
+          baseline5: acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0
+          edited6: 1ee655c8017d4663535826baab43af8e9fdbe5fc26db72b28c5bb06f139a69b2
+        artifact_origin: parallel_lanes.robotics.historical_e1_task.aot_worker_csp_result
+      engine_admission:
+        version: 4.0.0
+        upstream: ac60eae30fa7e0d31315c38d9476752fb81be67e
+        glue: {file: mujoco.js, bytes: 331846, sha256: 9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8}
+        wasm: {file: mujoco.wasm, bytes: 11229000, sha256: d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241}
+        declarations: {file: mujoco.d.ts, bytes: 151568, sha256: 779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff}
+        license: {file: LICENSE, bytes: 11358, sha256: cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30}
+        build_receipt: {file: build-receipt.json, bytes: 15869, sha256: c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9}
+        browser_receipt: {file: browser-receipt.json, bytes: 449526, sha256: 70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5}
+        precondition: Verify exact bytes, licence, same-object manifest linkage and exact source, fixture and XML
+          pins before native import. Require independent HIGH on actual selected source and HIGH on the artifact
+          set. Only then may the controller explicitly admit one new counted native program using a fresh guard
+          and exclusive external receipt. Default and protected source CI remain pure with native unexecuted.
+      geometry:
+        common: {run_m: 0.8, base_thickness_m: 0.05, y_m: 0, z_m: 0, heading_rad: 0}
+        baseline5: {angle_deg: 5, width_m: 1.0, rise_m: 0.0699909308207392, x_m: 0}
+        edited6: {angle_deg: 6, width_m: 0.8, rise_m: 0.08408338821254119, x_m: 0.02}
+        origin: Lower-end centre. Derive authored vertices, indexed faces and profile from the unchanged pure helper.
+          Verify fixed horizontal run, Y/depth and floor datum, with the selected X, width and rise deltas.
+        fixture_boundary: Reuse the reviewed pure scene geometry specification, without importing its stand, coupled
+          model builder or Worker. Focused static XML may use a floor and purpose-built support and positive-clearance
+          witnesses instead of the full rover scene. Pin both actual XMLs and their independent analytical oracles
+          before acquisition. Only use the full XML reference digests when those exact bytes are compiled.
+      native_limits:
+        order: [baseline5, edited6]
+        module_initializations: 1
+        models_total: 2
+        data_total: 2
+        max_concurrent_worlds: 1
+        forward_calls_per_world: 1
+        native_time_advances: 0
+        native_step_calls: 0
+        execution: Isolated local Node process with reviewed local inputs and an external bounded receipt. No
+          browser, listener, socket, service, fetch, Worker, 4630 startup or mount. Capture first failing stage with
+          attempted and returned counters and cleanup before assertion failure. Do not rerun a dispatched program
+          under this selection or revive an earlier consumed opt-in.
+      verification:
+        pure: Verify finite cases, prescribed changes and angle consistency, exact file and XML pins, the native
+          transform and order-independent vertex oracle, signed support and positive-clearance witnesses, and
+          fail-closed missing or foreign inputs. Default tests perform no native import or initialization.
+        native: Read actual compiled Float32 mesh vertices, indices and Float64 world geom pose. Reconstruct
+          vertices with the actual geom rotation/translation and compare one-to-one to authored corners with
+          reindexing. Verify finite rigid transform, center, top normal, footprint and slope. Use the existing
+          2e-6 m compiled-vertex allowance and freeze other quantitative tolerances in the fixture before running.
+          Use actual native finite face/contact observations with a deliberate interior support witness and an
+          analytically separated control in each case. Read model, contacts, warnings and resource ownership.
+          Prove unchanged zero time, qpos and qvel around mj_forward with zero integration calls. Record source,
+          tree, runtime and exact admitted inputs, transformed geometry, pair and clearance measurements,
+          deltas and resource ledger. Independently recompute the resulting local receipt and file digests.
+        gates: 'Registration: sole-path PLAN/control, YAML formatting, full byte and semantic inverse, actual
+          pnpm validate:electronics-agent-docs and pnpm gate:governance. Source: exact two-path PLAN,
+          focused pure/style/type/regression gates and protected exact-SHA CI. A separate counted native receipt
+          and independent source/artifact and raw-evidence review are required for static native acceptance.'
+      constraints:
+      - Only the two listed tests are selected. Preserve previous source, results and original
+        ROBOTICS-FIELD-CORE-D01-D02 binding. Keep all legacy code and admission guards unchanged. No new
+        engine builds, dependency changes, native time integration or load paths, compiled binary commits,
+        product schema, persistence, normal palette, production viewer, runtime, Worker, API, database,
+        deployment or new workflows. Existing 4630 and all historical acquisitions remain separate.
+      - Static parity only supports a later separately selected dynamic trial. It records no wheel movement,
+        Arduino drive, can tip, quantitative hardware result, E2/E6/E7 delivery or D01/D02 closure. No owner
+        acceptance, release claim or deployment is selected.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      deployment: not_authorized
+      database_actions: not_authorized
+    historical_editable_ramp_portable_passive_task:
       id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-PORTABLE-PASSIVE-001
       issue: 1071
       branch: main
@@ -19092,6 +19206,26 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
       deployment: not_authorized
       database_actions: not_authorized
+    editable_ramp_portable_passive_result:
+      scope: TEST_ONLY
+      source: 2ea214a08a46ae6e2aa4f565f934f16140b218a4
+      source_tree: ccc83548b9933a675151e2fd037b6b06062fa66e
+      source_pr: https://github.com/spikeal8-maker/asa-lab/pull/1381
+      protected_merge: d802293e00dfcddf7c701cc7eeb6ca1a4fbd19e4
+      required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/46138889395/job/140967661937
+      required_conclusion: SUCCESS
+      general_run: https://github.com/spikeal8-maker/asa-lab/actions/runs/46138889395
+      publication_regression_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/46138889438/job/140960287388
+      publication_regression_conclusion: SUCCESS
+      local_exact_source:
+        robotics_tests: {passed: 521, total: 521}
+        nx_typecheck_tasks_fresh: 8
+        nx_build_tasks_fresh: 8
+        browser_receipt: {file: passive-browser-receipt.json, bytes: 65142, sha256: b6551fb4a1b0c0cc7ee2eed2d821baa9c026a18e4fa894f47fc20eb521f54698}
+        result: PASS
+      scope_limit: Exact browser evidence covers the isolated ramp placement and editing surface with zero native
+        initialization or steps. The Publication job is the existing ordinary product regression. No application
+        ramp, persisted terrain, physical motion or deployment was accepted.
     historical_electronics_observer_task:
       id: TASK-ELECTRONICS-ROBOTICS-ELECTRONICS-OBSERVER-001
       issue: 1071
