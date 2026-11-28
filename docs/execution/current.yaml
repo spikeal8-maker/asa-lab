@@ -18992,6 +18992,107 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-PORTABLE-PASSIVE-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E1-EDITABLE-RAMP-PORTABLE-PASSIVE
+      profile: TEST_ONLY
+      checkpoint: e1_test_only_editable_ramp_portable_passive_selected
+      owner_acceptance: pending
+      owner_authorization: The owner asked for a ramp in the normal Field catalogue, editable by width, height and
+        slope and placeable from all Field views. This selects one independent, portable TEST_ONLY geometry and
+        placement proof before the dependent E2/E6 product work. Implementation begins after protected canonical
+        integration and fresh exact source preflight.
+      registration_baseline:
+        main: a98d0e30f07c4315edb2e2b0926cc7a241e3a886
+        tree: 2246e17217fb7b360eb9472778711fab62afea69
+        preserved_task: parallel_lanes.robotics.historical_electronics_observer_task
+        observer_result: parallel_lanes.robotics.electronics_observer_result
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-TERR-01
+        - REQ-TERR-02
+        - REQ-DEL-02
+        - REQ-DEL-05
+      scope: In a test-only browser surface, place and configure a single finite ramp from the actual palette using
+        trusted browser gestures. Prove the Top, Perspective and Side projections from one engine-independent metric
+        geometry. Exercise the flow with an in-process Playwright route and local audited resources.
+      planned_paths:
+      - apps/web/src/robotics/testing/editable-ramp-live/passive.html
+      - apps/web/src/robotics/testing/editable-ramp-live/passive.ts
+      - apps/web/src/robotics/testing/editable-ramp-live/passive.browser.mjs
+      - apps/web/src/robotics/testing/editable-ramp-live/passive.spec.ts
+      immutable_sources:
+        geometry: tests/robotics/field-core-qualification/editable-ramp-geometry.ts
+        geometry_sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848
+        experimental_reviewed_source: 1bc8d27869fbada6a1740dc9e4e5996e68c8d322
+        experimental_reviewed_tree: 243cbd9fd6c2dbdd3d75002696da8f0006e20005
+        experimental_pr: https://github.com/spikeal8-maker/asa-lab/pull/1340
+        historical_task: parallel_lanes.robotics.historical_editable_ramp_live_task
+        historical_checkpoint: parallel_lanes.robotics.editable_ramp_live_priority_checkpoint
+      disk_replay_receipt:
+        source: 1bc8d27869fbada6a1740dc9e4e5996e68c8d322
+        mode: Read-only replay of preserved R5 binary and JSONL on disk.
+        binary: {file: qualification.bin, bytes: 159423000, sha256: b791e3fe84a6ed043ff55a7a6b84466fbd22d22cba2d29b1fc40fb4280c63318}
+        jsonl: {file: qualification.jsonl, bytes: 279148, sha256: 3ade031c727a327ab9d82de4f09bd43ec51ea49600ded8cb3374dc7b4baa8735}
+        historical_intervals: 40180
+        replay_tests: {passed: 24, skipped: 1, total: 25}
+        new_native_steps: 0
+        limit: Recorded replay evidence only. The earlier R5 interpretation and all archived physical and causal
+          outcomes keep their original scope and status. The passive browser proof is pending.
+      ux_acceptance:
+      - Show a continuously present metric field with a visibly distinct finite ramp, true slope and solid profile.
+        Reuse the immutable pure geometry for plan, profile and the 3D wedge. Placement changes only the ramp
+        anchor; the field and any fixed reference geometry stay fixed.
+      - Use a real palette control with transient placement feedback that reflects the actual pointer and rendered
+        bounds. Place in Top and Perspective using the live camera projection to the floor. Side preserves an
+        explicit, displayed Y depth and derives horizontal X from its live X/Z camera; the vertical cursor cannot
+        change the floor height. Use the same ramp and editing state across view changes.
+      - Show width and rise in metres and angle in degrees. Derive the angle with atan2(H,L), keep the horizontal
+        run L fixed during angle edits and recompute rise with H=L*tan(theta). Reject invalid geometry and
+        out-of-footprint placement atomically. Clear transient drag state on cancellation or viewport exit.
+      constraints:
+      - Only the four listed TEST_ONLY files may be added. Read the existing pure geometry helper without changing
+        its bytes. Use the reviewed experimental source for reference. The historical seven stand files and guard
+        semantics remain preserved at their exact source. Do not import stand.ts, scene.ts or ramp.worker.ts into
+        the passive surface or weaken the legacy 4630 runner.
+      - The passive entry uses a reserved .invalid origin fulfilled entirely by a bounded in-process Playwright
+        route. Admit only its exact local test resources and record or reject other requests. No listening port,
+        service, API, account, database, Docker, 4630 startup, native assets, native module or Worker creation,
+        model initialization, native steps, or physical command route.
+      - No application routes, normal editor/catalogue, project/schema/persistence, runtime, platform/bridge,
+        dependency, deployment or test workflow changes. Preserve ROBOTICS-FIELD-CORE-D01-D02 at its original E1
+        binding and all historical evidence. Future normal persisted and physically traversable ramp work remains
+        subject to E2/E6/E7 dependencies and separate protected selection. This slice grants no owner acceptance,
+        deployment or release claim.
+      verification:
+        pure: Check finite geometry, dimensions and transformed footprint, fixed-run round trips and valid or
+          rejected edit and placement cases against the same immutable geometry contract.
+        browser: Run the new test-only Playwright entry by an in-process route. Record exact source/tree,
+          capabilities, Chromium revision, delivered request and resource counts, pane/canvas bounds, genuine
+          pointer events, camera and independent coordinate readback, one shared anchor and derived mesh,
+          before/after measurements, screenshots for all three views, and result hashes/sizes. Require width,
+          height and angle edits, Top/Perspective/Side native placement, invalid footprint and input, cancel and
+          viewport-exit cases with no hidden change. Prove no external connections, Worker or native resource
+          admissions, model initialization or steps. Preserve the legacy runner, its guarded tests and receipts.
+        gates: 'Registration: sole-path PLAN, control-plane, YAML format, full byte and semantic inverse,
+          pnpm validate:electronics-agent-docs and pnpm gate:governance. Source: scoped PLAN, focused pure gates,
+          exact portable browser receipts, and independent review on the exact candidate. Native verification and
+          owner installation remain pending.'
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      deployment: not_authorized
+      database_actions: not_authorized
+    historical_electronics_observer_task:
       id: TASK-ELECTRONICS-ROBOTICS-ELECTRONICS-OBSERVER-001
       issue: 1071
       branch: main
@@ -19086,6 +19187,23 @@ parallel_lanes:
       - docs/product/robotics/README.md
       deployment: not_authorized
       database_actions: isolated_ci_tests_only
+    electronics_observer_result:
+      scope: UI_ONLY
+      source: 2c21dedd8cea2188dd45433a186e88696d1501c6
+      source_tree: 2246e17217fb7b360eb9472778711fab62afea69
+      source_pr: https://github.com/spikeal8-maker/asa-lab/pull/1377
+      protected_merge: a98d0e30f07c4315edb2e2b0926cc7a241e3a886
+      required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/46071709936/job/140760075148
+      required_conclusion: SUCCESS
+      built_browser_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/46071709933/job/140750070990
+      built_browser_conclusion: SUCCESS
+      built_robotics_journeys: {passed: 6, total: 6}
+      artifact:
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/46071709933/artifacts/15233264278
+        bytes: 46162569
+        sha256: 896ea883d6ed100ecee0f39303fd0abb8c2a8a2589614e278fa900ffb6e12d83
+      scope_limit: Protected Electronics observer and existing Field, Robot, Circuit and publication browser
+        evidence. Owner stand and physical terrain/runtime acceptance remain open.
     historical_perspective_place_task:
       id: TASK-ELECTRONICS-ROBOTICS-PERSPECTIVE-PLACE-001
       issue: 1071
