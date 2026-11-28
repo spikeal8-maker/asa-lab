@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="data:," />
+    <title>Горка · Тестовое поле ASA Lab</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font:
+          15px/1.4 system-ui,
+          sans-serif;
+        color: #e9f0f8;
+        background: #101923;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 1380px;
+        margin: auto;
+        padding: 16px;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 4px 16px;
+        margin-bottom: 12px;
+      }
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: clamp(1.15rem, 3vw, 1.75rem);
+      }
+      h2 {
+        font-size: 1rem;
+      }
+      small {
+        color: #adc2d2;
+      }
+      button,
+      input {
+        font: inherit;
+        color: inherit;
+      }
+      button,
+      input {
+        min-height: 44px;
+        min-width: 44px;
+        border: 1px solid #4a6375;
+        border-radius: 6px;
+        padding: 6px 10px;
+        background: #203343;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover:not(:disabled),
+      button[aria-pressed='true'] {
+        background: #275466;
+        border-color: #73c9da;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      :focus-visible {
+        outline: 2px solid #a1e9f0;
+        outline-offset: 1px;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: 205px minmax(0, 1fr);
+        gap: 12px;
+      }
+      aside,
+      .field {
+        background: #182633;
+        border: 1px solid #364b5b;
+        border-radius: 8px;
+        min-width: 0;
+      }
+      aside {
+        display: grid;
+        align-content: start;
+        gap: 10px;
+        padding: 10px;
+      }
+      aside button {
+        width: 100%;
+        text-align: left;
+      }
+      aside button span {
+        color: #86d9df;
+        margin-right: 5px;
+      }
+      .dimensions {
+        display: grid;
+        gap: 8px;
+      }
+      label {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+      label input {
+        width: 100%;
+      }
+      .field {
+        display: grid;
+        grid-template-rows: auto minmax(360px, 1fr) auto;
+        min-height: 540px;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px;
+      }
+      .cameras {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .viewport {
+        position: relative;
+        min-width: 0;
+        background: #263b49;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+        outline-offset: -3px;
+      }
+      canvas[data-placement='armed'],
+      canvas[data-placement='preview'] {
+        cursor: crosshair;
+      }
+      canvas[data-placement='invalid'] {
+        cursor: not-allowed;
+      }
+      .readout {
+        padding: 8px;
+        border-top: 1px solid #364b5b;
+        color: #adc2d2;
+      }
+      [role='status'] {
+        color: #d8e9f3;
+        min-height: 1.4em;
+      }
+      [role='status'][data-invalid='true'] {
+        color: #ffc99e;
+      }
+      @media (max-width: 690px) {
+        main {
+          padding: 8px;
+        }
+        .workspace {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .dimensions {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .field {
+          min-height: 480px;
+          grid-template-rows: auto minmax(300px, 1fr) auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="ramp-passive-editor">
+      <header>
+        <h1>Горка</h1>
+        <small>Тестовое поле · геометрия и размещение</small>
+      </header>
+      <div class="workspace">
+        <aside aria-label="Объекты и параметры">
+          <h2>Объекты</h2>
+          <button
+            type="button"
+            id="ramp-palette"
+            data-testid="ramp-palette-card"
+            draggable="true"
+            aria-pressed="false"
+          >
+            <span aria-hidden="true">◢</span>Горка
+          </button>
+          <div class="dimensions">
+            <label
+              >Ширина, м<input
+                id="ramp-width"
+                aria-label="Ширина"
+                type="number"
+                inputmode="decimal"
+                step="0.001"
+            /></label>
+            <label
+              >Высота подъёма, м<input
+                id="ramp-rise"
+                aria-label="Высота подъёма"
+                type="number"
+                inputmode="decimal"
+                step="0.001"
+            /></label>
+            <label
+              >Угол наклона, °<input
+                id="ramp-angle"
+                aria-label="Угол наклона"
+                type="number"
+                inputmode="decimal"
+                step="0.01"
+            /></label>
+            <label
+              >Положение X, м<input
+                id="ramp-x"
+                aria-label="Положение X"
+                type="number"
+                inputmode="decimal"
+                step="0.001"
+            /></label>
+            <label
+              >Глубина Y, м<input
+                id="ramp-y"
+                aria-label="Глубина Y"
+                type="number"
+                inputmode="decimal"
+                step="0.001"
+            /></label>
+          </div>
+          <button type="button" id="ramp-confirm">Разместить горку</button>
+          <small>Горизонтальная длина 0,80 м</small>
+        </aside>
+        <section class="field" aria-label="Тестовое поле">
+          <div class="toolbar">
+            <div class="cameras" role="group" aria-label="Камера поля">
+              <button type="button" data-view-choice="top" aria-pressed="true">Сверху</button>
+              <button type="button" data-view-choice="orbit" aria-pressed="false">
+                Перспектива
+              </button>
+              <button type="button" data-view-choice="side" aria-pressed="false">Сбоку</button>
+            </div>
+            <small>2,40 × 1,60 м</small>
+          </div>
+          <div class="viewport">
+            <canvas
+              id="ramp-passive-canvas"
+              data-testid="ramp-passive-canvas"
+              tabindex="0"
+              aria-label="Полотно тестового поля"
+              aria-describedby="ramp-help"
+            ></canvas>
+          </div>
+          <div class="readout">
+            <p id="ramp-status" role="status"></p>
+            <small id="ramp-help"
+              >На поле: стрелки перемещают горку, Enter подтверждает, Esc отменяет.</small
+            >
+          </div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="./assets/passive.js"></script>
+  </body>
+</html>
