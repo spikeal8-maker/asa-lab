@@ -18992,6 +18992,156 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-PORTAL-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-002.md
     task:
+      id: TASK-ELECTRONICS-ROBOTICS-EDITED6-RAMP-DYNAMIC-PORTABLE-001
+      issue: 1071
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      program: ROBOTICS-FIELD-CORE-001
+      slice: E1-EDITED6-RAMP-DYNAMIC-PORTABLE
+      profile: TEST_ONLY
+      checkpoint: e1_test_only_edited6_ramp_dynamic_portable_selected
+      owner_acceptance: pending
+      owner_authorization: The owner asked for a real configurable ramp and an Arduino-driven rover that climbs
+        and tips a can. Select one portable, isolated edited-ramp comparison with actual drive and matched LOW
+        after the passive placement and native static geometry evidence. Source implementation begins after
+        protected canonical integration and fresh exact source preflight.
+      registration_baseline:
+        main: c63d19de69e63bcc9cb51e64ea35f3cabe600679
+        tree: 6d0f4463aa3d0ba4bfe21f4bbe266efb4a9369fc
+        preserved_task: parallel_lanes.robotics.historical_editable_ramp_native_static_task
+        native_static_result: parallel_lanes.robotics.editable_ramp_native_static_result
+        passive_result: parallel_lanes.robotics.editable_ramp_portable_passive_result
+        legacy_live_checkpoint: parallel_lanes.robotics.editable_ramp_live_priority_checkpoint
+      specification:
+        path: docs/product/robotics/FIELD_CORE_SPEC.md
+        sha256: 0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3
+        requirements:
+        - REQ-TERR-01
+        - REQ-TERR-02
+        - REQ-DEL-05
+      scope: One new controller and portable browser route use the read-only historical editable-ramp application
+        and its actual Worker to compare exactly two native edited6 worlds. Run powered then matched LOW from
+        the same authored initial scene. Preserve the accepted R5 electrical process, material, physics, test limits
+        and raw oracle. Keep the reported unresolved causal status distinct from measured physical outcomes.
+      planned_paths:
+      - tools/robotics-field-core/editable-ramp-dynamic-portable.mjs
+      - tests/robotics/field-core-qualification/editable-ramp-dynamic-portable.fixture.json
+      - tests/robotics/field-core-qualification/editable-ramp-dynamic-portable.spec.ts
+      conditional_paths:
+        tests/robotics/field-core-qualification/editable-ramp-dynamic-portable.spec.ts: Focused pure admission,
+          route, controller or offline receipt tests only.
+      immutable_runtime_sources:
+        historical_commit: 1bc8d27869fbada6a1740dc9e4e5996e68c8d322
+        historical_tree: 243cbd9fd6c2dbdd3d75002696da8f0006e20005
+        experimental_pr: https://github.com/spikeal8-maker/asa-lab/pull/1340
+        historical_root_relative: apps/web/src/robotics/testing/editable-ramp-live
+        files:
+        - {file: index.html, bytes: 16734, sha256: d41f6731f3a889c57918964319f639c5340b85b606d6a388851d4af518d4d1de}
+        - {file: stand.ts, bytes: 37244, sha256: fb5607d73b1a5a92915f2a05ee8fc8a1cbe2024e40784e387e098cad6a51aaa6}
+        - {file: ramp.worker.ts, bytes: 70284, sha256: abb324c2cf5a0ef48b301295f9a00070a99e054fc473435908738ca10f3961d0}
+        - {file: scene.ts, bytes: 62177, sha256: 5be9b8407fd8aafd27b64918d17ed3e4009eace16c315183dcbdf70c2a8fc280}
+        - {file: scene.fixture.json, bytes: 37563, sha256: 8f3d168218bba0cffc81f570abc3fdd692dbeab863237c5f60a3daabea18f142}
+        - {file: scene.spec.ts, bytes: 31863, sha256: 499c093ce6cde511eae3ae966a8e553af78f7de2aac08bcd0e58e335e1851907}
+        - {file: stand.browser.mjs, bytes: 77200, sha256: 3c34db5301ddf14bb21563597c4c130ecc28ab91cdecc9dd80adb3d7edb58eeb}
+        lock: {file: pnpm-lock.yaml, bytes: 320225, sha256: 339bb3e33f592b3cbdfa40afcfc83aea5c9e0dd97d2e27bb5834875f951b18e3}
+        geometry: {file: tests/robotics/field-core-qualification/editable-ramp-geometry.ts, sha256: 80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848}
+        build: Verify clean exact historical HEAD/tree and matching installed lock, then resolve Vite, the full
+          workspace import graph and runtime dependencies only from that historical tree. Record and verify all
+          bundled input identities and emitted files. Use the original historical entry and Worker with public
+          build defines for the historical build SHA and a fresh P-256 controller public JWK. Do not import or
+          execute the old stand.browser.mjs CLI, change historical files, install into that tree or link current
+          electronics or runtime sources into the old Worker. The new adapter and its guard remain current.
+      immutable_engine_and_r5:
+        engine_receipts: parallel_lanes.robotics.historical_e1_task.aot_worker_csp_result
+        native_static_engine_pins: parallel_lanes.robotics.historical_editable_ramp_native_static_task.engine_admission
+        live_r5_receipt: parallel_lanes.robotics.historical_e1_task.r5_browser_live_result
+        fixture_source: cb068c9baa9ff5ce2208ec3cbd7968962e8e3f42
+        fixture_path: tests/robotics/field-core-qualification/arduino-tt-rover-ramp-can.fixture.json
+        fixture: {file: r5.fixture.json, bytes: 25304, sha256: 6a1b46d96489db96e927f24cdbc59d497a11b864b36572287adc05fa51dcf07d}
+        r5_original_xml_sha256: acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0
+        edited6_xml_sha256: 1ee655c8017d4663535826baab43af8e9fdbe5fc26db72b28c5bb06f139a69b2
+        context_only_binary: {file: qualification.bin, bytes: 159423000, sha256: b791e3fe84a6ed043ff55a7a6b84466fbd22d22cba2d29b1fc40fb4280c63318}
+        context_only_jsonl: {file: qualification.jsonl, bytes: 279148, sha256: 3ade031c727a327ab9d82de4f09bd43ec51ea49600ded8cb3374dc7b4baa8735}
+        admission: Use the accepted MuJoCo 4.0.0 AOT artifact, same-object build and browser manifests, exact
+          glue/WASM/declarations and licence. Verify those bytes, fixture/program/model pins and compiler input
+          manifest, with independent exact-source HIGH and artifact HIGH, before a controller admits one new
+          portable acquisition. Historical R5 is context and offline replay only. The previous editable live
+          attempt stopped before dispatch with zero native steps. No earlier token or experiment is resumed.
+      edited_case:
+        id: edited6
+        geometry_m: {run: 0.8, width: 0.8, rise: 0.08408338821254119, base_thickness: 0.05, x: 0.02, y: 0}
+        slope_deg: 6
+        entry: Set the frozen numeric X, Y, width and angle through the historical UI and check the observed
+          parameter values and edited XML pin before native play. The accepted passive placement browser
+          receipt separately covers trusted pixel placement in three views. Do not substitute a drag or claim
+          deployment from this admission. Read actual native lower, slope and upper geometry, initial rover
+          and can data, and geometry clearance in both new worlds. Static sphere contact is another witness.
+      transport:
+        origin: https://asa-ramp-dynamic.invalid
+        boundary: Fulfill the exact HTTPS document, compiled script/Worker chunks and audited engine resources
+          entirely in-process with the existing AOT browser route/CSP pattern. Strictly bound exact URLs,
+          request kinds and MIME, record delivered bytes and deny external or unstaged traffic, service workers
+          and redirects. Worker gets the opted-in native CSP and exact engine bytes only in the admitted
+          context; keep the signature private key off-page, outside the served map. Preserve the Worker
+          signature, nonce, run/generation/case identity, stale-response and one-owner guards.
+        pre_dispatch: Run bounded pure checks and a separate passive bundle/route/UI proof before allowing
+          signed native permits. Prove the frozen edited inputs and zero native initialization, Model/Data
+          creation or steps at that stage, including no native assets served. Preserve failed pre-dispatch raw
+          status and the old UI-only test. Repeat only pure work as needed. Never rerun after native dispatch.
+      limits:
+        worlds: [edited6_powered, edited6_LOW]
+        max_model_attempts: 2
+        module_initializations: 1
+        max_concurrent_worlds: 1
+        horizon_us_per_world: 10000000
+        max_native_interval_us: 500
+        max_intervals_per_world: 22000
+        max_session_calls_per_world: 24000
+        max_clock_events_per_world: 256
+        max_native_contacts_per_interval: 132
+        max_native_contacts_per_world: 450000
+        max_native_constraint_rows_per_interval: 396
+        max_pair_raw_bytes: 253920000
+        max_pair_receipt_total_bytes: 263357184
+      verification:
+        pure: Verify source/bundle/asset pins, lock and transport/negative guards, exact two-case/exclusive
+          admission, numeric edit and no calibration or tolerance rewrite. Build and passive review precede
+          actual acquisition; ordinary protected CI does not execute native motion.
+        native: Capture actual powered and LOW Uno/common MNA/TT traces and native PRE, step1, signed interval
+          applied torque, step2, observed shaft response and accepted published commit. Verify same edited
+          initial conditions and exact new pair common 503-record prefix through 250003 microseconds, preserving
+          actual queue/event timing and final powered LOW edge at 4340082 microseconds. Require genuine finite
+          loaded four-wheel ramp and upper support windows of at least 100ms each, at least 0.06m native rise,
+          bounded slip, bumper contact and real can tip and side-support under the original oracle, and matched
+          LOW staying within its original travel and positive-work limits. Preserve original full signed energy
+          thresholds and GAP_CAUSAL_ALT. Retain the earliest failure and safe proof prefix if any criterion
+          fails, and all returned measurements and cleanup. Record exact source/tree, artifact/module/product
+          hashes, request/response ledger, model/dispatch counts, native warnings, raw bytes and digest.
+          Independently replay both retained worlds on the exact historical oracle and review raw proof.
+        gates: 'Registration: sole-path PLAN/control, YAML formatting, full byte and semantic inverse, actual
+          pnpm validate:electronics-agent-docs and pnpm gate:governance. Source: exact path PLAN, focused
+          pure and typed/style checks, exact build/passive receipt, protected exact-SHA CI and independent
+          source/artifact HIGH. A new bounded native acquisition needs a separately confirmed controller
+          admission and independent exact raw verdict. No rerun after any native dispatch.'
+      constraints:
+      - Only the listed new adapter and test paths are selected. Preserve all old seven files, raw bytes and
+        earlier source, registrations, guards and failures. No browser listener, external network, 4630 launch,
+        product route, dependency/lock change, engine build, server, Docker, API, user data, DB, deployment
+        or old opt-ins. The historical controller, Worker and old AOT artifacts remain immutable.
+      - Keep original ROBOTICS-FIELD-CORE-D01-D02 binding, E2/E6/E7 requirements and causal/calibration limits.
+        This comparison supplies evidence for one edited scene only. It does not authorize normal editable
+        terrain, new physics mode, E1 qualification closure, D01/D02 closure, hardware calibration, owner
+        acceptance, release claim or installation.
+      context_hints:
+      - docs/product/robotics/FIELD_CORE_SPEC.md
+      - docs/product/robotics/FIELD_CORE_START.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
+      deployment: not_authorized
+      database_actions: not_authorized
+    historical_editable_ramp_native_static_task:
       id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-NATIVE-STATIC-001
       issue: 1071
       branch: main
@@ -19105,6 +19255,26 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ROBOTICS-FIELD-CORE-E1-001.md
       deployment: not_authorized
       database_actions: not_authorized
+    editable_ramp_native_static_result:
+      scope: TEST_ONLY
+      source: d0f4abc2479c593cb8482c775940f01fbb81a679
+      source_tree: 6d0f4463aa3d0ba4bfe21f4bbe266efb4a9369fc
+      source_pr: https://github.com/spikeal8-maker/asa-lab/pull/1383
+      protected_merge: c63d19de69e63bcc9cb51e64ea35f3cabe600679
+      required_job: https://github.com/spikeal8-maker/asa-lab/actions/runs/46149611567/job/141002090407
+      required_conclusion: SUCCESS
+      local_exact_source:
+        focused_pure_passed: 4
+        isolated_native_passed: 1
+        receipt: {file: receipt.json, bytes: 19223, sha256: 0b5f123b913a40a7dd399c0eebecdbc4ad661ac71fe125db3409a514cb747b3e}
+        observed_max_vertex_error_m: 1.862e-8
+        baseline5: {native_contact_distance_m: -0.0005000001829891312, separated_control_gap_m: 0.020000000000000004}
+        edited6: {native_contact_distance_m: -0.0004999985150319214, separated_control_gap_m: 0.01999999999999999}
+        native_counts: {module: 1, models: 2, data: 2, forward: 2, steps: 0, created: 22, released: 22}
+        result: PASS
+      scope_limit: Matched compiled static ramp geometry and spatial contact/clearance for two diagnostic sphere
+        cases at unchanged model time. No enacted drive, wheel transition, can outcome, product integration
+        or D01/D02 closure. The motion pair remains pending.
     historical_editable_ramp_portable_passive_task:
       id: TASK-ELECTRONICS-ROBOTICS-EDITABLE-RAMP-PORTABLE-PASSIVE-001
       issue: 1071
