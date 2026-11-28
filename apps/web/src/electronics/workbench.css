@@ -6200,6 +6200,36 @@ html.arduino-palette-resizing * {
   }
 }
 
+.workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property {
+  min-height: 32px;
+  border-bottom: 1px solid #dbe2e7;
+}
+
+.workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property > span {
+  padding: 4px 6px;
+  background: transparent;
+  color: #263d4d;
+}
+
+.workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property > input {
+  justify-self: center;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.workbench-inspector .workbench-l298n-jumpers .workbench-component-note {
+  font-size: 12px;
+}
+
+@media (pointer: coarse) {
+  .workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property {
+    min-height: 44px;
+  }
+}
+
 .arduino-block-editor .blocklyFlyoutScrollbar {
   opacity: 1;
 }
