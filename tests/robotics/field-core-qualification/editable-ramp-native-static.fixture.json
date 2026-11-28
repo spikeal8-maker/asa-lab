@@ -1,0 +1,118 @@
+{
+  "id": "E1-EDITABLE-RAMP-NATIVE-STATIC-01",
+  "scope": "TEST_ONLY",
+  "specification": {
+    "path": "docs/product/robotics/FIELD_CORE_SPEC.md",
+    "sha256": "0724664b31fd6ae6934aab31ce531fbfac06e2aaa08e0661dd2fb2daaf728cc3"
+  },
+  "geometrySha256": "80d21f82acc576990b825b588adb539bcdd9aef7a784e45dab332eec177ff848",
+  "historicalFixture": {
+    "source": "1bc8d27869fbada6a1740dc9e4e5996e68c8d322",
+    "sha256": "8f3d168218bba0cffc81f570abc3fdd692dbeab863237c5f60a3daabea18f142",
+    "fullXmlReference": {
+      "baseline5": "acc67614d9a64117311867895679719ac1c9bd5031ee2e2718e7ad41d94673c0",
+      "edited6": "1ee655c8017d4663535826baab43af8e9fdbe5fc26db72b28c5bb06f139a69b2"
+    }
+  },
+  "engine": {
+    "version": "4.0.0",
+    "upstream": "ac60eae30fa7e0d31315c38d9476752fb81be67e",
+    "glue": {
+      "file": "mujoco.js",
+      "bytes": 331846,
+      "sha256": "9507aabcc8d80deea66e7f93053092a98857381f087ff0a7e19cefe412ccc1d8"
+    },
+    "wasm": {
+      "file": "mujoco.wasm",
+      "bytes": 11229000,
+      "sha256": "d2caf28d73afa997a2534ef0aa940587757c16797653bf476c22994bd2405241"
+    },
+    "declarations": {
+      "file": "mujoco.d.ts",
+      "bytes": 151568,
+      "sha256": "779287fbb2f116717d533055c737ecf3453e9007e9fea26453ff0464c2cb69ff"
+    },
+    "license": {
+      "file": "LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    "buildReceipt": {
+      "file": "build-receipt.json",
+      "bytes": 15869,
+      "sha256": "c065ffc9b16ccaa5ed4c9798f5f962fbfe2476526de016d158abdc2c669ea4e9"
+    },
+    "browserReceipt": {
+      "file": "browser-receipt.json",
+      "bytes": 449526,
+      "sha256": "70262f08f232705bbacf5050c095c6d35cf3f2a6bb0edb5bfc7ca12285b6b3b5"
+    }
+  },
+  "common": {
+    "run": 0.8,
+    "thickness": 0.05,
+    "y": 0,
+    "z": 0,
+    "heading": 0,
+    "radius": 0.05,
+    "support": {
+      "u": 0.35,
+      "v": 0,
+      "clearance": -0.0005
+    },
+    "separated": {
+      "u": 0.62,
+      "v": 0.18,
+      "clearance": 0.02
+    }
+  },
+  "tolerances": {
+    "vertexMeters": 0.000002,
+    "transform": 1e-12,
+    "state": 1e-12,
+    "normal": 0.00003,
+    "contactDistanceMeters": 0.00005,
+    "contactLocationMeters": 0.002
+  },
+  "limits": {
+    "worlds": 2,
+    "concurrentWorlds": 1,
+    "forwardCallsPerWorld": 1,
+    "nativeSteps": 0,
+    "maxContacts": 4,
+    "maxReceiptBytes": 131072,
+    "maxAdmissionBytes": 8192,
+    "maxGuardAgeMs": 1800000,
+    "maxStderrBytes": 16384
+  },
+  "cases": [
+    {
+      "id": "baseline5",
+      "angleDegrees": 5,
+      "width": 1,
+      "rise": 0.0699909308207392,
+      "x": 0,
+      "oracle": {
+        "normal": [-0.08715574274765818, 0, 0.9961946980917455],
+        "supportCenter": [0.3456857907339909, 0, 0.0799326697896148],
+        "supportPoint": [0.35, 0, 0.0306210322340734],
+        "separatedCenter": [0.613899098007664, 0.18, 0.12397660025249507]
+      },
+      "staticXmlSha256": "7eda7adedae34bcca8eed32a73851db50a1b58073f298a7e67b10fd43c000562"
+    },
+    {
+      "id": "edited6",
+      "angleDegrees": 6,
+      "width": 0.8,
+      "rise": 0.08408338821254119,
+      "x": 0.02,
+      "oracle": {
+        "normal": [-0.10452846326765348, 0, 0.9945218953682733],
+        "supportCenter": [0.36482584106825117, 0, 0.0860153161637163],
+        "supportPoint": [0.37, 0, 0.036786482342986766],
+        "separatedCenter": [0.6326830075712643, 0.18, 0.13478115854049855]
+      },
+      "staticXmlSha256": "b153d7a7b9833604b1df99c0907ba16fee14e1aebc9d63894a32e9ea3ff99caf"
+    }
+  ]
+}
