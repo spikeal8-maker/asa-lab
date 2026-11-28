@@ -6200,18 +6200,18 @@ html.arduino-palette-resizing * {
   }
 }
 
-.workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property {
+.workbench-inspector .workbench-l298n-jumpers label.workbench-toggle-property {
   min-height: 32px;
   border-bottom: 1px solid #dbe2e7;
 }
 
-.workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property > span {
+.workbench-inspector .workbench-l298n-jumpers label.workbench-toggle-property > span {
   padding: 4px 6px;
   background: transparent;
   color: #263d4d;
 }
 
-.workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property > input {
+.workbench-inspector .workbench-l298n-jumpers label.workbench-toggle-property > input {
   justify-self: center;
   width: 18px;
   height: 18px;
@@ -6225,7 +6225,7 @@ html.arduino-palette-resizing * {
 }
 
 @media (pointer: coarse) {
-  .workbench-inspector .workbench-l298n-jumpers .workbench-toggle-property {
+  .workbench-inspector .workbench-l298n-jumpers label.workbench-toggle-property {
     min-height: 44px;
   }
 }

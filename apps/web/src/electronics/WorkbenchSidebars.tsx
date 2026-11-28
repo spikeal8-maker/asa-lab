@@ -1106,13 +1106,13 @@ export function WorkbenchInspector({
                     5V_EN работает при 7–12 В на +12V (VS). С батареей 6 В снимите 5V_EN, подайте
                     отдельные 5 В на +5V и соедините GND.
                   </p>
-                  <p className="workbench-component-note" data-testid="l298n-supply-status">
-                    {c.simulationRunning && measurement
-                      ? measurement.lit === true
+                  {c.simulationRunning && measurement ? (
+                    <p className="workbench-component-note" data-testid="l298n-supply-status">
+                      {measurement.lit === true
                         ? 'Логика 5 В: питание есть'
-                        : 'Логика 5 В: питания нет'
-                      : 'Индикатор показывает питание логики только при моделировании.'}
-                  </p>
+                        : 'Логика 5 В: питания нет'}
+                    </p>
+                  ) : null}
                 </fieldset>
               ) : null}
               {selectedIsPiezo ? (
