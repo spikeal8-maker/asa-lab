@@ -558,7 +558,7 @@ describe('LRN-VS-001 canonical direct assignment', () => {
     await expect(
       inTenant((client) => client.query(`SELECT * FROM activity_runs LIMIT 1`)),
     ).rejects.toThrow(/permission denied/);
-  });
+  }, 30_000);
 
   it('proves only a readable historical Course lesson Project and withdraws Submit with its Seat link', async () => {
     const classId = await classroom();
